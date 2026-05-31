@@ -393,7 +393,10 @@ namespace SPIXI.Meta
                 {
                     try
                     {
-                        HomePage.Instance()?.OnUpdateUI();
+                        if (running)
+                        {
+                            HomePage.Instance()?.OnUpdateUI();
+                        }
                     }
                     catch (Exception e)
                     {
@@ -751,7 +754,8 @@ namespace SPIXI.Meta
 
         public static FriendMessage? addMessageWithType(FriendMessageType type, Address wallet_address, int channel, ChatStreamMessage chat_stream_message, bool local_sender = false, Address? sender_address = null, long timestamp = 0, bool fire_local_notification = true, bool alert = true, int payable_data_len = 0)
         {
-            FriendMessage? friend_message = FriendList.addMessageWithType(type, wallet_address, channel, chat_stream_message, local_sender, sender_address, timestamp, fire_local_notification, payable_data_len);
+            var friend_message_with_status = FriendList.addMessageWithType(type, wallet_address, channel, chat_stream_message, local_sender, sender_address, timestamp, fire_local_notification, payable_data_len);
+            var friend_message = friend_message_with_status.message;
             if (friend_message != null)
             {
                 bool oldMessage = false;
@@ -772,7 +776,14 @@ namespace SPIXI.Meta
                 // If a chat page is visible, insert the message directly
                 if (UIHelpers.isChatScreenDisplayed(friend))
                 {
-                    UIHelpers.insertMessage(friend, channel, friend_message);
+                    if (friend_message_with_status.updated)
+                    {
+                        UIHelpers.updateMessage(friend, channel, friend_message);
+                    }
+                    else
+                    {
+                        UIHelpers.insertMessage(friend, channel, friend_message);
+                    }
                 }
                 else if (!friend_message.read)
                 {

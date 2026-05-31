@@ -411,6 +411,10 @@ namespace SPIXI.VoIP
             {
 
             }
+            catch (Exception e)
+            {
+                Logging.error("Exception occured in lastPacketReceivedCheck: " + e);
+            }
             finally
             {
                 lock (lastPacketReceivedLock)

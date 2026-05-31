@@ -1503,6 +1503,8 @@ namespace SPIXI
             }
             if (!message.read && !message.localSender && App.isInForeground && message.type != FriendMessageType.requestAdd)
             {
+                message.sent = true;
+                message.confirmed = true;
                 message.read = true;
 
                 IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, channel);
@@ -1529,6 +1531,8 @@ namespace SPIXI
             {
                 if (!friend.metaData.lastMessage.read && !friend.metaData.lastMessage.localSender && App.isInForeground)
                 {
+                    friend.metaData.lastMessage.sent = true;
+                    friend.metaData.lastMessage.confirmed = true;
                     friend.metaData.lastMessage.read = true;
                     friend.saveMetaData();
                 }

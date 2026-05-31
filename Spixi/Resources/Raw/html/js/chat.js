@@ -21,19 +21,16 @@ const chatBarEl = document.getElementById("chatbar");
 const wrapEl = document.getElementById("wrap");
 
 // Mobile long press
+var longPressTriggered = false;
 var longPressTimer = 0;
 
 function onChatScreenLoad() {
 
     if (SL_Platform == "Xamarin-WPF") {
+        if (!document.body.className.includes("desktop")) {
+            document.body.className += " desktop";
+        }
         document.getElementById("chat_input").focus();
-        messagesEl.oncontextmenu = function (e) {
-            hideContextMenus();
-            displayContextMenu(e);
-            e.stopPropagation();
-            e.preventDefault();
-            return false;
-        };
     } else {
         messagesEl.ondblclick = function (e) {
             hideContextMenus();
@@ -44,53 +41,59 @@ function onChatScreenLoad() {
         };
     }
 
-    messagesEl.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-    });
+    if (SL_Platform == "Xamarin-iOS") {
+        messagesEl.addEventListener("touchstart", function (e) {
+            var msgEl = null;
+            for (var tmpEl = e.target; tmpEl != null && tmpEl != messagesEl; tmpEl = tmpEl.parentNode) {
+                msgEl = tmpEl;
+            }
 
-    messagesEl.addEventListener("touchstart", function (e) {
+            if (msgEl == null) {
+                return;
+            }
 
-        var msgEl = null;
-        for (var tmpEl = e.target; tmpEl != null && tmpEl != messagesEl; tmpEl = tmpEl.parentNode) {
-            msgEl = tmpEl;
-        }
+            longPressTimer = setTimeout(function () {
+                longPressTriggered = true;
 
-        if (msgEl == null) {
-            return;
-        }
+                hideContextMenus();
 
-        longPressTimer = setTimeout(function () {
+                // Use first touch point for coordinates
+                const touch = e.touches[0];
 
-            hideContextMenus();
+                // Create a fake mouse event-like object
+                const simulatedEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    target: e.target,
+                    preventDefault: () => { },
+                    stopPropagation: () => { }
+                };
 
-            // Use first touch point for coordinates
-            const touch = e.touches[0];
+                displayContextMenu(simulatedEvent);
 
-            // Create a fake mouse event-like object
-            const simulatedEvent = {
-                clientX: touch.clientX,
-                clientY: touch.clientY,
-                target: e.target,
-                preventDefault: () => { },
-                stopPropagation: () => { }
-            };
+            }, 500); // long press duration in ms
+        });
 
-            displayContextMenu(simulatedEvent);
+        messagesEl.addEventListener("touchend", function (e) {
+            clearTimeout(longPressTimer);
+            if (longPressTriggered) {
+                e.stopPropagation();
+                e.preventDefault();
+                return false;
+            }
+        });
 
-        }, 500); // long press duration in ms
-
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-    });
-
-    messagesEl.addEventListener("touchend", function (e) {
-        clearTimeout(longPressTimer);
-    });
-
-    messagesEl.addEventListener("touchmove", function () {
-        clearTimeout(longPressTimer);
-    });
+        messagesEl.addEventListener("touchmove", function () {
+            clearTimeout(longPressTimer);
+        });
+    } else {
+        messagesEl.addEventListener('contextmenu', (e) => {
+            displayContextMenu(e);
+            e.stopPropagation();
+            e.preventDefault();
+            return false;
+        });
+    }
 
     messagesEl.addEventListener("click", function (e) {
         hideAttachBar();
@@ -572,8 +575,8 @@ function deleteMessage(id) {
 }
 
 function linkify(text) {
-    text = text.replace(/((http:\/\/|https:\/\/|ftp:\/\/|www\.)[^'"\,\s]+[^\.])/g, function () {
-        if (text.match(/^https:\/\/[A-Za-z0-9]+\.(tenor|giphy)\.com\/[A-Za-z0-9_\/=%\?\-\.\&]+$/)) {
+    text = text.replace(/((http:\/\/|https:\/\/|ftp:\/\/|www\.)[^'"\,\s]+[^\.])/gi, function () {
+        if (text.match(/^https:\/\/[A-Za-z0-9]+\.(tenor|giphy)\.com\/[A-Za-z0-9_\/=%\?\-\.\&]+$/i)) {
             // Giphy/Tenor image
             return "<img src=\"" + escapeParameter(arguments[0]) + "\"/>";
         }
@@ -1398,11 +1401,7 @@ function clearApps(showMore) {
 
 
 function displayContextMenu(e) {
-    var contextMenuEl = document.getElementById("ContextMenu");
-    if (contextMenuEl != null) {
-        contextMenuEl.parentNode.removeChild(contextMenuEl);
-    }
-
+    hideContextMenu();
 
     var msgEl = null;
     for (var tmpEl = e.target; tmpEl != messagesEl; tmpEl = tmpEl.parentNode) {
@@ -1446,11 +1445,13 @@ function displayContextMenu(e) {
         menuHtml += "<div onclick=\"contextAction('deleteMessage', '" + msgEl.id + "');\"><span class=\"icon\"><i class=\"fa fa-trash-alt\"></i></span> " + SL_ContextMenu["deleteMessage"] + "</div>";
     }
 
-    contextMenuEl = document.createElement("div");
+    var contextMenuEl = document.createElement("div");
     contextMenuEl.id = "ContextMenu";
     contextMenuEl.className = "chat-context-menu noselect";
     contextMenuEl.onclick = function (e) {
+        hideContextMenus();
         e.stopPropagation();
+        e.preventDefault();
         return false;
     };
     contextMenuEl.onmousedown = function (e) {
@@ -1509,9 +1510,16 @@ function contextAction(action, msgId) {
     msgId = msgId.substring(4);
     contextActionMsgId = msgId;
     if (action == "copy") {
-        window.getSelection().selectAllChildren(document.getElementById("msg_" + msgId).getElementsByClassName("text")[0]);
-        document.execCommand('copy');
-        window.getSelection().removeAllRanges();
+        var target = document.getElementById("msg_" + msgId);
+        var targetClassName = target.className;
+        target.className = targetClassName + " selected";
+        try {
+            window.getSelection().selectAllChildren(target.getElementsByClassName("text")[0]);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+        } catch (e) {
+        }
+        target.className = targetClassName;
     } else if (action == "copySelected") {
         document.execCommand('copy');
     } else if (action == "tip") {

@@ -7,13 +7,38 @@ namespace SPIXI
 {
     public static class UIHelpers
     {
-        public static bool shouldRefreshContacts = true;
+        private static bool _shouldRefreshContacts = false;
+        public static bool shouldRefreshContacts
+        {
+            get
+            {
+                return _shouldRefreshContacts;
+            }
+            set
+            {
+                if (value)
+                {
+                    _shouldRefreshContacts = true;
+                    Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+                    if (page != null && page is HomePage)
+                    {
+                        ((HomePage)page).loadChats();
+                        ((HomePage)page).loadContacts();
+                    }
+                }
+                else
+                {
+                    _shouldRefreshContacts = false;
+                }
+            }
+        }
         public static bool shouldRefreshTransactions = false;
         public static bool shouldRefreshApps = false;
         public static bool refreshAppRequests = true;
+
         public static void setContactStatus(Address address, bool online, int unread, string excerpt, long timestamp)
         {
-            Page page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).setContactStatus(address, online, unread, excerpt, timestamp);

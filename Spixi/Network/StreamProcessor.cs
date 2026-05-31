@@ -397,7 +397,7 @@ namespace SPIXI
                         Node.addMessageWithType(message.id, FriendMessageType.standard, sender_address, spixi_message.channel, Encoding.UTF8.GetString(spixi_message.data), false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
                         if (friend != null && !friend.bot)
                         {
-                            sendReceivedConfirmation(friend, sender_address, message.id, channel);
+                            sendReceivedConfirmation(friend, message.id, channel);
                         }
                         break;
 
@@ -405,20 +405,27 @@ namespace SPIXI
                         {
                             var csm = new ChatStreamMessage(spixi_message.data);
                             var fm = Node.addMessageWithType(FriendMessageType.standard, sender_address, spixi_message.channel, csm, false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
-                            if (fm == null)
-                            {
-                                fm = friend.getMessage(spixi_message.channel, csm.MessageId);
-                                if (fm == null
-                                    || fm.sequence >= csm.Sequence)
-                                {
-                                    // already have this message or a newer one, ignore
-                                    sendReceivedConfirmation(friend, sender_address, message.id, channel);
-                                    return null;
-                                }
-                            }
                             if (friend != null && !friend.bot)
                             {
-                                sendReceivedConfirmation(friend, sender_address, message.id, channel);
+                                if (fm == null)
+                                {
+                                    fm = friend.getMessage(spixi_message.channel, csm.MessageId);
+                                    if (fm != null)
+                                    {
+                                        if (fm.sequence >= csm.Sequence)
+                                        {
+                                            // already have this message or a newer one, ignore
+                                            sendReceivedConfirmation(friend, message.id, channel);
+                                            return null;
+                                        }
+                                        else
+                                        {
+                                            // message is newer than what we have, with a sequence gap, wait for missing messages
+                                            return null;
+                                        }
+                                    }
+                                }
+                                sendReceivedConfirmation(friend, message.id, channel);
                             }
                         }
                         break;

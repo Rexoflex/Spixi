@@ -27,16 +27,18 @@ using System.Web;
 namespace SPIXI
 {
     [XamlCompilation(XamlCompilationOptions.Compile)]
-	public partial class HomePage : SpixiContentPage
-	{
+    public partial class HomePage : SpixiContentPage
+    {
         private static HomePage? _singletonInstance;
 
         private SpixiContentPage? detailContent = null;
         private SpixiContentPage defaultDetailContent = new EmptyDetail();
 
+        private object refreshLock = new object();
+
         public static HomePage Instance(bool force_new = false)
         {
-            if(force_new)
+            if (force_new)
             {
                 if (_singletonInstance != null)
                 {
@@ -77,7 +79,7 @@ namespace SPIXI
             public long timestamp;
         }
         private static List<contactStatusCacheItem> contactStatusCache = new List<contactStatusCacheItem>();
-        private HomePage ()
+        private HomePage()
         {
             Node.preStart();
 
@@ -179,7 +181,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:quickscan", StringComparison.Ordinal))
             {
-                quickScan(); 
+                quickScan();
                 e.Cancel = true;
                 return;
             }
@@ -353,7 +355,7 @@ namespace SPIXI
             else if (current_url.Equals("ixian:copy", StringComparison.Ordinal))
             {
             }
-            else if(current_url.StartsWith("ixian:sendLog"))
+            else if (current_url.StartsWith("ixian:sendLog"))
             {
                 // TODO perhaps move this whole functionality to Logging class and delete spixi.log.zip on start if exists
 
@@ -372,7 +374,7 @@ namespace SPIXI
                 using (ZipArchive archive = ZipFile.Open(Path.Combine(Config.spixiUserFolder, "spixi.log.zip"), ZipArchiveMode.Create))
                 {
                     archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, "ixian.log.tmp"), "ixian.log");
-                    if(File.Exists(Path.Combine(Config.spixiUserFolder, "ixian.0.log")))
+                    if (File.Exists(Path.Combine(Config.spixiUserFolder, "ixian.0.log")))
                     {
                         archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, "ixian.0.log"), "ixian.0.log");
                     }
@@ -385,11 +387,11 @@ namespace SPIXI
 
                 SFileOperations.share(Path.Combine(Config.spixiUserFolder, "spixi.log.zip"), "Share Spixi Log File");
             }
-            else if(current_url.StartsWith("ixian:onboardingComplete"))
+            else if (current_url.StartsWith("ixian:onboardingComplete"))
             {
                 completeOnboard();
             }
-            else if(current_url.StartsWith("ixian:joinBot"))
+            else if (current_url.StartsWith("ixian:joinBot"))
             {
                 joinBot();
             }
@@ -485,7 +487,7 @@ namespace SPIXI
         }
         private void HandleScanSucceeded(object sender, SPIXI.EventArgs<string> e)
         {
-            processQRResult(e.Value);       
+            processQRResult(e.Value);
         }
 
         public void processQRResult(string result)
@@ -501,7 +503,8 @@ namespace SPIXI
                 {
                     ExtendedAddress wallet_to_send = new ExtendedAddress(split[0]);
                     Navigation.PushAsync(new WalletSendPage(wallet_to_send), Config.defaultXamarinAnimations);
-                }catch(Exception ex)
+                }
+                catch (Exception ex)
                 {
                     Logging.error("Invalid address format: " + ex.Message);
                 }
@@ -525,7 +528,7 @@ namespace SPIXI
             recipientPage.pickSucceeded += (sender, e) =>
             {
                 HandlePickSucceeded(sender, e);
-            }; 
+            };
             Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
         }
 
@@ -544,7 +547,7 @@ namespace SPIXI
 
             bool hideParticipantAddresses = blindMode;
             Address address = addresses.First().RoutingAddress;
-            
+
             if (addresses.Count > 1)
             {
                 // group
@@ -632,7 +635,7 @@ namespace SPIXI
                     removePage(page);
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Logging.error("Exception occured while setting HomePage as root: {0}", e);
             }
@@ -642,7 +645,7 @@ namespace SPIXI
             // Join official groupchat if specified
             if (e.Value)
                 joinBot();
-            
+
             completeOnboard();
             Navigation.PopModalAsync();
         }
@@ -677,7 +680,7 @@ namespace SPIXI
                 updateScreen();
                 webView.FadeTo(1, 150);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Logging.error("Exception occured in updateScreen call from onLoaded: {0}", ex);
             }
@@ -825,177 +828,26 @@ namespace SPIXI
         // TODO: optimize this
         public void loadContacts()
         {
-            // Clear everything
-            Utils.sendUiCommand(this, "clearContacts");
-
-            // Add contacts one-by-one
-            foreach(Friend friend in FriendList.friends)
-            {
-                string str_online = "false";
-                if (friend.online)
-                    str_online = "true";
-
-                string avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
-                if (avatar == null)
-                {
-                    avatar = "img/spixiavatar.png";
-
-                    if (friend.type == FriendType.Group)
-                    {
-                        avatar = "img/spixi-group-avatar.png";
-                    }
-                }
-
-                Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString());
-            }
-        }
-
-        public void loadChats()
-        {
             List<Friend> friends;
-            lock(FriendList.friends)
+            lock (FriendList.friends)
             {
                 friends = new List<Friend>(FriendList.friends);
             }
-            // Check if there are any changes from last time first
-            int unread = 0;
-            foreach (Friend friend in friends)
+
+            lock (refreshLock)
             {
-                int umc = friend.getUnreadMessageCount();
-                if(umc > 0)
-                {
-                    unread += umc;
-                }
-            }
+                // Clear everything
+                Utils.sendUiCommand(this, "clearContacts");
 
-            if(unread > 0)
-            {
-                Utils.sendUiCommand(this, "setUnreadIndicator", unread.ToString());
-            }else
-            {
-                Utils.sendUiCommand(this, "setUnreadIndicator", "0");
-            }
-
-            Utils.sendUiCommand(this, "clearChats");
-            //Utils.sendUiCommand(webView, "clearUnreadActivity");
-
-            // Prepare a list of message helpers, to facilitate sorting and communication with the UI
-            List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
-
-            foreach (Friend friend in friends)
-            {
-                if(friend.pendingDeletion)
-                {
-                    continue;
-                }
-
-                FriendMessage? lastmsg = friend.metaData.lastMessage;
-                
-                if (lastmsg != null)
+                // Add contacts one-by-one
+                foreach (Friend friend in friends)
                 {
                     string str_online = "false";
                     if (friend.online)
                         str_online = "true";
 
-                    if (lastmsg.localSender
-                        && !lastmsg.sent
-                        && !lastmsg.confirmed)
-                    {
-                        var msgs = friend.getMessages(friend.metaData.lastMessageChannel);
-                        var msg = friend.getMessage(friend.metaData.lastMessageChannel, lastmsg.id);
-                        if (msg != null)
-                        {
-                            if (msg.sent != lastmsg.sent
-                                || msg.confirmed)
-                            {
-                                lastmsg = msg;
-                                friend.metaData.setLastMessage(msg, friend.metaData.lastMessageChannel);
-                                friend.saveMetaData();
-                            }
-                        }
-                        else if (msgs == null
-                                 || msgs.Count == 0)
-                        {
-                            lastmsg.sent = true;
-                            friend.metaData.unreadMessageCount = 0;
-                            friend.saveMetaData();
-                            continue;
-                        }
-                    }
-
-                    // Generate the excerpt depending on message type
-                    string excerpt = lastmsg.message;
-
-                    if (friend.state != FriendState.Approved)
-                    {
-                        if (friend.bot == false)
-                        {
-                            excerpt = SpixiLocalization._SL("chat-waiting-for-response");
-                        }
-                    }
-                    else
-                    {
-                        if (lastmsg.type == FriendMessageType.requestFunds)
-                        {
-                            if (lastmsg.localSender)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-payment-request-sent");
-                            }
-                            else
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-payment-request-received");
-                            }
-                        }
-                        else if (lastmsg.type == FriendMessageType.sentFunds)
-                        {
-                            if (lastmsg.localSender)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-payment-sent");
-                            }
-                            else
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-payment-received");
-                            }
-                        }
-                        else if (lastmsg.type == FriendMessageType.appSession)
-                        {
-                            if (lastmsg.localSender)
-                            {
-                                excerpt = SpixiLocalization._SL("chat-app-invite-sent");
-                            }
-                            else
-                            {
-                                excerpt = SpixiLocalization._SL("chat-app-invite-received");
-                            }
-                        }
-                        else if (lastmsg.type == FriendMessageType.requestAdd)
-                        {
-                            if (friend.approved)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-contact-accepted");
-                            }
-                            else
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-contact-request");
-                            }
-                        }
-                        else if (lastmsg.type == FriendMessageType.fileHeader)
-                        {
-                            excerpt = SpixiLocalization._SL("index-excerpt-file");
-                        }
-                        else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
-                        {
-                            excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
-                        }
-
-                        if (lastmsg.localSender)
-                        {
-                            excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
-                        }
-                    }
-
                     string avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
-                    if(avatar == null)
+                    if (avatar == null)
                     {
                         avatar = "img/spixiavatar.png";
 
@@ -1005,57 +857,225 @@ namespace SPIXI
                         }
                     }
 
-                    string type = "";
+                    Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString());
+                }
+            }
+        }
 
-                    if (friend.isTyping)
+        public void loadChats()
+        {
+            List<Friend> friends;
+            lock (FriendList.friends)
+            {
+                friends = new List<Friend>(FriendList.friends);
+            }
+
+            lock (refreshLock)
+            {
+                // Check if there are any changes from last time first
+                int unread = 0;
+                foreach (Friend friend in friends)
+                {
+                    int umc = friend.getUnreadMessageCount();
+                    if (umc > 0)
                     {
-                        excerpt = SpixiLocalization._SL("index-excerpt-typing");
-                        type = "typing";
+                        unread += umc;
                     }
-                    else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
+                }
+
+                if (unread > 0)
+                {
+                    Utils.sendUiCommand(this, "setUnreadIndicator", unread.ToString());
+                }
+                else
+                {
+                    Utils.sendUiCommand(this, "setUnreadIndicator", "0");
+                }
+
+                Utils.sendUiCommand(this, "clearChats");
+                //Utils.sendUiCommand(webView, "clearUnreadActivity");
+
+                // Prepare a list of message helpers, to facilitate sorting and communication with the UI
+                List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
+
+                foreach (Friend friend in friends)
+                {
+                    if (friend.pendingDeletion)
                     {
-                        if (lastmsg.read)
+                        continue;
+                    }
+
+                    FriendMessage? lastmsg = friend.metaData.lastMessage;
+
+                    if (lastmsg != null)
+                    {
+                        string str_online = "false";
+                        if (friend.online)
+                            str_online = "true";
+
+                        if (lastmsg.localSender
+                            && !lastmsg.sent
+                            && !lastmsg.confirmed)
                         {
-                            type = "read";
+                            var msgs = friend.getMessages(friend.metaData.lastMessageChannel);
+                            var msg = friend.getMessage(friend.metaData.lastMessageChannel, lastmsg.id);
+                            if (msg != null)
+                            {
+                                if (msg.sent != lastmsg.sent
+                                    || msg.confirmed)
+                                {
+                                    lastmsg = msg;
+                                    friend.metaData.setLastMessage(msg, friend.metaData.lastMessageChannel);
+                                    friend.saveMetaData();
+                                }
+                            }
+                            else if (msgs == null
+                                     || msgs.Count == 0)
+                            {
+                                if (friend.metaData.unreadMessageCount != 0)
+                                {
+                                    lastmsg.sent = true;
+                                    friend.metaData.unreadMessageCount = 0;
+                                    friend.saveMetaData();
+                                }
+                                continue;
+                            }
                         }
-                        else if (lastmsg.confirmed)
+
+                        // Generate the excerpt depending on message type
+                        string excerpt = lastmsg.message;
+
+                        if (friend.state != FriendState.Approved)
                         {
-                            type = "confirmed";
-                        }
-                        else if (lastmsg.sent)
-                        {
-                            type = "pending";
+                            if (friend.bot == false)
+                            {
+                                excerpt = SpixiLocalization._SL("chat-waiting-for-response");
+                            }
                         }
                         else
                         {
-                            type = "default";
+                            if (lastmsg.type == FriendMessageType.requestFunds)
+                            {
+                                if (lastmsg.localSender)
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-request-sent");
+                                }
+                                else
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-request-received");
+                                }
+                            }
+                            else if (lastmsg.type == FriendMessageType.sentFunds)
+                            {
+                                if (lastmsg.localSender)
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-sent");
+                                }
+                                else
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-received");
+                                }
+                            }
+                            else if (lastmsg.type == FriendMessageType.appSession)
+                            {
+                                if (lastmsg.localSender)
+                                {
+                                    excerpt = SpixiLocalization._SL("chat-app-invite-sent");
+                                }
+                                else
+                                {
+                                    excerpt = SpixiLocalization._SL("chat-app-invite-received");
+                                }
+                            }
+                            else if (lastmsg.type == FriendMessageType.requestAdd)
+                            {
+                                if (friend.approved)
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-contact-accepted");
+                                }
+                                else
+                                {
+                                    excerpt = SpixiLocalization._SL("index-excerpt-contact-request");
+                                }
+                            }
+                            else if (lastmsg.type == FriendMessageType.fileHeader)
+                            {
+                                excerpt = SpixiLocalization._SL("index-excerpt-file");
+                            }
+                            else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
+                            {
+                                excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
+                            }
+
+                            if (lastmsg.localSender)
+                            {
+                                excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
+                            }
                         }
+
+                        string avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
+                        if (avatar == null)
+                        {
+                            avatar = "img/spixiavatar.png";
+
+                            if (friend.type == FriendType.Group)
+                            {
+                                avatar = "img/spixi-group-avatar.png";
+                            }
+                        }
+
+                        string type = "";
+
+                        if (friend.isTyping)
+                        {
+                            excerpt = SpixiLocalization._SL("index-excerpt-typing");
+                            type = "typing";
+                        }
+                        else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
+                        {
+                            if (lastmsg.read)
+                            {
+                                type = "read";
+                            }
+                            else if (lastmsg.confirmed)
+                            {
+                                type = "confirmed";
+                            }
+                            else if (lastmsg.sent)
+                            {
+                                type = "pending";
+                            }
+                            else
+                            {
+                                type = "default";
+                            }
+                        }
+
+                        FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.getUnreadMessageCount());
+                        helper_msgs.Add(helper_msg);
                     }
-
-                    FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.getUnreadMessageCount());
-                    helper_msgs.Add(helper_msg);
                 }
-            }
 
-            // Sort the helper messages
-            List<FriendMessageHelper> sorted_msgs = helper_msgs.OrderByDescending(x => x.timestamp).ToList();
+                // Sort the helper messages
+                List<FriendMessageHelper> sorted_msgs = helper_msgs.OrderByDescending(x => x.timestamp).ToList();
 
-            // Add the messages visually
-            foreach(FriendMessageHelper helper_msg in sorted_msgs)
-            {
-                if(helper_msg.unreadCount > 0)
+                // Add the messages visually
+                foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    Utils.sendUiCommand(this, "addUnreadActivity", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt);
+                    if (helper_msg.unreadCount > 0)
+                    {
+                        Utils.sendUiCommand(this, "addUnreadActivity", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt);
 
+                    }
+                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString());
                 }
-                Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString());
+
+                // Clear the lists so they will be collected by the GC
+                helper_msgs = null;
+                sorted_msgs = null;
+
+                Utils.sendUiCommand(this, "clearChatsDone");
             }
-
-            // Clear the lists so they will be collected by the GC
-            helper_msgs = null;
-            sorted_msgs = null;
-
-            Utils.sendUiCommand(this, "clearChatsDone");
         }
 
         public static IxiNumber calculateReceivedAmount(Transaction tx)
@@ -1073,7 +1093,7 @@ namespace SPIXI
 
         public void filterTransactions(string filter)
         {
-            switch(filter)
+            switch (filter)
             {
 
                 case "sent":
@@ -1098,7 +1118,7 @@ namespace SPIXI
         }
         public string filterToString(int filter)
         {
-            switch(filter)
+            switch (filter)
             {
                 case 1:
                     return "sent";
@@ -1112,7 +1132,7 @@ namespace SPIXI
 
         public void loadTransactions(bool forceRefresh)
         {
-            if(!forceRefresh && !UIHelpers.shouldRefreshTransactions)
+            if (!forceRefresh && !UIHelpers.shouldRefreshTransactions)
             {
                 return;
             }
@@ -1362,7 +1382,7 @@ namespace SPIXI
                     ((SpixiContentPage)detailContent).updateScreen();
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Logging.error("Exception occured in onUpdateUI: {0}", ex);
             }
@@ -1370,12 +1390,12 @@ namespace SPIXI
 
         protected override void OnAppearing()
         {
-            if(fromSettings)
+            if (fromSettings)
             {
                 fromSettings = false;
                 loadPage(webView, "index.html");
             }
-            else if(fromChat)
+            else if (fromChat)
             {
                 fromChat = false;
                 checkForRating();
@@ -1418,13 +1438,13 @@ namespace SPIXI
             {
                 bool _alreadyInCache = false;
                 int i = 0;
-                for(i = 0; i < contactStatusCache.Count; i++)
+                for (i = 0; i < contactStatusCache.Count; i++)
                 {
                     contactStatusCacheItem cacheItem = contactStatusCache[i];
                     if (cacheItem.address.SequenceEqual(address))
                     {
                         // Update the cached status to the latest message
-                        if(timestamp > cacheItem.timestamp)
+                        if (timestamp > cacheItem.timestamp)
                         {
                             cacheItem.timestamp = timestamp;
                             cacheItem.unread = unread;
@@ -1438,7 +1458,7 @@ namespace SPIXI
                 }
 
                 // If not found in cache, add this message
-                if(!_alreadyInCache)
+                if (!_alreadyInCache)
                 {
                     contactStatusCacheItem cacheItem = new contactStatusCacheItem();
                     cacheItem.address = address;
@@ -1460,7 +1480,7 @@ namespace SPIXI
                 // Go through each cache item and perform the status update
                 foreach (contactStatusCacheItem cacheItem in contactStatusCache)
                 {
-                    Utils.sendUiCommand(this, "setContactStatus", cacheItem.address.ToString(), 
+                    Utils.sendUiCommand(this, "setContactStatus", cacheItem.address.ToString(),
                         cacheItem.online.ToString(), cacheItem.unread.ToString(), cacheItem.excerpt, cacheItem.timestamp.ToString());
                 }
                 // Clear the contact status cache
@@ -1500,7 +1520,7 @@ namespace SPIXI
 
         private void loadApps(bool forceRefresh)
         {
-            if(!forceRefresh && !UIHelpers.shouldRefreshApps)
+            if (!forceRefresh && !UIHelpers.shouldRefreshApps)
             {
                 return;
             }
@@ -1591,7 +1611,7 @@ namespace SPIXI
             miniAppPage.accepted = true;
             Node.MiniAppManager.addAppPage(miniAppPage);
 
-            MainThread.BeginInvokeOnMainThread(async() =>
+            MainThread.BeginInvokeOnMainThread(async () =>
             {
                 await Task.Delay(200); // WinUI Crash fix
                 await Navigation.PushAsync(miniAppPage, Config.defaultXamarinAnimations);

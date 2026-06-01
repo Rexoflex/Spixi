@@ -77,6 +77,7 @@ function onChatScreenLoad() {
         messagesEl.addEventListener("touchend", function (e) {
             clearTimeout(longPressTimer);
             if (longPressTriggered) {
+                longPressTriggered = false;
                 e.stopPropagation();
                 e.preventDefault();
                 return false;

@@ -1012,6 +1012,8 @@ function updateFile(id, progress, complete) {
 }
 
 function updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
+    var shouldScrollInitial = shouldScroll();
+
     message = message.replace(/\n/g, "<br>");
 
     var msgEl = document.getElementById("msg_" + id);
@@ -1080,6 +1082,10 @@ function updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
                 var textEl = textEls[0];
                 textEl.innerHTML = message;
             }
+        }
+
+        if (shouldScrollInitial) {
+            scrollToBottom();
         }
     }
 }

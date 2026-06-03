@@ -209,6 +209,20 @@ namespace SPIXI
             Address sender_address = rdr.senderAddress;
             Address? group_sender_address = rdr.groupSenderAddress;
 
+            if (friend != null)
+            {
+                if (endpoint != null)
+                {
+                    // Update friend's last seen and relay if offline
+                    if (!friend.online)
+                    {
+                        friend.updatedStreamingNodes = Clock.getNetworkTimestamp();
+                        friend.relayNode = new Peer(endpoint.getFullAddress(true), endpoint.serverWalletAddress, Clock.getTimestamp(), Clock.getTimestamp(), Clock.getTimestamp(), 0);
+                        friend.online = true;
+                    }
+                }
+            }
+
             int channel = 0;
             try
             {

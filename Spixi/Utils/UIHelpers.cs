@@ -7,31 +7,7 @@ namespace SPIXI
 {
     public static class UIHelpers
     {
-        private static bool _shouldRefreshContacts = false;
-        public static bool shouldRefreshContacts
-        {
-            get
-            {
-                return _shouldRefreshContacts;
-            }
-            set
-            {
-                if (value)
-                {
-                    _shouldRefreshContacts = true;
-                    Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
-                    if (page != null && page is HomePage)
-                    {
-                        ((HomePage)page).loadChats();
-                        ((HomePage)page).loadContacts();
-                    }
-                }
-                else
-                {
-                    _shouldRefreshContacts = false;
-                }
-            }
-        }
+        public static bool shouldRefreshContacts = false;
         public static bool shouldRefreshTransactions = false;
         public static bool shouldRefreshApps = false;
         public static bool refreshAppRequests = true;
@@ -42,7 +18,8 @@ namespace SPIXI
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).setContactStatus(address, online, unread, excerpt, timestamp);
-            }else
+            }
+            else
             {
                 shouldRefreshContacts = true;
             }
@@ -62,21 +39,41 @@ namespace SPIXI
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.updateMessage(msg, channel);
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChat(friend);
+            }
         }
 
         public static void insertMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.insertMessage(msg, channel);
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChat(friend);
+            }
         }
 
         public static void deleteMessage(Friend friend, int channel, byte[] msgId)
         {
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChat(friend);
+            }
         }
 
         public static void updateReactions(Friend friend, int channel, byte[] msgId)
         {
             Utils.getChatPage(friend)?.updateReactions(msgId, channel);
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChat(friend);
+            }
         }
 
         public static void updateGroupChatNicks(Friend friend, Address realSenderAddress, string nick)

@@ -439,6 +439,10 @@ function addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unr
         </a>`;
 
     const chatsNode = document.getElementById("chatlist");
+    var existingEl = document.getElementById("ch_" + wallet);
+    if (existingEl) {
+        existingEl.parentElement.removeChild(existingEl);
+    }
     if (insertToTop) {
         chatsNode.insertBefore(readmsg, chatsNode.firstElementChild);
     } else {
@@ -456,29 +460,6 @@ function setUnreadIndicator(unread_count) {
     } else {
         dot.style.display = "none";
     }
-}
-
-// Clears all unread activity from main page
-function clearUnreadActivity() {
-
-}
-
-function addUnreadActivity(wallet, from, timestamp, avatar, online, excerpt_msg, insertToTop) {
-    var excerpt = excerpt_msg;
-
-    var indicator = " offline";
-    if (online == "true") {
-        indicator = " online";
-    }
-
-    var timeClass = "spixi-timestamp";
-
-    if (getTimeDifference(timestamp) < 3600) {
-        timeClass = "spixi-timestamp spixi-rel-ts-active";
-    }
-
-    document.getElementById("chatlist").style.display = 'block';
-    document.getElementById("chat_no_activity").style.display = 'none';
 }
 
 function setNotificationCount(notification_count) {

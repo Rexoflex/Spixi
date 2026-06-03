@@ -826,7 +826,7 @@ namespace SPIXI
 
         // Load the contact list
         // TODO: optimize this
-        public void loadContacts()
+        private void loadContacts()
         {
             List<Friend> friends;
             lock (FriendList.friends)
@@ -862,7 +862,176 @@ namespace SPIXI
             }
         }
 
-        public void loadChats()
+        private FriendMessageHelper? getFriendMessageHelper(Friend friend)
+        {
+            FriendMessage? lastmsg = friend.metaData.lastMessage;
+
+            if (lastmsg == null)
+            {
+                return null;
+            }
+
+            string str_online = "false";
+            if (friend.online)
+                str_online = "true";
+
+            if (lastmsg.localSender
+                && !lastmsg.sent
+                && !lastmsg.confirmed)
+            {
+                var msgs = friend.getMessages(friend.metaData.lastMessageChannel);
+                var msg = friend.getMessage(friend.metaData.lastMessageChannel, lastmsg.id);
+                if (msg != null)
+                {
+                    if (msg.sent != lastmsg.sent
+                        || msg.confirmed)
+                    {
+                        lastmsg = msg;
+                        friend.metaData.setLastMessage(msg, friend.metaData.lastMessageChannel);
+                        friend.saveMetaData();
+                    }
+                }
+                else if (msgs == null
+                            || msgs.Count == 0)
+                {
+                    if (friend.metaData.unreadMessageCount != 0)
+                    {
+                        lastmsg.sent = true;
+                        friend.metaData.unreadMessageCount = 0;
+                        friend.saveMetaData();
+                    }
+                    return null;
+                }
+            }
+
+            // Generate the excerpt depending on message type
+            string excerpt = lastmsg.message;
+
+            if (friend.state != FriendState.Approved)
+            {
+                if (friend.bot == false)
+                {
+                    excerpt = SpixiLocalization._SL("chat-waiting-for-response");
+                }
+            }
+            else
+            {
+                if (lastmsg.type == FriendMessageType.requestFunds)
+                {
+                    if (lastmsg.localSender)
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-payment-request-sent");
+                    }
+                    else
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-payment-request-received");
+                    }
+                }
+                else if (lastmsg.type == FriendMessageType.sentFunds)
+                {
+                    if (lastmsg.localSender)
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-payment-sent");
+                    }
+                    else
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-payment-received");
+                    }
+                }
+                else if (lastmsg.type == FriendMessageType.appSession)
+                {
+                    if (lastmsg.localSender)
+                    {
+                        excerpt = SpixiLocalization._SL("chat-app-invite-sent");
+                    }
+                    else
+                    {
+                        excerpt = SpixiLocalization._SL("chat-app-invite-received");
+                    }
+                }
+                else if (lastmsg.type == FriendMessageType.requestAdd)
+                {
+                    if (friend.approved)
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-contact-accepted");
+                    }
+                    else
+                    {
+                        excerpt = SpixiLocalization._SL("index-excerpt-contact-request");
+                    }
+                }
+                else if (lastmsg.type == FriendMessageType.fileHeader)
+                {
+                    excerpt = SpixiLocalization._SL("index-excerpt-file");
+                }
+                else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
+                {
+                    excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
+                }
+
+                if (lastmsg.localSender)
+                {
+                    excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
+                }
+            }
+
+            string? avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
+            if (avatar == null)
+            {
+                avatar = "img/spixiavatar.png";
+
+                if (friend.type == FriendType.Group)
+                {
+                    avatar = "img/spixi-group-avatar.png";
+                }
+            }
+
+            string type = "";
+
+            if (friend.isTyping)
+            {
+                excerpt = SpixiLocalization._SL("index-excerpt-typing");
+                type = "typing";
+            }
+            else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
+            {
+                if (lastmsg.read)
+                {
+                    type = "read";
+                }
+                else if (lastmsg.confirmed)
+                {
+                    type = "confirmed";
+                }
+                else if (lastmsg.sent)
+                {
+                    type = "pending";
+                }
+                else
+                {
+                    type = "default";
+                }
+            }
+
+            FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.getUnreadMessageCount());
+            return helper_msg;
+        }
+
+        public void updateChat(Friend friend)
+        {
+            lock (refreshLock)
+            {
+                var fmh = getFriendMessageHelper(friend);
+                if (fmh == null)
+                {
+                    return;
+                }
+
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), true.ToString());
+            }
+        }
+
+        private void loadChats()
         {
             List<Friend> friends;
             lock (FriendList.friends)
@@ -893,7 +1062,6 @@ namespace SPIXI
                 }
 
                 Utils.sendUiCommand(this, "clearChats");
-                //Utils.sendUiCommand(webView, "clearUnreadActivity");
 
                 // Prepare a list of message helpers, to facilitate sorting and communication with the UI
                 List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
@@ -905,155 +1073,13 @@ namespace SPIXI
                         continue;
                     }
 
-                    FriendMessage? lastmsg = friend.metaData.lastMessage;
-
-                    if (lastmsg != null)
+                    var helper_msg = getFriendMessageHelper(friend);
+                    if (helper_msg == null)
                     {
-                        string str_online = "false";
-                        if (friend.online)
-                            str_online = "true";
-
-                        if (lastmsg.localSender
-                            && !lastmsg.sent
-                            && !lastmsg.confirmed)
-                        {
-                            var msgs = friend.getMessages(friend.metaData.lastMessageChannel);
-                            var msg = friend.getMessage(friend.metaData.lastMessageChannel, lastmsg.id);
-                            if (msg != null)
-                            {
-                                if (msg.sent != lastmsg.sent
-                                    || msg.confirmed)
-                                {
-                                    lastmsg = msg;
-                                    friend.metaData.setLastMessage(msg, friend.metaData.lastMessageChannel);
-                                    friend.saveMetaData();
-                                }
-                            }
-                            else if (msgs == null
-                                     || msgs.Count == 0)
-                            {
-                                if (friend.metaData.unreadMessageCount != 0)
-                                {
-                                    lastmsg.sent = true;
-                                    friend.metaData.unreadMessageCount = 0;
-                                    friend.saveMetaData();
-                                }
-                                continue;
-                            }
-                        }
-
-                        // Generate the excerpt depending on message type
-                        string excerpt = lastmsg.message;
-
-                        if (friend.state != FriendState.Approved)
-                        {
-                            if (friend.bot == false)
-                            {
-                                excerpt = SpixiLocalization._SL("chat-waiting-for-response");
-                            }
-                        }
-                        else
-                        {
-                            if (lastmsg.type == FriendMessageType.requestFunds)
-                            {
-                                if (lastmsg.localSender)
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-request-sent");
-                                }
-                                else
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-request-received");
-                                }
-                            }
-                            else if (lastmsg.type == FriendMessageType.sentFunds)
-                            {
-                                if (lastmsg.localSender)
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-sent");
-                                }
-                                else
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-payment-received");
-                                }
-                            }
-                            else if (lastmsg.type == FriendMessageType.appSession)
-                            {
-                                if (lastmsg.localSender)
-                                {
-                                    excerpt = SpixiLocalization._SL("chat-app-invite-sent");
-                                }
-                                else
-                                {
-                                    excerpt = SpixiLocalization._SL("chat-app-invite-received");
-                                }
-                            }
-                            else if (lastmsg.type == FriendMessageType.requestAdd)
-                            {
-                                if (friend.approved)
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-contact-accepted");
-                                }
-                                else
-                                {
-                                    excerpt = SpixiLocalization._SL("index-excerpt-contact-request");
-                                }
-                            }
-                            else if (lastmsg.type == FriendMessageType.fileHeader)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-file");
-                            }
-                            else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
-                            }
-
-                            if (lastmsg.localSender)
-                            {
-                                excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
-                            }
-                        }
-
-                        string avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
-                        if (avatar == null)
-                        {
-                            avatar = "img/spixiavatar.png";
-
-                            if (friend.type == FriendType.Group)
-                            {
-                                avatar = "img/spixi-group-avatar.png";
-                            }
-                        }
-
-                        string type = "";
-
-                        if (friend.isTyping)
-                        {
-                            excerpt = SpixiLocalization._SL("index-excerpt-typing");
-                            type = "typing";
-                        }
-                        else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
-                        {
-                            if (lastmsg.read)
-                            {
-                                type = "read";
-                            }
-                            else if (lastmsg.confirmed)
-                            {
-                                type = "confirmed";
-                            }
-                            else if (lastmsg.sent)
-                            {
-                                type = "pending";
-                            }
-                            else
-                            {
-                                type = "default";
-                            }
-                        }
-
-                        FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.getUnreadMessageCount());
-                        helper_msgs.Add(helper_msg);
+                        continue;
                     }
+
+                    helper_msgs.Add(helper_msg);
                 }
 
                 // Sort the helper messages
@@ -1062,11 +1088,6 @@ namespace SPIXI
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    if (helper_msg.unreadCount > 0)
-                    {
-                        Utils.sendUiCommand(this, "addUnreadActivity", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt);
-
-                    }
                     Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString());
                 }
 
@@ -1152,7 +1173,7 @@ namespace SPIXI
                 if (IxianHandler.getWalletStorage().isMyAddress(tx.pubKey))
                 {
                     tx_text = tx.toList.First().Key.ToString();
-                    Friend friend = FriendList.getFriend(tx.toList.First().Key);
+                    Friend? friend = FriendList.getFriend(tx.toList.First().Key);
                     if (friend != null)
                     {
                         tx_text = friend.nickname;
@@ -1164,7 +1185,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    Friend friend = FriendList.getFriend(tx.pubKey);
+                    Friend? friend = FriendList.getFriend(tx.pubKey);
                     if (friend != null)
                     {
                         tx_text = friend.nickname;

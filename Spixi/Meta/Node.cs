@@ -774,18 +774,17 @@ namespace SPIXI.Meta
                 }
 
                 // If a chat page is visible, insert the message directly
-                if (UIHelpers.isChatScreenDisplayed(friend))
+                if (friend_message_with_status.updated)
                 {
-                    if (friend_message_with_status.updated)
-                    {
-                        UIHelpers.updateMessage(friend, channel, friend_message);
-                    }
-                    else
-                    {
-                        UIHelpers.insertMessage(friend, channel, friend_message);
-                    }
+                    UIHelpers.updateMessage(friend, channel, friend_message);
                 }
-                else if (!friend_message.read)
+                else
+                {
+                    UIHelpers.insertMessage(friend, channel, friend_message);
+                }
+                
+                if (!UIHelpers.isChatScreenDisplayed(friend)
+                    &&!friend_message.read)
                 {
                     // Increase the unread counter if this is a new message
                     if (!oldMessage)
@@ -793,7 +792,7 @@ namespace SPIXI.Meta
 
                     friend.saveMetaData();
                 }
-
+                
                 UIHelpers.shouldRefreshContacts = true;
 
                 // Only send alerts if this is a new message

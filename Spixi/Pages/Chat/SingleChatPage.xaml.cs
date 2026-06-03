@@ -21,15 +21,13 @@ using Microsoft.Maui.Storage;
 using Microsoft.Maui.ApplicationModel;
 using System.Text;
 using System.Web;
-using System.Collections.Generic;
-using IXICore.Streaming.Models;
 
 namespace SPIXI
 {
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class SingleChatPage : SpixiContentPage
     {
-        public Friend friend = null;
+        public Friend friend;
 
         private uint messagesToShow = Config.messagesToLoad;
 
@@ -545,8 +543,6 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "setChatMode", "0", "0.00000000", "", "False");
             }
 
-            UIHelpers.refreshAppRequests = true;
-            UIHelpers.shouldRefreshContacts = true;
             warningDisplayed = false;
             unreadIndicatorDisplayed = false;
             setNickname = "";
@@ -597,6 +593,11 @@ namespace SPIXI
                 {
                     SPushService.clearNotifications(unreadCount);
                 }
+
+                UIHelpers.refreshAppRequests = true;
+                UIHelpers.shouldRefreshContacts = true;
+
+                updateScreen();
             });
         }
 
@@ -1092,7 +1093,8 @@ namespace SPIXI
         public void loadMessages()
         {
             var messages = friend.getMessages(selectedChannel, (int)messagesToShow);
-            if (messages?.Count == 0)
+            if (messages == null
+                || messages.Count == 0)
             {
                 return;
             }
@@ -1527,6 +1529,10 @@ namespace SPIXI
             {
                 return;
             }
+            if (friend.metaData.lastMessage == null)
+            {
+                return;
+            }
             if(friend.metaData.lastMessageChannel == selectedChannel)
             {
                 if (!friend.metaData.lastMessage.read && !friend.metaData.lastMessage.localSender && App.isInForeground)
@@ -1538,6 +1544,10 @@ namespace SPIXI
                 }
             }
             var messages = friend.getMessages(selectedChannel);
+            if (messages == null || messages.Count == 0)
+            {
+                return;
+            }
             lock (messages)
             {
                 int max_msg_count = 0;
@@ -1576,7 +1586,7 @@ namespace SPIXI
         {
             if (channel == selectedChannel)
             {
-                FriendMessage fm = friend.getMessages(channel).Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                FriendMessage? fm = friend.getMessages(channel).Find(x => x.id != null && x.id.SequenceEqual(msg_id));
                 if (fm != null)
                 {
                     updateReactions(fm);
@@ -1759,8 +1769,7 @@ namespace SPIXI
                     connectivityWarningDelayCounter++;
                 }
             }
-            
-                
+
             // Show the messages indicator
             int msgCount = FriendList.getUnreadMessageCount();
             if(msgCount > 0)

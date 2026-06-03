@@ -23,7 +23,7 @@ const wrapEl = document.getElementById("wrap");
 // Mobile long press
 var longPressTriggered = false;
 var longPressTimer = 0;
-
+var keyboardWasOpen = false;
 function onChatScreenLoad() {
 
     if (SL_Platform == "Xamarin-WPF") {
@@ -88,10 +88,19 @@ function onChatScreenLoad() {
             clearTimeout(longPressTimer);
         });
     } else {
+        messagesEl.addEventListener("touchstart", function (e) {
+            keyboardWasOpen = (document.activeElement === chatInput);
+        });
         messagesEl.addEventListener('contextmenu', (e) => {
-            displayContextMenu(e);
             e.stopPropagation();
             e.preventDefault();
+
+
+            displayContextMenu(e);
+
+            if (keyboardWasOpen) {
+                chatInput.focus();
+            }
             return false;
         });
     }

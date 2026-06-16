@@ -376,8 +376,25 @@ function selectTx(wallet) {
     }
 }
 
+function findOlderChat(timestamp) {
+    const chatsNode = document.getElementById("chatlist");
+
+    for (let i = 0; i < chatsNode.children.length; i++) {
+        var child = chatsNode.children[i];
+        if (!child.id.startsWith("ch_")) {
+            continue;
+        }
+        var childTimestamp = child.getElementsByClassName("spixi-timestamp")[0]?.getAttribute("data-timestamp");
+        if (childTimestamp < timestamp) {
+            return child;
+        }
+    }
+
+    return null;
+}
+
 // Adds a chat
-function addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, insertToTop) {
+function addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread) {
     var excerpt = excerpt_msg;
 
     let indicator = online === "true" ? " online" : " offline";
@@ -438,13 +455,15 @@ function addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unr
             </div>
         </a>`;
 
-    const chatsNode = document.getElementById("chatlist");
     var existingEl = document.getElementById("ch_" + wallet);
     if (existingEl) {
         existingEl.parentElement.removeChild(existingEl);
     }
-    if (insertToTop) {
-        chatsNode.insertBefore(readmsg, chatsNode.firstElementChild);
+
+    const chatsNode = document.getElementById("chatlist");
+    var insertBeforeEl = findOlderChat(timestamp);
+    if (insertBeforeEl) {
+        chatsNode.insertBefore(readmsg, insertBeforeEl);
     } else {
         chatsNode.appendChild(readmsg);
     }
@@ -541,8 +560,8 @@ var logoClicked = 0;
 function countLogoClick() {
     logoClicked++;
     if (logoClicked > 10) {
-        document.getElementById("SendLogMenuItem").style.display = "block";
-        document.getElementById("DevMenuItem").style.display = "block";
+        document.getElementById("SendLogMenuItem").style.display = "";
+        document.getElementById("DevMenuItem").style.display = "";
         document.getElementById("DebugOverlay").style.display = "block";
         alert(SL_DevMode);
         location.href = "ixian:enableDevMode";

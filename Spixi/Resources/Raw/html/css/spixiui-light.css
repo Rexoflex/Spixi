@@ -2336,7 +2336,7 @@ input.spixi-switch:checked {
     margin-left: 56px;
     margin-bottom: 12px;
     min-width: 80px;
-    max-width: 492px;
+    max-width: 90%;
     word-wrap: break-word;
     word-break: break-word;
     display: inline-block;
@@ -4468,7 +4468,8 @@ input.spixi-switch:checked {
     background: var(--colors-surface-warning-inverse);
 }
 
-.iconFile {
+.iconFile,
+.iconMedia {
     background: var(--colors-surface-accent-inverse);
 }
 

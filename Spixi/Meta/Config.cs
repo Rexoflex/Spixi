@@ -41,12 +41,12 @@ namespace SPIXI.Meta
         public static readonly int packetDataSize = 102400; // 100 Kb per packet for file transfers
         public static readonly long packetRequestTimeout = 60; // Time in seconds to re-request packets
 
-        public static readonly string version = "spixi-0.9.21"; // Spixi version
+        public static readonly string version = "spixi-0.9.22"; // Spixi version
 
         public static readonly string checkVersionUrl = "https://resources.ixian.io/spixi-update.txt";
         public static readonly int checkVersionSeconds = 1 * 60 * 60; // 1 hour
 
-        public static readonly string supportEmailUrl = "mailto:support@spixi.io?subject=Spixi%20Feedback";
+        public static readonly string supportEmailUrl = "mailto:support@spixi.io?subject=Spixi%20Feedback&body=Please%20tell%20us%20why%20Spixi%20didn't%20meet%20your%20expectations%20or%20describe%20any%20problems%20you%20experienced.%0A%0AWhat%20did%20you%20like%3F%0AWhat%20didn't%20you%20like%3F%0ADid%20you%20encounter%20any%20bugs%20or%20issues%3F%0AWhat%20could%20we%20do%20better%3F%0A%0AThank%20you%20for%20helping%20us%20improve%20Spixi.";
         public static readonly string ratingAndroidUrl = "https://play.google.com/store/apps/details?id=com.ixilabs.spixi&reviewId=0";
         public static readonly string ratingiOSUrl = "https://apps.apple.com/app/id6667121792?action=write-review";
 

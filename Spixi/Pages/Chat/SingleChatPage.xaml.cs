@@ -145,10 +145,16 @@ namespace SPIXI
                 }
 
             }
+            else if (current_url.Equals("ixian:sendmedia", StringComparison.Ordinal))
+            {
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                onSendFile(true);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+            }
             else if (current_url.Equals("ixian:sendfile", StringComparison.Ordinal))
             {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                onSendFile();
+                onSendFile(false);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             }
             else if (current_url.StartsWith("ixian:acceptfile:"))
@@ -655,9 +661,8 @@ namespace SPIXI
                 string fileName = null;
                 string filePath = null;
 
-                SpixiImageData spixi_img_data;
-                if (Device.RuntimePlatform == Device.iOS
-                    && media)
+                SpixiImageData? spixi_img_data;
+                if (media)
                 {
                     spixi_img_data = await SFilePicker.PickImageAsync();
                 }
@@ -1111,6 +1116,11 @@ namespace SPIXI
                 {
                     skip_messages = messages.Count() - (int)messagesToShow;
                 }
+                if (friend.metaData.unreadMessageCount > 0)
+                {
+                    friend.metaData.unreadMessageCount = 0;
+                    friend.saveMetaData();
+                }
                 foreach (FriendMessage message in messages)
                 {
                     if (message.type == FriendMessageType.standard
@@ -1132,11 +1142,6 @@ namespace SPIXI
                         Logging.error("Error loading message: {0}", e);
                     }
                     updateReactions(message);
-                }
-                if (friend.metaData.unreadMessageCount > 0)
-                {
-                    friend.metaData.unreadMessageCount = 0;
-                    friend.saveMetaData();
                 }
             }
         }
@@ -1548,6 +1553,11 @@ namespace SPIXI
             {
                 return;
             }
+            if (friend.metaData.unreadMessageCount > 0)
+            {
+                friend.metaData.unreadMessageCount = 0;
+                friend.saveMetaData();
+            }
             lock (messages)
             {
                 int max_msg_count = 0;
@@ -1561,11 +1571,6 @@ namespace SPIXI
                     FriendMessage msg = messages[i];
                     updateMessageReadStatus(msg, selectedChannel);
                 }
-            }
-            if (friend.metaData.unreadMessageCount > 0)
-            {
-                friend.metaData.unreadMessageCount = 0;
-                friend.saveMetaData();
             }
         }
 

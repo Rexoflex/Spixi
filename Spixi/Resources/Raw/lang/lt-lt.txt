@@ -106,6 +106,7 @@ chat-sent-contact-request = išsiuntė prašymą pridėti prie kontaktų
 chat-accept = Priimti
 chat-ignore = Atmesti
 chat-type-placeholder = Rašykite savo žinutę...
+chat-send-media = Medija
 chat-send-file = Failas
 chat-request-payment = Prašyti
 chat-send-payment = Sumokėti

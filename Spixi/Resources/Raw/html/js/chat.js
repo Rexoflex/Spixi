@@ -24,6 +24,8 @@ const wrapEl = document.getElementById("wrap");
 var longPressTriggered = false;
 var longPressTimer = 0;
 var keyboardWasOpen = false;
+
+var isMobile = /iPhone|iPod|Android/i.test(navigator.userAgent);
 function onChatScreenLoad() {
 
     if (SL_Platform == "Xamarin-WPF") {
@@ -88,6 +90,8 @@ function onChatScreenLoad() {
             clearTimeout(longPressTimer);
         });
     } else {
+        document.getElementById("ca_sendmedia").style.display = "none";
+
         messagesEl.addEventListener("touchstart", function (e) {
             keyboardWasOpen = (document.activeElement === chatInput);
         });
@@ -193,6 +197,7 @@ function setChatMode(type, cost, costText, admin, botDescription, notificationsS
         document.getElementsByClassName("spixi-toolbar-holder")[0].className = "spixi-toolbar-holder bot";
         document.getElementsByClassName("spixi-channel-bar")[0].style.display = "table";
         // Disable action options
+        document.getElementById("ca_sendmedia").style.display = "none";
         document.getElementById("ca_sendfile").style.display = "none";
         document.getElementById("ca_send").style.display = "none";
         document.getElementById("ca_request").style.display = "none";
@@ -208,6 +213,7 @@ function setChatMode(type, cost, costText, admin, botDescription, notificationsS
         document.getElementsByClassName("spixi-toolbar-holder")[0].className = "spixi-toolbar-holder bot";
         document.getElementsByClassName("spixi-channel-bar")[0].style.display = "table";
         // Disable action options
+        document.getElementById("ca_sendmedia").style.display = "none";
         document.getElementById("ca_sendfile").style.display = "none";
         document.getElementById("ca_send").style.display = "none";
         document.getElementById("ca_request").style.display = "none";
@@ -382,6 +388,11 @@ document.getElementById("ca_sendfile").onclick = function () {
     location.href = "ixian:sendfile";
 }
 
+document.getElementById("ca_sendmedia").onclick = function () {
+    hideAttachBar();
+    location.href = "ixian:sendmedia";
+}
+
 document.getElementById("chat_send").onclick = function () {
     hideAttachBar();
     var chatInput = document.getElementById("chat_input");
@@ -417,7 +428,7 @@ $("#chat_input").keydown(function (event) {
 
 $("#chat_input").keypress(function (event) {
     if (event.keyCode === 13) {
-        if (!shiftPressed) {
+        if (!shiftPressed && !isMobile) {
             return false;
         }
     }
@@ -427,7 +438,7 @@ $("#chat_input").keyup(function (event) {
     if (event.keyCode === 16) {
         shiftPressed = false;
     }
-    if (event.keyCode === 13 && !shiftPressed) {
+    if (event.keyCode === 13 && !isMobile && !shiftPressed) {
         $("#chat_send").click();
     }
 
@@ -1067,7 +1078,7 @@ function updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
         if (statusEls.length > 0) {
             var statusEl = statusEls[0];
 
-            if (msgEl.className.includes("spixi-bubble myself")) {
+            if (msgEl.className.includes("myself")) {
                 if (additionalClasses.includes("sent")) {
                     statusEl.className = "statusIndicator fas fa-check";
                 } else if (additionalClasses.includes("default")) {

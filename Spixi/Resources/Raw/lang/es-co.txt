@@ -106,6 +106,7 @@ chat-sent-contact-request = ha enviado una solicitud de contacto
 chat-accept = Aceptar
 chat-ignore = Ignorar
 chat-type-placeholder = Escribe un mensaje...
+chat-send-media = Multimedia
 chat-send-file = Archivo
 chat-request-payment = Solicitar
 chat-send-payment = Pagar

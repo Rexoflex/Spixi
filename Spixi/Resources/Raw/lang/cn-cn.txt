@@ -106,6 +106,7 @@ chat-sent-contact-request = 发送了联系人请求
 chat-accept = 接受
 chat-ignore = 拒绝
 chat-type-placeholder = 输入消息...
+chat-send-media = 媒体
 chat-send-file = 发送文件
 chat-request-payment = 请求付款
 chat-app = 应用

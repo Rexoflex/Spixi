@@ -106,6 +106,7 @@ chat-sent-contact-request = je poslao/la zahtev za kontakt
 chat-accept = Prihvati
 chat-ignore = Odbij
 chat-type-placeholder = Unesite poruku...
+chat-send-media = Mediji
 chat-send-file = Datoteka
 chat-request-payment = Zatraži
 chat-send-payment = Plati

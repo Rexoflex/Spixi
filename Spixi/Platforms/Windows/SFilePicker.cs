@@ -1,5 +1,4 @@
-﻿using Microsoft.UI.Xaml.Media.Imaging;
-using SPIXI.Interfaces;
+﻿using SPIXI.Interfaces;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing;
@@ -8,20 +7,32 @@ using Microsoft.Maui.Storage;
 using System.IO;
 using System;
 using System.Linq;
+using Microsoft.Maui.Devices;
+using System.Collections.Generic;
 
 namespace Spixi
 {
     public class SFilePicker
     {
-        static TaskCompletionSource<SpixiImageData> taskCompletionSource;
+        static TaskCompletionSource<SpixiImageData?> taskCompletionSource;
 
-        public static async Task<SpixiImageData> PickImageAsync()
+        public static async Task<SpixiImageData?> PickImageAsync()
         {
+            // Merges Microsoft's built-in platform definitions for Images, Videos, and Audio
+            var allMediaTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI, FilePickerFileType.Images.Value
+                .Concat(FilePickerFileType.Videos.Value)
+                .Concat(new[] { ".mp3", ".wav", ".aac", ".ogg", ".flac", ".m4a", ".wma" }) }
+            });
+
             var options = new PickOptions
             {
-                FileTypes = FilePickerFileType.Images,
+                // Simply swap out ".Images" for your combined object
+                FileTypes = allMediaTypes,
             };
-            FileResult fileData = await FilePicker.PickAsync(options);
+
+            FileResult? fileData = await FilePicker.PickAsync(options);
             if (fileData == null)
                 return null; // User canceled file picking
 
@@ -31,9 +42,9 @@ namespace Spixi
             return spixi_img_data;
         }
 
-        public static async Task<SpixiImageData> PickFileAsync()
+        public static async Task<SpixiImageData?> PickFileAsync()
         {
-            FileResult fileData = await FilePicker.PickAsync();
+            FileResult? fileData = await FilePicker.PickAsync();
             if (fileData == null)
                 return null; // User canceled file picking
 

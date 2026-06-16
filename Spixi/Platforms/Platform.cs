@@ -42,8 +42,8 @@ namespace Spixi
 
     public partial class SFilePicker
     {
-        public static Task<SpixiImageData> PickImageAsync();
-        public static Task<SpixiImageData> PickFileAsync();
+        public static Task<SpixiImageData?> PickImageAsync();
+        public static Task<SpixiImageData?> PickFileAsync();
         public static byte[] ResizeImage(byte[] image_data, int width, int height, int quality);
     }
 

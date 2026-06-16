@@ -12,8 +12,8 @@ namespace SPIXI.Interfaces
 
     public interface IFilePicker
     {
-        Task<SpixiImageData> PickImageAsync();
-        Task<SpixiImageData> PickFileAsync();
+        Task<SpixiImageData?> PickImageAsync();
+        Task<SpixiImageData?> PickFileAsync();
         byte[] ResizeImage(byte[] image_data, int width, int height, int quality);
     }
 }

@@ -10,7 +10,7 @@ namespace Spixi
 {
     public class SFilePicker
     {
-        public static Task<SpixiImageData> PickImageAsync()
+        public static Task<SpixiImageData?> PickImageAsync()
         {
             // Define the Intent for getting images
             Intent intent = new Intent();
@@ -26,15 +26,15 @@ namespace Spixi
                 MainActivity.PickImageId);
 
             // Save the TaskCompletionSource object as a MainActivity property
-            activity.PickImageTaskCompletionSource = new TaskCompletionSource<SpixiImageData>();
+            activity.PickImageTaskCompletionSource = new TaskCompletionSource<SpixiImageData?>();
 
             // Return Task object
             return activity.PickImageTaskCompletionSource.Task;
         }
 
-        public static async Task<SpixiImageData> PickFileAsync()
+        public static async Task<SpixiImageData?> PickFileAsync()
         {
-            FileResult fileData = await FilePicker.PickAsync();
+            FileResult? fileData = await FilePicker.PickAsync();
             if (fileData == null)
                 return null; // User canceled file picking
 

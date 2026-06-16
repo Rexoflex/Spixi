@@ -41,7 +41,7 @@ public class MainActivity : MauiAppCompatActivity
     public const int SaveFileId = 1001;
     public string SaveFilePath { get; set; }
 
-    public TaskCompletionSource<SpixiImageData> PickImageTaskCompletionSource { set; get; }
+    public TaskCompletionSource<SpixiImageData?> PickImageTaskCompletionSource { set; get; }
     internal static MainActivity Instance { get; private set; }
     public static Thickness? Insets = null;
     protected override void OnCreate(Bundle? bundle)

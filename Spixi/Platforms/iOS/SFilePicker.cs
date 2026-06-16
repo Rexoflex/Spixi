@@ -4,12 +4,10 @@ using Microsoft.Maui.Storage;
 using Spixi.Platform.iOS;
 using SPIXI.Interfaces;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using UIKit;
 
@@ -17,10 +15,10 @@ namespace Spixi
 {
     public class SFilePicker
     {
-        static TaskCompletionSource<SpixiImageData> taskCompletionSource;
+        static TaskCompletionSource<SpixiImageData?> taskCompletionSource;
         static UIImagePickerController imagePicker;
 
-        public static Task<SpixiImageData> PickImageAsync()
+        public static Task<SpixiImageData?> PickImageAsync()
         {
             // Create and define UIImagePickerController
             imagePicker = new UIImagePickerController
@@ -39,13 +37,13 @@ namespace Spixi
             viewController.PresentModalViewController(imagePicker, true);
 
             // Return Task object
-            taskCompletionSource = new TaskCompletionSource<SpixiImageData>();
+            taskCompletionSource = new TaskCompletionSource<SpixiImageData?>();
             return taskCompletionSource.Task;
         }
 
-        public static async Task<SpixiImageData> PickFileAsync()
+        public static async Task<SpixiImageData?> PickFileAsync()
         {
-            FileResult fileData = (await MauiFilePicker.PickAsync(new PickOptions(), false)).FirstOrDefault();
+            FileResult? fileData = (await MauiFilePicker.PickAsync(new PickOptions(), false)).FirstOrDefault();
             if (fileData == null)
                 return null; // User canceled file picking
 

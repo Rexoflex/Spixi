@@ -338,11 +338,11 @@ namespace SPIXI
 
         public async Task onChangeAvatarAsync(object sender, EventArgs e)
         {
-            SpixiImageData spixi_img_data = await SFilePicker.PickImageAsync();
+            SpixiImageData? spixi_img_data = await SFilePicker.PickImageAsync();
             if (spixi_img_data == null)
                 return;
 
-            Stream stream = spixi_img_data.stream;
+            Stream? stream = spixi_img_data.stream;
             if (stream == null)
                 return;          
 

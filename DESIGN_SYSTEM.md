@@ -153,6 +153,23 @@ Beyond §2: `surface/composer`, `text/balance` (tabular numerals flag), `surface
 3. Full two-mode variable dump → `tokens.json` → generated `tokens.css` — then **lock**.
 4. Build order for components: foundations (✅ set, verify bindings; buttons rebuilt to 32/44/56 + width axis) → app frame → lists → chat → payments. Each lands in Figma and code together, demoed via mock bridge.
 
+## 5b. Interaction spec: message context menu (decided 2026-07-02)
+
+The menu for message actions (react, reply, copy, delete, report, tip, kick/ban…). One component, two presentations.
+
+**Mobile (long-press)**
+- Trigger: long-press ~500ms on the bubble (pointer events; cancel on >10px move = scroll intent). Haptic if available via existing bridge (none today — degrade silently).
+- Presentation: conversation dims under `--surface-scrim` at `--z-40`; the **bubble stays undimmed** above it (`--z-50`, `--elevation-2`) — no fill change on the bubble itself, promotion is scrim + elevation. Reactions row appears attached above the bubble; action list in a `--surface-menu` panel (`--radius-16`, `--elevation-3`) anchored below/above the bubble depending on viewport space, never covering it.
+- Items: ≥ `--size-target-min` (44px) rows, icon + label, destructive items in `text-error` grouped last.
+- Dismiss: tap scrim, hardware back (`onBack` bounce), or action completes. All transitions `--duration-200 --easing-standard`; scrim fade honors reduced-motion.
+
+**Desktop (≥700px)**
+- Hover on a message reveals an inline affordance (⋯ + quick-react) at the row edge — row uses `--surface-interactive-hover`, affordance is not present in the DOM for touch-only.
+- Menu opens from ⋯ click or right-click at cursor: `--surface-menu` panel, `--z-30`, `--elevation-2`, no scrim (desktop menus are light-dismiss: click-outside or Esc).
+- Keyboard: message focusable; `Shift+F10`/Menu key opens at message, arrows navigate items, Enter activates, Esc closes and returns focus to the message. Focus ring = `--outline-focus`, never a fill.
+
+**Actions ↔ bridge reality check** (ARCHITECTURE.md §3): available today via `ixian:contextAction:*` — tip, like/react, deleteMessage, report (bots), kickUser, banUser, sendContactRequest; copy is JS-side. **Reply and edit do NOT exist in the current bridge** — added to §8 as proposed commands; menu renders them only when the capability handshake confirms BE support.
+
 ## 6. Component build workflow (decided 2026-07-02)
 
 - **Claude via Figma MCP** builds structure: variant sets, all states, and variable *bindings* to `tokens` (the part manual work gets wrong and Figma's native AI hardcodes instead of binding).

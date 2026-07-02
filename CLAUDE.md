@@ -61,7 +61,11 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - [x] WEB code syntax set on 425 variables (Dev Mode shows exact tokens.css `var(--…)` names)
 - [x] **Remote-binding repair (important):** components/screens were bound to a stale REMOTE library copy of the variables — 1,072 bindings repointed to local collections file-wide (Components 991, Screens 81, Chat&Composite already clean; Archive intentionally skipped). Legacy names mapped (`colors/text/01`→`text/neutral/01`, t-shirt radii by resolved value, etc.)
 - [x] Buttons in Figma ✅: sets renamed `button/56|32/*`, new `button/44/*` default+destructive (24 variants each, all token-bound, exact 44px). Width = instance auto-layout, not variants. `spacing/10` added for 44 padding
-- [ ] **Next:** (a) Damir eyeballs button/44 sets + repaired bindings in Figma; (b) code-side `src/styles/components/button.css` + browser demo; (c) app-frame component set; then payments per figma-sweep.md §4
+- [x] Tokens added: hero region (+on-hero text/icon), topbar text/icon, interactive hover/pressed/selected, surface/menu, bubble-max — DECISIONS #20–24
+- [x] Message context-menu interaction spec (mobile long-press + desktop) → DESIGN_SYSTEM.md §5b; reply/edit = new §8 proposals (DECISIONS #25)
+- [x] Button in CODE: `src/components/button.js` + `src/styles/components/button.css` + `src/styles/base.css` + no-build demo `src/demo/components.html` (open directly in a browser; theme toggle included). Syntax + token cross-refs verified
+- [ ] **Next:** (a) Damir opens demo in browser + reviews → LOCKS conventions (DECISIONS #16, #17); (b) app-frame component set (top bar, bottom nav, banner, call bar, sheet, modal, toast); (c) payments per figma-sweep.md §4
+- ⚠️ Sandbox note: the mounted-folder cache served stale tokens.css during validation — trust Read/Grep (Windows-side) over bash for freshly edited files
 - [ ] Then: component inventory (`DESIGN_SYSTEM.md`) → build components in code + Figma
 - [ ] Then: build shells one at a time (start with app shell + navigation)
 

@@ -1,0 +1,56 @@
+/* Spixi base — reset + typography roles. Pairs with tokens.css (load tokens first). */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-01);
+  background: var(--surface-screen);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+img, svg { display: block; max-width: 100%; }
+
+/* Production embeds Sora + Source Sans 3 as variable WOFF2 (Latin subset) here.
+   @font-face blocks land together with the font assets — see DESIGN_SYSTEM.md §1. */
+
+/* Typography roles (weights per Figma "typography" composites) */
+.t-display-lg, .t-display-md, .t-heading-lg, .t-heading-md, .t-heading-sm, .t-heading-xs {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+.t-display-lg { font-size: var(--font-size-display-lg); line-height: var(--line-height-display-lg); letter-spacing: var(--tracking-display-lg); }
+.t-display-md { font-size: var(--font-size-display-md); line-height: var(--line-height-display-md); letter-spacing: var(--tracking-display-md); }
+.t-heading-lg { font-size: var(--font-size-heading-lg); line-height: var(--line-height-heading-lg); letter-spacing: var(--tracking-heading-lg); }
+.t-heading-md { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); letter-spacing: var(--tracking-heading-md); }
+.t-heading-sm { font-size: var(--font-size-heading-sm); line-height: var(--line-height-heading-sm); letter-spacing: var(--tracking-heading-sm); }
+.t-heading-xs { font-size: var(--font-size-heading-xs); line-height: var(--line-height-heading-xs); letter-spacing: var(--tracking-heading-xs); }
+
+.t-label-lg, .t-label-md, .t-label-sm { font-weight: var(--font-weight-semibold); }
+.t-label-xs { font-weight: var(--font-weight-bold); }
+.t-label-lg { font-size: var(--font-size-label-lg); line-height: var(--line-height-label-lg); letter-spacing: var(--tracking-label-lg); }
+.t-label-md { font-size: var(--font-size-label-md); line-height: var(--line-height-label-md); letter-spacing: var(--tracking-label-md); }
+.t-label-sm { font-size: var(--font-size-label-sm); line-height: var(--line-height-label-sm); letter-spacing: var(--tracking-label-sm); }
+.t-label-xs { font-size: var(--font-size-label-xs); line-height: var(--line-height-label-xs); letter-spacing: var(--tracking-label-xs); }
+
+.t-body-lg { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); letter-spacing: var(--tracking-body-lg); }
+.t-body-sm { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); letter-spacing: var(--tracking-body-sm); }
+.t-body-xs { font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs); letter-spacing: var(--tracking-body-xs); }
+
+/* Balance figures (DECISIONS.md #21) */
+.u-tabular { font-feature-settings: "tnum" 1; }
+
+/* Keyboard focus — one ring app-wide (DECISIONS.md #23) */
+:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-focus);
+  outline-offset: 2px;
+}

@@ -376,6 +376,8 @@
   /* surface/region */
   --surface-screen: var(--neutral-10);
   --surface-topbar: var(--neutral-10);
+  --text-topbar: var(--neutral-950);
+  --icon-topbar: var(--neutral-950);
   --surface-bottombar: var(--neutral-10);
   --surface-composer: var(--neutral-10);
   --surface-card: var(--neutral-50);
@@ -387,6 +389,19 @@
   --surface-presence-online: var(--success-500);
   --surface-progress-track: var(--neutral-200);
   --surface-progress-fill: var(--primary-600);
+  --surface-hero: var(--primary-600);
+
+  /* text/icon on hero */
+  --text-on-hero: var(--neutral-10);
+  --text-on-hero-muted: var(--primary-200);
+  --icon-on-hero: var(--neutral-10);
+
+  /* surface/interactive — shared states for list rows, menu items, icon buttons.
+     Focus = outline-focus ring (never a fill); disabled = text-neutral-disabled + opacity, no surface. */
+  --surface-interactive-hover: var(--neutral-50);
+  --surface-interactive-pressed: var(--neutral-100);
+  --surface-interactive-selected: var(--primary-50);
+  --surface-menu: var(--neutral-10);
 
   /* text */
   --text-neutral-01: var(--neutral-950);
@@ -519,6 +534,8 @@
   /* surface/region */
   --surface-screen: var(--neutral-900);
   --surface-topbar: var(--neutral-900);
+  --text-topbar: var(--neutral-100);
+  --icon-topbar: var(--neutral-100);
   --surface-bottombar: var(--neutral-900);
   --surface-composer: var(--neutral-900);
   --surface-card: var(--neutral-800);
@@ -530,6 +547,18 @@
   --surface-presence-online: var(--success-400);
   --surface-progress-track: var(--neutral-700);
   --surface-progress-fill: var(--primary-400);
+  --surface-hero: var(--primary-800);
+
+  /* text/icon on hero */
+  --text-on-hero: var(--neutral-100);
+  --text-on-hero-muted: var(--primary-300);
+  --icon-on-hero: var(--neutral-100);
+
+  /* surface/interactive */
+  --surface-interactive-hover: var(--neutral-800);
+  --surface-interactive-pressed: var(--neutral-700);
+  --surface-interactive-selected: var(--primary-900);
+  --surface-menu: var(--neutral-700); /* elevated surfaces lighten in dark mode */
 
   /* text */
   --text-neutral-01: var(--neutral-100);
@@ -644,6 +673,20 @@
   /* chat bubble sizing (DECISIONS.md #14):
      bubble rule = max-width: min(var(--bubble-max-pct), var(--layout-bubble-max)) */
   --bubble-max-pct: 75%;
+
+  /* balance figures: tabular numerals so digits align and don't jitter on update
+     (Sora + Source Sans 3 both ship tnum). Usage: .u-tabular { font-feature-settings: "tnum" 1; } */
+}
+
+/* Contextual region override (DECISIONS.md #20): hero screens repaint the top
+   region by reassigning region tokens in scope — components underneath don't change. */
+.screen--hero {
+  --surface-topbar: var(--surface-hero);
+  --text-topbar: var(--text-on-hero);
+  --icon-topbar: var(--icon-on-hero);
+}
+
+:root {
 
   /* scrim (keys have no alpha colors — value = grey-1000 #111213 @ 60%;
      plain rgba for conservative WebView baseline) */

@@ -1,0 +1,27 @@
+/* c-badge — mirrors Figma badge type×weight (docs/tx-row-spec.md, DECISIONS #54).
+   tonal = {type}-inverse surface + {type} ink · solid = {type} surface + inverse ink. */
+
+.c-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-8);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.c-badge[data-weight="tonal"][data-type="warning"] { background: var(--surface-warning-inverse); color: var(--text-warning); }
+.c-badge[data-weight="tonal"][data-type="error"]   { background: var(--surface-error-inverse);   color: var(--text-error); }
+.c-badge[data-weight="tonal"][data-type="info"]    { background: var(--surface-info-inverse);    color: var(--text-info); }
+.c-badge[data-weight="tonal"][data-type="success"] { background: var(--surface-success-inverse); color: var(--text-success); }
+.c-badge[data-weight="tonal"][data-type="accent"]  { background: var(--surface-accent-inverse);  color: var(--text-accent); }
+
+.c-badge[data-weight="solid"][data-type="warning"] { background: var(--surface-warning); color: var(--text-neutral-inverse-01); }
+.c-badge[data-weight="solid"][data-type="error"]   { background: var(--surface-error);   color: var(--text-neutral-inverse-01); }
+.c-badge[data-weight="solid"][data-type="info"]    { background: var(--surface-info);    color: var(--text-neutral-inverse-01); }
+.c-badge[data-weight="solid"][data-type="success"] { background: var(--surface-success); color: var(--text-neutral-inverse-01); }
+.c-badge[data-weight="solid"][data-type="accent"]  { background: var(--surface-accent);  color: var(--text-neutral-inverse-01); }

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
 <link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
 <style>
   /* demo chrome only — not part of the system */
   body { padding: var(--spacing-24); max-width: 900px; margin: 0 auto; }
@@ -33,6 +34,11 @@
   <section class="demo-section">
     <h2 class="t-heading-xs" style="margin-bottom: var(--spacing-16)">Button — destructive</h2>
     <div id="grid-destructive"></div>
+  </section>
+
+  <section class="demo-section">
+    <h2 class="t-heading-xs" style="margin-bottom: var(--spacing-16)">Badge — types × weights</h2>
+    <div id="badge-grid"></div>
   </section>
 
   <section class="demo-section">
@@ -75,7 +81,10 @@
     onClick: () => {
       const root = document.documentElement;
       const dark = root.dataset.theme === 'dark';
+      // suppress transitions for the swap (#53) — mixed durations flicker otherwise
+      root.classList.add('theme-switching');
       root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
       themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
     },
   });
@@ -93,6 +102,22 @@
       for (const type of TYPES) row.append(createButton({ label: 'Button', type, size, intent: pair[1] }));
       grid.append(row);
     }
+  }
+
+  // badge matrix — all 5 types × tonal/solid (c-badge is static, #54)
+  const badgeGrid = document.getElementById('badge-grid');
+  const BADGE_ICONS = { warning: 'clock-hour-10', error: 'alert-square-rounded', info: 'info-circle', success: 'check', accent: 'rocket' };
+  for (const weight of ['tonal', 'solid']) {
+    const row = document.createElement('div');
+    row.className = 'demo-row';
+    const label = document.createElement('span');
+    label.className = 'demo-label';
+    label.textContent = weight;
+    row.append(label);
+    for (const type of ['warning', 'error', 'info', 'success', 'accent']) {
+      row.append(window.Spixi.createBadge({ label: type, type, weight, icon: BADGE_ICONS[type] }));
+    }
+    badgeGrid.append(row);
   }
 
   const disabledRow = document.getElementById('row-disabled');

@@ -24,6 +24,21 @@ export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/**
+ * Absolute timestamp for transaction rows (docs/tx-row-spec.md): "20 Mar, 9:15".
+ * Device locale for month + 12/24h; no ticker — absolute dates don't go stale.
+ */
+export function formatTxTimestamp(ts, now = Date.now()) {
+  const d = new Date(ts);
+  const locale = document.documentElement.lang || undefined;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const date = d.toLocaleDateString(locale, sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  return date + ', ' + time;
+}
+
 let activeStop = null; // single shared ticker — starting a new one stops the previous
 
 /**

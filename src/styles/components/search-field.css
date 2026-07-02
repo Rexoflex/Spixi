@@ -1,0 +1,88 @@
+/* c-search-field — text-field/large specialization (docs/chip-search-spec.md,
+   DECISIONS #51). Permanent transparent border prevents the Figma default→hover
+   layout jump; focus fakes the spec's 2px border via box-shadow (no shift). */
+
+.c-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--size-target-min); /* Figma ≈40px — raised to touch minimum (#51) */
+  padding: var(--spacing-8) var(--spacing-12);
+  border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+  /* glyph ink shares the placeholder's text token — one resting ink for the
+     whole empty field (deliberate; icon-neutral-* would split the pair) */
+  color: var(--text-neutral-02);
+  /* 100ms intentional: micro-interaction, matches chip/chatlist hover */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard),
+              box-shadow var(--duration-100) var(--easing-standard);
+}
+
+/* Figma text-field used outline-info (hover) + text-action-default (focus) as
+   borders — confirmed errors by Damir 2026-07-02; action OUTLINE roles are the
+   correct family (#51). Mirror back to Figma text-field/large. */
+@media (hover: hover) {
+  .c-search-field:hover {
+    background: var(--surface-neutral-03);
+    border-color: var(--outline-action-hover);
+  }
+}
+
+.c-search-field:focus-within {
+  background: var(--surface-neutral-01);
+  border-color: var(--outline-action-default);
+  box-shadow: 0 0 0 1px var(--outline-action-default); /* 1px border + 1px shadow ≈ spec 2px */
+}
+
+.c-search-field__icon { flex: none; }
+
+.c-search-field__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0 var(--spacing-4);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md); /* 16px — no iOS focus zoom */
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-01);
+  caret-color: var(--text-action-default);
+}
+.c-search-field__input::placeholder { color: var(--text-neutral-02); opacity: 1; }
+/* sanctioned #51 deviation from the #23 ring: text fields show focus as the
+   container's action border+shadow (Figma text-field treatment), not the ring */
+.c-search-field__input:focus { outline: none; }
+/* custom clear button is the affordance — hide the native WebKit one */
+.c-search-field__input::-webkit-search-cancel-button { display: none; }
+
+.c-search-field__clear {
+  flex: none;
+  display: flex;
+  border: 0;
+  padding: var(--spacing-4);
+  margin: calc(-1 * var(--spacing-4)); /* bigger hit area, same layout */
+  background: transparent;
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+/* 44px tap target (same pattern as chip) — glyph stays 18px visual */
+.c-search-field__clear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  transform: translate(-50%, -50%);
+}
+@media (hover: hover) {
+  .c-search-field__clear:hover { color: var(--text-neutral-01); }
+}
+/* pressed after hover (source-order rule) */
+.c-search-field__clear:active { color: var(--text-action-pressed); }

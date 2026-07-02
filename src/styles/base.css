@@ -19,6 +19,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 img, svg { display: block; max-width: 100%; }
 
+/* [hidden] must always win — author display values (flex/grid/…) on components
+   otherwise override the UA's non-important [hidden] rule (audit 2026-07-02) */
+[hidden] { display: none !important; }
+
 /* Sora + Source Sans 3 — variable WOFF2, Latin subset (src/assets/fonts) */
 @font-face {
   font-family: 'Sora';
@@ -61,6 +65,19 @@ img, svg { display: block; max-width: 100%; }
 
 /* Balance figures (DECISIONS.md #21) */
 .u-tabular { font-feature-settings: "tnum" 1; }
+
+/* Search-match highlight (DECISIONS.md #52) — warning tonal wash, ink inherited */
+.c-highlight {
+  background: var(--surface-warning-inverse);
+  border-radius: var(--radius-2, 2px);
+}
+
+/* Theme switch: suppress ALL transitions for the swap frame (DECISIONS.md #53) —
+   mixed 100/200ms transitions repaint staggered during a token flip = flicker.
+   JS adds the class, flips data-theme, removes it after two rAFs. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after { transition: none !important; }
 
 /* Keyboard focus — one ring app-wide (DECISIONS.md #23) */
 :focus-visible {

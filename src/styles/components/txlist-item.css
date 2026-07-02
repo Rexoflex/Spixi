@@ -1,0 +1,117 @@
+/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
+   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
+
+.c-txlist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-16) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+  /* 100ms intentional: micro-interaction, matches chatlist row hover */
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-txlist-item:hover { background: var(--surface-interactive-hover); }
+}
+/* :active AFTER the hover block so pressed wins (source order at equal specificity) */
+.c-txlist-item:active { background: var(--surface-interactive-pressed); }
+
+/* direction circle: 48, centered 24 arrow */
+.c-txlist-item__direction {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-avatar-48);
+  height: var(--size-avatar-48);
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  color: var(--icon-neutral-01);
+}
+.c-txlist-item[data-type="received"] .c-txlist-item__direction {
+  border-color: var(--outline-success-inverse);
+  color: var(--text-success);
+}
+.c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
+
+.c-txlist-item__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.c-txlist-item__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  letter-spacing: var(--tracking-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+
+.c-txlist-item__time {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-02);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
+   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
+.c-txlist-item__amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  max-width: 55%;
+}
+.c-txlist-item__amount, .c-txlist-item__fiat {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__amount {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  letter-spacing: var(--tracking-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-txlist-item__fiat {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
+  color: var(--text-neutral-02);
+}
+
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-success); }
+.c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
+.c-txlist-item[data-type="failed"] .c-txlist-item__amount,
+.c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
+  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
+  color: var(--text-neutral-disabled);
+  text-decoration: line-through;
+  font-weight: var(--font-weight-regular);
+}

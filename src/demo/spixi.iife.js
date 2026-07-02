@@ -32,6 +32,21 @@ function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/**
+ * Absolute timestamp for transaction rows (docs/tx-row-spec.md): "20 Mar, 9:15".
+ * Device locale for month + 12/24h; no ticker — absolute dates don't go stale.
+ */
+function formatTxTimestamp(ts, now = Date.now()) {
+  const d = new Date(ts);
+  const locale = document.documentElement.lang || undefined;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const date = d.toLocaleDateString(locale, sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  return date + ', ' + time;
+}
+
 let activeStop = null; // single shared ticker — starting a new one stops the previous
 
 /**
@@ -652,5 +667,295 @@ function setNavBadge(nav, id, count, strings = {}) {
   }
 }
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge };
+/* ---- src/components/chip.js ---- */
+/**
+ * c-chip — filter/input chip (docs/chip-search-spec.md, DECISIONS #50).
+ * Mirrors Figma chip/{small,large}; selected + disabled states are code-first
+ * additions (🟡 #50). Dismissible chips: the WHOLE chip is the dismiss trigger
+ * (no nested button); the X glyph is decorative.
+ *
+ * createChip({ label, size = 'large', selected = false, icon = null,
+ *              dismissible = false, disabled = false, onClick, strings })
+ * Updates via free function (#44): setChipSelected(el, selected)
+ */
+
+
+const CHIP_ICON_SIZE = { large: 18, small: 14 };   // leading (Figma)
+const CHIP_DISMISS_SIZE = { large: 16, small: 14 }; // trailing (Figma)
+
+function createChip({
+  label = '', size = 'large', selected = false, icon: leading = null,
+  dismissible = false, disabled = false, onClick, strings = {},
+} = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-chip';
+  el.dataset.size = size;
+  el.disabled = disabled;
+
+  if (leading) {
+    const glyph = icon(leading, { size: CHIP_ICON_SIZE[size] || 18 });
+    glyph.classList.add('c-chip__icon');
+    el.append(glyph);
+  }
+
+  const text = document.createElement('span');
+  text.className = 'c-chip__label';
+  text.textContent = label;
+  el.append(text);
+
+  if (dismissible) {
+    // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)
+    el.dataset.dismissible = '';
+    el.setAttribute('aria-label', label + ' — ' + (strings.remove || 'remove'));
+    const x = icon('x', { size: CHIP_DISMISS_SIZE[size] || 16 });
+    x.classList.add('c-chip__dismiss');
+    el.append(x);
+  } else {
+    // toggle (filter) semantics
+    el.setAttribute('aria-pressed', String(!!selected));
+  }
+
+  if (onClick) el.addEventListener('click', onClick);
+  return el;
+}
+
+/** Set a toggle chip's selected state (no-op on dismissible chips). */
+function setChipSelected(el, selected) {
+  if (!el.hasAttribute('aria-pressed')) return;
+  el.setAttribute('aria-pressed', String(!!selected));
+}
+
+/* ---- src/components/search-field.js ---- */
+/**
+ * c-search-field — search input, specialization of Figma text-field/large
+ * (docs/chip-search-spec.md, DECISIONS #51). Leading search glyph, clear
+ * button appears only while text is present; Esc clears.
+ *
+ * createSearchField({ placeholder = 'Search', value = '', onInput, onSubmit,
+ *                     ariaLabel, strings })
+ * Free fns (#44): setSearchValue(el, v) · getSearchValue(el)
+ */
+
+
+function createSearchField({
+  placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-search-field';
+
+  const glyph = icon('search', { size: 18 });
+  glyph.classList.add('c-search-field__icon');
+
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.className = 'c-search-field__input';
+  input.placeholder = placeholder;
+  input.value = value;
+  input.setAttribute('aria-label', ariaLabel || placeholder);
+
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'c-search-field__clear';
+  clear.setAttribute('aria-label', strings.clear || 'Clear search');
+  clear.hidden = !value;
+  clear.append(icon('x', { size: 18 }));
+
+  const sync = () => { clear.hidden = input.value.length === 0; };
+
+  input.addEventListener('input', () => {
+    sync();
+    if (onInput) onInput(input.value);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && onSubmit) onSubmit(input.value);
+    else if (e.key === 'Escape' && input.value) {
+      e.stopPropagation(); // Esc consumed by the clear, not by overlays above
+      setSearchValue(el, '');
+      if (onInput) onInput('');
+    }
+  });
+  clear.addEventListener('click', () => {
+    setSearchValue(el, '');
+    if (onInput) onInput('');
+    input.focus();
+  });
+
+  el.append(glyph, input, clear);
+  return el;
+}
+
+/** Set the field's value (updates clear-button visibility). */
+function setSearchValue(el, v) {
+  v = v == null ? '' : String(v);
+  const input = el.querySelector('.c-search-field__input');
+  input.value = v;
+  el.querySelector('.c-search-field__clear').hidden = v.length === 0;
+}
+
+/** Read the field's current value. */
+function getSearchValue(el) {
+  return el.querySelector('.c-search-field__input').value;
+}
+
+/* ---- src/components/highlight.js ---- */
+/**
+ * Text-match highlighting for search results (DECISIONS #52).
+ * Wraps case-insensitive matches in span.c-highlight, walking TEXT nodes only —
+ * structured children (mention/draft spans, icons) survive, and content is never
+ * parsed as HTML (XSS-safe: text nodes in, text nodes out).
+ *
+ * setHighlights(rootEl, query) — query '' / null clears.
+ */
+
+function clearHighlights(rootEl) {
+  for (const m of [...rootEl.querySelectorAll('.c-highlight')]) {
+    m.replaceWith(document.createTextNode(m.textContent));
+  }
+  rootEl.normalize(); // merge the text nodes back together
+}
+
+function setHighlights(rootEl, query) {
+  clearHighlights(rootEl);
+  if (query == null || query === '') return;
+  const q = String(query).toLocaleLowerCase();
+
+  const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  for (const node of textNodes) {
+    const text = node.nodeValue;
+    const lower = text.toLocaleLowerCase();
+    let i = lower.indexOf(q);
+    if (i === -1) continue;
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    while (i !== -1) {
+      if (i > pos) frag.append(document.createTextNode(text.slice(pos, i)));
+      const mark = document.createElement('span');
+      mark.className = 'c-highlight';
+      mark.textContent = text.slice(i, i + q.length);
+      frag.append(mark);
+      pos = i + q.length;
+      i = lower.indexOf(q, pos);
+    }
+    if (pos < text.length) frag.append(document.createTextNode(text.slice(pos)));
+    node.replaceWith(frag);
+  }
+}
+
+/* ---- src/components/badge.js ---- */
+/**
+ * c-badge — status badge, mirrors Figma badge type×weight (docs/tx-row-spec.md,
+ * DECISIONS #54). Static display component — no interaction states.
+ *
+ * createBadge({ label, type = 'warning', weight = 'tonal', icon = null,
+ *               trailingIcon = null })
+ * type: warning | error | info | success | accent
+ */
+
+
+function createBadge({
+  label = '', type = 'warning', weight = 'tonal', icon: leading = null, trailingIcon = null,
+} = {}) {
+  const el = document.createElement('span');
+  el.className = 'c-badge';
+  el.dataset.type = type;
+  el.dataset.weight = weight;
+
+  if (leading) el.append(icon(leading, { size: 16 }));
+
+  const text = document.createElement('span');
+  text.className = 'c-badge__label';
+  text.textContent = label;
+  el.append(text);
+
+  if (trailingIcon) el.append(icon(trailingIcon, { size: 16 }));
+  return el;
+}
+
+/* ---- src/components/txlist-item.js ---- */
+/**
+ * c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
+ * Mirrors Figma tx list-chat type=sent|received|pending|failed; interaction
+ * states are code-first (#43 coverage — Figma rows are static).
+ * Bridge: addPaymentActivity(txid, received, counterparty, time, amount, fiat,
+ * confirmed) — amount/fiat arrive pre-formatted, component stays dumb.
+ *
+ * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
+ *                'failed', name, timestamp, amount, fiat, onClick, strings })
+ */
+
+
+
+
+const BADGES = {
+  pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
+  failed: { type: 'error', glyph: 'alert-square-rounded', label: 'Failed', key: 'txFailed' },
+};
+
+function createTxItem({
+  txid = '', direction = 'out', status = 'confirmed',
+  name = '', timestamp, amount = '', fiat = '', onClick, strings = {},
+} = {}) {
+  // visual type: pending/failed override the direction presentation
+  const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
+
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-txlist-item';
+  el.dataset.type = type;
+  if (txid) el.dataset.txid = txid;
+
+  const circle = document.createElement('span');
+  circle.className = 'c-txlist-item__direction';
+  // labeled, not aria-hidden: direction is otherwise color/icon-only (amount
+  // signs aren't guaranteed — failed rows ship unsigned per Figma)
+  circle.append(icon(direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', {
+    size: 24,
+    label: direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent'),
+  }));
+  el.append(circle);
+
+  const content = document.createElement('span');
+  content.className = 'c-txlist-item__content';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'c-txlist-item__name';
+  nameEl.textContent = name;
+  content.append(nameEl);
+
+  const row2 = document.createElement('span');
+  row2.className = 'c-txlist-item__meta';
+  const b = BADGES[status];
+  if (b) {
+    row2.append(createBadge({
+      label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
+    }));
+  }
+  if (timestamp != null) {
+    const time = document.createElement('span');
+    time.className = 'c-txlist-item__time u-tabular';
+    time.textContent = formatTxTimestamp(timestamp);
+    row2.append(time);
+  }
+  content.append(row2);
+  el.append(content);
+
+  const right = document.createElement('span');
+  right.className = 'c-txlist-item__amounts';
+  const amountEl = document.createElement('span');
+  amountEl.className = 'c-txlist-item__amount u-tabular';
+  amountEl.textContent = amount;
+  const fiatEl = document.createElement('span');
+  fiatEl.className = 'c-txlist-item__fiat u-tabular';
+  fiatEl.textContent = fiat;
+  right.append(amountEl, fiatEl);
+  el.append(right);
+
+  if (onClick) el.addEventListener('click', onClick);
+  return el;
+}
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem };
 })();

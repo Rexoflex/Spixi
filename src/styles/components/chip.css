@@ -1,0 +1,94 @@
+/* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
+   (docs/chip-search-spec.md, DECISIONS #50). Semantic tokens only. */
+
+.c-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-01);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  position: relative;
+  /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard);
+}
+
+/* extended tap area (#50): chips are 26/30px visual (line-height + 8 padding
+   + 2 border), target must be 44 (--size-target-min); pseudo widens the hit
+   box vertically without visual change */
+.c-chip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--size-target-min);
+  transform: translateY(-50%);
+}
+
+.c-chip[data-size="large"] {
+  padding: var(--spacing-4) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+.c-chip[data-size="small"] {
+  padding: var(--spacing-4) var(--spacing-8);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+}
+
+.c-chip__icon, .c-chip__dismiss { flex: none; }
+
+/* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct */
+.c-chip[aria-pressed="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: transparent;
+  color: var(--text-action-default);
+}
+
+/* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
+@media (hover: hover) {
+  .c-chip:not(:disabled):hover {
+    background: var(--surface-neutral-02);
+    border-color: var(--outline-action-hover);
+    color: var(--text-action-hover);
+  }
+  .c-chip[aria-pressed="true"]:not(:disabled):hover {
+    background: var(--surface-action-tonal-hover);
+    border-color: transparent;
+    color: var(--text-action-hover);
+  }
+}
+
+/* pressed AFTER hover (source order at equal specificity — pressed wins) */
+.c-chip:active {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-pressed);
+  color: var(--text-action-pressed);
+}
+.c-chip[aria-pressed="true"]:active {
+  background: var(--surface-action-tonal-pressed);
+  border-color: transparent;
+  color: var(--text-action-pressed);
+}
+
+/* disabled — code-first #50 */
+.c-chip:disabled {
+  background: var(--surface-neutral-disabled);
+  border-color: var(--outline-neutral-disabled);
+  color: var(--text-neutral-on-disabled);
+  cursor: not-allowed;
+}

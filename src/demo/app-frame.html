@@ -13,6 +13,10 @@
 <link rel="stylesheet" href="../styles/components/bottomnav.css">
 <link rel="stylesheet" href="../styles/components/avatar.css">
 <link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/txlist-item.css">
 <style>
   /* demo chrome */
   body { padding: var(--spacing-24); }
@@ -32,13 +36,7 @@
   }
 
   /* Chats screen */
-  .search-field {
-    display: flex; align-items: center; gap: var(--spacing-8);
-    margin: var(--spacing-4) var(--spacing-16) var(--spacing-12);
-    height: 44px; padding-inline: var(--spacing-16); flex: none;
-    background: var(--surface-input); border-radius: var(--radius-16);
-    color: var(--text-neutral-02); font-size: var(--font-size-body-md);
-  }
+  .search-wrap { margin: var(--spacing-4) var(--spacing-16) var(--spacing-12); flex: none; }
   .content { flex: 1; display: flex; flex-direction: column; } /* scrolling via .u-scroll (base.css) */
   .fab {
     position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
@@ -88,13 +86,12 @@
   }
   .hero__amount .unit { font-size: 0.62em; font-weight: var(--font-weight-bold); }
   .hero__eye { margin-left: auto; background: none; border: 0; color: var(--icon-on-hero); cursor: pointer; padding: var(--spacing-8); border-radius: var(--radius-full); }
-  /* placeholder hovers until c-icon-button / c-chip components land;
+  /* placeholder hovers until c-icon-button lands;
      guarded per DECISIONS #43 (no sticky hover on touch) */
   @media (hover: hover) {
     .hero__eye:hover, .quick-action:hover .quick-action__circle { background: rgba(255, 255, 255, 0.12); } /* on-hero hover wash; token candidate at next Figma sync */
     .hero__eye:hover { color: var(--text-on-hero-muted); } /* ink steps to the light periwinkle on-hero tint — icon-on-hero is already near-white, so "lighter" = tinted (Damir 2026-07-02, #49) */
     .quick-action--primary:hover .quick-action__circle { background: var(--surface-neutral-01); opacity: 0.9; }
-    .chip:hover:not([aria-pressed="true"]) { background: var(--surface-interactive-hover); }
   }
   .hero__fiat { color: var(--text-on-hero-muted); font-size: var(--font-size-body-md); }
   .hero__actions { display: flex; gap: var(--spacing-24); padding: var(--spacing-24) var(--spacing-16) 0; }
@@ -108,13 +105,6 @@
     background: var(--surface-neutral-01); border-color: transparent; color: var(--icon-action-default);
   }
   .filters { display: flex; align-items: center; gap: var(--spacing-8); padding: var(--spacing-16); flex: none; }
-  .chip {
-    height: 32px; padding-inline: var(--spacing-16); border-radius: var(--radius-full);
-    border: var(--outline-width-1) solid var(--outline-neutral-03); background: transparent;
-    color: var(--text-neutral-01); font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); cursor: pointer;
-  }
-  .chip[aria-pressed="true"] { background: var(--surface-action-default); border-color: transparent; color: var(--text-neutral-on-action); }
-  .list-hint { padding: var(--spacing-16); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
 </style>
 </head>
 <body>
@@ -128,7 +118,7 @@
       <div class="demo-phone">
         <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
         <div id="chats-topbar"></div>
-        <div class="search-field"><span id="search-icon"></span>Search chats</div>
+        <div class="search-wrap" id="search-slot"></div>
         <div class="content u-scroll" id="chat-list"></div>
         <button class="fab" id="fab" aria-label="New chat"></button>
         <div id="chats-nav"></div>
@@ -155,22 +145,18 @@
             <button class="quick-action"><span class="quick-action__circle" id="qa-scan"></span>Scan</button>
           </div>
         </div>
-        <div class="filters">
-          <button class="chip" aria-pressed="true">All</button>
-          <button class="chip" aria-pressed="false">Sent</button>
-          <button class="chip" aria-pressed="false">Received</button>
-        </div>
-        <div class="content u-scroll"><div class="list-hint">Transaction rows: next batch (reuses timestamp + avatar + status primitives).</div></div>
+        <div class="filters" id="wallet-filters" role="group" aria-label="Filter transactions"></div>
+        <div class="content u-scroll" id="tx-list"></div>
         <div id="wallet-nav"></div>
       </div>
-      <div class="demo-caption">Wallet — hero gradient over surface-hero · quick actions · chips (placeholder)</div>
+      <div class="demo-caption">Wallet — hero gradient over surface-hero · quick actions · c-chip filter group</div>
     </div>
   </div>
 
 <script src="../components/icons.iife.js"></script>
 <script src="spixi.iife.js"></script>
 <script>
-  const { createButton, createTopbar, createBottomNav, createChatItem, startTimestampTicker, refreshTimestamps, setNavBadge } = window.Spixi;
+  const { createButton, createTopbar, createBottomNav, createChatItem, startTimestampTicker, refreshTimestamps, setNavBadge, createChip, setChipSelected, createSearchField } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
   const themeBtn = createButton({
@@ -180,7 +166,10 @@
     onClick: () => {
       const root = document.documentElement;
       const dark = root.dataset.theme === 'dark';
+      // suppress transitions for the swap (#53) — mixed durations flicker otherwise
+      root.classList.add('theme-switching');
       root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
       themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
     },
   });
@@ -190,7 +179,6 @@
     variant: 'root', title: 'Spixi', logo: true,
     actions: [{ icon: 'users', label: 'Contacts', onClick: () => {} }],
   }));
-  document.getElementById('search-icon').append(icon('search', { size: 20 }));
   document.getElementById('fab').append(icon('message-plus'));
 
   const NAV_ITEMS = [
@@ -208,12 +196,45 @@
   document.getElementById('qa-send').append(icon('arrow-up-right'));
   document.getElementById('qa-receive').append(icon('arrow-down-left'));
   document.getElementById('qa-scan').append(icon('scan'));
-  for (const chip of document.querySelectorAll('.chip')) {
-    chip.addEventListener('click', () => {
-      for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', 'false');
-      chip.setAttribute('aria-pressed', 'true');
+
+  // wallet tx rows (mock data mirroring bridge addPaymentActivity; times relative)
+  const { createTxItem } = window.Spixi;
+  const nowTx = Date.now();
+  const TX_ROWS = [
+    { direction: 'out', status: 'confirmed', name: 'Han Solo', timestamp: nowTx - 2 * 3600000, amount: '-18,000.00', fiat: '-$30.87' },
+    { direction: 'in', status: 'confirmed', name: '425H…5CQen', timestamp: nowTx - 26 * 3600000, amount: '+65,000.00', fiat: '+$100.87' },
+    { direction: 'out', status: 'pending', name: 'Han Solo', timestamp: nowTx - 27 * 3600000, amount: '-18,000.00', fiat: '-$30.87' },
+    { direction: 'out', status: 'failed', name: 'Han Solo', timestamp: nowTx - 50 * 3600000, amount: '18,000.00', fiat: '$30.87' },
+    { direction: 'in', status: 'confirmed', name: 'Baracuda', timestamp: nowTx - 96 * 3600000, amount: '+25.00', fiat: '+$0.04' },
+    { direction: 'out', status: 'confirmed', name: 'Martins Obademo', timestamp: nowTx - 30 * 86400000, amount: '-1,250.00', fiat: '-$2.14' },
+  ];
+  const txList = document.getElementById('tx-list');
+  const txEls = TX_ROWS.map((t) => {
+    const el = createTxItem(t);
+    el.dataset.direction = t.direction; // filter reads the element, not a parallel array
+    return el;
+  });
+  txList.append(...txEls);
+
+  // wallet filter chips — exclusive c-chip group, wired to the tx list
+  const applyTxFilter = (label) => {
+    for (const el of txEls) {
+      el.hidden =
+        (label === 'Sent' && el.dataset.direction !== 'out') ||
+        (label === 'Received' && el.dataset.direction !== 'in');
+    }
+  };
+  const filterChips = ['All', 'Sent', 'Received'].map((label, i) => {
+    const chip = createChip({
+      label, selected: i === 0,
+      onClick: () => {
+        filterChips.forEach((c) => setChipSelected(c, c === chip));
+        applyTxFilter(label);
+      },
     });
-  }
+    return chip;
+  });
+  document.getElementById('wallet-filters').append(...filterChips);
 
   /* —— chat rows (mock data mirroring "Chats - LM"; times relative so buckets are live) —— */
   const now = Date.now();
@@ -312,6 +333,26 @@
     (n, c) => n + (c.muted ? 0 : (c.unread || (c.mention ? 1 : 0))), 0);
   setNavBadge(chatsNav, 'chats', unreadTotal);
   setNavBadge(walletNav, 'chats', unreadTotal);
+
+  // c-search-field with live filtering over name + excerpt, matches highlighted
+  // (#52; shell will filter its data model instead of the DOM)
+  const { setHighlights } = window.Spixi;
+  document.getElementById('search-slot').append(createSearchField({
+    placeholder: 'Search chats',
+    onInput: (q) => {
+      const needle = q.trim().toLocaleLowerCase();
+      for (const row of list.querySelectorAll('.c-chatlist-item')) {
+        const name = row.querySelector('.c-chatlist-item__name');
+        const excerpt = row.querySelector('.c-excerpt');
+        const hit = needle === '' ||
+          name.textContent.toLocaleLowerCase().includes(needle) ||
+          (excerpt && excerpt.textContent.toLocaleLowerCase().includes(needle));
+        row.hidden = !hit;
+        setHighlights(name, hit ? needle : '');
+        if (excerpt) setHighlights(excerpt, hit ? needle : '');
+      }
+    },
+  }));
 
   startTimestampTicker(() => refreshTimestamps(list));
 </script>

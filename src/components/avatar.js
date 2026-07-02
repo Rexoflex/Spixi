@@ -55,6 +55,7 @@ export function createAvatar({ src = null, name = '', address = '', size = 48, o
     if (ini) {
       const t = document.createElement('span');
       t.className = 'c-avatar__initials';
+      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
       t.textContent = ini;
       el.append(t);
     } else {

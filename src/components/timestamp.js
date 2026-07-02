@@ -5,12 +5,22 @@
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
+/** Locale for every Intl call in the components — document lang, validated.
+ *  (audit r2: an invalid BCP-47 lang attr, e.g. "en_US", made every toLocale*
+ *  call throw and killed whole-component rendering.) */
+export function docLocale() {
+  const lang = document.documentElement.lang;
+  if (!lang) return undefined;
+  try { Intl.getCanonicalLocales(lang); return lang; } catch { return undefined; }
+}
+
 /** Shared day-bucket ladder (chat list + conversation separators — single source,
  *  audit DRY finding). `todayLabel` null → caller handles today itself. */
 export function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
+  if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
   const n = new Date(now);
-  const locale = document.documentElement.lang || undefined;
+  const locale = docLocale();
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
   if (dayDiff <= 0) return todayLabel; // today (or future clock skew)
@@ -24,9 +34,8 @@ export function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = 
 
 export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
   const bucket = dayBucketLabel(ts, strings, now, null);
-  if (bucket !== null) return bucket;
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
+  return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -35,7 +44,8 @@ export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
  */
 export function formatTxTimestamp(ts, now = Date.now()) {
   const d = new Date(ts);
-  const locale = document.documentElement.lang || undefined;
+  if (isNaN(d)) return ''; // audit r2
+  const locale = docLocale();
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
   const date = d.toLocaleDateString(locale, sameYear
     ? { day: 'numeric', month: 'short' }

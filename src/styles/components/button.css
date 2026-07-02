@@ -91,12 +91,13 @@
 .c-button[data-type="outline"]:active { color: var(--_ink-pressed); border-color: var(--_ink-pressed); background: var(--_tonal); }
 .c-button[data-type="text"]:active { color: var(--_ink-pressed); background: var(--_tonal); }
 
-/* disabled */
+/* disabled — loading buttons are ALSO disabled now (audit r2: keyboard could
+   re-fire a processing Pay) but must keep their type surface, not the grey */
 .c-button:disabled { cursor: not-allowed; }
-.c-button:disabled[data-type="fill"],
-.c-button:disabled[data-type="tonal"] { background: var(--surface-action-disabled); color: var(--text-neutral-on-disabled); }
-.c-button:disabled[data-type="outline"] { color: var(--text-action-disabled); border-color: var(--outline-action-disabled); background: transparent; }
-.c-button:disabled[data-type="text"] { color: var(--text-action-disabled); background: transparent; }
+.c-button:disabled:not([data-loading])[data-type="fill"],
+.c-button:disabled:not([data-loading])[data-type="tonal"] { background: var(--surface-action-disabled); color: var(--text-neutral-on-disabled); }
+.c-button:disabled:not([data-loading])[data-type="outline"] { color: var(--text-action-disabled); border-color: var(--outline-action-disabled); background: transparent; }
+.c-button:disabled:not([data-loading])[data-type="text"] { color: var(--text-action-disabled); background: transparent; }
 
 /* loading */
 .c-button[data-loading] { pointer-events: none; }

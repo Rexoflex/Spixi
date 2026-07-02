@@ -52,6 +52,9 @@
   padding-inline-end: var(--spacing-8);
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+/* dark (audit r2): neutral-900 bar + neutral-800 hairline both vanish on the
+   primary-900 gradient top — one step up so the boundary reads in dark too */
+[data-theme="dark"] .c-topbar[data-variant="chat"] { border-bottom-color: var(--outline-neutral-02); }
 .c-topbar__identity {
   flex: 1;
   min-width: 0;

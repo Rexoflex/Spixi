@@ -38,7 +38,7 @@
 </head>
 <body>
   <div class="demo-toolbar">
-    <h1 class="t-heading-md" style="margin-right:auto">Chat — batches 1a+1b+2</h1>
+    <h1 class="t-heading-md" style="margin-inline-end:auto">Chat — batches 1a+1b+2</h1>
     <span id="voice-slot"></span>
     <span id="theme-slot"></span>
   </div>
@@ -46,10 +46,11 @@
   <div class="demo-frames">
     <div>
       <div class="demo-phone" id="phone">
-        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div class="statusbar" aria-hidden="true"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
         <div id="chat-topbar"></div>
         <div class="c-chat-canvas">
-          <div class="messages u-scroll" id="messages" role="log" aria-label="Messages"></div>
+          <!-- tabindex: keyboard users must be able to scroll text-only history (audit r2) -->
+          <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
         </div>
         <div id="composer-slot"></div>
       </div>
@@ -108,14 +109,21 @@
   // —— batch 2: typed cards ——
   const { createPaymentBubble, createAppBubble, createCallBubble, createFileBubble, createUnreadDivider } = window.Spixi;
   const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: phone });
+  // state-changing actions latch their button (audit r2 one-shot guard; the real
+  // shell re-renders the card via the bridge) — the demo re-arms after a beat
+  const demoAct = (label) => (e) => {
+    const btn = e.currentTarget;
+    toast(label);
+    setTimeout(() => { btn.disabled = false; delete btn.dataset.acted; }, 1200);
+  };
   box.append(
     createPaymentBubble({
       role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - D - 30 * 60000,
-      onPay: () => toast('Pay'), onDecline: () => toast('Decline'),
+      onPay: demoAct('Pay'), onDecline: demoAct('Decline'),
     }),
     createPaymentBubble({
       role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: now - D - 20 * 60000,
-      onCancel: () => toast('Cancel request'),
+      onCancel: demoAct('Cancel request'),
     }),
     createPaymentBubble({
       role: 'received', amount: '+25.00', fiat: '$30.87', status: 'completed', timestamp: now - D - 10 * 60000,
@@ -128,6 +136,7 @@
     createFileBubble({
       direction: 'received', name: 'Campsite_map.png', meta: 'Downloading · 1.1 of 4.2 MB', state: 'progress', progress: 26,
       timestamp: now - D - 4 * 60000,
+      onOpen: () => toast('Open file'), // fires once the transfer completes (audit r2)
     }),
     createCallBubble({
       directionLabel: 'Outgoing', duration: '4:12', timestamp: now - D - 2 * 60000,
@@ -139,7 +148,7 @@
     }),
     createAppBubble({
       name: 'TicTacToe', state: 'invite', timestamp: now - D,
-      onJoin: () => toast('Join'), onDecline: () => toast('Decline'),
+      onJoin: demoAct('Join'), onDecline: demoAct('Decline'),
     }),
   );
   // simulate live download progress on the second file bubble (meta refresh + auto-complete)
@@ -183,7 +192,12 @@
     }
     const row = createMessageBubble({ direction: 'sent', position, text, timestamp: at, status: 'sending' });
     row.classList.add('c-bubble-row--in'); // live-send entrance (Damir 2026-07-03)
-    row.addEventListener('animationend', () => row.classList.remove('c-bubble-row--in'), { once: true });
+    // audit r2: filter to the row's own animation (a bubbled child animation
+    // consumed the once-listener) + timeout fallback for reduced-motion,
+    // where animationend never fires and the class would stick forever
+    const clearIn = () => row.classList.remove('c-bubble-row--in');
+    row.addEventListener('animationend', (e) => { if (e.target === row) clearIn(); });
+    setTimeout(clearIn, 400);
     box.append(row);
     lastSent = { row, at };
     box.scrollTop = box.scrollHeight;

@@ -149,6 +149,7 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
     if (ini) {
       const t = document.createElement('span');
       t.className = 'c-avatar__initials';
+      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
       t.textContent = ini;
       el.append(t);
     } else {
@@ -2059,6 +2060,7 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
     if (ini) {
       const t = document.createElement('span');
       t.className = 'c-avatar__initials';
+      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
       t.textContent = ini;
       el.append(t);
     } else {
@@ -2072,6 +2074,586 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
   }
   return el;
 }
+
+/* ---- AUDIT r2 SUPERSEDE SECTION (2026-07-03, full-surface audit ×3 agents) ----
+   Later function declarations override earlier ones. Mirrors CURRENT sources:
+   timestamp.js (docLocale + invalid-ts guards), message-bubble.js (ts guard +
+   retry re-entry guard), typed-bubbles.js (action guards, file dispatcher,
+   setFileProgress aria/glyph refresh), button.js (loading disables).
+   Mac rebuild (`node scripts/build-demo-bundle.mjs`) normalizes all of this. */
+
+function docLocale() {
+  const lang = document.documentElement.lang;
+  if (!lang) return undefined;
+  try { Intl.getCanonicalLocales(lang); return lang; } catch { return undefined; }
+}
+
+function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
+  const d = new Date(ts);
+  if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
+  const n = new Date(now);
+  const locale = docLocale();
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
+  if (dayDiff <= 0) return todayLabel;
+  if (dayDiff === 1) return strings.yesterday || 'Yesterday';
+  if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
+  if (d.getFullYear() === n.getFullYear()) {
+    return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+  }
+  return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+  const bucket = dayBucketLabel(ts, strings, now, null);
+  if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
+  return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTxTimestamp(ts, now = Date.now()) {
+  const d = new Date(ts);
+  if (isNaN(d)) return ''; // audit r2
+  const locale = docLocale();
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const date = d.toLocaleDateString(locale, sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  return date + ', ' + time;
+}
+
+function bubbleTime(d) {
+  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+
+function createMessageBubble({
+  direction = 'received',
+  position = 'single',
+  text = '',
+  timestamp = null,
+  status = null,
+  sender = null,
+  showAvatar = false,
+  name = '',
+  address = '',
+  avatar = null,
+  onRetry = null,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = position;
+
+  if (direction === 'received' && (showAvatar || sender !== null)) {
+    const gutter = document.createElement('span');
+    gutter.className = 'c-bubble-row__gutter';
+    if (showAvatar && (position === 'last' || position === 'single')) {
+      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+    }
+    row.append(gutter);
+  }
+
+  const el = document.createElement('div');
+  el.className = 'c-bubble';
+
+  if (sender && (position === 'first' || position === 'single')) {
+    const s = document.createElement('span');
+    s.className = 'c-bubble__sender';
+    s.textContent = sender;
+    s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    el.append(s);
+  }
+
+  const body = document.createElement('span');
+  body.className = 'c-bubble__text';
+  body.textContent = text;
+  el.append(body);
+
+  const meta = document.createElement('span');
+  meta.className = 'c-bubble__meta u-tabular';
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: one malformed bridge ts crashed the whole render
+      const t = document.createElement('time');
+      t.setAttribute('datetime', d.toISOString());
+      t.textContent = bubbleTime(d);
+      meta.append(t);
+    }
+  }
+  if (direction === 'sent' && status) {
+    const st = createStatusIcon(status);
+    if (st) {
+      st.setAttribute('width', 14);
+      st.setAttribute('height', 14);
+      st.removeAttribute('aria-hidden');
+      st.setAttribute('role', 'img');
+      st.setAttribute('aria-label', strings['status-' + status] || status);
+      meta.append(st);
+    }
+  }
+  if (meta.childNodes.length) el.append(meta);
+
+  if (direction === 'sent' && status === 'failed') {
+    row.dataset.failed = '';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'c-bubble-retry';
+    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
+    retry.append(icon('rotate-clockwise-2', { size: 16 }));
+    // audit r2: re-entry guard shared by circle + caption
+    let lastRetry = 0;
+    const retryGuarded = onRetry ? ((e) => {
+      const t = Date.now();
+      if (t - lastRetry < 500) return;
+      lastRetry = t;
+      onRetry(e);
+    }) : null;
+    if (retryGuarded) retry.addEventListener('click', retryGuarded);
+    const line = document.createElement('div');
+    line.className = 'c-bubble-line';
+    line.append(retry, el);
+    const stack = document.createElement('div');
+    stack.className = 'c-bubble-stack';
+    stack.append(line);
+    const note = document.createElement('span');
+    note.className = 'c-bubble-failnote';
+    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
+    if (retryGuarded) note.addEventListener('click', retryGuarded);
+    stack.append(note);
+    row.append(stack);
+    return row;
+  }
+
+  row.append(el);
+  return row;
+}
+
+function cardTime(d) {
+  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+
+function card(direction, title, timestamp, modifier) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  const el = document.createElement('div');
+  el.className = 'c-tcard';
+  if (modifier) el.dataset.kind = modifier;
+  const head = document.createElement('div');
+  head.className = 'c-tcard__head';
+  const t = document.createElement('span');
+  t.className = 'c-tcard__title';
+  t.textContent = title;
+  head.append(t);
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
+      const time = document.createElement('time');
+      time.className = 'c-tcard__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      head.append(time);
+    }
+  }
+  el.append(head);
+  row.append(el);
+  return { row, el };
+}
+
+/* Action guards (audit r2): state-changing actions latch; repeatable ones
+   guard rapid re-entry only. Shell contract: bridge re-render replaces cards. */
+function oneShot(fn) {
+  if (!fn) return undefined;
+  return (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled || btn.dataset.acted !== undefined) return;
+    btn.dataset.acted = '';
+    btn.disabled = true;
+    fn(e);
+  };
+}
+function reentryGuard(fn) {
+  if (!fn) return undefined;
+  let last = 0;
+  return (e) => {
+    const now = Date.now();
+    if (now - last < 500) return;
+    last = now;
+    fn(e);
+  };
+}
+
+function createPaymentBubble({
+  role = 'request-in',
+  amount = '',
+  fiat = '',
+  status = 'actionable',
+  insufficient = false,
+  timestamp = null,
+  onPay, onDecline, onCancel, onRetry, onDetails,
+  strings = {},
+} = {}) {
+  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
+  const titles = {
+    'request-in': strings.paymentRequest || 'Payment request',
+    'request-out': strings.youRequested || 'You requested',
+    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
+    received: strings.paymentReceived || 'Payment received',
+  };
+  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment'); // audit r2: unknown role rendered "undefined"
+  row.dataset.status = status;
+
+  const amountEl = document.createElement('div');
+  amountEl.className = 'c-tcard__amount u-tabular';
+  amountEl.dataset.tone =
+    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
+    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
+    : 'pending';
+  amountEl.append(document.createTextNode(amount + ' '));
+  const unit = document.createElement('span');
+  unit.className = 'c-tcard__unit';
+  unit.textContent = 'IXI';
+  amountEl.append(unit);
+  el.append(amountEl);
+
+  if (fiat) {
+    const f = document.createElement('div');
+    f.className = 'c-tcard__fiat u-tabular';
+    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
+    f.textContent = fiat;
+    el.append(f);
+  }
+
+  const BADGES = {
+    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
+    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
+    completed: ['success', strings.completed || 'Completed', 'check'],
+    declined: ['error', strings.declined || 'Declined', 'cancel'],
+    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
+  };
+  if (BADGES[status]) {
+    const [type, label, glyph] = BADGES[status];
+    const wrap = document.createElement('div');
+    wrap.className = 'c-tcard__badge';
+    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
+    el.append(wrap);
+  }
+
+  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
+    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
+    const pay = status === 'failed'
+      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient, loading: status === 'processing' });
+    el.append(actionsRow(decline, pay));
+    if (insufficient) {
+      const note = document.createElement('div');
+      note.className = 'c-tcard__note';
+      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      el.append(note);
+    }
+  } else if (role === 'request-out' && status === 'pending') {
+    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
+  } else if (role === 'sent' && status === 'failed') {
+    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
+  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
+    el.append(detailsLink(reentryGuard(onDetails), strings));
+  }
+  return row;
+}
+
+function createAppBubble({
+  name = '',
+  iconUrl = null,
+  state = 'invite',
+  direction = null,
+  timestamp = null,
+  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
+  strings = {},
+} = {}) {
+  const dir = direction || (state === 'invited' ? 'sent' : 'received');
+  const title = (state === 'in-session' || state === 'ended')
+    ? (strings.appSession || 'App session')
+    : (strings.appInvite || 'App invite');
+  const { row, el } = card(dir, title, timestamp, 'app');
+
+  const id = document.createElement('div');
+  id.className = 'c-tcard__app';
+  const ic = document.createElement('span');
+  ic.className = 'c-tcard__app-icon';
+  if (iconUrl) {
+    const img = document.createElement('img');
+    img.src = iconUrl;
+    img.alt = '';
+    ic.append(img);
+  } else {
+    ic.append(icon('rocket', { size: 24 }));
+  }
+  const col = document.createElement('span');
+  col.className = 'c-tcard__app-info';
+  const nm = document.createElement('span');
+  nm.className = 'c-tcard__app-name';
+  nm.textContent = name;
+  const sub = document.createElement('span');
+  sub.className = 'c-tcard__app-sub';
+  sub.textContent = {
+    invite: strings.invitedYou || 'Invited you to join',
+    invited: strings.youInvited || 'You have sent an invite',
+    missing: strings.invitedYou || 'Invited you to join',
+    'in-session': strings.inSession || 'In session',
+    ended: strings.sessionEnded || 'Session ended',
+  }[state] || ''; // audit r2: unknown state rendered "undefined"
+  col.append(nm, sub);
+  id.append(ic, col);
+  el.append(id);
+
+  if (state === 'invite') {
+    el.append(actionsRow(
+      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
+      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
+    ));
+  } else if (state === 'invited') {
+    el.append(actionsRow(
+      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
+      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
+    ));
+  } else if (state === 'missing') {
+    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
+  } else if (state === 'in-session') {
+    el.append(actionsRow(
+      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
+      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
+    ));
+  }
+  return row;
+}
+
+function createCallBubble({
+  missed = false,
+  direction = 'received',
+  directionLabel = '',
+  duration = '',
+  timestamp = null,
+  onCallBack,
+  strings = {},
+} = {}) {
+  const { row, el } = card(direction,
+    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    timestamp, 'call');
+  if (missed) row.dataset.missed = '';
+  const head = el.querySelector('.c-tcard__title');
+  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
+
+  if (missed) {
+    const sub = document.createElement('button');
+    sub.type = 'button';
+    sub.className = 'c-tcard__call-back';
+    sub.textContent = strings.tapToCallBack || 'Tap to call back';
+    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
+    if (cb) sub.addEventListener('click', cb);
+    el.append(sub);
+  } else {
+    const meta = document.createElement('div');
+    meta.className = 'c-tcard__call-meta u-tabular';
+    meta.textContent = directionLabel + (duration ? ' · ' + duration : '');
+    el.append(meta);
+    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
+    el.append(wrap);
+  }
+  return row;
+}
+
+/* file-bubble state → accessible name / leading glyph (shared with setFileProgress) */
+function fileAria(state, name, strings) {
+  return (state === 'offer' ? (strings.download || 'Download')
+    : state === 'failed' ? (strings.retry || 'Retry')
+    : state === 'progress' ? (strings.downloading || 'Downloading')
+    : (strings.open || 'Open'))
+    + ' ' + name;
+}
+function fileGlyph(state) {
+  return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
+}
+
+function createFileBubble({
+  direction = 'received',
+  name = '',
+  meta = '',
+  state = 'complete',
+  progress = 0,
+  timestamp = null,
+  onAccept, onOpen, onRetry,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-fbubble';
+  el.dataset.state = state;
+  // ONE persistent dispatcher keyed on live state (audit r2: progress-created
+  // bubbles bound no handler — the finished download was a dead button)
+  const handlers = {
+    offer: oneShot(onAccept),
+    failed: reentryGuard(onRetry),
+    complete: reentryGuard(onOpen),
+  };
+  el.addEventListener('click', (e) => {
+    const h = handlers[el.dataset.state];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.setAttribute('aria-label', fileAria(state, name, strings));
+
+  const ic = document.createElement('span');
+  ic.className = 'c-fbubble__icon';
+  ic.append(icon(fileGlyph(state), { size: 20 }));
+  el.append(ic);
+
+  const col = document.createElement('span');
+  col.className = 'c-fbubble__info';
+  const nm = document.createElement('span');
+  nm.className = 'c-fbubble__name';
+  nm.textContent = name;
+  const mt = document.createElement('span');
+  mt.className = 'c-fbubble__meta';
+  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
+  col.append(nm, mt);
+  if (state === 'progress') {
+    const track = document.createElement('span');
+    track.className = 'c-fbubble__track';
+    track.setAttribute('role', 'progressbar');
+    track.setAttribute('aria-valuemin', '0');
+    track.setAttribute('aria-valuemax', '100');
+    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
+    const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+    track.setAttribute('aria-valuenow', String(p));
+    const fill = document.createElement('span');
+    fill.className = 'c-fbubble__fill';
+    fill.style.width = p + '%';
+    track.append(fill);
+    col.append(track);
+  }
+  el.append(col);
+
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2
+      const time = document.createElement('time');
+      time.className = 'c-fbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      el.append(time);
+    }
+  }
+  row.append(el);
+  return row;
+}
+
+function setFileProgress(rowEl, progress, opts = {}) {
+  const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+  const fill = rowEl.querySelector('.c-fbubble__fill');
+  if (fill) fill.style.width = p + '%';
+  const track = rowEl.querySelector('.c-fbubble__track');
+  if (track) track.setAttribute('aria-valuenow', String(p));
+  const metaEl = rowEl.querySelector('.c-fbubble__meta');
+  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  const bubble = rowEl.querySelector('.c-fbubble');
+  const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  if (bubble && finalState && bubble.dataset.state !== finalState) {
+    const strings = opts.strings || {};
+    bubble.dataset.state = finalState;
+    bubble.disabled = false;
+    delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
+    if (track) track.remove();
+    // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
+    const nm = bubble.querySelector('.c-fbubble__name');
+    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    const ic = bubble.querySelector('.c-fbubble__icon');
+    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    if (finalState === 'failed' && metaEl && !opts.meta) {
+      metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
+    }
+  }
+}
+
+function createButton({
+  label,
+  type = 'fill',
+  size = 44,
+  intent = 'default',
+  width = 'hug',
+  icon = null,
+  iconPosition = 'leading',
+  ariaLabel,
+  loading = false,
+  disabled = false,
+  onClick,
+} = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-button';
+  el.dataset.type = type;
+  el.dataset.size = String(size);
+  el.dataset.intent = intent;
+  el.dataset.width = width;
+
+  const hasLabel = label != null && label !== '';
+  if (!hasLabel) {
+    el.dataset.iconOnly = '';
+    if (ariaLabel) el.setAttribute('aria-label', ariaLabel);
+    else console.warn('c-button: icon-only button requires ariaLabel');
+  }
+
+  if (icon) icon.classList.add('c-button__icon');
+  if (icon && iconPosition === 'leading') el.append(icon);
+
+  if (hasLabel) {
+    const text = document.createElement('span');
+    text.className = 'c-button__label';
+    text.textContent = label;
+    el.append(text);
+  }
+
+  if (icon && iconPosition === 'trailing') el.append(icon);
+
+  if (onClick) el.addEventListener('click', onClick);
+
+  // disabled BEFORE setLoading — loading remembers/restores the caller's state
+  el.disabled = disabled;
+  setLoading(el, loading);
+  return el;
+}
+
+function setLoading(el, loading) {
+  morphWidth(el, () => {
+    const existing = el.querySelector('.c-button__spinner');
+    if (loading) {
+      if (!existing) {
+        const spinner = document.createElement('span');
+        spinner.className = 'c-button__spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        el.prepend(spinner);
+      }
+      el.dataset.loading = '';
+      el.setAttribute('aria-busy', 'true');
+      // audit r2: loading ≠ inert — keyboard activation still fired onClick
+      if (!el.disabled) { el.dataset.loadingDisabled = ''; el.disabled = true; }
+    } else {
+      existing?.remove();
+      delete el.dataset.loading;
+      el.removeAttribute('aria-busy');
+      if (el.dataset.loadingDisabled !== undefined) {
+        delete el.dataset.loadingDisabled;
+        el.disabled = false;
+      }
+    }
+  });
+}
+/* ---- end AUDIT r2 SUPERSEDE SECTION ---- */
 
   window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider };
 })();

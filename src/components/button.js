@@ -59,8 +59,9 @@ export function createButton({
 
   if (onClick) el.addEventListener('click', onClick);
 
-  setLoading(el, loading);
+  // disabled BEFORE setLoading — loading remembers/restores the caller's state
   el.disabled = disabled;
+  setLoading(el, loading);
   return el;
 }
 
@@ -120,10 +121,19 @@ export function setLoading(el, loading) {
       }
       el.dataset.loading = '';
       el.setAttribute('aria-busy', 'true');
+      // audit r2: loading ≠ inert — [data-loading] kills pointer-events but
+      // KEYBOARD activation still fired onClick (double-payment hazard on a
+      // processing Pay). Track whether WE disabled it so unload restores the
+      // caller's own disabled state. CSS keeps the loading skin (not disabled).
+      if (!el.disabled) { el.dataset.loadingDisabled = ''; el.disabled = true; }
     } else {
       existing?.remove();
       delete el.dataset.loading;
       el.removeAttribute('aria-busy');
+      if (el.dataset.loadingDisabled !== undefined) {
+        delete el.dataset.loadingDisabled;
+        el.disabled = false;
+      }
     }
   });
 }

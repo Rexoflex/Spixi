@@ -18,27 +18,26 @@
   content: '';
   position: absolute;
   inset: 0;
-  /* fallback: raw asset (its own #87C0E9 ink) for engines without mask support */
+  /* asset = WHITE doodles at FULL opacity on transparent (Damir 2026-07-03):
+     white themes on its own — lighter texture on the light canvas, whisper on
+     dark — via --chat-pattern-opacity alone. NOTE: mask-image was tried and
+     reverted: masks need CORS-clean fetches, which file:// demos can't do
+     (mask fails silently → pattern invisible). Revisit ink-token masking
+     when demos run over http (Vite dev). */
   background-image: url('../../assets/images/chat-bg-pattern.svg');
   background-size: 248px; /* asset's intrinsic tile */
   opacity: var(--chat-pattern-opacity);
   pointer-events: none;
 }
-/* mask technique: pattern ink comes from a TOKEN (--chat-pattern-ink) so it
-   themes properly — the asset's fixed blue vanished on the blue-tinted canvas */
-@supports ((-webkit-mask-image: url('')) or (mask-image: url(''))) {
-  .c-chat-canvas::before {
-    background-image: none;
-    background-color: var(--chat-pattern-ink);
-    -webkit-mask-image: url('../../assets/images/chat-bg-pattern.svg');
-    -webkit-mask-repeat: repeat;
-    -webkit-mask-size: 248px;
-    mask-image: url('../../assets/images/chat-bg-pattern.svg');
-    mask-repeat: repeat;
-    mask-size: 248px;
-  }
-}
 .c-chat-canvas > * { position: relative; } /* content above the pattern layer */
+/* scroll thumb over the TINTED canvas (audit r2): the base -02 thumb was tuned
+   against surface-screen and lands ≈1.1:1 on the gradient — one step darker here */
+@media (hover: hover) {
+  .c-chat-canvas .u-scroll:hover,
+  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--outline-neutral-03) transparent; }
+  .c-chat-canvas .u-scroll:hover::-webkit-scrollbar-thumb,
+  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--outline-neutral-03); }
+}
 
 .c-bubble-row {
   display: flex;
@@ -95,7 +94,7 @@
    Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed
    AA for yellow/green hues on the white bubble (audit MAJOR) — labels run
    darker in light / lighter in dark than the gradient does. */
-:root { --sender-label-s: 60%; --sender-label-l: 34%; }
+:root { --sender-label-s: 60%; --sender-label-l: 28%; } /* audit r2: 34% was still sub-AA at hues 60–180 on white — 28% clears 4.5:1 worst-case */
 [data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 74%; }
 .c-bubble__sender {
   display: block;
@@ -143,9 +142,11 @@
   min-width: 0;
 }
 /* width discipline (audit): the 75%/320 rule must resolve against the ROW —
-   stack carries it (+32px = 28 retry + 4 gap); bubble fills the line remainder */
+   stack carries it (+32px = 28 retry + 4 gap); bubble fills the line remainder.
+   audit r2: +32 goes on BOTH branches — bare 75% under-sized the bubble to
+   ~62% of the row on narrow viewports where the percentage branch wins */
 .c-bubble-row[data-failed] .c-bubble-stack {
-  max-width: min(var(--bubble-max-pct), calc(var(--layout-bubble-max) + 32px));
+  max-width: min(calc(var(--bubble-max-pct) + 32px), calc(var(--layout-bubble-max) + 32px));
 }
 .c-bubble-line { /* retry + bubble on one line, tight */
   display: flex;

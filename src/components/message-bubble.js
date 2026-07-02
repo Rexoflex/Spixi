@@ -18,11 +18,10 @@
 import { icon } from './icons.js';
 import { createAvatar, hashHue } from './avatar.js';
 import { createStatusIcon } from './chatlist-item.js';
-import { dayBucketLabel } from './timestamp.js';
+import { dayBucketLabel, docLocale } from './timestamp.js';
 
-function bubbleTime(ts) {
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+function bubbleTime(d) {
+  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 export function createMessageBubble({
@@ -77,10 +76,13 @@ export function createMessageBubble({
   const meta = document.createElement('span');
   meta.className = 'c-bubble__meta u-tabular';
   if (timestamp != null) {
-    const t = document.createElement('time');
-    t.setAttribute('datetime', new Date(timestamp).toISOString());
-    t.textContent = bubbleTime(timestamp);
-    meta.append(t);
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: one malformed bridge ts crashed the whole render
+      const t = document.createElement('time');
+      t.setAttribute('datetime', d.toISOString());
+      t.textContent = bubbleTime(d);
+      meta.append(t);
+    }
   }
   if (direction === 'sent' && status) {
     const st = createStatusIcon(status);
@@ -106,7 +108,17 @@ export function createMessageBubble({
     retry.className = 'c-bubble-retry';
     retry.setAttribute('aria-label', strings.retry || 'Retry sending');
     retry.append(icon('rotate-clockwise-2', { size: 16 }));
-    if (onRetry) retry.addEventListener('click', onRetry);
+    // audit r2: double-activation re-emitted the resend before the shell could
+    // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
+    // circle + caption share one guard so tapping both can't double-fire either
+    let lastRetry = 0;
+    const retryGuarded = onRetry ? ((e) => {
+      const t = Date.now();
+      if (t - lastRetry < 500) return;
+      lastRetry = t;
+      onRetry(e);
+    }) : null;
+    if (retryGuarded) retry.addEventListener('click', retryGuarded);
     const line = document.createElement('div');
     line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
     line.append(retry, el);
@@ -116,7 +128,7 @@ export function createMessageBubble({
     const note = document.createElement('span');
     note.className = 'c-bubble-failnote';
     note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
-    if (onRetry) note.addEventListener('click', onRetry);
+    if (retryGuarded) note.addEventListener('click', retryGuarded);
     stack.append(note);
     row.append(stack);
     return row;

@@ -2,9 +2,10 @@
  * Typed message cards (Figma: payment-request 11305:6344 · payment-card
  * 11303:6488 · app-card 11306:6596 · call-card 11306:7095 · file-bubble
  * 11309:9877/9922) + c-unread-divider (frontend-only — per-message `read`
- * flags, DECISIONS #70). Bridge contracts: addPaymentRequest (14-arg),
- * updatePaymentRequestStatus, addFile/updateFile (13-arg), addAppRequest
- * (13-arg), addCall — ARCHITECTURE.md §4.
+ * flags, DECISIONS #70). Bridge contracts: addPaymentRequest (14-arg; a
+ * payment status-updater API is a flagged §9 gap — the shell re-renders the
+ * card for now), addFile/updateFile (13-arg), addAppRequest (13-arg),
+ * addCall — ARCHITECTURE.md §4.
  * File progress/failed states + reaction/tip variants are code-first gap
  * fills (#66) in the card language.
  * SHELL NOTES: bridge `status` text arrives C#-localized — derive the status
@@ -15,10 +16,10 @@
 import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
+import { docLocale } from './timestamp.js';
 
-function cardTime(ts) {
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+function cardTime(d) {
+  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Card scaffold: row (direction-aligned) → card → header(title+time) + body slots. */
@@ -37,11 +38,14 @@ function card(direction, title, timestamp, modifier) {
   t.textContent = title;
   head.append(t);
   if (timestamp != null) {
-    const time = document.createElement('time');
-    time.className = 'c-tcard__time u-tabular';
-    time.setAttribute('datetime', new Date(timestamp).toISOString());
-    time.textContent = cardTime(timestamp);
-    head.append(time);
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
+      const time = document.createElement('time');
+      time.className = 'c-tcard__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      head.append(time);
+    }
   }
   el.append(head);
   row.append(el);
@@ -65,6 +69,33 @@ function detailsLink(onDetails, strings) {
   if (onDetails) btn.addEventListener('click', onDetails);
   wrap.append(btn);
   return wrap;
+}
+
+/* Action guards (audit r2): a double-activation on Pay/Join/etc. re-fired the
+   callback before the shell could re-render the card — real money hazard on
+   the payment path. STATE-CHANGING actions latch: the pressed button disables
+   itself and the bridge-driven re-render replaces the card (shell contract).
+   REPEATABLE actions (Retry/Open/Launch/Details/Call back) must stay usable,
+   so they only guard against rapid re-entry. */
+function oneShot(fn) {
+  if (!fn) return undefined;
+  return (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled || btn.dataset.acted !== undefined) return;
+    btn.dataset.acted = '';
+    btn.disabled = true;
+    fn(e);
+  };
+}
+function reentryGuard(fn) {
+  if (!fn) return undefined;
+  let last = 0;
+  return (e) => {
+    const now = Date.now();
+    if (now - last < 500) return;
+    last = now;
+    fn(e);
+  };
 }
 
 /**
@@ -92,7 +123,7 @@ export function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
-  const { row, el } = card(direction, titles[role], timestamp, 'payment');
+  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment'); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
   const amountEl = document.createElement('div');
@@ -132,10 +163,10 @@ export function createPaymentBubble({
   }
 
   if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: onDecline, disabled: status === 'processing' });
+    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
     const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: onRetry })
-      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: onPay, disabled: insufficient, loading: status === 'processing' });
+      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient, loading: status === 'processing' });
     el.append(actionsRow(decline, pay));
     if (insufficient) {
       const note = document.createElement('div');
@@ -144,11 +175,11 @@ export function createPaymentBubble({
       el.append(note);
     }
   } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: onCancel })));
+    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
   } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: onRetry })));
+    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
   } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
-    el.append(detailsLink(onDetails, strings));
+    el.append(detailsLink(reentryGuard(onDetails), strings));
   }
   return row;
 }
@@ -195,27 +226,27 @@ export function createAppBubble({
     missing: strings.invitedYou || 'Invited you to join',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
-  }[state];
+  }[state] || ''; // audit r2: unknown state rendered "undefined"
   col.append(nm, sub);
   id.append(ic, col);
   el.append(id);
 
   if (state === 'invite') {
     el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: onDecline }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: onJoin }),
+      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
+      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
     ));
   } else if (state === 'invited') {
     el.append(actionsRow(
-      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: onCancel }),
-      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: onLaunch }),
+      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
+      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
     ));
   } else if (state === 'missing') {
-    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: onGet })));
+    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
   } else if (state === 'in-session') {
     el.append(actionsRow(
-      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: onEnd }),
-      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: onResume }),
+      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
+      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
     ));
   }
   return row;
@@ -243,17 +274,32 @@ export function createCallBubble({
     sub.type = 'button';
     sub.className = 'c-tcard__call-back';
     sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    if (onCallBack) sub.addEventListener('click', onCallBack);
+    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
+    if (cb) sub.addEventListener('click', cb);
     el.append(sub);
   } else {
     const meta = document.createElement('div');
     meta.className = 'c-tcard__call-meta u-tabular';
     meta.textContent = directionLabel + (duration ? ' · ' + duration : '');
     el.append(meta);
-    const wrap = detailsLink(onCallBack, { details: strings.callBack || 'Call back' });
+    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
     el.append(wrap);
   }
   return row;
+}
+
+/* file-bubble state → accessible name / leading glyph. Single source shared by
+   createFileBubble AND setFileProgress (audit r2: the progress→complete flip
+   left "Downloading …" aria + the old glyph on the button). */
+function fileAria(state, name, strings) {
+  return (state === 'offer' ? (strings.download || 'Download')
+    : state === 'failed' ? (strings.retry || 'Retry')
+    : state === 'progress' ? (strings.downloading || 'Downloading')
+    : (strings.open || 'Open'))
+    + ' ' + name;
+}
+function fileGlyph(state) {
+  return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
 }
 
 /** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
@@ -276,20 +322,25 @@ export function createFileBubble({
   el.type = 'button';
   el.className = 'c-fbubble';
   el.dataset.state = state;
-  // progress state has no click action (audit: "Open" on an unopenable transfer)
-  const act = state === 'offer' ? onAccept : state === 'failed' ? onRetry : state === 'complete' ? onOpen : null;
-  if (act) el.addEventListener('click', act);
-  else if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label',
-    (state === 'offer' ? (strings.download || 'Download')
-      : state === 'failed' ? (strings.retry || 'Retry')
-      : state === 'progress' ? (strings.downloading || 'Downloading')
-      : (strings.open || 'Open'))
-    + ' ' + name);
+  // ONE persistent dispatcher keyed on live state — the state can flip later via
+  // setFileProgress (audit r2: a progress-created bubble bound NO handler, so the
+  // finished download was an enabled button that did nothing). Progress state has
+  // no click action (earlier audit: "Open" on an unopenable transfer).
+  const handlers = {
+    offer: oneShot(onAccept),          // accept latches; updateFile re-renders/flips
+    failed: reentryGuard(onRetry),     // retry is repeatable
+    complete: reentryGuard(onOpen),    // open is repeatable
+  };
+  el.addEventListener('click', (e) => {
+    const h = handlers[el.dataset.state];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.setAttribute('aria-label', fileAria(state, name, strings));
 
   const ic = document.createElement('span');
   ic.className = 'c-fbubble__icon';
-  ic.append(icon(state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr', { size: 20 }));
+  ic.append(icon(fileGlyph(state), { size: 20 }));
   el.append(ic);
 
   const col = document.createElement('span');
@@ -307,31 +358,39 @@ export function createFileBubble({
     track.setAttribute('role', 'progressbar'); // audit: transfers were silent to AT
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, progress))));
+    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
+    const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+    track.setAttribute('aria-valuenow', String(p));
     const fill = document.createElement('span');
     fill.className = 'c-fbubble__fill';
-    fill.style.width = Math.max(0, Math.min(100, progress)) + '%';
+    fill.style.width = p + '%';
     track.append(fill);
     col.append(track);
   }
   el.append(col);
 
   if (timestamp != null) {
-    const time = document.createElement('time');
-    time.className = 'c-fbubble__time u-tabular';
-    time.setAttribute('datetime', new Date(timestamp).toISOString());
-    time.textContent = cardTime(timestamp);
-    el.append(time);
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2
+      const time = document.createElement('time');
+      time.className = 'c-fbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      el.append(time);
+    }
   }
   row.append(el);
   return row;
 }
 
 /** Update a progress-state file bubble in place (bridge updateFile).
- *  opts.meta refreshes the caption; progress ≥ 100 (or opts.state) flips
- *  the bubble to its final state (audit: 100% bar stayed "Downloading"). */
+ *  opts.meta refreshes the caption; progress ≥ 100 (or opts.state) flips the
+ *  bubble to its final state (audit: 100% bar stayed "Downloading").
+ *  opts.strings localizes the refreshed aria-label / failed caption.
+ *  The dispatcher bound at creation routes clicks by the NEW state, so a
+ *  completed download opens via the onOpen passed to createFileBubble. */
 export function setFileProgress(rowEl, progress, opts = {}) {
-  const p = Math.max(0, Math.min(100, progress));
+  const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
   const fill = rowEl.querySelector('.c-fbubble__fill');
   if (fill) fill.style.width = p + '%';
   const track = rowEl.querySelector('.c-fbubble__track');
@@ -341,9 +400,19 @@ export function setFileProgress(rowEl, progress, opts = {}) {
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   if (bubble && finalState && bubble.dataset.state !== finalState) {
+    const strings = opts.strings || {};
     bubble.dataset.state = finalState;
     bubble.disabled = false;
+    delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
     if (track) track.remove();
+    // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
+    const nm = bubble.querySelector('.c-fbubble__name');
+    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    const ic = bubble.querySelector('.c-fbubble__icon');
+    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    if (finalState === 'failed' && metaEl && !opts.meta) {
+      metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
+    }
   }
 }
 

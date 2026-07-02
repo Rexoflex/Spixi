@@ -1,0 +1,69 @@
+/* c-callbar — active call strip pinned to the top of the host.
+   z-60: ABOVE modals — an active call never hides (DESIGN_SYSTEM.md §2).
+   Success surface = universal "call in progress"; on-action ink inverts
+   correctly with the brighter success surface in dark mode. */
+
+.c-callbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-60);
+  display: flex;
+  align-items: stretch;
+  min-height: var(--size-target-min);
+  background: var(--surface-success);
+  color: var(--text-neutral-on-action);
+  box-shadow: var(--elevation-2);
+  transform: translateY(-100%);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-callbar[data-open] { transform: translateY(0); }
+
+.c-callbar__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-inline: var(--spacing-16);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label-sm);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-callbar__main svg { flex: none; }
+
+.c-callbar__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-callbar__time { flex: none; opacity: 0.85; }
+
+.c-callbar__hangup {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  border: 0;
+  background: transparent;
+  color: inherit; /* white hangup glyph on green — red-on-green reads muddy */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .c-callbar__main:hover,
+  .c-callbar__hangup:hover { background: var(--surface-wash-on-success); } /* tokenized (Figma mirroring 2026-07-02) */
+}
+.c-callbar__main:active,
+.c-callbar__hangup:active { background: var(--surface-wash-on-success-pressed); }

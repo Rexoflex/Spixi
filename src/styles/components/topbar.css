@@ -29,16 +29,15 @@
   letter-spacing: var(--tracking-heading-sm);
 }
 
-/* root variant: logotype (mark + wordmark) — sized to match hero titles (heading-md) */
+/* root variant: logotype (mark + wordmark). Wordmark inherits the base title's
+   heading-sm — ALL screen titles are heading-sm (Damir 2026-07-02, #58): the
+   wordmark must fit the 28px mark, not overpower it. Only ink/weight/layout differ. */
 .c-topbar[data-variant="root"] { padding-inline: var(--spacing-16); }
 .c-topbar[data-variant="root"] .c-topbar__title {
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
   color: var(--text-action-default);
-  font-size: var(--font-size-heading-md);
-  line-height: var(--line-height-heading-md);
-  letter-spacing: var(--tracking-heading-md);
   font-weight: var(--font-weight-bold);
 }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
@@ -65,6 +64,6 @@
   --_ink-pressed: var(--icon-topbar);
 }
 @media (hover: hover) {
-  .screen--hero .c-topbar .c-button[data-type="text"]:hover { background: rgba(255, 255, 255, 0.12); }
+  .screen--hero .c-topbar .c-button[data-type="text"]:hover { background: var(--surface-wash-on-hero); }
 }
-.screen--hero .c-topbar .c-button[data-type="text"]:active { background: rgba(255, 255, 255, 0.18); }
+.screen--hero .c-topbar .c-button[data-type="text"]:active { background: var(--surface-wash-on-hero-pressed); }

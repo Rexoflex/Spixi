@@ -96,11 +96,16 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - [x] **c-badge + c-txlist-item BUILT** (#54/#55 🟡, spec `docs/tx-row-spec.md`): badge = Figma-exact 5 types × tonal/solid, static; tx rows sent/received/pending/failed with `formatTxTimestamp` (absolute, +year if not current), direction labeled for SRs, amounts pre-formatted+u-tabular, failed = struck `text-neutral-disabled` (Figma had raw #6a717c — UNBOUND, fix there). #46 loop ran: badge demo matrix added to components.html, tx-scoped string keys, overflow guards, demo decoupled via data-direction. Wallet demo: 6 rows wired to filter chips
 - [x] `scripts/smoke-test.mjs` COMMITTED (13 assertions, computed-style based; `node scripts/smoke-test.mjs [root]`, needs jsdom) — the #46 loop's verification step, no longer recreated ad hoc
 - [x] Search clear glyph switched to plain `x` per Damir (was circle-x)
+- [x] **Overlays batch COMPLETE** (#57 🟡): c-banner + c-toast + c-callbar built code-first (home session, PC) — spec in overlays-spec.md batch B/C; #46 reviewer ran CLEAN, 4 hardening MINORs landed (callbar pre-enter race + in-place bridge update, toast queue cap/dedupe, reduced-motion queue latency, banner label "Status"). Demo: Banner/Call toolbar toggles, toasts from sheet actions. Bundle appended MANUALLY (PC mirror truncates Edit-modified files — re-run `node scripts/build-demo-bundle.mjs` on the Mac to verify parity; build script FILES already includes the three)
+- [x] Topbar view title verified `heading-sm` (Damir ask; root logotype stays heading-md)
+- [x] Damir overlay/title review round: ALL titles unified to heading-sm incl. root logotype + hero (#58) · connectivity → topbar title-state decided, banner = actionable only (#59 🟡, §8 `showWarning(text, kind)` proposal added) · modal side-by-side confirmed for short labels (#60, spec flag ② resolved)
+- [x] **Figma mirroring PART 1 done** (#61): wash tokens 3-tier + code adoption · #51 text-field rebinds · #54 failed-amount role fix · #48 nav badge (error+ring+ink) · #49 verified already-correct in Figma · #58 wordmark + Wallet hero title → heading/sm style
 - [ ] **Next:**
-  1. Overlays batch (sheet/modal/toast/banner/callbar)
-  2. Figma mirroring batch: #48 badge, #49 hover inks, #50 chip selected/disabled, #51 text-field border-token fixes, #54/#55 tx-row token fixes
-  2. `user-circle-filled` icon: Damir makes it manually (ETA next session) → account nav gets its selected-state twin automatically (dual-icon detection)
-  3. Mirror #48 (error badge + ring) + #49 (icon hover inks) to Figma — connector re-authorized 2026-07-02
+  1. Figma mirroring PART 2 (component surgery): #50 chip selected(tonal)/disabled variants on chip/small+large sets · #57 five overlay reference components (sheet, modal, banner, toast, callbar) in a new "Overlays" section, token-bound
+  2. `user-circle-filled` icon: Damir makes it manually → account nav selected-state twin automatic
+  3. Desktop decisions parked for the split-view demo: empty-state right pane when no chat selected · bottomnav → LEFT RAIL at ≥700px (WhatsApp-style; same component, vertical layout via CSS — cheap, Damir prefers it)
+  4. Then: message bubbles (Chat&Composite designs exist) → desktop split-view demo (three panes + draggable divider + left rail + empty state; pitch for #19)
+  5. Remember on Mac: re-run `node scripts/build-demo-bundle.mjs` + smoke test (PC mirror unreliable for Edit-modified files)
 - [x] `tabler-icon-search` exported by Damir → registry regenerated (68 icons), temp glyph removed from demo
 - [x] Stale `.git/index.lock` (0 B) removed — was blocking GitHub Desktop commits
 - ⚠️ Sandbox note (Windows session): mounted-folder cache served stale copies of freshly edited files. Mac mirror verified OK 2026-07-02 (bash sees fresh edits; scripts run normally)

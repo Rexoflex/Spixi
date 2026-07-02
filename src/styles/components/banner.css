@@ -1,0 +1,28 @@
+/* c-banner — warning strip under the top bar. Passive status: no scrim/trap.
+   Collapses via max-height (conservative baseline — no 0fr grid animation). */
+
+.c-banner {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  background: var(--surface-warning-inverse);
+  color: var(--text-warning);
+  transition: max-height var(--duration-200) var(--easing-standard),
+              opacity var(--duration-200) var(--easing-standard);
+}
+.c-banner[data-open] {
+  max-height: 96px; /* fits two lines; content is single-line in practice */
+  opacity: 1;
+}
+
+.c-banner__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-16);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+.c-banner__inner svg { flex: none; color: var(--icon-warning); }
+.c-banner__text { min-width: 0; }

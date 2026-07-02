@@ -698,6 +698,14 @@
      background: var(--gradient-hero-overlay), var(--surface-hero); */
   --gradient-hero-overlay: linear-gradient(180deg, rgba(49, 13, 80, 0.45) 0%, rgba(102, 74, 151, 0.45) 100%);
 
+  /* state washes over strong surfaces (hero gradient, success call bar) —
+     mirrored in Figma as colors/surface/region/wash-* (alpha primitives);
+     same value both modes: washes are relative to the surface they sit on */
+  --surface-wash-on-hero: rgba(255, 255, 255, 0.12);
+  --surface-wash-on-hero-pressed: rgba(255, 255, 255, 0.18);
+  --surface-wash-on-success: rgba(0, 0, 0, 0.08);
+  --surface-wash-on-success-pressed: rgba(0, 0, 0, 0.14);
+
   /* elevation — light: shadows */
   --elevation-0: none;
   --elevation-1: 0 1px 2px rgba(17, 18, 19, 0.06), 0 1px 3px rgba(17, 18, 19, 0.1);

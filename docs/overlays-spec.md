@@ -39,6 +39,22 @@ API: `createModal({ title, body, actions: [{label, type, intent, onClick, autofo
 
 Payment-confirm modals display intent only — confirm emits the existing `ixian:` command; no signing/keys in the WebView (SECURITY.md). The modal component is generic; payment flows add their own review content.
 
+## Batch B/C: banner · toast · call bar (built 2026-07-02, code-first per figma-sweep §3 — no Figma designs existed; mirror after Damir approval)
+
+These three are NOT modal overlays: no scrim, no focus trap, never steal focus. They bypass `overlay.js` deliberately.
+
+| | c-banner | c-toast | c-callbar |
+|---|---|---|---|
+| Bridge | `showWarning(text)`, empty clears | (UI-initiated feedback) | `displayCallBar(sid, text, started)` / `hideCallBar` |
+| Position | under top bar, in flow (max-height collapse) | bottom, above bar/composer | pinned top of host, over statusbar area (iOS convention) |
+| z | in flow (none) | `--z-70` (above modals — feedback about the just-taken action) | `--z-60` (above modals — active call never hides) |
+| Surface | `warning-inverse` + warning ink | `surface-menu` card, `elevation-3`, tone glyph (info/success/error) | `surface-success`, `on-action` ink (inverts correctly in dark) |
+| Behavior | persistent while condition lasts; `setWarning(el, text)` | auto-dismiss 3.5s, tap dismiss, one per host + queue | live tabular timer (m:ss / h:mm:ss), whole bar = return-to-call, trailing hang-up; singleton per host |
+| A11y | `role=status` | `role=status`, never focused | labeled buttons; timer text updates silently |
+
+Toast discipline = #29: one confirmation per action — never toast what a button morph, navigation, or alert already confirms.
+State washes on success/hero surfaces are interim rgba values — token candidates at next Figma sync (with the #48/#49 batch).
+
 ## Flags for Damir
 
-① sheet grab handle: keep (drag affordance without drag yet) or drop until swipe lands? ② modal action layout: 2 buttons side-by-side (44, equal width) vs stacked full-width — side-by-side implemented. ③ toast/banner/callbar = batches B/C.
+① sheet grab handle: keep (drag affordance without drag yet) or drop until swipe lands? ② ~~modal action layout~~ RESOLVED (#60): side-by-side for two short labels; stack when labels wrap / 3+ actions. ③ ~~toast/banner/callbar = batches B/C~~ BUILT, see above — review in demo (Banner/Call toolbar toggles; toasts fire from sheet actions and hang-up). ④ call bar covers the (simulated) status-bar area — verify acceptable on device; else offset below safe-area. ⑤ NOTE (#59): connectivity messages will move from banner → topbar title-state once the §8 `showWarning(text, kind)` arg is approved; banner remains for actionable/critical notices.

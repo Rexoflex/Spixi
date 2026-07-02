@@ -18,6 +18,9 @@
 <link rel="stylesheet" href="../styles/components/badge.css">
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/banner.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/callbar.css">
 <style>
   /* demo chrome */
   body { padding: var(--spacing-24); }
@@ -73,8 +76,9 @@
   .hero .statusbar { color: var(--text-on-hero); }
   .hero__title {
     font-family: var(--font-primary); font-weight: var(--font-weight-semibold);
-    font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md);
-    letter-spacing: var(--tracking-heading-md);
+    /* heading-sm: ALL screen titles share one scale (Damir 2026-07-02, #58) */
+    font-size: var(--font-size-heading-sm); line-height: var(--line-height-heading-sm);
+    letter-spacing: var(--tracking-heading-sm);
     padding: var(--spacing-12) var(--spacing-16) var(--spacing-24);
   }
   .hero__balance { padding-inline: var(--spacing-16); }
@@ -106,7 +110,7 @@
   /* placeholder hovers until c-icon-button lands;
      guarded per DECISIONS #43 (no sticky hover on touch) */
   @media (hover: hover) {
-    .hero__eye:hover, .quick-action:hover .quick-action__circle { background: rgba(255, 255, 255, 0.12); } /* on-hero hover wash; token candidate at next Figma sync */
+    .hero__eye:hover, .quick-action:hover .quick-action__circle { background: var(--surface-wash-on-hero); } /* tokenized (Figma mirroring 2026-07-02) */
     .hero__eye:hover { color: var(--text-on-hero-muted); } /* ink steps to the light periwinkle on-hero tint — icon-on-hero is already near-white, so "lighter" = tinted (Damir 2026-07-02, #49) */
     .quick-action--primary:hover .quick-action__circle { background: var(--surface-neutral-01); opacity: 0.9; }
   }
@@ -127,6 +131,8 @@
 <body>
   <div class="demo-toolbar">
     <h1 class="t-heading-md" style="margin-right:auto">App frame</h1>
+    <span id="banner-slot"></span>
+    <span id="call-slot"></span>
     <span id="theme-slot"></span>
   </div>
 
@@ -217,10 +223,51 @@
     );
     const sheet = createSheet({ title: 'Start', content: list, host: chatsPhone });
     for (const item of list.querySelectorAll('.sheet-item')) {
-      item.addEventListener('click', () => closeSheet(sheet));
+      item.addEventListener('click', () => {
+        closeSheet(sheet);
+        // toast demo: transient feedback for an action with no other confirmation (#29)
+        showToast({ text: item.textContent + ' — demo only', tone: 'info', host: chatsPhone });
+      });
     }
     openSheet(sheet);
   });
+
+  /* —— overlays batch part 2: banner / toast / call bar —— */
+  const { createWarningBanner, setWarning, showToast, showCallBar, hideCallBar } = window.Spixi;
+
+  // warning banner mounts once under the top bar; bridge drives it via showWarning(text)
+  const warningBanner = createWarningBanner();
+  document.getElementById('chats-topbar').append(warningBanner);
+  let bannerOn = false;
+  document.getElementById('banner-slot').append(createButton({
+    label: 'Banner', type: 'outline', size: 32,
+    onClick: () => {
+      bannerOn = !bannerOn;
+      setWarning(warningBanner, bannerOn ? 'Connecting to the Ixian network…' : '');
+    },
+  }));
+
+  // call bar: pinned above everything (z-60) incl. the fake statusbar — iOS-style
+  let callOn = false;
+  document.getElementById('call-slot').append(createButton({
+    label: 'Call', type: 'outline', size: 32,
+    onClick: () => {
+      callOn = !callOn;
+      if (callOn) {
+        showCallBar({
+          text: 'Han Solo', startedAt: Date.now() - 83000, host: chatsPhone,
+          onReturn: () => showToast({ text: 'Returning to call — demo only', tone: 'info', host: chatsPhone }),
+          onHangUp: () => {
+            callOn = false;
+            hideCallBar(chatsPhone);
+            showToast({ text: 'Call ended', tone: 'success', host: chatsPhone });
+          },
+        });
+      } else {
+        hideCallBar(chatsPhone);
+      }
+    },
+  }));
 
   const NAV_ITEMS = [
     { id: 'chats', label: 'Chats', icon: 'messages' },

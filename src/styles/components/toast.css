@@ -1,0 +1,44 @@
+/* c-toast — transient feedback, bottom-anchored above the bottom bar.
+   z-70 (above modals — feedback about the action just taken must be visible). */
+
+.c-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+  transform: translate(-50%, var(--spacing-8));
+  z-index: var(--z-70);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: min(90%, 360px);
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-16);
+  background: var(--surface-menu);
+  color: var(--text-neutral-01);
+  box-shadow: var(--elevation-3);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-toast[data-open] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.c-toast svg { flex: none; }
+.c-toast[data-tone="info"] svg { color: var(--icon-accent); }
+.c-toast[data-tone="success"] svg { color: var(--icon-success); }
+.c-toast[data-tone="error"] svg { color: var(--icon-error); }
+
+.c-toast__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

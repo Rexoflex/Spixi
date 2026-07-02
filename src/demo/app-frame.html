@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi app frame — demo</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<style>
+  /* demo chrome */
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+  }
+
+  /* Chats screen */
+  .search-field {
+    display: flex; align-items: center; gap: var(--spacing-8);
+    margin: var(--spacing-4) var(--spacing-16) var(--spacing-12);
+    height: 44px; padding-inline: var(--spacing-16); flex: none;
+    background: var(--surface-input); border-radius: var(--radius-16);
+    color: var(--text-neutral-02); font-size: var(--font-size-body-md);
+  }
+  .content { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+  .fab {
+    position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+    width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
+    background: var(--surface-action-default); color: var(--text-neutral-on-action);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--elevation-2); z-index: var(--z-10);
+  }
+  .fab:hover { background: var(--surface-action-hover); }
+  .fab:active { background: var(--surface-action-pressed); }
+
+  /* contact request block (design: tinted, actions row) — becomes a component with contacts shell */
+  .contact-request {
+    display: flex; gap: var(--spacing-12); padding: var(--spacing-12);
+    background: var(--surface-neutral-02); align-items: flex-start;
+  }
+  .contact-request__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
+  .contact-request__name { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); font-weight: var(--font-weight-semibold); color: var(--text-neutral-01); }
+  .contact-request__sub { font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+  .contact-request__actions { display: flex; gap: var(--spacing-8); margin-top: var(--spacing-8); }
+  .contact-request__time { font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
+
+  /* Wallet screen */
+  .hero {
+    background: var(--gradient-hero-overlay), var(--surface-hero);
+    color: var(--text-on-hero);
+    padding-bottom: var(--spacing-24);
+    border-radius: 0 0 var(--radius-24) var(--radius-24);
+    flex: none;
+  }
+  .hero .statusbar { color: var(--text-on-hero); }
+  .hero__title {
+    font-family: var(--font-primary); font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md);
+    letter-spacing: var(--tracking-heading-md);
+    padding: var(--spacing-12) var(--spacing-16) var(--spacing-24);
+  }
+  .hero__balance { padding-inline: var(--spacing-16); }
+  .hero__balance-label { color: var(--text-on-hero-muted); font-size: var(--font-size-body-sm); }
+  .hero__amount-row { display: flex; align-items: center; gap: var(--spacing-12); }
+  .hero__amount {
+    font-family: var(--font-primary); font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-heading-lg); line-height: 1.3;
+    letter-spacing: -1px; /* hero-amount tracking (Damir 2026-07-02) */
+  }
+  .hero__amount .unit { font-size: 0.62em; font-weight: var(--font-weight-bold); }
+  .hero__eye { margin-left: auto; background: none; border: 0; color: var(--icon-on-hero); cursor: pointer; padding: var(--spacing-8); }
+  .hero__fiat { color: var(--text-on-hero-muted); font-size: var(--font-size-body-md); }
+  .hero__actions { display: flex; gap: var(--spacing-24); padding: var(--spacing-24) var(--spacing-16) 0; }
+  .quick-action { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8); background: none; border: 0; color: var(--text-on-hero); cursor: pointer; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
+  .quick-action__circle {
+    width: 56px; height: 56px; border-radius: var(--radius-full);
+    display: flex; align-items: center; justify-content: center;
+    border: var(--outline-width-1) solid var(--text-on-hero-muted); color: var(--icon-on-hero);
+  }
+  .quick-action--primary .quick-action__circle {
+    background: var(--surface-neutral-01); border-color: transparent; color: var(--icon-action-default);
+  }
+  .filters { display: flex; align-items: center; gap: var(--spacing-8); padding: var(--spacing-16); flex: none; }
+  .chip {
+    height: 32px; padding-inline: var(--spacing-16); border-radius: var(--radius-full);
+    border: var(--outline-width-1) solid var(--outline-neutral-03); background: transparent;
+    color: var(--text-neutral-01); font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--surface-action-default); border-color: transparent; color: var(--text-neutral-on-action); }
+  .list-hint { padding: var(--spacing-16); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">App frame</h1>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="chats-topbar"></div>
+        <div class="search-field"><span id="search-icon"></span>Search chats</div>
+        <div class="content" id="chat-list"></div>
+        <button class="fab" id="fab" aria-label="New chat"></button>
+        <div id="chats-nav"></div>
+      </div>
+      <div class="demo-caption">Chats — real list primitives, deterministic avatars, live timestamps</div>
+    </div>
+
+    <div>
+      <div class="demo-phone">
+        <div class="hero">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+          <div class="hero__title">Wallet</div>
+          <div class="hero__balance">
+            <div class="hero__balance-label">Available Balance</div>
+            <div class="hero__amount-row">
+              <div class="hero__amount u-tabular">923,852.00 <span class="unit">IXI</span></div>
+              <button class="hero__eye" id="eye" aria-label="Hide balance"></button>
+            </div>
+            <div class="hero__fiat u-tabular">$1,845.62</div>
+          </div>
+          <div class="hero__actions">
+            <button class="quick-action quick-action--primary"><span class="quick-action__circle" id="qa-send"></span>Send</button>
+            <button class="quick-action"><span class="quick-action__circle" id="qa-receive"></span>Receive</button>
+            <button class="quick-action"><span class="quick-action__circle" id="qa-scan"></span>Scan</button>
+          </div>
+        </div>
+        <div class="filters">
+          <button class="chip" aria-pressed="true">All</button>
+          <button class="chip" aria-pressed="false">Sent</button>
+          <button class="chip" aria-pressed="false">Received</button>
+        </div>
+        <div class="content"><div class="list-hint">Transaction rows: next batch (reuses timestamp + avatar + status primitives).</div></div>
+        <div id="wallet-nav"></div>
+      </div>
+      <div class="demo-caption">Wallet — hero gradient over surface-hero · quick actions · chips (placeholder)</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const { createButton, createTopbar, createBottomNav, createChatItem, startTimestampTicker, refreshTimestamps } = window.Spixi;
+  const icon = window.SpixiIcons.icon;
+  // TEMP until tabler-icon-search is added to the Figma icons frame + re-exported:
+  window.SpixiIcons.ICONS.search = { v: '0 0 24 24', b: '<path fill="currentColor" d="M10 3.25a6.75 6.75 0 0 1 5.28 10.96l5.25 5.26a.75.75 0 1 1-1.06 1.06l-5.26-5.25A6.75 6.75 0 1 1 10 3.25zm0 1.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5z"/>' };
+
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  const themeBtn = createButton({
+    label: 'Toggle dark', type: 'outline', size: 32,
+    onClick: () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme === 'dark';
+      root.dataset.theme = dark ? 'light' : 'dark';
+      themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
+    },
+  });
+  document.getElementById('theme-slot').append(themeBtn);
+
+  document.getElementById('chats-topbar').append(createTopbar({
+    variant: 'root', title: 'Spixi', logo: true,
+    actions: [{ icon: 'users', label: 'Contacts', onClick: () => {} }],
+  }));
+  document.getElementById('search-icon').append(icon('search', { size: 20 }));
+  document.getElementById('fab').append(icon('message-plus'));
+
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  document.getElementById('chats-nav').append(createBottomNav({ items: NAV_ITEMS, active: 'chats' }));
+  document.getElementById('wallet-nav').append(createBottomNav({ items: NAV_ITEMS, active: 'wallet' }));
+
+  document.getElementById('eye').append(icon('eye-off'));
+  document.getElementById('qa-send').append(icon('arrow-up-right'));
+  document.getElementById('qa-receive').append(icon('arrow-down-left'));
+  document.getElementById('qa-scan').append(icon('scan'));
+  for (const chip of document.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => {
+      for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', 'false');
+      chip.setAttribute('aria-pressed', 'true');
+    });
+  }
+
+  /* —— chat rows (mock data mirroring "Chats - LM"; times relative so buckets are live) —— */
+  const now = Date.now();
+  const H = 3600000, D = 86400000;
+  const at = (msAgo) => now - msAgo;
+
+  const list = document.getElementById('chat-list');
+
+  list.append(createChatItem({
+    name: 'Han Solo', address: '4fj2...solo', online: true, pinned: true,
+    timestamp: at(2 * H), status: 'read',
+    excerpt: { type: 'text', text: 'Chewbacca owes me money..' },
+  }));
+
+  // contact request block (component lands with the contacts shell)
+  const req = document.createElement('div');
+  req.className = 'contact-request';
+  req.append(window.Spixi.createAvatar({ address: '425Hnq88fnnf5CQen', size: 48 }));
+  const reqBody = document.createElement('div');
+  reqBody.className = 'contact-request__body';
+  reqBody.innerHTML = '<span class="contact-request__name">425H…5CQen</span><span class="contact-request__sub">Wants to connect</span>';
+  const reqActions = document.createElement('div');
+  reqActions.className = 'contact-request__actions';
+  reqActions.append(
+    createButton({ label: 'Decline', type: 'outline', size: 32 }),
+    createButton({ label: 'Accept', type: 'fill', size: 32, icon: icon('check', { size: 16 }) }),
+  );
+  reqBody.append(reqActions);
+  req.append(reqBody);
+  const reqTime = document.createElement('span');
+  reqTime.className = 'contact-request__time u-tabular';
+  reqTime.textContent = window.Spixi.formatChatTimestamp(at(2 * H));
+  req.append(reqTime);
+  list.append(req);
+
+  list.append(
+    createChatItem({
+      name: 'Sarah Jo', online: true, timestamp: at(D), status: 'delivered',
+      excerpt: { type: 'text', text: 'Coming soon, save me a seat at you…' },
+    }),
+    createChatItem({
+      name: 'John Connor', online: true, timestamp: at(3 * D), unread: 3,
+      excerpt: { type: 'file', text: 'Skynet-access-codes.md' },
+    }),
+    createChatItem({
+      name: 'Camping Group Alpha', timestamp: at(3 * D), mention: true,
+      excerpt: { type: 'mention', sender: 'Han Solo', text: '@Han I was there just 2 hour…' },
+    }),
+    createChatItem({
+      name: 'Martins Obademo', timestamp: at(3 * D),
+      excerpt: { type: 'call', text: 'Voice call' },
+    }),
+    createChatItem({
+      name: 'QWERTZ', online: true, timestamp: at(29 * D), unread: 5, muted: true,
+      excerpt: { type: 'call-missed', text: 'Missed voice call' },
+    }),
+    createChatItem({
+      name: 'Baracuda', timestamp: at(29 * D),
+      excerpt: { type: 'payment', text: 'Payment request 25 IXI' },
+    }),
+    createChatItem({
+      name: 'London Trip Group', timestamp: at(3 * D),
+      excerpt: { type: 'text', text: 'Han Solo was added' },
+    }),
+    createChatItem({
+      name: 'Mexico Trip', timestamp: at(29 * D),
+      excerpt: { type: 'typing', text: 'Han Solo is typing...' },
+    }),
+    createChatItem({
+      name: 'Gaucho boy', timestamp: at(29 * D),
+      excerpt: { type: 'draft', text: 'I was th' },
+    }),
+    createChatItem({
+      name: 'App boi', timestamp: at(29 * D),
+      excerpt: { type: 'app-invite', text: 'Invited you to {app name}' },
+    }),
+    createChatItem({
+      name: '', address: '335Hxq21abcd5OP32', timestamp: at(400 * D), status: 'sent',
+      excerpt: { type: 'text', text: 'Address-only contact (older than a year)' },
+    }),
+  );
+
+  startTimestampTicker(() => refreshTimestamps(list));
+</script>
+</body>
+</html>

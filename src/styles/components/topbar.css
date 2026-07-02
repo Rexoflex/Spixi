@@ -1,0 +1,51 @@
+/* c-topbar — app top bar. Variants: root (logo/title left) · view (back + title).
+   Region tokens: surface/text/icon-topbar — hero screens override via .screen--hero
+   (DECISIONS.md #20). Height: --layout-bar-top. */
+
+.c-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: var(--layout-bar-top);
+  padding-inline: var(--spacing-8);
+  background: var(--surface-topbar);
+  color: var(--text-topbar);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-20);
+  transition: background-color var(--duration-200) var(--easing-standard);
+}
+
+.c-topbar__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+}
+
+/* root variant: logotype (mark + wordmark) — sized to match hero titles (heading-md) */
+.c-topbar[data-variant="root"] { padding-inline: var(--spacing-16); }
+.c-topbar[data-variant="root"] .c-topbar__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--text-action-default);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  letter-spacing: var(--tracking-heading-md);
+  font-weight: var(--font-weight-bold);
+}
+.screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
+
+.c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
+
+.c-topbar__actions { display: flex; align-items: center; gap: var(--spacing-4); }
+
+/* bar buttons inherit topbar ink (works on hero too) */
+.c-topbar .c-button[data-type="text"] { color: var(--icon-topbar); }

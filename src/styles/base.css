@@ -19,8 +19,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 img, svg { display: block; max-width: 100%; }
 
-/* Production embeds Sora + Source Sans 3 as variable WOFF2 (Latin subset) here.
-   @font-face blocks land together with the font assets — see DESIGN_SYSTEM.md §1. */
+/* Sora + Source Sans 3 — variable WOFF2, Latin subset (src/assets/fonts) */
+@font-face {
+  font-family: 'Sora';
+  src: url('../assets/fonts/sora-latin-wght-normal.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('../assets/fonts/source-sans-3-latin-wght-normal.woff2') format('woff2-variations');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Typography roles (weights per Figma "typography" composites) */
 .t-display-lg, .t-display-md, .t-heading-lg, .t-heading-md, .t-heading-sm, .t-heading-xs {

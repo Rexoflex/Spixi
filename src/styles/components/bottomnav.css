@@ -1,0 +1,81 @@
+/* c-bottomnav — mirrors Figma nav-bot / nav-item (selected = "super selected":
+   tonal pill around stacked icon + label). Height: --layout-bar-bottom. */
+
+.c-bottomnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: var(--layout-bar-bottom);
+  padding-inline: var(--spacing-8);
+  background: var(--surface-bottombar);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-20);
+}
+
+.c-bottomnav__item {
+  flex: 1 1 0; /* equal widths — selected pill is identical for every item */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-8);
+  max-width: 96px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+  color: var(--icon-neutral-01);
+  -webkit-tap-highlight-color: transparent;
+  min-width: var(--size-target-min);
+  min-height: var(--size-target-min);
+  justify-content: center;
+  transition: background-color var(--duration-200) var(--easing-standard);
+}
+
+.c-bottomnav__item[aria-current] {
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-bottomnav__item:active { background: var(--surface-interactive-pressed); }
+.c-bottomnav__item[aria-current]:active { background: var(--surface-action-tonal-pressed); }
+
+.c-bottomnav__iconwrap { position: relative; display: flex; }
+
+.c-bottomnav__label {
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-bottomnav__item[aria-current] .c-bottomnav__label {
+  color: var(--text-action-default);
+  font-weight: var(--font-weight-bold);
+}
+
+/* unread indicator (Figma "indicator") — sits on the icon corner */
+.c-bottomnav__badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  font-size: var(--font-size-label-xs);
+  line-height: 18px;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+/* avatar slot (Account item) */
+.c-bottomnav__avatar {
+  width: var(--size-avatar-24);
+  height: var(--size-avatar-24);
+  border-radius: var(--radius-full);
+  object-fit: cover;
+}

@@ -64,8 +64,22 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - [x] Tokens added: hero region (+on-hero text/icon), topbar text/icon, interactive hover/pressed/selected, surface/menu, bubble-max — DECISIONS #20–24
 - [x] Message context-menu interaction spec (mobile long-press + desktop) → DESIGN_SYSTEM.md §5b; reply/edit = new §8 proposals (DECISIONS #25)
 - [x] Button in CODE: `src/components/button.js` + `src/styles/components/button.css` + `src/styles/base.css` + no-build demo `src/demo/components.html` (open directly in a browser; theme toggle included). Syntax + token cross-refs verified
-- [ ] **Next:** (a) Damir opens demo in browser + reviews → LOCKS conventions (DECISIONS #16, #17); (b) app-frame component set (top bar, bottom nav, banner, call bar, sheet, modal, toast); (c) payments per figma-sweep.md §4
-- ⚠️ Sandbox note: the mounted-folder cache served stale tokens.css during validation — trust Read/Grep (Windows-side) over bash for freshly edited files
+- [x] Button reviewed by Damir → conventions LOCKED (#16, #17); review findings implemented: state layers on outline/text (#28), success morph + width animation (#29), icon API leading/trailing/icon-only (#30). Demos self-contained (#27). All committed + pushed
+- [x] App frame part 1: `icons.js` registry (Tabler, sprite source) + `c-topbar` (root/view variants, hero-aware) + `c-bottomnav` (tonal pill, badges, avatar slot) + `src/demo/app-frame.html` (phone frame, hero toggle wired to Wallet tab)
+- [x] Damir design review round: fonts embedded + demo rebuilt against real Screens frames (#31); hero gradient tokenized (`--gradient-hero-overlay`); bottomnav equal-width items; filter chips + search field in demo are PLACEHOLDERS (proper c-chip/c-search-field components pending)
+- [x] `docs/chat-list-spec.md` — token-exact chat-item anatomy, status-icon colors, timestamp rules, excerpt types, 4 flags for Damir (①–④)
+- ⚠️ Icons: Figma icons are FILLED paths (#131415), not stroke Tabler as in icons.js — awaiting Damir bulk-export of icons frame → `src/assets/icons/` → icons.js regenerated from those (canonical pipeline)
+- [x] Icons/logo pipeline live: 64 assets in `src/assets/icons/` (Damir export) → `scripts/generate-icons.mjs` → registry (ink→currentColor, brand→icon-accent, logo→currentColor). MISSING: `tabler-icon-search` (temp glyph in demo)
+- [x] Chat-list flags resolved: unread = bold + indicator, NO tint (#33) · avatar/48 added · @ indicator unified · deterministic gradient avatars (#34)
+- [x] List primitives BUILT: `timestamp.js` (format + single ticker), `avatar.js`, `chatlist-item.js` (indicator/status/excerpt/row) + CSS; demo bundle system (#35: `scripts/build-demo-bundle.mjs` → `src/demo/spixi.iife.js`); Chats demo shows 12 real rows incl. contact-request block, live timestamp buckets
+- ⚠️ Sandbox mirror truncates Edit-modified files — generators were run inline / bundle written directly; re-run scripts locally when mirror behaves
+- [x] List demo reviewed by Damir 2026-07-02: excerpt glyphs approved; committed. Session continues on his Mac (clone fork → open this file first)
+- [ ] **Next (Damir review findings first):**
+  1. Avatar gradients TOO LIGHT — darken (drop lightness in `hashHue` gradient stops, avatar.js + bundle)
+  2. Muted chat (QWERTZ row) must show BOTH `count-muted` AND `bell-off muted` indicators — change `createIndicator`/chat-item to render two indicators in row2 (current API renders one)
+  3. Then: c-chip + c-search-field components (replace demo placeholders); transaction rows (wallet list); overlays batch (sheet/modal/toast/banner/callbar)
+  4. Reminder: `tabler-icon-search` still missing from Figma icons frame (temp glyph in demo)
+- ⚠️ Sandbox note: the mounted-folder cache can serve stale copies of freshly edited files — trust Read/Grep (Windows-side) over bash for validation
 - [ ] Then: component inventory (`DESIGN_SYSTEM.md`) → build components in code + Figma
 - [ ] Then: build shells one at a time (start with app shell + navigation)
 

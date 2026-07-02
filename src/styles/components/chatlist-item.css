@@ -1,0 +1,117 @@
+/* Chat list row family — token-exact per docs/chat-list-spec.md.
+   Unread: NO tint (DECISIONS.md #33) — weight steps up + indicator. */
+
+.c-chatlist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-12);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-chatlist-item:active { background: var(--surface-interactive-pressed); }
+.c-chatlist-item[aria-current] { background: var(--surface-interactive-selected); }
+@media (hover: hover) {
+  .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
+}
+
+.c-chatlist-item__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.c-chatlist-item__name {
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  letter-spacing: var(--tracking-body-lg);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--font-weight-semibold); }
+
+.c-chatlist-item__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--spacing-4);
+  flex: none;
+}
+.c-chatlist-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--icon-neutral-03);
+}
+.c-chatlist-item__time {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-chatlist-item__indicators { display: flex; gap: var(--spacing-4); }
+
+/* —— status icon tones —— */
+.c-status-icon { flex: none; }
+.c-status-icon[data-tone="neutral"] { color: var(--icon-neutral-03); }
+.c-status-icon[data-tone="read"] { color: var(--icon-accent); }
+.c-status-icon[data-tone="failed"] { color: var(--icon-error); }
+
+/* —— indicator —— */
+.c-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: var(--spacing-4);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+}
+.c-indicator[data-variant="count"],
+.c-indicator[data-variant="mention"] {
+  background: var(--surface-accent);
+  color: var(--text-neutral-inverse-01);
+}
+.c-indicator[data-variant="count-muted"],
+.c-indicator[data-variant="muted"] {
+  background: var(--surface-neutral-04);
+  color: var(--text-neutral-02);
+}
+
+/* —— excerpt —— */
+.c-excerpt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-width: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-02);
+}
+.c-excerpt svg { flex: none; color: var(--icon-neutral-03); }
+.c-excerpt__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-chatlist-item[data-unread] .c-excerpt__text { font-weight: var(--font-weight-semibold); }
+.c-excerpt__sender { flex: none; }
+.c-excerpt__mention { color: var(--text-action-default); }
+.c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="call-missed"] { color: var(--text-error); }
+.c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
+.c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }

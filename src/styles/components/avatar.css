@@ -1,0 +1,38 @@
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34). */
+
+.c-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
+  overflow: visible;
+}
+
+.c-avatar__img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+}
+
+.c-avatar__initials {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.c-avatar__dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-presence-online);
+  border: var(--outline-width-2) solid var(--surface-screen);
+}

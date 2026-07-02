@@ -272,6 +272,7 @@
   --size-avatar-24: 24px;
   --size-avatar-32: 32px;
   --size-avatar-40: 40px;
+  --size-avatar-48: 48px; /* chat/contact list rows */
   --size-avatar-56: 56px;
   --size-avatar-96: 96px;
   --size-target-min: 44px;
@@ -691,6 +692,11 @@
   /* scrim (keys have no alpha colors — value = grey-1000 #111213 @ 60%;
      plain rgba for conservative WebView baseline) */
   --surface-scrim: rgba(17, 18, 19, 0.6);
+
+  /* hero gradient overlay (code-only: Figma variables can't hold gradients —
+     lives as a fill on the hero components there). Usage:
+     background: var(--gradient-hero-overlay), var(--surface-hero); */
+  --gradient-hero-overlay: linear-gradient(180deg, rgba(49, 13, 80, 0.45) 0%, rgba(102, 74, 151, 0.45) 100%);
 
   /* elevation — light: shadows */
   --elevation-0: none;

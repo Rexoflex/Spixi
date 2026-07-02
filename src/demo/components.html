@@ -53,141 +53,17 @@
     <div class="demo-full" id="row-full"></div>
   </section>
 
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
 <script>
-  /* ============================================================
-     GENERATED INLINE COPY — source of truth: src/components/button.js
-     Self-contained so the demo opens via double-click (file:// blocks
-     ES-module imports). Regenerated on component change. DECISIONS.md #27.
-     ============================================================ */
-  function createButton({
-    label, type = 'fill', size = 44, intent = 'default', width = 'hug',
-    icon = null, iconPosition = 'leading', ariaLabel,
-    loading = false, disabled = false, onClick,
-  } = {}) {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'c-button';
-    el.dataset.type = type;
-    el.dataset.size = String(size);
-    el.dataset.intent = intent;
-    el.dataset.width = width;
-    const hasLabel = label != null && label !== '';
-    if (!hasLabel) {
-      el.dataset.iconOnly = '';
-      if (ariaLabel) el.setAttribute('aria-label', ariaLabel);
-      else console.warn('c-button: icon-only button requires ariaLabel');
-    }
-    if (icon) icon.classList.add('c-button__icon');
-    if (icon && iconPosition === 'leading') el.append(icon);
-    if (hasLabel) {
-      const text = document.createElement('span');
-      text.className = 'c-button__label';
-      text.textContent = label;
-      el.append(text);
-    }
-    if (icon && iconPosition === 'trailing') el.append(icon);
-    if (onClick) el.addEventListener('click', onClick);
-    setLoading(el, loading);
-    el.disabled = disabled;
-    return el;
-  }
-  function morphWidth(el, mutate) {
-    if (el.dataset.width === 'full' || !el.isConnected) { mutate(); return; }
-    const w0 = el.offsetWidth;
-    mutate();
-    el.style.width = 'auto';
-    const w1 = el.offsetWidth;
-    el.style.width = w0 + 'px';
-    void el.offsetWidth; // reflow so the transition has a start value
-    el.style.width = w1 + 'px';
-    clearTimeout(el._morphTimer);
-    el._morphTimer = setTimeout(() => { el.style.width = ''; }, 250);
-  }
-  function setLoading(el, loading) {
-    morphWidth(el, () => {
-      const existing = el.querySelector('.c-button__spinner');
-      if (loading) {
-        if (!existing) {
-          const spinner = document.createElement('span');
-          spinner.className = 'c-button__spinner';
-          spinner.setAttribute('aria-hidden', 'true');
-          el.prepend(spinner);
-        }
-        el.dataset.loading = '';
-        el.setAttribute('aria-busy', 'true');
-      } else {
-        if (existing) existing.remove();
-        delete el.dataset.loading;
-        el.removeAttribute('aria-busy');
-      }
-    });
-  }
-  const CHECK_PATH = 'M5 12l5 5L20 7';
-  function setSuccess(el, opts) {
-    opts = opts || {};
-    const label = opts.label || null;
-    const duration = opts.duration || 1400;
-    if (el.dataset.success !== undefined) return;
-    const original = Array.prototype.slice.call(el.childNodes).filter(
-      n => !(n.classList && n.classList.contains('c-button__spinner'))
-    );
-    const originalDisabled = el.disabled;
-    morphWidth(el, () => {
-      el.textContent = '';
-      el.dataset.success = '';
-      el.disabled = true;
-      delete el.dataset.loading;
-      el.removeAttribute('aria-busy');
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 24 24');
-      svg.setAttribute('fill', 'none');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.classList.add('c-button__icon');
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', CHECK_PATH);
-      path.setAttribute('stroke', 'currentColor');
-      path.setAttribute('stroke-width', '2.5');
-      path.setAttribute('stroke-linecap', 'round');
-      path.setAttribute('stroke-linejoin', 'round');
-      svg.append(path);
-      el.append(svg);
-      const text = document.createElement('span');
-      text.className = 'c-button__label';
-      text.setAttribute('role', 'status');
-      if (label) text.textContent = label;
-      el.append(text);
-    });
-    setTimeout(() => {
-      morphWidth(el, () => {
-        el.textContent = '';
-        el.append.apply(el, original);
-        delete el.dataset.success;
-        el.disabled = originalDisabled;
-      });
-    }, duration);
-  }
+  /* Real component code loads from the generated bundle (DECISIONS.md #35). */
+  const { createButton, setLoading, setSuccess } = window.Spixi;
   /* ============================ demo ============================ */
 
   const TYPES = ['fill', 'tonal', 'outline', 'text'];
   const SIZES = [56, 44, 32];
 
-  function makeIcon(d) {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('stroke', 'currentColor');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.append(path);
-    return svg;
-  }
-  const ARROW_RIGHT = 'M5 12h14M13 6l6 6-6 6';
-  const ARROW_LEFT = 'M19 12H5M11 18l-6-6 6-6';
-  const QR = 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h3v3h-3zM20 17v3h-3';
+  const makeIcon = (name) => window.SpixiIcons.icon(name);
 
   const themeBtn = createButton({
     label: 'Toggle dark', type: 'outline', size: 32,
@@ -241,16 +117,16 @@
   document.getElementById('row-destructive-flow').append(destructiveFlow);
 
   document.getElementById('row-icon-leading').append(
-    createButton({ label: 'Back', type: 'tonal', icon: makeIcon(ARROW_LEFT) }),
-    createButton({ label: 'Scan', type: 'outline', icon: makeIcon(QR) }),
+    createButton({ label: 'Back', type: 'tonal', icon: makeIcon('arrow-left') }),
+    createButton({ label: 'Scan', type: 'outline', icon: makeIcon('qrcode') }),
   );
   document.getElementById('row-icon-trailing').append(
-    createButton({ label: 'Continue', type: 'fill', icon: makeIcon(ARROW_RIGHT), iconPosition: 'trailing' }),
+    createButton({ label: 'Continue', type: 'fill', icon: makeIcon('arrow-right'), iconPosition: 'trailing' }),
   );
   document.getElementById('row-icon-only').append(
-    createButton({ type: 'fill', icon: makeIcon(QR), ariaLabel: 'Scan QR code' }),
-    createButton({ type: 'tonal', icon: makeIcon(ARROW_LEFT), ariaLabel: 'Back' }),
-    createButton({ type: 'text', size: 32, icon: makeIcon(ARROW_RIGHT), ariaLabel: 'Forward' }),
+    createButton({ type: 'fill', icon: makeIcon('qrcode'), ariaLabel: 'Scan QR code' }),
+    createButton({ type: 'tonal', icon: makeIcon('arrow-left'), ariaLabel: 'Back' }),
+    createButton({ type: 'text', size: 32, icon: makeIcon('arrow-right'), ariaLabel: 'Forward' }),
   );
 
   document.getElementById('row-full').append(

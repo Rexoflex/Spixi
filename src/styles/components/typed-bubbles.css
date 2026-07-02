@@ -1,0 +1,253 @@
+/* Typed message cards + file bubble + unread divider (batch 2).
+   Card language per Figma: white card (bubble-received surface), radius-16,
+   elevation-1, header label+time, pill actions, Details link. */
+
+.c-tcard {
+  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1);
+}
+
+.c-tcard__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-8);
+}
+.c-tcard__title {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-tcard__time {
+  flex: none;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+
+/* amount (payment) — Sora, tone-driven per Figma */
+.c-tcard__amount {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+}
+.c-tcard__amount[data-tone="pending"] { color: var(--text-warning); }
+.c-tcard__amount[data-tone="positive"] { color: var(--text-success); }
+.c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
+.c-tcard__amount[data-tone="void"] {
+  color: var(--text-neutral-disabled);
+  text-decoration: line-through;
+}
+.c-tcard__unit { font-size: 0.62em; font-weight: var(--font-weight-bold); } /* 0.62 sanctioned: IXI/amount ratio from Figma payment cards */
+.c-tcard__fiat {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-tcard__fiat[data-tone="void"] { text-decoration: line-through; color: var(--text-neutral-disabled); }
+
+.c-tcard__badge { margin-top: var(--spacing-8); }
+
+.c-tcard__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-12);
+}
+.c-tcard__actions .c-button { flex: 1; }
+
+.c-tcard__note {
+  margin-top: var(--spacing-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* Details › — hairline above, action-ink link row */
+.c-tcard__details {
+  margin-top: var(--spacing-12);
+  padding-top: var(--spacing-8);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-tcard__details-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-4) 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label-sm);
+  color: var(--text-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .c-tcard__details-btn:hover { color: var(--text-action-hover); }
+}
+.c-tcard__details-btn:active { color: var(--text-action-pressed); }
+
+/* app identity row */
+.c-tcard__app {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-tcard__app-icon {
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-12);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+}
+.c-tcard__app-icon img { width: 100%; height: 100%; object-fit: cover; }
+.c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
+.c-tcard__app-name {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-tcard__app-sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* call card */
+.c-bubble-row[data-missed] .c-tcard__title { color: var(--text-error); }
+.c-bubble-row[data-missed] .c-tcard__title svg { color: var(--icon-error); }
+.c-tcard__call-meta {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-tcard__call-back {
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-4) 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  text-align: start;
+}
+@media (hover: hover) {
+  .c-tcard__call-back:hover { color: var(--text-action-hover); }
+}
+
+/* —— file bubble (compact) —— */
+.c-fbubble {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1);
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .c-fbubble:hover .c-fbubble__icon { background: var(--surface-action-tonal-hover); }
+}
+.c-fbubble__icon {
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-fbubble[data-state="failed"] .c-fbubble__icon {
+  background: var(--surface-destructive-tonal-default);
+  color: var(--icon-error);
+}
+.c-fbubble:active .c-fbubble__icon { background: var(--surface-action-tonal-pressed); } /* audit: no pressed feedback */
+.c-fbubble:disabled { cursor: default; } /* progress state */
+.c-fbubble__info { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
+.c-fbubble__name {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-fbubble__meta {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
+.c-fbubble__track {
+  height: var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-progress-track);
+  overflow: hidden;
+  margin-top: var(--spacing-2);
+}
+/* dark: global track token (neutral-700) equals the card surface — invisible (audit MAJOR) */
+[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }
+.c-fbubble__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--surface-progress-fill);
+  transition: width var(--duration-200) var(--easing-standard);
+}
+.c-fbubble__time {
+  align-self: flex-end;
+  flex: none;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+
+/* —— unread divider (full width) —— */
+.c-unread-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0;
+  padding: var(--spacing-4) var(--spacing-16);
+  background: var(--surface-neutral-02);
+  border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+}

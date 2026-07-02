@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="../styles/components/chatlist-item.css">
 <link rel="stylesheet" href="../styles/components/message-bubble.css">
 <link rel="stylesheet" href="../styles/components/composer.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/typed-bubbles.css">
 <link rel="stylesheet" href="../styles/components/toast.css">
 <style>
   body { padding: var(--spacing-24); }
@@ -36,7 +38,7 @@
 </head>
 <body>
   <div class="demo-toolbar">
-    <h1 class="t-heading-md" style="margin-right:auto">Chat — batches 1a+1b</h1>
+    <h1 class="t-heading-md" style="margin-right:auto">Chat — batches 1a+1b+2</h1>
     <span id="voice-slot"></span>
     <span id="theme-slot"></span>
   </div>
@@ -51,7 +53,7 @@
         </div>
         <div id="composer-slot"></div>
       </div>
-      <div class="demo-caption">identity bar · pattern canvas · live composer (type + Enter) · failed + retry · grouped bubbles</div>
+      <div class="demo-caption">identity bar · canvas · live composer · grouped bubbles · payment/file/app/call cards · live download · unread divider</div>
     </div>
   </div>
 
@@ -103,7 +105,60 @@
     createMessageBubble({ direction: 'sent', position: 'first', text: 'Absolutely — 18:00 works.', timestamp: now - D - H, status: 'read' }),
     createMessageBubble({ direction: 'sent', position: 'last', text: 'Sending you my share for the cabin now, check your wallet in a minute.', timestamp: now - D - H + 30000, status: 'read' }),
   );
+  // —— batch 2: typed cards ——
+  const { createPaymentBubble, createAppBubble, createCallBubble, createFileBubble, createUnreadDivider } = window.Spixi;
+  const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: phone });
+  box.append(
+    createPaymentBubble({
+      role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - D - 30 * 60000,
+      onPay: () => toast('Pay'), onDecline: () => toast('Decline'),
+    }),
+    createPaymentBubble({
+      role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: now - D - 20 * 60000,
+      onCancel: () => toast('Cancel request'),
+    }),
+    createPaymentBubble({
+      role: 'received', amount: '+25.00', fiat: '$30.87', status: 'completed', timestamp: now - D - 10 * 60000,
+      onDetails: () => toast('Details'),
+    }),
+    createFileBubble({
+      direction: 'received', name: 'Quarterly_report.pdf', meta: 'PDF · 2.4 MB', state: 'complete',
+      timestamp: now - D - 5 * 60000, onOpen: () => toast('Open file'),
+    }),
+    createFileBubble({
+      direction: 'received', name: 'Campsite_map.png', meta: 'Downloading · 1.1 of 4.2 MB', state: 'progress', progress: 26,
+      timestamp: now - D - 4 * 60000,
+    }),
+    createCallBubble({
+      directionLabel: 'Outgoing', duration: '4:12', timestamp: now - D - 2 * 60000,
+      onCallBack: () => toast('Call back'),
+    }),
+    createCallBubble({
+      missed: true, timestamp: now - D - 60000,
+      onCallBack: () => toast('Call back'),
+    }),
+    createAppBubble({
+      name: 'TicTacToe', state: 'invite', timestamp: now - D,
+      onJoin: () => toast('Join'), onDecline: () => toast('Decline'),
+    }),
+  );
+  // simulate live download progress on the second file bubble (meta refresh + auto-complete)
+  const progBubble = box.querySelector('.c-fbubble[data-state="progress"]');
+  if (progBubble) {
+    const progRow = progBubble.closest('.c-bubble-row');
+    let p = 26;
+    const iv = setInterval(() => {
+      p = Math.min(p + 7, 100);
+      const mb = (4.2 * p / 100).toFixed(1);
+      window.Spixi.setFileProgress(progRow, p, p >= 100
+        ? { meta: 'PNG · 4.2 MB' }
+        : { meta: 'Downloading · ' + mb + ' of 4.2 MB' });
+      if (p >= 100) clearInterval(iv);
+    }, 600);
+  }
+
   box.append(createDateSeparator(now));
+  box.append(createUnreadDivider()); // full-width banner (Damir; computed from read flags in the shell)
   const han = { sender: 'Han Solo', name: 'Han Solo', address: '4fj2hansolo', showAvatar: true };
   box.append(
     createMessageBubble({ direction: 'received', position: 'single', ...han, text: 'Chewbacca owes me money. And before you ask — yes, again, and yes, I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H }),

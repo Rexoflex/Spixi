@@ -18,10 +18,25 @@
   content: '';
   position: absolute;
   inset: 0;
+  /* fallback: raw asset (its own #87C0E9 ink) for engines without mask support */
   background-image: url('../../assets/images/chat-bg-pattern.svg');
-  background-size: 248px;
+  background-size: 248px; /* asset's intrinsic tile */
   opacity: var(--chat-pattern-opacity);
   pointer-events: none;
+}
+/* mask technique: pattern ink comes from a TOKEN (--chat-pattern-ink) so it
+   themes properly — the asset's fixed blue vanished on the blue-tinted canvas */
+@supports ((-webkit-mask-image: url('')) or (mask-image: url(''))) {
+  .c-chat-canvas::before {
+    background-image: none;
+    background-color: var(--chat-pattern-ink);
+    -webkit-mask-image: url('../../assets/images/chat-bg-pattern.svg');
+    -webkit-mask-repeat: repeat;
+    -webkit-mask-size: 248px;
+    mask-image: url('../../assets/images/chat-bg-pattern.svg');
+    mask-repeat: repeat;
+    mask-size: 248px;
+  }
 }
 .c-chat-canvas > * { position: relative; } /* content above the pattern layer */
 

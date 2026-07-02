@@ -708,8 +708,11 @@
      Pattern asset: src/assets/images/chat-bg-pattern.svg (#87C0E9 doodles) —
      opacity themed so it whispers in light and barely breathes in dark */
   /* stays tinted end-to-end — fading to screen-white made white bubbles vanish
-     at the bottom (Damir 2026-07-03) */
-  --chat-pattern-opacity: 0.35;
+     at the bottom (Damir 2026-07-03). Pattern renders as a MASK inked by
+     --chat-pattern-ink: the asset's own #87C0E9 vanished against the now-blue
+     gradient (same hue on same hue) */
+  --chat-pattern-opacity: 0.5;
+  --chat-pattern-ink: var(--primary-300);
   --gradient-chat: linear-gradient(180deg, var(--primary-100) 0%, var(--primary-50) 100%);
 
   /* state washes over strong surfaces (hero gradient, success call bar) —
@@ -733,8 +736,9 @@
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
-  /* chat canvas — pattern nearly subliminal, gradient deep navy → screen */
-  --chat-pattern-opacity: 0.05;
+  /* chat canvas — pattern whispers, gradient deep navy → screen */
+  --chat-pattern-opacity: 0.35;
+  --chat-pattern-ink: var(--primary-800);
   --gradient-chat: linear-gradient(180deg, var(--primary-900) 0%, var(--surface-screen) 60%);
 }
 

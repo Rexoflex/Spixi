@@ -1,0 +1,87 @@
+/* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).
+   Overlays position inside their HOST (shell root / demo phone), not the viewport. */
+
+[data-overlay-open] { overflow: hidden; } /* host scroll lock while an overlay is up */
+
+.c-scrim {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: var(--z-40);
+  background: var(--surface-scrim);
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-scrim[data-open] { opacity: 1; }
+
+/* —— bottom sheet (z-40, above its scrim by source order) —— */
+.c-sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: var(--z-40);
+  max-width: var(--layout-content-max);
+  margin-inline: auto;
+  background: var(--surface-menu);
+  border-radius: var(--radius-24) var(--radius-24) 0 0;
+  box-shadow: var(--elevation-3);
+  padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
+  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  transform: translateY(100%);
+  transition: transform var(--duration-200) var(--easing-accelerate);
+  outline: none;
+}
+.c-sheet[data-open] {
+  transform: translateY(0);
+  transition-timing-function: var(--easing-decelerate);
+}
+
+.c-sheet__handle {
+  display: block;
+  width: 32px;  /* grab-handle: fixed affordance size, no token (spec ①) */
+  height: 4px;
+  margin: 0 auto var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--outline-neutral-03);
+}
+
+.c-sheet__title { margin-bottom: var(--spacing-12); color: var(--text-neutral-01); }
+.c-sheet__content { color: var(--text-neutral-01); }
+
+/* —— modal (z-50) —— */
+.c-modal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: var(--z-50);
+  width: calc(100% - 2 * var(--spacing-24));
+  max-width: 360px; /* dialog max — token candidate at next Figma sync */
+  background: var(--surface-menu);
+  border-radius: var(--radius-24);
+  box-shadow: var(--elevation-3);
+  padding: var(--spacing-24);
+  transform: translate(-50%, -50%) scale(0.95);
+  opacity: 0;
+  transition: transform var(--duration-200) var(--easing-standard),
+              opacity var(--duration-200) var(--easing-standard);
+  outline: none;
+}
+.c-modal[data-open] {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+.c-modal__title { margin-bottom: var(--spacing-8); color: var(--text-neutral-01); }
+
+.c-modal__body {
+  margin: 0 0 var(--spacing-24);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-02);
+}
+
+.c-modal__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  justify-content: flex-end;
+}
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */

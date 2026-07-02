@@ -957,5 +957,297 @@ function createTxItem({
   return el;
 }
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem };
+/* ---- src/components/overlay.js ---- */
+/**
+ * Shared overlay layer (docs/overlays-spec.md, DECISIONS #56): scrim, stack,
+ * Esc/back dismissal, document-level focus containment, focus restore, host
+ * scroll lock. Overlays mount into a HOST element (default document.body) so
+ * the demo phone frames and real shells behave identically.
+ *
+ * Dismissal policy: Esc is the safe dismiss path (opts.escDismiss — sheet and
+ * modal both default it true, per ARIA APG); opts.lightDismiss governs ONLY
+ * scrim click (sheet true, modal false).
+ */
+
+const stack = []; // { el, scrim, opts, opener }
+const overlayOpts = new WeakMap();    // el → opts, set by createSheet/createModal
+const pendingRemoval = new WeakMap(); // el → finish-removal fn while its exit transition runs
+let uid = 0;
+
+/** Unique DOM id for overlay labelling (aria-labelledby / aria-describedby). */
+function overlayId(prefix) { return prefix + '-' + (++uid); }
+
+/** Attach open-time options to an overlay element (read by openOverlay). */
+function setOverlayOpts(el, opts) { overlayOpts.set(el, opts); }
+
+function focusables(el) {
+  return [...el.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )].filter((n) => !n.disabled && !n.hidden);
+}
+
+// Document-level keydown while stack non-empty: Esc = safe dismiss of the top
+// entry (when it allows it), Tab = trap within the top entry.
+function onDocKeydown(e) {
+  if (stack.length === 0) return;
+  const top = stack[stack.length - 1];
+  if (e.key === 'Escape') {
+    if (top.opts.escDismiss) dismissOverlay(top.el);
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const f = focusables(top.el);
+  if (f.length === 0) {
+    e.preventDefault();
+    top.el.focus({ preventScroll: true });
+    return;
+  }
+  const first = f[0];
+  const last = f[f.length - 1];
+  const active = document.activeElement;
+  if (!f.includes(active)) { // focus escaped (or sits on the overlay root) — pull it back in
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus({ preventScroll: true });
+  } else if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus({ preventScroll: true });
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus({ preventScroll: true });
+  }
+}
+
+// Document-level focus containment: anything focused outside the top overlay
+// (and not its scrim) bounces back to the overlay's first focusable.
+function onDocFocusin(e) {
+  if (stack.length === 0) return;
+  const top = stack[stack.length - 1];
+  if (top.el.contains(e.target) || top.scrim.contains(e.target)) return;
+  (focusables(top.el)[0] || top.el).focus({ preventScroll: true });
+}
+
+/** Open `el` as an overlay above a scrim inside `host`. Internal — sheets/modals wrap this. */
+function openOverlay(el, opts) {
+  if (stack.some((s) => s.el === el)) return; // already open — no-op
+
+  // Element reuse: re-opened while its exit transition still runs — finish the
+  // pending removal now (old scrim + listeners + host bookkeeping, no second
+  // dismiss side effects) so a clean re-open proceeds.
+  const finishPending = pendingRemoval.get(el);
+  if (finishPending) finishPending();
+
+  opts = opts || overlayOpts.get(el) || {};
+  const host = opts.host || document.body;
+  const opener = document.activeElement;
+
+  const scrim = document.createElement('div');
+  scrim.className = 'c-scrim';
+  scrim.setAttribute('aria-hidden', 'true');
+  if (opts.lightDismiss) scrim.addEventListener('click', () => dismissOverlay(el));
+
+  host.append(scrim, el);
+  host.dataset.overlayOpen = '';
+
+  if (stack.length === 0) {
+    document.addEventListener('keydown', onDocKeydown);
+    document.addEventListener('focusin', onDocFocusin);
+  }
+  stack.push({ el, scrim, opts, opener });
+
+  // enter transitions: two rAFs so initial styles paint first
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    scrim.dataset.open = '';
+    el.dataset.open = '';
+  }));
+
+  const target = el.querySelector('[data-autofocus]') || focusables(el)[0] || el;
+  target.focus({ preventScroll: true });
+}
+
+/** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */
+function dismissOverlay(el) {
+  const i = el ? stack.findIndex((s) => s.el === el) : stack.length - 1;
+  if (i === -1 || stack.length === 0) return false;
+  const [entry] = stack.splice(i, 1);
+  if (stack.length === 0) {
+    document.removeEventListener('keydown', onDocKeydown);
+    document.removeEventListener('focusin', onDocFocusin);
+  }
+
+  delete entry.scrim.dataset.open;
+  delete entry.el.dataset.open;
+
+  // focus restore — only if focus is ours to move (inside the closing overlay,
+  // or already dropped to body); opener gone/unfocusable → new top overlay.
+  const active = document.activeElement;
+  if (entry.el.contains(active) || active === document.body) {
+    const opener = entry.opener;
+    if (opener && opener.isConnected && !opener.disabled && typeof opener.focus === 'function') {
+      opener.focus({ preventScroll: true });
+    } else {
+      const top = stack[stack.length - 1];
+      const f = top ? focusables(top.el) : [];
+      if (f[0]) f[0].focus({ preventScroll: true });
+    }
+  }
+
+  // remove after the exit transition (transitionend + timeout fallback, like #29 morph)
+  let removed = false;
+  let fallback;
+  const onEnd = (e) => { if (e.target === entry.el) remove(); };
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    clearTimeout(fallback);
+    entry.el.removeEventListener('transitionend', onEnd);
+    pendingRemoval.delete(entry.el);
+    entry.scrim.remove();
+    entry.el.remove();
+    const host = entry.opts.host || document.body; // scroll lock: recheck at removal time
+    if (!stack.some((s) => (s.opts.host || document.body) === host)) {
+      delete host.dataset.overlayOpen;
+    }
+    if (entry.opts.onDismiss) entry.opts.onDismiss();
+  };
+  entry.el.addEventListener('transitionend', onEnd);
+  fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
+  pendingRemoval.set(entry.el, remove);
+  return true;
+}
+
+/** Shell onBack hook: dismiss the top overlay if any. True = consumed. */
+function dismissTopOverlay() {
+  if (stack.length === 0) return false;
+  return dismissOverlay(stack[stack.length - 1].el);
+}
+
+/* ---- src/components/sheet.js ---- */
+/**
+ * c-sheet — bottom sheet (docs/overlays-spec.md, DECISIONS #56). Replaces the
+ * bridge-era toggleAnimatedSlider menus. z-40, light-dismiss by default.
+ *
+ * createSheet({ title, content, host, lightDismiss = true, escDismiss = true,
+ *               onDismiss, strings })
+ *   lightDismiss — scrim click closes (sheet default: true)
+ *   escDismiss   — Esc closes (default: true; safe dismiss path, ARIA APG)
+ *   strings.sheet — aria-label fallback when there is no title ('Menu')
+ * openSheet(el) / closeSheet(el) free fns (#44).
+ */
+
+
+function createSheet({
+  title = '', content = null, host, lightDismiss = true, escDismiss = true,
+  onDismiss, strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-sheet';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.tabIndex = -1;
+
+  const handle = document.createElement('span');
+  handle.className = 'c-sheet__handle';
+  handle.setAttribute('aria-hidden', 'true');
+  el.append(handle);
+
+  if (title) {
+    const t = document.createElement('h2');
+    t.className = 'c-sheet__title t-heading-xs';
+    t.textContent = title;
+    t.id = overlayId('c-sheet-title');
+    el.setAttribute('aria-labelledby', t.id);
+    el.append(t);
+  } else {
+    el.setAttribute('aria-label', strings.sheet || 'Menu');
+  }
+
+  const body = document.createElement('div');
+  body.className = 'c-sheet__content';
+  if (content) body.append(content);
+  el.append(body);
+
+  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss });
+  return el;
+}
+
+function openSheet(el) { openOverlay(el); }
+function closeSheet(el) { dismissOverlay(el); }
+
+/* ---- src/components/modal.js ---- */
+/**
+ * c-modal — dialog (docs/overlays-spec.md, DECISIONS #56). Replaces
+ * showModalDialog. z-50; scrim click does NOT dismiss by default
+ * (confirmations are explicit) but Esc DOES (safe dismiss path, ARIA APG).
+ * Destructive confirms: role=alertdialog + autofocus the SAFE action.
+ *
+ * createModal({ title, body, actions, role = 'dialog', host,
+ *               lightDismiss = false, escDismiss = true, onDismiss, strings })
+ *   actions: [{ label, type = 'text'|'fill'|…, intent, onClick, autofocus }]
+ *   an action returning false from onClick keeps the modal open.
+ *   lightDismiss — scrim click closes (modal default: false)
+ *   escDismiss   — Esc closes (default: true)
+ *   strings.modal — aria-label fallback when there is no title ('Dialog')
+ * openModal(el) / closeModal(el) free fns (#44).
+ */
+
+
+
+function createModal({
+  title = '', body = '', actions = [], role = 'dialog', host,
+  lightDismiss = false, escDismiss = true, onDismiss, strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-modal';
+  el.setAttribute('role', role);
+  el.setAttribute('aria-modal', 'true');
+  el.tabIndex = -1;
+
+  if (title) {
+    const t = document.createElement('h2');
+    t.className = 'c-modal__title t-heading-xs';
+    t.textContent = title;
+    t.id = overlayId('c-modal-title');
+    el.setAttribute('aria-labelledby', t.id);
+    el.append(t);
+  } else {
+    el.setAttribute('aria-label', strings.modal || 'Dialog');
+    if (role === 'alertdialog') {
+      console.warn('c-modal: role=alertdialog without a title — SRs announce alert dialogs by their label; provide one');
+    }
+  }
+
+  if (body) {
+    const b = document.createElement('p');
+    b.className = 'c-modal__body';
+    b.textContent = body;
+    b.id = overlayId('c-modal-body');
+    el.setAttribute('aria-describedby', b.id);
+    el.append(b);
+  }
+
+  if (actions.length) {
+    const row = document.createElement('div');
+    row.className = 'c-modal__actions';
+    for (const a of actions) {
+      const btn = createButton({
+        label: a.label, type: a.type || 'text', intent: a.intent, size: 44,
+        onClick: () => {
+          const keep = a.onClick ? a.onClick() : undefined;
+          if (keep !== false) dismissOverlay(el);
+        },
+      });
+      if (a.autofocus) btn.dataset.autofocus = '';
+      row.append(btn);
+    }
+    el.append(row);
+  }
+
+  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss });
+  return el;
+}
+
+function openModal(el) { openOverlay(el); }
+function closeModal(el) { dismissOverlay(el); }
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal };
 })();

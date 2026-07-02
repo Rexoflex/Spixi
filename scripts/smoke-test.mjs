@@ -65,6 +65,57 @@ console.log('app-frame.html');
   const q = chatRows.find((r) => r.textContent.includes('QWERTZ'));
   const variants = [...q.querySelectorAll('.c-indicator')].map((i) => i.dataset.variant);
   ok(variants.join('+') === 'count-muted+muted', 'muted chat shows count-muted + bell-off');
+
+  // overlays (#56): Esc = safe dismiss everywhere; lightDismiss governs scrim only
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const esc = () => d.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  d.getElementById('fab').click();
+  ok(!!d.querySelector('.c-sheet[role="dialog"]') && !!d.querySelector('.c-scrim'), 'FAB opens sheet + scrim');
+  esc();
+  await sleep(500); // removal via 400ms fallback (no real transitions in jsdom)
+  ok(!d.querySelector('.c-sheet'), 'Esc dismisses sheet');
+  d.getElementById('fab').focus(); // real clicks focus the button; jsdom's synthetic click doesn't
+  d.getElementById('fab').click();
+  await sleep(50);
+  ok(!!d.querySelector('.c-sheet'), 'sheet reopens after close');
+  d.querySelector('.c-scrim').click();
+  await sleep(500);
+  ok(!d.querySelector('.c-sheet'), 'scrim click dismisses sheet (lightDismiss)');
+  ok(d.activeElement === d.getElementById('fab'), 'focus restored to opener');
+
+  // nested: sheet → confirm modal on the same host
+  d.getElementById('fab').click();
+  await sleep(50);
+  const decline = [...d.querySelectorAll('.c-button')].find((b) => b.textContent.trim() === 'Decline');
+  const { Spixi } = W;
+  const confirm = Spixi.createModal({
+    title: 'Nested?', body: 'On top of the sheet.', role: 'alertdialog',
+    host: decline.closest('.demo-phone'),
+    actions: [{ label: 'Cancel', autofocus: true }],
+  });
+  Spixi.openModal(confirm);
+  await sleep(50);
+  ok(!!d.querySelector('.c-modal') && !!d.querySelector('.c-sheet'), 'modal stacks above sheet');
+  d.querySelector('.c-modal .c-scrim, .c-scrim:last-of-type'); // no-op lookup guard
+  [...d.querySelectorAll('.c-scrim')].pop().click();
+  ok(!!d.querySelector('.c-modal'), 'scrim click does NOT close confirm modal');
+  esc();
+  await sleep(500);
+  ok(!d.querySelector('.c-modal') && !!d.querySelector('.c-sheet'), 'Esc closes modal first (safe path), sheet stays');
+  ok(Spixi.dismissTopOverlay() === true, 'dismissTopOverlay consumes back press');
+  await sleep(500);
+  ok(!d.querySelector('.c-sheet'), 'back hook closed the sheet');
+  ok(!d.querySelector('[data-overlay-open]'), 'host scroll lock released');
+
+  // standalone confirm flow (Decline button)
+  decline.click();
+  const modal = d.querySelector('.c-modal[role="alertdialog"]');
+  ok(!!modal, 'Decline opens alertdialog modal');
+  await sleep(50);
+  ok(d.activeElement && d.activeElement.textContent.trim() === 'Cancel', 'initial focus on safe action');
+  [...modal.querySelectorAll('.c-button')].find((b) => b.textContent.trim() === 'Cancel').click();
+  await sleep(500);
+  ok(!d.querySelector('.c-modal'), 'Cancel action closes modal');
 }
 
 console.log('components.html');

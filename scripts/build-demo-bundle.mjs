@@ -28,6 +28,9 @@ const FILES = [
   'src/components/highlight.js',
   'src/components/badge.js',
   'src/components/txlist-item.js',
+  'src/components/overlay.js',
+  'src/components/sheet.js',
+  'src/components/modal.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

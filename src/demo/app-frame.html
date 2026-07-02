@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="../styles/components/search-field.css">
 <link rel="stylesheet" href="../styles/components/badge.css">
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
 <style>
   /* demo chrome */
   body { padding: var(--spacing-24); }
@@ -86,6 +87,22 @@
   }
   .hero__amount .unit { font-size: 0.62em; font-weight: var(--font-weight-bold); }
   .hero__eye { margin-left: auto; background: none; border: 0; color: var(--icon-on-hero); cursor: pointer; padding: var(--spacing-8); border-radius: var(--radius-full); }
+  /* sheet action rows (menu-item component pending — demo styling).
+     56px rows + body-lg per Damir 2026-07-02: "more substantial, easier to tap" */
+  .sheet-item {
+    display: flex; align-items: center; gap: var(--spacing-16);
+    width: 100%; min-height: 56px;
+    padding: var(--spacing-8) var(--spacing-12);
+    border: 0; border-radius: var(--radius-12); background: transparent;
+    color: var(--text-neutral-01); font-family: var(--font-secondary);
+    font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg);
+    cursor: pointer; text-align: start;
+  }
+  @media (hover: hover) {
+    .sheet-item:hover { background: var(--surface-interactive-hover); }
+  }
+  .sheet-item:active { background: var(--surface-interactive-pressed); }
+
   /* placeholder hovers until c-icon-button lands;
      guarded per DECISIONS #43 (no sticky hover on touch) */
   @media (hover: hover) {
@@ -180,6 +197,30 @@
     actions: [{ icon: 'users', label: 'Contacts', onClick: () => {} }],
   }));
   document.getElementById('fab').append(icon('message-plus'));
+
+  // FAB → bottom sheet (replaces toggleAnimatedSlider menus; host = phone frame)
+  const { createSheet, openSheet, closeSheet, createModal, openModal } = window.Spixi;
+  const chatsPhone = document.getElementById('fab').closest('.demo-phone');
+  const sheetItem = (glyph, label) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sheet-item';
+    b.append(icon(glyph, { size: 24 }), document.createTextNode(label));
+    return b;
+  };
+  document.getElementById('fab').addEventListener('click', () => {
+    const list = document.createElement('div');
+    list.append(
+      sheetItem('message-plus', 'New chat'),
+      sheetItem('users', 'New group'),
+      sheetItem('scan', 'Scan QR code'),
+    );
+    const sheet = createSheet({ title: 'Start', content: list, host: chatsPhone });
+    for (const item of list.querySelectorAll('.sheet-item')) {
+      item.addEventListener('click', () => closeSheet(sheet));
+    }
+    openSheet(sheet);
+  });
 
   const NAV_ITEMS = [
     { id: 'chats', label: 'Chats', icon: 'messages' },
@@ -314,7 +355,19 @@
   const reqActions = document.createElement('div');
   reqActions.className = 'contact-request__actions';
   reqActions.append(
-    createButton({ label: 'Decline', type: 'outline', size: 32 }),
+    createButton({
+      label: 'Decline', type: 'outline', size: 32,
+      onClick: () => openModal(createModal({
+        title: 'Decline request?',
+        body: '425H…5CQen won’t be notified, and can send another request later.',
+        role: 'alertdialog',
+        host: chatsPhone,
+        actions: [
+          { label: 'Cancel', type: 'text', autofocus: true }, // safe action gets focus
+          { label: 'Decline', type: 'fill', intent: 'destructive', onClick: () => {} },
+        ],
+      })),
+    }),
     createButton({ label: 'Accept', type: 'fill', size: 32, icon: icon('check', { size: 16 }) }),
   );
   reqBody.append(reqActions);

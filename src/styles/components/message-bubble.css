@@ -1,0 +1,202 @@
+/* c-bubble — chat message bubble (Figma 11288:4442 · DECISIONS #63 grouping,
+   #14 width). Region tokens only. No tails — grouping = inner-corner
+   tightening (radius-16 outer / radius-8 group-adjacent), per design language. */
+
+/* —— chat canvas (Damir 2026-07-03): themed gradient + doodle pattern layer.
+   Pattern sits on the canvas (::before), messages scroll in a child ⇒ pattern
+   stays fixed under the scroll, WhatsApp-style. */
+.c-chat-canvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--gradient-chat);
+  overflow: hidden;
+}
+.c-chat-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('../../assets/images/chat-bg-pattern.svg');
+  background-size: 248px;
+  opacity: var(--chat-pattern-opacity);
+  pointer-events: none;
+}
+.c-chat-canvas > * { position: relative; } /* content above the pattern layer */
+
+.c-bubble-row {
+  display: flex;
+  align-items: flex-end;
+  padding-inline: var(--spacing-16);
+  margin-top: var(--spacing-12);           /* gap between groups */
+}
+.c-bubble-row[data-position="middle"],
+.c-bubble-row[data-position="last"] { margin-top: var(--spacing-2); } /* in-group gap */
+
+.c-bubble-row[data-direction="sent"] { justify-content: flex-end; }
+
+.c-bubble-row__gutter {
+  width: var(--size-avatar-24);
+  margin-inline-end: var(--spacing-8);
+  flex: none;
+  align-self: flex-end;
+}
+
+.c-bubble {
+  position: relative;
+  display: flow-root; /* contains the floated __meta (audit: float dropped below the box) */
+  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-16);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* direction surfaces/ink */
+.c-bubble-row[data-direction="received"] .c-bubble {
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1); /* audit: lifts white bubbles off the pale canvas bottom */
+}
+.c-bubble-row[data-direction="sent"] .c-bubble {
+  background: var(--surface-bubble-sent);
+  color: var(--text-bubble-sent);
+}
+
+/* grouped radii (#63 amended): tighten the corners facing group neighbors.
+   Logical corner props (Chrome 89+/Safari 15+, within baseline) — RTL-correct */
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--radius-8); }
+.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--radius-8); border-end-start-radius: var(--radius-8); }
+.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--radius-8); }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
+.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
+.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+
+/* sender label (group chats, first of group) — identity-hued like the avatar.
+   Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed
+   AA for yellow/green hues on the white bubble (audit MAJOR) — labels run
+   darker in light / lighter in dark than the gradient does. */
+:root { --sender-label-s: 60%; --sender-label-l: 34%; }
+[data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 74%; }
+.c-bubble__sender {
+  display: block;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: hsl(var(--sender-h, 220), var(--sender-label-s), var(--sender-label-l));
+  margin-bottom: var(--spacing-2);
+}
+
+.c-bubble__text { white-space: pre-wrap; }
+
+/* meta (time + status) — floats into the last text line, WhatsApp-style.
+   float:inline-end is too new for the baseline (Chrome 118) → physical + RTL flip */
+.c-bubble__meta {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-inline-start: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  transform: translateY(2px); /* optical baseline alignment with the text */
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+}
+[dir="rtl"] .c-bubble__meta { float: left; }
+.c-bubble__meta .c-status-icon { flex: none; } /* self-contained: no chatlist-item.css dependency */
+.c-bubble-row[data-direction="received"] .c-bubble__meta { color: var(--text-bubble-received-meta); }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta { color: var(--text-bubble-sent-meta); }
+/* status glyphs on the SENT bubble: dedicated on-bubble tokens (audit findings
+   1+2 — read must pop vs delivered in both modes; error ramp unreadable on blue) */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="neutral"] { color: var(--text-bubble-sent-meta); }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
+
+/* —— failed message (Damir 2026-07-03, r2): bubble stays CLEAN — the red
+   outline on the blue clashed. Retry circle (hugging) + red caption carry
+   the error, iMessage-style. —— */
+.c-bubble-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+/* width discipline (audit): the 75%/320 rule must resolve against the ROW —
+   stack carries it (+32px = 28 retry + 4 gap); bubble fills the line remainder */
+.c-bubble-row[data-failed] .c-bubble-stack {
+  max-width: min(var(--bubble-max-pct), calc(var(--layout-bubble-max) + 32px));
+}
+.c-bubble-line { /* retry + bubble on one line, tight */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-4);
+  min-width: 0;
+  max-width: 100%;
+}
+.c-bubble-line .c-bubble { max-width: calc(100% - 32px); }
+.c-bubble-retry {
+  position: relative; /* hit-area extension below */
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;  /* visual size sanctioned; touch target extended to ~44 via ::after */
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-destructive-tonal-default);
+  color: var(--icon-error);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-bubble-retry::after { content: ''; position: absolute; inset: -8px; }
+@media (hover: hover) {
+  .c-bubble-retry:hover { background: var(--surface-destructive-tonal-hover); }
+}
+.c-bubble-retry:active { background: var(--surface-destructive-tonal-pressed); }
+.c-bubble-failnote {
+  margin-top: var(--spacing-2);
+  padding-inline: var(--spacing-4);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+  color: var(--text-error);
+  cursor: pointer;
+}
+
+/* —— live-send entrance (Damir 2026-07-03): new message pushes up gently.
+   Applied by the shell/demo on live appends ONLY (history renders static).
+   Durations are tokens → reduced-motion collapses to 0 automatically. —— */
+.c-bubble-row--in {
+  animation: c-bubble-in var(--duration-200) var(--easing-decelerate) both;
+}
+@keyframes c-bubble-in {
+  from { opacity: 0; transform: translateY(var(--spacing-8)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* —— date separator —— */
+.c-datesep {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-12) 0 var(--spacing-4);
+}
+.c-datesep__pill {
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+  border: var(--outline-width-1) solid var(--outline-neutral-01); /* audit: pill vanished on same-value canvas */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+}

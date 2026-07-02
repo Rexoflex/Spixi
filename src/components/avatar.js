@@ -7,7 +7,7 @@
  */
 import { icon } from './icons.js';
 
-function hashHue(str) {
+export function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
@@ -31,8 +31,8 @@ export function createAvatar({ src = null, name = '', address = '', size = 48, o
   const el = document.createElement('span');
   el.className = 'c-avatar';
   el.dataset.size = String(size);
-  if (size !== 24 && size !== 48) {
-    // known sizes (24/48) come from --size-avatar-* tokens in avatar.css;
+  if (size !== 24 && size !== 40 && size !== 48) {
+    // known sizes (24/40/48) come from --size-avatar-* tokens in avatar.css;
     // anything else falls back to inline sizing until tokenized
     el.style.width = size + 'px';
     el.style.height = size + 'px';

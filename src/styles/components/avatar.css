@@ -28,6 +28,8 @@
    Initials scale ≈ 0.38 × avatar size. */
 .c-avatar[data-size="24"] { width: var(--size-avatar-24); height: var(--size-avatar-24); }
 .c-avatar[data-size="24"] .c-avatar__initials { font-size: 9px; }
+.c-avatar[data-size="40"] { width: var(--size-avatar-40); height: var(--size-avatar-40); }
+.c-avatar[data-size="40"] .c-avatar__initials { font-size: 15px; }
 .c-avatar[data-size="48"] { width: var(--size-avatar-48); height: var(--size-avatar-48); }
 .c-avatar[data-size="48"] .c-avatar__initials { font-size: 18px; }
 
@@ -54,9 +56,9 @@
 
 .c-avatar__dot {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 12px;
+  inset-inline-end: 0; /* RTL-logical (audit) */
+  inset-block-end: 0;
+  width: 12px;  /* sanctioned: dot scale is avatar-relative, not a size token */
   height: 12px;
   border-radius: var(--radius-full);
   background: var(--surface-presence-online);

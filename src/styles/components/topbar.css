@@ -44,6 +44,44 @@
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
 
+/* chat variant — identity block (Damir 2026-07-03: name label-md, sub body-sm text-02).
+   Hairline below (not shadow — matches bottomnav/composer language) so the bar
+   reads against white incoming bubbles on the canvas. */
+.c-topbar[data-variant="chat"] {
+  gap: var(--spacing-12);
+  padding-inline-end: var(--spacing-8);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-topbar__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.c-topbar__name {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  letter-spacing: var(--tracking-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-topbar);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-topbar__sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* presence dot ring sits on the topbar surface here, not the screen */
+.c-topbar[data-variant="chat"] .c-avatar__dot { border-color: var(--surface-topbar); }
+
 .c-topbar__actions { display: flex; align-items: center; gap: var(--spacing-4); }
 
 /* bar buttons: ink via the button's private vars ONLY — a direct `color:` here

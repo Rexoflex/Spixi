@@ -13,23 +13,25 @@
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
-function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
   const n = new Date(now);
   const locale = document.documentElement.lang || undefined;
-
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
-
-  if (dayDiff <= 0) {
-    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-  }
+  if (dayDiff <= 0) return todayLabel;
   if (dayDiff === 1) return strings.yesterday || 'Yesterday';
   if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
   if (d.getFullYear() === n.getFullYear()) {
     return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
   }
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+  const bucket = dayBucketLabel(ts, strings, now, null);
+  if (bucket !== null) return bucket;
+  const locale = document.documentElement.lang || undefined;
+  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -1406,5 +1408,365 @@ function hideCallBar(host = document.body) {
   return true;
 }
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar };
+/* ---- src/components/message-bubble.js ---- */
+function bubbleTime(ts) {
+  const locale = document.documentElement.lang || undefined;
+  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}
+function createMessageBubble({
+  direction = 'received',
+  position = 'single',
+  text = '',
+  timestamp = null,
+  status = null,
+  sender = null,
+  showAvatar = false,
+  name = '',
+  address = '',
+  avatar = null,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = position;
+  if (direction === 'received' && (showAvatar || sender !== null)) {
+    const gutter = document.createElement('span');
+    gutter.className = 'c-bubble-row__gutter';
+    if (showAvatar && (position === 'last' || position === 'single')) {
+      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+    }
+    row.append(gutter);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-bubble';
+  if (sender && (position === 'first' || position === 'single')) {
+    const s = document.createElement('span');
+    s.className = 'c-bubble__sender';
+    s.textContent = sender;
+    s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    el.append(s);
+  }
+  const body = document.createElement('span');
+  body.className = 'c-bubble__text';
+  body.textContent = text;
+  el.append(body);
+  const meta = document.createElement('span');
+  meta.className = 'c-bubble__meta u-tabular';
+  if (timestamp != null) {
+    const t = document.createElement('time');
+    t.setAttribute('datetime', new Date(timestamp).toISOString());
+    t.textContent = bubbleTime(timestamp);
+    meta.append(t);
+  }
+  if (direction === 'sent' && status) {
+    const st = createStatusIcon(status);
+    if (st) {
+      st.setAttribute('width', 14);
+      st.setAttribute('height', 14);
+      st.removeAttribute('aria-hidden');
+      st.setAttribute('role', 'img');
+      st.setAttribute('aria-label', strings['status-' + status] || status);
+      meta.append(st);
+    }
+  }
+  if (meta.childNodes.length) el.append(meta);
+  row.append(el);
+  return row;
+}
+function createDateSeparator(ts, strings = {}, now = Date.now()) {
+  const el = document.createElement('div');
+  el.className = 'c-datesep';
+  el.setAttribute('role', 'separator');
+  const pill = document.createElement('span');
+  pill.className = 'c-datesep__pill';
+  pill.textContent = dayBucketLabel(ts, strings, now, strings.today || 'Today');
+  el.append(pill);
+  return el;
+}
+
+/* ---- BATCH 1b SUPERSEDE SECTION (manual append — PC mirror can't run the
+   builder; `node scripts/build-demo-bundle.mjs` on the Mac normalizes this).
+   Later function declarations override the earlier ones above. ---- */
+
+/* ---- src/components/topbar.js (chat variant + setTopbarSub) ---- */
+function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', actions = [] } = {}) {
+  const el = document.createElement('header');
+  el.className = 'c-topbar';
+  el.dataset.variant = variant;
+  if ((variant === 'view' || variant === 'chat') && onBack) {
+    el.append(createButton({
+      type: 'text', size: 44,
+      icon: icon('arrow-left'),
+      ariaLabel: backLabel,
+      onClick: onBack,
+    }));
+  }
+  if (variant === 'chat' && identity) {
+    el.append(createAvatar({
+      src: identity.avatar, name: identity.name, address: identity.address,
+      size: 40, online: !!identity.online,
+    }));
+    const id = document.createElement('div');
+    id.className = 'c-topbar__identity';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'c-topbar__name';
+    nameEl.textContent = identity.name || identity.address || '';
+    const subEl = document.createElement('span');
+    subEl.className = 'c-topbar__sub';
+    subEl.setAttribute('aria-live', 'polite');
+    subEl.textContent = identity.sub || '';
+    id.append(nameEl, subEl);
+    el.append(id);
+  } else {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'c-topbar__title';
+    if (variant === 'root' && logo) {
+      const mark = icon('logo', { size: 28 });
+      mark.classList.add('c-topbar__logo');
+      const word = document.createElement('span');
+      word.textContent = title || 'Spixi';
+      titleEl.append(mark, word);
+    } else {
+      titleEl.textContent = title;
+    }
+    el.append(titleEl);
+  }
+  if (actions.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-topbar__actions';
+    for (const a of actions) {
+      wrap.append(createButton({
+        type: 'text', size: 44,
+        icon: icon(a.icon),
+        ariaLabel: a.label,
+        onClick: a.onClick,
+      }));
+    }
+    el.append(wrap);
+  }
+  return el;
+}
+function setTopbarSub(el, text) {
+  const sub = el.querySelector('.c-topbar__sub');
+  if (sub) sub.textContent = text || '';
+}
+
+/* ---- src/components/message-bubble.js (failed + onRetry) ---- */
+function createMessageBubble({
+  direction = 'received',
+  position = 'single',
+  text = '',
+  timestamp = null,
+  status = null,
+  sender = null,
+  showAvatar = false,
+  name = '',
+  address = '',
+  avatar = null,
+  onRetry = null,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = position;
+  if (direction === 'received' && (showAvatar || sender !== null)) {
+    const gutter = document.createElement('span');
+    gutter.className = 'c-bubble-row__gutter';
+    if (showAvatar && (position === 'last' || position === 'single')) {
+      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+    }
+    row.append(gutter);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-bubble';
+  if (sender && (position === 'first' || position === 'single')) {
+    const s = document.createElement('span');
+    s.className = 'c-bubble__sender';
+    s.textContent = sender;
+    s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    el.append(s);
+  }
+  const body = document.createElement('span');
+  body.className = 'c-bubble__text';
+  body.textContent = text;
+  el.append(body);
+  const meta = document.createElement('span');
+  meta.className = 'c-bubble__meta u-tabular';
+  if (timestamp != null) {
+    const t = document.createElement('time');
+    t.setAttribute('datetime', new Date(timestamp).toISOString());
+    t.textContent = bubbleTime(timestamp);
+    meta.append(t);
+  }
+  if (direction === 'sent' && status) {
+    const st = createStatusIcon(status);
+    if (st) {
+      st.setAttribute('width', 14);
+      st.setAttribute('height', 14);
+      st.removeAttribute('aria-hidden');
+      st.setAttribute('role', 'img');
+      st.setAttribute('aria-label', strings['status-' + status] || status);
+      meta.append(st);
+    }
+  }
+  if (meta.childNodes.length) el.append(meta);
+  if (direction === 'sent' && status === 'failed') {
+    row.dataset.failed = '';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'c-bubble-retry';
+    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
+    retry.append(icon('rotate-clockwise-2', { size: 16 }));
+    if (onRetry) retry.addEventListener('click', onRetry);
+    const line = document.createElement('div');
+    line.className = 'c-bubble-line';
+    line.append(retry, el);
+    const stack = document.createElement('div');
+    stack.className = 'c-bubble-stack';
+    stack.append(line);
+    const note = document.createElement('span');
+    note.className = 'c-bubble-failnote';
+    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
+    if (onRetry) note.addEventListener('click', onRetry);
+    stack.append(note);
+    row.append(stack);
+    return row;
+  }
+  row.append(el);
+  return row;
+}
+
+/* ---- src/components/composer.js ---- */
+const COMPOSER_MAX_LINES = 5;
+function createComposer({
+  placeholder = 'Message',
+  voice = false,
+  onSend,
+  onAttach,
+  onTyping,
+  onRecord,
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-composer';
+  const field = document.createElement('div');
+  field.className = 'c-composer__field';
+  const attach = document.createElement('button');
+  attach.type = 'button';
+  attach.className = 'c-composer__attach';
+  attach.setAttribute('aria-label', strings.attach || 'Attach');
+  attach.append(icon('circle-plus', { size: 24 }));
+  if (onAttach) attach.addEventListener('click', onAttach);
+  field.append(attach);
+  const input = document.createElement('textarea');
+  input.className = 'c-composer__input';
+  input.rows = 1;
+  input.placeholder = placeholder;
+  input.setAttribute('aria-label', placeholder);
+  field.append(input);
+  el.append(field);
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'c-composer__action';
+  el.append(action);
+  const sendIcon = () => { action.textContent = ''; action.append(icon('send-2', { size: 20 })); };
+  const micIcon = () => { action.textContent = ''; action.append(icon('microphone', { size: 20 })); };
+  const hasText = () => input.value.trim().length > 0;
+  const syncAction = () => {
+    if (voice && !hasText()) {
+      micIcon();
+      action.dataset.mode = 'mic';
+      action.disabled = false;
+      action.setAttribute('aria-label', strings.record || 'Record voice message');
+    } else {
+      sendIcon();
+      action.dataset.mode = 'send';
+      action.disabled = !hasText();
+      action.setAttribute('aria-label', strings.send || 'Send');
+    }
+  };
+  const grow = () => {
+    input.style.height = 'auto';
+    const cs = getComputedStyle(input);
+    const line = parseInt(cs.lineHeight, 10) || 24;
+    const pad = (parseInt(cs.paddingTop, 10) || 0) + (parseInt(cs.paddingBottom, 10) || 0);
+    input.style.height = Math.min(input.scrollHeight, line * COMPOSER_MAX_LINES + pad) + 'px';
+  };
+  const send = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    if (onSend) onSend(text);
+    input.value = '';
+    grow();
+    syncAction();
+    input.focus();
+  };
+  input.addEventListener('input', (e) => {
+    grow();
+    syncAction();
+    if (onTyping && e.isTrusted) onTyping();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter' && !e.shiftKey && matchMedia('(hover: hover)').matches) {
+      e.preventDefault();
+      send();
+    }
+  });
+  action.addEventListener('click', () => {
+    if (action.dataset.mode === 'mic') { if (onRecord) onRecord(); }
+    else send();
+  });
+  syncAction();
+  return el;
+}
+function clearComposer(el) {
+  const input = el.querySelector('.c-composer__input');
+  if (!input) return;
+  input.value = '';
+  input.style.height = 'auto';
+  input.dispatchEvent(new Event('input'));
+}
+
+/* ---- src/components/avatar.js (24/40/48 token sizes — supersede parity) ---- */
+function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
+  const el = document.createElement('span');
+  el.className = 'c-avatar';
+  el.dataset.size = String(size);
+  if (size !== 24 && size !== 40 && size !== 48) {
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+  }
+  if (src) {
+    const img = document.createElement('img');
+    img.className = 'c-avatar__img';
+    img.src = src;
+    img.alt = '';
+    el.append(img);
+  } else {
+    const hue = hashHue(address || name);
+    el.dataset.placeholder = '';
+    el.style.setProperty('--av-h1', hue);
+    el.style.setProperty('--av-h2', (hue + 40) % 360);
+    const ini = name ? initials(name) : null;
+    if (ini) {
+      const t = document.createElement('span');
+      t.className = 'c-avatar__initials';
+      t.textContent = ini;
+      el.append(t);
+    } else {
+      el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
+    }
+  }
+  if (online) {
+    const dot = document.createElement('span');
+    dot.className = 'c-avatar__dot';
+    el.append(dot);
+  }
+  return el;
+}
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer };
 })();

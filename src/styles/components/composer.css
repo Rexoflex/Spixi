@@ -1,0 +1,96 @@
+/* c-composer — chat input bar (DECISIONS #64). Field pill mirrors Figma input;
+   trailing 44 action circle = send (v1) / mic⇄send (voice flag). */
+
+.c-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-8);
+  min-height: var(--layout-composer-min);
+  /* logical props — RTL-correct (audit MAJOR) */
+  padding-block: var(--spacing-8);
+  padding-inline-start: var(--spacing-16);
+  padding-inline-end: var(--spacing-12);
+  background: var(--surface-composer);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  z-index: var(--z-20);
+}
+
+.c-composer__field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-4);
+  background: var(--surface-input);
+  border-radius: var(--radius-24);
+  padding-block: var(--spacing-4);
+  padding-inline-start: var(--spacing-4);  /* attach pill side */
+  padding-inline-end: var(--spacing-12);
+  transition: box-shadow var(--duration-100) var(--easing-standard);
+}
+/* focus ring lives on the FIELD (audit: input outline:none had no replacement) */
+.c-composer__field:focus-within {
+  box-shadow: inset 0 0 0 var(--outline-width-2) var(--outline-focus);
+}
+
+.c-composer__attach {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
+}
+.c-composer__attach:active { background: var(--surface-interactive-pressed); }
+
+.c-composer__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  padding: var(--spacing-8) 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-01);
+  outline: none; /* focus is carried by the field, not the caret area */
+  max-height: 136px; /* 5×24 line-height + 16 block padding (border-box) — matches JS cap */
+}
+.c-composer__input::placeholder { color: var(--text-neutral-02); }
+
+.c-composer__action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-composer__action:not(:disabled):hover { background: var(--surface-action-hover); }
+}
+.c-composer__action:not(:disabled):active { background: var(--surface-action-pressed); }
+.c-composer__action:disabled {
+  background: var(--surface-action-disabled);
+  color: var(--text-neutral-on-disabled);
+  cursor: default;
+}

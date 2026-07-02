@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi chat — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<link rel="stylesheet" href="../styles/components/message-bubble.css">
+<link rel="stylesheet" href="../styles/components/composer.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+  }
+  .messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-16); }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Chat — batches 1a+1b</h1>
+    <span id="voice-slot"></span>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone" id="phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="chat-topbar"></div>
+        <div class="c-chat-canvas">
+          <div class="messages u-scroll" id="messages" role="log" aria-label="Messages"></div>
+        </div>
+        <div id="composer-slot"></div>
+      </div>
+      <div class="demo-caption">identity bar · pattern canvas · live composer (type + Enter) · failed + retry · grouped bubbles</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const { createButton, createTopbar, setTopbarSub, createMessageBubble, createDateSeparator, createComposer, clearComposer, showToast } = window.Spixi;
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  const themeBtn = createButton({
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
+    onClick: () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme === 'dark';
+      root.classList.add('theme-switching');
+      root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+      themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
+    },
+  });
+  document.getElementById('theme-slot').append(themeBtn);
+
+  const phone = document.getElementById('phone');
+
+  // identity top bar — Damir spec 2026-07-03 (mock: back · avatar+dot · name/Online · phone · ⋮)
+  const topbar = createTopbar({
+    variant: 'chat',
+    identity: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true },
+    onBack: () => {},
+    actions: [
+      { icon: 'phone', label: 'Call', onClick: () => showToast({ text: 'Calling — demo only', tone: 'info', host: phone }) },
+      { icon: 'dots-vertical', label: 'More', onClick: () => {} },
+    ],
+  });
+  document.getElementById('chat-topbar').append(topbar);
+
+  const box = document.getElementById('messages');
+  const now = Date.now();
+  const H = 3600000, D = 86400000;
+
+  box.append(createDateSeparator(now - D - 2 * H));
+  const alex = { sender: 'Alex', name: 'Alex', address: '77aleXaddr', showAvatar: true };
+  box.append(
+    createMessageBubble({ direction: 'received', position: 'first', ...alex, text: 'Hey! Are we still on for the call later today?', timestamp: now - D - 2 * H }),
+    createMessageBubble({ direction: 'received', position: 'middle', ...alex, text: 'I found a spot with fiber internet, right next to the lake 🏕️', timestamp: now - D - 2 * H + 60000 }),
+    createMessageBubble({ direction: 'received', position: 'last', ...alex, text: 'Bring the drone.', timestamp: now - D - 2 * H + 120000 }),
+  );
+  box.append(
+    createMessageBubble({ direction: 'sent', position: 'first', text: 'Absolutely — 18:00 works.', timestamp: now - D - H, status: 'read' }),
+    createMessageBubble({ direction: 'sent', position: 'last', text: 'Sending you my share for the cabin now, check your wallet in a minute.', timestamp: now - D - H + 30000, status: 'read' }),
+  );
+  box.append(createDateSeparator(now));
+  const han = { sender: 'Han Solo', name: 'Han Solo', address: '4fj2hansolo', showAvatar: true };
+  box.append(
+    createMessageBubble({ direction: 'received', position: 'single', ...han, text: 'Chewbacca owes me money. And before you ask — yes, again, and yes, I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H }),
+    createMessageBubble({ direction: 'sent', position: 'single', text: 'A napkin is legally binding in at least two systems.', timestamp: now - H, status: 'delivered' }),
+    createMessageBubble({
+      direction: 'sent', position: 'single',
+      text: 'This one did not go through.', timestamp: now - 600000, status: 'failed',
+      onRetry: () => showToast({ text: 'Retrying — demo only', tone: 'info', host: phone }),
+    }),
+  );
+
+  // —— live composer: sends real bubbles, grouping computed on the fly (#63)
+  let lastSent = null; // { row, at }
+  const sendMessage = (text) => {
+    const at = Date.now();
+    let position = 'single';
+    if (lastSent && at - lastSent.at < 90000) {
+      const prev = lastSent.row;
+      prev.dataset.position = prev.dataset.position === 'single' ? 'first'
+        : prev.dataset.position === 'last' ? 'middle' : prev.dataset.position;
+      position = 'last';
+    }
+    const row = createMessageBubble({ direction: 'sent', position, text, timestamp: at, status: 'sending' });
+    row.classList.add('c-bubble-row--in'); // live-send entrance (Damir 2026-07-03)
+    row.addEventListener('animationend', () => row.classList.remove('c-bubble-row--in'), { once: true });
+    box.append(row);
+    lastSent = { row, at };
+    box.scrollTop = box.scrollHeight;
+    // simulate delivery: sending → delivered (keeps size + a11y attrs of the original)
+    setTimeout(() => {
+      const st = row.querySelector('.c-status-icon');
+      if (st) {
+        const next = window.Spixi.createStatusIcon('delivered');
+        next.setAttribute('width', 14);
+        next.setAttribute('height', 14);
+        next.removeAttribute('aria-hidden');
+        next.setAttribute('role', 'img');
+        next.setAttribute('aria-label', 'delivered');
+        st.replaceWith(next);
+      }
+    }, 900);
+  };
+
+  const composerSlot = document.getElementById('composer-slot');
+  let voice = false;
+  let composer;
+  const mountComposer = () => {
+    if (composer) composer.remove();
+    composer = createComposer({
+      placeholder: 'Message',
+      voice,
+      onSend: sendMessage,
+      onAttach: () => showToast({ text: 'Attach — demo only', tone: 'info', host: phone }),
+      onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
+    });
+    composerSlot.append(composer);
+  };
+  mountComposer();
+
+  const voiceBtn = createButton({
+    label: 'Voice flag: off', type: 'outline', size: 32,
+    onClick: () => {
+      voice = !voice;
+      voiceBtn.querySelector('.c-button__label').textContent = 'Voice flag: ' + (voice ? 'on' : 'off');
+      mountComposer();
+    },
+  });
+  document.getElementById('voice-slot').append(voiceBtn);
+
+  box.scrollTop = box.scrollHeight;
+</script>
+</body>
+</html>

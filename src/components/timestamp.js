@@ -5,23 +5,28 @@
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
-export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+/** Shared day-bucket ladder (chat list + conversation separators — single source,
+ *  audit DRY finding). `todayLabel` null → caller handles today itself. */
+export function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
   const n = new Date(now);
   const locale = document.documentElement.lang || undefined;
-
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
-
-  if (dayDiff <= 0) {
-    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-  }
+  if (dayDiff <= 0) return todayLabel; // today (or future clock skew)
   if (dayDiff === 1) return strings.yesterday || 'Yesterday';
   if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
   if (d.getFullYear() === n.getFullYear()) {
     return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
   }
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+  const bucket = dayBucketLabel(ts, strings, now, null);
+  if (bucket !== null) return bucket;
+  const locale = document.documentElement.lang || undefined;
+  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 /**

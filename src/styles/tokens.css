@@ -384,7 +384,7 @@
   --surface-card: var(--neutral-50);
   --surface-card-raised: var(--neutral-100);
   --surface-bubble-sent: var(--primary-600);
-  --surface-bubble-received: var(--neutral-100);
+  --surface-bubble-received: var(--neutral-10); /* white — pops on the pattern canvas (Damir 2026-07-03) */
   --surface-input: var(--neutral-50);
   --surface-qr: var(--neutral-10);
   --surface-presence-online: var(--success-500);
@@ -428,9 +428,13 @@
 
   /* text/region */
   --text-bubble-sent: var(--neutral-10);
-  --text-bubble-sent-meta: var(--primary-200);
+  --text-bubble-sent-meta: var(--primary-100); /* audit: primary-200 was 4.3:1 at 12px — sub-AA */
   --text-bubble-received: var(--neutral-950);
   --text-bubble-received-meta: var(--neutral-490);
+  /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
+     green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
+  --icon-bubble-read: var(--success-300);
+  --icon-bubble-failed: var(--error-200);
 
   /* icon */
   --icon-neutral-01: var(--neutral-950);
@@ -588,6 +592,8 @@
   --text-bubble-sent-meta: var(--primary-800);
   --text-bubble-received: var(--neutral-100);
   --text-bubble-received-meta: var(--neutral-400);
+  --icon-bubble-read: var(--success-600);   /* deep green pops on primary-400 */
+  --icon-bubble-failed: var(--error-700);   /* deep red reads on the light-blue dark bubble */
 
   /* icon */
   --icon-neutral-01: var(--neutral-100);
@@ -698,6 +704,14 @@
      background: var(--gradient-hero-overlay), var(--surface-hero); */
   --gradient-hero-overlay: linear-gradient(180deg, rgba(49, 13, 80, 0.45) 0%, rgba(102, 74, 151, 0.45) 100%);
 
+  /* chat canvas (Damir 2026-07-03): doodle pattern tile + themed gradient.
+     Pattern asset: src/assets/images/chat-bg-pattern.svg (#87C0E9 doodles) —
+     opacity themed so it whispers in light and barely breathes in dark */
+  /* stays tinted end-to-end — fading to screen-white made white bubbles vanish
+     at the bottom (Damir 2026-07-03) */
+  --chat-pattern-opacity: 0.35;
+  --gradient-chat: linear-gradient(180deg, var(--primary-100) 0%, var(--primary-50) 100%);
+
   /* state washes over strong surfaces (hero gradient, success call bar) —
      mirrored in Figma as colors/surface/region/wash-* (alpha primitives);
      same value both modes: washes are relative to the surface they sit on */
@@ -718,6 +732,10 @@
   --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
+
+  /* chat canvas — pattern nearly subliminal, gradient deep navy → screen */
+  --chat-pattern-opacity: 0.05;
+  --gradient-chat: linear-gradient(180deg, var(--primary-900) 0%, var(--surface-screen) 60%);
 }
 
 @media (prefers-reduced-motion: reduce) {

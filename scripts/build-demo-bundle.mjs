@@ -34,6 +34,8 @@ const FILES = [
   'src/components/banner.js',
   'src/components/toast.js',
   'src/components/callbar.js',
+  'src/components/message-bubble.js',
+  'src/components/composer.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

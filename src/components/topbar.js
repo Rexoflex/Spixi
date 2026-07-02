@@ -4,15 +4,16 @@
  * createTopbar({
  *   variant: 'root' | 'view' = 'view',
  *   title: string,                       // view title, or fallback text for root
- *   logo: url,                           // root variant: logo.svg (Chats/home header only)
+ *   logo: boolean,                       // root variant: render the registry logo mark (Chats/home header only)
  *   onBack: (e) => void,                 // view variant: renders back icon-button
+ *   backLabel: 'Back',                   // back button a11y label (SL in shells)
  *   actions: [{ icon: 'qrcode', label: 'Scan', onClick }]  // trailing icon-buttons
  * })
  */
 import { createButton } from './button.js';
 import { icon } from './icons.js';
 
-export function createTopbar({ variant = 'view', title = '', logo = null, onBack, actions = [] } = {}) {
+export function createTopbar({ variant = 'view', title = '', logo = false, onBack, backLabel = 'Back', actions = [] } = {}) {
   const el = document.createElement('header');
   el.className = 'c-topbar';
   el.dataset.variant = variant;
@@ -21,7 +22,7 @@ export function createTopbar({ variant = 'view', title = '', logo = null, onBack
     el.append(createButton({
       type: 'text', size: 44,
       icon: icon('arrow-left'),
-      ariaLabel: 'Back',
+      ariaLabel: backLabel,
       onClick: onBack,
     }));
   }

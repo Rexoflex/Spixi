@@ -47,5 +47,24 @@
 
 .c-topbar__actions { display: flex; align-items: center; gap: var(--spacing-4); }
 
-/* bar buttons inherit topbar ink (works on hero too) */
-.c-topbar .c-button[data-type="text"] { color: var(--icon-topbar); }
+/* bar buttons: ink via the button's private vars ONLY — a direct `color:` here
+   out-cascades button.css's :hover color (later sheet, equal specificity) and
+   freezes the ink. Rest ink = topbar region token; hover/pressed step to the
+   action ink for a visible affordance (Damir 2026-07-02, #49) */
+.c-topbar .c-button[data-type="text"] {
+  --_ink: var(--icon-topbar);
+  --_ink-hover: var(--icon-action-hover);
+  --_ink-pressed: var(--icon-action-pressed);
+}
+/* hero surfaces: ink stays pinned — blue action ink would clash with the gradient.
+   Backgrounds pinned too: button.css's neutral hover wash / tonal pressed fill are
+   near-white in light theme = invisible white-on-white icon on the hero gradient.
+   On-hero wash values match the demo's; token candidates at next Figma sync (#49) */
+.screen--hero .c-topbar .c-button[data-type="text"] {
+  --_ink-hover: var(--icon-topbar);
+  --_ink-pressed: var(--icon-topbar);
+}
+@media (hover: hover) {
+  .screen--hero .c-topbar .c-button[data-type="text"]:hover { background: rgba(255, 255, 255, 0.12); }
+}
+.screen--hero .c-topbar .c-button[data-type="text"]:active { background: rgba(255, 255, 255, 0.18); }

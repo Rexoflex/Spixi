@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spixi app frame — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
 <link rel="stylesheet" href="../styles/components/button.css">
@@ -37,7 +39,7 @@
     background: var(--surface-input); border-radius: var(--radius-16);
     color: var(--text-neutral-02); font-size: var(--font-size-body-md);
   }
-  .content { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+  .content { flex: 1; display: flex; flex-direction: column; } /* scrolling via .u-scroll (base.css) */
   .fab {
     position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
     width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
@@ -45,7 +47,9 @@
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     box-shadow: var(--elevation-2); z-index: var(--z-10);
   }
-  .fab:hover { background: var(--surface-action-hover); }
+  @media (hover: hover) {
+    .fab:hover { background: var(--surface-action-hover); }
+  }
   .fab:active { background: var(--surface-action-pressed); }
 
   /* contact request block (design: tinted, actions row) — becomes a component with contacts shell */
@@ -83,7 +87,15 @@
     letter-spacing: -1px; /* hero-amount tracking (Damir 2026-07-02) */
   }
   .hero__amount .unit { font-size: 0.62em; font-weight: var(--font-weight-bold); }
-  .hero__eye { margin-left: auto; background: none; border: 0; color: var(--icon-on-hero); cursor: pointer; padding: var(--spacing-8); }
+  .hero__eye { margin-left: auto; background: none; border: 0; color: var(--icon-on-hero); cursor: pointer; padding: var(--spacing-8); border-radius: var(--radius-full); }
+  /* placeholder hovers until c-icon-button / c-chip components land;
+     guarded per DECISIONS #43 (no sticky hover on touch) */
+  @media (hover: hover) {
+    .hero__eye:hover, .quick-action:hover .quick-action__circle { background: rgba(255, 255, 255, 0.12); } /* on-hero hover wash; token candidate at next Figma sync */
+    .hero__eye:hover { color: var(--text-on-hero-muted); } /* ink steps to the light periwinkle on-hero tint — icon-on-hero is already near-white, so "lighter" = tinted (Damir 2026-07-02, #49) */
+    .quick-action--primary:hover .quick-action__circle { background: var(--surface-neutral-01); opacity: 0.9; }
+    .chip:hover:not([aria-pressed="true"]) { background: var(--surface-interactive-hover); }
+  }
   .hero__fiat { color: var(--text-on-hero-muted); font-size: var(--font-size-body-md); }
   .hero__actions { display: flex; gap: var(--spacing-24); padding: var(--spacing-24) var(--spacing-16) 0; }
   .quick-action { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8); background: none; border: 0; color: var(--text-on-hero); cursor: pointer; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
@@ -117,7 +129,7 @@
         <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
         <div id="chats-topbar"></div>
         <div class="search-field"><span id="search-icon"></span>Search chats</div>
-        <div class="content" id="chat-list"></div>
+        <div class="content u-scroll" id="chat-list"></div>
         <button class="fab" id="fab" aria-label="New chat"></button>
         <div id="chats-nav"></div>
       </div>
@@ -148,7 +160,7 @@
           <button class="chip" aria-pressed="false">Sent</button>
           <button class="chip" aria-pressed="false">Received</button>
         </div>
-        <div class="content"><div class="list-hint">Transaction rows: next batch (reuses timestamp + avatar + status primitives).</div></div>
+        <div class="content u-scroll"><div class="list-hint">Transaction rows: next batch (reuses timestamp + avatar + status primitives).</div></div>
         <div id="wallet-nav"></div>
       </div>
       <div class="demo-caption">Wallet — hero gradient over surface-hero · quick actions · chips (placeholder)</div>
@@ -158,14 +170,13 @@
 <script src="../components/icons.iife.js"></script>
 <script src="spixi.iife.js"></script>
 <script>
-  const { createButton, createTopbar, createBottomNav, createChatItem, startTimestampTicker, refreshTimestamps } = window.Spixi;
+  const { createButton, createTopbar, createBottomNav, createChatItem, startTimestampTicker, refreshTimestamps, setNavBadge } = window.Spixi;
   const icon = window.SpixiIcons.icon;
-  // TEMP until tabler-icon-search is added to the Figma icons frame + re-exported:
-  window.SpixiIcons.ICONS.search = { v: '0 0 24 24', b: '<path fill="currentColor" d="M10 3.25a6.75 6.75 0 0 1 5.28 10.96l5.25 5.26a.75.75 0 1 1-1.06 1.06l-5.26-5.25A6.75 6.75 0 1 1 10 3.25zm0 1.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5z"/>' };
-
   if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
   const themeBtn = createButton({
-    label: 'Toggle dark', type: 'outline', size: 32,
+    // initial label reflects the actual starting theme (OS-dark may already apply)
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
     onClick: () => {
       const root = document.documentElement;
       const dark = root.dataset.theme === 'dark';
@@ -188,8 +199,10 @@
     { id: 'wallet', label: 'Wallet', icon: 'wallet' },
     { id: 'account', label: 'Account', icon: 'user-circle' },
   ];
-  document.getElementById('chats-nav').append(createBottomNav({ items: NAV_ITEMS, active: 'chats' }));
-  document.getElementById('wallet-nav').append(createBottomNav({ items: NAV_ITEMS, active: 'wallet' }));
+  const chatsNav = createBottomNav({ items: NAV_ITEMS, active: 'chats' });
+  const walletNav = createBottomNav({ items: NAV_ITEMS, active: 'wallet' });
+  document.getElementById('chats-nav').append(chatsNav);
+  document.getElementById('wallet-nav').append(walletNav);
 
   document.getElementById('eye').append(icon('eye-off'));
   document.getElementById('qa-send').append(icon('arrow-up-right'));
@@ -209,11 +222,59 @@
 
   const list = document.getElementById('chat-list');
 
-  list.append(createChatItem({
-    name: 'Han Solo', address: '4fj2...solo', online: true, pinned: true,
-    timestamp: at(2 * H), status: 'read',
-    excerpt: { type: 'text', text: 'Chewbacca owes me money..' },
-  }));
+  const CHAT_ROWS = [
+    {
+      name: 'Han Solo', address: '4fj2...solo', online: true, pinned: true,
+      timestamp: at(2 * H), status: 'read',
+      excerpt: { type: 'text', text: 'Chewbacca owes me money..' },
+    },
+    {
+      name: 'Sarah Jo', online: true, timestamp: at(D), status: 'delivered',
+      excerpt: { type: 'text', text: 'Coming soon, save me a seat at you…' },
+    },
+    {
+      name: 'John Connor', online: true, timestamp: at(3 * D), unread: 3,
+      excerpt: { type: 'file', text: 'Skynet-access-codes.md' },
+    },
+    {
+      name: 'Camping Group Alpha', timestamp: at(3 * D), mention: true,
+      excerpt: { type: 'mention', sender: 'Han Solo', text: '@Han I was there just 2 hour…' },
+    },
+    {
+      name: 'Martins Obademo', timestamp: at(3 * D),
+      excerpt: { type: 'call', text: 'Voice call' },
+    },
+    {
+      name: 'QWERTZ', online: true, timestamp: at(29 * D), unread: 5, muted: true,
+      excerpt: { type: 'call-missed', text: 'Missed voice call' },
+    },
+    {
+      name: 'Baracuda', timestamp: at(29 * D),
+      excerpt: { type: 'payment', text: 'Payment request 25 IXI' },
+    },
+    {
+      name: 'London Trip Group', timestamp: at(3 * D),
+      excerpt: { type: 'text', text: 'Han Solo was added' },
+    },
+    {
+      name: 'Mexico Trip', timestamp: at(29 * D),
+      excerpt: { type: 'typing', text: 'Han Solo is typing...' },
+    },
+    {
+      name: 'Gaucho boy', timestamp: at(29 * D),
+      excerpt: { type: 'draft', text: 'I was th' },
+    },
+    {
+      name: 'App boi', timestamp: at(29 * D),
+      excerpt: { type: 'app-invite', text: 'Invited you to {app name}' },
+    },
+    {
+      name: '', address: '335Hxq21abcd5OP32', timestamp: at(400 * D), status: 'sent',
+      excerpt: { type: 'text', text: 'Address-only contact (older than a year)' },
+    },
+  ];
+
+  list.append(createChatItem(CHAT_ROWS[0]));
 
   // contact request block (component lands with the contacts shell)
   const req = document.createElement('div');
@@ -221,7 +282,14 @@
   req.append(window.Spixi.createAvatar({ address: '425Hnq88fnnf5CQen', size: 48 }));
   const reqBody = document.createElement('div');
   reqBody.className = 'contact-request__body';
-  reqBody.innerHTML = '<span class="contact-request__name">425H…5CQen</span><span class="contact-request__sub">Wants to connect</span>';
+  // DOM calls, not innerHTML — the name slot holds user data in the real shell
+  const reqName = document.createElement('span');
+  reqName.className = 'contact-request__name';
+  reqName.textContent = '425H…5CQen';
+  const reqSub = document.createElement('span');
+  reqSub.className = 'contact-request__sub';
+  reqSub.textContent = 'Wants to connect';
+  reqBody.append(reqName, reqSub);
   const reqActions = document.createElement('div');
   reqActions.className = 'contact-request__actions';
   reqActions.append(
@@ -236,52 +304,14 @@
   req.append(reqTime);
   list.append(req);
 
-  list.append(
-    createChatItem({
-      name: 'Sarah Jo', online: true, timestamp: at(D), status: 'delivered',
-      excerpt: { type: 'text', text: 'Coming soon, save me a seat at you…' },
-    }),
-    createChatItem({
-      name: 'John Connor', online: true, timestamp: at(3 * D), unread: 3,
-      excerpt: { type: 'file', text: 'Skynet-access-codes.md' },
-    }),
-    createChatItem({
-      name: 'Camping Group Alpha', timestamp: at(3 * D), mention: true,
-      excerpt: { type: 'mention', sender: 'Han Solo', text: '@Han I was there just 2 hour…' },
-    }),
-    createChatItem({
-      name: 'Martins Obademo', timestamp: at(3 * D),
-      excerpt: { type: 'call', text: 'Voice call' },
-    }),
-    createChatItem({
-      name: 'QWERTZ', online: true, timestamp: at(29 * D), unread: 5, muted: true,
-      excerpt: { type: 'call-missed', text: 'Missed voice call' },
-    }),
-    createChatItem({
-      name: 'Baracuda', timestamp: at(29 * D),
-      excerpt: { type: 'payment', text: 'Payment request 25 IXI' },
-    }),
-    createChatItem({
-      name: 'London Trip Group', timestamp: at(3 * D),
-      excerpt: { type: 'text', text: 'Han Solo was added' },
-    }),
-    createChatItem({
-      name: 'Mexico Trip', timestamp: at(29 * D),
-      excerpt: { type: 'typing', text: 'Han Solo is typing...' },
-    }),
-    createChatItem({
-      name: 'Gaucho boy', timestamp: at(29 * D),
-      excerpt: { type: 'draft', text: 'I was th' },
-    }),
-    createChatItem({
-      name: 'App boi', timestamp: at(29 * D),
-      excerpt: { type: 'app-invite', text: 'Invited you to {app name}' },
-    }),
-    createChatItem({
-      name: '', address: '335Hxq21abcd5OP32', timestamp: at(400 * D), status: 'sent',
-      excerpt: { type: 'text', text: 'Address-only contact (older than a year)' },
-    }),
-  );
+  list.append(...CHAT_ROWS.slice(1).map(createChatItem));
+
+  // Chats tab badge (DECISIONS #42): unread total EXCLUDING muted; a bare
+  // mention counts as 1. Mirrors what setUnreadIndicator should deliver.
+  const unreadTotal = CHAT_ROWS.reduce(
+    (n, c) => n + (c.muted ? 0 : (c.unread || (c.mention ? 1 : 0))), 0);
+  setNavBadge(chatsNav, 'chats', unreadTotal);
+  setNavBadge(walletNav, 'chats', unreadTotal);
 
   startTimestampTicker(() => refreshTimestamps(list));
 </script>

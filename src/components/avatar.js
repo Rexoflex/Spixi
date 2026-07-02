@@ -10,21 +10,33 @@ import { icon } from './icons.js';
 function hashHue(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
+  // names into a ~30° hue band (all-olive avatars); this scatters them (#38)
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x45d9f3b);
+  h = (h ^ (h >>> 16)) >>> 0;
   return h % 360;
 }
 
 function initials(name) {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  const chars = parts.map(p => p[0].toUpperCase()).join('');
-  // address-like "names" (no real word boundary, hex-ish) don't get initials
-  return /^[A-Za-z]/.test(name) ? chars : null;
+  const trimmed = name.trim();
+  // must start with a letter (any script) — empty/whitespace-only and
+  // address-like hex "names" get the glyph instead of initials
+  if (!/^\p{L}/u.test(trimmed)) return null;
+  // [...p] not p[0]: first char may be an astral-plane code point (CJK ext.)
+  return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
 export function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
-  el.style.width = size + 'px';
-  el.style.height = size + 'px';
+  el.dataset.size = String(size);
+  if (size !== 24 && size !== 48) {
+    // known sizes (24/48) come from --size-avatar-* tokens in avatar.css;
+    // anything else falls back to inline sizing until tokenized
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+  }
 
   if (src) {
     const img = document.createElement('img');
@@ -34,15 +46,16 @@ export function createAvatar({ src = null, name = '', address = '', size = 48, o
     el.append(img);
   } else {
     const hue = hashHue(address || name);
-    // runtime-computed identity color (sanctioned dynamic style, like #29 morph)
-    el.style.backgroundImage =
-      'linear-gradient(135deg, hsl(' + hue + ', 62%, 62%), hsl(' + ((hue + 40) % 360) + ', 58%, 45%))';
+    // JS supplies ONLY the deterministic hues; saturation/lightness are themed
+    // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+    el.dataset.placeholder = '';
+    el.style.setProperty('--av-h1', hue);
+    el.style.setProperty('--av-h2', (hue + 40) % 360);
     const ini = name ? initials(name) : null;
     if (ini) {
       const t = document.createElement('span');
       t.className = 'c-avatar__initials';
       t.textContent = ini;
-      t.style.fontSize = Math.round(size * 0.38) + 'px';
       el.append(t);
     } else {
       el.append(icon('user-circle', { size: Math.round(size * 0.55) }));

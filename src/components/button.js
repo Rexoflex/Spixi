@@ -67,19 +67,44 @@ export function createButton({
 /**
  * Run a content mutation with an animated width morph (hug buttons only).
  * Measures old/new natural widths synchronously (no flicker), transitions
- * between them (CSS width transition), then releases back to hug.
+ * between them (CSS only transitions width while [data-morphing] is set),
+ * then releases back to hug on transitionend (timeout fallback covers
+ * reduced-motion / zero-duration, where transitionend never fires).
  */
+const pendingMorph = new WeakMap(); // el → cancel fn for an in-flight release
+
 function morphWidth(el, mutate) {
   if (el.dataset.width === 'full' || !el.isConnected) { mutate(); return; }
+  const cancelPrev = pendingMorph.get(el);
+  if (cancelPrev) cancelPrev(); // re-morph mid-flight: keep current width, retarget
   const w0 = el.offsetWidth;
   mutate();
   el.style.width = 'auto';
   const w1 = el.offsetWidth;
   el.style.width = w0 + 'px';
+  el.dataset.morphing = '';
   void el.offsetWidth; // reflow so the transition has a start value
   el.style.width = w1 + 'px';
-  clearTimeout(el._morphTimer);
-  el._morphTimer = setTimeout(() => { el.style.width = ''; }, 250);
+
+  let fallback;
+  const cancel = () => {
+    clearTimeout(fallback);
+    el.removeEventListener('transitionend', onEnd);
+    pendingMorph.delete(el);
+  };
+  const release = () => {
+    cancel();
+    el.style.width = '';
+    delete el.dataset.morphing;
+  };
+  const onEnd = (e) => {
+    if (e.target === el && e.propertyName === 'width') release();
+  };
+  el.addEventListener('transitionend', onEnd);
+  // fallback must exceed --duration-200 (also covers reduced-motion 0ms, where
+  // transitionend never fires); bump if the width-morph token is ever raised
+  fallback = setTimeout(release, 400);
+  pendingMorph.set(el, cancel);
 }
 
 /** Toggle loading state (spinner + aria-busy). Works for any type/intent. */

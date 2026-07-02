@@ -4,18 +4,19 @@
  * createBottomNav({
  *   items: [{ id, label, icon: 'messages', avatar: url|null, badge: number }],
  *   active: 'chats',
+ *   ariaLabel: 'Main',                 // nav landmark label (SL in shells)
  *   onChange: (id) => void
  * })
- * API: nav.setActive(id) · nav.setBadge(id, count)
+ * Updates via free functions (button-style API):
+ *   setNavActive(nav, id) · setNavBadge(nav, id, count)
  */
-import { icon } from './icons.js';
+import { icon, ICONS } from './icons.js';
+import { formatCount } from './chatlist-item.js';
 
-export function createBottomNav({ items = [], active, onChange } = {}) {
+export function createBottomNav({ items = [], active, ariaLabel = 'Main', onChange } = {}) {
   const el = document.createElement('nav');
   el.className = 'c-bottomnav';
-  el.setAttribute('aria-label', 'Main');
-
-  const buttons = new Map();
+  el.setAttribute('aria-label', ariaLabel);
 
   for (const item of items) {
     const btn = document.createElement('button');
@@ -32,7 +33,17 @@ export function createBottomNav({ items = [], active, onChange } = {}) {
       img.alt = '';
       iconwrap.append(img);
     } else {
-      iconwrap.append(icon(item.icon));
+      // outline = resting; -filled twin (when exported) crossfades in on select
+      const outline = icon(item.icon);
+      outline.classList.add('c-bottomnav__icon');
+      iconwrap.append(outline);
+      if (ICONS[item.icon + '-filled']) {
+        iconwrap.dataset.dual = ''; // outline-fade only applies when a twin exists
+        const filled = icon(item.icon + '-filled');
+        filled.classList.add('c-bottomnav__icon--filled');
+        filled.setAttribute('aria-hidden', 'true');
+        iconwrap.append(filled);
+      }
     }
 
     const badge = document.createElement('span');
@@ -46,33 +57,39 @@ export function createBottomNav({ items = [], active, onChange } = {}) {
 
     btn.append(iconwrap, label);
     btn.addEventListener('click', () => {
-      setActive(item.id);
+      // active state lives in the DOM (setNavActive may be called externally)
+      if (btn.hasAttribute('aria-current')) return; // already active — no re-fire
+      setNavActive(el, item.id);
       if (onChange) onChange(item.id);
     });
     el.append(btn);
-    buttons.set(item.id, btn);
-    if (item.badge) setBadge(item.id, item.badge);
+    if (item.badge) setNavBadge(el, item.id, item.badge);
   }
 
-  function setActive(id) {
-    for (const [itemId, btn] of buttons) {
-      if (itemId === id) btn.setAttribute('aria-current', 'page');
-      else btn.removeAttribute('aria-current');
-    }
-  }
-
-  function setBadge(id, count) {
-    const btn = buttons.get(id);
-    if (!btn) return;
-    const badge = btn.querySelector('.c-bottomnav__badge');
-    if (count > 0) {
-      badge.textContent = count > 99 ? '99+' : String(count);
-      badge.hidden = false;
-    } else badge.hidden = true;
-  }
-
-  if (active) setActive(active);
-  el.setActive = setActive;
-  el.setBadge = setBadge;
+  if (active) setNavActive(el, active);
   return el;
+}
+
+/** Mark item `id` as the active destination; deselects the rest. */
+export function setNavActive(nav, id) {
+  for (const btn of nav.querySelectorAll('.c-bottomnav__item')) {
+    // 'page' = nav destination (vs 'true' on a selected chat-list row)
+    if (btn.dataset.id === id) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  }
+}
+
+/** Set item `id`'s badge count (0 hides it). strings.unread overrides the a11y label suffix. */
+export function setNavBadge(nav, id, count, strings = {}) {
+  const btn = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
+  const badge = btn && btn.querySelector('.c-bottomnav__badge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = formatCount(count);
+    badge.setAttribute('aria-label', count + ' ' + (strings.unread || 'unread'));
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+    badge.removeAttribute('aria-label');
+  }
 }

@@ -3,9 +3,11 @@
  * (classic script for file:// demos) from src/assets/icons/tabler-icon-*.svg.
  *
  * Pipeline (DECISIONS.md #32): Figma icons frame → bulk SVG export by Damir →
- * this script. Ink fills (#131415) become currentColor; brand fills (#3050BD)
- * become var(--icon-accent, #3050bd) so they theme. logo.svg is NOT processed —
- * it keeps brand colors and is referenced as an <img>/inline asset directly.
+ * this script. Ink fills/strokes (#131415) become currentColor; brand fills/
+ * strokes (#3050BD) become var(--icon-accent, #3050bd) so they theme.
+ * logo.svg IS processed into the registry (DECISIONS #32/#36) — all its inks
+ * (including brand #3050BD) become currentColor so it inherits its context
+ * color (topbar title ink — works in both modes).
  *
  * Run: node scripts/generate-icons.mjs   (from repo root)
  */
@@ -25,18 +27,52 @@ for (const file of readdirSync(ASSETS).sort()) {
   if (!isLogo && !file.startsWith('tabler-icon-')) continue;
   const name = isLogo ? 'logo' : file.replace('tabler-icon-', '').replace('.svg', '');
   const svg = readFileSync(join(ASSETS, file), 'utf8');
-  const viewBox = (svg.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 24 24';
+  const viewBox = (svg.match(/viewBox="([^"]+)"/) || [])[1];
+  if (!viewBox) console.warn(`icons: ${file} has no viewBox — defaulting to "0 0 24 24" (a non-24 grid export would clip)`);
   let inner = svg
     .replace(/<\/?svg[^>]*>/g, '')
-    .replace(/\s*\n\s*/g, '')
-    .replace(/fill="#131415"/gi, 'fill="currentColor"')
+    // attribute-per-line exports: join with a space (NOT ''), then collapse
+    // inter-tag whitespace for size
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/>\s+</g, '><')
     .trim();
+  // raw Tabler downloads carry an invisible background stub — dead bytes
+  inner = inner.replace(/<path\b[^>]*\bd="M0 0h24v24H0z"[^>]*\/?>(?:\s*<\/path>)?/g, '');
+  // theme ink + brand colors (fills AND strokes)
+  inner = inner
+    .replace(/fill="#131415"/gi, 'fill="currentColor"')
+    .replace(/stroke="#131415"/gi, 'stroke="currentColor"');
   // logo inherits its context color (topbar title ink — works in both modes);
   // other brand-colored glyphs keep themed accent
   inner = isLogo
-    ? inner.replace(/fill="#3050BD"/gi, 'fill="currentColor"')
-    : inner.replace(/fill="#3050BD"/gi, 'fill="var(--icon-accent, #3050bd)"');
-  entries[name] = { v: viewBox, b: inner };
+    ? inner
+        .replace(/fill="#3050BD"/gi, 'fill="currentColor"')
+        .replace(/stroke="#3050BD"/gi, 'stroke="currentColor"')
+    : inner
+        .replace(/fill="#3050BD"/gi, 'fill="var(--icon-accent, #3050bd)"')
+        .replace(/stroke="#3050BD"/gi, 'stroke="var(--icon-accent, #3050bd)"');
+  // raw Tabler downloads carry fill="currentColor" on the ROOT <svg> (stripped
+  // above) with bare inner shapes — the factory root uses fill="none", so bare
+  // shapes went invisible (DECISIONS #40). Give any fill-less shape an explicit
+  // currentColor. <g> wrappers are left alone: their fill-less children are
+  // covered here, and hex fills on <g> were themed by the replaces above.
+  inner = inner.replace(
+    /<(path|circle|rect|ellipse|polygon|polyline|line)\b(?![^>]*\bfill=)/g,
+    '<$1 fill="currentColor"'
+  );
+  // loud warnings for anything the pipeline can't theme
+  for (const m of inner.matchAll(/style="[^"]*"/g)) {
+    if (/(?:fill|stroke)\s*:/.test(m[0])) {
+      console.warn(`icons: ${file} has inline ${m[0]} — style attributes are not themed, clean up the export manually`);
+    }
+  }
+  for (const m of inner.matchAll(/(fill|stroke)="(#[0-9a-fA-F]{6})"/g)) {
+    const hex = m[2].toLowerCase();
+    if (hex !== '#131415' && hex !== '#3050bd') {
+      console.warn(`icons: ${file} ships hardcoded ${m[1]}="${m[2]}" — not a known ink/brand color, will be wrong in dark mode`);
+    }
+  }
+  entries[name] = { v: viewBox || '0 0 24 24', b: inner };
 }
 
 const registry = JSON.stringify(entries, null, 0)
@@ -71,14 +107,13 @@ writeFileSync(OUT_ESM, `${header('ESM module.')}
 export const ICONS = ${registry};
 ${factory}
 export const icon = iconFactory(ICONS);
-export const ICON_NAMES = Object.keys(ICONS);
 `);
 
 writeFileSync(OUT_IIFE, `${header('Classic script for file:// demos — exposes window.SpixiIcons.')}
 (function () {
   var ICONS = ${registry};
   ${factory}
-  window.SpixiIcons = { ICONS: ICONS, icon: iconFactory(ICONS), ICON_NAMES: Object.keys(ICONS) };
+  window.SpixiIcons = { ICONS: ICONS, icon: iconFactory(ICONS) };
 })();
 `);
 

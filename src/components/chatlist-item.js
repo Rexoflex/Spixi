@@ -1,10 +1,17 @@
 /**
  * Chat list row family (docs/chat-list-spec.md): c-indicator, c-status-icon,
  * c-excerpt, c-chatlist-item. Bridge contract: addChat(...) — ARCHITECTURE.md §4.
+ * All factories accept an optional `strings` dict (per-shell window.SL,
+ * ARCHITECTURE.md §7); English defaults inline.
  */
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { formatChatTimestamp } from './timestamp.js';
+
+/** Cap counts for compact badges/indicators (shared with c-bottomnav). */
+export function formatCount(n) {
+  return n > 99 ? '99+' : String(n);
+}
 
 /* —— status icon (§2): sending/sent/delivered neutral · read accent · failed error —— */
 const STATUS = {
@@ -24,20 +31,32 @@ export function createStatusIcon(status) {
 }
 
 /* —— indicator (§4): count · count-muted · muted (bell-off) · mention (@ wins over count) —— */
-export function createIndicator({ count = 0, mention = false, muted = false } = {}) {
+export function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
     el.dataset.variant = 'mention';
     el.textContent = '@';
+    el.setAttribute('aria-label', strings.mention || 'mention');
   } else if (count > 0) {
     el.dataset.variant = muted ? 'count-muted' : 'count';
-    el.textContent = count > 99 ? '99+' : String(count);
+    el.textContent = formatCount(count);
+    el.setAttribute('aria-label', count + ' ' + (strings.unread || 'unread'));
   } else if (muted) {
     el.dataset.variant = 'muted';
     el.append(icon('bell-off', { size: 12 }));
+    el.setAttribute('aria-label', strings.muted || 'muted');
   } else return null;
   return el;
+}
+
+/** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
+ *  bell-off glyph (Damir review 2026-07-02). Returns [] when nothing to show. */
+export function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+  const out = [];
+  if (mention || count > 0) out.push(createIndicator({ count, mention, muted, strings }));
+  if (muted) out.push(createIndicator({ muted: true, strings }));
+  return out;
 }
 
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
@@ -45,12 +64,12 @@ const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
-export function createExcerpt({ type = 'text', text = '', sender = null } = {}) {
+export function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
   const glyph = EXCERPT_GLYPHS[type];
-  if (glyph) el.append(Object.assign(icon(glyph, { size: 16 }), { }));
+  if (glyph) el.append(icon(glyph, { size: 16 }));
   if (sender) {
     const s = document.createElement('span');
     s.className = 'c-excerpt__sender';
@@ -62,7 +81,7 @@ export function createExcerpt({ type = 'text', text = '', sender = null } = {}) 
   if (type === 'draft') {
     const prefix = document.createElement('span');
     prefix.className = 'c-excerpt__draft';
-    prefix.textContent = 'Draft: '; // SL key in shells
+    prefix.textContent = strings.draft || 'Draft: ';
     t.append(prefix);
     t.append(document.createTextNode(text));
   } else if (type === 'mention' && text.includes('@')) {
@@ -88,12 +107,13 @@ export function createChatItem({
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
-  selected = false, onClick,
+  selected = false, onClick, strings = {},
 } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-chatlist-item';
   if (unread > 0 || mention) el.dataset.unread = '';
+  // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
 
   el.append(createAvatar({ src: avatar, name, address, size: 48, online }));
@@ -103,7 +123,7 @@ export function createChatItem({
   const nameEl = document.createElement('span');
   nameEl.className = 'c-chatlist-item__name';
   nameEl.textContent = name || address;
-  content.append(nameEl, createExcerpt(excerpt));
+  content.append(nameEl, createExcerpt({ ...excerpt, strings }));
   el.append(content);
 
   const right = document.createElement('span');
@@ -112,20 +132,20 @@ export function createChatItem({
   row1.className = 'c-chatlist-item__meta';
   const statusEl = createStatusIcon(status);
   if (statusEl) row1.append(statusEl);
-  if (pinned) row1.append(Object.assign(icon('pin', { size: 16 }), {}));
+  if (pinned) row1.append(icon('pin', { size: 16 }));
   if (timestamp != null) {
     const time = document.createElement('span');
     time.className = 'c-chatlist-item__time u-tabular';
-    time.textContent = formatChatTimestamp(timestamp);
+    time.textContent = formatChatTimestamp(timestamp, strings);
     time.dataset.ts = timestamp;
     row1.append(time);
   }
   right.append(row1);
-  const ind = createIndicator({ count: unread, mention, muted });
-  if (ind) {
+  const inds = createIndicators({ count: unread, mention, muted, strings });
+  if (inds.length) {
     const row2 = document.createElement('span');
     row2.className = 'c-chatlist-item__indicators';
-    row2.append(ind);
+    row2.append(...inds);
     right.append(row2);
   }
   el.append(right);
@@ -134,9 +154,10 @@ export function createChatItem({
   return el;
 }
 
-/** Refresh all rendered timestamps (call from startTimestampTicker). */
-export function refreshTimestamps(rootEl) {
+/** Refresh all rendered timestamps (call from startTimestampTicker);
+ *  pass the same `strings` the rows were built with. */
+export function refreshTimestamps(rootEl, strings = {}) {
   for (const t of rootEl.querySelectorAll('.c-chatlist-item__time[data-ts]')) {
-    t.textContent = formatChatTimestamp(Number(t.dataset.ts));
+    t.textContent = formatChatTimestamp(Number(t.dataset.ts), strings);
   }
 }

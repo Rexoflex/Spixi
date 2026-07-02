@@ -25,9 +25,18 @@
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
   white-space: nowrap;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+}
+
+/* width animates only during the success morph (JS sets data-morphing) —
+   keeps resize from layout-animating full-width buttons */
+.c-button[data-morphing] {
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
               border-color var(--duration-200) var(--easing-standard),
@@ -57,23 +66,29 @@
 
 /* types */
 .c-button[data-type="fill"] { background: var(--_fill); color: var(--text-neutral-on-action); }
-.c-button[data-type="fill"]:hover { background: var(--_fill-hover); }
-.c-button[data-type="fill"]:active { background: var(--_fill-pressed); }
 
 .c-button[data-type="tonal"] { background: var(--_tonal); color: var(--_ink); }
-.c-button[data-type="tonal"]:hover { background: var(--_tonal-hover); }
-.c-button[data-type="tonal"]:active { background: var(--_tonal-pressed); }
 
 .c-button[data-type="outline"] {
   background: transparent;
   color: var(--_ink);
   border: var(--outline-width-1) solid var(--_outline);
 }
-.c-button[data-type="outline"]:hover { color: var(--_ink-hover); border-color: var(--_ink-hover); background: var(--surface-interactive-hover); }
-.c-button[data-type="outline"]:active { color: var(--_ink-pressed); border-color: var(--_ink-pressed); background: var(--_tonal); }
 
 .c-button[data-type="text"] { background: transparent; color: var(--_ink); }
-.c-button[data-type="text"]:hover { color: var(--_ink-hover); background: var(--surface-interactive-hover); }
+
+/* hover guarded per DECISIONS #43 (no sticky hover on touch WebViews) */
+@media (hover: hover) {
+  .c-button[data-type="fill"]:hover { background: var(--_fill-hover); }
+  .c-button[data-type="tonal"]:hover { background: var(--_tonal-hover); }
+  .c-button[data-type="outline"]:hover { color: var(--_ink-hover); border-color: var(--_ink-hover); background: var(--surface-interactive-hover); }
+  .c-button[data-type="text"]:hover { color: var(--_ink-hover); background: var(--surface-interactive-hover); }
+}
+
+/* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
+.c-button[data-type="fill"]:active { background: var(--_fill-pressed); }
+.c-button[data-type="tonal"]:active { background: var(--_tonal-pressed); }
+.c-button[data-type="outline"]:active { color: var(--_ink-pressed); border-color: var(--_ink-pressed); background: var(--_tonal); }
 .c-button[data-type="text"]:active { color: var(--_ink-pressed); background: var(--_tonal); }
 
 /* disabled */

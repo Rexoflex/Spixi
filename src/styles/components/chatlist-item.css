@@ -13,13 +13,17 @@
   text-align: start;
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
+  /* 100ms intentional: micro-interaction duration for row hover (token comment "100ms micro: hover") */
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-.c-chatlist-item:active { background: var(--surface-interactive-pressed); }
 .c-chatlist-item[aria-current] { background: var(--surface-interactive-selected); }
 @media (hover: hover) {
   .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
+  .c-chatlist-item[aria-current]:hover { background: var(--surface-interactive-selected); }
 }
+/* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
+.c-chatlist-item:active,
+.c-chatlist-item[aria-current]:active { background: var(--surface-interactive-pressed); }
 
 .c-chatlist-item__content {
   display: flex;

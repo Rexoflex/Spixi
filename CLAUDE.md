@@ -40,6 +40,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 **Hard rule: every significant decision gets a row in `DECISIONS.md` when it's made** — architecture, naming, conventions, scope. Reviews check 🟡 (provisional) rows first. Superseded decisions are marked, never deleted.
 
+**Hard rule: audit loop per milestone (DECISIONS #46).** Whenever a component set + its behavior is complete, or a major feature lands: spin up an audit agent (read-only, findings with file:line) → fixer agents (disjoint file scopes, explicit cross-file contracts) → adversarial reviewer agent → loop fix↔review until CLEAN. Mechanical fixes land directly; architectural findings become 🟡 DECISIONS rows, never silent changes. Rebuild generators + run the jsdom smoke test between fix and review passes.
+
 ## Status
 
 - [x] Repo audited; `ARCHITECTURE.md` written and committed
@@ -74,12 +76,25 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - [x] List primitives BUILT: `timestamp.js` (format + single ticker), `avatar.js`, `chatlist-item.js` (indicator/status/excerpt/row) + CSS; demo bundle system (#35: `scripts/build-demo-bundle.mjs` → `src/demo/spixi.iife.js`); Chats demo shows 12 real rows incl. contact-request block, live timestamp buckets
 - ⚠️ Sandbox mirror truncates Edit-modified files — generators were run inline / bundle written directly; re-run scripts locally when mirror behaves
 - [x] List demo reviewed by Damir 2026-07-02: excerpt glyphs approved; committed. Session continues on his Mac (clone fork → open this file first)
-- [ ] **Next (Damir review findings first):**
-  1. Avatar gradients TOO LIGHT — darken (drop lightness in `hashHue` gradient stops, avatar.js + bundle)
-  2. Muted chat (QWERTZ row) must show BOTH `count-muted` AND `bell-off muted` indicators — change `createIndicator`/chat-item to render two indicators in row2 (current API renders one)
-  3. Then: c-chip + c-search-field components (replace demo placeholders); transaction rows (wallet list); overlays batch (sheet/modal/toast/banner/callbar)
-  4. Reminder: `tabler-icon-search` still missing from Figma icons frame (temp glyph in demo)
-- ⚠️ Sandbox note: the mounted-folder cache can serve stale copies of freshly edited files — trust Read/Grep (Windows-side) over bash for validation
+- [x] Avatar gradients now THEME-AWARE (#37 🟡): JS sets hue custom props only, S/L themed in avatar.css per mode — fixes dark-on-dark initials in dark mode; dark pastel values await Damir's look
+- [x] Avatar hue hash: avalanche finalizer added (#38) — old hash clustered similar names into an olive band; hues now span the wheel. Bundle rebuilt (19,222 B). If dark mode shows white initials/same avatar colors as light → stale cached avatar.css, hard-refresh
+- [x] Mac session 2026-07-02 — review findings done: avatar gradients darkened (48%/34% lightness, was 62%/45%) · muted chat shows BOTH count-muted + bell-off via new `createIndicators()` (chatlist-item.js; single-indicator `createIndicator` unchanged) · Safari fix: `format('woff2')` in base.css (Safari rejects `'woff2-variations'`; demos now work in Safari) · bundle rebuilt via script (18,982 B, 14 exports), jsdom smoke test: 12 rows, QWERTZ = count-muted + bell-off ✓
+- [x] Bottomnav selection ANIMATED (#39 🟡): filled icon twins crossfade+scale-pop over outline on select; tonal pill = `::before` layer, grows in (0.85→1)/shrinks out; ink/label transition both ways; `[data-dual]` guards items without a twin (account keeps outline). Generator fix #40: fill-less Tabler paths → explicit currentColor (apps/messages-filled were invisible); registry 67 icons
+- [x] Scrollbars tamed (#41 🟡): `.u-scroll` utility in base.css — thin themed thumb, invisible until hover/focus-within, reserved gutter; mobile WebView native overlay indicators untouched. Demo `.content` regions use it
+- [x] Bottomnav badge scope decided (#42 🟡): Chats only, numeric via existing `setUnreadIndicator`; no wallet/apps badge (tx/files/invites arrive as chat messages — would double-signal; no "unseen tx" in bridge). BE question open: muted chats excluded from total?
+- [x] Chats badge wired in demo (=4, muted excluded per #42); BE muted question added to ARCHITECTURE §9.4; demo rows refactored to `CHAT_ROWS` data array
+- [x] Hover coverage rule (#43 ✅): every interactive gets `:hover` from #23 tokens inside `@media (hover: hover)` — added to bottomnav (+ tonal-hover pill), button.css hovers now guarded too; demo placeholders (eye/quick-actions/chips) got interim hovers
+- [x] **Code audit done** (2nd-AI pass) → `docs/audit/frontend-code-audit.md`: 40+ findings (drift/inconsistencies/JS/CSS/generators/perf)
+- [x] **Audit findings ALL FIXED via agent loop** (3 fixer agents w/ disjoint scopes → reviewer agent → punch-list fixes → re-review = CLEAN). Highlights: selected-hover cascade, -webkit-user-select, .u-scroll fully hover-guarded, initials() Unicode-hardened (ИП/张 work, whitespace safe), timestamp ticker (visibilitychange + minute-aligned + true singleton), morph via transitionend + data-morphing (width transition scoped), free-function APIs `setNavActive/setNavBadge` (#44 🟡), formatCount shared, a11y labels on indicators/badges, strings threading for i18n, generators fail loudly (derived EXPOSE, collision detection, syntax smoke test, non-path fill normalization, stroke theming), font preloads, hover/active source-order fixed everywhere. Deferred logged: #45 ES2020 floor 🟡, #47 icon-registry split 🟡. Audit-loop rule = #46 + hard rule above
+- [x] Bottomnav badge recolored (#48 🟡): error role + 2px bar-surface ring — action-blue badge was unreadable on the selected tonal pill (Damir screenshots, both themes); list indicators stay action-blue
+- [x] Icon-button hover ink (#49 🟡): topbar actions + demo eye now change color on hover (action ink / on-hero tint), literal `color:` removed from topbar rule (was freezing button hover); hero pins ink + state backgrounds. Change reviewed by agent (cascade/tokens/both themes verified), 2 findings fixed
+- [ ] **Next:**
+  1. c-chip + c-search-field components (replace demo placeholders); transaction rows (wallet list); overlays batch (sheet/modal/toast/banner/callbar)
+  2. `user-circle-filled` icon: Damir makes it manually (ETA next session) → account nav gets its selected-state twin automatically (dual-icon detection)
+  3. Mirror #48 (error badge + ring) + #49 (icon hover inks) to Figma — connector re-authorized 2026-07-02
+- [x] `tabler-icon-search` exported by Damir → registry regenerated (68 icons), temp glyph removed from demo
+- [x] Stale `.git/index.lock` (0 B) removed — was blocking GitHub Desktop commits
+- ⚠️ Sandbox note (Windows session): mounted-folder cache served stale copies of freshly edited files. Mac mirror verified OK 2026-07-02 (bash sees fresh edits; scripts run normally)
 - [ ] Then: component inventory (`DESIGN_SYSTEM.md`) → build components in code + Figma
 - [ ] Then: build shells one at a time (start with app shell + navigation)
 

@@ -3,16 +3,26 @@
  */
 (function () {
   var icon = window.SpixiIcons.icon;
+  var ICONS = window.SpixiIcons.ICONS;
 
 /* ---- src/components/timestamp.js ---- */
-function formatChatTimestamp(ts, now = Date.now(), strings = {}) {
+/**
+ * Chat-list timestamp formatting (docs/chat-list-spec.md §3).
+ * today → HH:mm (12/24h follows device locale) · yesterday → localized
+ * "Yesterday" · 2–6 days → weekday · same year → DD MMM · older → DD MMM YYYY.
+ * Locale from document/browser; localized strings arrive via window.SL
+ * (i18n plan, ARCHITECTURE.md §7).
+ */
+function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
   const d = new Date(ts);
   const n = new Date(now);
   const locale = document.documentElement.lang || undefined;
+
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
+
   if (dayDiff <= 0) {
-    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   }
   if (dayDiff === 1) return strings.yesterday || 'Yesterday';
   if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
@@ -21,33 +31,90 @@ function formatChatTimestamp(ts, now = Date.now(), strings = {}) {
   }
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+let activeStop = null; // single shared ticker — starting a new one stops the previous
+
+/**
+ * One shared scheduler (not per-row timers): fires `cb` every minute while the
+ * page is visible (today-times may change), at midnight rollover
+ * (re-classification of every row), and immediately when the document becomes
+ * visible again (timers are skipped/suspended while hidden). Ticks are aligned
+ * to the minute boundary. Returns a stop function.
+ */
 function startTimestampTicker(cb) {
-  let minuteTimer = setInterval(() => { if (!document.hidden) cb(); }, 60000);
+  if (activeStop) activeStop();
+
+  let minuteTimeout, minuteInterval, midnightTimer;
+  const tick = () => { if (!document.hidden) cb(); };
+
+  // align to the next minute boundary, then every 60s
+  minuteTimeout = setTimeout(() => {
+    tick();
+    minuteInterval = setInterval(tick, 60000);
+  }, 60000 - (Date.now() % 60000));
+
   const scheduleMidnight = () => {
     const now = new Date();
     const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
     return setTimeout(() => { cb(); midnightTimer = scheduleMidnight(); }, next - now);
   };
-  let midnightTimer = scheduleMidnight();
-  return () => { clearInterval(minuteTimer); clearTimeout(midnightTimer); };
+  midnightTimer = scheduleMidnight();
+
+  const onVisibility = () => { if (!document.hidden) cb(); };
+  document.addEventListener('visibilitychange', onVisibility);
+
+  const stop = () => {
+    clearTimeout(minuteTimeout);
+    clearInterval(minuteInterval);
+    clearTimeout(midnightTimer);
+    document.removeEventListener('visibilitychange', onVisibility);
+    if (activeStop === stop) activeStop = null;
+  };
+  activeStop = stop;
+  return stop;
 }
 
 /* ---- src/components/avatar.js ---- */
+/**
+ * c-avatar — photo, or deterministic gradient placeholder (DECISIONS.md #34).
+ * Hue derives from the address hash → stable identity color per contact.
+ * Named contacts show initials; address-only contacts show the user glyph.
+ *
+ * createAvatar({ src, name, address, size = 48, online = false })
+ */
+
+
 function hashHue(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
+  // names into a ~30° hue band (all-olive avatars); this scatters them (#38)
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x45d9f3b);
+  h = (h ^ (h >>> 16)) >>> 0;
   return h % 360;
 }
+
 function initials(name) {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  const chars = parts.map(p => p[0].toUpperCase()).join('');
-  return /^[A-Za-z]/.test(name) ? chars : null;
+  const trimmed = name.trim();
+  // must start with a letter (any script) — empty/whitespace-only and
+  // address-like hex "names" get the glyph instead of initials
+  if (!/^\p{L}/u.test(trimmed)) return null;
+  // [...p] not p[0]: first char may be an astral-plane code point (CJK ext.)
+  return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
+
 function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
-  el.style.width = size + 'px';
-  el.style.height = size + 'px';
+  el.dataset.size = String(size);
+  if (size !== 24 && size !== 48) {
+    // known sizes (24/48) come from --size-avatar-* tokens in avatar.css;
+    // anything else falls back to inline sizing until tokenized
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+  }
+
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-avatar__img';
@@ -56,19 +123,22 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
     el.append(img);
   } else {
     const hue = hashHue(address || name);
-    el.style.backgroundImage =
-      'linear-gradient(135deg, hsl(' + hue + ', 62%, 62%), hsl(' + ((hue + 40) % 360) + ', 58%, 45%))';
+    // JS supplies ONLY the deterministic hues; saturation/lightness are themed
+    // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+    el.dataset.placeholder = '';
+    el.style.setProperty('--av-h1', hue);
+    el.style.setProperty('--av-h2', (hue + 40) % 360);
     const ini = name ? initials(name) : null;
     if (ini) {
       const t = document.createElement('span');
       t.className = 'c-avatar__initials';
       t.textContent = ini;
-      t.style.fontSize = Math.round(size * 0.38) + 'px';
       el.append(t);
     } else {
       el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
     }
   }
+
   if (online) {
     const dot = document.createElement('span');
     dot.className = 'c-avatar__dot';
@@ -78,6 +148,22 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
 }
 
 /* ---- src/components/chatlist-item.js ---- */
+/**
+ * Chat list row family (docs/chat-list-spec.md): c-indicator, c-status-icon,
+ * c-excerpt, c-chatlist-item. Bridge contract: addChat(...) — ARCHITECTURE.md §4.
+ * All factories accept an optional `strings` dict (per-shell window.SL,
+ * ARCHITECTURE.md §7); English defaults inline.
+ */
+
+
+
+
+/** Cap counts for compact badges/indicators (shared with c-bottomnav). */
+function formatCount(n) {
+  return n > 99 ? '99+' : String(n);
+}
+
+/* —— status icon (§2): sending/sent/delivered neutral · read accent · failed error —— */
 const STATUS = {
   sending: { glyph: 'clock-hour-10', tone: 'neutral' },
   sent: { glyph: 'check', tone: 'neutral' },
@@ -93,26 +179,42 @@ function createStatusIcon(status) {
   el.dataset.tone = s.tone;
   return el;
 }
-function createIndicator({ count = 0, mention = false, muted = false } = {}) {
+
+/* —— indicator (§4): count · count-muted · muted (bell-off) · mention (@ wins over count) —— */
+function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
     el.dataset.variant = 'mention';
     el.textContent = '@';
+    el.setAttribute('aria-label', strings.mention || 'mention');
   } else if (count > 0) {
     el.dataset.variant = muted ? 'count-muted' : 'count';
-    el.textContent = count > 99 ? '99+' : String(count);
+    el.textContent = formatCount(count);
+    el.setAttribute('aria-label', count + ' ' + (strings.unread || 'unread'));
   } else if (muted) {
     el.dataset.variant = 'muted';
     el.append(icon('bell-off', { size: 12 }));
+    el.setAttribute('aria-label', strings.muted || 'muted');
   } else return null;
   return el;
 }
+
+/** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
+ *  bell-off glyph (Damir review 2026-07-02). Returns [] when nothing to show. */
+function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+  const out = [];
+  if (mention || count > 0) out.push(createIndicator({ count, mention, muted, strings }));
+  if (muted) out.push(createIndicator({ muted: true, strings }));
+  return out;
+}
+
+/* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
-function createExcerpt({ type = 'text', text = '', sender = null } = {}) {
+function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
@@ -129,10 +231,11 @@ function createExcerpt({ type = 'text', text = '', sender = null } = {}) {
   if (type === 'draft') {
     const prefix = document.createElement('span');
     prefix.className = 'c-excerpt__draft';
-    prefix.textContent = 'Draft: ';
+    prefix.textContent = strings.draft || 'Draft: ';
     t.append(prefix);
     t.append(document.createTextNode(text));
   } else if (type === 'mention' && text.includes('@')) {
+    // highlight the first @token
     const i = text.indexOf('@');
     const end = text.indexOf(' ', i);
     const stop = end === -1 ? text.length : end;
@@ -147,26 +250,32 @@ function createExcerpt({ type = 'text', text = '', sender = null } = {}) {
   el.append(t);
   return el;
 }
+
+/* —— chat list row (§1, §6) —— */
 function createChatItem({
   name, address = '', avatar = null, online = false,
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
-  selected = false, onClick,
+  selected = false, onClick, strings = {},
 } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-chatlist-item';
   if (unread > 0 || mention) el.dataset.unread = '';
+  // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
+
   el.append(createAvatar({ src: avatar, name, address, size: 48, online }));
+
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-chatlist-item__name';
   nameEl.textContent = name || address;
-  content.append(nameEl, createExcerpt(excerpt));
+  content.append(nameEl, createExcerpt({ ...excerpt, strings }));
   el.append(content);
+
   const right = document.createElement('span');
   right.className = 'c-chatlist-item__right';
   const row1 = document.createElement('span');
@@ -177,45 +286,63 @@ function createChatItem({
   if (timestamp != null) {
     const time = document.createElement('span');
     time.className = 'c-chatlist-item__time u-tabular';
-    time.textContent = formatChatTimestamp(timestamp);
+    time.textContent = formatChatTimestamp(timestamp, strings);
     time.dataset.ts = timestamp;
     row1.append(time);
   }
   right.append(row1);
-  const ind = createIndicator({ count: unread, mention, muted });
-  if (ind) {
+  const inds = createIndicators({ count: unread, mention, muted, strings });
+  if (inds.length) {
     const row2 = document.createElement('span');
     row2.className = 'c-chatlist-item__indicators';
-    row2.append(ind);
+    row2.append(...inds);
     right.append(row2);
   }
   el.append(right);
+
   if (onClick) el.addEventListener('click', onClick);
   return el;
 }
-function refreshTimestamps(rootEl) {
+
+/** Refresh all rendered timestamps (call from startTimestampTicker);
+ *  pass the same `strings` the rows were built with. */
+function refreshTimestamps(rootEl, strings = {}) {
   for (const t of rootEl.querySelectorAll('.c-chatlist-item__time[data-ts]')) {
-    t.textContent = formatChatTimestamp(Number(t.dataset.ts));
+    t.textContent = formatChatTimestamp(Number(t.dataset.ts), strings);
   }
 }
 
 /* ---- src/components/button.js ---- */
-function morphWidth(el, mutate) {
-  if (el.dataset.width === 'full' || !el.isConnected) { mutate(); return; }
-  const w0 = el.offsetWidth;
-  mutate();
-  el.style.width = 'auto';
-  const w1 = el.offsetWidth;
-  el.style.width = w0 + 'px';
-  void el.offsetWidth;
-  el.style.width = w1 + 'px';
-  clearTimeout(el._morphTimer);
-  el._morphTimer = setTimeout(() => { el.style.width = ''; }, 250);
-}
+/**
+ * c-button — mirrors Figma button/{32,44,56}/{default,destructive}.
+ * Conventions: DECISIONS.md #16 · state layers #28 · success pattern #29 · icon API #30.
+ *
+ * createButton({
+ *   label: string,                     // omit for icon-only (ariaLabel required)
+ *   type: 'fill' | 'tonal' | 'outline' | 'text' = 'fill',
+ *   size: 32 | 44 | 56 = 44,
+ *   intent: 'default' | 'destructive' = 'default',
+ *   width: 'hug' | 'full' = 'hug',
+ *   icon: SVGElement | null,
+ *   iconPosition: 'leading' | 'trailing' = 'leading',
+ *   ariaLabel: string,                 // required when no label (icon-only)
+ *   loading: boolean = false,
+ *   disabled: boolean = false,
+ *   onClick: (event) => void
+ * })
+ */
 function createButton({
-  label, type = 'fill', size = 44, intent = 'default', width = 'hug',
-  icon: iconEl = null, iconPosition = 'leading', ariaLabel,
-  loading = false, disabled = false, onClick,
+  label,
+  type = 'fill',
+  size = 44,
+  intent = 'default',
+  width = 'hug',
+  icon = null,
+  iconPosition = 'leading',
+  ariaLabel,
+  loading = false,
+  disabled = false,
+  onClick,
 } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
@@ -224,26 +351,78 @@ function createButton({
   el.dataset.size = String(size);
   el.dataset.intent = intent;
   el.dataset.width = width;
+
   const hasLabel = label != null && label !== '';
   if (!hasLabel) {
     el.dataset.iconOnly = '';
     if (ariaLabel) el.setAttribute('aria-label', ariaLabel);
+    // no label + no ariaLabel is an accessibility bug — make it loud in dev
     else console.warn('c-button: icon-only button requires ariaLabel');
   }
-  if (iconEl) iconEl.classList.add('c-button__icon');
-  if (iconEl && iconPosition === 'leading') el.append(iconEl);
+
+  if (icon) icon.classList.add('c-button__icon');
+  if (icon && iconPosition === 'leading') el.append(icon);
+
   if (hasLabel) {
     const text = document.createElement('span');
     text.className = 'c-button__label';
     text.textContent = label;
     el.append(text);
   }
-  if (iconEl && iconPosition === 'trailing') el.append(iconEl);
+
+  if (icon && iconPosition === 'trailing') el.append(icon);
+
   if (onClick) el.addEventListener('click', onClick);
+
   setLoading(el, loading);
   el.disabled = disabled;
   return el;
 }
+
+/**
+ * Run a content mutation with an animated width morph (hug buttons only).
+ * Measures old/new natural widths synchronously (no flicker), transitions
+ * between them (CSS only transitions width while [data-morphing] is set),
+ * then releases back to hug on transitionend (timeout fallback covers
+ * reduced-motion / zero-duration, where transitionend never fires).
+ */
+const pendingMorph = new WeakMap(); // el → cancel fn for an in-flight release
+
+function morphWidth(el, mutate) {
+  if (el.dataset.width === 'full' || !el.isConnected) { mutate(); return; }
+  const cancelPrev = pendingMorph.get(el);
+  if (cancelPrev) cancelPrev(); // re-morph mid-flight: keep current width, retarget
+  const w0 = el.offsetWidth;
+  mutate();
+  el.style.width = 'auto';
+  const w1 = el.offsetWidth;
+  el.style.width = w0 + 'px';
+  el.dataset.morphing = '';
+  void el.offsetWidth; // reflow so the transition has a start value
+  el.style.width = w1 + 'px';
+
+  let fallback;
+  const cancel = () => {
+    clearTimeout(fallback);
+    el.removeEventListener('transitionend', onEnd);
+    pendingMorph.delete(el);
+  };
+  const release = () => {
+    cancel();
+    el.style.width = '';
+    delete el.dataset.morphing;
+  };
+  const onEnd = (e) => {
+    if (e.target === el && e.propertyName === 'width') release();
+  };
+  el.addEventListener('transitionend', onEnd);
+  // fallback must exceed --duration-200 (also covers reduced-motion 0ms, where
+  // transitionend never fires); bump if the width-morph token is ever raised
+  fallback = setTimeout(release, 400);
+  pendingMorph.set(el, cancel);
+}
+
+/** Toggle loading state (spinner + aria-busy). Works for any type/intent. */
 function setLoading(el, loading) {
   morphWidth(el, () => {
     const existing = el.querySelector('.c-button__spinner');
@@ -257,23 +436,33 @@ function setLoading(el, loading) {
       el.dataset.loading = '';
       el.setAttribute('aria-busy', 'true');
     } else {
-      if (existing) existing.remove();
+      existing?.remove();
       delete el.dataset.loading;
       el.removeAttribute('aria-busy');
     }
   });
 }
-const CHECK_PATH = 'M5 12l5 5L20 7';
+
+const CHECK_PATH = 'M5 12l5 5L20 7'; // tabler check
+
+/**
+ * Transient success morph (DECISIONS.md #29): loading off → solid success surface
+ * + check + optional label swap, announced politely, restored after `duration`.
+ * Use ONLY for in-place actions with no other confirmation (no toast, no navigation).
+ */
 function setSuccess(el, { label = null, duration = 1400 } = {}) {
   if (el.dataset.success !== undefined) return;
-  const original = [...el.childNodes].filter(n => !(n.classList && n.classList.contains('c-button__spinner')));
+
+  const original = [...el.childNodes].filter(n => !n.classList?.contains('c-button__spinner'));
   const originalDisabled = el.disabled;
+
   morphWidth(el, () => {
     el.textContent = '';
     el.dataset.success = '';
     el.disabled = true;
     delete el.dataset.loading;
     el.removeAttribute('aria-busy');
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('fill', 'none');
@@ -287,12 +476,14 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
     path.setAttribute('stroke-linejoin', 'round');
     svg.append(path);
     el.append(svg);
+
     const text = document.createElement('span');
     text.className = 'c-button__label';
-    text.setAttribute('role', 'status');
+    text.setAttribute('role', 'status'); // polite announcement
     if (label) text.textContent = label;
     el.append(text);
   });
+
   setTimeout(() => {
     morphWidth(el, () => {
       el.textContent = '';
@@ -304,21 +495,39 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
 }
 
 /* ---- src/components/topbar.js ---- */
-function createTopbar({ variant = 'view', title = '', logo = null, onBack, actions = [] } = {}) {
+/**
+ * c-topbar — mirrors Figma "title bar"/"top". DECISIONS.md #16 conventions.
+ *
+ * createTopbar({
+ *   variant: 'root' | 'view' = 'view',
+ *   title: string,                       // view title, or fallback text for root
+ *   logo: boolean,                       // root variant: render the registry logo mark (Chats/home header only)
+ *   onBack: (e) => void,                 // view variant: renders back icon-button
+ *   backLabel: 'Back',                   // back button a11y label (SL in shells)
+ *   actions: [{ icon: 'qrcode', label: 'Scan', onClick }]  // trailing icon-buttons
+ * })
+ */
+
+
+
+function createTopbar({ variant = 'view', title = '', logo = false, onBack, backLabel = 'Back', actions = [] } = {}) {
   const el = document.createElement('header');
   el.className = 'c-topbar';
   el.dataset.variant = variant;
+
   if (variant === 'view' && onBack) {
     el.append(createButton({
       type: 'text', size: 44,
       icon: icon('arrow-left'),
-      ariaLabel: 'Back',
+      ariaLabel: backLabel,
       onClick: onBack,
     }));
   }
+
   const titleEl = document.createElement('div');
   titleEl.className = 'c-topbar__title';
   if (variant === 'root' && logo) {
+    // logotype = inline mark (currentColor — inherits title ink, both modes) + wordmark
     const mark = icon('logo', { size: 28 });
     mark.classList.add('c-topbar__logo');
     const word = document.createElement('span');
@@ -328,6 +537,7 @@ function createTopbar({ variant = 'view', title = '', logo = null, onBack, actio
     titleEl.textContent = title;
   }
   el.append(titleEl);
+
   if (actions.length) {
     const wrap = document.createElement('div');
     wrap.className = 'c-topbar__actions';
@@ -341,20 +551,37 @@ function createTopbar({ variant = 'view', title = '', logo = null, onBack, actio
     }
     el.append(wrap);
   }
+
   return el;
 }
 
 /* ---- src/components/bottomnav.js ---- */
-function createBottomNav({ items = [], active, onChange } = {}) {
+/**
+ * c-bottomnav — mirrors Figma nav-bot/nav-item/indicator. DECISIONS.md #16.
+ *
+ * createBottomNav({
+ *   items: [{ id, label, icon: 'messages', avatar: url|null, badge: number }],
+ *   active: 'chats',
+ *   ariaLabel: 'Main',                 // nav landmark label (SL in shells)
+ *   onChange: (id) => void
+ * })
+ * Updates via free functions (button-style API):
+ *   setNavActive(nav, id) · setNavBadge(nav, id, count)
+ */
+
+
+
+function createBottomNav({ items = [], active, ariaLabel = 'Main', onChange } = {}) {
   const el = document.createElement('nav');
   el.className = 'c-bottomnav';
-  el.setAttribute('aria-label', 'Main');
-  const buttons = new Map();
+  el.setAttribute('aria-label', ariaLabel);
+
   for (const item of items) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'c-bottomnav__item';
     btn.dataset.id = item.id;
+
     const iconwrap = document.createElement('span');
     iconwrap.className = 'c-bottomnav__iconwrap';
     if (item.avatar) {
@@ -364,44 +591,66 @@ function createBottomNav({ items = [], active, onChange } = {}) {
       img.alt = '';
       iconwrap.append(img);
     } else {
-      iconwrap.append(icon(item.icon));
+      // outline = resting; -filled twin (when exported) crossfades in on select
+      const outline = icon(item.icon);
+      outline.classList.add('c-bottomnav__icon');
+      iconwrap.append(outline);
+      if (ICONS[item.icon + '-filled']) {
+        iconwrap.dataset.dual = ''; // outline-fade only applies when a twin exists
+        const filled = icon(item.icon + '-filled');
+        filled.classList.add('c-bottomnav__icon--filled');
+        filled.setAttribute('aria-hidden', 'true');
+        iconwrap.append(filled);
+      }
     }
+
     const badge = document.createElement('span');
     badge.className = 'c-bottomnav__badge';
     badge.hidden = true;
     iconwrap.append(badge);
+
     const label = document.createElement('span');
     label.className = 'c-bottomnav__label';
     label.textContent = item.label;
+
     btn.append(iconwrap, label);
     btn.addEventListener('click', () => {
-      setActive(item.id);
+      // active state lives in the DOM (setNavActive may be called externally)
+      if (btn.hasAttribute('aria-current')) return; // already active — no re-fire
+      setNavActive(el, item.id);
       if (onChange) onChange(item.id);
     });
     el.append(btn);
-    buttons.set(item.id, btn);
-    if (item.badge) setBadge(item.id, item.badge);
+    if (item.badge) setNavBadge(el, item.id, item.badge);
   }
-  function setActive(id) {
-    for (const [itemId, btn] of buttons) {
-      if (itemId === id) btn.setAttribute('aria-current', 'page');
-      else btn.removeAttribute('aria-current');
-    }
-  }
-  function setBadge(id, count) {
-    const btn = buttons.get(id);
-    if (!btn) return;
-    const badge = btn.querySelector('.c-bottomnav__badge');
-    if (count > 0) {
-      badge.textContent = count > 99 ? '99+' : String(count);
-      badge.hidden = false;
-    } else badge.hidden = true;
-  }
-  if (active) setActive(active);
-  el.setActive = setActive;
-  el.setBadge = setBadge;
+
+  if (active) setNavActive(el, active);
   return el;
 }
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav };
+/** Mark item `id` as the active destination; deselects the rest. */
+function setNavActive(nav, id) {
+  for (const btn of nav.querySelectorAll('.c-bottomnav__item')) {
+    // 'page' = nav destination (vs 'true' on a selected chat-list row)
+    if (btn.dataset.id === id) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  }
+}
+
+/** Set item `id`'s badge count (0 hides it). strings.unread overrides the a11y label suffix. */
+function setNavBadge(nav, id, count, strings = {}) {
+  const btn = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
+  const badge = btn && btn.querySelector('.c-bottomnav__badge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = formatCount(count);
+    badge.setAttribute('aria-label', count + ' ' + (strings.unread || 'unread'));
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+    badge.removeAttribute('aria-label');
+  }
+}
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge };
 })();

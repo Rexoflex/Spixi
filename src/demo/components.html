@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spixi components — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
 <link rel="stylesheet" href="../styles/components/button.css">
@@ -65,8 +67,11 @@
 
   const makeIcon = (name) => window.SpixiIcons.icon(name);
 
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
   const themeBtn = createButton({
-    label: 'Toggle dark', type: 'outline', size: 32,
+    // initial label reflects the actual starting theme (OS-dark may already apply)
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
     onClick: () => {
       const root = document.documentElement;
       const dark = root.dataset.theme === 'dark';
@@ -75,7 +80,6 @@
     },
   });
   document.getElementById('theme-slot').append(themeBtn);
-  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
 
   for (const pair of [['grid-default', 'default'], ['grid-destructive', 'destructive']]) {
     const grid = document.getElementById(pair[0]);

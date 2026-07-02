@@ -1,4 +1,16 @@
-/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34). */
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #37).
+   Hues (--av-h1/--av-h2) come from JS per identity; S/L below are themed so the
+   gradient tracks the mode: light = deep gradient + white ink (inverse-01),
+   dark = pastel gradient + dark ink (inverse-01 flips). */
+
+:root {
+  --avatar-grad-s1: 58%; --avatar-grad-l1: 48%;
+  --avatar-grad-s2: 55%; --avatar-grad-l2: 34%;
+}
+[data-theme="dark"] {
+  --avatar-grad-s1: 52%; --avatar-grad-l1: 62%;
+  --avatar-grad-s2: 48%; --avatar-grad-l2: 48%;
+}
 
 .c-avatar {
   position: relative;
@@ -10,6 +22,19 @@
   border: var(--outline-width-1) solid var(--outline-neutral-02);
   color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
   overflow: visible;
+}
+
+/* Known sizes from size tokens (unknown sizes: inline fallback in avatar.js).
+   Initials scale ≈ 0.38 × avatar size. */
+.c-avatar[data-size="24"] { width: var(--size-avatar-24); height: var(--size-avatar-24); }
+.c-avatar[data-size="24"] .c-avatar__initials { font-size: 9px; }
+.c-avatar[data-size="48"] { width: var(--size-avatar-48); height: var(--size-avatar-48); }
+.c-avatar[data-size="48"] .c-avatar__initials { font-size: 18px; }
+
+.c-avatar[data-placeholder] {
+  background-image: linear-gradient(135deg,
+    hsl(var(--av-h1, 0), var(--avatar-grad-s1), var(--avatar-grad-l1)),
+    hsl(var(--av-h2, 40), var(--avatar-grad-s2), var(--avatar-grad-l2)));
 }
 
 .c-avatar__img {
@@ -24,6 +49,7 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   user-select: none;
+  -webkit-user-select: none; /* WebKit honors only the prefixed form */
 }
 
 .c-avatar__dot {
@@ -34,5 +60,7 @@
   height: 12px;
   border-radius: var(--radius-full);
   background: var(--surface-presence-online);
+  /* ring = surface-screen: shows a mismatched halo on hover/selected row surfaces —
+     known + accepted for now; proper fix needs a design decision (audit LOW) */
   border: var(--outline-width-2) solid var(--surface-screen);
 }

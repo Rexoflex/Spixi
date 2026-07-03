@@ -204,7 +204,7 @@ function createIndicator({ count = 0, mention = false, muted = false, strings = 
   el.className = 'c-indicator';
   if (mention) {
     el.dataset.variant = 'mention';
-    el.textContent = '@';
+    el.append(icon('at', { size: 14 })); // #108: plain glyph, no circle
     el.setAttribute('aria-label', strings.mention || 'mention');
   } else if (count > 0) {
     el.dataset.variant = muted ? 'count-muted' : 'count';
@@ -222,7 +222,8 @@ function createIndicator({ count = 0, mention = false, muted = false, strings = 
  *  bell-off glyph (Damir review 2026-07-02). Returns [] when nothing to show. */
 function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const out = [];
-  if (mention || count > 0) out.push(createIndicator({ count, mention, muted, strings }));
+  if (mention) out.push(createIndicator({ mention: true, strings })); // #108: @ + count coexist
+  if (count > 0) out.push(createIndicator({ count, muted, strings }));
   if (muted) out.push(createIndicator({ muted: true, strings }));
   return out;
 }
@@ -2360,7 +2361,23 @@ function createPaymentBubble({
   } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
+  paymentOpts.set(row, {
+    role, amount, fiat, status, insufficient, timestamp, gutter,
+    onPay, onDecline, onCancel, onRetry, onDetails, strings,
+  });
   return row;
+}
+
+/** In-place payment update (#86) — returns the NEW row. */
+function setPaymentStatus(row, patch = {}) {
+  const opts = paymentOpts.get(row);
+  if (!opts) {
+    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
+    return row;
+  }
+  const next = createPaymentBubble({ ...opts, ...patch });
+  row.replaceWith(next);
+  return next;
 }
 
 function createAppBubble({
@@ -2674,6 +2691,9 @@ function setLoading(el, loading) {
 /* ---- src/components/typed-bubbles.js (batch 3 supersede) ---- */
 let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
 
+/* payment rows remember creation opts → setPaymentStatus re-renders in place (#86) */
+const paymentOpts = new WeakMap();
+
 /** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): ≤2 decimals,
  * string-truncated (never rounded), trailing zeros trimmed, round = bare.
  * Reference impl — C# composes the real strings, mirror there. */
@@ -2801,7 +2821,23 @@ function createPaymentBubble({
   } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
+  paymentOpts.set(row, {
+    role, amount, fiat, status, insufficient, timestamp, gutter,
+    onPay, onDecline, onCancel, onRetry, onDetails, strings,
+  });
   return row;
+}
+
+/** In-place payment update (#86) — returns the NEW row. */
+function setPaymentStatus(row, patch = {}) {
+  const opts = paymentOpts.get(row);
+  if (!opts) {
+    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
+    return row;
+  }
+  const next = createPaymentBubble({ ...opts, ...patch });
+  row.replaceWith(next);
+  return next;
 }
 
 function createAppBubble({
@@ -2873,6 +2909,7 @@ function createAppBubble({
 
 function createCallBubble({
   missed = false,
+  declined = false,        // #87⑦: actively rejected — neutral, no nudge
   direction = 'received',
   directionLabel = '',
   duration = '',
@@ -2882,13 +2919,22 @@ function createCallBubble({
   strings = {},
 } = {}) {
   const { row, el } = card(direction,
-    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    declined ? (strings.callDeclined || 'Call declined')
+      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
     timestamp, 'call', gutter);
-  if (missed) row.dataset.missed = '';
+  if (missed && !declined) row.dataset.missed = '';
   const head = el.querySelector('.c-tcard__title');
-  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
+  head.insertAdjacentElement('afterbegin',
+    icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
 
-  if (missed) {
+  if (declined) {
+    if (directionLabel) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = directionLabel;
+      el.append(meta);
+    }
+  } else if (missed) {
     const sub = document.createElement('button');
     sub.type = 'button';
     sub.className = 'c-tcard__call-back';
@@ -3324,6 +3370,23 @@ function attachMessageMenu(row, opts = {}) {
    (the shell's external-link warning) — XSS-safe, DOM-built, no innerHTML. */
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
 
+/* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type */
+const REPLY_KIND_GLYPHS = {
+  gif: 'photo', image: 'photo', file: 'file-isr',
+  payment: 'wallet', call: 'phone', voice: 'microphone', app: 'rocket',
+};
+function REPLY_KIND_LABELS(kind, strings = {}) {
+  return {
+    gif: 'GIF',
+    image: strings.image || 'Photo',
+    file: strings.file || 'File',
+    payment: strings.payment || 'Payment',
+    call: strings.call || 'Voice call',
+    voice: strings.voiceMessage || 'Voice message',
+    app: strings.app || 'App',
+  }[kind] || '';
+}
+
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
@@ -3361,6 +3424,7 @@ function createMessageBubble({
   name = '',
   address = '',
   avatar = null,
+  onSenderClick = null,
   onRetry = null,
   reply = null,
   onReplyClick = null,
@@ -3379,7 +3443,18 @@ function createMessageBubble({
     const gutter = document.createElement('span');
     gutter.className = 'c-bubble-row__gutter';
     if (showAvatar && (position === 'last' || position === 'single')) {
-      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+      const av = createAvatar({ src: avatar, name, address, size: 24 });
+      if (onSenderClick) { // #99: avatar opens the member sheet too
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-bubble-row__avatar-btn';
+        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ' — ' + name : ''));
+        b.addEventListener('click', onSenderClick);
+        b.append(av);
+        gutter.append(b);
+      } else {
+        gutter.append(av);
+      }
     }
     row.append(gutter);
   }
@@ -3389,15 +3464,20 @@ function createMessageBubble({
   if (text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
 
   if (sender && (position === 'first' || position === 'single')) {
-    const s = document.createElement('span');
+    // #99: tappable when onSenderClick is wired (member sheet)
+    const s = document.createElement(onSenderClick ? 'button' : 'span');
     s.className = 'c-bubble__sender';
+    if (onSenderClick) {
+      s.type = 'button';
+      s.addEventListener('click', onSenderClick);
+    }
     s.textContent = sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
     el.append(s);
   }
 
   // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet)
-  if (reply && (reply.text || reply.sender)) {
+  if (reply && (reply.text || reply.sender || reply.kind)) {
     const q = document.createElement(onReplyClick ? 'button' : 'div');
     q.className = 'c-bubble__reply';
     if (onReplyClick) {
@@ -3407,16 +3487,33 @@ function createMessageBubble({
         (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
+    // media/typed originals show a small identifier (Damir 2026-07-03)
+    if (reply.thumb) {
+      const th = document.createElement('img');
+      th.className = 'c-bubble__reply-thumb';
+      th.src = reply.thumb;
+      th.alt = '';
+      q.append(th);
+    } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
+      const g = document.createElement('span');
+      g.className = 'c-bubble__reply-glyph';
+      g.setAttribute('aria-hidden', 'true');
+      g.append(icon(REPLY_KIND_GLYPHS[reply.kind], { size: 16 }));
+      q.append(g);
+    }
+    const info = document.createElement('span');
+    info.className = 'c-bubble__reply-info';
     if (reply.sender) {
       const qs = document.createElement('span');
       qs.className = 'c-bubble__reply-sender';
       qs.textContent = reply.sender;
-      q.append(qs);
+      info.append(qs);
     }
     const qt = document.createElement('span');
     qt.className = 'c-bubble__reply-text';
-    qt.textContent = reply.text || '';
-    q.append(qt);
+    qt.textContent = reply.text || REPLY_KIND_LABELS(reply.kind, strings);
+    info.append(qt);
+    q.append(info);
     el.append(q);
   }
 
@@ -3522,6 +3619,53 @@ function createMessageBubble({
   return row;
 }
 
+/* ---- src/components/message-bubble.js in-place updaters (#86) ---- */
+function setMessageStatus(row, status, strings = {}) {
+  if (status === 'failed') {
+    console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
+    return;
+  }
+  const st = row.querySelector('.c-bubble__meta .c-status-icon');
+  if (!st) return; // received rows / no meta — nothing to tick
+  const next = createStatusIcon(status);
+  if (!next) return;
+  next.setAttribute('width', 14);
+  next.setAttribute('height', 14);
+  next.removeAttribute('aria-hidden');
+  next.setAttribute('role', 'img');
+  next.setAttribute('aria-label', strings['status-' + status] || status);
+  st.replaceWith(next);
+}
+
+function removeMessage(row) {
+  const pos = row.dataset.position;
+  const dir = row.dataset.direction;
+  const isGroupRow = (el, positions) =>
+    !!el && el.classList && el.classList.contains('c-bubble-row') &&
+    el.dataset.direction === dir && positions.includes(el.dataset.position);
+
+  if (pos === 'first') {
+    const next = row.nextElementSibling;
+    if (isGroupRow(next, ['middle', 'last'])) {
+      next.dataset.position = next.dataset.position === 'middle' ? 'first' : 'single';
+      const label = row.querySelector('.c-bubble__sender');
+      const heir = next.querySelector('.c-bubble');
+      if (label && heir && !heir.querySelector('.c-bubble__sender')) heir.prepend(label);
+    }
+  } else if (pos === 'last') {
+    const prev = row.previousElementSibling;
+    if (isGroupRow(prev, ['first', 'middle'])) {
+      prev.dataset.position = prev.dataset.position === 'middle' ? 'last' : 'single';
+      // firstElementChild: bare avatar OR its #99 button wrap
+      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
+      const prevGutter = prev.querySelector('.c-bubble-row__gutter');
+      if (av && prevGutter && !prevGutter.childNodes.length) prevGutter.append(av);
+    }
+  }
+  // middle: [first, middle*, last] stays contiguous — no repair needed
+  row.remove();
+}
+
 /* ---- src/components/composer.js (batch 3b additions) ---- */
 const composerCtx = new WeakMap(); // composer el → active ctx
 
@@ -3530,12 +3674,7 @@ const composerCtx = new WeakMap(); // composer el → active ctx
 function cancelComposerContext(el) {
   const c = composerCtx.get(el);
   if (!c) return;
-  const input = el.querySelector('.c-composer__input');
-  if (c.kind === 'edit' && input) {
-    input.value = c._draft || '';
-    input.dispatchEvent(new Event('input')); // isTrusted=false → no typing emit
-  }
-  setComposerContext(el, null);
+  setComposerContext(el, null); // draft restore happens inside (edit ctx)
   if (c.onCancel) c.onCancel();
 }
 
@@ -3543,6 +3682,12 @@ function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const prev = el.querySelector('.c-composer__ctx');
   if (prev) prev.remove();
+  // freeze audit: replacing an active edit ctx restores the pre-edit draft
+  const prevCtx = composerCtx.get(el);
+  if (prevCtx && prevCtx.kind === 'edit' && input) {
+    input.value = prevCtx._draft || '';
+    input.dispatchEvent(new Event('input'));
+  }
   if (!ctx) { composerCtx.delete(el); return; }
   composerCtx.set(el, ctx);
   const strings = ctx.strings || {};
@@ -3569,7 +3714,10 @@ function setComposerContext(el, ctx) {
   x.append(icon('x', { size: 16 }));
   x.addEventListener('click', () => cancelComposerContext(el));
   strip.append(x);
-  el.prepend(strip); // flex-wrap row: the strip takes the full first line
+  // cost line (standing money fact) stays topmost — ctx slots under it
+  const cost = el.querySelector('.c-composer__cost');
+  if (cost) cost.after(strip);
+  else el.prepend(strip);
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -3588,6 +3736,20 @@ function setComposerContext(el, ctx) {
 }
 
 function getComposerContext(el) { return composerCtx.get(el) || null; }
+
+/** Bot-chat cost hint (#86) — falsy costText removes. #44 free fn. */
+function setComposerCost(el, costText, strings = {}) {
+  const prev = el.querySelector('.c-composer__cost');
+  if (prev) prev.remove();
+  if (!costText) return;
+  const line = document.createElement('div');
+  line.className = 'c-composer__cost';
+  line.append(icon('wallet', { size: 14 }));
+  const t = document.createElement('span');
+  t.textContent = (strings.costPerMessage || 'Each message costs') + ' ' + costText;
+  line.append(t);
+  el.prepend(line); // always topmost (above any reply/edit ctx strip)
+}
 
 /* ---- src/components/media-bubble.js (GIF/image tile, P2P tap-to-load) ---- */
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
@@ -3715,7 +3877,593 @@ function setMediaSrc(row, src) {
   const ctl = mediaCtl.get(el);
   if (ctl) ctl.setSrc(src);
 }
+/* ---- src/components/system-notice.js (#86/#91 secure-chat notice, round-6 restyle) ---- */
+function createSystemNotice({
+  glyph = 'shield-lock', // Damir export landed
+  title = '',
+  text = '',
+  linkLabel = '',
+  onLink,
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-sysnotice';
+  el.setAttribute('role', 'note');
+  el.setAttribute('aria-label', strings.systemNotice || 'Chat security notice');
+
+  const card = document.createElement('div');
+  card.className = 'c-sysnotice__card';
+
+  const g = document.createElement('span');
+  g.className = 'c-sysnotice__medallion';
+  g.setAttribute('aria-hidden', 'true');
+  g.append(icon(glyph, { size: 20 }));
+  card.append(g);
+
+  if (title) {
+    const t = document.createElement('span');
+    t.className = 'c-sysnotice__title';
+    t.textContent = title;
+    card.append(t);
+  }
+
+  const body = document.createElement('span');
+  body.className = 'c-sysnotice__text';
+  body.append(document.createTextNode(text));
+  if (linkLabel) {
+    body.append(document.createTextNode(' '));
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'c-sysnotice__link';
+    link.textContent = linkLabel;
+    if (onLink) link.addEventListener('click', onLink);
+    body.append(link);
+  }
+  card.append(body);
+
+  el.append(card);
+  return el;
+}
+
+/* ---- src/components/lazy-history.js (#86 lazy loadmore) ---- */
+function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = {}) {
+  let loading = false;
+  let done = false;
+
+  const spinner = () => {
+    const row = document.createElement('div');
+    row.className = 'c-history-loading';
+    row.setAttribute('role', 'status');
+    row.setAttribute('aria-label', strings.loadingHistory || 'Loading earlier messages');
+    const sp = document.createElement('span');
+    sp.className = 'c-history-loading__spinner';
+    sp.setAttribute('aria-hidden', 'true');
+    row.append(sp);
+    return row;
+  };
+
+  const check = () => {
+    if (loading || done || !onLoadMore) return;
+    if (box.scrollTop > threshold) return;
+    loading = true;
+    const h0 = box.scrollHeight; // anchor BEFORE spinner + new rows
+    const sp = spinner();
+    box.prepend(sp);
+    Promise.resolve(onLoadMore()).then((result) => {
+      sp.remove();
+      // keep the previously-visible message in place after the prepend
+      box.scrollTop += box.scrollHeight - h0;
+      if (result === false) {
+        done = true;
+        box.removeEventListener('scroll', check);
+      }
+      loading = false;
+      if (!done) check();
+    }).catch(() => {
+      sp.remove();
+      loading = false; // failed page loads stay retryable on the next scroll
+    });
+  };
+
+  box.addEventListener('scroll', check, { passive: true });
+  return {
+    setDone() {
+      done = true;
+      box.removeEventListener('scroll', check);
+    },
+  };
+}
+/* ---- round 7: topbar onIdentity SUPERSEDE + attach/channel sheets (#86) ---- */
+function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', onIdentity = null, actions = [] } = {}) {
+  const el = document.createElement('header');
+  el.className = 'c-topbar';
+  el.dataset.variant = variant;
+
+  if ((variant === 'view' || variant === 'chat') && onBack) {
+    el.append(createButton({
+      type: 'text', size: 44,
+      icon: icon('arrow-left'),
+      ariaLabel: backLabel,
+      onClick: onBack,
+    }));
+  }
+
+  if (variant === 'chat' && identity) {
+    // identity wrap: BUTTON when onIdentity is wired (bot channel selector /
+    // chat info) — accessible name comes from the name+sub content
+    const wrap = document.createElement(onIdentity ? 'button' : 'div');
+    wrap.className = 'c-topbar__identity-wrap';
+    if (onIdentity) {
+      wrap.type = 'button';
+      wrap.addEventListener('click', onIdentity);
+    }
+    wrap.append(createAvatar({
+      src: identity.avatar, name: identity.name, address: identity.address,
+      size: 40, online: !!identity.online,
+    }));
+    const id = document.createElement('div');
+    id.className = 'c-topbar__identity';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'c-topbar__name';
+    nameEl.textContent = identity.name || identity.address || '';
+    const subEl = document.createElement('span');
+    subEl.className = 'c-topbar__sub';
+    subEl.setAttribute('aria-live', 'polite'); // presence/typing changes announced
+    subEl.textContent = identity.sub || '';
+    id.append(nameEl, subEl);
+    wrap.append(id);
+    el.append(wrap);
+  } else {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'c-topbar__title';
+    if (variant === 'root' && logo) {
+      const mark = icon('logo', { size: 28 });
+      mark.classList.add('c-topbar__logo');
+      const word = document.createElement('span');
+      word.textContent = title || 'Spixi';
+      titleEl.append(mark, word);
+    } else {
+      titleEl.textContent = title;
+    }
+    el.append(titleEl);
+  }
+
+  if (actions.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-topbar__actions';
+    for (const a of actions) {
+      wrap.append(createButton({
+        type: 'text', size: 44,
+        icon: icon(a.icon),
+        ariaLabel: a.label,
+        onClick: a.onClick,
+      }));
+    }
+    el.append(wrap);
+  }
+
+  return el;
+}
+
+/* ---- src/components/attach-sheet.js ---- */
+const ATTACH_ACTIONS = [
+  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
+  { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flagged: true },
+  { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flagged: true },
+  { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment' },
+  { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment' },
+  { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite' },
+];
+
+function openAttachSheet({ host, media = false, onAction, strings = {} } = {}) {
+  const grid = document.createElement('div');
+  grid.className = 'c-attach';
+
+  for (const a of ATTACH_ACTIONS) {
+    if (a.flagged && !media) continue; // #81 media flag (voice-flag precedent #64)
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-attach__tile';
+    const med = document.createElement('span');
+    med.className = 'c-attach__medallion';
+    med.setAttribute('aria-hidden', 'true');
+    med.append(icon(a.glyph, { size: 22 }));
+    const label = document.createElement('span');
+    label.className = 'c-attach__label';
+    label.textContent = strings[a.key] || a.label;
+    tile.append(med, label);
+    tile.addEventListener('click', () => {
+      closeSheet(sheet);
+      if (onAction) onAction(a.id);
+    });
+    grid.append(tile);
+  }
+
+  const sheet = createSheet({ title: strings.attachTitle || 'Share', content: grid, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ---- src/components/channel-sheet.js ---- */
+function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) {
+  const list = document.createElement('div');
+  list.className = 'c-channels';
+  // freeze audit: no list/listitem roles — they replace button semantics
+
+  for (const ch of channels) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-channels__row';
+    if (ch.selected) row.setAttribute('aria-current', 'true');
+
+    const hash = document.createElement('span');
+    hash.className = 'c-channels__hash';
+    hash.setAttribute('aria-hidden', 'true');
+    hash.textContent = '#';
+    row.append(hash);
+
+    const info = document.createElement('span');
+    info.className = 'c-channels__info';
+    const name = document.createElement('span');
+    name.className = 'c-channels__name';
+    name.textContent = ch.name || '';
+    info.append(name);
+    if (ch.status) {
+      const st = document.createElement('span');
+      st.className = 'c-channels__status';
+      st.textContent = ch.status; // bridge setChannelSelectorStatus (C#-composed)
+      info.append(st);
+    }
+    row.append(info);
+
+    if (ch.unread) row.append(createIndicator({ count: ch.unread, strings }));
+    if (ch.selected) {
+      const check = icon('check', { size: 18 });
+      check.classList.add('c-channels__check');
+      row.append(check);
+    }
+
+    row.addEventListener('click', () => {
+      closeSheet(sheet);
+      if (onSelect) onSelect(ch.id);
+    });
+    list.append(row);
+  }
+
+  const sheet = createSheet({ title: strings.channels || 'Channels', content: list, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+/* ---- src/components/member-sheet.js (#99) ---- */
+function openMemberSheet({
+  host,
+  member = {},
+  blind = false,
+  relation = 'none', // none | pending | contact (Damir sanity check)
+  onRequest,
+  onMessage,
+  onPay,             // contact ONLY (round 10 guard rail)
+  onRequestPayment,  // contact ONLY
+  onViewContact,     // contact: identity → full contact page (shell nav)
+  strings = {},
+} = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-member';
+
+  if (blind) {
+    const med = document.createElement('span');
+    med.className = 'c-member__blind-medallion';
+    med.setAttribute('aria-hidden', 'true');
+    med.append(icon('eye-off', { size: 22 }));
+    const t = document.createElement('span');
+    t.className = 'c-member__blind-title';
+    t.textContent = strings.blindTitle || 'Identities are hidden in this group';
+    const sub = document.createElement('span');
+    sub.className = 'c-member__blind-sub';
+    sub.textContent = strings.blindSub ||
+      'Members of a blind group can’t be viewed or added to contacts.';
+    content.append(med, t, sub);
+  } else {
+    // identity block — for CONTACTS it's a button → full contact page (round 10)
+    const canView = relation === 'contact' && !!onViewContact;
+    const id = document.createElement(canView ? 'button' : 'div');
+    id.className = 'c-member__id';
+    if (canView) {
+      id.type = 'button';
+      id.addEventListener('click', () => { closeSheet(sheet); onViewContact(member); });
+    }
+    id.append(createAvatar({
+      src: member.avatar, name: member.name, address: member.address, size: 48,
+    }));
+    const nameRow = document.createElement('span');
+    nameRow.className = 'c-member__name';
+    nameRow.textContent = member.name || member.address || '';
+    if (canView) {
+      const chev = icon('chevron-right', { size: 18 });
+      chev.classList.add('c-member__chevron');
+      nameRow.append(chev);
+    }
+    id.append(nameRow);
+    content.append(id);
+
+    if (member.address) {
+      const label = document.createElement('span');
+      label.className = 'c-member__addr-label';
+      label.textContent = strings.ixianAddress || 'Ixian address';
+      const addrRow = document.createElement('div');
+      addrRow.className = 'c-member__addr';
+      const addr = document.createElement('span');
+      addr.className = 'c-member__addr-text u-tabular';
+      addr.textContent = member.address;
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'c-member__copy';
+      copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
+      copy.append(icon('copy', { size: 18 }));
+      copy.addEventListener('click', () => {
+        if (navigator.clipboard) navigator.clipboard.writeText(member.address).catch(() => {});
+        copy.textContent = '';
+        copy.append(icon('check', { size: 18 })); // brief confirmation morph
+        copy.setAttribute('aria-label', strings.copied || 'Address copied'); // SRs hear the confirm too
+        setTimeout(() => {
+          copy.textContent = '';
+          copy.append(icon('copy', { size: 18 }));
+          copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
+        }, 1400);
+      });
+      addrRow.append(addr, copy);
+      content.append(label, addrRow);
+    }
+
+    // relation-aware footer: never offer a request to an existing contact
+    if (relation === 'contact') {
+      const badge = createBadge({
+        type: 'success', weight: 'tonal',
+        label: strings.inContacts || 'In your contacts', icon: 'check',
+      });
+      badge.classList.add('c-member__relation');
+      content.append(badge);
+      if (onMessage) {
+        const msg = createButton({
+          label: strings.message || 'Message',
+          type: 'fill', size: 44,
+          icon: icon('messages', { size: 18 }),
+          onClick: () => { closeSheet(sheet); onMessage(member); },
+        });
+        msg.dataset.width = 'full';
+        msg.classList.add('c-member__request');
+        content.append(msg);
+      }
+      // payment pair — CONTACTS ONLY (round 10 guard rail)
+      if (onPay || onRequestPayment) {
+        const payRow = document.createElement('div');
+        payRow.className = 'c-member__payrow';
+        if (onPay) payRow.append(createButton({
+          label: strings.sendPayment || 'Pay', type: 'outline', size: 44,
+          icon: icon('arrow-up-right', { size: 18 }),
+          onClick: () => { closeSheet(sheet); onPay(member); },
+        }));
+        if (onRequestPayment) payRow.append(createButton({
+          label: strings.requestPayment || 'Request', type: 'outline', size: 44,
+          icon: icon('arrow-down-left', { size: 18 }),
+          onClick: () => { closeSheet(sheet); onRequestPayment(member); },
+        }));
+        content.append(payRow);
+      }
+    } else if (relation === 'pending') {
+      const badge = createBadge({
+        type: 'info', weight: 'tonal',
+        label: strings.requestSent || 'Contact request sent', icon: 'clock-hour-10',
+      });
+      badge.classList.add('c-member__relation');
+      content.append(badge);
+    } else if (onRequest) {
+      const req = createButton({
+        label: strings.sendContactRequest || 'Send contact request',
+        type: 'fill', size: 44,
+        icon: icon('heart-handshake', { size: 18 }),
+        onClick: (e) => {
+          if (e.currentTarget.dataset.acted !== undefined) return;
+          e.currentTarget.dataset.acted = '';
+          e.currentTarget.disabled = true;
+          closeSheet(sheet);
+          onRequest(member);
+        },
+      });
+      req.dataset.width = 'full';
+      req.classList.add('c-member__request');
+      content.append(req);
+    }
+  }
+
+  const sheet = createSheet({
+    content, host, strings,
+    title: '', // content carries the identity — a title would duplicate the name
+  });
+  sheet.setAttribute('aria-label', strings.memberDetails || 'Member details');
+  openSheet(sheet);
+  return sheet;
+}
+/* ---- src/components/media-viewer.js (#86) ---- */
+function openMediaViewer({
+  host,
+  src = '',
+  alt = '',
+  kind = 'image',
+  onSave,
+  strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-mviewer';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label', alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image')));
+  el.tabIndex = -1;
+
+  const bar = document.createElement('div');
+  bar.className = 'c-mviewer__bar';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'c-mviewer__btn';
+  close.setAttribute('aria-label', strings.close || 'Close');
+  close.append(icon('x', { size: 22 }));
+  close.addEventListener('click', () => dismissOverlay(el));
+  bar.append(close);
+  if (alt) {
+    const cap = document.createElement('span');
+    cap.className = 'c-mviewer__caption';
+    cap.textContent = alt;
+    bar.append(cap);
+  }
+  if (onSave) {
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'c-mviewer__btn';
+    save.setAttribute('aria-label', strings.save || 'Save');
+    save.append(icon('download', { size: 22 }));
+    save.addEventListener('click', () => onSave());
+    bar.append(save);
+  } else {
+    const spacer = document.createElement('span');
+    spacer.className = 'c-mviewer__spacer';
+    spacer.setAttribute('aria-hidden', 'true');
+    bar.append(spacer);
+  }
+  el.append(bar);
+
+  const stage = document.createElement('div');
+  stage.className = 'c-mviewer__stage';
+  const img = document.createElement('img');
+  img.className = 'c-mviewer__img';
+  img.src = src;
+  img.alt = ''; // the dialog carries the accessible name
+  img.draggable = false; // mouse-drag fix: native image drag hijacked the pointer stream
+  stage.append(img);
+  el.append(stage);
+  stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // swipe-to-dismiss (Damir): vertical drag either direction — image rides
+  // the finger, viewer fades; past threshold = dismiss, under = spring back
+  const DISMISS_PX = 80;
+  let startY = 0;
+  let dragY = null;
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    startY = e.clientY;
+    dragY = 0;
+    stage.setPointerCapture(e.pointerId);
+    img.style.transition = 'none';
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (dragY === null) return;
+    dragY = e.clientY - startY;
+    img.style.transform = 'translateY(' + dragY + 'px)';
+    el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
+  });
+  const endDrag = () => {
+    if (dragY === null) return;
+    const past = Math.abs(dragY) > DISMISS_PX;
+    img.style.transition = '';
+    if (past) {
+      dismissOverlay(el);
+    } else {
+      img.style.transform = '';
+      el.style.opacity = '';
+    }
+    dragY = null;
+  };
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+
+  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true });
+  openOverlay(el);
+  return el;
+}
+
+/* ---- src/components/call-overlay.js (#86) ---- */
+function showIncomingCall({
+  host,
+  caller = {},
+  sub = '',
+  onAccept,
+  onDecline,
+  onIgnore,
+  strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-callin';
+  el.setAttribute('role', 'alertdialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label',
+    (strings.incomingCall || 'Incoming voice call') + (caller.name ? ' — ' + caller.name : ''));
+  el.tabIndex = -1;
+
+  const id = document.createElement('div');
+  id.className = 'c-callin__identity';
+  const avatarWrap = document.createElement('span');
+  avatarWrap.className = 'c-callin__avatar';
+  avatarWrap.append(createAvatar({
+    src: caller.avatar, name: caller.name, address: caller.address, size: 48,
+  }));
+  const name = document.createElement('span');
+  name.className = 'c-callin__name';
+  name.textContent = caller.name || caller.address || '';
+  const subEl = document.createElement('span');
+  subEl.className = 'c-callin__sub';
+  subEl.textContent = sub || strings.incomingCall || 'Incoming voice call…';
+  id.append(avatarWrap, name, subEl);
+  el.append(id);
+
+  let acted = false; // one outcome per ring — all three actions latch
+  const act = (fn) => () => {
+    if (acted) return;
+    acted = true;
+    dismissOverlay(el);
+    if (fn) fn();
+  };
+
+  const actions = document.createElement('div');
+  actions.className = 'c-callin__actions';
+  const action = (kind, glyph, label, fn) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'c-callin__action';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-callin__circle';
+    b.dataset.kind = kind;
+    b.setAttribute('aria-label', label);
+    b.append(icon(glyph, { size: 24 }));
+    b.addEventListener('click', act(fn));
+    const l = document.createElement('span');
+    l.className = 'c-callin__label';
+    l.setAttribute('aria-hidden', 'true');
+    l.textContent = label;
+    wrap.append(b, l);
+    actions.append(wrap);
+  };
+  action('decline', 'phone-end', strings.decline || 'Decline', onDecline);
+  action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
+  action('accept', 'phone', strings.accept || 'Accept', onAccept);
+  // freeze audit: autofocus the SAFE action (was Decline — first focusable)
+  actions.querySelector('[data-kind="accept"]').dataset.autofocus = '';
+  el.append(actions);
+
+  // Esc / scrim = quietest outcome; data-silent = remote hang-up, no onIgnore
+  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: () => {
+    if (!acted && el.dataset.silent === undefined) {
+      acted = true;
+      if (onIgnore) onIgnore();
+    }
+  } });
+  openOverlay(el);
+  return el;
+}
+
+function hideIncomingCall(el) {
+  el.dataset.silent = '';
+  dismissOverlay(el);
+}
 /* ---- end BATCH 3 SECTION ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc };
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall };
 })();

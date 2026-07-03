@@ -11,9 +11,15 @@
  *   status: 'sending'|'sent'|'delivered'|'read'|'failed',// sent only
  *   sender,                   // group chats: name label on first-of-group
  *   showAvatar, name, address, avatar,                   // received groups: on last-of-group
+ *   onSenderClick,            // group chats (#99): label + avatar become BUTTONS
+ *                             // → member sheet (identity verification; blind
+ *                             // groups simply don't pass it)
  *   onRetry,                  // failed sent messages: retry circle + caption tap
- *   reply: { sender, address, text },  // §8-GATED (#25): quoted strip — render
- *                             // ONLY behind the reply capability handshake
+ *   reply: { sender, address, text,    // §8-GATED (#25): quoted strip — render
+ *            kind, thumb },   // ONLY behind the reply capability handshake.
+ *                             // kind: 'gif'|'image'|'file'|'payment'|'call'|'voice'
+ *                             // → glyph chip in the quote; thumb (data-URI,
+ *                             // shell-composed) replaces the glyph for media
  *   onReplyClick,             // tap on the quote → shell scrolls to original
  *   edited: false,            // §8-GATED (#25): "edited" marker in the meta
  *   onLinkClick(url),         // URLs in text render as link BUTTONS (never
@@ -38,6 +44,24 @@ function bubbleTime(d) {
    (the shell's existing external-link warning) — XSS-safe, DOM-built, no
    innerHTML; trailing sentence punctuation stays text. */
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
+
+/* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
+   label fallback when the shell sends no excerpt text */
+const REPLY_KIND_GLYPHS = {
+  gif: 'photo', image: 'photo', file: 'file-isr',
+  payment: 'wallet', call: 'phone', voice: 'microphone', app: 'rocket',
+};
+function REPLY_KIND_LABELS(kind, strings = {}) {
+  return {
+    gif: 'GIF',
+    image: strings.image || 'Photo',
+    file: strings.file || 'File',
+    payment: strings.payment || 'Payment',
+    call: strings.call || 'Voice call',
+    voice: strings.voiceMessage || 'Voice message',
+    app: strings.app || 'App',
+  }[kind] || '';
+}
 
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
@@ -75,6 +99,7 @@ export function createMessageBubble({
   name = '',
   address = '',
   avatar = null,
+  onSenderClick = null,
   onRetry = null,
   reply = null,
   onReplyClick = null,
@@ -95,7 +120,18 @@ export function createMessageBubble({
     // avatar renders once per group, bottom-aligned on the LAST bubble;
     // other rows keep the gutter width so bubbles align
     if (showAvatar && (position === 'last' || position === 'single')) {
-      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+      const av = createAvatar({ src: avatar, name, address, size: 24 });
+      if (onSenderClick) { // #99: avatar opens the member sheet too
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-bubble-row__avatar-btn';
+        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ' — ' + name : ''));
+        b.addEventListener('click', onSenderClick);
+        b.append(av);
+        gutter.append(b);
+      } else {
+        gutter.append(av);
+      }
     }
     row.append(gutter);
   }
@@ -107,8 +143,14 @@ export function createMessageBubble({
   // sender label: group chats, first bubble of a group, identity-hued (premium).
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
-    const s = document.createElement('span');
+    // #99: tappable when onSenderClick is wired (member sheet); blind groups
+    // don't pass the callback → plain span
+    const s = document.createElement(onSenderClick ? 'button' : 'span');
     s.className = 'c-bubble__sender';
+    if (onSenderClick) {
+      s.type = 'button';
+      s.addEventListener('click', onSenderClick);
+    }
     s.textContent = sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
     el.append(s);
@@ -116,8 +158,8 @@ export function createMessageBubble({
 
   // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet): identity-
   // hued strip above the text; the quote itself is shell-supplied (sender +
-  // excerpt), tap = scroll-to-original (shell duty via onReplyClick)
-  if (reply && (reply.text || reply.sender)) {
+  // excerpt + kind/thumb), tap = scroll-to-original (shell duty via onReplyClick)
+  if (reply && (reply.text || reply.sender || reply.kind)) {
     const q = document.createElement(onReplyClick ? 'button' : 'div');
     q.className = 'c-bubble__reply';
     if (onReplyClick) {
@@ -127,16 +169,34 @@ export function createMessageBubble({
         (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
+    // media/typed originals show a small identifier (Damir 2026-07-03):
+    // shell-composed thumb (data-URI) for media, kind glyph otherwise
+    if (reply.thumb) {
+      const th = document.createElement('img');
+      th.className = 'c-bubble__reply-thumb';
+      th.src = reply.thumb;
+      th.alt = '';
+      q.append(th);
+    } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
+      const g = document.createElement('span');
+      g.className = 'c-bubble__reply-glyph';
+      g.setAttribute('aria-hidden', 'true');
+      g.append(icon(REPLY_KIND_GLYPHS[reply.kind], { size: 16 }));
+      q.append(g);
+    }
+    const info = document.createElement('span');
+    info.className = 'c-bubble__reply-info';
     if (reply.sender) {
       const qs = document.createElement('span');
       qs.className = 'c-bubble__reply-sender';
       qs.textContent = reply.sender;
-      q.append(qs);
+      info.append(qs);
     }
     const qt = document.createElement('span');
     qt.className = 'c-bubble__reply-text';
-    qt.textContent = reply.text || '';
-    q.append(qt);
+    qt.textContent = reply.text || REPLY_KIND_LABELS(reply.kind, strings);
+    info.append(qt);
+    q.append(info);
     el.append(q);
   }
 
@@ -248,6 +308,65 @@ export function createMessageBubble({
   row.append(el);
   return row;
   // NOTE: mount messages inside a container with role="log" (chat shell duty)
+}
+
+/* —— IN-PLACE UPDATERS (DECISIONS #86: bridge updateMessage/deleteMessage get
+   surgical DOM updates — no full re-render, no flicker, scroll stays put).
+   #44 free-fn convention. —— */
+
+/** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
+ *  row. 'failed' restructures the row (retry circle + caption) — the shell
+ *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
+export function setMessageStatus(row, status, strings = {}) {
+  if (status === 'failed') {
+    console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
+    return;
+  }
+  const st = row.querySelector('.c-bubble__meta .c-status-icon');
+  if (!st) return; // received rows / no meta — nothing to tick
+  const next = createStatusIcon(status);
+  if (!next) return;
+  next.setAttribute('width', 14);
+  next.setAttribute('height', 14);
+  next.removeAttribute('aria-hidden');
+  next.setAttribute('role', 'img');
+  next.setAttribute('aria-label', strings['status-' + status] || status);
+  st.replaceWith(next);
+}
+
+/** Bridge deleteMessage → remove the row AND repair #63 grouping around it:
+ *  the group's head passes its sender label down, the tail passes its avatar
+ *  up, and neighbor corner radii re-derive from data-position. */
+export function removeMessage(row) {
+  const pos = row.dataset.position;
+  const dir = row.dataset.direction;
+  const isGroupRow = (el, positions) =>
+    !!el && el.classList && el.classList.contains('c-bubble-row') &&
+    el.dataset.direction === dir && positions.includes(el.dataset.position);
+
+  if (pos === 'first') {
+    const next = row.nextElementSibling;
+    if (isGroupRow(next, ['middle', 'last'])) {
+      next.dataset.position = next.dataset.position === 'middle' ? 'first' : 'single';
+      // heir inherits the group head: sender label (group chats) moves down,
+      // keeping its identity hue (--sender-h travels with the element)
+      const label = row.querySelector('.c-bubble__sender');
+      const heir = next.querySelector('.c-bubble');
+      if (label && heir && !heir.querySelector('.c-bubble__sender')) heir.prepend(label);
+    }
+  } else if (pos === 'last') {
+    const prev = row.previousElementSibling;
+    if (isGroupRow(prev, ['first', 'middle'])) {
+      prev.dataset.position = prev.dataset.position === 'middle' ? 'last' : 'single';
+      // avatar renders on the last-of-group — it moves up to the new tail
+      // (firstElementChild: may be the bare avatar OR its #99 button wrap)
+      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
+      const prevGutter = prev.querySelector('.c-bubble-row__gutter');
+      if (av && prevGutter && !prevGutter.childNodes.length) prevGutter.append(av);
+    }
+  }
+  // middle: [first, middle*, last] stays contiguous — no repair needed
+  row.remove();
 }
 
 /** Day separator (design: centered pill). Shares the day-bucket ladder with

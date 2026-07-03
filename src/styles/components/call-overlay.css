@@ -1,0 +1,107 @@
+/* c-callin — incoming call overlay (#86): identity on top of the scrim,
+   three labeled action circles. Call layer (z-60, above modals like the
+   callbar it hands over to). */
+
+.c-callin {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-60);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-inline: var(--spacing-24);
+  background: var(--surface-scrim); /* + overlay scrim ⇒ near-black stage */
+}
+
+/* halves composition (Damir): identity centers in the TOP half, actions
+   center in the BOTTOM half — each flexes to 50% and centers its content */
+.c-callin__identity {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  text-align: center;
+}
+/* ringing pulse — decorative; finite tokens don't fit a ring, so guard it */
+.c-callin__avatar {
+  position: relative;
+  display: flex;
+  border-radius: var(--radius-full);
+}
+.c-callin__avatar::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--spacing-8));
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--surface-wash-on-hero-pressed);
+  animation: c-callin-pulse calc(var(--duration-300) * 5) var(--easing-standard) infinite;
+}
+@keyframes c-callin-pulse {
+  0% { transform: scale(0.85); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-callin__avatar::before { animation: none; opacity: 0.6; transform: none; }
+}
+.c-callin__name {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-on-scrim);
+}
+.c-callin__sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-on-scrim);
+  opacity: 0.72; /* sanctioned: muted-on-scrim, no dedicated token yet */
+}
+
+.c-callin__actions {
+  flex: 1;
+  display: flex;
+  align-items: center; /* vertical center of the bottom half */
+  justify-content: center;
+  gap: var(--spacing-32);
+}
+.c-callin__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.c-callin__circle {
+  width: 56px;  /* button/56 scale */
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--icon-neutral-on-action);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--duration-100) var(--easing-decelerate),
+              background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-callin__circle:hover { transform: scale(1.06); }
+}
+.c-callin__circle:active { transform: scale(0.96); }
+/* freeze audit: on-scrim focus ring (see media-viewer note) */
+.c-callin__circle:focus-visible { outline-color: var(--icon-on-scrim); }
+.c-callin__circle[data-kind="accept"] { background: var(--surface-success); }
+.c-callin__circle[data-kind="decline"] { background: var(--surface-error); }
+.c-callin__circle[data-kind="ignore"] {
+  background: var(--surface-wash-on-hero-pressed); /* quiet, tertiary */
+  color: var(--icon-on-scrim);
+}
+.c-callin__label {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-on-scrim);
+}

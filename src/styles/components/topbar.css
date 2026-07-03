@@ -55,6 +55,33 @@
 /* dark (audit r2): neutral-900 bar + neutral-800 hairline both vanish on the
    primary-900 gradient top — one step up so the boundary reads in dark too */
 [data-theme="dark"] .c-topbar[data-variant="chat"] { border-bottom-color: var(--outline-neutral-02); }
+/* identity wrap — plain div normally; BUTTON when tappable (bot channel
+   selector / chat info, #86). Internal gap mirrors the chat-variant bar gap. */
+.c-topbar__identity-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-4);
+  margin-block: calc(-1 * var(--spacing-4)); /* keeps the 40px avatar optically placed */
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+}
+button.c-topbar__identity-wrap {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  button.c-topbar__identity-wrap:hover { background: var(--surface-interactive-hover); }
+}
+button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pressed); }
+
 .c-topbar__identity {
   flex: 1;
   min-width: 0;

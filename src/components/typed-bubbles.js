@@ -24,6 +24,12 @@ function cardTime(d) {
 
 let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
 
+/* payment rows remember their creation opts so setPaymentStatus can re-render
+   the card IN PLACE (DECISIONS #86: bridge updateTransactionStatus /
+   updatePaymentRequestStatus get surgical updates, and the re-render releases
+   the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
+const paymentOpts = new WeakMap();
+
 /** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): the chain
  * carries 8 decimals; the UI shows AT MOST 2 — string-truncated (never
  * rounded: display must not overstate) with trailing zeros trimmed; round
@@ -212,7 +218,26 @@ export function createPaymentBubble({
   } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
+  paymentOpts.set(row, {
+    role, amount, fiat, status, insufficient, timestamp, gutter,
+    onPay, onDecline, onCancel, onRetry, onDetails, strings,
+  });
   return row;
+}
+
+/** In-place payment update (#86): re-creates the card from its remembered
+ *  opts merged with the patch and swaps it — scroll position, neighbors and
+ *  the rest of the log untouched. Returns the NEW row (callers holding a
+ *  reference must adopt it). patch = { status, amount, fiat, insufficient, … }. */
+export function setPaymentStatus(row, patch = {}) {
+  const opts = paymentOpts.get(row);
+  if (!opts) {
+    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
+    return row;
+  }
+  const next = createPaymentBubble({ ...opts, ...patch });
+  row.replaceWith(next);
+  return next;
 }
 
 /** App session card (Figma app-card): invite/invited/missing/in-session/ended. */
@@ -284,9 +309,13 @@ export function createAppBubble({
   return row;
 }
 
-/** Call event card (Figma call-card): normal + missed. */
+/** Call event card (Figma call-card): answered + missed + declined (#87⑦).
+ *  missed = rang out (error ink, "Tap to call back") · declined = actively
+ *  rejected (neutral, NO call-back nudge). BE question open: bridge must
+ *  distinguish declined from missed. */
 export function createCallBubble({
   missed = false,
+  declined = false,        // #87⑦: actively rejected
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
@@ -296,13 +325,23 @@ export function createCallBubble({
   strings = {},
 } = {}) {
   const { row, el } = card(direction,
-    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    declined ? (strings.callDeclined || 'Call declined')
+      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
     timestamp, 'call', gutter);
-  if (missed) row.dataset.missed = '';
+  if (missed && !declined) row.dataset.missed = '';
   const head = el.querySelector('.c-tcard__title');
-  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
+  head.insertAdjacentElement('afterbegin',
+    icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
 
-  if (missed) {
+  if (declined) {
+    // deliberate rejection: state the fact, no nudge (#87⑦)
+    if (directionLabel) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = directionLabel;
+      el.append(meta);
+    }
+  } else if (missed) {
     const sub = document.createElement('button');
     sub.type = 'button';
     sub.className = 'c-tcard__call-back';

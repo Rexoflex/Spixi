@@ -11,6 +11,9 @@
  *              // bridge-driven via setOnlineStatus)
  *   onBack: (e) => void,                 // view/chat variants: back icon-button
  *   backLabel: 'Back',                   // back button a11y label (SL in shells)
+ *   onIdentity: (e) => void,             // chat variant: identity block becomes a
+ *                                        // BUTTON (channel selector on bots, chat
+ *                                        // info later — #86 bot surface)
  *   actions: [{ icon: 'phone', label: 'Call', onClick }]  // trailing icon-buttons
  * })
  * setTopbarSub(el, text) — live sub updates (typing…, presence) (#44 free fn)
@@ -19,7 +22,7 @@ import { createButton } from './button.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 
-export function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', actions = [] } = {}) {
+export function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', onIdentity = null, actions = [] } = {}) {
   const el = document.createElement('header');
   el.className = 'c-topbar';
   el.dataset.variant = variant;
@@ -34,7 +37,15 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
   }
 
   if (variant === 'chat' && identity) {
-    el.append(createAvatar({
+    // identity wrap: BUTTON when onIdentity is wired (bot channel selector /
+    // chat info) — accessible name comes from the name+sub content
+    const wrap = document.createElement(onIdentity ? 'button' : 'div');
+    wrap.className = 'c-topbar__identity-wrap';
+    if (onIdentity) {
+      wrap.type = 'button';
+      wrap.addEventListener('click', onIdentity);
+    }
+    wrap.append(createAvatar({
       src: identity.avatar, name: identity.name, address: identity.address,
       size: 40, online: !!identity.online,
     }));
@@ -48,7 +59,8 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
     subEl.setAttribute('aria-live', 'polite'); // presence/typing changes announced
     subEl.textContent = identity.sub || '';
     id.append(nameEl, subEl);
-    el.append(id);
+    wrap.append(id);
+    el.append(wrap);
   } else {
     const titleEl = document.createElement('div');
     titleEl.className = 'c-topbar__title';

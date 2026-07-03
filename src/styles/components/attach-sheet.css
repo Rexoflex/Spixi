@@ -1,0 +1,49 @@
+/* c-attach — composer ⊕ attach sheet: 3-column tile grid (#87①).
+   Tiles = creation verbs; medallion recipe shared with app-icon/sysnotice. */
+
+.c-attach {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) 0 var(--spacing-8);
+}
+.c-attach__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-attach__tile:hover { background: var(--surface-interactive-hover); }
+}
+.c-attach__tile:active { background: var(--surface-interactive-pressed); }
+.c-attach__medallion {
+  width: 48px;   /* matches avatar-48 scale */
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-attach__tile:hover .c-attach__medallion { background: var(--surface-action-tonal-hover); }
+}
+.c-attach__label {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  text-align: center;
+}

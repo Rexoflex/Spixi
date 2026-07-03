@@ -106,6 +106,30 @@
   color: hsl(var(--sender-h, 220), var(--sender-label-s), var(--sender-label-l));
   margin-bottom: var(--spacing-2);
 }
+/* #99: tappable sender (member sheet) — button variant keeps the label look */
+button.c-bubble__sender {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  button.c-bubble__sender:hover { text-decoration: underline; }
+}
+.c-bubble-row__avatar-btn {
+  display: block;
+  position: relative; /* hit-area extension (freeze audit: 24px avatar sub-target) */
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-bubble-row__avatar-btn::after { content: ''; position: absolute; inset: -10px; }
 
 .c-bubble__text { white-space: pre-wrap; }
 
@@ -132,7 +156,9 @@
 :root { --reply-label-l: 26%; }
 [data-theme="dark"] { --reply-label-l: 74%; }
 .c-bubble__reply {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
   width: 100%;
   margin-bottom: var(--spacing-4);
   padding: var(--spacing-4) var(--spacing-8);
@@ -146,6 +172,30 @@
   overflow: hidden;
 }
 button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.c-bubble__reply-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* media/typed identifiers in the quote (Damir 2026-07-03) */
+.c-bubble__reply-thumb {
+  width: 32px;   /* quote thumb, matches the 32px glyph chip */
+  height: 32px;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+  flex: none;
+}
+.c-bubble__reply-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__reply-glyph {
+  background: var(--surface-wash-on-hero-pressed);
+  color: var(--text-bubble-sent);
+}
 .c-bubble__reply-sender {
   display: block;
   font-size: var(--font-size-label-xs);

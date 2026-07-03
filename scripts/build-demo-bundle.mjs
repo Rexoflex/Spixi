@@ -42,6 +42,13 @@ const FILES = [
   'src/components/scroll-latest.js',
   'src/components/message-menu.js',
   'src/components/media-bubble.js',
+  'src/components/system-notice.js',
+  'src/components/lazy-history.js',
+  'src/components/attach-sheet.js',
+  'src/components/channel-sheet.js',
+  'src/components/member-sheet.js',
+  'src/components/media-viewer.js',
+  'src/components/call-overlay.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

@@ -1,0 +1,20 @@
+/* c-history — lazy pagination spinner row (#86). Sits at the very top of the
+   message list while a history page loads. */
+
+.c-history-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-12) 0;
+}
+.c-history-loading__spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--surface-neutral-02);
+  border-top-color: var(--icon-action-default);
+  animation: c-history-spin 800ms linear infinite; /* sanctioned: continuous progress indicator */
+}
+@keyframes c-history-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-history-loading__spinner { animation-duration: 1600ms; } /* button-spinner parity */
+}

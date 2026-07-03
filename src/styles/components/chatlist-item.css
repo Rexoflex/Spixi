@@ -84,10 +84,18 @@
   line-height: var(--line-height-body-xs);
   letter-spacing: var(--tracking-body-xs);
 }
-.c-indicator[data-variant="count"],
-.c-indicator[data-variant="mention"] {
+.c-indicator[data-variant="count"] {
   background: var(--surface-accent);
   color: var(--text-neutral-inverse-01);
+}
+/* #108 (Damir): mention = PLAIN at glyph, action ink, no circle — a distinct
+   shape from the numeric count circle, so the two scan differently and can
+   coexist on one row */
+.c-indicator[data-variant="mention"] {
+  background: transparent;
+  color: var(--icon-action-default);
+  padding-inline: 0;
+  min-width: auto;
 }
 .c-indicator[data-variant="count-muted"],
 .c-indicator[data-variant="muted"] {

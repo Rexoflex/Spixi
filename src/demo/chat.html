@@ -23,9 +23,17 @@
 <link rel="stylesheet" href="../styles/components/scroll-latest.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css">
+<link rel="stylesheet" href="../styles/components/system-notice.css">
+<link rel="stylesheet" href="../styles/components/lazy-history.css">
+<link rel="stylesheet" href="../styles/components/attach-sheet.css">
+<link rel="stylesheet" href="../styles/components/member-sheet.css">
+<link rel="stylesheet" href="../styles/components/media-viewer.css">
+<link rel="stylesheet" href="../styles/components/call-overlay.css">
+<link rel="stylesheet" href="../styles/components/callbar.css">
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- GENERATED: theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
   .demo-pattern-controls { display: inline-flex; gap: var(--spacing-8); align-items: center; }
+  #caps-slot, #voice-slot, #theme-slot { display: inline-flex; gap: var(--spacing-8); align-items: center; } /* freeze audit: adjacent buttons had 0 gap */
   .demo-pattern-controls select {
     height: 32px; padding-inline: var(--spacing-8);
     border: var(--outline-width-1) solid var(--outline-neutral-02);
@@ -125,7 +133,7 @@
         </div>
         <div id="composer-group"></div>
       </div>
-      <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · batch 3: overlap reactions + tip (#65 locked) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button</div>
+      <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · overlap reactions + tip (#65) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button · #99: TAP A SENDER NAME/AVATAR → member sheet (address + copy + contact request)</div>
     </div>
   </div>
 
@@ -162,6 +170,9 @@
     setScrollLatestCount, attachMessageMenu,
     setComposerContext, getComposerContext,
     createMediaBubble, createModal, openModal,
+    setMessageStatus, setPaymentStatus, removeMessage,
+    createSystemNotice, attachLazyHistory, openAttachSheet, openMemberSheet,
+    openMediaViewer, showIncomingCall, showCallBar, hideCallBar,
   } = window.Spixi;
 
   /* external-link warning (Damir: "as we already do") — links are BUTTONS,
@@ -208,6 +219,29 @@
     });
   };
 
+  /* reply meta for NON-TEXT rows (round 6 fix: replying to a card/media row
+     produced an empty quote) — the real shell composes this from its model;
+     the demo derives it from the DOM */
+  const rowReplyMeta = (row) => {
+    const media = row.querySelector('.c-mbubble');
+    if (media) {
+      return {
+        kind: media.dataset.kind === 'gif' ? 'gif' : 'image',
+        thumb: media.querySelector('.c-mbubble__preview')?.src || null,
+      };
+    }
+    const file = row.querySelector('.c-fbubble');
+    if (file) return { kind: 'file', text: file.querySelector('.c-fbubble__name')?.textContent || '' };
+    const card = row.querySelector('.c-tcard');
+    if (card) {
+      const kind = { payment: 'payment', call: 'call', app: 'app' }[card.dataset.kind] || 'file';
+      const title = card.querySelector('.c-tcard__title')?.textContent || '';
+      const amount = card.querySelector('.c-tcard__amount')?.textContent.trim() || '';
+      return { kind, text: [title, amount].filter(Boolean).join(' · ') };
+    }
+    return null;
+  };
+
   /* batch 3: context menu on every message row (long-press / right-click).
      Demo react action paints a reaction on the row so the loop is playable;
      the real shell routes to ixian:contextAction. */
@@ -227,6 +261,11 @@
           demoReact(row, arg, phone); // merge into the row's set (audit r3)
           return;
         }
+        if (action === 'delete') {
+          removeMessage(row); // in-place (#86): watch the group repair itself
+          showToast({ text: 'Message deleted', tone: 'info', host: phone });
+          return;
+        }
         if (action === 'reply' || action === 'edit') {
           const entry = composerByPhone.get(phone);
           if (!entry) return;
@@ -235,8 +274,10 @@
           } else {
             const senderName = row.querySelector('.c-bubble__sender')?.textContent
               || (isSent ? 'You' : 'Han Solo'); // demo: 1:1 peer / group label fallback
+            const meta = rowReplyMeta(row); // non-text rows quote kind/thumb (round 6)
             setComposerContext(entry.el, {
-              kind: 'reply', title: 'Reply to ' + senderName, text, replySender: senderName,
+              kind: 'reply', title: 'Reply to ' + senderName,
+              text: (meta && meta.text) || text, replySender: senderName, replyMeta: meta,
             });
           }
           return;
@@ -298,7 +339,11 @@
     identity: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true },
     onBack: () => {},
     actions: [
-      { icon: 'phone', label: 'Call', onClick: () => toastD('Calling') },
+      // start call mid-chat (#86): ongoing-call UI = existing c-callbar
+      { icon: 'phone', label: 'Call', onClick: () => showCallBar({
+        text: 'Han Solo', host: phoneDirect,
+        onHangUp: () => hideCallBar(phoneDirect),
+      }) },
       { icon: 'dots-vertical', label: 'More', onClick: () => {} },
     ],
   }));
@@ -313,6 +358,31 @@
   const demoActD = demoActIn(phoneDirect);
 
   const boxD = document.getElementById('messages-direct');
+  // #86: lazy history — scroll to the TOP to auto-load older pages (2 in the
+  // demo); the secure-chat notice appears once history is exhausted, marking
+  // the true beginning of the conversation
+  let olderPages = 2;
+  const secureNotice = () => createSystemNotice({
+    title: 'Encrypted. Peer-to-peer. Yours alone.',
+    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with you two, nowhere else.',
+    linkLabel: 'How it works',
+    onLink: () => confirmLink(phoneDirect)('https://ixian.io/security'),
+  });
+  attachLazyHistory(boxD, {
+    onLoadMore: () => new Promise((resolve) => setTimeout(() => {
+      if (olderPages <= 0) { resolve(false); return; }
+      olderPages -= 1;
+      const base = now - D - (2 + (2 - olderPages)) * 12 * H;
+      const older = [
+        createDateSeparator(base),
+        createMessageBubble({ direction: 'received', position: 'single', text: 'Older message from page ' + (2 - olderPages) + ' — scroll anchor should not jump.', timestamp: base }),
+        createMessageBubble({ direction: 'sent', position: 'single', text: 'Confirmed. History keeps flowing in.', timestamp: base + 60000, status: 'read' }),
+      ];
+      if (olderPages <= 0) older.unshift(secureNotice()); // start of history reached
+      for (const el of older.reverse()) boxD.prepend(el);
+      resolve(olderPages > 0 ? true : false);
+    }, 800)),
+  });
   boxD.append(createDateSeparator(now - D - 2 * H));
   // 1:1 chat: received bubbles carry NO sender label and NO avatar gutter (C17)
   boxD.append(
@@ -324,15 +394,30 @@
     createMessageBubble({ direction: 'sent', position: 'first', text: 'Absolutely — 18:00 works.', timestamp: now - D - H, status: 'read' }),
     createMessageBubble({ direction: 'sent', position: 'last', text: 'Sending you my share for the cabin now, check your wallet in a minute.', timestamp: now - D - H + 30000, status: 'read' }),
   );
+  // live #86 loop: Pay → processing → completed, each step an IN-PLACE card
+  // swap (the real shell drives this from bridge status events)
+  let payRow = createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - D - 30 * 60000,
+    onPay: () => {
+      payRow = setPaymentStatus(payRow, { status: 'processing' });
+      setTimeout(() => { payRow = setPaymentStatus(payRow, { status: 'completed', onDetails: () => toastD('Details') }); }, 1600);
+    },
+    onDecline: (e) => { // brief working state, then in-place flip (Damir)
+      window.Spixi.setLoading(e.currentTarget, true);
+      setTimeout(() => { payRow = setPaymentStatus(payRow, { status: 'declined' }); }, 1200);
+    },
+  });
+  // Cancel: loading on the button → card flips to canceled in place (Damir)
+  let reqOutRow = createPaymentBubble({
+    role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: now - D - 20 * 60000,
+    onCancel: (e) => {
+      window.Spixi.setLoading(e.currentTarget, true);
+      setTimeout(() => { reqOutRow = setPaymentStatus(reqOutRow, { status: 'canceled' }); }, 1200);
+    },
+  });
   boxD.append(
-    createPaymentBubble({
-      role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - D - 30 * 60000,
-      onPay: demoActD('Pay'), onDecline: demoActD('Decline'),
-    }),
-    createPaymentBubble({
-      role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: now - D - 20 * 60000,
-      onCancel: demoActD('Cancel request'),
-    }),
+    payRow,
+    reqOutRow,
     createPaymentBubble({
       role: 'received', amount: '+25.00', fiat: '$30.87', status: 'completed', timestamp: now - D - 10 * 60000,
       onDetails: () => toastD('Details'),
@@ -380,7 +465,11 @@
     createMediaBubble({
       direction: 'received', kind: 'gif', src: DEMO_MEDIA, preview: DEMO_PREVIEW,
       width: 320, height: 240, alt: 'Kessel Run victory lap', timestamp: now - 2 * H - 120000,
-      onOpen: () => toastD('Open viewer'),
+      // #86: loaded tile → full-screen viewer (fit + close + save)
+      onOpen: () => openMediaViewer({
+        host: phoneDirect, src: DEMO_MEDIA, alt: 'Kessel Run victory lap', kind: 'gif',
+        onSave: () => toastD('Save — shell file op'),
+      }),
     }),
     createMessageBubble({
       direction: 'received', position: 'single',
@@ -429,9 +518,26 @@
   }));
 
   const boxG = document.getElementById('messages-group');
-  const alex = { sender: 'Alex', name: 'Alex', address: '77aleXaddr', showAvatar: true };
-  const han = { sender: 'Han Solo', name: 'Han Solo', address: '4fj2hansolo', showAvatar: true };
-  const lando = { sender: 'Lando', name: 'Lando', address: 'lando88cloud', showAvatar: true };
+  // #99: NORMAL group — sender label/avatar tap opens the member sheet
+  // (full address + copy + contact request); a BLIND group would omit
+  // onSenderClick entirely (labels stay plain text)
+  const groupMember = (sender, address, relation = 'none') => ({
+    sender, name: sender, address, showAvatar: true,
+    onSenderClick: () => openMemberSheet({
+      host: phoneGroup,
+      // SAME address string as the bubble — keeps the avatar hue identity-stable (#34)
+      member: { name: sender, address },
+      relation, // none | pending | contact (Damir sanity check — all 3 in this demo)
+      onRequest: (m) => toastG('Contact request → ' + m.name),
+      onMessage: (m) => toastG('Open 1:1 with ' + m.name + ' — shell nav'),
+      onPay: (m) => toastG('Pay ' + m.name + ' — payment flow'),          // contacts only
+      onRequestPayment: (m) => toastG('Request from ' + m.name),          // contacts only
+      onViewContact: (m) => toastG('Contact page: ' + m.name + ' — shell nav'),
+    }),
+  });
+  const alex = groupMember('Alex', '77aleXaddr', 'contact');   // ✓ in contacts → Message
+  const han = groupMember('Han Solo', '4fj2hansolo', 'pending'); // request already sent
+  const lando = groupMember('Lando', 'lando88cloud', 'none');  // → Send contact request
   boxG.append(createDateSeparator(now - D - 2 * H));
   boxG.append(
     createMessageBubble({ direction: 'received', position: 'first', ...alex, text: 'Crew — cabin trip is ON. I found a spot with fiber internet, right next to the lake 🏕️', timestamp: now - D - 2 * H }),
@@ -514,7 +620,10 @@
       }
       let replyOpt = null;
       if (ctx && ctx.kind === 'reply') {
-        replyOpt = { sender: ctx.replySender || '', text: ctx.text || '' };
+        replyOpt = {
+          sender: ctx.replySender || '', text: ctx.text || '',
+          kind: ctx.replyMeta?.kind || null, thumb: ctx.replyMeta?.thumb || null, // round 6
+        };
         setComposerContext(entry.el, null);
       }
       const at = Date.now();
@@ -542,19 +651,9 @@
       if (typing) box.append(typing.closest('.c-bubble-row'));
       lastSent = { row, at };
       box.scrollTop = box.scrollHeight;
-      // simulate delivery: sending → delivered (keeps size + a11y attrs of the original)
-      setTimeout(() => {
-        const st = row.querySelector('.c-status-icon');
-        if (st) {
-          const next = window.Spixi.createStatusIcon('delivered');
-          next.setAttribute('width', 14);
-          next.setAttribute('height', 14);
-          next.removeAttribute('aria-hidden');
-          next.setAttribute('role', 'img');
-          next.setAttribute('aria-label', 'delivered');
-          st.replaceWith(next);
-        }
-      }, 900);
+      // status ticks via the #86 in-place updater: sending → delivered → read
+      setTimeout(() => setMessageStatus(row, 'delivered'), 900);
+      setTimeout(() => setMessageStatus(row, 'read'), 2200);
     };
 
     const slot = document.getElementById(slotId);
@@ -565,7 +664,11 @@
         placeholder: 'Message',
         voice,
         onSend: sendMessage,
-        onAttach: () => showToast({ text: 'Attach — demo only', tone: 'info', host: phone }),
+        // ⊕ attach sheet (#87①): tile grid; media tiles shown (flag ON in demo)
+        onAttach: () => openAttachSheet({
+          host: phone, media: true,
+          onAction: (id) => showToast({ text: 'Attach: ' + id + ' — demo only', tone: 'info', host: phone }),
+        }),
         onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
       });
       slot.append(entry.el);
@@ -578,6 +681,26 @@
 
   wireComposer('composer-direct', boxD, phoneDirect);
   wireComposer('composer-group', boxG, phoneGroup);
+
+  // #86 incoming-call overlay demo: ring the 1:1 phone — Accept chains into
+  // the callbar, Decline drops a declined-call card into the log
+  const ringBtn = createButton({
+    label: 'Incoming call', type: 'outline', size: 32,
+    onClick: () => showIncomingCall({
+      host: phoneDirect,
+      caller: { name: 'Han Solo', address: '4fj2hansolo' },
+      onAccept: () => showCallBar({
+        text: 'Han Solo', host: phoneDirect,
+        onHangUp: () => hideCallBar(phoneDirect),
+      }),
+      onDecline: () => {
+        boxD.append(createCallBubble({ declined: true, direction: 'received', directionLabel: 'Incoming', timestamp: Date.now() }));
+        boxD.scrollTop = boxD.scrollHeight;
+      },
+      onIgnore: () => toastD('Ringing continues silently'),
+    }),
+  });
+  document.getElementById('caps-slot').append(ringBtn);
 
   const voiceBtn = createButton({
     label: 'Voice flag: off', type: 'outline', size: 32,
@@ -701,6 +824,11 @@
   cell('grid-file', 'sent · complete', createFileBubble({
     direction: 'sent', name: 'Itinerary.pdf', meta: 'PDF · 0.8 MB', state: 'complete', timestamp: T(21),
     onOpen: () => toastM('Open file') }));
+  // Damir: the SENDER must stay online too — progress + keep-open hint are
+  // direction-agnostic by construction; shell renders outgoing transfers
+  // with state:'progress' as well (BE: sender-side progress events)
+  cell('grid-file', 'sent · uploading (sender keeps app open too)', createFileBubble({
+    direction: 'sent', name: 'Holiday_photos.zip', meta: 'Uploading · 6.2 of 18.6 MB', state: 'progress', progress: 33, timestamp: T(20) }));
 
   // —— call events ——
   cell('grid-call', 'outgoing · answered', createCallBubble({
@@ -712,6 +840,10 @@
   cell('grid-call', 'missed → tap to call back', createCallBubble({
     missed: true, timestamp: T(13),
     onCallBack: () => toastM('Call back') }));
+  cell('grid-call', 'declined (by them) — neutral, no nudge (#87⑦)', createCallBubble({
+    declined: true, direction: 'sent', directionLabel: 'Outgoing', timestamp: T(12) }));
+  cell('grid-call', 'declined (by you)', createCallBubble({
+    declined: true, direction: 'received', directionLabel: 'Incoming', timestamp: T(11) }));
 
   // —— reactions: identical bubbles, BOTH #65 placements, all variants ——
   const reactionCell = (label, direction, placement, opts) => {
@@ -746,6 +878,21 @@
   cell('grid-reply', 'sent · edited only', createMessageBubble({
     direction: 'sent', position: 'single', status: 'delivered', edited: true,
     text: 'Landing Friday at 18:30 (was 18:00).', timestamp: T(6) }));
+  cell('grid-reply', 'reply to MEDIA → thumbnail in the quote', createMessageBubble({
+    direction: 'sent', position: 'single', status: 'read',
+    text: 'That view!', timestamp: T(6),
+    reply: { sender: 'Han Solo', address: '4fj2hansolo', kind: 'image', thumb: DEMO_PREVIEW },
+    onReplyClick: () => toastM('Scroll to original — shell duty') }));
+  cell('grid-reply', 'reply to FILE → kind glyph + label', createMessageBubble({
+    direction: 'received', position: 'single',
+    text: 'Got it, reading now.', timestamp: T(6),
+    reply: { sender: 'Alex', address: '77aleXaddr', kind: 'file', text: 'Quarterly_report.pdf' },
+    onReplyClick: () => toastM('Scroll to original — shell duty') }));
+  cell('grid-reply', 'reply to PAYMENT → kind glyph', createMessageBubble({
+    direction: 'received', position: 'single',
+    text: 'Sent it back, thanks!', timestamp: T(6),
+    reply: { sender: 'Han Solo', address: '4fj2hansolo', kind: 'payment', text: 'Payment request · 25 IXI' },
+    onReplyClick: () => toastM('Scroll to original — shell duty') }));
 
   // —— reactions overflow (+N) reference ——
   reactionCell('heavy set: 5 types → 3 + "+2" (tap +2 = inspect sheet)', 'received', 'overlap', {

@@ -1,0 +1,127 @@
+/* c-member — group member identity sheet (#99). Centered identity column;
+   the address is the hero: full, tabular, copyable. */
+
+.c-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
+  text-align: center;
+}
+/* identity block — button variant (contacts → contact page) gets a wash */
+.c-member__id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: transparent;
+  font: inherit;
+}
+button.c-member__id {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  button.c-member__id:hover { background: var(--surface-interactive-hover); }
+}
+button.c-member__id:active { background: var(--surface-interactive-pressed); }
+.c-member__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-member__chevron { color: var(--icon-neutral-02); flex: none; }
+[dir="rtl"] .c-member__chevron { transform: scaleX(-1); } /* points inline-end (freeze audit) */
+.c-member__payrow {
+  display: flex;
+  gap: var(--spacing-8);
+  align-self: stretch;
+  margin-top: var(--spacing-4);
+}
+.c-member__payrow .c-button { flex: 1; min-width: 0; }
+.c-member__addr-label {
+  margin-top: var(--spacing-4);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  color: var(--text-neutral-02);
+}
+.c-member__addr {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: 100%;
+  /* logical padding (freeze audit RTL): wide inset on the ADDRESS side */
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+}
+.c-member__addr-text {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;
+  text-align: start;
+}
+.c-member__copy {
+  flex: none;
+  position: relative; /* hit-area extension */
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-member__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) {
+  .c-member__copy:hover { background: var(--surface-interactive-hover); }
+}
+.c-member__copy:active { background: var(--surface-interactive-pressed); }
+
+.c-member__request { margin-top: var(--spacing-8); align-self: stretch; }
+.c-member__relation { margin-top: var(--spacing-4); }
+
+/* —— blind-group state: identity withheld by design —— */
+.c-member__blind-medallion {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-neutral-02);
+  color: var(--icon-neutral-02);
+}
+.c-member__blind-title {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-member__blind-sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  max-width: 280px;
+}

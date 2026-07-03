@@ -115,12 +115,17 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - [x] **Damir round 3 (2026-07-03)**: pattern ink LOCKED Primary soft @0.5 (#76) · light gradient v2 sky-blue diagonal (#76) · processing Pay label fix (#78) · #65 reactions LOCKED overlap + pop animation · #77 amount rule (`formatIxiAmount`) · **c-mbubble GIF/image tiles, P2P tap-to-load + sender-embedded preview (#81, BlurHash/ThumbHash eval = BE)** · **linkify as button-links + confirm modal, link preview §8 sender-composed (#82)** · **reactions cap 3 types + "+N" → inspect sheet (#83)** · typing pill hugs composer @ spacing-4 (#84)
 - [x] **#46 audit loop r3+r4 RUN + CLEAN (#85)** — 7 MAJORs + 11 MINORs fixed (money path, media tile, contrast on the v2 canvas, a11y); backlog items in row #85
 - [x] **Damir round 4**: composer ⊕ alignment · file-transfer "keep open" hint · emoji-only big bubbles · C9 accepted (#80 ✅) · declined-call decision + icon-gap list (#87)
+- [ ] ⚠️ **FIRST ACTION next session (parked 2026-07-03 — flag immediately):** run `node scripts/build-demo-bundle.mjs` + `node scripts/smoke-test.mjs` — normalizes the manual BATCH 3/3b bundle sections (expected diff: comment/order cleanup + `docLocale` joins the export map). Commit separately as "normalize generated bundle". NOTE: does NOT require the Mac — any terminal with Node on the REAL files works (Damir's PC terminal included); only Claude's sandboxed mount serves stale copies of session-edited files. Damir committed 2026-07-03 (32 files) without this step — bundle works, is hand-maintained until then
 - [ ] **Next — CHAT V1 FINALIZATION (scope locked in #86, build in this order):**
-  1. In-place updaters: `setMessageStatus` / `setPaymentStatus` / `removeMessage` (grouping repair) — #86
-  2. Secure-chat first-message notice (c-sysnotice: PQC copy from lang file + learn-more via link warning)
-  3. Lazy load-more (scroll-top sentinel → ixian:loadmore, spinner row, scroll anchor preserved)
-  4. Bot chat + channels (setChatMode cost line in composer + channel selector + admin/desc)
-  5. Full-screen media viewer (c-mbubble onOpen) · in-chat call UX (start call + incoming-call overlay accept/decline/ignore) · declined-call card state (#87⑦, needs BE distinguish + phone-x glyph)
+  1. ~~In-place updaters~~ DONE (#88): `setMessageStatus` / `setPaymentStatus` (WeakMap re-render, returns new row) / `removeMessage` (grouping repair) — live in chat.html (Pay loop, read ticks, menu Delete)
+  1b. **Desktop split-view demo DONE (#89)**: `src/demo/desktop.html` — vertical-bottomnav rail, draggable divider, empty state, 2 wired conversations; #19 pitch evidence, pending Damir look
+  2. ~~Secure-chat notice~~ DONE (#91): c-sysnotice, appears when history exhausts (true chat start)
+  3. ~~Lazy load-more~~ DONE (#90): attachLazyHistory — auto-fire, spinner, anchor-preserving; live in chat.html (2 pages) + desktop Han (1 page)
+  3b. Round-5 adds: reply-quote thumbs/kind glyphs (#92) · cancel/decline working-state loading (#93) · desktop demo FIXED (SpixiIcons bug) — desktop polish pass queued AFTER chat v1
+  4. ~~Bot chat + channels~~ DONE (#97): topbar-tap → channel sheet, composer cost line, group-consistent posts — desktop "Ixian News" demo. ~~Attach sheet~~ DONE (#96): tile grid, media tiles flagged
+  5. ~~LAST v1 GAPS~~ ALL BUILT (#101) + rounds 8–11 (#99/#102–#105) + **FREEZE AUDIT RUN + CLEAN (#106)**. **CHAT SURFACE V1 = FROZEN pending Damir's commit.** Remaining before shells: bundle normalization run (any Node terminal) · Figma mirror batch (queue in item 9 + #106 backlog) · #105 QR placement pick · #108 mention-@ at chats shell
+  5b. Icon exports for the freeze: `shield-lock` (secure-notice medallion — square-asterisk stands in) · illustration language = post-v1 DS decision (#95 notes)
+  5c. Wallet-polish queue grew: "Missing a transaction?" chip-trigger + explainer sheet (#98, Damir design analyzed)
   6. Contact-request pane — 🟡 Damir decides minimal-pane vs list-only (#86)
   7. Voice-note lifecycle design (#87④, with the voice §8 batch) · self-destructing messages (BE eval #87③)
   8. ~~Icon exports~~ DONE 2026-07-03 (registry 75): arrow-back-up (menu Reply wired) · trash (menu Delete wired) · player-pause · phone-x · arrows-maximize · hourglass-empty (self-destruct) — voice = existing `microphone` (Damir; no suitable waveform in Tabler). STILL PENDING: `user-circle-filled` (Damir preps later; avatars are user-generated so default-state only)

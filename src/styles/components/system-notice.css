@@ -1,0 +1,60 @@
+/* c-sysnotice — secure-chat notice (#86/#91, restyled round 6: Damir wanted
+   it sexier). Success-inverse card + solid success medallion — reads
+   "protected", distinct from every bubble surface on the canvas. */
+
+.c-sysnotice {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-4);
+}
+.c-sysnotice__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-width: min(85%, calc(var(--layout-bubble-max) + 40px));
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-12);
+  border-radius: var(--radius-16);
+  border: var(--outline-width-1) solid var(--outline-success-inverse);
+  background: var(--surface-success-inverse);
+  box-shadow: var(--elevation-1);
+  text-align: center;
+}
+.c-sysnotice__medallion {
+  width: 36px;   /* medallion — matches the 36px composer-attach scale */
+  height: 36px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-success);
+  color: var(--icon-neutral-on-action); /* badge solid-ink convention (#54) */
+  margin-bottom: var(--spacing-4);
+}
+.c-sysnotice__title {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  letter-spacing: var(--tracking-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-sysnotice__text {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-sysnotice__link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  color: var(--text-success);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .c-sysnotice__link:hover { color: var(--text-neutral-01); }
+}

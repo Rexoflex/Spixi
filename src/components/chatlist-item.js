@@ -30,13 +30,15 @@ export function createStatusIcon(status) {
   return el;
 }
 
-/* —— indicator (§4): count · count-muted · muted (bell-off) · mention (@ wins over count) —— */
+/* —— indicator (§4, #108): count · count-muted · muted (bell-off) · mention
+   (plain `at` GLYPH, action ink, NO circle — a distinct shape from numeric
+   count circles, Damir 2026-07-03; can coexist with a count) —— */
 export function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
     el.dataset.variant = 'mention';
-    el.textContent = '@';
+    el.append(icon('at', { size: 14 }));
     el.setAttribute('aria-label', strings.mention || 'mention');
   } else if (count > 0) {
     el.dataset.variant = muted ? 'count-muted' : 'count';
@@ -51,10 +53,12 @@ export function createIndicator({ count = 0, mention = false, muted = false, str
 }
 
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
- *  bell-off glyph (Damir review 2026-07-02). Returns [] when nothing to show. */
+ *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
+ *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
 export function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const out = [];
-  if (mention || count > 0) out.push(createIndicator({ count, mention, muted, strings }));
+  if (mention) out.push(createIndicator({ mention: true, strings }));
+  if (count > 0) out.push(createIndicator({ count, muted, strings }));
   if (muted) out.push(createIndicator({ muted: true, strings }));
   return out;
 }

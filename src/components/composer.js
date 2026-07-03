@@ -131,12 +131,7 @@ const composerCtx = new WeakMap(); // composer el → active ctx
 function cancelComposerContext(el) {
   const c = composerCtx.get(el);
   if (!c) return;
-  const input = el.querySelector('.c-composer__input');
-  if (c.kind === 'edit' && input) {
-    input.value = c._draft || '';
-    input.dispatchEvent(new Event('input')); // isTrusted=false → no typing emit
-  }
-  setComposerContext(el, null);
+  setComposerContext(el, null); // draft restore happens inside (edit ctx)
   if (c.onCancel) c.onCancel();
 }
 
@@ -153,6 +148,14 @@ export function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const prev = el.querySelector('.c-composer__ctx');
   if (prev) prev.remove();
+  // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
+  // must give the pre-edit draft back — else the old message text sends as
+  // the new context's body and the draft is lost
+  const prevCtx = composerCtx.get(el);
+  if (prevCtx && prevCtx.kind === 'edit' && input) {
+    input.value = prevCtx._draft || '';
+    input.dispatchEvent(new Event('input'));
+  }
   if (!ctx) { composerCtx.delete(el); return; }
   composerCtx.set(el, ctx);
   const strings = ctx.strings || {};
@@ -179,7 +182,11 @@ export function setComposerContext(el, ctx) {
   x.append(icon('x', { size: 16 }));
   x.addEventListener('click', () => cancelComposerContext(el));
   strip.append(x);
-  el.prepend(strip); // flex-wrap row: the strip takes the full first line
+  // flex-wrap row: the strip takes a full line; the COST line (standing money
+  // fact, #86 bot surface) stays topmost — reply/edit ctx slots under it
+  const cost = el.querySelector('.c-composer__cost');
+  if (cost) cost.after(strip);
+  else el.prepend(strip);
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -199,3 +206,19 @@ export function setComposerContext(el, ctx) {
 }
 
 export function getComposerContext(el) { return composerCtx.get(el) || null; }
+
+/** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
+ *  line above the field — a money fact must not disappear while typing.
+ *  Falsy costText removes it. #44 free fn. */
+export function setComposerCost(el, costText, strings = {}) {
+  const prev = el.querySelector('.c-composer__cost');
+  if (prev) prev.remove();
+  if (!costText) return;
+  const line = document.createElement('div');
+  line.className = 'c-composer__cost';
+  line.append(icon('wallet', { size: 14 }));
+  const t = document.createElement('span');
+  t.textContent = (strings.costPerMessage || 'Each message costs') + ' ' + costText;
+  line.append(t);
+  el.prepend(line); // always topmost (above any reply/edit ctx strip)
+}

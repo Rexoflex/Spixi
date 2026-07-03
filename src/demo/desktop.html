@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi desktop — split view demo (#19 pitch)</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/message-bubble.css">
+<link rel="stylesheet" href="../styles/components/composer.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/typed-bubbles.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/reactions.css">
+<link rel="stylesheet" href="../styles/components/typing-indicator.css">
+<link rel="stylesheet" href="../styles/components/scroll-latest.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/media-bubble.css">
+<link rel="stylesheet" href="../styles/components/system-notice.css">
+<link rel="stylesheet" href="../styles/components/lazy-history.css">
+<link rel="stylesheet" href="../styles/components/attach-sheet.css">
+<link rel="stylesheet" href="../styles/components/channel-sheet.css">
+<link rel="stylesheet" href="../styles/components/member-sheet.css">
+<link rel="stylesheet" href="../styles/components/media-viewer.css">
+<link rel="stylesheet" href="../styles/components/call-overlay.css">
+<link rel="stylesheet" href="../styles/components/callbar.css">
+<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- GENERATED: theme-ink pattern mask -->
+<style>
+  /* ============ desktop split view (#19 pitch, demo wiring only) ============
+     Anatomy: LEFT RAIL (bottomnav, vertical CSS — the parked #19/#67 idea)
+     · chat-list pane (search + chips + rows) · DRAGGABLE divider
+     · conversation pane (empty state until a chat is picked). */
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 1400px; margin: 0 auto var(--spacing-16); }
+  .dt-frame {
+    position: relative; /* freeze audit MAJOR: overlays host here — without a
+      positioning context every sheet/scrim/callbar pinned to the PAGE viewport */
+    max-width: 1400px;
+    height: calc(100vh - 120px);
+    min-height: 620px;
+    margin: 0 auto;
+    display: flex;
+    border: 1px solid var(--outline-neutral-02);
+    border-radius: var(--radius-16);
+    overflow: hidden;
+    background: var(--surface-screen);
+    box-shadow: var(--elevation-2);
+  }
+  .demo-caption { text-align: center; margin: var(--spacing-12) auto 0; max-width: 900px; color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+
+  /* —— left rail = c-bottomnav turned VERTICAL (pitch: same component, CSS only) —— */
+  .dt-rail {
+    width: 76px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-block: var(--spacing-16);
+    gap: var(--spacing-24);
+    background: var(--surface-bottombar);
+    border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01);
+  }
+  .dt-rail__logo { color: var(--icon-accent); display: flex; }
+  .dt-rail .c-bottomnav {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--spacing-8);
+    height: auto;
+    width: 100%;
+    padding-inline: var(--spacing-4);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  /* —— chat-list pane —— */
+  .dt-list {
+    width: 360px;
+    min-width: 280px;
+    max-width: 520px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01);
+  }
+  .dt-list__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-16) var(--spacing-16) var(--spacing-8);
+  }
+  .dt-list__search { padding: 0 var(--spacing-16) var(--spacing-8); }
+  .dt-list__chips { display: flex; gap: var(--spacing-8); padding: 0 var(--spacing-16) var(--spacing-12); flex-wrap: wrap; }
+  .dt-list__rows { flex: 1; min-height: 0; }
+
+  /* —— draggable divider (#19: pure-frontend resizable panes) —— */
+  .dt-divider {
+    width: 6px;
+    margin-inline: -3px; /* grab zone straddles the pane border */
+    flex: none;
+    cursor: col-resize;
+    position: relative;
+    z-index: var(--z-10);
+    touch-action: none;
+  }
+  @media (hover: hover) {
+    .dt-divider:hover::before, .dt-divider[data-dragging]::before {
+      content: ''; position: absolute; inset: 0 2px;
+      background: var(--outline-action-default);
+    }
+  }
+
+  /* —— conversation pane —— */
+  .dt-chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .dt-chat__messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); }
+  .dt-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-12);
+    color: var(--text-neutral-02);
+    text-align: center;
+    padding: var(--spacing-24);
+  }
+  .dt-empty svg { color: var(--icon-neutral-02); opacity: var(--opacity-disabled, 0.4); }
+  .dt-empty h2 { color: var(--text-neutral-01); margin: 0; }
+  .dt-empty p { margin: 0; font-size: var(--font-size-body-sm); max-width: 320px; }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-inline-end:auto">Spixi desktop — split view (#19 pitch)</h1>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="dt-frame" id="frame">
+    <nav class="dt-rail" aria-label="App">
+      <span class="dt-rail__logo" id="rail-logo"></span>
+      <span id="rail-nav" style="width:100%"></span>
+    </nav>
+
+    <aside class="dt-list" id="pane-list" aria-label="Chats">
+      <div class="dt-list__head">
+        <h2 class="t-heading-sm" style="margin:0">Chats</h2>
+        <span id="list-actions"></span>
+      </div>
+      <div class="dt-list__search" id="search-slot"></div>
+      <div class="dt-list__chips" id="chips-slot"></div>
+      <div class="dt-list__rows u-scroll" id="rows"></div>
+    </aside>
+
+    <div class="dt-divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize chat list"></div>
+
+    <main class="dt-chat" id="pane-chat">
+      <div class="dt-empty" id="empty">
+        <span id="empty-logo"></span>
+        <h2 class="t-heading-sm">Select a chat</h2>
+        <p>Pick a conversation from the list. Payments, files, calls and apps all live in the same thread.</p>
+      </div>
+      <div id="chat-topbar" hidden></div>
+      <div class="c-chat-canvas" id="chat-canvas" hidden>
+        <div class="dt-chat__messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
+      </div>
+      <div id="composer-slot" hidden></div>
+    </main>
+  </div>
+  <div class="demo-caption">
+    left rail = c-bottomnav VERTICAL (CSS only, parked #19/#67 idea) · draggable divider (double-click resets) ·
+    empty-state right pane · same components as mobile: canvas + pattern · cards · reactions · typing ·
+    scroll-to-latest · right-click context menu · live composer with #86 in-place status ticks ·
+    ⊕ attach tile sheet · BOT CHAT (Ixian News): tap the topbar identity → channel sheet · per-message cost line
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createButton, createTopbar, createBottomNav, setNavBadge,
+    createChatItem, createSearchField, createChip, setChipSelected,
+    createMessageBubble, createDateSeparator, createComposer,
+    createPaymentBubble, createFileBubble, createCallBubble, createAppBubble,
+    createUnreadDivider, addReactions, createTypingIndicator,
+    createScrollToLatest, setScrollLatestCount, attachMessageMenu,
+    setMessageStatus, setPaymentStatus, removeMessage,
+    showToast, setLoading, createSystemNotice, attachLazyHistory,
+    openAttachSheet, openChannelSheet, setComposerCost, setTopbarSub,
+    openMemberSheet, showIncomingCall, showCallBar, hideCallBar,
+  } = window.Spixi;
+
+  // #99: normal-group member identity (blind groups omit onSenderClick)
+  const groupMember = (sender, address, relation = 'none') => ({
+    sender, name: sender, address, showAvatar: true,
+    onSenderClick: () => openMemberSheet({
+      host: frame,
+      member: { name: sender, address },
+      relation,
+      onRequest: (m) => toast('Contact request → ' + m.name),
+      onMessage: (m) => toast('Open 1:1 with ' + m.name),
+      onPay: (m) => toast('Pay ' + m.name),
+      onRequestPayment: (m) => toast('Request from ' + m.name),
+      onViewContact: (m) => toast('Contact page: ' + m.name),
+    }),
+  });
+  // icons are NOT in the Spixi export map — they ship in icons.iife.js
+  // (destructuring icon from window.Spixi = undefined → the whole script died
+  //  on the first icon() call; that was the "empty panels" bug)
+  const icon = window.SpixiIcons.icon;
+
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  const themeBtn = createButton({
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
+    onClick: () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme === 'dark';
+      root.classList.add('theme-switching');
+      root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+      themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
+    },
+  });
+  document.getElementById('theme-slot').append(themeBtn);
+
+  const frame = document.getElementById('frame');
+  const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: frame });
+
+  /* —— rail: bottomnav vertical —— */
+  document.getElementById('rail-logo').append(icon('logo', { size: 30 }));
+  const rail = createBottomNav({
+    items: [
+      { id: 'chats', label: 'Chats', icon: 'messages' },
+      { id: 'apps', label: 'Apps', icon: 'apps' },
+      { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+      { id: 'account', label: 'Account', icon: 'user-circle' },
+    ],
+    active: 'chats',
+    onChange: (id) => { if (id !== 'chats') toast(id + ' shell'); },
+  });
+  document.getElementById('rail-nav').append(rail);
+
+  /* —— chat list pane —— */
+  document.getElementById('list-actions').append(createButton({
+    icon: icon('message-plus', { size: 20 }), type: 'text', size: 32,
+    ariaLabel: 'New chat', onClick: () => toast('New chat'),
+  }));
+
+  const now = Date.now();
+  const H = 3600000, D = 86400000;
+  const at = (ago) => now - ago;
+
+  const CHATS = [
+    { id: 'han', name: 'Han Solo', address: '4fj2hansolo', online: true, timestamp: at(2 * H), status: 'read',
+      excerpt: { type: 'text', text: 'A napkin is legally binding in at least…' } },
+    { id: 'crew', name: 'Falcon Crew', address: 'falconcrew77', timestamp: at(H), unread: 2,
+      excerpt: { type: 'mention', sender: 'Alex', text: 'Deposit received — trip is locked in. 🎉' } },
+    { id: 'sarah', name: 'Sarah Jo', address: '9sarahjo01', online: true, timestamp: at(D), status: 'delivered',
+      excerpt: { type: 'text', text: 'Coming soon, save me a seat at you…' } },
+    { id: 'john', name: 'John Connor', address: 'jconnor2029', timestamp: at(3 * D), unread: 3,
+      excerpt: { type: 'file', text: 'Skynet-access-codes.md' } },
+    { id: 'bot', name: 'Ixian News', address: 'ixianewsbot', timestamp: at(5 * H), unread: 1,
+      excerpt: { type: 'text', text: '#announcements · v2.1 rolling out this week' } },
+    { id: 'baracuda', name: 'Baracuda', address: 'baracudaXX', timestamp: at(4 * D),
+      excerpt: { type: 'payment', text: 'Payment request 25 IXI' } },
+  ];
+  setNavBadge(rail, 'chats', CHATS.reduce((n, c) => n + (c.unread || 0), 0));
+
+  const rowsHost = document.getElementById('rows');
+  const rowEls = new Map();
+  for (const c of CHATS) {
+    const el = createChatItem({ ...c, onClick: () => openChat(c.id) });
+    rowEls.set(c.id, el);
+    rowsHost.append(el);
+  }
+
+  document.getElementById('search-slot').append(createSearchField({
+    placeholder: 'Search chats', onInput: () => {},
+  }));
+  const chipAll = createChip({ label: 'All', size: 'small', selected: true, onClick: () => selectChip('all') });
+  const chipUnread = createChip({ label: 'Unread', size: 'small', onClick: () => selectChip('unread') });
+  const chipGroups = createChip({ label: 'Groups', size: 'small', onClick: () => selectChip('groups') });
+  const chips = { all: chipAll, unread: chipUnread, groups: chipGroups };
+  const selectChip = (id) => {
+    for (const [k, el] of Object.entries(chips)) setChipSelected(el, k === id);
+    toast('Filter: ' + id);
+  };
+  document.getElementById('chips-slot').append(chipAll, chipUnread, chipGroups);
+
+  /* —— draggable divider (#19: pure-frontend pane resize; dblclick resets) —— */
+  const divider = document.getElementById('divider');
+  const paneList = document.getElementById('pane-list');
+  let dragW = 0, dragX = 0;
+  divider.addEventListener('pointerdown', (e) => {
+    dragW = paneList.getBoundingClientRect().width;
+    dragX = e.clientX;
+    divider.setPointerCapture(e.pointerId);
+    divider.toggleAttribute('data-dragging', true);
+  });
+  divider.addEventListener('pointermove', (e) => {
+    if (!divider.hasAttribute('data-dragging')) return;
+    const w = Math.max(280, Math.min(520, dragW + (e.clientX - dragX)));
+    paneList.style.width = w + 'px'; // runtime layout — sanctioned (demo wiring)
+  });
+  const endDrag = () => divider.removeAttribute('data-dragging');
+  divider.addEventListener('pointerup', endDrag);
+  divider.addEventListener('pointercancel', endDrag);
+  divider.addEventListener('dblclick', () => { paneList.style.width = '360px'; });
+
+  /* —— conversation pane —— */
+  document.getElementById('empty-logo').append(icon('logo', { size: 64 }));
+  const box = document.getElementById('messages');
+  const canvas = document.getElementById('chat-canvas');
+  const topbarSlot = document.getElementById('chat-topbar');
+  const composerSlot = document.getElementById('composer-slot');
+  const empty = document.getElementById('empty');
+
+  /* context menu (desktop right-click / long-press) + #86 delete.
+     react MERGES into the row's set (freeze audit: replace-on-repeat had
+     re-introduced the wipe bug here — bridge re-emits FULL lists) */
+  const rowRx = new WeakMap(); // row → { reactions, tip, host }
+  const demoReact = (row, emoji) => {
+    const st = rowRx.get(row) || { reactions: [] };
+    const r = st.reactions.find((x) => x.emoji === emoji);
+    if (r && r.own) {
+      r.count -= 1;
+      r.own = false;
+      if (r.count <= 0) st.reactions = st.reactions.filter((x) => x !== r);
+    } else if (r) {
+      r.count += 1;
+      r.own = true;
+    } else {
+      st.reactions.push({ emoji, count: 1, own: true, senders: [] });
+    }
+    rowRx.set(row, st);
+    addReactions(row, {
+      reactions: st.reactions, tip: st.tip, host: st.host || frame,
+      animate: true, onToggle: (e) => demoReact(row, e),
+    });
+  };
+  const wireMenu = (row, text = '') => {
+    attachMessageMenu(row, {
+      host: frame, text,
+      capabilities: { reply: false, edit: false, tip: true, report: false },
+      onAction: (action, arg) => {
+        if (action === 'react') { demoReact(row, arg); return; }
+        if (action === 'delete') { removeMessage(row); toast('Message deleted'); return; }
+        toast(action);
+      },
+    });
+    return row;
+  };
+
+  const secureNotice = (who) => createSystemNotice({
+    title: 'Encrypted. Peer-to-peer. Yours alone.',
+    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with ' + who + ', nowhere else.',
+    linkLabel: 'How it works',
+    onLink: () => toast('Security info'),
+  });
+
+  const CONVOS = {
+    han(box) {
+      // #86 lazy history: scroll to the top — one older page, then the notice
+      let older = 1;
+      const lazy = attachLazyHistory(box, {
+        onLoadMore: () => new Promise((resolve) => setTimeout(() => {
+          if (older <= 0) { resolve(false); return; }
+          older -= 1;
+          const base = now - 2 * D;
+          [
+            secureNotice('you and Han Solo'),
+            createDateSeparator(base),
+            createMessageBubble({ direction: 'received', position: 'single', text: 'Older page — anchor stays put.', timestamp: base }),
+          ].reverse().forEach((el) => box.prepend(el));
+          resolve(false);
+        }, 800)),
+      });
+      box.append(createDateSeparator(now - D));
+      box.append(
+        createMessageBubble({ direction: 'received', position: 'first', text: 'Hey! Are we still on for the call later today?', timestamp: now - D }),
+        createMessageBubble({ direction: 'received', position: 'last', text: 'Bring the drone.', timestamp: now - D + 60000 }),
+        createMessageBubble({ direction: 'sent', position: 'single', text: 'Absolutely — 18:00 works.', timestamp: now - D + 120000, status: 'read' }),
+      );
+      let payRow = createPaymentBubble({
+        role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - 5 * H,
+        onPay: () => {
+          payRow = setPaymentStatus(payRow, { status: 'processing' });
+          setTimeout(() => { payRow = setPaymentStatus(payRow, { status: 'completed', onDetails: () => toast('Details') }); }, 1600);
+        },
+        onDecline: (e) => { // brief working state before the in-place flip (Damir)
+          setLoading(e.currentTarget, true);
+          setTimeout(() => { payRow = setPaymentStatus(payRow, { status: 'declined' }); }, 1200);
+        },
+      });
+      box.append(
+        payRow,
+        createFileBubble({ direction: 'received', name: 'Quarterly_report.pdf', meta: 'PDF · 2.4 MB', state: 'complete', timestamp: now - 4 * H, onOpen: () => toast('Open file') }),
+        createCallBubble({ direction: 'sent', directionLabel: 'Outgoing', duration: '4:12', timestamp: now - 3 * H, onCallBack: () => toast('Call back') }),
+      );
+      box.append(createDateSeparator(now));
+      box.append(createUnreadDivider());
+      const napkin = createMessageBubble({ direction: 'received', position: 'single', text: 'Chewbacca owes me money. I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H });
+      box.append(napkin, createMessageBubble({ direction: 'sent', position: 'single', text: 'A napkin is legally binding in at least two systems.', timestamp: now - H, status: 'delivered' }));
+      rowRx.set(napkin, { reactions: [{ emoji: '😂', count: 3, own: true }] });
+      addReactions(napkin, { ...rowRx.get(napkin), onToggle: (e) => demoReact(napkin, e) });
+      return { title: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true }, lazy };
+    },
+    crew(box) {
+      const alex = groupMember('Alex', '77aleXaddr', 'contact');
+      const lando = groupMember('Lando', 'lando88cloud');
+      box.append(secureNotice('the members of Falcon Crew'));
+      box.append(createDateSeparator(now - D));
+      box.append(
+        createMessageBubble({ direction: 'received', position: 'first', ...alex, text: 'Crew — cabin trip is ON. 🏕️', timestamp: now - D }),
+        createMessageBubble({ direction: 'received', position: 'middle', ...alex, text: 'Six bunks, one hammock.', timestamp: now - D + 60000 }),
+        createMessageBubble({ direction: 'received', position: 'last', ...alex, text: 'Bring the drone.', timestamp: now - D + 120000 }),
+        createMessageBubble({ direction: 'sent', position: 'single', text: 'Hammock is mine, calling it now.', timestamp: now - D + 180000, status: 'read' }),
+        createMessageBubble({ direction: 'received', position: 'first', ...lando, text: 'I have a cape for every weather condition.', timestamp: now - 6 * H }),
+        createMessageBubble({ direction: 'received', position: 'last', ...lando, text: 'Also bringing the good coffee.', timestamp: now - 6 * H + 60000 }),
+      );
+      box.append(createDateSeparator(now));
+      const deposit = createMessageBubble({ direction: 'received', position: 'single', ...alex, text: 'Deposit received — trip is locked in. 🎉', timestamp: now - 2 * H });
+      box.append(
+        deposit,
+        createPaymentBubble({ role: 'request-in', amount: '120.00', fiat: '$148.20', status: 'actionable', gutter: true, timestamp: now - 90 * 60000, onPay: () => toast('Pay'), onDecline: () => toast('Decline') }),
+      );
+      rowRx.set(deposit, { reactions: [{ emoji: '🎉', count: 4, own: true }, { emoji: '❤️', count: 2 }], tip: '5 IXI', host: frame });
+      addReactions(deposit, { ...rowRx.get(deposit), onToggle: (e) => demoReact(deposit, e) });
+      box.append(createTypingIndicator({ name: 'Alex' }));
+      return { title: { name: 'Falcon Crew', sub: '6 members', address: 'falconcrew77' } };
+    },
+    bot(box) {
+      // bot chat = big group chat + channels (#86, Damir): sender-labeled
+      // posts, channel switch via TOPBAR TAP, per-message cost in the composer
+      const bot = groupMember('Ixian News', 'ixianewsbot'); // bot groups: member sheet works too (#99)
+      box.append(secureNotice('the members of this channel'));
+      box.append(createDateSeparator(now - 6 * H));
+      box.append(
+        createMessageBubble({ direction: 'received', position: 'first', ...bot, text: 'Spixi v2.1 starts rolling out this week — staged, regions in waves.', timestamp: now - 6 * H }),
+        createMessageBubble({ direction: 'received', position: 'last', ...bot, text: 'Changelog highlights: new chat UI, faster sync, post-quantum handshake everywhere.', timestamp: now - 6 * H + 120000 }),
+        createMessageBubble({ direction: 'received', position: 'single', ...bot, text: 'AMA thread opens in #support at 18:00 UTC.', timestamp: now - 5 * H }),
+      );
+      const channels = [
+        { id: 'ann', name: 'announcements', status: '12,4k members', selected: true },
+        { id: 'dev', name: 'dev-updates', status: '3,1k members', unread: 4 },
+        { id: 'support', name: 'support', status: 'AMA at 18:00 UTC' },
+      ];
+      return {
+        title: { name: 'Ixian News', sub: '# announcements · 12,4k members', address: 'ixianewsbot' },
+        cost: '0.1 IXI', // bridge setChatMode costText
+        onIdentity: (topbarEl) => openChannelSheet({
+          host: frame,
+          channels,
+          onSelect: (id) => {
+            channels.forEach((c) => { c.selected = c.id === id; });
+            const ch = channels.find((c) => c.id === id);
+            setTopbarSub(topbarEl, '# ' + ch.name + (ch.status ? ' · ' + ch.status : ''));
+            toast('Channel switched — shell re-renders history');
+          },
+        }),
+      };
+    },
+  };
+
+  let composer = null;
+  let currentChat = null;
+  let currentLazy = null; // lazy-history handle — detached on chat switch (no listener stacking)
+  const openChat = (id) => {
+    for (const [k, el] of rowEls) {
+      if (k === id) el.setAttribute('aria-current', 'true');
+      else el.removeAttribute('aria-current');
+    }
+    if (!CONVOS[id]) { toast('Conversation not wired in this demo'); return; }
+    currentChat = id;
+    empty.hidden = true;
+    topbarSlot.hidden = false;
+    canvas.hidden = false;
+    composerSlot.hidden = false;
+
+    if (currentLazy) { currentLazy.setDone(); currentLazy = null; }
+    box.textContent = '';
+    const { title, lazy, onIdentity, cost } = CONVOS[id](box);
+    currentLazy = lazy || null;
+    box.querySelectorAll('.c-bubble-row').forEach((row) => {
+      if (row.querySelector('.c-typing')) return;
+      wireMenu(row, row.querySelector('.c-bubble__text')?.textContent || '');
+    });
+
+    topbarSlot.textContent = '';
+    const tb = createTopbar({
+      variant: 'chat', identity: title,
+      // bot chats: tappable identity → channel sheet (#86); closure resolves
+      // tb at click time
+      onIdentity: onIdentity ? () => onIdentity(tb) : null,
+      onBack: () => { /* desktop: back collapses to the empty state */ closeChat(); },
+      actions: [
+        // start call mid-chat (#86) → ongoing c-callbar over the frame
+        { icon: 'phone', label: 'Call', onClick: () => showCallBar({
+          text: title.name, host: frame,
+          onHangUp: () => hideCallBar(frame),
+        }) },
+        { icon: 'dots-vertical', label: 'More', onClick: () => {} },
+      ],
+    });
+    topbarSlot.append(tb);
+
+    if (composer) composer.remove();
+    let lastSent = null;
+    composer = createComposer({
+      placeholder: 'Message',
+      onSend: (text) => {
+        const atMs = Date.now();
+        let position = 'single';
+        if (lastSent && atMs - lastSent.at < 90000) {
+          const prev = lastSent.row;
+          prev.dataset.position = prev.dataset.position === 'single' ? 'first'
+            : prev.dataset.position === 'last' ? 'middle' : prev.dataset.position;
+          position = 'last';
+        }
+        const row = createMessageBubble({ direction: 'sent', position, text, timestamp: atMs, status: 'sending' });
+        row.classList.add('c-bubble-row--in');
+        const clearIn = () => row.classList.remove('c-bubble-row--in');
+        row.addEventListener('animationend', (e) => { if (e.target === row) clearIn(); });
+        setTimeout(clearIn, 400);
+        box.append(row);
+        wireMenu(row, text);
+        const typing = box.querySelector('.c-typing');
+        if (typing) box.append(typing.closest('.c-bubble-row'));
+        lastSent = { row, at: atMs };
+        box.scrollTop = box.scrollHeight;
+        setTimeout(() => setMessageStatus(row, 'delivered'), 900);   // #86 in-place ticks
+        setTimeout(() => setMessageStatus(row, 'read'), 2200);
+      },
+      onAttach: () => openAttachSheet({
+        host: frame, media: true,
+        onAction: (aid) => toast('Attach: ' + aid),
+      }),
+    });
+    composerSlot.append(composer);
+    setComposerCost(composer, cost || null); // bot chats: standing money fact (#86)
+
+    if (!canvas.querySelector('.c-scroll-latest')) {
+      canvas.append(createScrollToLatest({ target: box }));
+    }
+    box.scrollTop = box.scrollHeight;
+  };
+  const closeChat = () => {
+    currentChat = null;
+    for (const el of rowEls.values()) el.removeAttribute('aria-current');
+    empty.hidden = false;
+    topbarSlot.hidden = true;
+    canvas.hidden = true;
+    composerSlot.hidden = true;
+  };
+</script>
+</body>
+</html>

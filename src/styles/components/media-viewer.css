@@ -1,0 +1,75 @@
+/* c-mviewer — full-screen media viewer (#86). Sits on the overlay stack at
+   the modal layer; its own scrim-dark surface stacks over the overlay scrim
+   so media floats on near-black, photo-viewer convention. */
+
+.c-mviewer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-50); /* dialog family */
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-scrim); /* + overlay scrim beneath ⇒ near-black */
+}
+
+.c-mviewer__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-8) 0;
+}
+.c-mviewer__caption {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-mviewer__spacer { width: var(--size-target-min); flex: none; }
+.c-mviewer__btn {
+  flex: none;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-on-scrim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-mviewer__btn:hover { background: var(--surface-wash-on-hero); } /* white wash on dark */
+}
+.c-mviewer__btn:active { background: var(--surface-wash-on-hero-pressed); }
+/* freeze audit: light-mode focus ring (primary-600) ≈1.7:1 on the scrim —
+   on-scrim controls take the mode-less on-scrim ink for the ring */
+.c-mviewer__btn:focus-visible { outline-color: var(--icon-on-scrim); }
+
+.c-mviewer__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
+  touch-action: none; /* the stage owns vertical gestures (swipe-to-dismiss) */
+}
+.c-mviewer__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-8);
+  /* spring-back after an under-threshold swipe (drag sets transition:none) */
+  transition: transform var(--duration-200) var(--easing-decelerate);
+  /* mouse-drag fix: no native ghost-drag / selection during the gesture */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}

@@ -120,3 +120,82 @@ export function clearComposer(el) {
   input.style.height = 'auto';
   input.dispatchEvent(new Event('input'));
 }
+
+/* —— batch 3b (§8-GATED #25 — bridge has no reply/edit yet): context strip
+   above the field for reply/edit modes. #44 free fns. —— */
+const composerCtx = new WeakMap(); // composer el → active ctx
+
+/* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
+   the user's pre-edit draft back (audit r3: one stray Send re-posted the OLD
+   message text as a new message) */
+function cancelComposerContext(el) {
+  const c = composerCtx.get(el);
+  if (!c) return;
+  const input = el.querySelector('.c-composer__input');
+  if (c.kind === 'edit' && input) {
+    input.value = c._draft || '';
+    input.dispatchEvent(new Event('input')); // isTrusted=false → no typing emit
+  }
+  setComposerContext(el, null);
+  if (c.onCancel) c.onCancel();
+}
+
+/**
+ * setComposerContext(el, ctx | null)
+ *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
+ *           onCancel, strings }
+ * The strip renders icon + title/excerpt + cancel ✕; edit prefills the field
+ * (synthetic input event — no spurious ixian:typing, isTrusted guard).
+ * Esc in the field cancels the active context before it clears text.
+ * getComposerContext(el) → active ctx or null (shell reads this on send).
+ */
+export function setComposerContext(el, ctx) {
+  const input = el.querySelector('.c-composer__input');
+  const prev = el.querySelector('.c-composer__ctx');
+  if (prev) prev.remove();
+  if (!ctx) { composerCtx.delete(el); return; }
+  composerCtx.set(el, ctx);
+  const strings = ctx.strings || {};
+
+  const strip = document.createElement('div');
+  strip.className = 'c-composer__ctx';
+  strip.dataset.kind = ctx.kind;
+  strip.append(icon(ctx.kind === 'edit' ? 'pencil' : 'share-3', { size: 18 }));
+  const col = document.createElement('span');
+  col.className = 'c-composer__ctx-info';
+  const title = document.createElement('span');
+  title.className = 'c-composer__ctx-title';
+  title.textContent = ctx.title ||
+    (ctx.kind === 'edit' ? (strings.editMessage || 'Edit message') : (strings.reply || 'Reply'));
+  const text = document.createElement('span');
+  text.className = 'c-composer__ctx-text';
+  text.textContent = ctx.text || '';
+  col.append(title, text);
+  strip.append(col);
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.className = 'c-composer__ctx-cancel';
+  x.setAttribute('aria-label', strings.cancel || 'Cancel');
+  x.append(icon('x', { size: 16 }));
+  x.addEventListener('click', () => cancelComposerContext(el));
+  strip.append(x);
+  el.prepend(strip); // flex-wrap row: the strip takes the full first line
+
+  if (input) {
+    if (ctx.kind === 'edit' && ctx.prefill !== false) {
+      ctx._draft = input.value; // restored on cancel (audit r3)
+      input.value = ctx.text || '';
+      input.dispatchEvent(new Event('input')); // grow + action sync; isTrusted=false → no typing emit
+    }
+    // Esc cancels the ACTIVE context (wired once per composer element)
+    if (el.dataset.ctxWired === undefined) {
+      el.dataset.ctxWired = '';
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && composerCtx.has(el)) cancelComposerContext(el);
+      });
+    }
+    input.focus();
+  }
+}
+
+export function getComposerContext(el) { return composerCtx.get(el) || null; }

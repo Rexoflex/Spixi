@@ -1,0 +1,137 @@
+/* c-reactions — reaction pills + tip on message bubbles (batch 3; #65 LOCKED
+   overlap 2026-07-03 — 'inside' rules kept for the superseded param option,
+   #66 count/own/tip gap fills). Semantic tokens only. Pills must read on
+   three grounds: received (white), sent (primary-600), and the canvas. */
+
+.c-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+/* pop-in for a just-added reaction (addReactions {animate:true}, live only).
+   Finite + token durations ⇒ reduced-motion collapses it to instant. */
+.c-reactions--in .c-reactions__pill {
+  animation: c-react-pop var(--duration-200) var(--easing-decelerate) backwards;
+}
+@keyframes c-react-pop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* —— placement A: INSIDE the bubble (per Figma design) —— */
+.c-reactions[data-placement="inside"] {
+  margin-top: var(--spacing-4);
+  /* sits before the floated meta; flow-root bubble contains both */
+}
+
+/* —— placement B: OVERLAP the bubble's bottom outer corner (Telegram-style,
+   Damir interview). Absolute against the bubble; the ROW reserves the
+   overhang so the next row never collides (data-reactions="overlap"). —— */
+.c-reactions[data-placement="overlap"] {
+  position: absolute;
+  inset-block-end: calc(-1 * var(--spacing-12));
+}
+.c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
+.c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
+.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve */
+/* cards lack the bubble's position:relative — overlap needs the anchor */
+.c-bubble-row[data-reactions="overlap"] .c-tcard,
+.c-bubble-row[data-reactions="overlap"] .c-fbubble { position: relative; }
+
+.c-reactions__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 20px;
+  padding: 0 var(--spacing-8);
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid transparent;
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard);
+}
+/* 44px tap target via pseudo extension (same pattern as chip/search clear) */
+.c-reactions__pill::after { content: ''; position: absolute; inset: -12px 0; }
+.c-reactions__emoji { font-size: var(--font-size-label-sm); line-height: 1; }
+
+/* INSIDE on the received (white) bubble */
+.c-bubble-row[data-direction="received"] .c-reactions[data-placement="inside"] .c-reactions__pill {
+  background: var(--surface-neutral-02);
+  border-color: var(--outline-neutral-01);
+  color: var(--text-neutral-02);
+}
+.c-bubble-row[data-direction="received"] .c-reactions[data-placement="inside"] .c-reactions__pill[aria-pressed="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+
+/* INSIDE on the sent (primary) bubble — wash tokens (sent bubble = hero color) */
+.c-bubble-row[data-direction="sent"] .c-reactions[data-placement="inside"] .c-reactions__pill {
+  background: var(--surface-wash-on-hero);
+  color: var(--text-bubble-sent-meta);
+}
+.c-bubble-row[data-direction="sent"] .c-reactions[data-placement="inside"] .c-reactions__pill[aria-pressed="true"] {
+  background: var(--surface-wash-on-hero-pressed);
+  border-color: var(--text-bubble-sent-meta);
+  color: var(--text-bubble-sent);
+}
+
+/* OVERLAP: pills sit on the bubble edge over the canvas — solid menu surface */
+.c-reactions[data-placement="overlap"] .c-reactions__pill {
+  background: var(--surface-menu);
+  border-color: var(--outline-neutral-01);
+  color: var(--text-neutral-02);
+  box-shadow: var(--elevation-1);
+}
+.c-reactions[data-placement="overlap"] .c-reactions__pill[aria-pressed="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+
+@media (hover: hover) {
+  .c-reactions__pill:hover { border-color: var(--outline-action-hover); }
+}
+.c-reactions__pill:active { border-color: var(--outline-action-default); }
+
+.c-reactions__count { font-size: var(--font-size-label-xs); }
+
+/* "+N" overflow pill (heavy-reactions cap, Damir 2026-07-03) — same pill
+   recipe, count-only; opens the inspect sheet */
+.c-reactions__more { font-family: var(--font-secondary); }
+
+/* tip pill (c-badge) alignment inside the row */
+.c-reactions__tip { align-self: center; }
+
+/* —— inspect sheet content (openReactionsSheet) —— */
+.c-reactmenu { display: flex; flex-direction: column; }
+.c-reactmenu__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-target-min);
+  padding: var(--spacing-4) var(--spacing-8);
+}
+.c-reactmenu__emoji { font-size: 22px; line-height: 1; } /* sanctioned: emoji glyph, same as msgmenu */
+.c-reactmenu__info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-reactmenu__count {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-reactmenu__senders {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow-wrap: break-word; /* audit r3: inspecting WHO reacted is the point — wrap, never truncate */
+}

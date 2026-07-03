@@ -17,52 +17,259 @@
 <link rel="stylesheet" href="../styles/components/badge.css">
 <link rel="stylesheet" href="../styles/components/typed-bubbles.css">
 <link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/reactions.css">
+<link rel="stylesheet" href="../styles/components/typing-indicator.css">
+<link rel="stylesheet" href="../styles/components/scroll-latest.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/media-bubble.css">
+<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- GENERATED: theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
+  .demo-pattern-controls { display: inline-flex; gap: var(--spacing-8); align-items: center; }
+  .demo-pattern-controls select {
+    height: 32px; padding-inline: var(--spacing-8);
+    border: var(--outline-width-1) solid var(--outline-neutral-02);
+    border-radius: var(--radius-8);
+    background: var(--surface-screen); color: var(--text-neutral-01);
+    font: inherit; font-size: var(--font-size-label-sm);
+  }
+  .demo-pattern-controls label {
+    font-size: var(--font-size-label-sm); color: var(--text-neutral-02);
+    display: inline-flex; gap: var(--spacing-4); align-items: center;
+  }
   body { padding: var(--spacing-24); }
-  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
-  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; flex-wrap: wrap; max-width: 1240px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; align-items: flex-start; }
   .demo-phone {
     width: 419px; height: 860px; display: flex; flex-direction: column;
     border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
     overflow: hidden; background: var(--surface-screen);
     box-shadow: var(--elevation-2); position: relative;
   }
-  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); max-width: 419px; color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
   .statusbar {
     height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
     padding: 0 var(--spacing-24) var(--spacing-4);
     font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
   }
-  .messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-16); }
+  .messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); } /* spacing-4: typing pill hugs the composer (Damir 2026-07-03) */
+
+  /* —— states matrix (demo wiring only): every typed-card variant on the real
+     canvas, side by side. c-chat-canvas supplies gradient + pattern. —— */
+  .demo-matrix {
+    display: block; /* overrides c-chat-canvas flex-column for grid content */
+    width: min(100%, 1240px);
+    margin: var(--spacing-48) auto 0;
+    border: 1px solid var(--outline-neutral-02);
+    border-radius: var(--radius-32);
+    box-shadow: var(--elevation-2);
+    padding: var(--spacing-24) var(--spacing-16) var(--spacing-32);
+  }
+  .demo-matrix h2 { margin: var(--spacing-24) var(--spacing-16) 0; color: var(--text-neutral-01); }
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--spacing-8) var(--spacing-16);
+    align-items: start;
+  }
+  .demo-cell { min-width: 0; }
+  .demo-cell__label {
+    display: block;
+    margin: var(--spacing-16) var(--spacing-16) 0;
+    font-size: var(--font-size-label-xs);
+    line-height: var(--line-height-label-xs);
+    letter-spacing: var(--tracking-label-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-neutral-01); /* audit r3: -02 fell to 3.96:1 on the v2 gradient bottom */
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
   <div class="demo-toolbar">
-    <h1 class="t-heading-md" style="margin-inline-end:auto">Chat — batches 1a+1b+2</h1>
+    <h1 class="t-heading-md" style="margin-inline-end:auto">Chat — 1:1 · group · states matrix</h1>
+    <span class="demo-pattern-controls">
+      <label for="ink-select">Pattern ink</label>
+      <select id="ink-select">
+        <option value="default" selected>Locked: Primary soft (200 / 800)</option>
+        <option value="deep">Primary deep (400 / 600)</option>
+        <option value="neutral">Neutral (400 / 600)</option>
+        <option value="white">White (legacy)</option>
+      </select>
+      <label for="ink-opacity">Opacity <input type="range" id="ink-opacity" min="0" max="100" value="50" style="width:90px"></label>
+    </span>
+    <span id="caps-slot"></span>
     <span id="voice-slot"></span>
     <span id="theme-slot"></span>
   </div>
 
   <div class="demo-frames">
     <div>
-      <div class="demo-phone" id="phone">
+      <div class="demo-phone" id="phone-direct">
         <div class="statusbar" aria-hidden="true"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
-        <div id="chat-topbar"></div>
+        <div id="topbar-direct"></div>
         <div class="c-chat-canvas">
           <!-- tabindex: keyboard users must be able to scroll text-only history (audit r2) -->
-          <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
+          <div class="messages u-scroll" id="messages-direct" role="log" aria-label="Messages" tabindex="0"></div>
         </div>
-        <div id="composer-slot"></div>
+        <div id="composer-direct"></div>
       </div>
-      <div class="demo-caption">identity bar · canvas · live composer · grouped bubbles · payment/file/app/call cards · live download · unread divider</div>
+      <div class="demo-caption">1:1 chat (C17 fix: no sender labels/avatars) · typed cards · live download · unread divider · live composer · batch 3: overlap reactions · typing pill (hugs composer) · scroll-to-latest · long-press/right-click menu · GIF tap-to-load · link → confirm modal</div>
     </div>
+    <div>
+      <div class="demo-phone" id="phone-group">
+        <div class="statusbar" aria-hidden="true"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="topbar-group"></div>
+        <div class="c-chat-canvas">
+          <div class="messages u-scroll" id="messages-group" role="log" aria-label="Messages" tabindex="0"></div>
+        </div>
+        <div id="composer-group"></div>
+      </div>
+      <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · batch 3: overlap reactions + tip (#65 locked) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button</div>
+    </div>
+  </div>
+
+  <div class="demo-matrix c-chat-canvas" id="matrix">
+    <h2 class="t-heading-xs" style="margin-top:0">Payment card — every state</h2>
+    <div class="demo-grid" id="grid-payment"></div>
+    <h2 class="t-heading-xs">App session card</h2>
+    <div class="demo-grid" id="grid-app"></div>
+    <h2 class="t-heading-xs">File transfer bubble</h2>
+    <div class="demo-grid" id="grid-file"></div>
+    <h2 class="t-heading-xs">Call card</h2>
+    <div class="demo-grid" id="grid-call"></div>
+    <h2 class="t-heading-xs">Reactions — overlap LOCKED (#65, 2026-07-03; Figma design updates to match)</h2>
+    <div class="demo-grid" id="grid-reactions"></div>
+    <h2 class="t-heading-xs">Reply + edited — §8-gated (#25, render only behind the capability handshake)</h2>
+    <div class="demo-grid" id="grid-reply"></div>
+    <h2 class="t-heading-xs">Media — GIF / image tiles (P2P: tap-to-load by default, sender-embedded preview)</h2>
+    <div class="demo-grid" id="grid-media"></div>
+    <h2 class="t-heading-xs">Links — button-links through the external-link warning · sender-composed preview (§8)</h2>
+    <div class="demo-grid" id="grid-links"></div>
+    <h2 class="t-heading-xs">Typing indicator</h2>
+    <div class="demo-grid" id="grid-typing"></div>
   </div>
 
 <script src="../components/icons.iife.js"></script>
 <script src="spixi.iife.js"></script>
 <script>
-  const { createButton, createTopbar, setTopbarSub, createMessageBubble, createDateSeparator, createComposer, clearComposer, showToast } = window.Spixi;
+  const {
+    createButton, createTopbar, createMessageBubble, createDateSeparator,
+    createComposer, showToast,
+    createPaymentBubble, createAppBubble, createCallBubble, createFileBubble,
+    createUnreadDivider, setFileProgress,
+    addReactions, createTypingIndicator, createScrollToLatest,
+    setScrollLatestCount, attachMessageMenu,
+    setComposerContext, getComposerContext,
+    createMediaBubble, createModal, openModal,
+  } = window.Spixi;
+
+  /* external-link warning (Damir: "as we already do") — links are BUTTONS,
+     every navigation goes through this confirm (c-modal, explicit actions) */
+  const confirmLink = (phone) => (url) => {
+    openModal(createModal({
+      title: 'Open external link?',
+      body: url,
+      host: phone,
+      actions: [
+        { label: 'Cancel', type: 'outline', autofocus: true }, // safe action focused
+        { label: 'Open', type: 'fill', onClick: () => showToast({ text: 'Would open: ' + url + ' — demo only', tone: 'info', host: phone }) },
+      ],
+    }));
+  };
+
+  /* §8 capability flags (#25): reply/edit have NO bridge commands — the demo
+     toggle simulates the capability handshake. Menus read these via getters,
+     so flipping the toggle affects every menu opened afterwards. */
+  const caps = { reply: false, edit: false };
+  const composerByPhone = new Map(); // phone el → composer entry (set by wireComposer)
+
+  /* demo reaction state per row (audit r3: quick-react used to WIPE the
+     curated sets incl. the tip pill — the bridge re-emits full lists, so the
+     demo must merge like the shell aggregation would) */
+  const rowRx = new WeakMap(); // row → { reactions, tip, host }
+  const demoReact = (row, emoji, phone) => {
+    const st = rowRx.get(row) || { reactions: [] };
+    const r = st.reactions.find((x) => x.emoji === emoji);
+    if (r && r.own) {
+      r.count -= 1;
+      r.own = false;
+      if (r.count <= 0) st.reactions = st.reactions.filter((x) => x !== r);
+    } else if (r) {
+      r.count += 1;
+      r.own = true;
+    } else {
+      st.reactions.push({ emoji, count: 1, own: true, senders: [] });
+    }
+    rowRx.set(row, st);
+    addReactions(row, {
+      reactions: st.reactions, tip: st.tip, host: st.host || phone,
+      animate: true, onToggle: (e) => demoReact(row, e, phone),
+    });
+  };
+
+  /* batch 3: context menu on every message row (long-press / right-click).
+     Demo react action paints a reaction on the row so the loop is playable;
+     the real shell routes to ixian:contextAction. */
+  const wireMenu = (row, phone, text = '') => {
+    const isSent = row.dataset.direction === 'sent';
+    attachMessageMenu(row, {
+      host: phone,
+      text,
+      capabilities: {
+        get reply() { return caps.reply; },                       // §8-gated (#25)
+        get edit() { return caps.edit && isSent && !!text; },     // own TEXT messages only (audit r3)
+        tip: true,
+        report: false,
+      },
+      onAction: (action, arg) => {
+        if (action === 'react') {
+          demoReact(row, arg, phone); // merge into the row's set (audit r3)
+          return;
+        }
+        if (action === 'reply' || action === 'edit') {
+          const entry = composerByPhone.get(phone);
+          if (!entry) return;
+          if (action === 'edit') {
+            setComposerContext(entry.el, { kind: 'edit', text, row });
+          } else {
+            const senderName = row.querySelector('.c-bubble__sender')?.textContent
+              || (isSent ? 'You' : 'Han Solo'); // demo: 1:1 peer / group label fallback
+            setComposerContext(entry.el, {
+              kind: 'reply', title: 'Reply to ' + senderName, text, replySender: senderName,
+            });
+          }
+          return;
+        }
+        showToast({ text: action + ' — demo only', tone: 'info', host: phone });
+      },
+    });
+    return row;
+  };
+
   if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+  /* —— pattern ink switcher (Damir picks the token pair; tokens.css defaults
+     are 🟡 provisional). Candidates are LIGHT/DARK pairs so the override
+     follows the theme — reapplied on every theme toggle. —— */
+  const INKS = {
+    default: null, // tokens.css LOCKED values (primary-200 light / primary-800 dark @ 0.5)
+    deep:    { light: 'var(--primary-400)', dark: 'var(--primary-600)' },
+    neutral: { light: 'var(--neutral-400)', dark: 'var(--neutral-600)' },
+    white:   { light: '#ffffff', dark: '#ffffff' }, // legacy comparison only
+  };
+  const inkSelect = document.getElementById('ink-select');
+  const inkOpacity = document.getElementById('ink-opacity');
+  const applyPattern = () => {
+    const root = document.documentElement;
+    const pair = INKS[inkSelect.value];
+    if (pair) root.style.setProperty('--chat-pattern-ink', pair[root.dataset.theme === 'dark' ? 'dark' : 'light']);
+    else root.style.removeProperty('--chat-pattern-ink');
+    root.style.setProperty('--chat-pattern-opacity', String(inkOpacity.value / 100));
+  };
+  inkSelect.addEventListener('change', applyPattern);
+  inkOpacity.addEventListener('input', applyPattern);
+
   const themeBtn = createButton({
     label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
     type: 'outline', size: 32,
@@ -71,178 +278,519 @@
       const dark = root.dataset.theme === 'dark';
       root.classList.add('theme-switching');
       root.dataset.theme = dark ? 'light' : 'dark';
+      applyPattern(); // candidate ink follows the theme
       requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
       themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
     },
   });
   document.getElementById('theme-slot').append(themeBtn);
 
-  const phone = document.getElementById('phone');
+  const now = Date.now();
+  const H = 3600000, D = 86400000;
 
-  // identity top bar — Damir spec 2026-07-03 (mock: back · avatar+dot · name/Online · phone · ⋮)
-  const topbar = createTopbar({
+  /* ============ phone 1 — 1:1 chat (C17: no sender labels, no avatars) ============ */
+  const phoneDirect = document.getElementById('phone-direct');
+  const toastIn = (host) => (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host });
+  const toastD = toastIn(phoneDirect);
+
+  document.getElementById('topbar-direct').append(createTopbar({
     variant: 'chat',
     identity: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true },
     onBack: () => {},
     actions: [
-      { icon: 'phone', label: 'Call', onClick: () => showToast({ text: 'Calling — demo only', tone: 'info', host: phone }) },
+      { icon: 'phone', label: 'Call', onClick: () => toastD('Calling') },
       { icon: 'dots-vertical', label: 'More', onClick: () => {} },
     ],
-  });
-  document.getElementById('chat-topbar').append(topbar);
+  }));
 
-  const box = document.getElementById('messages');
-  const now = Date.now();
-  const H = 3600000, D = 86400000;
+  // state-changing actions latch their button (audit r2 one-shot guard; the real
+  // shell re-renders the card via the bridge) — the demo re-arms after a beat
+  const demoActIn = (host) => (label) => (e) => {
+    const btn = e.currentTarget;
+    toastIn(host)(label);
+    setTimeout(() => { btn.disabled = false; delete btn.dataset.acted; }, 1200);
+  };
+  const demoActD = demoActIn(phoneDirect);
 
-  box.append(createDateSeparator(now - D - 2 * H));
-  const alex = { sender: 'Alex', name: 'Alex', address: '77aleXaddr', showAvatar: true };
-  box.append(
-    createMessageBubble({ direction: 'received', position: 'first', ...alex, text: 'Hey! Are we still on for the call later today?', timestamp: now - D - 2 * H }),
-    createMessageBubble({ direction: 'received', position: 'middle', ...alex, text: 'I found a spot with fiber internet, right next to the lake 🏕️', timestamp: now - D - 2 * H + 60000 }),
-    createMessageBubble({ direction: 'received', position: 'last', ...alex, text: 'Bring the drone.', timestamp: now - D - 2 * H + 120000 }),
+  const boxD = document.getElementById('messages-direct');
+  boxD.append(createDateSeparator(now - D - 2 * H));
+  // 1:1 chat: received bubbles carry NO sender label and NO avatar gutter (C17)
+  boxD.append(
+    createMessageBubble({ direction: 'received', position: 'first', text: 'Hey! Are we still on for the call later today?', timestamp: now - D - 2 * H }),
+    createMessageBubble({ direction: 'received', position: 'middle', text: 'I found a spot with fiber internet, right next to the lake 🏕️', timestamp: now - D - 2 * H + 60000 }),
+    createMessageBubble({ direction: 'received', position: 'last', text: 'Bring the drone.', timestamp: now - D - 2 * H + 120000 }),
   );
-  box.append(
+  boxD.append(
     createMessageBubble({ direction: 'sent', position: 'first', text: 'Absolutely — 18:00 works.', timestamp: now - D - H, status: 'read' }),
     createMessageBubble({ direction: 'sent', position: 'last', text: 'Sending you my share for the cabin now, check your wallet in a minute.', timestamp: now - D - H + 30000, status: 'read' }),
   );
-  // —— batch 2: typed cards ——
-  const { createPaymentBubble, createAppBubble, createCallBubble, createFileBubble, createUnreadDivider } = window.Spixi;
-  const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: phone });
-  // state-changing actions latch their button (audit r2 one-shot guard; the real
-  // shell re-renders the card via the bridge) — the demo re-arms after a beat
-  const demoAct = (label) => (e) => {
-    const btn = e.currentTarget;
-    toast(label);
-    setTimeout(() => { btn.disabled = false; delete btn.dataset.acted; }, 1200);
-  };
-  box.append(
+  boxD.append(
     createPaymentBubble({
       role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: now - D - 30 * 60000,
-      onPay: demoAct('Pay'), onDecline: demoAct('Decline'),
+      onPay: demoActD('Pay'), onDecline: demoActD('Decline'),
     }),
     createPaymentBubble({
       role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: now - D - 20 * 60000,
-      onCancel: demoAct('Cancel request'),
+      onCancel: demoActD('Cancel request'),
     }),
     createPaymentBubble({
       role: 'received', amount: '+25.00', fiat: '$30.87', status: 'completed', timestamp: now - D - 10 * 60000,
-      onDetails: () => toast('Details'),
+      onDetails: () => toastD('Details'),
     }),
     createFileBubble({
       direction: 'received', name: 'Quarterly_report.pdf', meta: 'PDF · 2.4 MB', state: 'complete',
-      timestamp: now - D - 5 * 60000, onOpen: () => toast('Open file'),
+      timestamp: now - D - 5 * 60000, onOpen: () => toastD('Open file'),
     }),
     createFileBubble({
       direction: 'received', name: 'Campsite_map.png', meta: 'Downloading · 1.1 of 4.2 MB', state: 'progress', progress: 26,
       timestamp: now - D - 4 * 60000,
-      onOpen: () => toast('Open file'), // fires once the transfer completes (audit r2)
+      onOpen: () => toastD('Open file'), // fires once the transfer completes (audit r2)
     }),
     createCallBubble({
-      directionLabel: 'Outgoing', duration: '4:12', timestamp: now - D - 2 * 60000,
-      onCallBack: () => toast('Call back'),
-    }),
-    createCallBubble({
-      missed: true, timestamp: now - D - 60000,
-      onCallBack: () => toast('Call back'),
+      direction: 'sent', directionLabel: 'Outgoing', duration: '4:12', timestamp: now - D - 2 * 60000,
+      onCallBack: () => toastD('Call back'),
     }),
     createAppBubble({
       name: 'TicTacToe', state: 'invite', timestamp: now - D,
-      onJoin: demoAct('Join'), onDecline: demoAct('Decline'),
+      onJoin: demoActD('Join'), onDecline: demoActD('Decline'),
     }),
   );
-  // simulate live download progress on the second file bubble (meta refresh + auto-complete)
-  const progBubble = box.querySelector('.c-fbubble[data-state="progress"]');
+  // simulate live download progress on the progress file bubble (meta refresh + auto-complete)
+  const progBubble = boxD.querySelector('.c-fbubble[data-state="progress"]');
   if (progBubble) {
     const progRow = progBubble.closest('.c-bubble-row');
     let p = 26;
     const iv = setInterval(() => {
       p = Math.min(p + 7, 100);
       const mb = (4.2 * p / 100).toFixed(1);
-      window.Spixi.setFileProgress(progRow, p, p >= 100
+      setFileProgress(progRow, p, p >= 100
         ? { meta: 'PNG · 4.2 MB' }
         : { meta: 'Downloading · ' + mb + ' of 4.2 MB' });
       if (p >= 100) clearInterval(iv);
     }, 600);
   }
 
-  box.append(createDateSeparator(now));
-  box.append(createUnreadDivider()); // full-width banner (Damir; computed from read flags in the shell)
-  const han = { sender: 'Han Solo', name: 'Han Solo', address: '4fj2hansolo', showAvatar: true };
-  box.append(
-    createMessageBubble({ direction: 'received', position: 'single', ...han, text: 'Chewbacca owes me money. And before you ask — yes, again, and yes, I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H }),
+  boxD.append(createDateSeparator(now));
+  boxD.append(createUnreadDivider()); // full-width banner (Damir; computed from read flags in the shell)
+  const napkinRow = createMessageBubble({ direction: 'received', position: 'single', text: 'Chewbacca owes me money. And before you ask — yes, again, and yes, I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H });
+  // demo media (file:// safe): inline SVG stands in for a real GIF/photo
+  const DEMO_MEDIA = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="%232C6BAA"/><circle cx="250" cy="60" r="36" fill="%23F5D76E"/><path d="M0 190 L90 120 L150 170 L220 110 L320 180 L320 240 L0 240 Z" fill="%231F4E7A"/></svg>';
+  const DEMO_PREVIEW = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12"><rect width="16" height="12" fill="%233A79B8"/><circle cx="12" cy="3" r="2" fill="%23E8D48A"/></svg>';
+  boxD.append(
+    createMediaBubble({
+      direction: 'received', kind: 'gif', src: DEMO_MEDIA, preview: DEMO_PREVIEW,
+      width: 320, height: 240, alt: 'Kessel Run victory lap', timestamp: now - 2 * H - 120000,
+      onOpen: () => toastD('Open viewer'),
+    }),
+    createMessageBubble({
+      direction: 'received', position: 'single',
+      text: 'Route details here: https://ixian.io/kessel-run — read before Friday.',
+      timestamp: now - 2 * H - 60000,
+      onLinkClick: confirmLink(phoneDirect),
+    }),
+    napkinRow,
     createMessageBubble({ direction: 'sent', position: 'single', text: 'A napkin is legally binding in at least two systems.', timestamp: now - H, status: 'delivered' }),
     createMessageBubble({
       direction: 'sent', position: 'single',
       text: 'This one did not go through.', timestamp: now - 600000, status: 'failed',
-      onRetry: () => showToast({ text: 'Retrying — demo only', tone: 'info', host: phone }),
+      onRetry: () => toastD('Retrying'),
     }),
   );
+  // live reactions example (batch 3) — overlap in context (#65 locked);
+  // seeded through the demo merge state so quick-reacts ADD to it (audit r3)
+  rowRx.set(napkinRow, { reactions: [{ emoji: '😂', count: 3, own: true }, { emoji: '👍', count: 1 }] });
+  addReactions(napkinRow, {
+    reactions: rowRx.get(napkinRow).reactions,
+    onToggle: (emoji) => demoReact(napkinRow, emoji, phoneDirect),
+  });
+  // typing pill + scroll-to-latest (batch 3)
+  const typingD = createTypingIndicator();
+  boxD.append(typingD);
+  const stlD = createScrollToLatest({ target: boxD });
+  boxD.closest('.c-chat-canvas').append(stlD);
+  // context menu on every message row (long-press / right-click) — not the typing pill
+  boxD.querySelectorAll('.c-bubble-row').forEach((row) => {
+    if (row.querySelector('.c-typing')) return;
+    wireMenu(row, phoneDirect, row.querySelector('.c-bubble__text')?.textContent || '');
+  });
 
-  // —— live composer: sends real bubbles, grouping computed on the fly (#63)
-  let lastSent = null; // { row, at }
-  const sendMessage = (text) => {
-    const at = Date.now();
-    let position = 'single';
-    if (lastSent && at - lastSent.at < 90000) {
-      const prev = lastSent.row;
-      prev.dataset.position = prev.dataset.position === 'single' ? 'first'
-        : prev.dataset.position === 'last' ? 'middle' : prev.dataset.position;
-      position = 'last';
-    }
-    const row = createMessageBubble({ direction: 'sent', position, text, timestamp: at, status: 'sending' });
-    row.classList.add('c-bubble-row--in'); // live-send entrance (Damir 2026-07-03)
-    // audit r2: filter to the row's own animation (a bubbled child animation
-    // consumed the once-listener) + timeout fallback for reduced-motion,
-    // where animationend never fires and the class would stick forever
-    const clearIn = () => row.classList.remove('c-bubble-row--in');
-    row.addEventListener('animationend', (e) => { if (e.target === row) clearIn(); });
-    setTimeout(clearIn, 400);
-    box.append(row);
-    lastSent = { row, at };
-    box.scrollTop = box.scrollHeight;
-    // simulate delivery: sending → delivered (keeps size + a11y attrs of the original)
-    setTimeout(() => {
-      const st = row.querySelector('.c-status-icon');
-      if (st) {
-        const next = window.Spixi.createStatusIcon('delivered');
-        next.setAttribute('width', 14);
-        next.setAttribute('height', 14);
-        next.removeAttribute('aria-hidden');
-        next.setAttribute('role', 'img');
-        next.setAttribute('aria-label', 'delivered');
-        st.replaceWith(next);
-      }
-    }, 900);
-  };
+  /* ============ phone 2 — group chat (#63 calibration: labels + avatars) ============ */
+  const phoneGroup = document.getElementById('phone-group');
+  const toastG = toastIn(phoneGroup);
 
-  const composerSlot = document.getElementById('composer-slot');
+  document.getElementById('topbar-group').append(createTopbar({
+    variant: 'chat',
+    identity: { name: 'Falcon Crew', sub: '6 members', address: 'falconcrew77' },
+    onBack: () => {},
+    actions: [
+      { icon: 'phone', label: 'Call', onClick: () => toastG('Calling') },
+      { icon: 'dots-vertical', label: 'More', onClick: () => {} },
+    ],
+  }));
+
+  const boxG = document.getElementById('messages-group');
+  const alex = { sender: 'Alex', name: 'Alex', address: '77aleXaddr', showAvatar: true };
+  const han = { sender: 'Han Solo', name: 'Han Solo', address: '4fj2hansolo', showAvatar: true };
+  const lando = { sender: 'Lando', name: 'Lando', address: 'lando88cloud', showAvatar: true };
+  boxG.append(createDateSeparator(now - D - 2 * H));
+  boxG.append(
+    createMessageBubble({ direction: 'received', position: 'first', ...alex, text: 'Crew — cabin trip is ON. I found a spot with fiber internet, right next to the lake 🏕️', timestamp: now - D - 2 * H }),
+    createMessageBubble({ direction: 'received', position: 'middle', ...alex, text: 'Six bunks, one hammock. First come first served on the hammock.', timestamp: now - D - 2 * H + 60000 }),
+    createMessageBubble({ direction: 'received', position: 'last', ...alex, text: 'Bring the drone.', timestamp: now - D - 2 * H + 120000 }),
+  );
+  boxG.append(
+    createMessageBubble({ direction: 'sent', position: 'first', text: 'Hammock is mine, calling it now.', timestamp: now - D - H, status: 'read' }),
+    createMessageBubble({ direction: 'sent', position: 'last', text: 'I\'ll cover the deposit and split it in the chat.', timestamp: now - D - H + 30000, status: 'read' }),
+  );
+  boxG.append(
+    createMessageBubble({ direction: 'received', position: 'single', ...han, text: 'Chewie counts as two people for food planning. Trust me on this.', timestamp: now - D - 50 * 60000 }),
+    createMessageBubble({ direction: 'received', position: 'first', ...lando, text: 'I have a cape for every weather condition.', timestamp: now - D - 40 * 60000 }),
+    createMessageBubble({ direction: 'received', position: 'last', ...lando, text: 'Also bringing the good coffee.', timestamp: now - D - 39 * 60000 }),
+  );
+  boxG.append(createDateSeparator(now));
+  const depositRow = createMessageBubble({ direction: 'received', position: 'single', ...alex, text: 'Deposit received — trip is locked in. 🎉', timestamp: now - 2 * H });
+  boxG.append(
+    depositRow,
+    // C8 fix on display: received card in a group chat takes the avatar gutter
+    // so it aligns with gutter-indented text bubbles (identity itself = #66 gap)
+    createPaymentBubble({
+      role: 'request-in', amount: '120.00', fiat: '$148.20', status: 'actionable', gutter: true,
+      timestamp: now - 90 * 60000,
+      onPay: demoActIn(phoneGroup)('Pay'), onDecline: demoActIn(phoneGroup)('Decline'),
+    }),
+    createMessageBubble({ direction: 'sent', position: 'single', text: 'Weekend saved. See you all Friday.', timestamp: now - H, status: 'delivered' }),
+  );
+  // live reactions example — overlap (#65 locked) + tip + HEAVY set:
+  // 5 types fold to 3 + "+2" pill → inspect sheet lists all (Damir 2026-07-03)
+  rowRx.set(depositRow, {
+    reactions: [
+      { emoji: '🎉', count: 4, own: true, senders: ['Alex', 'Han Solo', 'Lando'] },
+      { emoji: '❤️', count: 2, senders: ['Leia', 'Chewie'] },
+      { emoji: '🔥', count: 1, senders: ['Lando'] },
+      { emoji: '😮', count: 1, senders: ['Chewie'] },
+      { emoji: '👍', count: 1, senders: ['Han Solo'] },
+    ],
+    tip: '5 IXI',
+    host: phoneGroup,
+  });
+  addReactions(depositRow, {
+    ...rowRx.get(depositRow),
+    onToggle: (emoji) => demoReact(depositRow, emoji, phoneGroup),
+  });
+  // typing pill (named, group) + scroll-to-latest with unread badge
+  const typingG = createTypingIndicator({ name: 'Alex' });
+  boxG.append(typingG);
+  const stlG = createScrollToLatest({ target: boxG });
+  boxG.closest('.c-chat-canvas').append(stlG);
+  setScrollLatestCount(stlG, 2); // demo: badge preview (shell owns real counts)
+  // context menu on every message row — not the typing pill
+  boxG.querySelectorAll('.c-bubble-row').forEach((row) => {
+    if (row.querySelector('.c-typing')) return;
+    wireMenu(row, phoneGroup, row.querySelector('.c-bubble__text')?.textContent || '');
+  });
+
+  /* ============ live composers (both phones), voice flag shared ============ */
   let voice = false;
-  let composer;
-  const mountComposer = () => {
-    if (composer) composer.remove();
-    composer = createComposer({
-      placeholder: 'Message',
-      voice,
-      onSend: sendMessage,
-      onAttach: () => showToast({ text: 'Attach — demo only', tone: 'info', host: phone }),
-      onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
-    });
-    composerSlot.append(composer);
+  const composers = [];
+
+  const wireComposer = (slotId, box, phone) => {
+    let lastSent = null; // { row, at }
+    const sendMessage = (text) => {
+      // §8-gated reply/edit modes (batch 3b): consult the composer context
+      const ctx = getComposerContext(entry.el);
+      if (ctx && ctx.kind === 'edit' && ctx.row) {
+        // demo: in-place edit — the real shell round-trips ixian:contextAction:edit
+        const b = ctx.row.querySelector('.c-bubble__text');
+        if (b) b.textContent = text;
+        const meta = ctx.row.querySelector('.c-bubble__meta');
+        if (meta && !meta.querySelector('.c-bubble__edited')) {
+          const ed = document.createElement('span');
+          ed.className = 'c-bubble__edited';
+          ed.textContent = 'edited';
+          meta.prepend(ed);
+        }
+        setComposerContext(entry.el, null);
+        return;
+      }
+      let replyOpt = null;
+      if (ctx && ctx.kind === 'reply') {
+        replyOpt = { sender: ctx.replySender || '', text: ctx.text || '' };
+        setComposerContext(entry.el, null);
+      }
+      const at = Date.now();
+      let position = 'single';
+      if (lastSent && at - lastSent.at < 90000) {
+        const prev = lastSent.row;
+        prev.dataset.position = prev.dataset.position === 'single' ? 'first'
+          : prev.dataset.position === 'last' ? 'middle' : prev.dataset.position;
+        position = 'last';
+      }
+      const row = createMessageBubble({
+        direction: 'sent', position, text, timestamp: at, status: 'sending',
+        reply: replyOpt,
+        onReplyClick: replyOpt ? () => showToast({ text: 'Scroll to original — shell duty', tone: 'info', host: phone }) : null,
+      });
+      row.classList.add('c-bubble-row--in'); // live-send entrance (Damir 2026-07-03)
+      // audit r2: filter to the row's own animation + reduced-motion timeout fallback
+      const clearIn = () => row.classList.remove('c-bubble-row--in');
+      row.addEventListener('animationend', (e) => { if (e.target === row) clearIn(); });
+      setTimeout(clearIn, 400);
+      box.append(row);
+      wireMenu(row, phone, text); // batch 3: live sends get the context menu too
+      // typing pill stays the LAST row (shell duty mirrored in the demo)
+      const typing = box.querySelector('.c-typing');
+      if (typing) box.append(typing.closest('.c-bubble-row'));
+      lastSent = { row, at };
+      box.scrollTop = box.scrollHeight;
+      // simulate delivery: sending → delivered (keeps size + a11y attrs of the original)
+      setTimeout(() => {
+        const st = row.querySelector('.c-status-icon');
+        if (st) {
+          const next = window.Spixi.createStatusIcon('delivered');
+          next.setAttribute('width', 14);
+          next.setAttribute('height', 14);
+          next.removeAttribute('aria-hidden');
+          next.setAttribute('role', 'img');
+          next.setAttribute('aria-label', 'delivered');
+          st.replaceWith(next);
+        }
+      }, 900);
+    };
+
+    const slot = document.getElementById(slotId);
+    const entry = { el: null };
+    const mount = () => {
+      if (entry.el) entry.el.remove();
+      entry.el = createComposer({
+        placeholder: 'Message',
+        voice,
+        onSend: sendMessage,
+        onAttach: () => showToast({ text: 'Attach — demo only', tone: 'info', host: phone }),
+        onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
+      });
+      slot.append(entry.el);
+    };
+    mount();
+    entry.remount = mount;
+    composers.push(entry);
+    composerByPhone.set(phone, entry); // menus route reply/edit here (batch 3b)
   };
-  mountComposer();
+
+  wireComposer('composer-direct', boxD, phoneDirect);
+  wireComposer('composer-group', boxG, phoneGroup);
 
   const voiceBtn = createButton({
     label: 'Voice flag: off', type: 'outline', size: 32,
     onClick: () => {
       voice = !voice;
       voiceBtn.querySelector('.c-button__label').textContent = 'Voice flag: ' + (voice ? 'on' : 'off');
-      mountComposer();
+      composers.forEach((c) => c.remount());
     },
   });
   document.getElementById('voice-slot').append(voiceBtn);
 
-  box.scrollTop = box.scrollHeight;
+  // §8 capability toggle (#25): simulates the BE handshake for reply/edit —
+  // menus opened while ON show Reply (any row) and Edit (own rows)
+  const capsBtn = createButton({
+    label: 'Reply/Edit (§8): off', type: 'outline', size: 32,
+    onClick: () => {
+      const on = !caps.reply;
+      caps.reply = on;
+      caps.edit = on;
+      capsBtn.querySelector('.c-button__label').textContent = 'Reply/Edit (§8): ' + (on ? 'on' : 'off');
+    },
+  });
+  document.getElementById('caps-slot').append(capsBtn);
+
+  boxD.scrollTop = boxD.scrollHeight;
+  boxG.scrollTop = boxG.scrollHeight;
+
+  /* ============ states matrix — every typed-card variant side by side ============ */
+  const matrix = document.getElementById('matrix');
+  const toastM = toastIn(matrix);
+  const demoActM = demoActIn(matrix);
+  const T = (min) => now - min * 60000; // stable-ish times for the reference sheet
+
+  const cell = (grid, label, row) => {
+    const c = document.createElement('div');
+    c.className = 'demo-cell';
+    const l = document.createElement('span');
+    l.className = 'demo-cell__label';
+    l.textContent = label;
+    c.append(l, row);
+    document.getElementById(grid).append(c);
+  };
+
+  // —— payment: role × status, every state that can render ——
+  cell('grid-payment', 'request-in · actionable', createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'actionable', timestamp: T(55),
+    onPay: demoActM('Pay'), onDecline: demoActM('Decline') }));
+  cell('grid-payment', 'request-in · insufficient balance', createPaymentBubble({
+    role: 'request-in', amount: '4,890.00', fiat: '$6,038.61', status: 'actionable', insufficient: true, timestamp: T(54),
+    onDecline: demoActM('Decline') }));
+  cell('grid-payment', 'request-in · processing', createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'processing', timestamp: T(53) }));
+  cell('grid-payment', 'request-in · failed → retry', createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'failed', timestamp: T(52),
+    onRetry: () => toastM('Retry payment'), onDecline: demoActM('Decline') }));
+  cell('grid-payment', 'request-in · declined (by you)', createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'declined', timestamp: T(51) }));
+  cell('grid-payment', 'request-in · canceled (by sender)', createPaymentBubble({
+    role: 'request-in', amount: '25.00', fiat: '$30.87', status: 'canceled', timestamp: T(50) }));
+  cell('grid-payment', 'request-out · pending', createPaymentBubble({
+    role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'pending', timestamp: T(49),
+    onCancel: demoActM('Cancel request') }));
+  cell('grid-payment', 'request-out · completed', createPaymentBubble({
+    role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'completed', timestamp: T(48),
+    onDetails: () => toastM('Details') }));
+  cell('grid-payment', 'request-out · declined (by them)', createPaymentBubble({
+    role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'declined', timestamp: T(47) }));
+  cell('grid-payment', 'request-out · canceled (by you)', createPaymentBubble({
+    role: 'request-out', amount: '21,864.00', fiat: '$3,020.87', status: 'canceled', timestamp: T(46) }));
+  cell('grid-payment', 'sent · pending', createPaymentBubble({
+    role: 'sent', amount: '120.00', fiat: '$148.20', status: 'pending', timestamp: T(45),
+    onDetails: () => toastM('Details') }));
+  cell('grid-payment', 'sent · completed', createPaymentBubble({
+    role: 'sent', amount: '120.00', fiat: '$148.20', status: 'completed', timestamp: T(44),
+    onDetails: () => toastM('Details') }));
+  cell('grid-payment', 'sent · failed → retry', createPaymentBubble({
+    role: 'sent', amount: '120.00', fiat: '$148.20', status: 'failed', timestamp: T(43),
+    onRetry: () => toastM('Retry payment') }));
+  cell('grid-payment', 'received · pending', createPaymentBubble({
+    role: 'received', amount: '+25.00', fiat: '$30.87', status: 'pending', timestamp: T(42),
+    onDetails: () => toastM('Details') }));
+  cell('grid-payment', 'received · completed', createPaymentBubble({
+    role: 'received', amount: '+25.00', fiat: '$30.87', status: 'completed', timestamp: T(41),
+    onDetails: () => toastM('Details') }));
+  // —— #76 amount display rule: ≤2 decimals (truncated), zeros trimmed, round = bare ——
+  cell('grid-payment', 'amount rule #76: 0.12345678 → 0.12', createPaymentBubble({
+    role: 'received', amount: '+0.12345678', fiat: '$0.15', status: 'completed', timestamp: T(40),
+    onDetails: () => toastM('Details') }));
+  cell('grid-payment', 'amount rule #76: 25.50 → 25.5', createPaymentBubble({
+    role: 'request-in', amount: '25.50', fiat: '$31.49', status: 'actionable', timestamp: T(39),
+    onPay: demoActM('Pay'), onDecline: demoActM('Decline') }));
+
+  // —— app session lifecycle ——
+  cell('grid-app', 'invite (them → you)', createAppBubble({
+    name: 'TicTacToe', state: 'invite', timestamp: T(35),
+    onJoin: demoActM('Join'), onDecline: demoActM('Decline') }));
+  cell('grid-app', 'invited (you → them)', createAppBubble({
+    name: 'TicTacToe', state: 'invited', timestamp: T(34),
+    onCancel: demoActM('Cancel invite'), onLaunch: () => toastM('Launch app') }));
+  cell('grid-app', 'app missing → get app', createAppBubble({
+    name: 'HoloChess', state: 'missing', timestamp: T(33),
+    onGet: demoActM('Get app') }));
+  cell('grid-app', 'in session', createAppBubble({
+    name: 'TicTacToe', state: 'in-session', timestamp: T(32),
+    onEnd: demoActM('End session'), onResume: () => toastM('Resume') }));
+  cell('grid-app', 'session ended', createAppBubble({
+    name: 'TicTacToe', state: 'ended', timestamp: T(31) }));
+
+  // —— file transfer states ——
+  cell('grid-file', 'offer (incoming) → accept', createFileBubble({
+    direction: 'received', name: 'Holiday_photos.zip', meta: 'ZIP · 18.6 MB', state: 'offer', timestamp: T(25),
+    onAccept: demoActM('Accept file') }));
+  cell('grid-file', 'downloading (progress)', createFileBubble({
+    direction: 'received', name: 'Campsite_map.png', meta: 'Downloading · 1.1 of 4.2 MB', state: 'progress', progress: 26, timestamp: T(24) }));
+  cell('grid-file', 'complete → open', createFileBubble({
+    direction: 'received', name: 'Quarterly_report.pdf', meta: 'PDF · 2.4 MB', state: 'complete', timestamp: T(23),
+    onOpen: () => toastM('Open file') }));
+  cell('grid-file', 'failed → retry', createFileBubble({
+    direction: 'received', name: 'Quarterly_report.pdf', meta: 'PDF · 2.4 MB', state: 'failed', timestamp: T(22),
+    onRetry: () => toastM('Retry transfer') }));
+  cell('grid-file', 'sent · complete', createFileBubble({
+    direction: 'sent', name: 'Itinerary.pdf', meta: 'PDF · 0.8 MB', state: 'complete', timestamp: T(21),
+    onOpen: () => toastM('Open file') }));
+
+  // —— call events ——
+  cell('grid-call', 'outgoing · answered', createCallBubble({
+    direction: 'sent', directionLabel: 'Outgoing', duration: '4:12', timestamp: T(15),
+    onCallBack: () => toastM('Call back') }));
+  cell('grid-call', 'incoming · answered', createCallBubble({
+    direction: 'received', directionLabel: 'Incoming', duration: '2:05', timestamp: T(14),
+    onCallBack: () => toastM('Call back') }));
+  cell('grid-call', 'missed → tap to call back', createCallBubble({
+    missed: true, timestamp: T(13),
+    onCallBack: () => toastM('Call back') }));
+
+  // —— reactions: identical bubbles, BOTH #65 placements, all variants ——
+  const reactionCell = (label, direction, placement, opts) => {
+    const r = createMessageBubble({
+      direction, position: 'single',
+      text: direction === 'received' ? 'A napkin is legally binding.' : 'Signed and witnessed.',
+      timestamp: T(9), status: direction === 'sent' ? 'read' : null,
+    });
+    addReactions(r, { placement, onToggle: (e) => toastM('Toggle ' + e), ...opts });
+    cell('grid-reactions', label, r);
+  };
+  reactionCell('received · single own', 'received', 'overlap',
+    { reactions: [{ emoji: '👍', count: 1, own: true }] });
+  reactionCell('received · multi + counts', 'received', 'overlap',
+    { reactions: [{ emoji: '😂', count: 3, own: true }, { emoji: '❤️', count: 2 }, { emoji: '😮', count: 1 }] });
+  reactionCell('sent · own + other', 'sent', 'overlap',
+    { reactions: [{ emoji: '🔥', count: 2 }, { emoji: '👍', count: 1, own: true }] });
+  reactionCell('with tip pill', 'received', 'overlap',
+    { reactions: [{ emoji: '🎉', count: 4, own: true }], tip: '5 IXI' });
+
+  // —— reply + edited reference (§8-gated #25) ——
+  cell('grid-reply', 'received · reply quote (tappable)', createMessageBubble({
+    direction: 'received', position: 'single', sender: 'Lando', name: 'Lando', address: 'lando88cloud',
+    showAvatar: true, text: 'Already packed. Capes take no space.', timestamp: T(8),
+    reply: { sender: 'Alex', address: '77aleXaddr', text: 'Bring the drone.' },
+    onReplyClick: () => toastM('Scroll to original — shell duty') }));
+  cell('grid-reply', 'sent · reply quote + edited', createMessageBubble({
+    direction: 'sent', position: 'single', status: 'read', edited: true,
+    text: 'Deal — drone and TWO power banks.', timestamp: T(7),
+    reply: { sender: 'Alex', address: '77aleXaddr', text: 'Bring the drone.' },
+    onReplyClick: () => toastM('Scroll to original — shell duty') }));
+  cell('grid-reply', 'sent · edited only', createMessageBubble({
+    direction: 'sent', position: 'single', status: 'delivered', edited: true,
+    text: 'Landing Friday at 18:30 (was 18:00).', timestamp: T(6) }));
+
+  // —— reactions overflow (+N) reference ——
+  reactionCell('heavy set: 5 types → 3 + "+2" (tap +2 = inspect sheet)', 'received', 'overlap', {
+    reactions: [
+      { emoji: '🎉', count: 4, own: true, senders: ['Alex', 'Han Solo', 'Lando'] },
+      { emoji: '❤️', count: 2, senders: ['Leia', 'Chewie'] },
+      { emoji: '🔥', count: 1, senders: ['Lando'] },
+      { emoji: '😮', count: 1, senders: ['Chewie'] },
+      { emoji: '👍', count: 1, senders: ['Han Solo'] },
+    ],
+    host: document.body, // audit r3: matrix-hosted overlays open offscreen from the trigger
+  });
+
+  // —— media tiles (P2P: tap-to-load default; preview = sender-embedded thumb) ——
+  cell('grid-media', 'gif · tap-to-load (preview + play)', createMediaBubble({
+    direction: 'received', kind: 'gif', src: DEMO_MEDIA, preview: DEMO_PREVIEW,
+    width: 320, height: 240, alt: 'Demo GIF', timestamp: T(5),
+    onOpen: () => toastM('Open viewer') }));
+  cell('grid-media', 'image · autoloaded (setting ON)', createMediaBubble({
+    direction: 'sent', kind: 'image', src: DEMO_MEDIA, preview: DEMO_PREVIEW,
+    width: 320, height: 240, alt: 'Campsite photo', autoload: true, timestamp: T(5),
+    onOpen: () => toastM('Open viewer') }));
+  cell('grid-media', 'image · failed → tap retries', createMediaBubble({
+    direction: 'received', kind: 'image', src: 'bad://unreachable', preview: DEMO_PREVIEW,
+    width: 320, height: 240, alt: 'Broken transfer', autoload: true, timestamp: T(5) }));
+
+  // —— links: button-links + sender-composed preview card (§8) ——
+  // modals host in body — matrix-hosted overlays opened offscreen (audit r3)
+  cell('grid-links', 'url in text → confirm modal', createMessageBubble({
+    direction: 'received', position: 'single',
+    text: 'Docs live at https://docs.ixian.io — worth a read.', timestamp: T(4),
+    onLinkClick: confirmLink(document.body) }));
+  cell('grid-links', 'sender-composed link preview (§8)', createMessageBubble({
+    direction: 'sent', position: 'single', status: 'read',
+    text: 'https://ixian.io/kessel-run', timestamp: T(4),
+    onLinkClick: confirmLink(document.body),
+    linkPreview: { url: 'https://ixian.io/kessel-run', title: 'Kessel Run — route guide', domain: 'ixian.io', image: DEMO_PREVIEW } }));
+  cell('grid-links', 'emoji-only · big + meta below', createMessageBubble({
+    direction: 'sent', position: 'single', status: 'read', text: '🔥🔥', timestamp: T(4) }));
+  cell('grid-links', 'emoji-only · received', createMessageBubble({
+    direction: 'received', position: 'single', text: '🎉', timestamp: T(4) }));
+
+  // —— typing indicator reference ——
+  cell('grid-typing', '1:1 (dots only)', createTypingIndicator());
+  cell('grid-typing', 'group (named)', createTypingIndicator({ name: 'Alex' }));
 </script>
 </body>
 </html>

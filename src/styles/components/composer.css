@@ -4,6 +4,7 @@
 .c-composer {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap; /* batch 3b: the reply/edit ctx strip takes the full first line */
   gap: var(--spacing-8);
   min-height: var(--layout-composer-min);
   /* logical props — RTL-correct (audit MAJOR) */
@@ -14,6 +15,60 @@
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   z-index: var(--z-20);
 }
+
+/* —— reply/edit context strip (batch 3b, §8-gated #25) —— */
+.c-composer__ctx {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--icon-action-default); /* leading glyph ink */
+}
+.c-composer__ctx-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-composer__ctx-title {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-action-default);
+}
+.c-composer__ctx-text {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-composer__ctx-cancel {
+  position: relative; /* hit-area extension (same pattern as attach) */
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;  /* visual size sanctioned; target extended via ::after */
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-composer__ctx-cancel::after { content: ''; position: absolute; inset: -8px; }
+@media (hover: hover) {
+  .c-composer__ctx-cancel:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); }
+}
+.c-composer__ctx-cancel:active { background: var(--surface-interactive-pressed); }
 
 .c-composer__field {
   flex: 1;
@@ -34,11 +89,12 @@
 }
 
 .c-composer__attach {
+  position: relative; /* hit-area extension below (r2 backlog B6) */
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: 36px; /* visual size sanctioned; touch target reaches 44 via ::after */
   height: 36px;
   border: 0;
   border-radius: var(--radius-full);
@@ -48,6 +104,11 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
+.c-composer__attach::after { content: ''; position: absolute; inset: -4px; }
+/* optical centering (Damir screenshot 2026-07-03): field is bottom-aligned for
+   multi-line grow; the 36px circle vs the 40px single-line input left the ⊕
+   2px low against the placeholder line */
+.c-composer__attach { margin-block-end: 2px; } /* sanctioned: optical offset */
 @media (hover: hover) {
   .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }

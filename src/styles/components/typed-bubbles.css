@@ -66,7 +66,14 @@
   gap: var(--spacing-8);
   margin-top: var(--spacing-12);
 }
-.c-tcard__actions .c-button { flex: 1; }
+/* r2 backlog B4: flex:1 + nowrap labels overflowed the card at <320px —
+   buttons may shrink, labels ellipsize */
+.c-tcard__actions .c-button { flex: 1; min-width: 0; }
+.c-tcard__actions .c-button .c-button__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .c-tcard__note {
   margin-top: var(--spacing-8);
@@ -227,6 +234,14 @@
   background: var(--surface-progress-fill);
   transition: width var(--duration-200) var(--easing-standard);
 }
+/* keep-open hint — progress state only (P2P: both peers must stay online) */
+.c-fbubble__hint {
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+
 .c-fbubble__time {
   align-self: flex-end;
   flex: none;

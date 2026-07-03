@@ -1,0 +1,112 @@
+/* c-mbubble — media tile (GIF/image) bubble (Damir 2026-07-03, #66 gap).
+   Tile takes the full bubble width; height from sender aspect-ratio, capped.
+   Preview = sender-embedded blurred thumb (P2P: no server unfurl). */
+
+.c-mbubble {
+  position: relative;
+  display: block;
+  /* width lives on the ANCHOR (audit r4: the tile's 75% went cyclic against
+     the shrink-wrapped anchor and collapsed to ~0) */
+  width: 100%;
+  max-height: var(--layout-bubble-max); /* tall media caps at the same 320 rail */
+  min-height: 96px;                     /* dimension-less messages still get a tile */
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  background: var(--surface-neutral-02);
+  box-shadow: var(--elevation-1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-mbubble__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(12px);      /* sanctioned: thumb is intentionally low-res */
+  transform: scale(1.1);   /* hides blur edge fringing */
+}
+
+.c-mbubble__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-mbubble[data-state="loaded"] .c-mbubble__img { opacity: 1; }
+
+/* reactions overlap-anchor: tile has overflow:hidden, so overhang pills
+   anchor to this wrapper instead (audit r3) */
+.c-mbubble-anchor {
+  position: relative;
+  display: block;
+  /* the anchor is the flex item now — it carries the bubble width rule so
+     the tile's percentage has a definite base (audit r4) */
+  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+}
+
+/* center affordance (play/download/spinner/retry) on a scrim circle.
+   On-scrim inks are MODE-LESS (audit r3: on-action inks invert in dark) */
+.c-mbubble__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-on-scrim);
+  pointer-events: none;
+}
+.c-mbubble__overlay:not(:empty)::before {
+  content: '';
+  position: absolute;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+}
+.c-mbubble__overlay svg { position: relative; }
+.c-mbubble[data-state="loaded"] .c-mbubble__overlay { display: none; }
+
+.c-mbubble__spinner {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--surface-wash-on-hero); /* translucent ring */
+  border-top-color: var(--icon-on-scrim);
+  animation: c-mbubble-spin 800ms linear infinite; /* sanctioned: continuous progress indicator (mirrors button spinner) */
+}
+@keyframes c-mbubble-spin { to { transform: rotate(360deg); } }
+/* parity with the button spinner's reduced-motion treatment (audit r3) */
+@media (prefers-reduced-motion: reduce) {
+  .c-mbubble__spinner { animation-duration: 1600ms; }
+}
+
+/* GIF corner badge + time pill — scrim pills over media */
+.c-mbubble__badge,
+.c-mbubble__time {
+  position: absolute;
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-on-scrim); /* mode-less (audit r3) */
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.c-mbubble__badge {
+  top: var(--spacing-8);
+  inset-inline-start: var(--spacing-8);
+  letter-spacing: var(--tracking-label-xs);
+}
+.c-mbubble__time {
+  bottom: var(--spacing-4);
+  inset-inline-end: var(--spacing-8);
+  font-weight: var(--font-weight-regular);
+}

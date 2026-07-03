@@ -37,6 +37,11 @@ const FILES = [
   'src/components/message-bubble.js',
   'src/components/composer.js',
   'src/components/typed-bubbles.js',
+  'src/components/reactions.js',
+  'src/components/typing-indicator.js',
+  'src/components/scroll-latest.js',
+  'src/components/message-menu.js',
+  'src/components/media-bubble.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];
@@ -61,7 +66,8 @@ for (const f of FILES) {
   // Derive the expose list + collect top-level declarations for collision checks.
   const exported = [...raw.matchAll(/^export\s+(?:function|const)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
   expose.push(...exported);
-  const declared = [...raw.matchAll(/^(?:export\s+)?(?:function|const)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+  // let/var included (audit r3): top-level `let` dups bypassed the named check
+  const declared = [...raw.matchAll(/^(?:export\s+)?(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
   for (const name of declared) {
     if (declaredIn.has(name)) {
       throw new Error(`symbol collision: "${name}" declared at top level in both ${declaredIn.get(name)} and ${f} — last one would silently win in the shared bundle scope`);

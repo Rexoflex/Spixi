@@ -1,0 +1,62 @@
+/* c-msgmenu — message context menu content (batch 3, §5b sheet-based).
+   Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
+   only the menu content: quick-react row + action list. */
+
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+
+.c-msgmenu__reacts {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-msgmenu__react {
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-size: 22px; /* sanctioned: emoji glyph size, no type token this role */
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+@media (hover: hover) {
+  .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
+}
+.c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+
+.c-msgmenu__list { display: flex; flex-direction: column; }
+.c-msgmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  padding: 0 var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-msgmenu__item svg { color: var(--icon-neutral-02); flex: none; }
+@media (hover: hover) {
+  .c-msgmenu__item:hover { background: var(--surface-interactive-hover); }
+}
+.c-msgmenu__item:active { background: var(--surface-interactive-pressed); }
+
+/* destructive group last, error ink (§5b) */
+.c-msgmenu__item[data-destructive] { color: var(--text-error); }
+.c-msgmenu__item[data-destructive] svg { color: var(--icon-error); }

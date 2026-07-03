@@ -22,12 +22,35 @@ function cardTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Card scaffold: row (direction-aligned) → card → header(title+time) + body slots. */
-function card(direction, title, timestamp, modifier) {
+let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
+
+/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): the chain
+ * carries 8 decimals; the UI shows AT MOST 2 — string-truncated (never
+ * rounded: display must not overstate) with trailing zeros trimmed; round
+ * numbers show NO decimals. Grouping arrives from the bridge and is
+ * preserved. Non-numeric input passes through untouched. This is the
+ * REFERENCE implementation — C# composes the real strings, mirror there. */
+export function formatIxiAmount(value) {
+  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return String(value);
+  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
+  return m[1] + m[2] + (frac ? '.' + frac : '');
+}
+
+/** Card scaffold: row (direction-aligned) → card → header(title+time) + body
+ *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
+ *  an avatar gutter — received cards take the same empty gutter so columns
+ *  align (no avatar until card identity is designed, #66). */
+function card(direction, title, timestamp, modifier, gutter = false) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
   row.dataset.direction = direction;
   row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
   const el = document.createElement('div');
   el.className = 'c-tcard';
   if (modifier) el.dataset.kind = modifier;
@@ -112,6 +135,7 @@ export function createPaymentBubble({
   status = 'actionable',
   insufficient = false,   // request-in: Pay disabled + caption
   timestamp = null,
+  gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
   onPay, onDecline, onCancel, onRetry, onDetails,
   strings = {},
 } = {}) {
@@ -123,7 +147,7 @@ export function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
-  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment'); // audit r2: unknown role rendered "undefined"
+  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
   const amountEl = document.createElement('div');
@@ -132,7 +156,7 @@ export function createPaymentBubble({
     status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
     : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
     : 'pending';
-  amountEl.append(document.createTextNode(amount + ' '));
+  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
   const unit = document.createElement('span');
   unit.className = 'c-tcard__unit';
   unit.textContent = 'IXI';
@@ -166,12 +190,19 @@ export function createPaymentBubble({
     const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
     const pay = status === 'failed'
       ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
-      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient, loading: status === 'processing' });
+      : status === 'processing'
+        // Damir 2026-07-03: spinner + check read as two icons — while
+        // processing the check goes away and the label says what's happening
+        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
+        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
     el.append(actionsRow(decline, pay));
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
       note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
+      note.id = 'c-tcard-note-' + (++tcardNoteUid);
+      pay.setAttribute('aria-describedby', note.id);
       el.append(note);
     }
   } else if (role === 'request-out' && status === 'pending') {
@@ -191,6 +222,7 @@ export function createAppBubble({
   state = 'invite',        // invite (them→you) | invited (you→them) | missing | in-session | ended
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
   strings = {},
 } = {}) {
@@ -199,7 +231,7 @@ export function createAppBubble({
   const title = (state === 'in-session' || state === 'ended')
     ? (strings.appSession || 'App session')
     : (strings.appInvite || 'App invite');
-  const { row, el } = card(dir, title, timestamp, 'app');
+  const { row, el } = card(dir, title, timestamp, 'app', gutter);
 
   const id = document.createElement('div');
   id.className = 'c-tcard__app';
@@ -259,12 +291,13 @@ export function createCallBubble({
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
   timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onCallBack,
   strings = {},
 } = {}) {
   const { row, el } = card(direction,
     missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
-    timestamp, 'call');
+    timestamp, 'call', gutter);
   if (missed) row.dataset.missed = '';
   const head = el.querySelector('.c-tcard__title');
   head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
@@ -280,7 +313,8 @@ export function createCallBubble({
   } else {
     const meta = document.createElement('div');
     meta.className = 'c-tcard__call-meta u-tabular';
-    meta.textContent = directionLabel + (duration ? ' · ' + duration : '');
+    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
+    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
     el.append(meta);
     const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
     el.append(wrap);
@@ -311,6 +345,7 @@ export function createFileBubble({
   state = 'complete',
   progress = 0,
   timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
   strings = {},
 } = {}) {
@@ -318,6 +353,11 @@ export function createFileBubble({
   row.className = 'c-bubble-row';
   row.dataset.direction = direction;
   row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-fbubble';
@@ -366,6 +406,12 @@ export function createFileBubble({
     fill.style.width = p + '%';
     track.append(fill);
     col.append(track);
+    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
+    // transfer — brief muted line while in progress, removed on completion
+    const hint = document.createElement('span');
+    hint.className = 'c-fbubble__hint';
+    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    col.append(hint);
   }
   el.append(col);
 
@@ -405,6 +451,8 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     bubble.disabled = false;
     delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
     if (track) track.remove();
+    const hint = bubble.querySelector('.c-fbubble__hint');
+    if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));

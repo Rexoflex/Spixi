@@ -1,0 +1,65 @@
+/* c-scroll-latest — floating scroll-to-bottom button (batch 3, #66).
+   Lives inside .c-chat-canvas (position:relative), above the last message. */
+
+.c-scroll-latest {
+  /* NOTE load order: message-bubble.css's `.c-chat-canvas > *` sets
+     position:relative at EQUAL specificity — this file must load after it
+     (as in the demos) or the button would anchor to the scroll flow */
+  position: absolute;
+  inset-inline-end: var(--spacing-16);
+  inset-block-end: var(--spacing-16);
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-full);
+  background: var(--surface-menu);
+  color: var(--icon-neutral-01);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* hidden until scrolled away from the latest messages. visibility rides the
+     transition (discrete): flips at the END fading out, at the START fading
+     in — keeps the hidden button out of tab order + SR tree (audit r3) */
+  opacity: 0;
+  transform: translateY(var(--spacing-8));
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-decelerate),
+              visibility var(--duration-200),
+              background-color var(--duration-100) var(--easing-standard);
+}
+.c-scroll-latest[data-visible] {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (hover: hover) {
+  .c-scroll-latest:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
+}
+.c-scroll-latest:active { background: var(--surface-interactive-pressed); }
+
+/* unread badge — same recipe as the bottomnav badge (#48): error role + ring */
+.c-scroll-latest__badge {
+  position: absolute;
+  top: calc(-1 * var(--spacing-4));
+  inset-inline-end: calc(-1 * var(--spacing-4));
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--spacing-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-error);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-menu); /* ring vs the button surface */
+  font-size: var(--font-size-label-xs);
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+}

@@ -1,0 +1,49 @@
+/* c-typing — "is typing" pill (batch 3, #66 code-first). Received-bubble
+   language: same surface/radius so it reads as an incoming placeholder. */
+
+/* hugs the composer (Damir 2026-07-03): tighter than the group gap above,
+   spacing-4 below — the scroll container's bottom padding must be
+   var(--spacing-4) for the full effect (demo/shell duty).
+   Doubled class = load-order-proof vs .c-bubble-row's margin (audit r3) */
+.c-bubble-row.c-bubble-row--typing { margin-top: var(--spacing-8); }
+
+.c-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1);
+}
+
+.c-typing__name {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+.c-typing__dots { display: inline-flex; gap: var(--spacing-4); }
+.c-typing__dot {
+  width: 6px;  /* sanctioned: dot glyph, no size token this small */
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+  /* loop = 4× duration-300 so the wave stays token-driven */
+  animation: c-typing-wave calc(var(--duration-300) * 4) var(--easing-standard) infinite;
+}
+.c-typing__dot:nth-child(2) { animation-delay: calc(var(--duration-300) * 0.66); }
+.c-typing__dot:nth-child(3) { animation-delay: calc(var(--duration-300) * 1.33); }
+
+@keyframes c-typing-wave {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* duration tokens collapse to 0 under reduced motion — a 0s infinite loop
+   would spin the style engine, so kill the animation outright */
+@media (prefers-reduced-motion: reduce) {
+  .c-typing__dot { animation: none; opacity: 0.6; }
+}

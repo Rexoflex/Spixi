@@ -18,25 +18,26 @@
   content: '';
   position: absolute;
   inset: 0;
-  /* asset = WHITE doodles at FULL opacity on transparent (Damir 2026-07-03):
-     white themes on its own — lighter texture on the light canvas, whisper on
-     dark — via --chat-pattern-opacity alone. NOTE: mask-image was tried and
-     reverted: masks need CORS-clean fetches, which file:// demos can't do
-     (mask fails silently → pattern invisible). Revisit ink-token masking
-     when demos run over http (Vite dev). */
-  background-image: url('../../assets/images/chat-bg-pattern.svg');
-  background-size: 248px; /* asset's intrinsic tile */
+  /* PAINT lives in src/styles/chat-pattern.css (GENERATED — data-URI mask +
+     --chat-pattern-ink): a data-URI mask is CORS-clean even on file://, so
+     the pattern takes token ink per theme (premium treatment, Damir
+     2026-07-03 — external mask URLs fail silently on file:// and were
+     reverted earlier). This block owns only the LAYER: geometry + intensity.
+     FAIL-SOFT: without chat-pattern.css there's no background/mask here, so
+     the canvas degrades to gradient-only — never a solid ink rectangle.
+     Load order: tokens.css → this file → chat-pattern.css. */
   opacity: var(--chat-pattern-opacity);
   pointer-events: none;
 }
 .c-chat-canvas > * { position: relative; } /* content above the pattern layer */
-/* scroll thumb over the TINTED canvas (audit r2): the base -02 thumb was tuned
-   against surface-screen and lands ≈1.1:1 on the gradient — one step darker here */
+/* scroll thumb over the TINTED canvas (audit r2 → r3): -03 was tuned against
+   the v1 gradient and fell to 1.14:1 on the v2 sky-blue bottom — text-02 ink
+   (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
 @media (hover: hover) {
   .c-chat-canvas .u-scroll:hover,
-  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--outline-neutral-03) transparent; }
+  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--text-neutral-02) transparent; }
   .c-chat-canvas .u-scroll:hover::-webkit-scrollbar-thumb,
-  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--outline-neutral-03); }
+  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--text-neutral-02); }
 }
 
 .c-bubble-row {
@@ -107,6 +108,135 @@
 }
 
 .c-bubble__text { white-space: pre-wrap; }
+
+/* emoji-only messages (Damir 2026-07-03): big glyphs, meta drops BELOW */
+.c-bubble[data-emoji-only] .c-bubble__text {
+  display: block;
+  font-size: 40px;  /* sanctioned: emoji display size, no type token this role */
+  line-height: 1.2;
+}
+.c-bubble[data-emoji-only] .c-bubble__meta {
+  float: none;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--spacing-2);
+  transform: none;
+}
+
+/* —— reply quote (batch 3b, §8-gated #25): identity-hue bar + compact excerpt.
+   Received: hue inks (sender-label recipe); sent: hue fails on primary-600 →
+   wash surface + on-bubble inks. —— */
+/* quote label L: the quote sits on neutral-50 (not white) — 28% missed AA at
+   hues 55–75 there (audit r3); 26% clears. Dark quote surface is darker than
+   the bubble too, 74% stays comfortable */
+:root { --reply-label-l: 26%; }
+[data-theme="dark"] { --reply-label-l: 74%; }
+.c-bubble__reply {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  border-inline-start: var(--outline-width-2) solid
+    hsl(var(--reply-h, 220), var(--sender-label-s), var(--reply-label-l));
+  border-radius: var(--radius-8);
+  background: var(--surface-neutral-02);
+  font-family: var(--font-secondary);
+  text-align: start;
+  overflow: hidden;
+}
+button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.c-bubble__reply-sender {
+  display: block;
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: hsl(var(--reply-h, 220), var(--sender-label-s), var(--reply-label-l));
+}
+.c-bubble__reply-text {
+  display: block;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__reply {
+  background: var(--surface-wash-on-hero);
+  border-inline-start-color: var(--text-bubble-sent);
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__reply-sender { color: var(--text-bubble-sent); }
+/* audit r3: sent-meta (primary-100) was 3.6:1 on the WASH composite — white
+   clears 5.1:1; sender vs text differentiate by weight */
+.c-bubble-row[data-direction="sent"] .c-bubble__reply-text { color: var(--text-bubble-sent); }
+
+/* "edited" marker (§8-gated #25) — meta ink, italic, precedes the time */
+.c-bubble__edited { font-style: italic; }
+
+/* —— links in message text (Damir 2026-07-03): BUTTONS, not <a> — every
+   navigation goes through the shell's external-link warning —— */
+.c-bubble__link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  color: var(--text-action-default);
+  cursor: pointer;
+  word-break: break-all;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .c-bubble__link:hover { color: var(--text-action-hover); }
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
+
+/* —— link preview card (§8-gated: sender-composed, Signal-style) —— */
+.c-bubble__linkpreview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  width: 100%;
+  margin-top: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: var(--surface-neutral-02);
+  font-family: var(--font-secondary);
+  text-align: start;
+  overflow: hidden;
+}
+button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.c-bubble__linkpreview-img {
+  width: 48px;   /* thumb, matches avatar-48 scale */
+  height: 48px;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+  flex: none;
+}
+.c-bubble__linkpreview-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-bubble__linkpreview-title {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-bubble__linkpreview-domain {
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__linkpreview { background: var(--surface-wash-on-hero); }
+.c-bubble-row[data-direction="sent"] .c-bubble__linkpreview-title { color: var(--text-bubble-sent); }
+/* audit r3: sent-meta sub-AA on the wash composite (see reply-text note) */
+.c-bubble-row[data-direction="sent"] .c-bubble__linkpreview-domain { color: var(--text-bubble-sent); }
 
 /* meta (time + status) — floats into the last text line, WhatsApp-style.
    float:inline-end is too new for the baseline (Chrome 118) → physical + RTL flip */

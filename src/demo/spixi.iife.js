@@ -2536,6 +2536,12 @@ function createFileBubble({
     fill.style.width = p + '%';
     track.append(fill);
     col.append(track);
+    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
+    // transfer — brief muted line while in progress, removed on completion
+    const hint = document.createElement('span');
+    hint.className = 'c-fbubble__hint';
+    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    col.append(hint);
   }
   el.append(col);
 
@@ -2569,6 +2575,8 @@ function setFileProgress(rowEl, progress, opts = {}) {
     bubble.disabled = false;
     delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
     if (track) track.remove();
+    const hint = bubble.querySelector('.c-fbubble__hint');
+    if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
@@ -2655,5 +2663,1059 @@ function setLoading(el, loading) {
 }
 /* ---- end AUDIT r2 SUPERSEDE SECTION ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider };
+/* ---- BATCH 3 SECTION (manual append — PC mirror can't run the build script;
+   Mac: node scripts/build-demo-bundle.mjs normalizes this file).
+   1) typed-bubbles.js SUPERSEDE (C8 gutter param on all cards, A17 call-meta
+      join, C15 insufficient aria-describedby)
+   2) NEW: reactions.js, typing-indicator.js, scroll-latest.js, message-menu.js
+   Function declarations rebind earlier definitions; let/const names verified
+   unique in bundle scope. ---- */
+
+/* ---- src/components/typed-bubbles.js (batch 3 supersede) ---- */
+let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
+
+/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): ≤2 decimals,
+ * string-truncated (never rounded), trailing zeros trimmed, round = bare.
+ * Reference impl — C# composes the real strings, mirror there. */
+function formatIxiAmount(value) {
+  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return String(value);
+  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
+  return m[1] + m[2] + (frac ? '.' + frac : '');
+}
+
+function card(direction, title, timestamp, modifier, gutter = false) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-tcard';
+  if (modifier) el.dataset.kind = modifier;
+  const head = document.createElement('div');
+  head.className = 'c-tcard__head';
+  const t = document.createElement('span');
+  t.className = 'c-tcard__title';
+  t.textContent = title;
+  head.append(t);
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
+      const time = document.createElement('time');
+      time.className = 'c-tcard__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      head.append(time);
+    }
+  }
+  el.append(head);
+  row.append(el);
+  return { row, el };
+}
+
+function createPaymentBubble({
+  role = 'request-in',
+  amount = '',
+  fiat = '',
+  status = 'actionable',
+  insufficient = false,
+  timestamp = null,
+  gutter = false,
+  onPay, onDecline, onCancel, onRetry, onDetails,
+  strings = {},
+} = {}) {
+  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
+  const titles = {
+    'request-in': strings.paymentRequest || 'Payment request',
+    'request-out': strings.youRequested || 'You requested',
+    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
+    received: strings.paymentReceived || 'Payment received',
+  };
+  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter);
+  row.dataset.status = status;
+
+  const amountEl = document.createElement('div');
+  amountEl.className = 'c-tcard__amount u-tabular';
+  amountEl.dataset.tone =
+    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
+    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
+    : 'pending';
+  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  const unit = document.createElement('span');
+  unit.className = 'c-tcard__unit';
+  unit.textContent = 'IXI';
+  amountEl.append(unit);
+  el.append(amountEl);
+
+  if (fiat) {
+    const f = document.createElement('div');
+    f.className = 'c-tcard__fiat u-tabular';
+    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
+    f.textContent = fiat;
+    el.append(f);
+  }
+
+  const BADGES = {
+    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
+    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
+    completed: ['success', strings.completed || 'Completed', 'check'],
+    declined: ['error', strings.declined || 'Declined', 'cancel'],
+    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
+  };
+  if (BADGES[status]) {
+    const [type, label, glyph] = BADGES[status];
+    const wrap = document.createElement('div');
+    wrap.className = 'c-tcard__badge';
+    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
+    el.append(wrap);
+  }
+
+  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
+    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
+    const pay = status === 'failed'
+      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+      : status === 'processing'
+        // Damir 2026-07-03: spinner + check read as two icons — while
+        // processing the check goes away and the label says what's happening
+        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
+        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
+    el.append(actionsRow(decline, pay));
+    if (insufficient) {
+      const note = document.createElement('div');
+      note.className = 'c-tcard__note';
+      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
+      note.id = 'c-tcard-note-' + (++tcardNoteUid);
+      pay.setAttribute('aria-describedby', note.id);
+      el.append(note);
+    }
+  } else if (role === 'request-out' && status === 'pending') {
+    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
+  } else if (role === 'sent' && status === 'failed') {
+    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
+  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
+    el.append(detailsLink(reentryGuard(onDetails), strings));
+  }
+  return row;
+}
+
+function createAppBubble({
+  name = '',
+  iconUrl = null,
+  state = 'invite',
+  direction = null,
+  timestamp = null,
+  gutter = false,
+  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
+  strings = {},
+} = {}) {
+  const dir = direction || (state === 'invited' ? 'sent' : 'received');
+  const title = (state === 'in-session' || state === 'ended')
+    ? (strings.appSession || 'App session')
+    : (strings.appInvite || 'App invite');
+  const { row, el } = card(dir, title, timestamp, 'app', gutter);
+
+  const id = document.createElement('div');
+  id.className = 'c-tcard__app';
+  const ic = document.createElement('span');
+  ic.className = 'c-tcard__app-icon';
+  if (iconUrl) {
+    const img = document.createElement('img');
+    img.src = iconUrl;
+    img.alt = '';
+    ic.append(img);
+  } else {
+    ic.append(icon('rocket', { size: 24 }));
+  }
+  const col = document.createElement('span');
+  col.className = 'c-tcard__app-info';
+  const nm = document.createElement('span');
+  nm.className = 'c-tcard__app-name';
+  nm.textContent = name;
+  const sub = document.createElement('span');
+  sub.className = 'c-tcard__app-sub';
+  sub.textContent = {
+    invite: strings.invitedYou || 'Invited you to join',
+    invited: strings.youInvited || 'You have sent an invite',
+    missing: strings.invitedYou || 'Invited you to join',
+    'in-session': strings.inSession || 'In session',
+    ended: strings.sessionEnded || 'Session ended',
+  }[state] || '';
+  col.append(nm, sub);
+  id.append(ic, col);
+  el.append(id);
+
+  if (state === 'invite') {
+    el.append(actionsRow(
+      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
+      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
+    ));
+  } else if (state === 'invited') {
+    el.append(actionsRow(
+      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
+      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
+    ));
+  } else if (state === 'missing') {
+    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
+  } else if (state === 'in-session') {
+    el.append(actionsRow(
+      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
+      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
+    ));
+  }
+  return row;
+}
+
+function createCallBubble({
+  missed = false,
+  direction = 'received',
+  directionLabel = '',
+  duration = '',
+  timestamp = null,
+  gutter = false,
+  onCallBack,
+  strings = {},
+} = {}) {
+  const { row, el } = card(direction,
+    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    timestamp, 'call', gutter);
+  if (missed) row.dataset.missed = '';
+  const head = el.querySelector('.c-tcard__title');
+  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
+
+  if (missed) {
+    const sub = document.createElement('button');
+    sub.type = 'button';
+    sub.className = 'c-tcard__call-back';
+    sub.textContent = strings.tapToCallBack || 'Tap to call back';
+    const cb = reentryGuard(onCallBack);
+    if (cb) sub.addEventListener('click', cb);
+    el.append(sub);
+  } else {
+    const meta = document.createElement('div');
+    meta.className = 'c-tcard__call-meta u-tabular';
+    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
+    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
+    el.append(meta);
+    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
+    el.append(wrap);
+  }
+  return row;
+}
+
+function createFileBubble({
+  direction = 'received',
+  name = '',
+  meta = '',
+  state = 'complete',
+  progress = 0,
+  timestamp = null,
+  gutter = false,
+  onAccept, onOpen, onRetry,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-fbubble';
+  el.dataset.state = state;
+  const handlers = {
+    offer: oneShot(onAccept),
+    failed: reentryGuard(onRetry),
+    complete: reentryGuard(onOpen),
+  };
+  el.addEventListener('click', (e) => {
+    const h = handlers[el.dataset.state];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.setAttribute('aria-label', fileAria(state, name, strings));
+
+  const ic = document.createElement('span');
+  ic.className = 'c-fbubble__icon';
+  ic.append(icon(fileGlyph(state), { size: 20 }));
+  el.append(ic);
+
+  const col = document.createElement('span');
+  col.className = 'c-fbubble__info';
+  const nm = document.createElement('span');
+  nm.className = 'c-fbubble__name';
+  nm.textContent = name;
+  const mt = document.createElement('span');
+  mt.className = 'c-fbubble__meta';
+  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
+  col.append(nm, mt);
+  if (state === 'progress') {
+    const track = document.createElement('span');
+    track.className = 'c-fbubble__track';
+    track.setAttribute('role', 'progressbar');
+    track.setAttribute('aria-valuemin', '0');
+    track.setAttribute('aria-valuemax', '100');
+    track.setAttribute('aria-label', strings.downloading || 'Downloading');
+    const p = Math.max(0, Math.min(100, Number(progress) || 0));
+    track.setAttribute('aria-valuenow', String(p));
+    const fill = document.createElement('span');
+    fill.className = 'c-fbubble__fill';
+    fill.style.width = p + '%';
+    track.append(fill);
+    col.append(track);
+    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
+    // transfer — brief muted line while in progress, removed on completion
+    const hint = document.createElement('span');
+    hint.className = 'c-fbubble__hint';
+    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    col.append(hint);
+  }
+  el.append(col);
+
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2
+      const time = document.createElement('time');
+      time.className = 'c-fbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      el.append(time);
+    }
+  }
+  row.append(el);
+  return row;
+}
+
+/* ---- src/components/reactions.js ---- */
+function addReactions(row, {
+  reactions = [],
+  tip = '',
+  placement = 'overlap', // #65 LOCKED overlap (Damir 2026-07-03); 'inside' superseded param
+  animate = false,
+  maxVisible = 3,        // heavy-reactions cap (Damir 2026-07-03): first N types + "+N"
+  host,
+  onInspect,
+  onToggle,
+  strings = {},
+} = {}) {
+  // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden clips — audit r3)
+  const bubble = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble-anchor');
+  if (!bubble) return;
+
+  // replace-on-repeat: the bridge sends the full reaction list every time
+  const prev = bubble.querySelector('.c-reactions');
+  if (prev) prev.remove();
+  delete row.dataset.reactions;
+
+  if (reactions.length === 0 && !tip) return;
+
+  const el = document.createElement('span');
+  el.className = 'c-reactions';
+  if (animate) el.classList.add('c-reactions--in'); // cheap pop (Damir 2026-07-03); finite, token-driven
+  el.dataset.placement = placement;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', strings.reactions || 'Reactions');
+
+  // heavy-reactions cap (Damir 2026-07-03): first maxVisible TYPES render as
+  // pills, the rest fold into a "+N" pill that opens the inspect sheet
+  const visible = reactions.length > maxVisible ? reactions.slice(0, maxVisible) : reactions;
+  for (const r of visible) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'c-reactions__pill';
+    pill.setAttribute('aria-pressed', r.own ? 'true' : 'false');
+    pill.setAttribute('aria-label',
+      (strings.reaction || 'Reaction') + ' ' + r.emoji + (r.count > 1 ? ' ' + r.count : ''));
+    const em = document.createElement('span');
+    em.className = 'c-reactions__emoji';
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = r.emoji;
+    pill.append(em);
+    if (r.count > 1) {
+      const n = document.createElement('span');
+      n.className = 'c-reactions__count u-tabular';
+      n.setAttribute('aria-hidden', 'true');
+      n.textContent = String(r.count);
+      pill.append(n);
+    }
+    if (onToggle) pill.addEventListener('click', () => onToggle(r.emoji));
+    el.append(pill);
+  }
+  if (reactions.length > maxVisible) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'c-reactions__pill c-reactions__more';
+    more.setAttribute('aria-label', strings.allReactions || 'Show all reactions');
+    more.textContent = '+' + (reactions.length - maxVisible);
+    more.addEventListener('click', onInspect
+      ? () => onInspect()
+      : () => openReactionsSheet({ host, reactions, tip, strings }));
+    el.append(more);
+  }
+
+  if (tip) {
+    const badge = createBadge({
+      type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake',
+    });
+    badge.classList.add('c-reactions__tip');
+    el.append(badge);
+  }
+
+  if (placement === 'overlap') row.dataset.reactions = 'overlap'; // row reserves overhang space
+  bubble.append(el);
+}
+
+/** Inspect sheet: every reaction type with count + who reacted (Damir
+ *  2026-07-03). Sender names arrive from the bridge aggregation. */
+function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-reactmenu';
+  content.setAttribute('role', 'list'); // audit r3: SRs get structure + count
+  for (const r of reactions) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'c-reactmenu__row';
+    rowEl.setAttribute('role', 'listitem');
+    const em = document.createElement('span');
+    em.className = 'c-reactmenu__emoji';
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = r.emoji;
+    const col = document.createElement('span');
+    col.className = 'c-reactmenu__info';
+    const count = document.createElement('span');
+    count.className = 'c-reactmenu__count';
+    count.textContent = (r.count || 1) + ' × ' + r.emoji;
+    const who = document.createElement('span');
+    who.className = 'c-reactmenu__senders';
+    who.textContent = (r.senders && r.senders.length)
+      ? r.senders.join(', ') + (r.own ? ' · ' + (strings.you || 'You') : '')
+      : (r.own ? (strings.you || 'You') : '');
+    col.append(count, who);
+    rowEl.append(em, col);
+    content.append(rowEl);
+  }
+  if (tip) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'c-reactmenu__row';
+    rowEl.setAttribute('role', 'listitem');
+    rowEl.append(createBadge({ type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
+    content.append(rowEl);
+  }
+  const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ---- src/components/typing-indicator.js ---- */
+function createTypingIndicator({ name = '', strings = {} } = {}) {
+  const row = document.createElement('div');
+  // --typing: hugs the composer (Damir 2026-07-03 — spacing-4 bottom gap)
+  row.className = 'c-bubble-row c-bubble-row--typing';
+  row.dataset.direction = 'received';
+  row.dataset.position = 'single';
+
+  const el = document.createElement('div');
+  el.className = 'c-typing';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-label',
+    name ? name + ' ' + (strings.isTyping || 'is typing…') : (strings.typing || 'Typing…'));
+
+  if (name) {
+    const n = document.createElement('span');
+    n.className = 'c-typing__name';
+    n.setAttribute('aria-hidden', 'true');
+    n.textContent = name;
+    el.append(n);
+  }
+
+  const dots = document.createElement('span');
+  dots.className = 'c-typing__dots';
+  dots.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('span');
+    d.className = 'c-typing__dot';
+    dots.append(d);
+  }
+  el.append(dots);
+
+  row.append(el);
+  return row;
+}
+
+/* ---- src/components/scroll-latest.js ---- */
+const SHOW_THRESHOLD = 200; // px from bottom before the button appears (sanctioned)
+
+function createScrollToLatest({ target, strings = {} } = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-scroll-latest';
+  el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
+  el.append(icon('chevron-down', { size: 22 }));
+
+  if (target) {
+    const sync = () => {
+      const away = target.scrollHeight - target.scrollTop - target.clientHeight;
+      el.toggleAttribute('data-visible', away > SHOW_THRESHOLD);
+    };
+    target.addEventListener('scroll', sync, { passive: true });
+    sync();
+    el.addEventListener('click', () => {
+      target.scrollTo({
+        top: target.scrollHeight,
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+    });
+  }
+  return el;
+}
+
+function setScrollLatestCount(el, count, strings = {}) {
+  let badge = el.querySelector('.c-scroll-latest__badge');
+  if (!count) {
+    if (badge) badge.remove();
+    el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'c-scroll-latest__badge u-tabular';
+    badge.setAttribute('aria-hidden', 'true'); // count lives in the button label
+    el.append(badge);
+  }
+  badge.textContent = formatCount(count);
+  el.setAttribute('aria-label',
+    (strings.scrollToLatest || 'Scroll to latest messages') + ' — ' +
+    formatCount(count) + ' ' + (strings.unread || 'unread'));
+}
+
+/* ---- src/components/message-menu.js ---- */
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const LONG_PRESS_MS = 500;   // §5b
+const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
+
+function openMessageMenu({
+  row,
+  host,
+  text = '',
+  capabilities = {},
+  onAction,
+  strings = {},
+} = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-msgmenu';
+
+  const act = (action, arg) => {
+    closeSheet(sheet);
+    if (action === 'copy' && !onAction) {
+      // JS-side default (§5b); shells may override via onAction
+      if (navigator.clipboard && text) navigator.clipboard.writeText(text).catch(() => {});
+      return;
+    }
+    if (onAction) onAction(action, arg);
+  };
+
+  const reacts = document.createElement('div');
+  reacts.className = 'c-msgmenu__reacts';
+  reacts.setAttribute('role', 'group');
+  reacts.setAttribute('aria-label', strings.react || 'React');
+  for (const emoji of QUICK_REACTIONS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__react';
+    b.setAttribute('aria-label', (strings.reactWith || 'React with') + ' ' + emoji);
+    const em = document.createElement('span');
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = emoji;
+    b.append(em);
+    b.addEventListener('click', () => act('react', emoji));
+    reacts.append(b);
+  }
+  content.append(reacts);
+
+  const list = document.createElement('div');
+  list.className = 'c-msgmenu__list';
+  const item = (glyph, label, action, destructive = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__item';
+    if (destructive) b.dataset.destructive = '';
+    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.addEventListener('click', () => act(action));
+    list.append(b);
+  };
+
+  // capability-gated first (#25: menu contents constrained by bridge reality)
+  if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
+  if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
+  if (text) item('copy', strings.copy || 'Copy', 'copy');
+  if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
+  // destructive group last (§5b)
+  item('trash', strings.deleteMessage || 'Delete', 'delete', true);
+  if (capabilities.report) item('alert-square-rounded', strings.report || 'Report', 'report', true);
+
+  content.append(list);
+
+  const sheet = createSheet({ content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+function attachMessageMenu(row, opts = {}) {
+  const target = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || row;
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let fired = false;
+
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
+  target.addEventListener('pointerdown', (e) => {
+    // ANY new gesture resets suppression (audit r4: right-click left fired=true
+    // and swallowed the next right-click)
+    fired = false;
+    if (e.button !== 0) return; // right button → contextmenu path
+    startX = e.clientX;
+    startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      fired = true;
+      openMessageMenu({ row, ...opts });
+    }, LONG_PRESS_MS);
+  });
+  target.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - startX) > MOVE_CANCEL_PX ||
+                  Math.abs(e.clientY - startY) > MOVE_CANCEL_PX)) cancel();
+  });
+  target.addEventListener('pointerup', cancel);
+  target.addEventListener('pointercancel', cancel);
+  // long-press fired → the release click must not trigger bubble actions
+  target.addEventListener('click', (e) => {
+    if (fired) {
+      e.preventDefault();
+      e.stopPropagation();
+      fired = false;
+    }
+  }, true);
+
+  target.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the pointer
+    // timer moment — without this guard both paths opened a sheet each
+    if (fired) return;
+    cancel();
+    fired = true;
+    openMessageMenu({ row, ...opts });
+  });
+}
+/* ---- BATCH 3b: replies + edits, §8-GATED #25 + linkify/link-preview (manual
+   append) ---- createMessageBubble SUPERSEDE + composer context strip free
+   fns. Mac rebuild normalizes. */
+
+/* linkify (Damir 2026-07-03): URLs become BUTTONS routed through onLinkClick
+   (the shell's external-link warning) — XSS-safe, DOM-built, no innerHTML. */
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+
+/* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
+   BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
+const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
+
+function linkifyInto(parent, text, onLinkClick) {
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    let url = m[0];
+    const trail = url.match(/[.,!?;:]+$/);
+    if (trail) url = url.slice(0, url.length - trail[0].length);
+    // unbalanced closing parens are sentence punctuation: "(see https://x.com)"
+    while (url.endsWith(')') &&
+           (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
+    if (!url) continue;
+    parent.append(text.slice(last, m.index));
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-bubble__link';
+    b.textContent = url;
+    if (onLinkClick) b.addEventListener('click', () => onLinkClick(url));
+    parent.append(b);
+    last = m.index + url.length;
+  }
+  parent.append(text.slice(last));
+}
+
+function createMessageBubble({
+  direction = 'received',
+  position = 'single',
+  text = '',
+  timestamp = null,
+  status = null,
+  sender = null,
+  showAvatar = false,
+  name = '',
+  address = '',
+  avatar = null,
+  onRetry = null,
+  reply = null,
+  onReplyClick = null,
+  edited = false,
+  onLinkClick = null,
+  linkPreview = null,
+  strings = {},
+} = {}) {
+  // row wrapper: aligns bubble + optional avatar gutter (received groups)
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = position;
+
+  if (direction === 'received' && (showAvatar || sender !== null)) {
+    const gutter = document.createElement('span');
+    gutter.className = 'c-bubble-row__gutter';
+    if (showAvatar && (position === 'last' || position === 'single')) {
+      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
+    }
+    row.append(gutter);
+  }
+
+  const el = document.createElement('div');
+  el.className = 'c-bubble';
+  if (text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
+
+  if (sender && (position === 'first' || position === 'single')) {
+    const s = document.createElement('span');
+    s.className = 'c-bubble__sender';
+    s.textContent = sender;
+    s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    el.append(s);
+  }
+
+  // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet)
+  if (reply && (reply.text || reply.sender)) {
+    const q = document.createElement(onReplyClick ? 'button' : 'div');
+    q.className = 'c-bubble__reply';
+    if (onReplyClick) {
+      q.type = 'button';
+      q.addEventListener('click', onReplyClick);
+      q.setAttribute('aria-label',
+        (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
+    }
+    q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
+    if (reply.sender) {
+      const qs = document.createElement('span');
+      qs.className = 'c-bubble__reply-sender';
+      qs.textContent = reply.sender;
+      q.append(qs);
+    }
+    const qt = document.createElement('span');
+    qt.className = 'c-bubble__reply-text';
+    qt.textContent = reply.text || '';
+    q.append(qt);
+    el.append(q);
+  }
+
+  const body = document.createElement('span');
+  body.className = 'c-bubble__text';
+  linkifyInto(body, text, onLinkClick); // plain text appends untouched
+  el.append(body);
+
+  // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)
+  if (linkPreview && (linkPreview.title || linkPreview.domain)) {
+    const lp = document.createElement(onLinkClick ? 'button' : 'div');
+    lp.className = 'c-bubble__linkpreview';
+    if (onLinkClick) {
+      lp.type = 'button';
+      lp.addEventListener('click', () => onLinkClick(linkPreview.url));
+    }
+    if (linkPreview.image) {
+      const img = document.createElement('img');
+      img.className = 'c-bubble__linkpreview-img';
+      img.src = linkPreview.image;
+      img.alt = '';
+      lp.append(img);
+    }
+    const col = document.createElement('span');
+    col.className = 'c-bubble__linkpreview-info';
+    if (linkPreview.title) {
+      const t = document.createElement('span');
+      t.className = 'c-bubble__linkpreview-title';
+      t.textContent = linkPreview.title;
+      col.append(t);
+    }
+    if (linkPreview.domain) {
+      const d2 = document.createElement('span');
+      d2.className = 'c-bubble__linkpreview-domain';
+      d2.textContent = linkPreview.domain;
+      col.append(d2);
+    }
+    lp.append(col);
+    el.append(lp);
+  }
+
+  const meta = document.createElement('span');
+  meta.className = 'c-bubble__meta u-tabular';
+  if (edited) { // §8-gated (#25) — "edited" precedes the time, WhatsApp-style
+    const ed = document.createElement('span');
+    ed.className = 'c-bubble__edited';
+    ed.textContent = strings.edited || 'edited';
+    meta.append(ed);
+  }
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: one malformed bridge ts crashed the whole render
+      const t = document.createElement('time');
+      t.setAttribute('datetime', d.toISOString());
+      t.textContent = bubbleTime(d);
+      meta.append(t);
+    }
+  }
+  if (direction === 'sent' && status) {
+    const st = createStatusIcon(status);
+    if (st) {
+      st.setAttribute('width', 14);
+      st.setAttribute('height', 14);
+      st.removeAttribute('aria-hidden');
+      st.setAttribute('role', 'img');
+      st.setAttribute('aria-label', strings['status-' + status] || status);
+      meta.append(st);
+    }
+  }
+  if (meta.childNodes.length) el.append(meta);
+
+  if (direction === 'sent' && status === 'failed') {
+    row.dataset.failed = '';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'c-bubble-retry';
+    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
+    retry.append(icon('rotate-clockwise-2', { size: 16 }));
+    let lastRetry = 0;
+    const retryGuarded = onRetry ? ((e) => {
+      const t = Date.now();
+      if (t - lastRetry < 500) return;
+      lastRetry = t;
+      onRetry(e);
+    }) : null;
+    if (retryGuarded) retry.addEventListener('click', retryGuarded);
+    const line = document.createElement('div');
+    line.className = 'c-bubble-line';
+    line.append(retry, el);
+    const stack = document.createElement('div');
+    stack.className = 'c-bubble-stack';
+    stack.append(line);
+    const note = document.createElement('span');
+    note.className = 'c-bubble-failnote';
+    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
+    if (retryGuarded) note.addEventListener('click', retryGuarded);
+    stack.append(note);
+    row.append(stack);
+    return row;
+  }
+
+  row.append(el);
+  return row;
+}
+
+/* ---- src/components/composer.js (batch 3b additions) ---- */
+const composerCtx = new WeakMap(); // composer el → active ctx
+
+/* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
+   the user's pre-edit draft back (audit r3) */
+function cancelComposerContext(el) {
+  const c = composerCtx.get(el);
+  if (!c) return;
+  const input = el.querySelector('.c-composer__input');
+  if (c.kind === 'edit' && input) {
+    input.value = c._draft || '';
+    input.dispatchEvent(new Event('input')); // isTrusted=false → no typing emit
+  }
+  setComposerContext(el, null);
+  if (c.onCancel) c.onCancel();
+}
+
+function setComposerContext(el, ctx) {
+  const input = el.querySelector('.c-composer__input');
+  const prev = el.querySelector('.c-composer__ctx');
+  if (prev) prev.remove();
+  if (!ctx) { composerCtx.delete(el); return; }
+  composerCtx.set(el, ctx);
+  const strings = ctx.strings || {};
+
+  const strip = document.createElement('div');
+  strip.className = 'c-composer__ctx';
+  strip.dataset.kind = ctx.kind;
+  strip.append(icon(ctx.kind === 'edit' ? 'pencil' : 'share-3', { size: 18 }));
+  const col = document.createElement('span');
+  col.className = 'c-composer__ctx-info';
+  const title = document.createElement('span');
+  title.className = 'c-composer__ctx-title';
+  title.textContent = ctx.title ||
+    (ctx.kind === 'edit' ? (strings.editMessage || 'Edit message') : (strings.reply || 'Reply'));
+  const text = document.createElement('span');
+  text.className = 'c-composer__ctx-text';
+  text.textContent = ctx.text || '';
+  col.append(title, text);
+  strip.append(col);
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.className = 'c-composer__ctx-cancel';
+  x.setAttribute('aria-label', strings.cancel || 'Cancel');
+  x.append(icon('x', { size: 16 }));
+  x.addEventListener('click', () => cancelComposerContext(el));
+  strip.append(x);
+  el.prepend(strip); // flex-wrap row: the strip takes the full first line
+
+  if (input) {
+    if (ctx.kind === 'edit' && ctx.prefill !== false) {
+      ctx._draft = input.value; // restored on cancel (audit r3)
+      input.value = ctx.text || '';
+      input.dispatchEvent(new Event('input')); // grow + action sync; isTrusted=false → no typing emit
+    }
+    if (el.dataset.ctxWired === undefined) {
+      el.dataset.ctxWired = '';
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && composerCtx.has(el)) cancelComposerContext(el);
+      });
+    }
+    input.focus();
+  }
+}
+
+function getComposerContext(el) { return composerCtx.get(el) || null; }
+
+/* ---- src/components/media-bubble.js (GIF/image tile, P2P tap-to-load) ---- */
+const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
+
+function mediaAria(state, kind, alt, strings) {
+  const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
+  if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ' — ' + what;
+  if (state === 'loading') return (strings.loading || 'Loading') + ' — ' + what;
+  if (state === 'failed') return (strings.retry || 'Retry') + ' — ' + what;
+  return (strings.open || 'Open') + ' — ' + what;
+}
+
+function createMediaBubble({
+  direction = 'received',
+  kind = 'image',
+  src = '',
+  preview = null,
+  width = 0,
+  height = 0,
+  alt = '',
+  autoload = false,
+  timestamp = null,
+  gutter = false,
+  onOpen,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-mbubble';
+  el.dataset.kind = kind;
+  if (width > 0 && height > 0) el.style.aspectRatio = width + ' / ' + height; // sanctioned: runtime geometry from sender dims
+
+  if (preview) {
+    const pv = document.createElement('img');
+    pv.className = 'c-mbubble__preview';
+    pv.src = preview;
+    pv.alt = '';
+    pv.setAttribute('aria-hidden', 'true');
+    el.append(pv);
+  }
+
+  // img lives in the DOM from creation (hidden until data-state=loaded) so its
+  // load/error listeners are ALWAYS the ones in play (audit r3)
+  const img = document.createElement('img');
+  img.className = 'c-mbubble__img';
+  img.alt = ''; // the button carries the accessible name
+  el.append(img);
+
+  const overlay = document.createElement('span');
+  overlay.className = 'c-mbubble__overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  el.append(overlay);
+
+  if (kind === 'gif') {
+    const badge = document.createElement('span');
+    badge.className = 'c-mbubble__badge';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.textContent = 'GIF';
+    el.append(badge);
+  }
+
+  const setState = (s) => {
+    el.dataset.state = s;
+    el.setAttribute('aria-label', mediaAria(s, kind, alt, strings));
+    overlay.textContent = '';
+    if (s === 'idle') overlay.append(icon(kind === 'gif' ? 'player-play' : 'download', { size: 22 }));
+    else if (s === 'loading') {
+      const sp = document.createElement('span');
+      sp.className = 'c-mbubble__spinner';
+      overlay.append(sp);
+    } else if (s === 'failed') overlay.append(icon('rotate-clockwise-2', { size: 22 }));
+  };
+
+  let currentSrc = src; // may be swapped by setMediaSrc (file-transfer path)
+  const load = () => {
+    if (!currentSrc) return;
+    setState('loading');
+    img.src = currentSrc;
+  };
+  img.addEventListener('load', () => setState('loaded'));
+  img.addEventListener('error', () => setState('failed'));
+  mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
+
+  el.addEventListener('click', () => {
+    const s = el.dataset.state;
+    if (s === 'idle' || s === 'failed') load();
+    else if (s === 'loaded' && onOpen) onOpen();
+  });
+
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) {
+      const time = document.createElement('time');
+      time.className = 'c-mbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+      el.append(time);
+    }
+  }
+
+  setState('idle');
+  if (autoload && src) load();
+
+  // reactions overlap-anchor (audit r3): tile overflow:hidden clips overhang pills
+  const anchor = document.createElement('span');
+  anchor.className = 'c-mbubble-anchor';
+  anchor.append(el);
+  row.append(anchor);
+  return row;
+}
+
+function setMediaSrc(row, src) {
+  const el = row.querySelector('.c-mbubble');
+  if (!el || !src) return;
+  const ctl = mediaCtl.get(el);
+  if (ctl) ctl.setSrc(src);
+}
+/* ---- end BATCH 3 SECTION ---- */
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc };
 })();

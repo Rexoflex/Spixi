@@ -49,6 +49,10 @@ const FILES = [
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',
   'src/components/call-overlay.js',
+  'src/components/contact-request.js',
+  'src/components/chats-row-menu.js',
+  'src/components/chats-shell.js',
+  'src/components/chats-header.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

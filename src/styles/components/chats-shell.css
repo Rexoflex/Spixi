@@ -1,0 +1,14 @@
+/* c-chats-shell — Chats flow shell scaffold: list container + empty state.
+   The contact-request row is its own component (contact-request.css, step 3).
+   Semantic tokens only. Spec: docs/chats-shell-spec.md. */
+
+.c-chats-list { display: flex; flex-direction: column; }
+
+/* —— empty state (per-filter copy from the model; illustrations/CTA later) —— */
+.c-chats-empty {
+  padding: var(--spacing-32) var(--spacing-24);
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}

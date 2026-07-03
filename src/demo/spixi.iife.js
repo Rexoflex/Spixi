@@ -4465,5 +4465,351 @@ function hideIncomingCall(el) {
 }
 /* ---- end BATCH 3 SECTION ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall };
+/* ---- chats-shell modules (hand-appended; run scripts/build-demo-bundle.mjs to regenerate cleanly) ---- */
+function crDisplayAddress(addr) {
+  const s = String(addr || '');
+  return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
+}
+function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = {}, host, onAccept, onDecline } = {}) {
+  const display = nick || name || crDisplayAddress(address);
+  const row = document.createElement('div');
+  row.className = 'c-contact-request';
+  row.dataset.kind = 'request';
+  row.append(createAvatar({ src: avatar, name: nick || name, address, size: 48 }));
+  const body = document.createElement('div');
+  body.className = 'c-contact-request__body';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'c-contact-request__name';
+  nameEl.textContent = display;
+  const sub = document.createElement('span');
+  sub.className = 'c-contact-request__sub';
+  sub.textContent = strings.wantsToConnect || 'Wants to connect';
+  body.append(nameEl, sub);
+  const actions = document.createElement('div');
+  actions.className = 'c-contact-request__actions';
+  const declineLabel = strings.decline || 'Decline';
+  const acceptLabel = strings.accept || 'Accept';
+  const decline = createButton({
+    label: declineLabel, type: 'outline', size: 32,
+    onClick: () => openModal(createModal({
+      title: strings.declineTitle || 'Decline request?',
+      body: (strings.declineBody || '{name} won’t be notified, and can send another request later.').split('{name}').join(display),
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: declineLabel, type: 'fill', intent: 'destructive', onClick: () => { if (onDecline) onDecline(); } },
+      ],
+    })),
+  });
+  decline.setAttribute('aria-label', declineLabel + ' ' + display);
+  const accept = createButton({
+    label: acceptLabel, type: 'fill', size: 32, icon: icon('check', { size: 16 }),
+    onClick: () => { if (onAccept) onAccept(row); },
+  });
+  accept.setAttribute('aria-label', acceptLabel + ' ' + display);
+  actions.append(decline, accept);
+  body.append(actions);
+  row.append(body);
+  const time = document.createElement('span');
+  time.className = 'c-contact-request__time u-tabular';
+  time.textContent = formatChatTimestamp(timestamp, strings);
+  row.append(time);
+  return row;
+}
+
+const CHATMENU_LONG_PRESS_MS = 500;
+const CHATMENU_MOVE_CANCEL_PX = 10;
+function openChatRowMenu({ chat = {}, host, onAction, strings = {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-msgmenu';
+  const list = document.createElement('div');
+  list.className = 'c-msgmenu__list';
+  const act = (action) => { closeSheet(sheet); if (onAction) onAction(action); };
+  const item = (glyph, label, onClick, destructive = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__item';
+    if (destructive) b.dataset.destructive = '';
+    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.addEventListener('click', onClick);
+    list.append(b);
+  };
+  item(chat.pinned ? 'pinned-off' : 'pin', chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'), () => act('pin'));
+  item(chat.muted ? 'bell' : 'bell-off', chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'), () => act('mute'));
+  item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
+  item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
+  item('trash', strings.deleteChat || 'Delete chat', () => {
+    closeSheet(sheet);
+    openModal(createModal({
+      title: strings.deleteChatTitle || 'Delete chat?',
+      body: strings.deleteChatBody || 'This removes the conversation from your device.',
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('delete'); } },
+      ],
+    }));
+  }, true);
+  content.append(list);
+  const sheet = createSheet({ content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+function attachChatRowMenu(row, opts = {}) {
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let fired = false;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  row.addEventListener('pointerdown', (e) => {
+    fired = false;
+    if (e.button !== 0) return;
+    startX = e.clientX; startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      fired = true;
+      openChatRowMenu({ ...opts });
+    }, CHATMENU_LONG_PRESS_MS);
+  });
+  row.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - startX) > CHATMENU_MOVE_CANCEL_PX ||
+                  Math.abs(e.clientY - startY) > CHATMENU_MOVE_CANCEL_PX)) cancel();
+  });
+  row.addEventListener('pointerup', cancel);
+  row.addEventListener('pointercancel', cancel);
+  row.addEventListener('click', (e) => {
+    if (fired) { e.preventDefault(); e.stopPropagation(); fired = false; }
+  }, true);
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (fired) return;
+    cancel();
+    fired = true;
+    openChatRowMenu({ ...opts });
+  });
+}
+
+const CHATS_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'unread', label: 'Unread' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'groups', label: 'Groups' },
+  { id: 'requests', label: 'Requests' },
+];
+function createChatsHeader({ activeFilter = 'all', strings = {}, favorites = false, onFilter, onQuery } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-header';
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'c-chats-header__search';
+  searchWrap.append(createSearchField({
+    placeholder: strings.searchChats || 'Search chats',
+    onInput: (q) => { if (onQuery) onQuery(q); },
+  }));
+  el.append(searchWrap);
+  const chipsRow = document.createElement('div');
+  chipsRow.className = 'c-chats-header__filters';
+  chipsRow.setAttribute('role', 'group');
+  chipsRow.setAttribute('aria-label', strings.filterChats || 'Filter chats');
+  const chips = CHATS_FILTERS
+    .filter((f) => f.id !== 'favorites' || favorites)
+    .map((f) => {
+      const chip = createChip({
+        label: strings['chatsFilter_' + f.id] || f.label,
+        selected: f.id === activeFilter,
+        onClick: () => {
+          for (const c of chips) setChipSelected(c, c === chip);
+          if (onFilter) onFilter(f.id);
+        },
+      });
+      chip.dataset.filter = f.id;
+      return chip;
+    });
+  chipsRow.append(...chips);
+  el.append(chipsRow);
+  return el;
+}
+const CHATS_REVEAL_AT = 1;
+function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
+  const rm = reducedMotion != null ? reducedMotion
+    : (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let naturalH = headerEl.offsetHeight || 0;
+  let collapsed = false;
+  let lastTop = scrollEl.scrollTop;
+  const setFocusable = (on) => {
+    for (const f of headerEl.querySelectorAll('input, button')) {
+      if (on) f.removeAttribute('tabindex'); else f.setAttribute('tabindex', '-1');
+    }
+  };
+  const onEnd = (e) => {
+    if (e.target === headerEl && e.propertyName === 'max-height' && !collapsed) {
+      headerEl.style.maxHeight = '';
+    }
+  };
+  headerEl.addEventListener('transitionend', onEnd);
+  const setCollapsed = (want) => {
+    if (want === collapsed) return;
+    if (want) {
+      const h = headerEl.offsetHeight || naturalH;
+      if (!h) return;
+      naturalH = h;
+      collapsed = true;
+      headerEl.style.maxHeight = naturalH + 'px';
+      void headerEl.offsetHeight;
+      headerEl.style.maxHeight = '0px';
+      headerEl.style.opacity = '0';
+      headerEl.setAttribute('inert', '');
+      headerEl.setAttribute('aria-hidden', 'true');
+      headerEl.dataset.collapsed = '';
+      setFocusable(false);
+    } else {
+      collapsed = false;
+      headerEl.style.maxHeight = naturalH + 'px';
+      headerEl.style.opacity = '';
+      if (rm) headerEl.style.maxHeight = '';
+      headerEl.removeAttribute('inert');
+      headerEl.removeAttribute('aria-hidden');
+      delete headerEl.dataset.collapsed;
+      setFocusable(true);
+    }
+  };
+  const onScroll = () => {
+    const top = scrollEl.scrollTop;
+    const delta = top - lastTop;
+    lastTop = top;
+    if (top <= CHATS_REVEAL_AT) setCollapsed(false);
+    else if (delta > 0) setCollapsed(true);
+  };
+  const onResize = () => {
+    if (!collapsed) { headerEl.style.maxHeight = ''; naturalH = headerEl.offsetHeight || naturalH; }
+  };
+  scrollEl.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onResize);
+  return function detachChatsCollapse() {
+    scrollEl.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onResize);
+    headerEl.removeEventListener('transitionend', onEnd);
+    headerEl.style.maxHeight = '';
+    headerEl.style.opacity = '';
+    headerEl.removeAttribute('inert');
+    headerEl.removeAttribute('aria-hidden');
+    delete headerEl.dataset.collapsed;
+    setFocusable(true);
+  };
+}
+
+function chatMatchesFilter(chat, filter) {
+  switch (filter) {
+    case 'unread': return (chat.unread || 0) > 0 || !!chat.mention;
+    case 'favorites': return !!chat.favorite;
+    case 'groups': return chat.type === 'group';
+    case 'requests': return false;
+    case 'all':
+    default: return true;
+  }
+}
+function chatMatchesQuery(item, needle) {
+  const q = (needle || '').trim().toLocaleLowerCase();
+  if (!q) return true;
+  const name = (item.name || item.address || '').toLocaleLowerCase();
+  if (name.includes(q)) return true;
+  const ex = item.excerpt && item.excerpt.text;
+  return typeof ex === 'string' && ex.toLocaleLowerCase().includes(q);
+}
+function orderedRequests(state) {
+  const f = state.filter;
+  if (f !== 'all' && f !== 'requests') return [];
+  return (state.requests || []).filter(Boolean).filter((r) => chatMatchesQuery(r, state.query));
+}
+function orderedChats(state) {
+  if (state.filter === 'requests') return [];
+  return (state.chats || [])
+    .filter(Boolean)
+    .filter((c) => chatMatchesFilter(c, state.filter) && chatMatchesQuery(c, state.query))
+    .slice()
+    .sort((a, b) => {
+      const pinDelta = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      if (pinDelta) return pinDelta;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+}
+function chatsUnreadTotal(chats) {
+  return (chats || []).filter(Boolean).reduce(
+    (n, c) => n + (c.muted ? 0 : (c.unread || (c.mention ? 1 : 0))), 0);
+}
+function chatsEmptyCopy(state, strings) {
+  const q = (state.query || '').trim();
+  if (q) return (strings.chatsEmptySearch || 'No chats match “{q}”').split('{q}').join(q);
+  switch (state.filter) {
+    case 'unread': return strings.chatsEmptyUnread || 'No unread chats';
+    case 'groups': return strings.chatsEmptyGroups || 'No groups yet';
+    case 'favorites': return strings.chatsEmptyFavorites || 'No favorites yet';
+    case 'requests': return strings.chatsEmptyRequests || 'No pending requests';
+    case 'all':
+    default: return strings.chatsEmptyAll || 'No chats yet';
+  }
+}
+function chatsEmptyState(state, strings) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-empty';
+  el.setAttribute('role', 'note');
+  el.textContent = chatsEmptyCopy(state, strings);
+  return el;
+}
+function renderChatsList(listEl, state, opts = {}) {
+  const strings = opts.strings || {};
+  listEl.textContent = '';
+  const reqs = orderedRequests(state);
+  const chats = orderedChats(state);
+  for (const r of reqs) {
+    listEl.append(createContactRequest({
+      ...r, strings, host: opts.host,
+      onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
+      onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
+    }));
+  }
+  for (const c of chats) {
+    const el = createChatItem({ ...c, strings, onClick: opts.onOpen ? () => opts.onOpen(c) : undefined });
+    if (c.pinned) el.dataset.pinned = '';
+    if (c.muted) el.dataset.muted = '';
+    if (opts.rowMenu !== false) {
+      attachChatRowMenu(el, {
+        chat: c, host: opts.host, strings,
+        onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+      });
+    }
+    listEl.append(el);
+  }
+  if (!reqs.length && !chats.length) listEl.append(chatsEmptyState(state, strings));
+  return listEl;
+}
+function applyChatRowAction(listEl, state, chat, action, opts = {}) {
+  switch (action) {
+    case 'pin': chat.pinned = !chat.pinned; break;
+    case 'mute': chat.muted = !chat.muted; break;
+    case 'markRead': chat.unread = 0; chat.mention = false; break;
+    case 'delete': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;
+    default: return;
+  }
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+function createChatsList(state, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-list';
+  renderChatsList(el, state, opts);
+  return el;
+}
+function setChatsFilter(listEl, state, filter, opts) {
+  state.filter = filter;
+  return renderChatsList(listEl, state, opts);
+}
+function setChatsQuery(listEl, state, query, opts) {
+  state.query = query;
+  return renderChatsList(listEl, state, opts);
+}
+/* ---- end chats-shell modules ---- */
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse };
 })();

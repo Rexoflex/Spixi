@@ -1,0 +1,33 @@
+/* c-chats-header — Chats shell collapsing header (step 2): search + filter
+   chips as one unit. Semantic tokens only. Spec: docs/chats-shell-spec.md §3-4.
+
+   The collapse is a TRIGGERED transition (attachChatsCollapse toggles inline
+   max-height/opacity): collapse on downward scroll, reveal only at the absolute
+   top. overflow:hidden clips the content as max-height animates. Reduced-motion
+   zeros --duration-300 so it snaps. */
+
+.c-chats-header {
+  flex: none;
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard);
+}
+/* fallback for WebViews without `inert` (Chromium <102): block interaction with
+   the clipped header; attachChatsCollapse also drops tabindex on the focusables */
+.c-chats-header[data-collapsed] { pointer-events: none; }
+
+.c-chats-header__search {
+  padding-block: var(--spacing-4) var(--spacing-8);
+  padding-inline: var(--spacing-16);
+}
+
+.c-chats-header__filters {
+  display: flex;
+  gap: var(--spacing-8);
+  padding-block: 0 var(--spacing-12);
+  padding-inline: var(--spacing-16);
+  overflow-x: auto;                 /* chips may overflow on narrow screens */
+  scrollbar-width: none;            /* transient/native indicator only, like .u-scroll */
+  -webkit-overflow-scrolling: touch;
+}
+.c-chats-header__filters::-webkit-scrollbar { display: none; }

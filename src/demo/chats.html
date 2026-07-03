@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Chats shell — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/contact-request.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/chats-shell.css">
+<link rel="stylesheet" href="../styles/components/chats-header.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+  }
+  .content { flex: 1; display: flex; flex-direction: column; } /* scroll via .u-scroll */
+  .fab {
+    position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+    width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
+    background: var(--surface-action-default); color: var(--text-neutral-on-action);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--elevation-2); z-index: var(--z-10);
+  }
+  @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
+  .fab:active { background: var(--surface-action-pressed); }
+  .sheet-item {
+    display: flex; align-items: center; gap: var(--spacing-16);
+    width: 100%; min-height: 56px; padding: var(--spacing-8) var(--spacing-12);
+    border: 0; border-radius: var(--radius-12); background: transparent;
+    color: var(--text-neutral-01); font-family: var(--font-secondary);
+    font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg);
+    cursor: pointer; text-align: start;
+  }
+  @media (hover: hover) { .sheet-item:hover { background: var(--surface-interactive-hover); } }
+  .sheet-item:active { background: var(--surface-interactive-pressed); }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Chats shell</h1>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="chats-topbar"></div>
+        <div id="chats-header"></div>
+        <div class="content u-scroll" id="chat-scroll"></div>
+        <button class="fab" id="fab" aria-label="New chat"></button>
+        <div id="chats-nav"></div>
+      </div>
+      <div class="demo-caption">Chats shell — model-driven list · collapsing header (scroll to see it retract) · filter chips · requests on top</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createButton, createTopbar, createBottomNav, setNavBadge,
+    createChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    createChatsHeader, attachChatsCollapse,
+    startTimestampTicker, refreshTimestamps,
+    createSheet, openSheet, closeSheet, showToast,
+  } = window.Spixi;
+  const icon = window.SpixiIcons.icon;
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+  const themeBtn = createButton({
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
+    onClick: () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme === 'dark';
+      root.classList.add('theme-switching');
+      root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+      themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
+    },
+  });
+  document.getElementById('theme-slot').append(themeBtn);
+
+  const phone = document.querySelector('.demo-phone');
+  document.getElementById('chats-topbar').append(createTopbar({
+    variant: 'root', title: 'Spixi', logo: true,
+    actions: [{ icon: 'users', label: 'Contacts', onClick: () => {} }],
+  }));
+  document.getElementById('fab').append(icon('message-plus'));
+
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({ items: NAV_ITEMS, active: 'chats' });
+  document.getElementById('chats-nav').append(nav);
+
+  /* —— mock model (mirrors bridge addChat + showContactRequest; times relative) —— */
+  const now = Date.now();
+  const H = 3600000, D = 86400000;
+  const at = (msAgo) => now - msAgo;
+
+  const REQUESTS = [
+    { name: '', address: '425Hnq88fnnf5CQen', timestamp: at(2 * H) },
+    { name: 'Lando C.', address: '9xKd42lando', timestamp: at(20 * H) },
+  ];
+  const CHATS = [
+    { name: 'Han Solo', address: '4fj2solo', online: true, pinned: true, timestamp: at(2 * H), status: 'read', excerpt: { type: 'text', text: 'Chewbacca owes me money..' } },
+    { name: 'Sarah Jo', online: true, timestamp: at(D), status: 'delivered', excerpt: { type: 'text', text: 'Coming soon, save me a seat…' } },
+    { name: 'John Connor', online: true, timestamp: at(3 * D), unread: 3, excerpt: { type: 'file', text: 'Skynet-access-codes.md' } },
+    { name: 'Camping Group Alpha', type: 'group', timestamp: at(3 * D), mention: true, excerpt: { type: 'mention', sender: 'Han Solo', text: '@Han I was there just 2 hour…' } },
+    { name: 'Martins Obademo', timestamp: at(4 * D), excerpt: { type: 'call', text: 'Voice call' } },
+    { name: 'QWERTZ', online: true, timestamp: at(29 * D), unread: 5, muted: true, excerpt: { type: 'call-missed', text: 'Missed voice call' } },
+    { name: 'Baracuda', timestamp: at(29 * D), excerpt: { type: 'payment', text: 'Payment request 25 IXI' } },
+    { name: 'London Trip Group', type: 'group', timestamp: at(6 * D), excerpt: { type: 'text', text: 'Han Solo was added' } },
+    { name: 'Mexico Trip', type: 'group', timestamp: at(29 * D), excerpt: { type: 'typing', text: 'Han Solo is typing...' } },
+    { name: 'Gaucho boy', timestamp: at(29 * D), excerpt: { type: 'draft', text: 'I was th' } },
+    { name: '', address: '335Hxq21abcd5OP32', timestamp: at(400 * D), status: 'sent', excerpt: { type: 'text', text: 'Address-only contact (older than a year)' } },
+  ];
+
+  const state = { chats: CHATS, requests: REQUESTS, filter: 'all', query: '' };
+  const strings = {};
+  const opts = {
+    strings, host: phone,
+    onOpen: (c) => showToast({ text: 'Open ' + (c.name || c.address) + ' — demo only', tone: 'info', host: phone }),
+    onRequestAccept: (r) => showToast({ text: 'Accept ' + (r.name || r.address) + ' — staged handshake lands in step 6', tone: 'info', host: phone }),
+    onRequestDecline: (r) => showToast({ text: 'Decline ' + (r.name || r.address) + ' — demo only', tone: 'info', host: phone }),
+    onChatInfo: (c) => showToast({ text: 'Chat info: ' + (c.name || c.address) + ' — pane coming later', tone: 'info', host: phone }),
+    onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
+  };
+
+  const scroller = document.getElementById('chat-scroll');
+  const list = createChatsList(state, opts);
+  scroller.append(list);
+
+  const header = createChatsHeader({
+    activeFilter: 'all', strings,
+    onFilter: (f) => setChatsFilter(list, state, f, opts),
+    onQuery: (q) => setChatsQuery(list, state, q, opts),
+  });
+  document.getElementById('chats-header').append(header);
+  attachChatsCollapse(header, scroller);
+
+  // Chats badge (#42): unread total excluding muted; bare mention = 1
+  setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));
+
+  // FAB → start sheet (same pattern as app-frame)
+  document.getElementById('fab').addEventListener('click', () => {
+    const sheetList = document.createElement('div');
+    const sheetItem = (glyph, label) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'sheet-item';
+      b.append(icon(glyph, { size: 24 }), document.createTextNode(label));
+      return b;
+    };
+    sheetList.append(sheetItem('message-plus', 'New chat'), sheetItem('users', 'New group'), sheetItem('scan', 'Scan QR code'));
+    const sheet = createSheet({ title: 'Start', content: sheetList, host: phone });
+    for (const item of sheetList.querySelectorAll('.sheet-item')) {
+      item.addEventListener('click', () => { closeSheet(sheet); showToast({ text: item.textContent + ' — demo only', tone: 'info', host: phone }); });
+    }
+    openSheet(sheet);
+  });
+
+  startTimestampTicker(() => refreshTimestamps(list));
+</script>
+</body>
+</html>

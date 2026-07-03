@@ -434,6 +434,7 @@
   /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
      green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
   --icon-bubble-read: var(--success-300);
+  --icon-bubble-delivered: var(--success-400); /* Damir: delivered = muted green vs read; light stays >=3:1 (#80 amended) */
   --icon-bubble-failed: var(--error-200);
 
   /* icon */
@@ -593,6 +594,7 @@
   --text-bubble-received: var(--neutral-100);
   --text-bubble-received-meta: var(--neutral-400);
   --icon-bubble-read: var(--success-800);   /* audit r2: 600 was 2.3:1 on primary-400 — 800 clears 3:1 non-text */
+  --icon-bubble-delivered: var(--success-700); /* muted vs read (~50% contrast target on primary-400) */
   --icon-bubble-failed: var(--error-700);   /* deep red reads on the light-blue dark bubble */
 
   /* icon */

@@ -68,6 +68,7 @@
 /* —— status icon tones —— */
 .c-status-icon { flex: none; }
 .c-status-icon[data-tone="neutral"] { color: var(--icon-neutral-03); }
+.c-status-icon[data-tone="delivered"] { color: var(--icon-neutral-03); } /* list surface: delivered stays neutral; sent bubble overrides to muted green */
 .c-status-icon[data-tone="read"] { color: var(--icon-accent); }
 .c-status-icon[data-tone="failed"] { color: var(--icon-error); }
 

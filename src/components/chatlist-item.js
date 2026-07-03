@@ -13,11 +13,11 @@ export function formatCount(n) {
   return n > 99 ? '99+' : String(n);
 }
 
-/* —— status icon (§2): sending/sent/delivered neutral · read accent · failed error —— */
+/* —— status icon (§2): sending/sent neutral · delivered muted (bubble: green) · read accent · failed error —— */
 const STATUS = {
   sending: { glyph: 'clock-hour-10', tone: 'neutral' },
   sent: { glyph: 'check', tone: 'neutral' },
-  delivered: { glyph: 'checks', tone: 'neutral' },
+  delivered: { glyph: 'checks', tone: 'delivered' },
   read: { glyph: 'checks', tone: 'read' },
   failed: { glyph: 'alert-small', tone: 'failed' },
 };

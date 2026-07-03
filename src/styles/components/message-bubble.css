@@ -309,6 +309,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* status glyphs on the SENT bubble: dedicated on-bubble tokens (audit findings
    1+2 — read must pop vs delivered in both modes; error ramp unreadable on blue) */
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="neutral"] { color: var(--text-bubble-sent-meta); }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--icon-bubble-delivered); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
 

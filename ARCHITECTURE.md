@@ -237,6 +237,26 @@ Not blocking the redesign; listed for awareness and future hardening. Sources: a
 - `quickScanJS()` in `spixi.js` references the removed Instascan library.
 - `ixian:wallet`, `ixian:avatar` (Home), `ixian:activity`, `ixian:copy` — deprecated/no-op handlers.
 
+### 9.5 Redesign feature dependencies — open questions & signals for backend
+
+Every item below surfaced during the frontend redesign (component + shell work) and is **tabled for BE confirmation**. **None blocks the redesign** — each feature ships feature-flagged or against mock data in `src/bridge/mock.js` and degrades gracefully until the signal/flag lands. Fully-specified *command* proposals live in §8; this table is the running list of **data-shape questions and one-way signals** the shells need, kept in sync with `DECISIONS.md` (row refs in the last column).
+
+| Feature | Open question / signal needed from BE | Affects (frontend) | Mock today | Ref |
+|---|---|---|---|---|
+| **Contact-accept handshake** | An explicit **handshake-complete** event **and** a **handshake-fail / timeout** event on contact accept (or Accept-ack semantics). A message sent before the key exchange finishes would fail. | Accepting a request stages an "Establishing a quantum-secure handshake…" row; entry unblocks only on *complete*; *fail/timeout* removes the stranded chat | timer (650 ms ack → 2.6 s complete) + a `failHandshake` path | #109, #116, #117 |
+| **Blind-group flag + member addresses** | Does the bridge expose (a) whether a group is **blind**, and (b) each member's **full address**? | Member sheet shows the full address for verification; blind groups hide identity (no address, no contact-request CTA) | fixture flag + addresses | #99 |
+| **Per-member relation state** | Per member: `none / pending / contact`. | Member-sheet CTA switches: "Send contact request" / "request sent" badge / "Message" button | fixture | #102 |
+| **Reaction senders** | Reaction aggregation must carry **sender names/addresses**, not only per-emoji counts. | The "+N" reactions sheet lists every reaction *with who sent it* | fixture senders | #83 |
+| **Declined vs missed call** | Bridge must **distinguish an actively-declined call from a rang-out / missed** one. | Third call-card state: *declined* (no call-back nudge) vs *missed* ("Tap to call back") | fixture | #87⑦ |
+| **Self-destructing messages** | Message **TTL + deletion signal**. | Self-destruct affordance (parked FE-side until BE lands it) | — (parked) | #87③ |
+| **Link-preview payload** | P2P can't unfurl server-side → the **sender composes** `{url, title, domain, image}` into the message; the bridge must carry that payload (Signal-style). | Rich preview card below message text (URLs already linkify + route through the external-link confirm without this) | sender-composed fixture | #82 (→ §8 candidate) |
+| **Image thumbnail standard** | BE's "compress into a short message" thumb = which **BlurHash / ThumbHash** family + decoder? The component takes the **decoded** thumb as `preview`. Plus: who owns the "auto-load media" setting. | Media tile's blurred preview (tap-to-load is the P2P-safe default; a remote fetch would leak the reader's IP) | plain blur layer | #81 |
+| **Sender-side transfer progress** | Does BE emit **progress events to the SENDER** — i.e. does `updateFile` cover both directions? | Outgoing file bubbles render `state:'progress'` "Uploading · x of y" | direction-agnostic mock | #107 |
+| **Download-start notify** | Notify the **sender when the receiver starts a download** (+ a "stay online" prompt) — P2P needs both peers online. | "Keep Spixi open" hint on transfer bubbles | — | #87⑤ |
+| **IxiScope link + refresh** | The **"View on IxiScope" URL pattern** (BE / lang config) + wallet-history **refresh semantics**. | Wallet "Missing a transaction?" explainer sheet + optional refresh + external link | placeholder URL | #98 |
+
+**Already specified as command proposals in §8** (repeated here so BE reviews them in one pass): favorites + pinned-chat persistence (`ixian:chatFlag…` + `addChat` flags, **#67** — the Chats shell parks pin/mute on this), voice messages (**#64**), full-text message-history search (`ixian:search` → `setSearchResults`), `patchList` delta list updates, and the `showWarning(text, kind)` connectivity class.
+
 ---
 
 *Prepared on branch `redesign/frontend`. Corrections to any command or contract listed here should be made against the detailed audits in `docs/audit/` first, then reflected in this summary.*

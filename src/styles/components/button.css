@@ -101,6 +101,7 @@
 
 /* loading */
 .c-button[data-loading] { pointer-events: none; }
+.c-button[data-loading] .c-button__icon { display: none; }   /* the spinner replaces the content icon (e.g. Accept's check while "Accepting…") */
 .c-button__spinner {
   width: 1em;
   height: 1em;

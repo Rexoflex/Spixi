@@ -69,6 +69,7 @@ const EXCERPT_GLYPHS = {
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
 export function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
+  text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
@@ -137,7 +138,7 @@ export function createChatItem({
   const statusEl = createStatusIcon(status);
   if (statusEl) row1.append(statusEl);
   if (pinned) row1.append(icon('pin', { size: 16 }));
-  if (timestamp != null) {
+  if (timestamp) {                                   // 0 / NaN / undefined → no time (0 is an "unset" sentinel, not 1970)
     const time = document.createElement('span');
     time.className = 'c-chatlist-item__time u-tabular';
     time.textContent = formatChatTimestamp(timestamp, strings);

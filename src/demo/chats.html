@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
+<link rel="stylesheet" href="../styles/components/chats-swipe.css">
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -63,6 +64,7 @@
 <body>
   <div class="demo-toolbar">
     <h1 class="t-heading-md" style="margin-right:auto">Chats shell</h1>
+    <span id="park-slot"></span>
     <span id="theme-slot"></span>
   </div>
 
@@ -86,7 +88,8 @@
   const {
     createButton, createTopbar, createBottomNav, setNavBadge,
     createChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
-    createChatsHeader, attachChatsCollapse,
+    createChatsHeader, attachChatsCollapse, renderChatsList,
+    acceptContactRequest, completeHandshake, setRequestAccepting,
     startTimestampTicker, refreshTimestamps,
     createSheet, openSheet, closeSheet, showToast,
   } = window.Spixi;
@@ -129,8 +132,8 @@
   const at = (msAgo) => now - msAgo;
 
   const REQUESTS = [
-    { name: '', address: '425Hnq88fnnf5CQen', timestamp: at(2 * H) },
-    { name: 'Lando C.', address: '9xKd42lando', timestamp: at(20 * H) },
+    { name: '', address: '425Hnq88fnnf5CQen', timestamp: at(2 * H) },   // recent → interleaves near the top
+    { name: 'Lando C.', address: '9xKd42lando', timestamp: at(5 * D) },  // older → sits deep in the timeline (not pinned on top)
   ];
   const CHATS = [
     { name: 'Han Solo', address: '4fj2solo', online: true, pinned: true, timestamp: at(2 * H), status: 'read', excerpt: { type: 'text', text: 'Chewbacca owes me money..' } },
@@ -148,13 +151,32 @@
 
   const state = { chats: CHATS, requests: REQUESTS, filter: 'all', query: '' };
   const strings = {};
+  // capability flags — parkable BE-gated features (#67/§8). Demo defaults pin/mute
+  // ON so the swipe is testable; the toolbar "Park pin/mute" button flips them OFF
+  // to prove the feature parks (swipe + menu items vanish) until BE ships.
+  const caps = { pin: true, mute: true, favorites: false };
   const opts = {
-    strings, host: phone,
+    strings, host: phone, capabilities: caps,
     onOpen: (c) => showToast({ text: 'Open ' + (c.name || c.address) + ' — demo only', tone: 'info', host: phone }),
-    onRequestAccept: (r) => showToast({ text: 'Accept ' + (r.name || r.address) + ' — staged handshake lands in step 6', tone: 'info', host: phone }),
+    // #109 staged accept: latch "Accepting…", then (mock bridge) transition the
+    // request into a handshaking chat, then settle it on handshake-complete.
+    onRequestAccept: (r, row) => {
+      setRequestAccepting(row, strings);
+      showToast({ text: 'Accepting ' + (r.name || r.address) + '…', tone: 'info', host: phone });
+      setTimeout(() => {                                   // mock: accept ack → establishing
+        const chat = acceptContactRequest(list, state, r, opts);
+        if (!chat) return;
+        setTimeout(() => {                                 // mock: bridge handshake-complete (§9)
+          completeHandshake(list, state, chat, opts);
+          showToast({ text: 'Secured — ' + (chat.name || chat.address) + ' is ready', tone: 'success', host: phone });
+        }, 2600);
+      }, 650);
+    },
+    onHandshakeBlocked: (c) => showToast({ text: 'Still establishing a secure handshake with ' + (c.name || c.address) + '…', tone: 'info', host: phone }),
     onRequestDecline: (r) => showToast({ text: 'Decline ' + (r.name || r.address) + ' — demo only', tone: 'info', host: phone }),
     onChatInfo: (c) => showToast({ text: 'Chat info: ' + (c.name || c.address) + ' — pane coming later', tone: 'info', host: phone }),
     onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
+    onPersist: (action) => showToast({ text: action + ' → bridge intent (mock; C# persists when BE ships)', tone: 'info', host: phone }),
   };
 
   const scroller = document.getElementById('chat-scroll');
@@ -162,12 +184,25 @@
   scroller.append(list);
 
   const header = createChatsHeader({
-    activeFilter: 'all', strings,
+    activeFilter: 'all', strings, favorites: caps.favorites,
     onFilter: (f) => setChatsFilter(list, state, f, opts),
     onQuery: (q) => setChatsQuery(list, state, q, opts),
   });
   document.getElementById('chats-header').append(header);
   attachChatsCollapse(header, scroller);
+
+  // demo-only: park/unpark pin+mute to show the capability gating (swipe + menu)
+  let parked = false;
+  const parkBtn = createButton({
+    label: 'Park pin/mute', type: 'outline', size: 32,
+    onClick: () => {
+      parked = !parked;
+      caps.pin = !parked; caps.mute = !parked;
+      parkBtn.querySelector('.c-button__label').textContent = parked ? 'Unpark pin/mute' : 'Park pin/mute';
+      renderChatsList(list, state, opts);   // re-render → swipe + menu items reflect caps
+    },
+  });
+  document.getElementById('park-slot').append(parkBtn);
 
   // Chats badge (#42): unread total excluding muted; bare mention = 1
   setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));

@@ -128,3 +128,12 @@
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
 .c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }
+
+/* #109 staged handshake — row is un-openable until secured; the typing-style
+   excerpt reads "Establishing a quantum-secure handshake…" and gently pulses. */
+.c-chatlist-item[data-handshaking] { cursor: default; }
+.c-chatlist-item[data-handshaking] .c-excerpt__text { animation: c-handshake-pulse 1.4s var(--easing-standard) infinite; }
+@keyframes c-handshake-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) {
+  .c-chatlist-item[data-handshaking] .c-excerpt__text { animation: none; }
+}

@@ -1,0 +1,47 @@
+/* c-swipe — chat-row swipe accelerator (step 5; spec §6). iOS-Mail reveal:
+   action panels sit behind; the content slides over them (transform) and springs
+   back. Physical left/right panels — chats-swipe.js assigns which action goes on
+   which side per LTR/RTL. Semantic tokens only. */
+
+.c-swipe {
+  position: relative;
+  overflow: hidden;
+}
+
+/* revealed action buttons behind the row */
+.c-swipe__action {
+  position: absolute;
+  inset-block: 0;
+  min-width: 76px;
+  padding-inline: var(--spacing-16);
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  cursor: pointer;
+  color: var(--text-neutral-on-action);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-swipe__action--left { left: 0; }
+.c-swipe__action--right { right: 0; }
+.c-swipe__action[data-action="pin"] { background: var(--surface-action-default); }
+.c-swipe__action[data-action="mute"] { background: var(--surface-neutral-inverse-01); }
+.c-swipe__action:active { filter: brightness(0.92); }
+.c-swipe__label { pointer-events: none; }
+
+/* the sliding row content — covers the panels at rest */
+.c-swipe__content {
+  position: relative;
+  background: var(--surface-screen);
+  transition: transform var(--duration-200) var(--easing-standard);
+  touch-action: pan-y;            /* let the list scroll vertically; JS owns horizontal */
+}
+/* promote a compositor layer only while a drawer is actually open — a permanent
+   will-change would pin one layer per row (memory) on a long list. */
+.c-swipe[data-open] .c-swipe__content { will-change: transform; }

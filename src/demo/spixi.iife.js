@@ -234,6 +234,7 @@ const EXCERPT_GLYPHS = {
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
+  text = text == null ? '' : String(text);
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
@@ -302,7 +303,7 @@ function createChatItem({
   const statusEl = createStatusIcon(status);
   if (statusEl) row1.append(statusEl);
   if (pinned) row1.append(icon('pin', { size: 16 }));
-  if (timestamp != null) {
+  if (timestamp) {
     const time = document.createElement('span');
     time.className = 'c-chatlist-item__time u-tabular';
     time.textContent = formatChatTimestamp(timestamp, strings);
@@ -4501,11 +4502,13 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
       ],
     })),
   });
+  decline.dataset.decline = '';
   decline.setAttribute('aria-label', declineLabel + ' ' + display);
   const accept = createButton({
     label: acceptLabel, type: 'fill', size: 32, icon: icon('check', { size: 16 }),
     onClick: () => { if (onAccept) onAccept(row); },
   });
+  accept.dataset.accept = '';
   accept.setAttribute('aria-label', acceptLabel + ' ' + display);
   actions.append(decline, accept);
   body.append(actions);
@@ -4517,9 +4520,22 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
   return row;
 }
 
+function setRequestAccepting(row, strings = {}) {
+  const btn = row && row.querySelector('[data-accept]');
+  if (!btn) return;
+  const accepting = strings.accepting || 'Accepting…';
+  const label = btn.querySelector('.c-button__label');
+  if (label) label.textContent = accepting;
+  btn.setAttribute('aria-label', accepting);
+  setLoading(btn, true);
+  const decline = row.querySelector('[data-decline]');
+  if (decline) decline.disabled = true;
+}
+
 const CHATMENU_LONG_PRESS_MS = 500;
 const CHATMENU_MOVE_CANCEL_PX = 10;
-function openChatRowMenu({ chat = {}, host, onAction, strings = {} } = {}) {
+function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities = {}, handshaking = false } = {}) {
+  closeChatRowSwipe();
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');
@@ -4534,8 +4550,26 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = {} } = {}) {
     b.addEventListener('click', onClick);
     list.append(b);
   };
-  item(chat.pinned ? 'pinned-off' : 'pin', chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'), () => act('pin'));
-  item(chat.muted ? 'bell' : 'bell-off', chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'), () => act('mute'));
+  if (handshaking) {
+    item('x', strings.cancelHandshake || 'Cancel handshake', () => {
+      closeSheet(sheet);
+      openModal(createModal({
+        title: strings.cancelHandshakeTitle || 'Cancel handshake?',
+        body: strings.cancelHandshakeBody || 'This stops establishing the secure connection and removes the chat.',
+        role: 'alertdialog', host,
+        actions: [
+          { label: strings.keepWaiting || 'Keep waiting', type: 'text', autofocus: true },
+          { label: strings.cancel || 'Cancel', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('cancelHandshake'); } },
+        ],
+      }));
+    }, true);
+    content.append(list);
+    const sheet = createSheet({ content, host, strings });
+    openSheet(sheet);
+    return sheet;
+  }
+  if (capabilities.pin) item(chat.pinned ? 'pinned-off' : 'pin', chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'), () => act('pin'));
+  if (capabilities.mute) item(chat.muted ? 'bell' : 'bell-off', chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'), () => act('mute'));
   item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
   item('trash', strings.deleteChat || 'Delete chat', () => {
@@ -4587,6 +4621,14 @@ function attachChatRowMenu(row, opts = {}) {
     cancel();
     fired = true;
     openChatRowMenu({ ...opts });
+  });
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      cancel();
+      fired = false;
+      openChatRowMenu({ ...opts });
+    }
   });
 }
 
@@ -4733,9 +4775,24 @@ function orderedChats(state) {
       return (b.timestamp || 0) - (a.timestamp || 0);
     });
 }
+function orderedTimeline(state) {
+  const reqs = orderedRequests(state);
+  const chats = orderedChats(state);
+  const pinned = chats.filter((c) => c.pinned).map((c) => ({ kind: 'chat', item: c }));
+  const flow = [
+    ...chats.filter((c) => !c.pinned).map((c) => ({ ts: c.timestamp || 0, kind: 'chat', item: c })),
+    ...reqs.map((r) => ({ ts: r.timestamp || 0, kind: 'request', item: r })),
+  ]
+    .sort((a, b) => b.ts - a.ts)
+    .map(({ kind, item }) => ({ kind, item }));
+  return [...pinned, ...flow];
+}
 function chatsUnreadTotal(chats) {
-  return (chats || []).filter(Boolean).reduce(
-    (n, c) => n + (c.muted ? 0 : (c.unread || (c.mention ? 1 : 0))), 0);
+  return (chats || []).filter(Boolean).reduce((n, c) => {
+    if (c.muted) return n;
+    const u = Math.max(0, c.unread || 0);
+    return n + (u || (c.mention ? 1 : 0));
+  }, 0);
 }
 function chatsEmptyCopy(state, strings) {
   const q = (state.query || '').trim();
@@ -4758,29 +4815,48 @@ function chatsEmptyState(state, strings) {
 }
 function renderChatsList(listEl, state, opts = {}) {
   const strings = opts.strings || {};
+  closeChatRowSwipe();
   listEl.textContent = '';
-  const reqs = orderedRequests(state);
-  const chats = orderedChats(state);
-  for (const r of reqs) {
+  const caps = opts.capabilities || {};
+  const renderRequest = (r) => {
     listEl.append(createContactRequest({
       ...r, strings, host: opts.host,
       onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
       onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
     }));
-  }
-  for (const c of chats) {
-    const el = createChatItem({ ...c, strings, onClick: opts.onOpen ? () => opts.onOpen(c) : undefined });
+  };
+  const renderChat = (c) => {
+    const onClick = c.handshaking
+      ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
+      : (opts.onOpen ? () => opts.onOpen(c) : undefined);
+    const el = createChatItem({ ...c, strings, onClick });
     if (c.pinned) el.dataset.pinned = '';
     if (c.muted) el.dataset.muted = '';
+    if (c.handshaking) {
+      el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
+      if (opts.rowMenu !== false) {
+        attachChatRowMenu(el, {
+          chat: c, host: opts.host, strings, handshaking: true,
+          onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
+        });
+      }
+      listEl.append(el); return;
+    }
     if (opts.rowMenu !== false) {
       attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings,
+        chat: c, host: opts.host, strings, capabilities: caps,
         onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
       });
     }
-    listEl.append(el);
-  }
-  if (!reqs.length && !chats.length) listEl.append(chatsEmptyState(state, strings));
+    const node = wrapChatRowSwipe(el, {
+      chat: c, capabilities: caps, strings,
+      onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+    });
+    listEl.append(node);
+  };
+  const timeline = orderedTimeline(state);
+  for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
+  if (!timeline.length) listEl.append(chatsEmptyState(state, strings));
   return listEl;
 }
 function applyChatRowAction(listEl, state, chat, action, opts = {}) {
@@ -4792,6 +4868,36 @@ function applyChatRowAction(listEl, state, chat, action, opts = {}) {
     case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;
     default: return;
   }
+  if (opts.onPersist) opts.onPersist(action, chat);
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+function acceptContactRequest(listEl, state, req, opts = {}) {
+  if (!req || (state.requests || []).indexOf(req) === -1) return null;
+  const strings = opts.strings || {};
+  state.requests = (state.requests || []).filter((r) => r !== req);
+  const chat = {
+    name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
+    type: 'direct', timestamp: Date.now(), handshaking: true, unread: 0, mention: false,
+    excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
+  };
+  state.chats = [chat, ...(state.chats || [])];
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+  return chat;
+}
+function completeHandshake(listEl, state, chat, opts = {}) {
+  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
+  const strings = opts.strings || {};
+  chat.handshaking = false;
+  chat.excerpt = { type: 'text', text: strings.handshakeReady || '' };
+  chat.timestamp = Date.now();
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+function failHandshake(listEl, state, chat, opts = {}) {
+  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
+  state.chats = (state.chats || []).filter((c) => c !== chat);
   renderChatsList(listEl, state, opts);
   if (opts.onModelChange) opts.onModelChange(state);
 }
@@ -4809,7 +4915,111 @@ function setChatsQuery(listEl, state, query, opts) {
   state.query = query;
   return renderChatsList(listEl, state, opts);
 }
+const SWIPE_OPEN_PX = 76;
+const SWIPE_COMMIT_RATIO = 0.4;
+const SWIPE_DIRLOCK_PX = 8;
+let currentClose = null;
+function closeCurrent() { if (currentClose) { const c = currentClose; currentClose = null; c(); } }
+function closeChatRowSwipe() { closeCurrent(); }
+function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, onAction, rtl } = {}) {
+  const dir = rtl != null ? rtl : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
+  const leftAction = dir ? 'mute' : 'pin';
+  const rightAction = dir ? 'pin' : 'mute';
+  const enabled = (a) => (a === 'pin' ? !!capabilities.pin : !!capabilities.mute);
+  const leftEnabled = enabled(leftAction);
+  const rightEnabled = enabled(rightAction);
+  if (!leftEnabled && !rightEnabled) return rowEl;
+  const wrap = document.createElement('div');
+  wrap.className = 'c-swipe';
+  const actionBtn = (action, side) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-swipe__action c-swipe__action--' + side;
+    b.dataset.action = action;
+    b.tabIndex = -1;
+    b.setAttribute('aria-hidden', 'true');
+    const label = action === 'pin'
+      ? (chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'))
+      : (chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'));
+    const glyph = action === 'pin'
+      ? (chat.pinned ? 'pinned-off' : 'pin')
+      : (chat.muted ? 'bell' : 'bell-off');
+    b.append(icon(glyph, { size: 22 }));
+    const t = document.createElement('span');
+    t.className = 'c-swipe__label';
+    t.textContent = label;
+    b.append(t);
+    b.setAttribute('aria-label', label);
+    b.addEventListener('click', () => fire(action));
+    return b;
+  };
+  if (leftEnabled) wrap.append(actionBtn(leftAction, 'left'));
+  if (rightEnabled) wrap.append(actionBtn(rightAction, 'right'));
+  const content = document.createElement('div');
+  content.className = 'c-swipe__content';
+  content.append(rowEl);
+  wrap.append(content);
+  let offset = 0;
+  let startX = 0, startY = 0, startOffset = 0;
+  let dragging = false, decided = false, horiz = false, swiped = false;
+  const setX = (x, animate) => {
+    content.style.transition = animate ? '' : 'none';
+    content.style.transform = x ? 'translateX(' + x + 'px)' : '';
+    offset = x;
+  };
+  const close = () => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; };
+  const openTo = (x) => { closeCurrent(); setX(x, true); wrap.dataset.open = ''; currentClose = close; };
+  const fire = (action) => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; if (onAction) onAction(action); };
+  content.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    swiped = false;
+    if (currentClose && currentClose !== close) closeCurrent();
+    startX = e.clientX; startY = e.clientY; startOffset = offset;
+    dragging = true; decided = false; horiz = false;
+  });
+  content.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (!decided) {
+      if (Math.abs(dx) < SWIPE_DIRLOCK_PX && Math.abs(dy) < SWIPE_DIRLOCK_PX) return;
+      decided = true;
+      horiz = Math.abs(dx) > Math.abs(dy);
+      if (horiz) {
+        swiped = true;
+        try { rowEl.dispatchEvent(new Event('pointercancel', { bubbles: false })); } catch (_) {}
+        if (content.setPointerCapture) { try { content.setPointerCapture(e.pointerId); } catch (_) {} }
+      }
+    }
+    if (!horiz) return;
+    e.preventDefault();
+    let x = startOffset + dx;
+    if (x > 0 && !leftEnabled) x = 0;
+    if (x < 0 && !rightEnabled) x = 0;
+    const w = wrap.offsetWidth || 320;
+    x = Math.max(-w, Math.min(w, x));
+    setX(x, false);
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    if (!horiz) return;
+    const w = wrap.offsetWidth || 320;
+    const commit = w * SWIPE_COMMIT_RATIO;
+    if (offset >= commit && leftEnabled) return fire(leftAction);
+    if (offset <= -commit && rightEnabled) return fire(rightAction);
+    if (offset >= SWIPE_OPEN_PX && leftEnabled) return openTo(SWIPE_OPEN_PX);
+    if (offset <= -SWIPE_OPEN_PX && rightEnabled) return openTo(-SWIPE_OPEN_PX);
+    close();
+  };
+  content.addEventListener('pointerup', end);
+  content.addEventListener('pointercancel', end);
+  content.addEventListener('click', (e) => {
+    if (swiped) { e.preventDefault(); e.stopPropagation(); swiped = false; return; }
+    if (wrap.dataset.open !== undefined) { e.preventDefault(); e.stopPropagation(); close(); }
+  }, true);
+  return wrap;
+}
 /* ---- end chats-shell modules ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse };
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, wrapChatRowSwipe: wrapChatRowSwipe, closeChatRowSwipe: closeChatRowSwipe };
 })();

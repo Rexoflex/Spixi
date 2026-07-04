@@ -6,18 +6,26 @@
  * double-open guard). Delete routes through the c-modal confirm. Chat info is a
  * stub (Damir: pane deferred) → fires onAction('info'), shell shows a toast.
  *
- * openChatRowMenu({ chat, host, onAction, strings }) → sheet
- *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete'
+ * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
+ * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat
+ * info / Delete are always present. A HANDSHAKING row (#109, still establishing)
+ * gets a single "Cancel handshake" action instead — the row's only recovery path
+ * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
+ *
+ * openChatRowMenu({ chat, host, onAction, strings, capabilities, handshaking }) → sheet
+ *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake'
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
+import { closeChatRowSwipe } from './chats-swipe.js';
 
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-export function openChatRowMenu({ chat = {}, host, onAction, strings = {} } = {}) {
+export function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities = {}, handshaking = false } = {}) {
+  closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
   const list = document.createElement('div');
@@ -34,13 +42,38 @@ export function openChatRowMenu({ chat = {}, host, onAction, strings = {} } = {}
     list.append(b);
   };
 
-  // toggles reflect what tapping DOES (glyph + label describe the action)
-  item(chat.pinned ? 'pinned-off' : 'pin',
-       chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'),
-       () => act('pin'));
-  item(chat.muted ? 'bell' : 'bell-off',
-       chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
-       () => act('mute'));
+  // #109: a handshaking row can ONLY be cancelled (its recovery path) — no
+  // pin/mute/mark-read/info/open while the key exchange is still in flight.
+  if (handshaking) {
+    item('x', strings.cancelHandshake || 'Cancel handshake', () => {
+      closeSheet(sheet);
+      openModal(createModal({
+        title: strings.cancelHandshakeTitle || 'Cancel handshake?',
+        body: strings.cancelHandshakeBody || 'This stops establishing the secure connection and removes the chat.',
+        role: 'alertdialog', host,
+        actions: [
+          { label: strings.keepWaiting || 'Keep waiting', type: 'text', autofocus: true },
+          { label: strings.cancel || 'Cancel', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('cancelHandshake'); } },
+        ],
+      }));
+    }, true);
+    content.append(list);
+    const sheet = createSheet({ content, host, strings });
+    openSheet(sheet);
+    return sheet;
+  }
+
+  // toggles reflect what tapping DOES (glyph + label). Pin/Mute parkable (§8).
+  if (capabilities.pin) {
+    item(chat.pinned ? 'pinned-off' : 'pin',
+         chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'),
+         () => act('pin'));
+  }
+  if (capabilities.mute) {
+    item(chat.muted ? 'bell' : 'bell-off',
+         chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
+         () => act('mute'));
+  }
   item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
   // destructive last (§5b) — confirm via c-modal
@@ -100,5 +133,17 @@ export function attachChatRowMenu(row, opts = {}) {
     cancel();
     fired = true;
     openChatRowMenu({ ...opts });
+  });
+
+  // keyboard path to the context menu (a11y): the swipe accelerator is pointer-only,
+  // so keyboard users reach Pin/Mute/Mark-read/Delete here. Shift+F10 and the
+  // dedicated ContextMenu/Apps key are the standard "open context menu" bindings.
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      cancel();
+      fired = false;                            // keyboard open ≠ a click to suppress
+      openChatRowMenu({ ...opts });
+    }
   });
 }

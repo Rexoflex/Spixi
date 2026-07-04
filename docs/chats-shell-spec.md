@@ -47,8 +47,8 @@ Reuses `createChip`/`setChipSelected` exactly as the wallet filter group does. S
 
 ## 5. Contact requests (Q1 — combo, cheap)
 
-- **Inline:** pending requests render as `c-contact-request` rows at the **top** of the All list only (Damir: All + Requests filters, not Groups — a request is 1:1) (promotes the app-frame block into a real component — same anatomy: tinted `--surface-neutral-02`, avatar-48, name, "Wants to connect", Decline(outline-32)+Accept(fill-32 check), timestamp). Passive awareness.
-- **Filter:** the **Requests** chip isolates them for triage.
+- **Inline & interleaved (Damir 2026-07-04):** pending requests render as `c-contact-request` rows **interleaved by arrival time** in the All list (via `orderedTimeline` — pinned chats stay on top, then requests + unpinned chats merge by recency); a request sits at its **chronological place**, NOT pinned to the top. Accepting slides the resulting chat to the top of the unpinned flow (latest action moves it *up*, avoiding the old "was on top → drops down" jar). Shown in All + Requests only, not Groups (1:1). Same anatomy: tinted `--surface-neutral-02`, avatar-48, name, "Wants to connect", Decline(outline-32)+Accept(fill-32 check), timestamp — still visually distinct so it reads as "needs action" even when interleaved.
+- **Filter:** the **Requests** chip isolates them for focused triage (newest-first).
 - **Component contract:** `createContactRequest({address, nick, avatar, timestamp, onAccept, onDecline})`; Decline routes through the existing `c-modal` confirm (as app-frame does); Accept triggers the #109 staged state (§7).
 - Non-contacts: composer disabled downstream (#86) — shell responsibility flagged, not built here.
 - Bridge: requests may arrive via `showContactRequest` (per #86) OR `addChat(type=request)` — **§9 open**; model normalizes both to a `relation:'pending'` entry.
@@ -62,10 +62,11 @@ Reuses `createChip`/`setChipSelected` exactly as the wallet filter group does. S
 - Swipe infra is NEW → must be audited hard (RTL logical directions, momentum/threshold, pointer+touch, a11y alternative = the long-press sheet already covers keyboard/SR). 🟡 build swipe *after* the sheet path is CLEAN so the accessible path exists first.
 - Mute/pin plumbing: `data-muted`/`data-pinned` on the row + model flags; pinned rows sort to top (below requests); muted excluded from nav badge (#42) and show the muted indicators (#81 createIndicators). Bridge for pin/mute persistence = **BE §8** (addChat carries no pinned flag today, #67) → flag-gated.
 
-## 7. #109 accept-handshake staged state
+## 7. #109 accept-handshake staged state — ✅ BUILT (step 6)
 
-- Tapping **Accept** on a request must NOT open the chat immediately (key exchange race). Sequence: Accept button → latched **"Accepting…"** loading (button `setLoading`, released only by re-render, #29/#88); the entry's excerpt flips to **"Establishing a quantum-secure handshake…"** in typing-excerpt styling (`--text-action-default`, on-brand with #91) for BOTH parties; conversation entry unblocks **only** on the bridge handshake-complete signal.
-- Bridge: needs an explicit handshake-done event (or Accept-ack). **§9 open** — mock simulates it with a timer + a "complete" callback; real signal drop-in later.
+- Tapping **Accept** on a request must NOT open the chat immediately (key exchange race). Sequence: Accept button → latched **"Accepting…"** loading (`setRequestAccepting` → button `setLoading` + aria-label sync + Decline disabled) → `acceptContactRequest` removes the request and prepends a **handshaking chat** whose excerpt reads **"Establishing a quantum-secure handshake…"** in typing-excerpt styling (`--text-action-default`, on-brand with #91) + a `[data-handshaking]` pulse (reduced-motion off); the row is `aria-busy`, **un-openable** (tap → `onHandshakeBlocked`, never `onOpen`) and **un-swipeable**; conversation entry unblocks **only** on `completeHandshake` (the bridge handshake-complete signal), which also bumps the timestamp so the just-secured contact surfaces on top.
+- **Recovery (no trap):** a handshaking row exposes a single long-press **"Cancel handshake"** action → `failHandshake` removes the stranded chat. `failHandshake` is also the drop-in for the bridge failure/timeout signal, so a never-completing handshake is never un-removable. Double-accept + late-signal-after-cancel are guarded.
+- Bridge: needs explicit handshake **complete** AND **fail/timeout** events (or Accept-ack). **§9 open** — the demo mocks them with timers (650ms ack → establishing → 2600ms complete) + a "complete"/"fail" callback; real signals drop in later.
 
 ## 8. Bridge contract
 
@@ -108,9 +109,9 @@ Access only via a shell bridge boundary; since `src/bridge/` doesn't exist yet, 
 2. Collapsible header (search+chips together). → audit
 3. Requests chip + `c-contact-request` component (inline + filter). → audit
 4. Long-press context sheet (Pin/Mute/Mark read/Delete/Info) — **accessible path first**. → audit
-5. Swipe Pin/Mute accelerator. → audit
-6. #109 staged accept (mocked signal). → audit
-7. Full-surface adversarial round (edge cases: empty states, RTL, i18n, invalid ts, muted, blind groups, 99+ counts, capability flags off, reduced-motion) → CLEAN → Damir review → commit.
+5. Swipe Pin/Mute accelerator. → audit ✅
+6. #109 staged accept (mocked signal). → audit ✅
+7. Full-surface adversarial round (edge cases: empty states, RTL, i18n, invalid ts, muted, blind groups, 99+ counts, capability flags off, reduced-motion) → CLEAN → Damir review → commit. ← NEXT
 
 Each step: build → multiple adversarial review agents (disjoint scopes) → adversarial reviewer hunting introduced drift → loop until CLEAN + jsdom smoke test passes.
 

@@ -51,6 +51,7 @@ const FILES = [
   'src/components/call-overlay.js',
   'src/components/contact-request.js',
   'src/components/chats-row-menu.js',
+  'src/components/chats-swipe.js',
   'src/components/chats-shell.js',
   'src/components/chats-header.js',
 ];

@@ -1,0 +1,52 @@
+/* c-apps-recents — horizontal "Recently used" strip (reuses c-app-icon). */
+
+.c-apps-recents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12);
+}
+
+.c-apps-recents__title {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+.c-apps-recents__strip {
+  display: flex;
+  gap: var(--spacing-16);
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--spacing-12));   /* bleed so tiles scroll to the edge */
+  padding-inline: var(--spacing-12);
+  scrollbar-width: none;
+}
+.c-apps-recents__strip::-webkit-scrollbar { display: none; }
+
+.c-apps-recents__item {
+  flex: none;
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-apps-recents__name {
+  width: 100%;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) { .c-apps-recents__item:hover .c-apps-recents__name { color: var(--text-action-default); } }

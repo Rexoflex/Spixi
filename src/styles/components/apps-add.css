@@ -1,10 +1,57 @@
-/* c-apps-add — add-mini-app view (spec §2.2). */
+/* c-apps-add — add-mini-app + Discover surface (spec §2.2). */
 
 .c-apps-add {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-24);
   padding: var(--spacing-16);
+}
+
+.c-apps-add__lead {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-apps-add__sectiontitle {
+  margin: 0 0 var(--spacing-12);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— method tiles —— */
+.c-apps-add__methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-12); }
+.c-apps-add__method {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-16);
+  padding-inline: var(--spacing-8);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-16);
+  background: transparent;
+  color: var(--text-neutral-01);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) { .c-apps-add__method:hover { background: var(--surface-interactive-hover); } }
+.c-apps-add__method:active { background: var(--surface-interactive-pressed); }
+.c-apps-add__method-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--size-target-min); height: var(--size-target-min);
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+  color: var(--text-action-default);
+}
+.c-apps-add__method-label {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
 }
 
 /* —— URL field —— */
@@ -39,9 +86,6 @@
   color: var(--text-error);
 }
 
-/* —— methods —— */
-.c-apps-add__methods { display: flex; flex-direction: column; gap: var(--spacing-12); }
-
 /* —— info banner —— */
 .c-apps-add__info {
   display: flex;
@@ -55,3 +99,6 @@
   line-height: var(--line-height-body-sm);
 }
 .c-apps-add__info svg { flex: none; color: var(--icon-neutral-02); }
+
+/* —— embedded Discover —— */
+.c-apps-add__discover { display: flex; flex-direction: column; }

@@ -7,14 +7,47 @@
   padding: var(--spacing-16);
 }
 
-/* —— header —— */
-.c-app-details__header { display: flex; gap: var(--spacing-16); align-items: center; }
-.c-app-details__heading { min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-4); }
+/* —— hero cover (App-Store style; full-bleed over the padded container) —— */
+.c-app-hero {
+  position: relative;
+  margin-block: calc(-1 * var(--spacing-16)) 0;    /* bleed to the top edge */
+  margin-inline: calc(-1 * var(--spacing-16));     /* bleed to the side edges */
+  height: 148px;
+  overflow: hidden;
+  background: var(--surface-neutral-02);
+  isolation: isolate;
+}
+/* indie fallback: same deterministic hue gradient as the app's tile (--ai-h1/h2 set in JS;
+   S/L vars come from apps-icon.css so the hero tracks light/dark like the icon). */
+.c-app-hero[data-placeholder] {
+  background-image: linear-gradient(135deg,
+    hsl(var(--ai-h1, 0), var(--app-icon-grad-s1), var(--app-icon-grad-l1)),
+    hsl(var(--ai-h2, 40), var(--app-icon-grad-s2), var(--app-icon-grad-l2)));
+}
+.c-app-hero__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.c-app-hero__art[data-blur] { transform: scale(1.8); filter: blur(24px) saturate(1.15); opacity: 0.85; }
+/* bottom scrim keeps the overlapping icon/name legible over bright covers (theme-stable) */
+.c-app-hero__scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(2, 6, 25, 0) 45%, rgba(2, 6, 25, 0.35) 100%);
+}
+
+/* —— header (icon overlaps the hero) —— */
+.c-app-details__header {
+  display: flex; gap: var(--spacing-16); align-items: flex-end;
+  position: relative; z-index: 1;
+  margin-block-start: calc(-1 * var(--spacing-32));   /* lift the icon up over the hero */
+}
+.c-app-details__header .c-app-icon {
+  border-radius: var(--radius-16);
+  box-shadow: 0 0 0 var(--spacing-4) var(--surface-screen), var(--elevation-2);  /* ring in page bg + lift */
+}
+.c-app-details__heading { min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-4); padding-block-end: var(--spacing-4); }
 .c-app-details__name {
   margin: 0;
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-xs);      /* smaller — doesn't fight the topbar title (Damir) */
-  line-height: var(--line-height-heading-xs);
+  font-size: var(--font-size-heading-sm);      /* topbar has no title on this screen → hero owns the name */
+  line-height: var(--line-height-heading-sm);
   font-weight: var(--font-weight-bold);
   color: var(--text-neutral-01);
   overflow-wrap: anywhere;
@@ -65,6 +98,64 @@
 /* modal only: reserve ~2 lines so tapping a chip doesn't resize the dialog (no flicker).
    In the details page the line just grows — the page scrolls, nothing to flicker. */
 .c-app-caps__explain[data-reserve] { min-height: 2.8em; }
+
+/* —— screenshots strip (horizontal scroll-snap) —— */
+.c-app-shots {
+  display: flex;
+  gap: var(--spacing-12);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  margin-inline: calc(-1 * var(--spacing-16));   /* bleed edges so tiles scroll to the screen edge */
+  padding-inline: var(--spacing-16);
+  scrollbar-width: none;
+}
+.c-app-shots::-webkit-scrollbar { display: none; }
+.c-app-shots__item {
+  flex: none;
+  width: 188px;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--radius-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  background: var(--surface-neutral-02);
+  scroll-snap-align: start;
+}
+
+/* —— more mini apps (compact tappable tiles, reuse c-app-icon) —— */
+.c-app-related {
+  display: flex;
+  gap: var(--spacing-16);
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--spacing-16));
+  padding-inline: var(--spacing-16);
+  scrollbar-width: none;
+}
+.c-app-related::-webkit-scrollbar { display: none; }
+.c-app-related__item {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-app-related__name {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (hover: hover) { .c-app-related__item:hover .c-app-related__name { color: var(--text-action-default); } }
 
 /* —— meta rows —— */
 .c-app-details__meta { display: flex; flex-direction: column; }

@@ -7,7 +7,9 @@
  * Model:
  *   app:   { id, name, icon, creator }
  *   state: { apps:[], query:'', layout:'list'|'grid' }
- * opts:  { strings, host, onOpen(app), onMenu(app,btn), onAdd, onExplore, onModelChange }
+ * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange }
+ *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
+ *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
  */
 import { createAppItem } from './apps-item.js';
 import { openAppMenu } from './apps-menu.js';
@@ -28,6 +30,24 @@ export function orderedApps(state) {
   return (state.apps || [])
     .filter(Boolean)                                   // harden against null entries from a bridge feed
     .filter((a) => appMatchesQuery(a, state.query));
+}
+
+/** Recents model: `state.recents` is a most-recent-first list of app ids. Launching an
+ *  app moves it to the front (deduped, capped). Resolved back to live app objects for
+ *  render — uninstalled/unknown ids drop out automatically. In-memory (persistence §7). */
+export function recordRecent(state, app) {
+  if (!app || app.id == null) return state;
+  const arr = (state.recents || []).filter((x) => x !== app.id);
+  arr.unshift(app.id);
+  state.recents = arr.slice(0, 12);
+  return state;
+}
+export function orderedRecents(state, limit = 8) {
+  const byId = new Map((state.apps || []).filter(Boolean).map((a) => [a.id, a]));
+  return (state.recents || [])
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
 /* ————————————————————————————— render pipeline ————————————————————————————— */
@@ -58,7 +78,7 @@ export function renderAppsList(listEl, state, opts = {}) {
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onOpen ? () => opts.onOpen(a) : undefined,   // tap → app details
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),

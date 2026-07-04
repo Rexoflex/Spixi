@@ -1,7 +1,8 @@
 /**
  * App ⋮ overflow menu (spec §2.1). Tapping an app's ⋮ opens a c-sheet (reusing the
- * c-msgmenu styling, same infra as chats-row-menu): Open (launch) · App details ·
- * Uninstall (confirm via c-modal). onAction(action, app) — 'open' | 'details' | 'uninstall'.
+ * c-msgmenu styling, same infra as chats-row-menu): App details · Uninstall (confirm
+ * via c-modal). Launch is the row's primary tap now, so it's not repeated here.
+ * onAction(action, app) — 'details' | 'uninstall'.
  *
  * NB: uninstalling from the list menu assumes the bridge accepts uninstall-by-id from
  * the apps list (today `ixian:uninstall` is details-page-scoped) — flagged for BE (§8).
@@ -29,7 +30,6 @@ export function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
     list.append(b);
   };
 
-  item('player-play', strings.openApp || 'Open', () => act('open'));
   item('info-circle', strings.appDetails || 'App details', () => act('details'));
   item('trash', strings.uninstall || 'Uninstall', () => {
     closeSheet(sheet);

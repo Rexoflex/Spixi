@@ -12,6 +12,7 @@
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
  */
 import { createAppIcon } from './apps-icon.js';
+import { hashHue } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip } from './chip.js';
 import { createBadge } from './badge.js';
@@ -44,6 +45,95 @@ function normalizeCaps(caps) {
 function capLabel(c, strings) { return strings['cap_' + c] || APP_CAP_LABELS[c] || c; }
 function capExplain(c, strings) { return strings['capx_' + c] || APP_CAP_EXPLAIN[c] || ''; }
 
+/** Hero cover (App-Store style). app.cover → the artwork; otherwise the app's own
+ *  icon blurred behind its deterministic hue gradient (reuses the c-app-icon hue
+ *  recipe so an app's hero always matches its tile). A bottom scrim keeps the
+ *  overlapping icon + name legible over bright covers. */
+function appHero(app) {
+  const hero = document.createElement('div');
+  hero.className = 'c-app-hero';
+  if (app.cover) {
+    const art = document.createElement('img');
+    art.className = 'c-app-hero__art';
+    art.src = app.cover; art.alt = '';
+    hero.append(art);
+  } else {
+    const hue = hashHue(app.name || 'app');
+    hero.dataset.placeholder = '';
+    hero.style.setProperty('--ai-h1', hue);
+    hero.style.setProperty('--ai-h2', (hue + 40) % 360);
+    if (app.icon) {                              // blurred copy of the icon adds depth over the gradient
+      const art = document.createElement('img');
+      art.className = 'c-app-hero__art';
+      art.dataset.blur = '';
+      art.src = app.icon; art.alt = '';
+      hero.append(art);
+    }
+  }
+  const scrim = document.createElement('div');
+  scrim.className = 'c-app-hero__scrim';
+  hero.append(scrim);
+  return hero;
+}
+
+/** Titled section wrapper (reused by permissions / screenshots / related). */
+function detailsSection(title) {
+  const sec = document.createElement('section');
+  sec.className = 'c-app-details__section';
+  if (title) {
+    const h = document.createElement('h2');
+    h.className = 'c-app-details__sectiontitle';
+    h.textContent = title;
+    sec.append(h);
+  }
+  return sec;
+}
+
+/** Screenshot gallery — horizontal scroll-snap strip (rendered only when the app
+ *  ships screenshots; graceful omit otherwise, pending the BE preview payload). */
+function screenshotStrip(shots, strings) {
+  const sec = detailsSection(strings.preview || 'Preview');
+  const strip = document.createElement('div');
+  strip.className = 'c-app-shots';
+  strip.setAttribute('role', 'list');
+  strip.tabIndex = 0;                                    // focusable so the strip scrolls with arrow keys
+  strip.setAttribute('aria-label', strings.preview || 'Preview');
+  for (const src of shots) {
+    const img = document.createElement('img');
+    img.className = 'c-app-shots__item';
+    img.setAttribute('role', 'listitem');
+    img.loading = 'lazy';
+    img.src = src; img.alt = '';
+    strip.append(img);
+  }
+  sec.append(strip);
+  return sec;
+}
+
+/** "More mini apps" — compact tappable tiles (reuse c-app-icon). Each opens that
+ *  app's details via onOpen. Rendered only when the app carries related entries. */
+function relatedStrip(related, strings, onOpen) {
+  const sec = detailsSection(strings.moreApps || 'More mini apps');
+  const strip = document.createElement('div');
+  strip.className = 'c-app-related';
+  strip.setAttribute('role', 'list');
+  for (const rel of related) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-app-related__item';
+    tile.setAttribute('role', 'listitem');
+    tile.append(createAppIcon({ src: rel.icon, name: rel.name, size: 56 }));
+    const nm = document.createElement('span');
+    nm.className = 'c-app-related__name';
+    nm.textContent = rel.name || '';
+    tile.append(nm);
+    if (onOpen) tile.addEventListener('click', () => onOpen(rel));
+    strip.append(tile);
+  }
+  sec.append(strip);
+  return sec;
+}
+
 /** Capability chips (reuse c-chip readonly). explain:true → tappable chips that reveal
  *  a plain-language line beneath (the install-confirm "tap to explain"). */
 function capChips(caps, strings, { explain = false, reserve = false } = {}) {
@@ -71,15 +161,16 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl } = {}) {
+export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
 
-  /* header */
+  /* hero cover + overlapping header */
+  el.append(appHero(app));
   const header = document.createElement('div');
   header.className = 'c-app-details__header';
-  header.append(createAppIcon({ src: app.icon, name: app.name, size: 64 }));
+  header.append(createAppIcon({ src: app.icon, name: app.name, size: 72 }));
   const htext = document.createElement('div');
   htext.className = 'c-app-details__heading';
   const name = document.createElement('h1');
@@ -120,12 +211,17 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
     more.hidden = true;
     const revealIfClamped = () => { more.hidden = !(desc.scrollHeight > desc.clientHeight + 1); };
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { if (desc.clientHeight > 0) { revealIfClamped(); ro.disconnect(); } });
+      const ro = new ResizeObserver(() => { ro.disconnect(); if (desc.clientHeight > 0) revealIfClamped(); });
       ro.observe(desc);
     } else if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(revealIfClamped);
     }
     el.append(desc, more);
+  }
+
+  /* screenshots (graceful — only when the app ships previews) */
+  if (Array.isArray(app.screenshots) && app.screenshots.length) {
+    el.append(screenshotStrip(app.screenshots, strings));
   }
 
   /* capability chips (display) */
@@ -155,6 +251,7 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
     r.append(l, v);
     meta.append(r);
   };
+  metaRow(strings.developer || 'Developer', publisher);
   metaRow(strings.version || 'Version', app.version);
   metaRow(strings.size || 'Size', app.size);
   if (meta.childNodes.length) el.append(meta);
@@ -167,6 +264,11 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
   tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi — nothing leaves your device without your permission.';
   trust.append(tt);
   el.append(trust);
+
+  /* more mini apps (graceful — only when related entries are provided) */
+  if (Array.isArray(app.related) && app.related.length) {
+    el.append(relatedStrip(app.related, strings, onOpen));
+  }
 
   /* Advanced disclosure — dev install URL + copy + app id */
   if (app.url || app.id) {

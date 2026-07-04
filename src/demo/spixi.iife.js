@@ -13,13 +13,25 @@
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
+/** Locale for every Intl call in the components — document lang, validated.
+ *  (audit r2: an invalid BCP-47 lang attr, e.g. "en_US", made every toLocale*
+ *  call throw and killed whole-component rendering.) */
+function docLocale() {
+  const lang = document.documentElement.lang;
+  if (!lang) return undefined;
+  try { Intl.getCanonicalLocales(lang); return lang; } catch { return undefined; }
+}
+
+/** Shared day-bucket ladder (chat list + conversation separators — single source,
+ *  audit DRY finding). `todayLabel` null → caller handles today itself. */
 function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
+  if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
   const n = new Date(now);
-  const locale = document.documentElement.lang || undefined;
+  const locale = docLocale();
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
-  if (dayDiff <= 0) return todayLabel;
+  if (dayDiff <= 0) return todayLabel; // today (or future clock skew)
   if (dayDiff === 1) return strings.yesterday || 'Yesterday';
   if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
   if (d.getFullYear() === n.getFullYear()) {
@@ -27,11 +39,11 @@ function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   }
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
 function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
   const bucket = dayBucketLabel(ts, strings, now, null);
-  if (bucket !== null) return bucket;
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
+  return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -40,7 +52,8 @@ function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
  */
 function formatTxTimestamp(ts, now = Date.now()) {
   const d = new Date(ts);
-  const locale = document.documentElement.lang || undefined;
+  if (isNaN(d)) return ''; // audit r2
+  const locale = docLocale();
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
   const date = d.toLocaleDateString(locale, sameYear
     ? { day: 'numeric', month: 'short' }
@@ -101,7 +114,7 @@ function startTimestampTicker(cb) {
  */
 
 
-function hashHue(str) {
+function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
@@ -125,8 +138,8 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
   const el = document.createElement('span');
   el.className = 'c-avatar';
   el.dataset.size = String(size);
-  if (size !== 24 && size !== 48) {
-    // known sizes (24/48) come from --size-avatar-* tokens in avatar.css;
+  if (size !== 24 && size !== 40 && size !== 48) {
+    // known sizes (24/40/48) come from --size-avatar-* tokens in avatar.css;
     // anything else falls back to inline sizing until tokenized
     el.style.width = size + 'px';
     el.style.height = size + 'px';
@@ -181,11 +194,11 @@ function formatCount(n) {
   return n > 99 ? '99+' : String(n);
 }
 
-/* —— status icon (§2): sending/sent/delivered neutral · read accent · failed error —— */
+/* —— status icon (§2): sending/sent neutral · delivered muted (bubble: green) · read accent · failed error —— */
 const STATUS = {
   sending: { glyph: 'clock-hour-10', tone: 'neutral' },
   sent: { glyph: 'check', tone: 'neutral' },
-  delivered: { glyph: 'checks', tone: 'neutral' },
+  delivered: { glyph: 'checks', tone: 'delivered' },
   read: { glyph: 'checks', tone: 'read' },
   failed: { glyph: 'alert-small', tone: 'failed' },
 };
@@ -198,13 +211,15 @@ function createStatusIcon(status) {
   return el;
 }
 
-/* —— indicator (§4): count · count-muted · muted (bell-off) · mention (@ wins over count) —— */
+/* —— indicator (§4, #108): count · count-muted · muted (bell-off) · mention
+   (plain `at` GLYPH, action ink, NO circle — a distinct shape from numeric
+   count circles, Damir 2026-07-03; can coexist with a count) —— */
 function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
     el.dataset.variant = 'mention';
-    el.append(icon('at', { size: 14 })); // #108: plain glyph, no circle
+    el.append(icon('at', { size: 14 }));
     el.setAttribute('aria-label', strings.mention || 'mention');
   } else if (count > 0) {
     el.dataset.variant = muted ? 'count-muted' : 'count';
@@ -219,10 +234,11 @@ function createIndicator({ count = 0, mention = false, muted = false, strings = 
 }
 
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
- *  bell-off glyph (Damir review 2026-07-02). Returns [] when nothing to show. */
+ *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
+ *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
 function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
   const out = [];
-  if (mention) out.push(createIndicator({ mention: true, strings })); // #108: @ + count coexist
+  if (mention) out.push(createIndicator({ mention: true, strings }));
   if (count > 0) out.push(createIndicator({ count, muted, strings }));
   if (muted) out.push(createIndicator({ muted: true, strings }));
   return out;
@@ -234,7 +250,7 @@ const EXCERPT_GLYPHS = {
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
-  text = text == null ? '' : String(text);
+  text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
@@ -303,7 +319,7 @@ function createChatItem({
   const statusEl = createStatusIcon(status);
   if (statusEl) row1.append(statusEl);
   if (pinned) row1.append(icon('pin', { size: 16 }));
-  if (timestamp) {
+  if (timestamp) {                                   // 0 / NaN / undefined → no time (0 is an "unset" sentinel, not 1970)
     const time = document.createElement('span');
     time.className = 'c-chatlist-item__time u-tabular';
     time.textContent = formatChatTimestamp(timestamp, strings);
@@ -394,8 +410,9 @@ function createButton({
 
   if (onClick) el.addEventListener('click', onClick);
 
-  setLoading(el, loading);
+  // disabled BEFORE setLoading — loading remembers/restores the caller's state
   el.disabled = disabled;
+  setLoading(el, loading);
   return el;
 }
 
@@ -455,10 +472,19 @@ function setLoading(el, loading) {
       }
       el.dataset.loading = '';
       el.setAttribute('aria-busy', 'true');
+      // audit r2: loading ≠ inert — [data-loading] kills pointer-events but
+      // KEYBOARD activation still fired onClick (double-payment hazard on a
+      // processing Pay). Track whether WE disabled it so unload restores the
+      // caller's own disabled state. CSS keeps the loading skin (not disabled).
+      if (!el.disabled) { el.dataset.loadingDisabled = ''; el.disabled = true; }
     } else {
       existing?.remove();
       delete el.dataset.loading;
       el.removeAttribute('aria-busy');
+      if (el.dataset.loadingDisabled !== undefined) {
+        delete el.dataset.loadingDisabled;
+        el.disabled = false;
+      }
     }
   });
 }
@@ -519,23 +545,32 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  * c-topbar — mirrors Figma "title bar"/"top". DECISIONS.md #16 conventions.
  *
  * createTopbar({
- *   variant: 'root' | 'view' = 'view',
+ *   variant: 'root' | 'view' | 'chat' = 'view',
  *   title: string,                       // view title, or fallback text for root
  *   logo: boolean,                       // root variant: render the registry logo mark (Chats/home header only)
- *   onBack: (e) => void,                 // view variant: renders back icon-button
+ *   identity: { name, sub, avatar, address, online },
+ *              // chat variant (Damir spec 2026-07-03): avatar 40 + presence dot,
+ *              // name label-md, sub body-sm text-02 ("Online" / "6 members" —
+ *              // bridge-driven via setOnlineStatus)
+ *   onBack: (e) => void,                 // view/chat variants: back icon-button
  *   backLabel: 'Back',                   // back button a11y label (SL in shells)
- *   actions: [{ icon: 'qrcode', label: 'Scan', onClick }]  // trailing icon-buttons
+ *   onIdentity: (e) => void,             // chat variant: identity block becomes a
+ *                                        // BUTTON (channel selector on bots, chat
+ *                                        // info later — #86 bot surface)
+ *   actions: [{ icon: 'phone', label: 'Call', onClick }]  // trailing icon-buttons
  * })
+ * setTopbarSub(el, text) — live sub updates (typing…, presence) (#44 free fn)
  */
 
 
 
-function createTopbar({ variant = 'view', title = '', logo = false, onBack, backLabel = 'Back', actions = [] } = {}) {
+
+function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', onIdentity = null, actions = [] } = {}) {
   const el = document.createElement('header');
   el.className = 'c-topbar';
   el.dataset.variant = variant;
 
-  if (variant === 'view' && onBack) {
+  if ((variant === 'view' || variant === 'chat') && onBack) {
     el.append(createButton({
       type: 'text', size: 44,
       icon: icon('arrow-left'),
@@ -544,19 +579,46 @@ function createTopbar({ variant = 'view', title = '', logo = false, onBack, back
     }));
   }
 
-  const titleEl = document.createElement('div');
-  titleEl.className = 'c-topbar__title';
-  if (variant === 'root' && logo) {
-    // logotype = inline mark (currentColor — inherits title ink, both modes) + wordmark
-    const mark = icon('logo', { size: 28 });
-    mark.classList.add('c-topbar__logo');
-    const word = document.createElement('span');
-    word.textContent = title || 'Spixi';
-    titleEl.append(mark, word);
+  if (variant === 'chat' && identity) {
+    // identity wrap: BUTTON when onIdentity is wired (bot channel selector /
+    // chat info) — accessible name comes from the name+sub content
+    const wrap = document.createElement(onIdentity ? 'button' : 'div');
+    wrap.className = 'c-topbar__identity-wrap';
+    if (onIdentity) {
+      wrap.type = 'button';
+      wrap.addEventListener('click', onIdentity);
+    }
+    wrap.append(createAvatar({
+      src: identity.avatar, name: identity.name, address: identity.address,
+      size: 40, online: !!identity.online,
+    }));
+    const id = document.createElement('div');
+    id.className = 'c-topbar__identity';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'c-topbar__name';
+    nameEl.textContent = identity.name || identity.address || '';
+    const subEl = document.createElement('span');
+    subEl.className = 'c-topbar__sub';
+    subEl.setAttribute('aria-live', 'polite'); // presence/typing changes announced
+    subEl.textContent = identity.sub || '';
+    id.append(nameEl, subEl);
+    wrap.append(id);
+    el.append(wrap);
   } else {
-    titleEl.textContent = title;
+    const titleEl = document.createElement('div');
+    titleEl.className = 'c-topbar__title';
+    if (variant === 'root' && logo) {
+      // logotype = inline mark (currentColor — inherits title ink, both modes) + wordmark
+      const mark = icon('logo', { size: 28 });
+      mark.classList.add('c-topbar__logo');
+      const word = document.createElement('span');
+      word.textContent = title || 'Spixi';
+      titleEl.append(mark, word);
+    } else {
+      titleEl.textContent = title;
+    }
+    el.append(titleEl);
   }
-  el.append(titleEl);
 
   if (actions.length) {
     const wrap = document.createElement('div');
@@ -573,6 +635,12 @@ function createTopbar({ variant = 'view', title = '', logo = false, onBack, back
   }
 
   return el;
+}
+
+/** Live sub-line update (typing…, presence, member count) — bridge setOnlineStatus. */
+function setTopbarSub(el, text) {
+  const sub = el.querySelector('.c-topbar__sub');
+  if (sub) sub.textContent = text || '';
 }
 
 /* ---- src/components/bottomnav.js ---- */
@@ -680,7 +748,9 @@ function setNavBadge(nav, id, count, strings = {}) {
  * (no nested button); the X glyph is decorative.
  *
  * createChip({ label, size = 'large', selected = false, icon = null,
- *              dismissible = false, disabled = false, onClick, strings })
+ *              dismissible = false, disabled = false, readonly = false, onClick, strings })
+ *   readonly — a non-interactive DISPLAY chip (e.g. capability/permission tags): a
+ *   <span>, no toggle/pressed/hover, no hit-area expansion. Variant of the same chip.
  * Updates via free function (#44): setChipSelected(el, selected)
  */
 
@@ -710,7 +780,7 @@ function createChip({
   text.textContent = label;
   el.append(text);
 
-  if (readonly) return el;
+  if (readonly) return el;                          // display-only: no toggle/dismiss/click wiring
 
   if (dismissible) {
     // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)
@@ -1188,8 +1258,10 @@ function closeSheet(el) { dismissOverlay(el); }
  * (confirmations are explicit) but Esc DOES (safe dismiss path, ARIA APG).
  * Destructive confirms: role=alertdialog + autofocus the SAFE action.
  *
- * createModal({ title, body, actions, role = 'dialog', host,
+ * createModal({ title, body, content, actions, role = 'dialog', host,
  *               lightDismiss = false, escDismiss = true, onDismiss, strings })
+ *   body    — plain-text description (string)
+ *   content — optional Element for RICH bodies (e.g. permission chips); appended after body
  *   actions: [{ label, type = 'text'|'fill'|…, intent, onClick, autofocus }]
  *   an action returning false from onClick keeps the modal open.
  *   lightDismiss — scrim click closes (modal default: false)
@@ -1233,7 +1305,7 @@ function createModal({
     el.append(b);
   }
 
-  if (content) el.append(content);
+  if (content) el.append(content);                 // rich body (e.g. permission chips)
 
   if (actions.length) {
     const row = document.createElement('div');
@@ -1260,20 +1332,34 @@ function openModal(el) { openOverlay(el); }
 function closeModal(el) { dismissOverlay(el); }
 
 /* ---- src/components/banner.js ---- */
+/**
+ * c-banner — warning/status strip (bridge: showWarning(text); empty clears —
+ * ARCHITECTURE.md §4). NOT a modal overlay: no scrim, no focus trap; passive
+ * status that persists while the condition lasts (docs/overlays-spec.md).
+ *
+ * createWarningBanner({ strings }) → el (mount once, directly under the top bar)
+ * setWarning(el, text) — non-empty opens/updates, empty/null collapses (#44 free fn)
+ */
+
+
 function createWarningBanner({ strings = {} } = {}) {
   const el = document.createElement('div');
   el.className = 'c-banner';
   el.setAttribute('role', 'status');
+  // "Status", not "Warning" — the strip also carries neutral text (connectivity)
   el.setAttribute('aria-label', strings.status || 'Status');
+
   const inner = document.createElement('span');
   inner.className = 'c-banner__inner';
   inner.append(icon('alert-square-rounded', { size: 20 }));
+
   const text = document.createElement('span');
   text.className = 'c-banner__text';
   inner.append(text);
   el.append(inner);
   return el;
 }
+
 function setWarning(el, message) {
   const text = el.querySelector('.c-banner__text');
   if (message) {
@@ -1281,43 +1367,65 @@ function setWarning(el, message) {
     el.dataset.open = '';
   } else {
     delete el.dataset.open;
+    // text stays until collapsed — clearing mid-transition would flash empty
   }
 }
 
 /* ---- src/components/toast.js ---- */
+/**
+ * c-toast — transient feedback card (docs/overlays-spec.md). NOT a modal
+ * overlay: no scrim, no focus trap, never steals focus. One visible per host;
+ * later toasts queue. One confirmation per action (#29) — never toast an
+ * action that already confirms via button morph, navigation, or alert.
+ *
+ * showToast({ text, tone = 'info'|'success'|'error', duration = 3500,
+ *             host = document.body, strings }) → dismiss()
+ */
+
+
 const TONE_GLYPHS = { info: 'info-circle', success: 'check', error: 'alert-square-rounded' };
+
 const toastHostState = new WeakMap(); // host → { current, queue }
+
 function showToast(opts = {}) {
   const host = opts.host || document.body;
   let state = toastHostState.get(host);
   if (!state) { state = { current: null, queue: [] }; toastHostState.set(host, state); }
   if (state.current) {
+    // queue discipline: collapse identical consecutive toasts, cap backlog at 2
+    // (stale confirmations replaying for minutes help nobody — review finding)
     const last = state.queue[state.queue.length - 1];
     const dup = last && last.text === opts.text && last.tone === opts.tone;
     if (!dup) {
       state.queue.push(opts);
       if (state.queue.length > 2) state.queue.shift();
     }
-    return () => {
+    return () => { // dismiss handle for a queued toast: drop it from the queue
       const i = state.queue.indexOf(opts);
       if (i !== -1) state.queue.splice(i, 1);
     };
   }
   return presentToast(host, state, opts);
 }
+
 function presentToast(host, state, { text = '', tone = 'info', duration = 3500 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-toast';
   el.dataset.tone = tone;
   el.setAttribute('role', 'status');
+
   el.append(icon(TONE_GLYPHS[tone] || TONE_GLYPHS.info, { size: 20 }));
   const t = document.createElement('span');
   t.className = 'c-toast__text';
   t.textContent = text;
   el.append(t);
+
   host.append(el);
   state.current = el;
+
+  // enter (double rAF so initial styles paint first — same as overlay.js)
   requestAnimationFrame(() => requestAnimationFrame(() => { el.dataset.open = ''; }));
+
   let removed = false;
   let exitFallback;
   const remove = () => {
@@ -1332,19 +1440,35 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
   const dismiss = () => {
     if (removed) return;
     clearTimeout(autoTimer);
-    if (el.dataset.open === undefined) { remove(); return; }
+    if (el.dataset.open === undefined) { remove(); return; } // dismissed before it entered
     delete el.dataset.open;
+    // reduced motion: durations are 0, transitionend may never fire — remove now
+    // so the next queued toast isn't stuck behind the 400ms fallback
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { remove(); return; }
     el.addEventListener('transitionend', (e) => { if (e.target === el) remove(); });
-    exitFallback = setTimeout(remove, 400);
+    exitFallback = setTimeout(remove, 400); // fallback if transitionend is lost
   };
+
   el.addEventListener('click', dismiss);
   const autoTimer = setTimeout(dismiss, duration);
   return dismiss;
 }
 
 /* ---- src/components/callbar.js ---- */
+/**
+ * c-callbar — active call strip (bridge: displayCallBar(sessionId, text,
+ * callStartedTime) / hideCallBar — ARCHITECTURE.md §4). NOT a modal overlay;
+ * pinned at --z-60, deliberately ABOVE modals: an active call never hides
+ * (DESIGN_SYSTEM.md §2 z-scale). Singleton per host.
+ *
+ * showCallBar({ text, startedAt = Date.now(), onReturn, onHangUp,
+ *               host = document.body, strings }) → el
+ * hideCallBar(host) (#44 free fns)
+ */
+
+
 const callBars = new WeakMap(); // host → { el, timer }
+
 function formatCallDuration(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
@@ -1354,10 +1478,13 @@ function formatCallDuration(ms) {
   const ss = String(s).padStart(2, '0');
   return (h > 0 ? h + ':' + mm : mm) + ':' + ss;
 }
+
 function showCallBar({
   text = '', startedAt = Date.now(), onReturn, onHangUp,
   host = document.body, strings = {},
 } = {}) {
+  // singleton: a bridge re-call (displayCallBar fires on updates) mutates the
+  // live bar in place — no teardown/replay flash (review finding)
   const existing = callBars.get(host);
   if (existing) {
     existing.startedAt = startedAt;
@@ -1366,23 +1493,28 @@ function showCallBar({
       formatCallDuration(Date.now() - startedAt);
     return existing.el;
   }
+
   const el = document.createElement('div');
   el.className = 'c-callbar';
+
   const main = document.createElement('button');
   main.type = 'button';
   main.className = 'c-callbar__main';
   main.setAttribute('aria-label', strings.returnToCall || 'Return to call');
   main.append(icon('phone', { size: 20 }));
+
   const label = document.createElement('span');
   label.className = 'c-callbar__text';
   label.textContent = text;
   main.append(label);
+
   const time = document.createElement('span');
   time.className = 'c-callbar__time u-tabular';
   time.textContent = formatCallDuration(Date.now() - startedAt);
   main.append(time);
   if (onReturn) main.addEventListener('click', onReturn);
   el.append(main);
+
   const hangup = document.createElement('button');
   hangup.type = 'button';
   hangup.className = 'c-callbar__hangup';
@@ -1390,10 +1522,13 @@ function showCallBar({
   hangup.append(icon('phone-end', { size: 20 }));
   if (onHangUp) hangup.addEventListener('click', onHangUp);
   el.append(hangup);
+
   host.append(el);
+  // guard: bar may be hidden before this fires (rapid toggle) — don't re-open it
   requestAnimationFrame(() => requestAnimationFrame(() => {
     if (el.isConnected && callBars.get(host) && callBars.get(host).el === el) el.dataset.open = '';
   }));
+
   const entry = { el, startedAt, timer: 0 };
   entry.timer = setInterval(() => {
     time.textContent = formatCallDuration(Date.now() - entry.startedAt);
@@ -1401,1982 +1536,72 @@ function showCallBar({
   callBars.set(host, entry);
   return el;
 }
+
 function hideCallBar(host = document.body) {
   const entry = callBars.get(host);
   if (!entry) return false;
   callBars.delete(host);
   clearInterval(entry.timer);
   const { el } = entry;
-  if (el.dataset.open === undefined) { el.remove(); return true; }
+  if (el.dataset.open === undefined) { el.remove(); return true; } // hidden before it entered
   delete el.dataset.open;
   let removed = false;
   const remove = () => { if (!removed) { removed = true; el.remove(); } };
   el.addEventListener('transitionend', (e) => { if (e.target === el) remove(); });
-  setTimeout(remove, 400);
+  setTimeout(remove, 400); // covers reduced-motion 0ms
   return true;
 }
 
 /* ---- src/components/message-bubble.js ---- */
-function bubbleTime(ts) {
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-}
-function createMessageBubble({
-  direction = 'received',
-  position = 'single',
-  text = '',
-  timestamp = null,
-  status = null,
-  sender = null,
-  showAvatar = false,
-  name = '',
-  address = '',
-  avatar = null,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = position;
-  if (direction === 'received' && (showAvatar || sender !== null)) {
-    const gutter = document.createElement('span');
-    gutter.className = 'c-bubble-row__gutter';
-    if (showAvatar && (position === 'last' || position === 'single')) {
-      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
-    }
-    row.append(gutter);
-  }
-  const el = document.createElement('div');
-  el.className = 'c-bubble';
-  if (sender && (position === 'first' || position === 'single')) {
-    const s = document.createElement('span');
-    s.className = 'c-bubble__sender';
-    s.textContent = sender;
-    s.style.setProperty('--sender-h', hashHue(address || name || sender));
-    el.append(s);
-  }
-  const body = document.createElement('span');
-  body.className = 'c-bubble__text';
-  body.textContent = text;
-  el.append(body);
-  const meta = document.createElement('span');
-  meta.className = 'c-bubble__meta u-tabular';
-  if (timestamp != null) {
-    const t = document.createElement('time');
-    t.setAttribute('datetime', new Date(timestamp).toISOString());
-    t.textContent = bubbleTime(timestamp);
-    meta.append(t);
-  }
-  if (direction === 'sent' && status) {
-    const st = createStatusIcon(status);
-    if (st) {
-      st.setAttribute('width', 14);
-      st.setAttribute('height', 14);
-      st.removeAttribute('aria-hidden');
-      st.setAttribute('role', 'img');
-      st.setAttribute('aria-label', strings['status-' + status] || status);
-      meta.append(st);
-    }
-  }
-  if (meta.childNodes.length) el.append(meta);
-  row.append(el);
-  return row;
-}
-function createDateSeparator(ts, strings = {}, now = Date.now()) {
-  const el = document.createElement('div');
-  el.className = 'c-datesep';
-  el.setAttribute('role', 'separator');
-  const pill = document.createElement('span');
-  pill.className = 'c-datesep__pill';
-  pill.textContent = dayBucketLabel(ts, strings, now, strings.today || 'Today');
-  el.append(pill);
-  return el;
-}
+/**
+ * c-bubble — chat message bubble (Figma message-bubble 11288:4442; DECISIONS
+ * #63 grouping, #14 width rule). Core text variant; typed bubbles (payment/
+ * file/app/call), reactions and reply rendering arrive in later batches —
+ * markup is extension-ready. Bridge: addMe/addThem 11-arg contract (§4).
+ *
+ * createMessageBubble({
+ *   direction: 'sent' | 'received',
+ *   position: 'single' | 'first' | 'middle' | 'last',   // grouping (#63)
+ *   text, timestamp,
+ *   status: 'sending'|'sent'|'delivered'|'read'|'failed',// sent only
+ *   sender,                   // group chats: name label on first-of-group
+ *   showAvatar, name, address, avatar,                   // received groups: on last-of-group
+ *   onSenderClick,            // group chats (#99): label + avatar become BUTTONS
+ *                             // → member sheet (identity verification; blind
+ *                             // groups simply don't pass it)
+ *   onRetry,                  // failed sent messages: retry circle + caption tap
+ *   reply: { sender, address, text,    // §8-GATED (#25): quoted strip — render
+ *            kind, thumb },   // ONLY behind the reply capability handshake.
+ *                             // kind: 'gif'|'image'|'file'|'payment'|'call'|'voice'
+ *                             // → glyph chip in the quote; thumb (data-URI,
+ *                             // shell-composed) replaces the glyph for media
+ *   onReplyClick,             // tap on the quote → shell scrolls to original
+ *   edited: false,            // §8-GATED (#25): "edited" marker in the meta
+ *   onLinkClick(url),         // URLs in text render as link BUTTONS (never
+ *                             // real <a> — no default-nav/middle-click bypass
+ *                             // of the shell's external-link warning)
+ *   linkPreview: { url, title, domain, image }, // §8-GATED: P2P has no server
+ *                             // to unfurl — the SENDER composes the preview
+ *                             // into the message (Signal-style), bridge carries it
+ *   strings
+ * })
+ */
 
-/* ---- BATCH 1b SUPERSEDE SECTION (manual append — PC mirror can't run the
-   builder; `node scripts/build-demo-bundle.mjs` on the Mac normalizes this).
-   Later function declarations override the earlier ones above. ---- */
 
-/* ---- src/components/topbar.js (chat variant + setTopbarSub) ---- */
-function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', actions = [] } = {}) {
-  const el = document.createElement('header');
-  el.className = 'c-topbar';
-  el.dataset.variant = variant;
-  if ((variant === 'view' || variant === 'chat') && onBack) {
-    el.append(createButton({
-      type: 'text', size: 44,
-      icon: icon('arrow-left'),
-      ariaLabel: backLabel,
-      onClick: onBack,
-    }));
-  }
-  if (variant === 'chat' && identity) {
-    el.append(createAvatar({
-      src: identity.avatar, name: identity.name, address: identity.address,
-      size: 40, online: !!identity.online,
-    }));
-    const id = document.createElement('div');
-    id.className = 'c-topbar__identity';
-    const nameEl = document.createElement('span');
-    nameEl.className = 'c-topbar__name';
-    nameEl.textContent = identity.name || identity.address || '';
-    const subEl = document.createElement('span');
-    subEl.className = 'c-topbar__sub';
-    subEl.setAttribute('aria-live', 'polite');
-    subEl.textContent = identity.sub || '';
-    id.append(nameEl, subEl);
-    el.append(id);
-  } else {
-    const titleEl = document.createElement('div');
-    titleEl.className = 'c-topbar__title';
-    if (variant === 'root' && logo) {
-      const mark = icon('logo', { size: 28 });
-      mark.classList.add('c-topbar__logo');
-      const word = document.createElement('span');
-      word.textContent = title || 'Spixi';
-      titleEl.append(mark, word);
-    } else {
-      titleEl.textContent = title;
-    }
-    el.append(titleEl);
-  }
-  if (actions.length) {
-    const wrap = document.createElement('div');
-    wrap.className = 'c-topbar__actions';
-    for (const a of actions) {
-      wrap.append(createButton({
-        type: 'text', size: 44,
-        icon: icon(a.icon),
-        ariaLabel: a.label,
-        onClick: a.onClick,
-      }));
-    }
-    el.append(wrap);
-  }
-  return el;
-}
-function setTopbarSub(el, text) {
-  const sub = el.querySelector('.c-topbar__sub');
-  if (sub) sub.textContent = text || '';
-}
 
-/* ---- src/components/message-bubble.js (failed + onRetry) ---- */
-function createMessageBubble({
-  direction = 'received',
-  position = 'single',
-  text = '',
-  timestamp = null,
-  status = null,
-  sender = null,
-  showAvatar = false,
-  name = '',
-  address = '',
-  avatar = null,
-  onRetry = null,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = position;
-  if (direction === 'received' && (showAvatar || sender !== null)) {
-    const gutter = document.createElement('span');
-    gutter.className = 'c-bubble-row__gutter';
-    if (showAvatar && (position === 'last' || position === 'single')) {
-      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
-    }
-    row.append(gutter);
-  }
-  const el = document.createElement('div');
-  el.className = 'c-bubble';
-  if (sender && (position === 'first' || position === 'single')) {
-    const s = document.createElement('span');
-    s.className = 'c-bubble__sender';
-    s.textContent = sender;
-    s.style.setProperty('--sender-h', hashHue(address || name || sender));
-    el.append(s);
-  }
-  const body = document.createElement('span');
-  body.className = 'c-bubble__text';
-  body.textContent = text;
-  el.append(body);
-  const meta = document.createElement('span');
-  meta.className = 'c-bubble__meta u-tabular';
-  if (timestamp != null) {
-    const t = document.createElement('time');
-    t.setAttribute('datetime', new Date(timestamp).toISOString());
-    t.textContent = bubbleTime(timestamp);
-    meta.append(t);
-  }
-  if (direction === 'sent' && status) {
-    const st = createStatusIcon(status);
-    if (st) {
-      st.setAttribute('width', 14);
-      st.setAttribute('height', 14);
-      st.removeAttribute('aria-hidden');
-      st.setAttribute('role', 'img');
-      st.setAttribute('aria-label', strings['status-' + status] || status);
-      meta.append(st);
-    }
-  }
-  if (meta.childNodes.length) el.append(meta);
-  if (direction === 'sent' && status === 'failed') {
-    row.dataset.failed = '';
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
-    retry.append(icon('rotate-clockwise-2', { size: 16 }));
-    if (onRetry) retry.addEventListener('click', onRetry);
-    const line = document.createElement('div');
-    line.className = 'c-bubble-line';
-    line.append(retry, el);
-    const stack = document.createElement('div');
-    stack.className = 'c-bubble-stack';
-    stack.append(line);
-    const note = document.createElement('span');
-    note.className = 'c-bubble-failnote';
-    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
-    if (onRetry) note.addEventListener('click', onRetry);
-    stack.append(note);
-    row.append(stack);
-    return row;
-  }
-  row.append(el);
-  return row;
-}
 
-/* ---- src/components/composer.js ---- */
-const COMPOSER_MAX_LINES = 5;
-function createComposer({
-  placeholder = 'Message',
-  voice = false,
-  onSend,
-  onAttach,
-  onTyping,
-  onRecord,
-  strings = {},
-} = {}) {
-  const el = document.createElement('div');
-  el.className = 'c-composer';
-  const field = document.createElement('div');
-  field.className = 'c-composer__field';
-  const attach = document.createElement('button');
-  attach.type = 'button';
-  attach.className = 'c-composer__attach';
-  attach.setAttribute('aria-label', strings.attach || 'Attach');
-  attach.append(icon('circle-plus', { size: 24 }));
-  if (onAttach) attach.addEventListener('click', onAttach);
-  field.append(attach);
-  const input = document.createElement('textarea');
-  input.className = 'c-composer__input';
-  input.rows = 1;
-  input.placeholder = placeholder;
-  input.setAttribute('aria-label', placeholder);
-  field.append(input);
-  el.append(field);
-  const action = document.createElement('button');
-  action.type = 'button';
-  action.className = 'c-composer__action';
-  el.append(action);
-  const sendIcon = () => { action.textContent = ''; action.append(icon('send-2', { size: 20 })); };
-  const micIcon = () => { action.textContent = ''; action.append(icon('microphone', { size: 20 })); };
-  const hasText = () => input.value.trim().length > 0;
-  const syncAction = () => {
-    if (voice && !hasText()) {
-      micIcon();
-      action.dataset.mode = 'mic';
-      action.disabled = false;
-      action.setAttribute('aria-label', strings.record || 'Record voice message');
-    } else {
-      sendIcon();
-      action.dataset.mode = 'send';
-      action.disabled = !hasText();
-      action.setAttribute('aria-label', strings.send || 'Send');
-    }
-  };
-  const grow = () => {
-    input.style.height = 'auto';
-    const cs = getComputedStyle(input);
-    const line = parseInt(cs.lineHeight, 10) || 24;
-    const pad = (parseInt(cs.paddingTop, 10) || 0) + (parseInt(cs.paddingBottom, 10) || 0);
-    input.style.height = Math.min(input.scrollHeight, line * COMPOSER_MAX_LINES + pad) + 'px';
-  };
-  const send = () => {
-    const text = input.value.trim();
-    if (!text) return;
-    if (onSend) onSend(text);
-    input.value = '';
-    grow();
-    syncAction();
-    input.focus();
-  };
-  input.addEventListener('input', (e) => {
-    grow();
-    syncAction();
-    if (onTyping && e.isTrusted) onTyping();
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.isComposing || e.keyCode === 229) return;
-    if (e.key === 'Enter' && !e.shiftKey && matchMedia('(hover: hover)').matches) {
-      e.preventDefault();
-      send();
-    }
-  });
-  action.addEventListener('click', () => {
-    if (action.dataset.mode === 'mic') { if (onRecord) onRecord(); }
-    else send();
-  });
-  syncAction();
-  return el;
-}
-function clearComposer(el) {
-  const input = el.querySelector('.c-composer__input');
-  if (!input) return;
-  input.value = '';
-  input.style.height = 'auto';
-  input.dispatchEvent(new Event('input'));
-}
-
-/* ---- src/components/typed-bubbles.js ---- */
-function cardTime(ts) {
-  const locale = document.documentElement.lang || undefined;
-  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-}
-function card(direction, title, timestamp, modifier) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  const el = document.createElement('div');
-  el.className = 'c-tcard';
-  if (modifier) el.dataset.kind = modifier;
-  const head = document.createElement('div');
-  head.className = 'c-tcard__head';
-  const t = document.createElement('span');
-  t.className = 'c-tcard__title';
-  t.textContent = title;
-  head.append(t);
-  if (timestamp != null) {
-    const time = document.createElement('time');
-    time.className = 'c-tcard__time u-tabular';
-    time.setAttribute('datetime', new Date(timestamp).toISOString());
-    time.textContent = cardTime(timestamp);
-    head.append(time);
-  }
-  el.append(head);
-  row.append(el);
-  return { row, el };
-}
-function actionsRow(...buttons) {
-  const r = document.createElement('div');
-  r.className = 'c-tcard__actions';
-  for (const b of buttons) if (b) { b.dataset.width = 'full'; r.append(b); }
-  return r;
-}
-function detailsLink(onDetails, strings) {
-  const wrap = document.createElement('div');
-  wrap.className = 'c-tcard__details';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'c-tcard__details-btn';
-  btn.append(document.createTextNode(strings.details || 'Details'), icon('chevron-right', { size: 16 }));
-  if (onDetails) btn.addEventListener('click', onDetails);
-  wrap.append(btn);
-  return wrap;
-}
-function createPaymentBubble({
-  role = 'request-in',
-  amount = '',
-  fiat = '',
-  status = 'actionable',
-  insufficient = false,
-  timestamp = null,
-  onPay, onDecline, onCancel, onRetry, onDetails,
-  strings = {},
-} = {}) {
-  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
-  const titles = {
-    'request-in': strings.paymentRequest || 'Payment request',
-    'request-out': strings.youRequested || 'You requested',
-    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
-    received: strings.paymentReceived || 'Payment received',
-  };
-  const { row, el } = card(direction, titles[role], timestamp, 'payment');
-  row.dataset.status = status;
-  const amountEl = document.createElement('div');
-  amountEl.className = 'c-tcard__amount u-tabular';
-  amountEl.dataset.tone =
-    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
-    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
-    : 'pending';
-  amountEl.append(document.createTextNode(amount + ' '));
-  const unit = document.createElement('span');
-  unit.className = 'c-tcard__unit';
-  unit.textContent = 'IXI';
-  amountEl.append(unit);
-  el.append(amountEl);
-  if (fiat) {
-    const f = document.createElement('div');
-    f.className = 'c-tcard__fiat u-tabular';
-    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
-    f.textContent = fiat;
-    el.append(f);
-  }
-  const BADGES = {
-    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
-    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
-    completed: ['success', strings.completed || 'Completed', 'check'],
-    declined: ['error', strings.declined || 'Declined', 'cancel'],
-    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
-  };
-  if (BADGES[status]) {
-    const [type, label, glyph] = BADGES[status];
-    const wrap = document.createElement('div');
-    wrap.className = 'c-tcard__badge';
-    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
-    el.append(wrap);
-  }
-  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: onDecline, disabled: status === 'processing' });
-    const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: onRetry })
-      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: onPay, disabled: insufficient, loading: status === 'processing' });
-    el.append(actionsRow(decline, pay));
-    if (insufficient) {
-      const note = document.createElement('div');
-      note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
-      el.append(note);
-    }
-  } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: onCancel })));
-  } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: onRetry })));
-  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
-    el.append(detailsLink(onDetails, strings));
-  }
-  return row;
-}
-function createAppBubble({
-  name = '',
-  iconUrl = null,
-  state = 'invite',
-  direction = null,
-  timestamp = null,
-  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
-  strings = {},
-} = {}) {
-  const dir = direction || (state === 'invited' ? 'sent' : 'received');
-  const title = (state === 'in-session' || state === 'ended')
-    ? (strings.appSession || 'App session')
-    : (strings.appInvite || 'App invite');
-  const { row, el } = card(dir, title, timestamp, 'app');
-  const id = document.createElement('div');
-  id.className = 'c-tcard__app';
-  const ic = document.createElement('span');
-  ic.className = 'c-tcard__app-icon';
-  if (iconUrl) {
-    const img = document.createElement('img');
-    img.src = iconUrl;
-    img.alt = '';
-    ic.append(img);
-  } else {
-    ic.append(icon('rocket', { size: 24 }));
-  }
-  const col = document.createElement('span');
-  col.className = 'c-tcard__app-info';
-  const nm = document.createElement('span');
-  nm.className = 'c-tcard__app-name';
-  nm.textContent = name;
-  const sub = document.createElement('span');
-  sub.className = 'c-tcard__app-sub';
-  sub.textContent = {
-    invite: strings.invitedYou || 'Invited you to join',
-    invited: strings.youInvited || 'You have sent an invite',
-    missing: strings.invitedYou || 'Invited you to join',
-    'in-session': strings.inSession || 'In session',
-    ended: strings.sessionEnded || 'Session ended',
-  }[state];
-  col.append(nm, sub);
-  id.append(ic, col);
-  el.append(id);
-  if (state === 'invite') {
-    el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: onDecline }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: onJoin }),
-    ));
-  } else if (state === 'invited') {
-    el.append(actionsRow(
-      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: onCancel }),
-      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: onLaunch }),
-    ));
-  } else if (state === 'missing') {
-    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: onGet })));
-  } else if (state === 'in-session') {
-    el.append(actionsRow(
-      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: onEnd }),
-      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: onResume }),
-    ));
-  }
-  return row;
-}
-function createCallBubble({
-  missed = false,
-  direction = 'received',
-  directionLabel = '',
-  duration = '',
-  timestamp = null,
-  onCallBack,
-  strings = {},
-} = {}) {
-  const { row, el } = card(direction,
-    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
-    timestamp, 'call');
-  if (missed) row.dataset.missed = '';
-  const head = el.querySelector('.c-tcard__title');
-  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
-  if (missed) {
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.className = 'c-tcard__call-back';
-    sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    if (onCallBack) sub.addEventListener('click', onCallBack);
-    el.append(sub);
-  } else {
-    const meta = document.createElement('div');
-    meta.className = 'c-tcard__call-meta u-tabular';
-    meta.textContent = directionLabel + (duration ? ' · ' + duration : '');
-    el.append(meta);
-    const wrap = detailsLink(onCallBack, { details: strings.callBack || 'Call back' });
-    el.append(wrap);
-  }
-  return row;
-}
-function createFileBubble({
-  direction = 'received',
-  name = '',
-  meta = '',
-  state = 'complete',
-  progress = 0,
-  timestamp = null,
-  onAccept, onOpen, onRetry,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'c-fbubble';
-  el.dataset.state = state;
-  const act = state === 'offer' ? onAccept : state === 'failed' ? onRetry : state === 'complete' ? onOpen : null;
-  if (act) el.addEventListener('click', act);
-  else if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label',
-    (state === 'offer' ? (strings.download || 'Download')
-      : state === 'failed' ? (strings.retry || 'Retry')
-      : state === 'progress' ? (strings.downloading || 'Downloading')
-      : (strings.open || 'Open'))
-    + ' ' + name);
-  const ic = document.createElement('span');
-  ic.className = 'c-fbubble__icon';
-  ic.append(icon(state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr', { size: 20 }));
-  el.append(ic);
-  const col = document.createElement('span');
-  col.className = 'c-fbubble__info';
-  const nm = document.createElement('span');
-  nm.className = 'c-fbubble__name';
-  nm.textContent = name;
-  const mt = document.createElement('span');
-  mt.className = 'c-fbubble__meta';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
-  col.append(nm, mt);
-  if (state === 'progress') {
-    const track = document.createElement('span');
-    track.className = 'c-fbubble__track';
-    track.setAttribute('role', 'progressbar');
-    track.setAttribute('aria-valuemin', '0');
-    track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, progress))));
-    const fill = document.createElement('span');
-    fill.className = 'c-fbubble__fill';
-    fill.style.width = Math.max(0, Math.min(100, progress)) + '%';
-    track.append(fill);
-    col.append(track);
-  }
-  el.append(col);
-  if (timestamp != null) {
-    const time = document.createElement('time');
-    time.className = 'c-fbubble__time u-tabular';
-    time.setAttribute('datetime', new Date(timestamp).toISOString());
-    time.textContent = cardTime(timestamp);
-    el.append(time);
-  }
-  row.append(el);
-  return row;
-}
-function setFileProgress(rowEl, progress, opts = {}) {
-  const p = Math.max(0, Math.min(100, progress));
-  const fill = rowEl.querySelector('.c-fbubble__fill');
-  if (fill) fill.style.width = p + '%';
-  const track = rowEl.querySelector('.c-fbubble__track');
-  if (track) track.setAttribute('aria-valuenow', String(p));
-  const metaEl = rowEl.querySelector('.c-fbubble__meta');
-  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
-  const bubble = rowEl.querySelector('.c-fbubble');
-  const finalState = opts.state || (p >= 100 ? 'complete' : null);
-  if (bubble && finalState && bubble.dataset.state !== finalState) {
-    bubble.dataset.state = finalState;
-    bubble.disabled = false;
-    if (track) track.remove();
-  }
-}
-function createUnreadDivider(strings = {}) {
-  const el = document.createElement('div');
-  el.className = 'c-unread-divider';
-  el.setAttribute('role', 'separator');
-  const label = document.createElement('span');
-  label.textContent = strings.unreadMessages || 'Unread messages';
-  el.append(label);
-  return el;
-}
-
-/* ---- src/components/avatar.js (24/40/48 token sizes — supersede parity) ---- */
-function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
-  const el = document.createElement('span');
-  el.className = 'c-avatar';
-  el.dataset.size = String(size);
-  if (size !== 24 && size !== 40 && size !== 48) {
-    el.style.width = size + 'px';
-    el.style.height = size + 'px';
-  }
-  if (src) {
-    const img = document.createElement('img');
-    img.className = 'c-avatar__img';
-    img.src = src;
-    img.alt = '';
-    el.append(img);
-  } else {
-    const hue = hashHue(address || name);
-    el.dataset.placeholder = '';
-    el.style.setProperty('--av-h1', hue);
-    el.style.setProperty('--av-h2', (hue + 40) % 360);
-    const ini = name ? initials(name) : null;
-    if (ini) {
-      const t = document.createElement('span');
-      t.className = 'c-avatar__initials';
-      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
-      t.textContent = ini;
-      el.append(t);
-    } else {
-      el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
-    }
-  }
-  if (online) {
-    const dot = document.createElement('span');
-    dot.className = 'c-avatar__dot';
-    el.append(dot);
-  }
-  return el;
-}
-
-/* ---- AUDIT r2 SUPERSEDE SECTION (2026-07-03, full-surface audit ×3 agents) ----
-   Later function declarations override earlier ones. Mirrors CURRENT sources:
-   timestamp.js (docLocale + invalid-ts guards), message-bubble.js (ts guard +
-   retry re-entry guard), typed-bubbles.js (action guards, file dispatcher,
-   setFileProgress aria/glyph refresh), button.js (loading disables).
-   Mac rebuild (`node scripts/build-demo-bundle.mjs`) normalizes all of this. */
-
-function docLocale() {
-  const lang = document.documentElement.lang;
-  if (!lang) return undefined;
-  try { Intl.getCanonicalLocales(lang); return lang; } catch { return undefined; }
-}
-
-function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
-  const d = new Date(ts);
-  if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
-  const n = new Date(now);
-  const locale = docLocale();
-  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const dayDiff = Math.round((startOfDay(n) - startOfDay(d)) / 86400000);
-  if (dayDiff <= 0) return todayLabel;
-  if (dayDiff === 1) return strings.yesterday || 'Yesterday';
-  if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'long' });
-  if (d.getFullYear() === n.getFullYear()) {
-    return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
-  }
-  return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
-  const bucket = dayBucketLabel(ts, strings, now, null);
-  if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
-  return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatTxTimestamp(ts, now = Date.now()) {
-  const d = new Date(ts);
-  if (isNaN(d)) return ''; // audit r2
-  const locale = docLocale();
-  const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  const date = d.toLocaleDateString(locale, sameYear
-    ? { day: 'numeric', month: 'short' }
-    : { day: 'numeric', month: 'short', year: 'numeric' });
-  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
-  return date + ', ' + time;
-}
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
-function createMessageBubble({
-  direction = 'received',
-  position = 'single',
-  text = '',
-  timestamp = null,
-  status = null,
-  sender = null,
-  showAvatar = false,
-  name = '',
-  address = '',
-  avatar = null,
-  onRetry = null,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = position;
-
-  if (direction === 'received' && (showAvatar || sender !== null)) {
-    const gutter = document.createElement('span');
-    gutter.className = 'c-bubble-row__gutter';
-    if (showAvatar && (position === 'last' || position === 'single')) {
-      gutter.append(createAvatar({ src: avatar, name, address, size: 24 }));
-    }
-    row.append(gutter);
-  }
-
-  const el = document.createElement('div');
-  el.className = 'c-bubble';
-
-  if (sender && (position === 'first' || position === 'single')) {
-    const s = document.createElement('span');
-    s.className = 'c-bubble__sender';
-    s.textContent = sender;
-    s.style.setProperty('--sender-h', hashHue(address || name || sender));
-    el.append(s);
-  }
-
-  const body = document.createElement('span');
-  body.className = 'c-bubble__text';
-  body.textContent = text;
-  el.append(body);
-
-  const meta = document.createElement('span');
-  meta.className = 'c-bubble__meta u-tabular';
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2: one malformed bridge ts crashed the whole render
-      const t = document.createElement('time');
-      t.setAttribute('datetime', d.toISOString());
-      t.textContent = bubbleTime(d);
-      meta.append(t);
-    }
-  }
-  if (direction === 'sent' && status) {
-    const st = createStatusIcon(status);
-    if (st) {
-      st.setAttribute('width', 14);
-      st.setAttribute('height', 14);
-      st.removeAttribute('aria-hidden');
-      st.setAttribute('role', 'img');
-      st.setAttribute('aria-label', strings['status-' + status] || status);
-      meta.append(st);
-    }
-  }
-  if (meta.childNodes.length) el.append(meta);
-
-  if (direction === 'sent' && status === 'failed') {
-    row.dataset.failed = '';
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
-    retry.append(icon('rotate-clockwise-2', { size: 16 }));
-    // audit r2: re-entry guard shared by circle + caption
-    let lastRetry = 0;
-    const retryGuarded = onRetry ? ((e) => {
-      const t = Date.now();
-      if (t - lastRetry < 500) return;
-      lastRetry = t;
-      onRetry(e);
-    }) : null;
-    if (retryGuarded) retry.addEventListener('click', retryGuarded);
-    const line = document.createElement('div');
-    line.className = 'c-bubble-line';
-    line.append(retry, el);
-    const stack = document.createElement('div');
-    stack.className = 'c-bubble-stack';
-    stack.append(line);
-    const note = document.createElement('span');
-    note.className = 'c-bubble-failnote';
-    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
-    if (retryGuarded) note.addEventListener('click', retryGuarded);
-    stack.append(note);
-    row.append(stack);
-    return row;
-  }
-
-  row.append(el);
-  return row;
-}
-
-function cardTime(d) {
-  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
-}
-
-function card(direction, title, timestamp, modifier) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  const el = document.createElement('div');
-  el.className = 'c-tcard';
-  if (modifier) el.dataset.kind = modifier;
-  const head = document.createElement('div');
-  head.className = 'c-tcard__head';
-  const t = document.createElement('span');
-  t.className = 'c-tcard__title';
-  t.textContent = title;
-  head.append(t);
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
-      const time = document.createElement('time');
-      time.className = 'c-tcard__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      head.append(time);
-    }
-  }
-  el.append(head);
-  row.append(el);
-  return { row, el };
-}
-
-/* Action guards (audit r2): state-changing actions latch; repeatable ones
-   guard rapid re-entry only. Shell contract: bridge re-render replaces cards. */
-function oneShot(fn) {
-  if (!fn) return undefined;
-  return (e) => {
-    const btn = e.currentTarget;
-    if (btn.disabled || btn.dataset.acted !== undefined) return;
-    btn.dataset.acted = '';
-    btn.disabled = true;
-    fn(e);
-  };
-}
-function reentryGuard(fn) {
-  if (!fn) return undefined;
-  let last = 0;
-  return (e) => {
-    const now = Date.now();
-    if (now - last < 500) return;
-    last = now;
-    fn(e);
-  };
-}
-
-function createPaymentBubble({
-  role = 'request-in',
-  amount = '',
-  fiat = '',
-  status = 'actionable',
-  insufficient = false,
-  timestamp = null,
-  onPay, onDecline, onCancel, onRetry, onDetails,
-  strings = {},
-} = {}) {
-  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
-  const titles = {
-    'request-in': strings.paymentRequest || 'Payment request',
-    'request-out': strings.youRequested || 'You requested',
-    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
-    received: strings.paymentReceived || 'Payment received',
-  };
-  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment'); // audit r2: unknown role rendered "undefined"
-  row.dataset.status = status;
-
-  const amountEl = document.createElement('div');
-  amountEl.className = 'c-tcard__amount u-tabular';
-  amountEl.dataset.tone =
-    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
-    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
-    : 'pending';
-  amountEl.append(document.createTextNode(amount + ' '));
-  const unit = document.createElement('span');
-  unit.className = 'c-tcard__unit';
-  unit.textContent = 'IXI';
-  amountEl.append(unit);
-  el.append(amountEl);
-
-  if (fiat) {
-    const f = document.createElement('div');
-    f.className = 'c-tcard__fiat u-tabular';
-    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
-    f.textContent = fiat;
-    el.append(f);
-  }
-
-  const BADGES = {
-    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
-    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
-    completed: ['success', strings.completed || 'Completed', 'check'],
-    declined: ['error', strings.declined || 'Declined', 'cancel'],
-    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
-  };
-  if (BADGES[status]) {
-    const [type, label, glyph] = BADGES[status];
-    const wrap = document.createElement('div');
-    wrap.className = 'c-tcard__badge';
-    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
-    el.append(wrap);
-  }
-
-  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
-    const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
-      : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient, loading: status === 'processing' });
-    el.append(actionsRow(decline, pay));
-    if (insufficient) {
-      const note = document.createElement('div');
-      note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
-      el.append(note);
-    }
-  } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
-  } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
-    el.append(detailsLink(reentryGuard(onDetails), strings));
-  }
-  paymentOpts.set(row, {
-    role, amount, fiat, status, insufficient, timestamp, gutter,
-    onPay, onDecline, onCancel, onRetry, onDetails, strings,
-  });
-  return row;
-}
-
-/** In-place payment update (#86) — returns the NEW row. */
-function setPaymentStatus(row, patch = {}) {
-  const opts = paymentOpts.get(row);
-  if (!opts) {
-    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
-    return row;
-  }
-  const next = createPaymentBubble({ ...opts, ...patch });
-  row.replaceWith(next);
-  return next;
-}
-
-function createAppBubble({
-  name = '',
-  iconUrl = null,
-  state = 'invite',
-  direction = null,
-  timestamp = null,
-  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
-  strings = {},
-} = {}) {
-  const dir = direction || (state === 'invited' ? 'sent' : 'received');
-  const title = (state === 'in-session' || state === 'ended')
-    ? (strings.appSession || 'App session')
-    : (strings.appInvite || 'App invite');
-  const { row, el } = card(dir, title, timestamp, 'app');
-
-  const id = document.createElement('div');
-  id.className = 'c-tcard__app';
-  const ic = document.createElement('span');
-  ic.className = 'c-tcard__app-icon';
-  if (iconUrl) {
-    const img = document.createElement('img');
-    img.src = iconUrl;
-    img.alt = '';
-    ic.append(img);
-  } else {
-    ic.append(icon('rocket', { size: 24 }));
-  }
-  const col = document.createElement('span');
-  col.className = 'c-tcard__app-info';
-  const nm = document.createElement('span');
-  nm.className = 'c-tcard__app-name';
-  nm.textContent = name;
-  const sub = document.createElement('span');
-  sub.className = 'c-tcard__app-sub';
-  sub.textContent = {
-    invite: strings.invitedYou || 'Invited you to join',
-    invited: strings.youInvited || 'You have sent an invite',
-    missing: strings.invitedYou || 'Invited you to join',
-    'in-session': strings.inSession || 'In session',
-    ended: strings.sessionEnded || 'Session ended',
-  }[state] || ''; // audit r2: unknown state rendered "undefined"
-  col.append(nm, sub);
-  id.append(ic, col);
-  el.append(id);
-
-  if (state === 'invite') {
-    el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
-    ));
-  } else if (state === 'invited') {
-    el.append(actionsRow(
-      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
-      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
-    ));
-  } else if (state === 'missing') {
-    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
-  } else if (state === 'in-session') {
-    el.append(actionsRow(
-      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
-      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
-    ));
-  }
-  return row;
-}
-
-function createCallBubble({
-  missed = false,
-  direction = 'received',
-  directionLabel = '',
-  duration = '',
-  timestamp = null,
-  onCallBack,
-  strings = {},
-} = {}) {
-  const { row, el } = card(direction,
-    missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
-    timestamp, 'call');
-  if (missed) row.dataset.missed = '';
-  const head = el.querySelector('.c-tcard__title');
-  head.insertAdjacentElement('afterbegin', icon(missed ? 'phone-off' : 'phone', { size: 18 }));
-
-  if (missed) {
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.className = 'c-tcard__call-back';
-    sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
-    if (cb) sub.addEventListener('click', cb);
-    el.append(sub);
-  } else {
-    const meta = document.createElement('div');
-    meta.className = 'c-tcard__call-meta u-tabular';
-    meta.textContent = directionLabel + (duration ? ' · ' + duration : '');
-    el.append(meta);
-    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
-    el.append(wrap);
-  }
-  return row;
-}
-
-/* file-bubble state → accessible name / leading glyph (shared with setFileProgress) */
-function fileAria(state, name, strings) {
-  return (state === 'offer' ? (strings.download || 'Download')
-    : state === 'failed' ? (strings.retry || 'Retry')
-    : state === 'progress' ? (strings.downloading || 'Downloading')
-    : (strings.open || 'Open'))
-    + ' ' + name;
-}
-function fileGlyph(state) {
-  return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
-}
-
-function createFileBubble({
-  direction = 'received',
-  name = '',
-  meta = '',
-  state = 'complete',
-  progress = 0,
-  timestamp = null,
-  onAccept, onOpen, onRetry,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'c-fbubble';
-  el.dataset.state = state;
-  // ONE persistent dispatcher keyed on live state (audit r2: progress-created
-  // bubbles bound no handler — the finished download was a dead button)
-  const handlers = {
-    offer: oneShot(onAccept),
-    failed: reentryGuard(onRetry),
-    complete: reentryGuard(onOpen),
-  };
-  el.addEventListener('click', (e) => {
-    const h = handlers[el.dataset.state];
-    if (h) h(e);
-  });
-  if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label', fileAria(state, name, strings));
-
-  const ic = document.createElement('span');
-  ic.className = 'c-fbubble__icon';
-  ic.append(icon(fileGlyph(state), { size: 20 }));
-  el.append(ic);
-
-  const col = document.createElement('span');
-  col.className = 'c-fbubble__info';
-  const nm = document.createElement('span');
-  nm.className = 'c-fbubble__name';
-  nm.textContent = name;
-  const mt = document.createElement('span');
-  mt.className = 'c-fbubble__meta';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
-  col.append(nm, mt);
-  if (state === 'progress') {
-    const track = document.createElement('span');
-    track.className = 'c-fbubble__track';
-    track.setAttribute('role', 'progressbar');
-    track.setAttribute('aria-valuemin', '0');
-    track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
-    const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
-    track.setAttribute('aria-valuenow', String(p));
-    const fill = document.createElement('span');
-    fill.className = 'c-fbubble__fill';
-    fill.style.width = p + '%';
-    track.append(fill);
-    col.append(track);
-    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
-    // transfer — brief muted line while in progress, removed on completion
-    const hint = document.createElement('span');
-    hint.className = 'c-fbubble__hint';
-    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
-    col.append(hint);
-  }
-  el.append(col);
-
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2
-      const time = document.createElement('time');
-      time.className = 'c-fbubble__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      el.append(time);
-    }
-  }
-  row.append(el);
-  return row;
-}
-
-function setFileProgress(rowEl, progress, opts = {}) {
-  const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
-  const fill = rowEl.querySelector('.c-fbubble__fill');
-  if (fill) fill.style.width = p + '%';
-  const track = rowEl.querySelector('.c-fbubble__track');
-  if (track) track.setAttribute('aria-valuenow', String(p));
-  const metaEl = rowEl.querySelector('.c-fbubble__meta');
-  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
-  const bubble = rowEl.querySelector('.c-fbubble');
-  const finalState = opts.state || (p >= 100 ? 'complete' : null);
-  if (bubble && finalState && bubble.dataset.state !== finalState) {
-    const strings = opts.strings || {};
-    bubble.dataset.state = finalState;
-    bubble.disabled = false;
-    delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
-    if (track) track.remove();
-    const hint = bubble.querySelector('.c-fbubble__hint');
-    if (hint) hint.remove(); // keep-open hint is progress-only
-    // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
-    const nm = bubble.querySelector('.c-fbubble__name');
-    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
-    const ic = bubble.querySelector('.c-fbubble__icon');
-    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
-    if (finalState === 'failed' && metaEl && !opts.meta) {
-      metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
-    }
-  }
-}
-
-function createButton({
-  label,
-  type = 'fill',
-  size = 44,
-  intent = 'default',
-  width = 'hug',
-  icon = null,
-  iconPosition = 'leading',
-  ariaLabel,
-  loading = false,
-  disabled = false,
-  onClick,
-} = {}) {
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'c-button';
-  el.dataset.type = type;
-  el.dataset.size = String(size);
-  el.dataset.intent = intent;
-  el.dataset.width = width;
-
-  const hasLabel = label != null && label !== '';
-  if (!hasLabel) {
-    el.dataset.iconOnly = '';
-    if (ariaLabel) el.setAttribute('aria-label', ariaLabel);
-    else console.warn('c-button: icon-only button requires ariaLabel');
-  }
-
-  if (icon) icon.classList.add('c-button__icon');
-  if (icon && iconPosition === 'leading') el.append(icon);
-
-  if (hasLabel) {
-    const text = document.createElement('span');
-    text.className = 'c-button__label';
-    text.textContent = label;
-    el.append(text);
-  }
-
-  if (icon && iconPosition === 'trailing') el.append(icon);
-
-  if (onClick) el.addEventListener('click', onClick);
-
-  // disabled BEFORE setLoading — loading remembers/restores the caller's state
-  el.disabled = disabled;
-  setLoading(el, loading);
-  return el;
-}
-
-function setLoading(el, loading) {
-  morphWidth(el, () => {
-    const existing = el.querySelector('.c-button__spinner');
-    if (loading) {
-      if (!existing) {
-        const spinner = document.createElement('span');
-        spinner.className = 'c-button__spinner';
-        spinner.setAttribute('aria-hidden', 'true');
-        el.prepend(spinner);
-      }
-      el.dataset.loading = '';
-      el.setAttribute('aria-busy', 'true');
-      // audit r2: loading ≠ inert — keyboard activation still fired onClick
-      if (!el.disabled) { el.dataset.loadingDisabled = ''; el.disabled = true; }
-    } else {
-      existing?.remove();
-      delete el.dataset.loading;
-      el.removeAttribute('aria-busy');
-      if (el.dataset.loadingDisabled !== undefined) {
-        delete el.dataset.loadingDisabled;
-        el.disabled = false;
-      }
-    }
-  });
-}
-/* ---- end AUDIT r2 SUPERSEDE SECTION ---- */
-
-/* ---- BATCH 3 SECTION (manual append — PC mirror can't run the build script;
-   Mac: node scripts/build-demo-bundle.mjs normalizes this file).
-   1) typed-bubbles.js SUPERSEDE (C8 gutter param on all cards, A17 call-meta
-      join, C15 insufficient aria-describedby)
-   2) NEW: reactions.js, typing-indicator.js, scroll-latest.js, message-menu.js
-   Function declarations rebind earlier definitions; let/const names verified
-   unique in bundle scope. ---- */
-
-/* ---- src/components/typed-bubbles.js (batch 3 supersede) ---- */
-let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
-
-/* payment rows remember creation opts → setPaymentStatus re-renders in place (#86) */
-const paymentOpts = new WeakMap();
-
-/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): ≤2 decimals,
- * string-truncated (never rounded), trailing zeros trimmed, round = bare.
- * Reference impl — C# composes the real strings, mirror there. */
-function formatIxiAmount(value) {
-  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
-  if (!m) return String(value);
-  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
-  return m[1] + m[2] + (frac ? '.' + frac : '');
-}
-
-function card(direction, title, timestamp, modifier, gutter = false) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  if (gutter && direction === 'received') {
-    const g = document.createElement('span');
-    g.className = 'c-bubble-row__gutter';
-    row.append(g);
-  }
-  const el = document.createElement('div');
-  el.className = 'c-tcard';
-  if (modifier) el.dataset.kind = modifier;
-  const head = document.createElement('div');
-  head.className = 'c-tcard__head';
-  const t = document.createElement('span');
-  t.className = 'c-tcard__title';
-  t.textContent = title;
-  head.append(t);
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
-      const time = document.createElement('time');
-      time.className = 'c-tcard__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      head.append(time);
-    }
-  }
-  el.append(head);
-  row.append(el);
-  return { row, el };
-}
-
-function createPaymentBubble({
-  role = 'request-in',
-  amount = '',
-  fiat = '',
-  status = 'actionable',
-  insufficient = false,
-  timestamp = null,
-  gutter = false,
-  onPay, onDecline, onCancel, onRetry, onDetails,
-  strings = {},
-} = {}) {
-  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
-  const titles = {
-    'request-in': strings.paymentRequest || 'Payment request',
-    'request-out': strings.youRequested || 'You requested',
-    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
-    received: strings.paymentReceived || 'Payment received',
-  };
-  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter);
-  row.dataset.status = status;
-
-  const amountEl = document.createElement('div');
-  amountEl.className = 'c-tcard__amount u-tabular';
-  amountEl.dataset.tone =
-    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
-    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
-    : 'pending';
-  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
-  const unit = document.createElement('span');
-  unit.className = 'c-tcard__unit';
-  unit.textContent = 'IXI';
-  amountEl.append(unit);
-  el.append(amountEl);
-
-  if (fiat) {
-    const f = document.createElement('div');
-    f.className = 'c-tcard__fiat u-tabular';
-    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
-    f.textContent = fiat;
-    el.append(f);
-  }
-
-  const BADGES = {
-    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
-    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
-    completed: ['success', strings.completed || 'Completed', 'check'],
-    declined: ['error', strings.declined || 'Declined', 'cancel'],
-    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
-  };
-  if (BADGES[status]) {
-    const [type, label, glyph] = BADGES[status];
-    const wrap = document.createElement('div');
-    wrap.className = 'c-tcard__badge';
-    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
-    el.append(wrap);
-  }
-
-  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
-    const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
-      : status === 'processing'
-        // Damir 2026-07-03: spinner + check read as two icons — while
-        // processing the check goes away and the label says what's happening
-        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
-        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
-    el.append(actionsRow(decline, pay));
-    if (insufficient) {
-      const note = document.createElement('div');
-      note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
-      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
-      note.id = 'c-tcard-note-' + (++tcardNoteUid);
-      pay.setAttribute('aria-describedby', note.id);
-      el.append(note);
-    }
-  } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
-  } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
-    el.append(detailsLink(reentryGuard(onDetails), strings));
-  }
-  paymentOpts.set(row, {
-    role, amount, fiat, status, insufficient, timestamp, gutter,
-    onPay, onDecline, onCancel, onRetry, onDetails, strings,
-  });
-  return row;
-}
-
-/** In-place payment update (#86) — returns the NEW row. */
-function setPaymentStatus(row, patch = {}) {
-  const opts = paymentOpts.get(row);
-  if (!opts) {
-    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
-    return row;
-  }
-  const next = createPaymentBubble({ ...opts, ...patch });
-  row.replaceWith(next);
-  return next;
-}
-
-function createAppBubble({
-  name = '',
-  iconUrl = null,
-  state = 'invite',
-  direction = null,
-  timestamp = null,
-  gutter = false,
-  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
-  strings = {},
-} = {}) {
-  const dir = direction || (state === 'invited' ? 'sent' : 'received');
-  const title = (state === 'in-session' || state === 'ended')
-    ? (strings.appSession || 'App session')
-    : (strings.appInvite || 'App invite');
-  const { row, el } = card(dir, title, timestamp, 'app', gutter);
-
-  const id = document.createElement('div');
-  id.className = 'c-tcard__app';
-  const ic = document.createElement('span');
-  ic.className = 'c-tcard__app-icon';
-  if (iconUrl) {
-    const img = document.createElement('img');
-    img.src = iconUrl;
-    img.alt = '';
-    ic.append(img);
-  } else {
-    ic.append(icon('rocket', { size: 24 }));
-  }
-  const col = document.createElement('span');
-  col.className = 'c-tcard__app-info';
-  const nm = document.createElement('span');
-  nm.className = 'c-tcard__app-name';
-  nm.textContent = name;
-  const sub = document.createElement('span');
-  sub.className = 'c-tcard__app-sub';
-  sub.textContent = {
-    invite: strings.invitedYou || 'Invited you to join',
-    invited: strings.youInvited || 'You have sent an invite',
-    missing: strings.invitedYou || 'Invited you to join',
-    'in-session': strings.inSession || 'In session',
-    ended: strings.sessionEnded || 'Session ended',
-  }[state] || '';
-  col.append(nm, sub);
-  id.append(ic, col);
-  el.append(id);
-
-  if (state === 'invite') {
-    el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
-    ));
-  } else if (state === 'invited') {
-    el.append(actionsRow(
-      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
-      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
-    ));
-  } else if (state === 'missing') {
-    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
-  } else if (state === 'in-session') {
-    el.append(actionsRow(
-      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
-      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
-    ));
-  }
-  return row;
-}
-
-function createCallBubble({
-  missed = false,
-  declined = false,        // #87⑦: actively rejected — neutral, no nudge
-  direction = 'received',
-  directionLabel = '',
-  duration = '',
-  timestamp = null,
-  gutter = false,
-  onCallBack,
-  strings = {},
-} = {}) {
-  const { row, el } = card(direction,
-    declined ? (strings.callDeclined || 'Call declined')
-      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
-    timestamp, 'call', gutter);
-  if (missed && !declined) row.dataset.missed = '';
-  const head = el.querySelector('.c-tcard__title');
-  head.insertAdjacentElement('afterbegin',
-    icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
-
-  if (declined) {
-    if (directionLabel) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = directionLabel;
-      el.append(meta);
-    }
-  } else if (missed) {
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.className = 'c-tcard__call-back';
-    sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    const cb = reentryGuard(onCallBack);
-    if (cb) sub.addEventListener('click', cb);
-    el.append(sub);
-  } else {
-    const meta = document.createElement('div');
-    meta.className = 'c-tcard__call-meta u-tabular';
-    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
-    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
-    el.append(meta);
-    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
-    el.append(wrap);
-  }
-  return row;
-}
-
-function createFileBubble({
-  direction = 'received',
-  name = '',
-  meta = '',
-  state = 'complete',
-  progress = 0,
-  timestamp = null,
-  gutter = false,
-  onAccept, onOpen, onRetry,
-  strings = {},
-} = {}) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  if (gutter && direction === 'received') {
-    const g = document.createElement('span');
-    g.className = 'c-bubble-row__gutter';
-    row.append(g);
-  }
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'c-fbubble';
-  el.dataset.state = state;
-  const handlers = {
-    offer: oneShot(onAccept),
-    failed: reentryGuard(onRetry),
-    complete: reentryGuard(onOpen),
-  };
-  el.addEventListener('click', (e) => {
-    const h = handlers[el.dataset.state];
-    if (h) h(e);
-  });
-  if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label', fileAria(state, name, strings));
-
-  const ic = document.createElement('span');
-  ic.className = 'c-fbubble__icon';
-  ic.append(icon(fileGlyph(state), { size: 20 }));
-  el.append(ic);
-
-  const col = document.createElement('span');
-  col.className = 'c-fbubble__info';
-  const nm = document.createElement('span');
-  nm.className = 'c-fbubble__name';
-  nm.textContent = name;
-  const mt = document.createElement('span');
-  mt.className = 'c-fbubble__meta';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
-  col.append(nm, mt);
-  if (state === 'progress') {
-    const track = document.createElement('span');
-    track.className = 'c-fbubble__track';
-    track.setAttribute('role', 'progressbar');
-    track.setAttribute('aria-valuemin', '0');
-    track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-label', strings.downloading || 'Downloading');
-    const p = Math.max(0, Math.min(100, Number(progress) || 0));
-    track.setAttribute('aria-valuenow', String(p));
-    const fill = document.createElement('span');
-    fill.className = 'c-fbubble__fill';
-    fill.style.width = p + '%';
-    track.append(fill);
-    col.append(track);
-    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
-    // transfer — brief muted line while in progress, removed on completion
-    const hint = document.createElement('span');
-    hint.className = 'c-fbubble__hint';
-    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
-    col.append(hint);
-  }
-  el.append(col);
-
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2
-      const time = document.createElement('time');
-      time.className = 'c-fbubble__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      el.append(time);
-    }
-  }
-  row.append(el);
-  return row;
-}
-
-/* ---- src/components/reactions.js ---- */
-function addReactions(row, {
-  reactions = [],
-  tip = '',
-  placement = 'overlap', // #65 LOCKED overlap (Damir 2026-07-03); 'inside' superseded param
-  animate = false,
-  maxVisible = 3,        // heavy-reactions cap (Damir 2026-07-03): first N types + "+N"
-  host,
-  onInspect,
-  onToggle,
-  strings = {},
-} = {}) {
-  // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden clips — audit r3)
-  const bubble = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble-anchor');
-  if (!bubble) return;
-
-  // replace-on-repeat: the bridge sends the full reaction list every time
-  const prev = bubble.querySelector('.c-reactions');
-  if (prev) prev.remove();
-  delete row.dataset.reactions;
-
-  if (reactions.length === 0 && !tip) return;
-
-  const el = document.createElement('span');
-  el.className = 'c-reactions';
-  if (animate) el.classList.add('c-reactions--in'); // cheap pop (Damir 2026-07-03); finite, token-driven
-  el.dataset.placement = placement;
-  el.setAttribute('role', 'group');
-  el.setAttribute('aria-label', strings.reactions || 'Reactions');
-
-  // heavy-reactions cap (Damir 2026-07-03): first maxVisible TYPES render as
-  // pills, the rest fold into a "+N" pill that opens the inspect sheet
-  const visible = reactions.length > maxVisible ? reactions.slice(0, maxVisible) : reactions;
-  for (const r of visible) {
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'c-reactions__pill';
-    pill.setAttribute('aria-pressed', r.own ? 'true' : 'false');
-    pill.setAttribute('aria-label',
-      (strings.reaction || 'Reaction') + ' ' + r.emoji + (r.count > 1 ? ' ' + r.count : ''));
-    const em = document.createElement('span');
-    em.className = 'c-reactions__emoji';
-    em.setAttribute('aria-hidden', 'true');
-    em.textContent = r.emoji;
-    pill.append(em);
-    if (r.count > 1) {
-      const n = document.createElement('span');
-      n.className = 'c-reactions__count u-tabular';
-      n.setAttribute('aria-hidden', 'true');
-      n.textContent = String(r.count);
-      pill.append(n);
-    }
-    if (onToggle) pill.addEventListener('click', () => onToggle(r.emoji));
-    el.append(pill);
-  }
-  if (reactions.length > maxVisible) {
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'c-reactions__pill c-reactions__more';
-    more.setAttribute('aria-label', strings.allReactions || 'Show all reactions');
-    more.textContent = '+' + (reactions.length - maxVisible);
-    more.addEventListener('click', onInspect
-      ? () => onInspect()
-      : () => openReactionsSheet({ host, reactions, tip, strings }));
-    el.append(more);
-  }
-
-  if (tip) {
-    const badge = createBadge({
-      type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake',
-    });
-    badge.classList.add('c-reactions__tip');
-    el.append(badge);
-  }
-
-  if (placement === 'overlap') row.dataset.reactions = 'overlap'; // row reserves overhang space
-  bubble.append(el);
-}
-
-/** Inspect sheet: every reaction type with count + who reacted (Damir
- *  2026-07-03). Sender names arrive from the bridge aggregation. */
-function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {}) {
-  const content = document.createElement('div');
-  content.className = 'c-reactmenu';
-  content.setAttribute('role', 'list'); // audit r3: SRs get structure + count
-  for (const r of reactions) {
-    const rowEl = document.createElement('div');
-    rowEl.className = 'c-reactmenu__row';
-    rowEl.setAttribute('role', 'listitem');
-    const em = document.createElement('span');
-    em.className = 'c-reactmenu__emoji';
-    em.setAttribute('aria-hidden', 'true');
-    em.textContent = r.emoji;
-    const col = document.createElement('span');
-    col.className = 'c-reactmenu__info';
-    const count = document.createElement('span');
-    count.className = 'c-reactmenu__count';
-    count.textContent = (r.count || 1) + ' × ' + r.emoji;
-    const who = document.createElement('span');
-    who.className = 'c-reactmenu__senders';
-    who.textContent = (r.senders && r.senders.length)
-      ? r.senders.join(', ') + (r.own ? ' · ' + (strings.you || 'You') : '')
-      : (r.own ? (strings.you || 'You') : '');
-    col.append(count, who);
-    rowEl.append(em, col);
-    content.append(rowEl);
-  }
-  if (tip) {
-    const rowEl = document.createElement('div');
-    rowEl.className = 'c-reactmenu__row';
-    rowEl.setAttribute('role', 'listitem');
-    rowEl.append(createBadge({ type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
-    content.append(rowEl);
-  }
-  const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
-  openSheet(sheet);
-  return sheet;
-}
-
-/* ---- src/components/typing-indicator.js ---- */
-function createTypingIndicator({ name = '', strings = {} } = {}) {
-  const row = document.createElement('div');
-  // --typing: hugs the composer (Damir 2026-07-03 — spacing-4 bottom gap)
-  row.className = 'c-bubble-row c-bubble-row--typing';
-  row.dataset.direction = 'received';
-  row.dataset.position = 'single';
-
-  const el = document.createElement('div');
-  el.className = 'c-typing';
-  el.setAttribute('role', 'status');
-  el.setAttribute('aria-label',
-    name ? name + ' ' + (strings.isTyping || 'is typing…') : (strings.typing || 'Typing…'));
-
-  if (name) {
-    const n = document.createElement('span');
-    n.className = 'c-typing__name';
-    n.setAttribute('aria-hidden', 'true');
-    n.textContent = name;
-    el.append(n);
-  }
-
-  const dots = document.createElement('span');
-  dots.className = 'c-typing__dots';
-  dots.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < 3; i++) {
-    const d = document.createElement('span');
-    d.className = 'c-typing__dot';
-    dots.append(d);
-  }
-  el.append(dots);
-
-  row.append(el);
-  return row;
-}
-
-/* ---- src/components/scroll-latest.js ---- */
-const SHOW_THRESHOLD = 200; // px from bottom before the button appears (sanctioned)
-
-function createScrollToLatest({ target, strings = {} } = {}) {
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'c-scroll-latest';
-  el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
-  el.append(icon('chevron-down', { size: 22 }));
-
-  if (target) {
-    const sync = () => {
-      const away = target.scrollHeight - target.scrollTop - target.clientHeight;
-      el.toggleAttribute('data-visible', away > SHOW_THRESHOLD);
-    };
-    target.addEventListener('scroll', sync, { passive: true });
-    sync();
-    el.addEventListener('click', () => {
-      target.scrollTo({
-        top: target.scrollHeight,
-        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-      });
-    });
-  }
-  return el;
-}
-
-function setScrollLatestCount(el, count, strings = {}) {
-  let badge = el.querySelector('.c-scroll-latest__badge');
-  if (!count) {
-    if (badge) badge.remove();
-    el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
-    return;
-  }
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'c-scroll-latest__badge u-tabular';
-    badge.setAttribute('aria-hidden', 'true'); // count lives in the button label
-    el.append(badge);
-  }
-  badge.textContent = formatCount(count);
-  el.setAttribute('aria-label',
-    (strings.scrollToLatest || 'Scroll to latest messages') + ' — ' +
-    formatCount(count) + ' ' + (strings.unread || 'unread'));
-}
-
-/* ---- src/components/message-menu.js ---- */
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
-const LONG_PRESS_MS = 500;   // §5b
-const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
-
-function openMessageMenu({
-  row,
-  host,
-  text = '',
-  capabilities = {},
-  onAction,
-  strings = {},
-} = {}) {
-  const content = document.createElement('div');
-  content.className = 'c-msgmenu';
-
-  const act = (action, arg) => {
-    closeSheet(sheet);
-    if (action === 'copy' && !onAction) {
-      // JS-side default (§5b); shells may override via onAction
-      if (navigator.clipboard && text) navigator.clipboard.writeText(text).catch(() => {});
-      return;
-    }
-    if (onAction) onAction(action, arg);
-  };
-
-  const reacts = document.createElement('div');
-  reacts.className = 'c-msgmenu__reacts';
-  reacts.setAttribute('role', 'group');
-  reacts.setAttribute('aria-label', strings.react || 'React');
-  for (const emoji of QUICK_REACTIONS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'c-msgmenu__react';
-    b.setAttribute('aria-label', (strings.reactWith || 'React with') + ' ' + emoji);
-    const em = document.createElement('span');
-    em.setAttribute('aria-hidden', 'true');
-    em.textContent = emoji;
-    b.append(em);
-    b.addEventListener('click', () => act('react', emoji));
-    reacts.append(b);
-  }
-  content.append(reacts);
-
-  const list = document.createElement('div');
-  list.className = 'c-msgmenu__list';
-  const item = (glyph, label, action, destructive = false) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'c-msgmenu__item';
-    if (destructive) b.dataset.destructive = '';
-    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
-    b.addEventListener('click', () => act(action));
-    list.append(b);
-  };
-
-  // capability-gated first (#25: menu contents constrained by bridge reality)
-  if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
-  if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
-  if (text) item('copy', strings.copy || 'Copy', 'copy');
-  if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
-  // destructive group last (§5b)
-  item('trash', strings.deleteMessage || 'Delete', 'delete', true);
-  if (capabilities.report) item('alert-square-rounded', strings.report || 'Report', 'report', true);
-
-  content.append(list);
-
-  const sheet = createSheet({ content, host, strings });
-  openSheet(sheet);
-  return sheet;
-}
-
-function attachMessageMenu(row, opts = {}) {
-  const target = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || row;
-  let timer = null;
-  let startX = 0;
-  let startY = 0;
-  let fired = false;
-
-  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
-
-  target.addEventListener('pointerdown', (e) => {
-    // ANY new gesture resets suppression (audit r4: right-click left fired=true
-    // and swallowed the next right-click)
-    fired = false;
-    if (e.button !== 0) return; // right button → contextmenu path
-    startX = e.clientX;
-    startY = e.clientY;
-    cancel();
-    timer = setTimeout(() => {
-      timer = null;
-      fired = true;
-      openMessageMenu({ row, ...opts });
-    }, LONG_PRESS_MS);
-  });
-  target.addEventListener('pointermove', (e) => {
-    if (timer && (Math.abs(e.clientX - startX) > MOVE_CANCEL_PX ||
-                  Math.abs(e.clientY - startY) > MOVE_CANCEL_PX)) cancel();
-  });
-  target.addEventListener('pointerup', cancel);
-  target.addEventListener('pointercancel', cancel);
-  // long-press fired → the release click must not trigger bubble actions
-  target.addEventListener('click', (e) => {
-    if (fired) {
-      e.preventDefault();
-      e.stopPropagation();
-      fired = false;
-    }
-  }, true);
-
-  target.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the pointer
-    // timer moment — without this guard both paths opened a sheet each
-    if (fired) return;
-    cancel();
-    fired = true;
-    openMessageMenu({ row, ...opts });
-  });
-}
-/* ---- BATCH 3b: replies + edits, §8-GATED #25 + linkify/link-preview (manual
-   append) ---- createMessageBubble SUPERSEDE + composer context strip free
-   fns. Mac rebuild normalizes. */
-
 /* linkify (Damir 2026-07-03): URLs become BUTTONS routed through onLinkClick
-   (the shell's external-link warning) — XSS-safe, DOM-built, no innerHTML. */
+   (the shell's existing external-link warning) — XSS-safe, DOM-built, no
+   innerHTML; trailing sentence punctuation stays text. */
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
 
-/* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type */
+/* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
+   label fallback when the shell sends no excerpt text */
 const REPLY_KIND_GLYPHS = {
   gif: 'photo', image: 'photo', file: 'file-isr',
   payment: 'wallet', call: 'phone', voice: 'microphone', app: 'rocket',
@@ -3396,7 +1621,6 @@ function REPLY_KIND_LABELS(kind, strings = {}) {
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
-
 function linkifyInto(parent, text, onLinkClick) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
@@ -3448,6 +1672,8 @@ function createMessageBubble({
   if (direction === 'received' && (showAvatar || sender !== null)) {
     const gutter = document.createElement('span');
     gutter.className = 'c-bubble-row__gutter';
+    // avatar renders once per group, bottom-aligned on the LAST bubble;
+    // other rows keep the gutter width so bubbles align
     if (showAvatar && (position === 'last' || position === 'single')) {
       const av = createAvatar({ src: avatar, name, address, size: 24 });
       if (onSenderClick) { // #99: avatar opens the member sheet too
@@ -3469,8 +1695,11 @@ function createMessageBubble({
   el.className = 'c-bubble';
   if (text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
 
+  // sender label: group chats, first bubble of a group, identity-hued (premium).
+  // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
-    // #99: tappable when onSenderClick is wired (member sheet)
+    // #99: tappable when onSenderClick is wired (member sheet); blind groups
+    // don't pass the callback → plain span
     const s = document.createElement(onSenderClick ? 'button' : 'span');
     s.className = 'c-bubble__sender';
     if (onSenderClick) {
@@ -3482,7 +1711,9 @@ function createMessageBubble({
     el.append(s);
   }
 
-  // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet)
+  // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet): identity-
+  // hued strip above the text; the quote itself is shell-supplied (sender +
+  // excerpt + kind/thumb), tap = scroll-to-original (shell duty via onReplyClick)
   if (reply && (reply.text || reply.sender || reply.kind)) {
     const q = document.createElement(onReplyClick ? 'button' : 'div');
     q.className = 'c-bubble__reply';
@@ -3493,7 +1724,8 @@ function createMessageBubble({
         (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
-    // media/typed originals show a small identifier (Damir 2026-07-03)
+    // media/typed originals show a small identifier (Damir 2026-07-03):
+    // shell-composed thumb (data-URI) for media, kind glyph otherwise
     if (reply.thumb) {
       const th = document.createElement('img');
       th.className = 'c-bubble__reply-thumb';
@@ -3583,6 +1815,7 @@ function createMessageBubble({
     if (st) {
       st.setAttribute('width', 14);
       st.setAttribute('height', 14);
+      // announce delivery state (audit: glyphs were aria-hidden = invisible to SRs)
       st.removeAttribute('aria-hidden');
       st.setAttribute('role', 'img');
       st.setAttribute('aria-label', strings['status-' + status] || status);
@@ -3591,6 +1824,9 @@ function createMessageBubble({
   }
   if (meta.childNodes.length) el.append(meta);
 
+  // failed sent message (Damir 2026-07-03, r2): clean bubble — retry circle
+  // hugging it + red "Not delivered" caption carry the error (both retry-able).
+  // data-failed drives the width rule in css.
   if (direction === 'sent' && status === 'failed') {
     row.dataset.failed = '';
     const retry = document.createElement('button');
@@ -3598,6 +1834,9 @@ function createMessageBubble({
     retry.className = 'c-bubble-retry';
     retry.setAttribute('aria-label', strings.retry || 'Retry sending');
     retry.append(icon('rotate-clockwise-2', { size: 16 }));
+    // audit r2: double-activation re-emitted the resend before the shell could
+    // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
+    // circle + caption share one guard so tapping both can't double-fire either
     let lastRetry = 0;
     const retryGuarded = onRetry ? ((e) => {
       const t = Date.now();
@@ -3607,7 +1846,7 @@ function createMessageBubble({
     }) : null;
     if (retryGuarded) retry.addEventListener('click', retryGuarded);
     const line = document.createElement('div');
-    line.className = 'c-bubble-line';
+    line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
     line.append(retry, el);
     const stack = document.createElement('div');
     stack.className = 'c-bubble-stack';
@@ -3623,9 +1862,16 @@ function createMessageBubble({
 
   row.append(el);
   return row;
+  // NOTE: mount messages inside a container with role="log" (chat shell duty)
 }
 
-/* ---- src/components/message-bubble.js in-place updaters (#86) ---- */
+/* —— IN-PLACE UPDATERS (DECISIONS #86: bridge updateMessage/deleteMessage get
+   surgical DOM updates — no full re-render, no flicker, scroll stays put).
+   #44 free-fn convention. —— */
+
+/** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
+ *  row. 'failed' restructures the row (retry circle + caption) — the shell
+ *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
 function setMessageStatus(row, status, strings = {}) {
   if (status === 'failed') {
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
@@ -3643,6 +1889,9 @@ function setMessageStatus(row, status, strings = {}) {
   st.replaceWith(next);
 }
 
+/** Bridge deleteMessage → remove the row AND repair #63 grouping around it:
+ *  the group's head passes its sender label down, the tail passes its avatar
+ *  up, and neighbor corner radii re-derive from data-position. */
 function removeMessage(row) {
   const pos = row.dataset.position;
   const dir = row.dataset.direction;
@@ -3654,6 +1903,8 @@ function removeMessage(row) {
     const next = row.nextElementSibling;
     if (isGroupRow(next, ['middle', 'last'])) {
       next.dataset.position = next.dataset.position === 'middle' ? 'first' : 'single';
+      // heir inherits the group head: sender label (group chats) moves down,
+      // keeping its identity hue (--sender-h travels with the element)
       const label = row.querySelector('.c-bubble__sender');
       const heir = next.querySelector('.c-bubble');
       if (label && heir && !heir.querySelector('.c-bubble__sender')) heir.prepend(label);
@@ -3662,7 +1913,8 @@ function removeMessage(row) {
     const prev = row.previousElementSibling;
     if (isGroupRow(prev, ['first', 'middle'])) {
       prev.dataset.position = prev.dataset.position === 'middle' ? 'last' : 'single';
-      // firstElementChild: bare avatar OR its #99 button wrap
+      // avatar renders on the last-of-group — it moves up to the new tail
+      // (firstElementChild: may be the bare avatar OR its #99 button wrap)
       const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
       const prevGutter = prev.querySelector('.c-bubble-row__gutter');
       if (av && prevGutter && !prevGutter.childNodes.length) prevGutter.append(av);
@@ -3672,11 +1924,150 @@ function removeMessage(row) {
   row.remove();
 }
 
-/* ---- src/components/composer.js (batch 3b additions) ---- */
+/** Day separator (design: centered pill). Shares the day-bucket ladder with
+ *  the chat list (timestamp.js) — today → strings.today. */
+function createDateSeparator(ts, strings = {}, now = Date.now()) {
+  const el = document.createElement('div');
+  el.className = 'c-datesep';
+  el.setAttribute('role', 'separator');
+  const pill = document.createElement('span');
+  pill.className = 'c-datesep__pill';
+  pill.textContent = dayBucketLabel(ts, strings, now, strings.today || 'Today');
+  el.append(pill);
+  return el;
+}
+
+/* ---- src/components/composer.js ---- */
+/**
+ * c-composer — chat input bar (Figma `input` 11306:7242 + `send` 11306:7223;
+ * DECISIONS #64). ⊕ attach inside the field, auto-grow textarea, trailing
+ * 44px circle: voice flag OFF (v1) → send always visible, disabled-styled when
+ * empty; voice ON → mic when empty ⇄ send when text (design's morph).
+ * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
+ *
+ * createComposer({ placeholder, voice = false, onSend(text), onAttach,
+ *                  onTyping, onRecord, strings }) → el
+ * clearComposer(el) — bridge clearInput hook (#44 free fn)
+ */
+
+
+const MAX_LINES = 5;
+
+function createComposer({
+  placeholder = 'Message',
+  voice = false,
+  onSend,
+  onAttach,
+  onTyping,
+  onRecord,
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-composer';
+
+  const field = document.createElement('div');
+  field.className = 'c-composer__field';
+
+  const attach = document.createElement('button');
+  attach.type = 'button';
+  attach.className = 'c-composer__attach';
+  attach.setAttribute('aria-label', strings.attach || 'Attach');
+  attach.append(icon('circle-plus', { size: 24 }));
+  if (onAttach) attach.addEventListener('click', onAttach);
+  field.append(attach);
+
+  const input = document.createElement('textarea');
+  input.className = 'c-composer__input';
+  input.rows = 1;
+  input.placeholder = placeholder;
+  input.setAttribute('aria-label', placeholder);
+  field.append(input);
+  el.append(field);
+
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'c-composer__action';
+  el.append(action);
+
+  const sendIcon = () => { action.textContent = ''; action.append(icon('send-2', { size: 20 })); };
+  const micIcon = () => { action.textContent = ''; action.append(icon('microphone', { size: 20 })); };
+
+  const hasText = () => input.value.trim().length > 0;
+
+  const syncAction = () => {
+    if (voice && !hasText()) {
+      micIcon();
+      action.dataset.mode = 'mic';
+      action.disabled = false;
+      action.setAttribute('aria-label', strings.record || 'Record voice message');
+    } else {
+      sendIcon();
+      action.dataset.mode = 'send';
+      action.disabled = !hasText();
+      action.setAttribute('aria-label', strings.send || 'Send');
+    }
+  };
+
+  const grow = () => {
+    input.style.height = 'auto';
+    const cs = getComputedStyle(input);
+    const line = parseInt(cs.lineHeight, 10) || 24;
+    // border-box: cap must include block padding (audit: 5th line was clipped)
+    const pad = (parseInt(cs.paddingTop, 10) || 0) + (parseInt(cs.paddingBottom, 10) || 0);
+    input.style.height = Math.min(input.scrollHeight, line * MAX_LINES + pad) + 'px';
+  };
+
+  const send = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    if (onSend) onSend(text);
+    input.value = '';
+    grow();
+    syncAction();
+    input.focus();
+  };
+
+  input.addEventListener('input', (e) => {
+    grow();
+    syncAction();
+    // synthetic events (clearComposer) must not emit a spurious ixian:typing
+    if (onTyping && e.isTrusted) onTyping(); // shell throttles → ixian:typing
+  });
+  // Enter sends on keyboard-first devices; Shift+Enter = newline.
+  // Touch keyboards keep Enter as newline (send via the button).
+  input.addEventListener('keydown', (e) => {
+    // IME guard (audit MAJOR): Enter that confirms a CJK composition must not send
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter' && !e.shiftKey && matchMedia('(hover: hover)').matches) {
+      e.preventDefault();
+      send();
+    }
+  });
+  action.addEventListener('click', () => {
+    if (action.dataset.mode === 'mic') { if (onRecord) onRecord(); }
+    else send();
+  });
+
+  syncAction();
+  return el;
+}
+
+/** Bridge clearInput hook — empties the field and resets height/state. */
+function clearComposer(el) {
+  const input = el.querySelector('.c-composer__input');
+  if (!input) return;
+  input.value = '';
+  input.style.height = 'auto';
+  input.dispatchEvent(new Event('input'));
+}
+
+/* —— batch 3b (§8-GATED #25 — bridge has no reply/edit yet): context strip
+   above the field for reply/edit modes. #44 free fns. —— */
 const composerCtx = new WeakMap(); // composer el → active ctx
 
 /* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
-   the user's pre-edit draft back (audit r3) */
+   the user's pre-edit draft back (audit r3: one stray Send re-posted the OLD
+   message text as a new message) */
 function cancelComposerContext(el) {
   const c = composerCtx.get(el);
   if (!c) return;
@@ -3684,11 +2075,22 @@ function cancelComposerContext(el) {
   if (c.onCancel) c.onCancel();
 }
 
+/**
+ * setComposerContext(el, ctx | null)
+ *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
+ *           onCancel, strings }
+ * The strip renders icon + title/excerpt + cancel ✕; edit prefills the field
+ * (synthetic input event — no spurious ixian:typing, isTrusted guard).
+ * Esc in the field cancels the active context before it clears text.
+ * getComposerContext(el) → active ctx or null (shell reads this on send).
+ */
 function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const prev = el.querySelector('.c-composer__ctx');
   if (prev) prev.remove();
-  // freeze audit: replacing an active edit ctx restores the pre-edit draft
+  // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
+  // must give the pre-edit draft back — else the old message text sends as
+  // the new context's body and the draft is lost
   const prevCtx = composerCtx.get(el);
   if (prevCtx && prevCtx.kind === 'edit' && input) {
     input.value = prevCtx._draft || '';
@@ -3720,7 +2122,8 @@ function setComposerContext(el, ctx) {
   x.append(icon('x', { size: 16 }));
   x.addEventListener('click', () => cancelComposerContext(el));
   strip.append(x);
-  // cost line (standing money fact) stays topmost — ctx slots under it
+  // flex-wrap row: the strip takes a full line; the COST line (standing money
+  // fact, #86 bot surface) stays topmost — reply/edit ctx slots under it
   const cost = el.querySelector('.c-composer__cost');
   if (cost) cost.after(strip);
   else el.prepend(strip);
@@ -3731,6 +2134,7 @@ function setComposerContext(el, ctx) {
       input.value = ctx.text || '';
       input.dispatchEvent(new Event('input')); // grow + action sync; isTrusted=false → no typing emit
     }
+    // Esc cancels the ACTIVE context (wired once per composer element)
     if (el.dataset.ctxWired === undefined) {
       el.dataset.ctxWired = '';
       input.addEventListener('keydown', (e) => {
@@ -3743,7 +2147,9 @@ function setComposerContext(el, ctx) {
 
 function getComposerContext(el) { return composerCtx.get(el) || null; }
 
-/** Bot-chat cost hint (#86) — falsy costText removes. #44 free fn. */
+/** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
+ *  line above the field — a money fact must not disappear while typing.
+ *  Falsy costText removes it. #44 free fn. */
 function setComposerCost(el, costText, strings = {}) {
   const prev = el.querySelector('.c-composer__cost');
   if (prev) prev.remove();
@@ -3757,7 +2163,955 @@ function setComposerCost(el, costText, strings = {}) {
   el.prepend(line); // always topmost (above any reply/edit ctx strip)
 }
 
-/* ---- src/components/media-bubble.js (GIF/image tile, P2P tap-to-load) ---- */
+/* ---- src/components/typed-bubbles.js ---- */
+/**
+ * Typed message cards (Figma: payment-request 11305:6344 · payment-card
+ * 11303:6488 · app-card 11306:6596 · call-card 11306:7095 · file-bubble
+ * 11309:9877/9922) + c-unread-divider (frontend-only — per-message `read`
+ * flags, DECISIONS #70). Bridge contracts: addPaymentRequest (14-arg; a
+ * payment status-updater API is a flagged §9 gap — the shell re-renders the
+ * card for now), addFile/updateFile (13-arg), addAppRequest (13-arg),
+ * addCall — ARCHITECTURE.md §4.
+ * File progress/failed states + reaction/tip variants are code-first gap
+ * fills (#66) in the card language.
+ * SHELL NOTES: bridge `status` text arrives C#-localized — derive the status
+ * ENUM from statusIcon / the :/:: answered-prefix, display text via strings.
+ * Group-chat sender identity on payment cards (nick/avatar args) is a flagged
+ * gap (#66) — cards render identity-less pending a design.
+ */
+
+
+
+
+
+function cardTime(d) {
+  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+
+let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
+
+/* payment rows remember their creation opts so setPaymentStatus can re-render
+   the card IN PLACE (DECISIONS #86: bridge updateTransactionStatus /
+   updatePaymentRequestStatus get surgical updates, and the re-render releases
+   the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
+const paymentOpts = new WeakMap();
+
+/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): the chain
+ * carries 8 decimals; the UI shows AT MOST 2 — string-truncated (never
+ * rounded: display must not overstate) with trailing zeros trimmed; round
+ * numbers show NO decimals. Grouping arrives from the bridge and is
+ * preserved. Non-numeric input passes through untouched. This is the
+ * REFERENCE implementation — C# composes the real strings, mirror there. */
+function formatIxiAmount(value) {
+  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return String(value);
+  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
+  return m[1] + m[2] + (frac ? '.' + frac : '');
+}
+
+/** Card scaffold: row (direction-aligned) → card → header(title+time) + body
+ *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
+ *  an avatar gutter — received cards take the same empty gutter so columns
+ *  align (no avatar until card identity is designed, #66). */
+function card(direction, title, timestamp, modifier, gutter = false) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-tcard';
+  if (modifier) el.dataset.kind = modifier;
+  const head = document.createElement('div');
+  head.className = 'c-tcard__head';
+  const t = document.createElement('span');
+  t.className = 'c-tcard__title';
+  t.textContent = title;
+  head.append(t);
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
+      const time = document.createElement('time');
+      time.className = 'c-tcard__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      head.append(time);
+    }
+  }
+  el.append(head);
+  row.append(el);
+  return { row, el };
+}
+
+function actionsRow(...buttons) {
+  const r = document.createElement('div');
+  r.className = 'c-tcard__actions';
+  for (const b of buttons) if (b) { b.dataset.width = 'full'; r.append(b); }
+  return r;
+}
+
+function detailsLink(onDetails, strings) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-tcard__details';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'c-tcard__details-btn';
+  btn.append(document.createTextNode(strings.details || 'Details'), icon('chevron-right', { size: 16 }));
+  if (onDetails) btn.addEventListener('click', onDetails);
+  wrap.append(btn);
+  return wrap;
+}
+
+/* Action guards (audit r2): a double-activation on Pay/Join/etc. re-fired the
+   callback before the shell could re-render the card — real money hazard on
+   the payment path. STATE-CHANGING actions latch: the pressed button disables
+   itself and the bridge-driven re-render replaces the card (shell contract).
+   REPEATABLE actions (Retry/Open/Launch/Details/Call back) must stay usable,
+   so they only guard against rapid re-entry. */
+function oneShot(fn) {
+  if (!fn) return undefined;
+  return (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled || btn.dataset.acted !== undefined) return;
+    btn.dataset.acted = '';
+    btn.disabled = true;
+    fn(e);
+  };
+}
+function reentryGuard(fn) {
+  if (!fn) return undefined;
+  let last = 0;
+  return (e) => {
+    const now = Date.now();
+    if (now - last < 500) return;
+    last = now;
+    fn(e);
+  };
+}
+
+/**
+ * Payment card — covers incoming/outgoing requests AND direct payments.
+ * role: 'request-in' (Pay/Decline) · 'request-out' (Cancel request) ·
+ *       'sent' · 'received'
+ * status: 'actionable' | 'pending' | 'processing' | 'failed' | 'completed' |
+ *         'declined' | 'canceled'
+ */
+function createPaymentBubble({
+  role = 'request-in',
+  amount = '',            // pre-formatted (bridge sends strings)
+  fiat = '',
+  status = 'actionable',
+  insufficient = false,   // request-in: Pay disabled + caption
+  timestamp = null,
+  gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
+  onPay, onDecline, onCancel, onRetry, onDetails,
+  strings = {},
+} = {}) {
+  // peer-initiated events sit on the received side (audit MAJOR: 'received' was right-aligned)
+  const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
+  const titles = {
+    'request-in': strings.paymentRequest || 'Payment request',
+    'request-out': strings.youRequested || 'You requested',
+    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
+    received: strings.paymentReceived || 'Payment received',
+  };
+  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
+  row.dataset.status = status;
+
+  const amountEl = document.createElement('div');
+  amountEl.className = 'c-tcard__amount u-tabular';
+  amountEl.dataset.tone =
+    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
+    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
+    : 'pending';
+  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  const unit = document.createElement('span');
+  unit.className = 'c-tcard__unit';
+  unit.textContent = 'IXI';
+  amountEl.append(unit);
+  el.append(amountEl);
+
+  if (fiat) {
+    const f = document.createElement('div');
+    f.className = 'c-tcard__fiat u-tabular';
+    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
+    f.textContent = fiat;
+    el.append(f);
+  }
+
+  const BADGES = {
+    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
+    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
+    completed: ['success', strings.completed || 'Completed', 'check'],
+    declined: ['error', strings.declined || 'Declined', 'cancel'],
+    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
+  };
+  if (BADGES[status]) {
+    const [type, label, glyph] = BADGES[status];
+    const wrap = document.createElement('div');
+    wrap.className = 'c-tcard__badge';
+    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
+    el.append(wrap);
+  }
+
+  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
+    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
+    const pay = status === 'failed'
+      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+      : status === 'processing'
+        // Damir 2026-07-03: spinner + check read as two icons — while
+        // processing the check goes away and the label says what's happening
+        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
+        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
+    el.append(actionsRow(decline, pay));
+    if (insufficient) {
+      const note = document.createElement('div');
+      note.className = 'c-tcard__note';
+      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
+      note.id = 'c-tcard-note-' + (++tcardNoteUid);
+      pay.setAttribute('aria-describedby', note.id);
+      el.append(note);
+    }
+  } else if (role === 'request-out' && status === 'pending') {
+    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
+  } else if (role === 'sent' && status === 'failed') {
+    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
+  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
+    el.append(detailsLink(reentryGuard(onDetails), strings));
+  }
+  paymentOpts.set(row, {
+    role, amount, fiat, status, insufficient, timestamp, gutter,
+    onPay, onDecline, onCancel, onRetry, onDetails, strings,
+  });
+  return row;
+}
+
+/** In-place payment update (#86): re-creates the card from its remembered
+ *  opts merged with the patch and swaps it — scroll position, neighbors and
+ *  the rest of the log untouched. Returns the NEW row (callers holding a
+ *  reference must adopt it). patch = { status, amount, fiat, insufficient, … }. */
+function setPaymentStatus(row, patch = {}) {
+  const opts = paymentOpts.get(row);
+  if (!opts) {
+    console.warn('setPaymentStatus: row was not created by createPaymentBubble');
+    return row;
+  }
+  const next = createPaymentBubble({ ...opts, ...patch });
+  row.replaceWith(next);
+  return next;
+}
+
+/** App session card (Figma app-card): invite/invited/missing/in-session/ended. */
+function createAppBubble({
+  name = '',
+  iconUrl = null,
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | in-session | ended
+  direction = null,        // override — bridge knows localSender (audit)
+  timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
+  onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
+  strings = {},
+} = {}) {
+  const dir = direction || (state === 'invited' ? 'sent' : 'received');
+  // header follows the session lifecycle (audit: "App invite" was stale post-join)
+  const title = (state === 'in-session' || state === 'ended')
+    ? (strings.appSession || 'App session')
+    : (strings.appInvite || 'App invite');
+  const { row, el } = card(dir, title, timestamp, 'app', gutter);
+
+  const id = document.createElement('div');
+  id.className = 'c-tcard__app';
+  const ic = document.createElement('span');
+  ic.className = 'c-tcard__app-icon';
+  if (iconUrl) {
+    const img = document.createElement('img');
+    img.src = iconUrl;
+    img.alt = '';
+    ic.append(img);
+  } else {
+    ic.append(icon('rocket', { size: 24 }));
+  }
+  const col = document.createElement('span');
+  col.className = 'c-tcard__app-info';
+  const nm = document.createElement('span');
+  nm.className = 'c-tcard__app-name';
+  nm.textContent = name;
+  const sub = document.createElement('span');
+  sub.className = 'c-tcard__app-sub';
+  sub.textContent = {
+    invite: strings.invitedYou || 'Invited you to join',
+    invited: strings.youInvited || 'You have sent an invite',
+    missing: strings.invitedYou || 'Invited you to join',
+    'in-session': strings.inSession || 'In session',
+    ended: strings.sessionEnded || 'Session ended',
+  }[state] || ''; // audit r2: unknown state rendered "undefined"
+  col.append(nm, sub);
+  id.append(ic, col);
+  el.append(id);
+
+  if (state === 'invite') {
+    el.append(actionsRow(
+      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
+      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
+    ));
+  } else if (state === 'invited') {
+    el.append(actionsRow(
+      createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
+      createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
+    ));
+  } else if (state === 'missing') {
+    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
+  } else if (state === 'in-session') {
+    el.append(actionsRow(
+      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
+      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
+    ));
+  }
+  return row;
+}
+
+/** Call event card (Figma call-card): answered + missed + declined (#87⑦).
+ *  missed = rang out (error ink, "Tap to call back") · declined = actively
+ *  rejected (neutral, NO call-back nudge). BE question open: bridge must
+ *  distinguish declined from missed. */
+function createCallBubble({
+  missed = false,
+  declined = false,        // #87⑦: actively rejected
+  direction = 'received',  // bridge knows localSender (audit)
+  directionLabel = '',     // "Outgoing" / "Incoming" (SL)
+  duration = '',           // "4:12"
+  timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
+  onCallBack,
+  strings = {},
+} = {}) {
+  const { row, el } = card(direction,
+    declined ? (strings.callDeclined || 'Call declined')
+      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    timestamp, 'call', gutter);
+  if (missed && !declined) row.dataset.missed = '';
+  const head = el.querySelector('.c-tcard__title');
+  head.insertAdjacentElement('afterbegin',
+    icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
+
+  if (declined) {
+    // deliberate rejection: state the fact, no nudge (#87⑦)
+    if (directionLabel) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = directionLabel;
+      el.append(meta);
+    }
+  } else if (missed) {
+    const sub = document.createElement('button');
+    sub.type = 'button';
+    sub.className = 'c-tcard__call-back';
+    sub.textContent = strings.tapToCallBack || 'Tap to call back';
+    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
+    if (cb) sub.addEventListener('click', cb);
+    el.append(sub);
+  } else {
+    const meta = document.createElement('div');
+    meta.className = 'c-tcard__call-meta u-tabular';
+    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
+    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
+    el.append(meta);
+    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
+    el.append(wrap);
+  }
+  return row;
+}
+
+/* file-bubble state → accessible name / leading glyph. Single source shared by
+   createFileBubble AND setFileProgress (audit r2: the progress→complete flip
+   left "Downloading …" aria + the old glyph on the button). */
+function fileAria(state, name, strings) {
+  return (state === 'offer' ? (strings.download || 'Download')
+    : state === 'failed' ? (strings.retry || 'Retry')
+    : state === 'progress' ? (strings.downloading || 'Downloading')
+    : (strings.open || 'Open'))
+    + ' ' + name;
+}
+function fileGlyph(state) {
+  return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
+}
+
+/** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
+ *  state: 'offer' (incoming, accept) | 'progress' (0-100) | 'complete' | 'failed' */
+function createFileBubble({
+  direction = 'received',
+  name = '',
+  meta = '',               // "PDF · 2.4 MB" (composed by shell)
+  state = 'complete',
+  progress = 0,
+  timestamp = null,
+  gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
+  onAccept, onOpen, onRetry,
+  strings = {},
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-fbubble';
+  el.dataset.state = state;
+  // ONE persistent dispatcher keyed on live state — the state can flip later via
+  // setFileProgress (audit r2: a progress-created bubble bound NO handler, so the
+  // finished download was an enabled button that did nothing). Progress state has
+  // no click action (earlier audit: "Open" on an unopenable transfer).
+  const handlers = {
+    offer: oneShot(onAccept),          // accept latches; updateFile re-renders/flips
+    failed: reentryGuard(onRetry),     // retry is repeatable
+    complete: reentryGuard(onOpen),    // open is repeatable
+  };
+  el.addEventListener('click', (e) => {
+    const h = handlers[el.dataset.state];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.setAttribute('aria-label', fileAria(state, name, strings));
+
+  const ic = document.createElement('span');
+  ic.className = 'c-fbubble__icon';
+  ic.append(icon(fileGlyph(state), { size: 20 }));
+  el.append(ic);
+
+  const col = document.createElement('span');
+  col.className = 'c-fbubble__info';
+  const nm = document.createElement('span');
+  nm.className = 'c-fbubble__name';
+  nm.textContent = name;
+  const mt = document.createElement('span');
+  mt.className = 'c-fbubble__meta';
+  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
+  col.append(nm, mt);
+  if (state === 'progress') {
+    const track = document.createElement('span');
+    track.className = 'c-fbubble__track';
+    track.setAttribute('role', 'progressbar'); // audit: transfers were silent to AT
+    track.setAttribute('aria-valuemin', '0');
+    track.setAttribute('aria-valuemax', '100');
+    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
+    const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+    track.setAttribute('aria-valuenow', String(p));
+    const fill = document.createElement('span');
+    fill.className = 'c-fbubble__fill';
+    fill.style.width = p + '%';
+    track.append(fill);
+    col.append(track);
+    // P2P reality hint (Damir 2026-07-03): both peers must stay online for the
+    // transfer — brief muted line while in progress, removed on completion
+    const hint = document.createElement('span');
+    hint.className = 'c-fbubble__hint';
+    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    col.append(hint);
+  }
+  el.append(col);
+
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) { // audit r2
+      const time = document.createElement('time');
+      time.className = 'c-fbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      el.append(time);
+    }
+  }
+  row.append(el);
+  return row;
+}
+
+/** Update a progress-state file bubble in place (bridge updateFile).
+ *  opts.meta refreshes the caption; progress ≥ 100 (or opts.state) flips the
+ *  bubble to its final state (audit: 100% bar stayed "Downloading").
+ *  opts.strings localizes the refreshed aria-label / failed caption.
+ *  The dispatcher bound at creation routes clicks by the NEW state, so a
+ *  completed download opens via the onOpen passed to createFileBubble. */
+function setFileProgress(rowEl, progress, opts = {}) {
+  const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+  const fill = rowEl.querySelector('.c-fbubble__fill');
+  if (fill) fill.style.width = p + '%';
+  const track = rowEl.querySelector('.c-fbubble__track');
+  if (track) track.setAttribute('aria-valuenow', String(p));
+  const metaEl = rowEl.querySelector('.c-fbubble__meta');
+  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  const bubble = rowEl.querySelector('.c-fbubble');
+  const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  if (bubble && finalState && bubble.dataset.state !== finalState) {
+    const strings = opts.strings || {};
+    bubble.dataset.state = finalState;
+    bubble.disabled = false;
+    delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
+    if (track) track.remove();
+    const hint = bubble.querySelector('.c-fbubble__hint');
+    if (hint) hint.remove(); // keep-open hint is progress-only
+    // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
+    const nm = bubble.querySelector('.c-fbubble__name');
+    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    const ic = bubble.querySelector('.c-fbubble__icon');
+    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    if (finalState === 'failed' && metaEl && !opts.meta) {
+      metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
+    }
+  }
+}
+
+/** Full-width "Unread messages" divider (Damir 2026-07-03; frontend-only). */
+function createUnreadDivider(strings = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-unread-divider';
+  el.setAttribute('role', 'separator');
+  const label = document.createElement('span');
+  label.textContent = strings.unreadMessages || 'Unread messages';
+  el.append(label);
+  return el;
+}
+
+/* ---- src/components/reactions.js ---- */
+/**
+ * c-reactions — message reaction pills + tip pill (batch 3).
+ * DECISIONS #65 RESOLVED (Damir + AI concur, 2026-07-03): placement =
+ * OVERLAP the bubble's bottom outer corner (Telegram-style) — both rendered
+ * side-by-side, overlap read better: bubble content stays clean, reactions
+ * scan at a glance, and it avoids layout coupling with the floated meta.
+ * 'inside' (the old Figma direction) is kept as a param option for the
+ * record/mirroring — update the Figma design to overlap at next mirror.
+ * Figma has a single `reaction` chip; count/own/tip variants are code-first
+ * gap fills (#66). Tips = amount pill in the same row (#65), non-interactive
+ * (amount strings arrive C#-formatted).
+ *
+ * addReactions(row, {
+ *   reactions: [{ emoji, count, own, senders: ['Alex'] }], // aggregated shell-side (bridge addReactions)
+ *   tip: '5 IXI',                        // optional, pre-formatted
+ *   placement: 'overlap' (default) | 'inside' (superseded),
+ *   animate: true,                       // pop-in for a JUST-ADDED reaction (live only, not history)
+ *   maxVisible: 3,                       // Damir 2026-07-03: heavy reactions cap — first N types + "+N" pill
+ *   host, onInspect,                     // "+N" (inspect) opens openReactionsSheet in host unless onInspect overrides
+ *   onToggle(emoji),                     // → ixian:contextAction like/react
+ *   strings,
+ * })
+ * Re-invoking replaces the previous set (the bridge re-emits the full list).
+ * #44 free-fn convention — operates on an existing bubble/card row.
+ *
+ * openReactionsSheet({ host, reactions, tip, strings }) — full inspect list
+ * (every type + count + senders), c-sheet presentation.
+ */
+
+
+
+function addReactions(row, {
+  reactions = [],
+  tip = '',
+  placement = 'overlap',
+  animate = false,
+  maxVisible = 3,
+  host,
+  onInspect,
+  onToggle,
+  strings = {},
+} = {}) {
+  // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden would clip
+  // the overlap overhang — audit r3)
+  const bubble = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble-anchor');
+  if (!bubble) return;
+
+  // replace-on-repeat: the bridge sends the full reaction list every time
+  const prev = bubble.querySelector('.c-reactions');
+  if (prev) prev.remove();
+  delete row.dataset.reactions;
+
+  if (reactions.length === 0 && !tip) return;
+
+  const el = document.createElement('span');
+  el.className = 'c-reactions';
+  if (animate) el.classList.add('c-reactions--in'); // cheap pop (Damir 2026-07-03); finite, token-driven
+  el.dataset.placement = placement;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', strings.reactions || 'Reactions');
+
+  // heavy-reactions cap (Damir 2026-07-03): first maxVisible TYPES render as
+  // pills, the rest fold into a "+N" pill that opens the inspect sheet
+  const visible = reactions.length > maxVisible ? reactions.slice(0, maxVisible) : reactions;
+  for (const r of visible) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'c-reactions__pill';
+    pill.setAttribute('aria-pressed', r.own ? 'true' : 'false');
+    // emoji + count are decorative inside the labelled button
+    pill.setAttribute('aria-label',
+      (strings.reaction || 'Reaction') + ' ' + r.emoji + (r.count > 1 ? ' ' + r.count : ''));
+    const em = document.createElement('span');
+    em.className = 'c-reactions__emoji';
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = r.emoji;
+    pill.append(em);
+    if (r.count > 1) {
+      const n = document.createElement('span');
+      n.className = 'c-reactions__count u-tabular';
+      n.setAttribute('aria-hidden', 'true');
+      n.textContent = String(r.count);
+      pill.append(n);
+    }
+    if (onToggle) pill.addEventListener('click', () => onToggle(r.emoji));
+    el.append(pill);
+  }
+  if (reactions.length > maxVisible) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'c-reactions__pill c-reactions__more';
+    more.setAttribute('aria-label', strings.allReactions || 'Show all reactions');
+    more.textContent = '+' + (reactions.length - maxVisible);
+    more.addEventListener('click', onInspect
+      ? () => onInspect()
+      : () => openReactionsSheet({ host, reactions, tip, strings }));
+    el.append(more);
+  }
+
+  if (tip) {
+    // tip = amount pill in the reaction row (#65); c-badge keeps the vocabulary
+    const badge = createBadge({
+      type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake',
+    });
+    badge.classList.add('c-reactions__tip');
+    el.append(badge);
+  }
+
+  if (placement === 'overlap') row.dataset.reactions = 'overlap'; // row reserves overhang space
+  bubble.append(el);
+}
+
+/** Inspect sheet: every reaction type with count + who reacted (Damir
+ *  2026-07-03). Sender names arrive from the bridge aggregation. */
+function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-reactmenu';
+  content.setAttribute('role', 'list'); // audit r3: SRs get structure + count
+  for (const r of reactions) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'c-reactmenu__row';
+    rowEl.setAttribute('role', 'listitem');
+    const em = document.createElement('span');
+    em.className = 'c-reactmenu__emoji';
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = r.emoji;
+    const col = document.createElement('span');
+    col.className = 'c-reactmenu__info';
+    const count = document.createElement('span');
+    count.className = 'c-reactmenu__count';
+    count.textContent = (r.count || 1) + ' × ' + r.emoji;
+    const who = document.createElement('span');
+    who.className = 'c-reactmenu__senders';
+    who.textContent = (r.senders && r.senders.length)
+      ? r.senders.join(', ') + (r.own ? ' · ' + (strings.you || 'You') : '')
+      : (r.own ? (strings.you || 'You') : '');
+    col.append(count, who);
+    rowEl.append(em, col);
+    content.append(rowEl);
+  }
+  if (tip) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'c-reactmenu__row';
+    rowEl.setAttribute('role', 'listitem');
+    rowEl.append(createBadge({ type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
+    content.append(rowEl);
+  }
+  const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ---- src/components/typing-indicator.js ---- */
+/**
+ * c-typing — "is typing" pill (batch 3; conversation-level design gap #66,
+ * code-first in the bubble language). Bridge: showUserTyping — the shell
+ * appends the row while typing is on and removes it when it stops; the shell
+ * also keeps it as the LAST row (re-append after live sends).
+ *
+ * createTypingIndicator({ name, strings }) → row element
+ *   name — group chats: whose keyboard is busy (1:1 omits it)
+ */
+function createTypingIndicator({ name = '', strings = {} } = {}) {
+  const row = document.createElement('div');
+  // --typing: hugs the composer (Damir 2026-07-03 — spacing-4 bottom gap,
+  // see typing-indicator.css; the list's bottom padding must match)
+  row.className = 'c-bubble-row c-bubble-row--typing';
+  row.dataset.direction = 'received';
+  row.dataset.position = 'single';
+
+  const el = document.createElement('div');
+  el.className = 'c-typing';
+  // transient status, not a message — announced once, dots stay decorative
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-label',
+    name ? name + ' ' + (strings.isTyping || 'is typing…') : (strings.typing || 'Typing…'));
+
+  if (name) {
+    const n = document.createElement('span');
+    n.className = 'c-typing__name';
+    n.setAttribute('aria-hidden', 'true');
+    n.textContent = name;
+    el.append(n);
+  }
+
+  const dots = document.createElement('span');
+  dots.className = 'c-typing__dots';
+  dots.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('span');
+    d.className = 'c-typing__dot';
+    dots.append(d);
+  }
+  el.append(dots);
+
+  row.append(el);
+  return row;
+}
+
+/* ---- src/components/scroll-latest.js ---- */
+/**
+ * c-scroll-latest — floating "scroll to latest" button over the chat canvas
+ * (batch 3; #66 gap fill w/ unread count). Mount INSIDE .c-chat-canvas (the
+ * positioning context); pass the scrolling element as `target`.
+ * Visibility is component-managed (scroll listener, ~1.5 viewport threshold);
+ * the unread count is shell-managed via setScrollLatestCount (#44 free fn) —
+ * the shell knows read flags, the component only displays.
+ *
+ * createScrollToLatest({ target, strings }) → button
+ * setScrollLatestCount(el, count, strings) — 0/null clears the badge
+ */
+
+
+
+const SHOW_THRESHOLD = 200; // px from bottom before the button appears (sanctioned)
+
+function createScrollToLatest({ target, strings = {} } = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'c-scroll-latest';
+  el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
+  el.append(icon('chevron-down', { size: 22 }));
+
+  if (target) {
+    const sync = () => {
+      const away = target.scrollHeight - target.scrollTop - target.clientHeight;
+      el.toggleAttribute('data-visible', away > SHOW_THRESHOLD);
+    };
+    target.addEventListener('scroll', sync, { passive: true });
+    sync();
+    el.addEventListener('click', () => {
+      target.scrollTo({
+        top: target.scrollHeight,
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+    });
+  }
+  return el;
+}
+
+/** Unread-count badge on the button (99+ cap shared with nav/list). */
+function setScrollLatestCount(el, count, strings = {}) {
+  let badge = el.querySelector('.c-scroll-latest__badge');
+  if (!count) {
+    if (badge) badge.remove();
+    el.setAttribute('aria-label', strings.scrollToLatest || 'Scroll to latest messages');
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'c-scroll-latest__badge u-tabular';
+    badge.setAttribute('aria-hidden', 'true'); // count lives in the button label
+    el.append(badge);
+  }
+  badge.textContent = formatCount(count);
+  el.setAttribute('aria-label',
+    (strings.scrollToLatest || 'Scroll to latest messages') + ' — ' +
+    formatCount(count) + ' ' + (strings.unread || 'unread'));
+}
+
+/* ---- src/components/message-menu.js ---- */
+/**
+ * c-msgmenu — message context menu (batch 3). Spec: DESIGN_SYSTEM.md §5b,
+ * wired SHEET-BASED per CLAUDE.md batch-3 note: quick-react row + action list
+ * inside c-sheet (reuses overlay stack/scrim/focus/Esc — #56). The §5b
+ * anchored-panel presentation (scrim + promoted bubble at z-50) is NOT built
+ * here — 🟡 decide sheet vs anchored panel after Damir feels this version.
+ *
+ * Actions ↔ bridge reality (§5b table): react/tip/delete via
+ * ixian:contextAction:*; copy is JS-side; REPLY/EDIT render ONLY behind
+ * capabilities (bridge §8 proposal, DECISIONS #25); report = bots only.
+ *
+ * attachMessageMenu(row, opts) — long-press ~500ms (cancel >10px move =
+ *   scroll intent, §5b) + desktop right-click. Keyboard path (Shift+F10 on a
+ *   focusable message) lands with the chat shell — messages aren't focusable
+ *   as components yet (flagged).
+ * openMessageMenu({ row, host, text, capabilities, onAction, strings })
+ *   onAction(action, arg) — 'react' (arg=emoji) | 'reply' | 'copy' | 'tip' |
+ *   'delete' | 'report'. Default copy falls back to the Clipboard API.
+ */
+
+
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const LONG_PRESS_MS = 500;   // §5b
+const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
+
+function openMessageMenu({
+  row,
+  host,
+  text = '',
+  capabilities = {},
+  onAction,
+  strings = {},
+} = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-msgmenu';
+
+  const act = (action, arg) => {
+    closeSheet(sheet);
+    if (action === 'copy' && !onAction) {
+      // JS-side default (§5b); shells may override via onAction
+      if (navigator.clipboard && text) navigator.clipboard.writeText(text).catch(() => {});
+      return;
+    }
+    if (onAction) onAction(action, arg);
+  };
+
+  // quick-react row (top, §5b: reactions attached above the actions)
+  const reacts = document.createElement('div');
+  reacts.className = 'c-msgmenu__reacts';
+  reacts.setAttribute('role', 'group');
+  reacts.setAttribute('aria-label', strings.react || 'React');
+  for (const emoji of QUICK_REACTIONS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__react';
+    b.setAttribute('aria-label', (strings.reactWith || 'React with') + ' ' + emoji);
+    const em = document.createElement('span');
+    em.setAttribute('aria-hidden', 'true');
+    em.textContent = emoji;
+    b.append(em);
+    b.addEventListener('click', () => act('react', emoji));
+    reacts.append(b);
+  }
+  content.append(reacts);
+
+  const list = document.createElement('div');
+  list.className = 'c-msgmenu__list';
+  const item = (glyph, label, action, destructive = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__item';
+    if (destructive) b.dataset.destructive = '';
+    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.addEventListener('click', () => act(action));
+    list.append(b);
+  };
+
+  // capability-gated first (#25: menu contents constrained by bridge reality)
+  if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
+  if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
+  if (text) item('copy', strings.copy || 'Copy', 'copy');
+  if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
+  // destructive group last (§5b)
+  item('trash', strings.deleteMessage || 'Delete', 'delete', true);
+  if (capabilities.report) item('alert-square-rounded', strings.report || 'Report', 'report', true);
+
+  content.append(list);
+
+  const sheet = createSheet({ content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+/** Long-press (touch) + right-click (desktop) wiring for one message row. */
+function attachMessageMenu(row, opts = {}) {
+  const target = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || row;
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let fired = false;
+
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
+  target.addEventListener('pointerdown', (e) => {
+    // ANY new gesture resets suppression — a right-click leaves fired=true
+    // (no click event follows), which swallowed the next right-click (audit r4)
+    fired = false;
+    if (e.button !== 0) return; // right button → contextmenu path
+    startX = e.clientX;
+    startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      fired = true;
+      openMessageMenu({ row, ...opts });
+    }, LONG_PRESS_MS);
+  });
+  target.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - startX) > MOVE_CANCEL_PX ||
+                  Math.abs(e.clientY - startY) > MOVE_CANCEL_PX)) cancel();
+  });
+  target.addEventListener('pointerup', cancel);
+  target.addEventListener('pointercancel', cancel);
+  // long-press fired → the release click must not trigger bubble actions
+  // (file open / card buttons); capture phase swallows it once
+  target.addEventListener('click', (e) => {
+    if (fired) {
+      e.preventDefault();
+      e.stopPropagation();
+      fired = false;
+    }
+  }, true);
+
+  target.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the same
+    // moment the pointer timer fires — without this guard both paths opened
+    // a sheet each (double scrim). Whichever path runs first wins.
+    if (fired) return;
+    cancel();
+    fired = true;
+    openMessageMenu({ row, ...opts });
+  });
+}
+
+/* ---- src/components/media-bubble.js ---- */
+/**
+ * c-mbubble — media tile bubble: GIFs (Giphy keyboard/link) + images
+ * (Damir 2026-07-03; #66 gap). P2P REALITY CHECK baked into the design:
+ * · There is NO server to proxy media — loading a remote GIF/CDN URL reveals
+ *   the reader's IP to that host. Default is therefore TAP-TO-LOAD: the tile
+ *   renders from the sender-embedded `preview` (blurred) until the user opts
+ *   in. `autoload: true` = future user setting ("auto-load media").
+ * · Images: BE's "compress into a short message" standard (BlurHash/ThumbHash
+ *   family) decodes to a tiny blurred thumb — pass the decoded data-URI as
+ *   `preview`; the full image arrives via the file-transfer path, then the
+ *   shell calls setMediaSrc(row, localUrl). Decoder choice = BE eval (§9).
+ *
+ * createMediaBubble({ direction, kind: 'gif'|'image', src, preview,
+ *   width, height, alt, autoload = false, timestamp, gutter, onOpen, strings })
+ * setMediaSrc(row, src) — late-arriving media (file transfer completed)
+ *
+ * States (data-state): idle (tap to load) → loading → loaded | failed (tap
+ * retries). Tap on loaded → onOpen (shell viewer). Inline aspect-ratio from
+ * sender dims = sanctioned runtime geometry (like #29 morphWidth).
+ */
+
+
+
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
 
 function mediaAria(state, kind, alt, strings) {
@@ -3772,13 +3126,13 @@ function createMediaBubble({
   direction = 'received',
   kind = 'image',
   src = '',
-  preview = null,
+  preview = null,          // sender-embedded thumb (data-URI) — P2P-safe
   width = 0,
   height = 0,
   alt = '',
   autoload = false,
   timestamp = null,
-  gutter = false,
+  gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
   strings = {},
 } = {}) {
@@ -3808,7 +3162,8 @@ function createMediaBubble({
   }
 
   // img lives in the DOM from creation (hidden until data-state=loaded) so its
-  // load/error listeners are ALWAYS the ones in play (audit r3)
+  // load/error listeners are ALWAYS the ones in play — audit r3: setMediaSrc
+  // used to fabricate a listener-less img → permanently dead tile
   const img = document.createElement('img');
   img.className = 'c-mbubble__img';
   img.alt = ''; // the button carries the accessible name
@@ -3869,7 +3224,8 @@ function createMediaBubble({
   setState('idle');
   if (autoload && src) load();
 
-  // reactions overlap-anchor (audit r3): tile overflow:hidden clips overhang pills
+  // reactions overlap-anchor (audit r3): pills can't live INSIDE the tile —
+  // overflow:hidden clips the -12px overhang — so the anchor wraps the tile
   const anchor = document.createElement('span');
   anchor.className = 'c-mbubble-anchor';
   anchor.append(el);
@@ -3877,15 +3233,31 @@ function createMediaBubble({
   return row;
 }
 
+/** Late-arriving media (file-transfer path completed): swap in the local
+ *  source and load it through the tile's OWN state machine (audit r3 —
+ *  aria-label/spinner/retry all stay correct). #44 free fn. */
 function setMediaSrc(row, src) {
   const el = row.querySelector('.c-mbubble');
   if (!el || !src) return;
   const ctl = mediaCtl.get(el);
   if (ctl) ctl.setSrc(src);
 }
-/* ---- src/components/system-notice.js (#86/#91 secure-chat notice, round-6 restyle) ---- */
+
+/* ---- src/components/system-notice.js ---- */
+/**
+ * c-sysnotice — in-conversation system notice (DECISIONS #86/#91, restyled
+ * per Damir round 6: success-inverse card + glyph medallion + title). The
+ * secure-chat notice marks the TRUE start of history (shell renders it when
+ * pagination exhausts). Copy from the lang file; the link routes through the
+ * shell's external-link warning (onLink) — it never navigates itself.
+ *
+ * createSystemNotice({ glyph = 'square-asterisk', title, text, linkLabel,
+ *                      onLink, strings }) → element (role=note)
+ */
+
+
 function createSystemNotice({
-  glyph = 'shield-lock', // Damir export landed
+  glyph = 'shield-lock', // Damir export landed — shield+lock reads "protected" universally
   title = '',
   text = '',
   linkLabel = '',
@@ -3931,7 +3303,22 @@ function createSystemNotice({
   return el;
 }
 
-/* ---- src/components/lazy-history.js (#86 lazy loadmore) ---- */
+/* ---- src/components/lazy-history.js ---- */
+/**
+ * c-history — LAZY history pagination (DECISIONS #86: no "load more" button —
+ * nearing the top auto-fires `ixian:loadmore`, a spinner row shows, and the
+ * scroll anchor is preserved when older rows prepend).
+ *
+ * attachLazyHistory(box, { onLoadMore, threshold = 160, strings })
+ *   box        — the scrolling message container (role=log)
+ *   onLoadMore — shell hook: fire ixian:loadmore, PREPEND the older rows,
+ *                then resolve. Resolve `false` when history is exhausted
+ *                (detaches — no further loads).
+ *   Re-entrancy guarded; scroll restored so the previously-visible message
+ *   stays put (scrollTop += height delta).
+ * Returns { setDone() } — shell can end pagination early (e.g. chat cleared).
+ */
+
 function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = {}) {
   let loading = false;
   let done = false;
@@ -3964,6 +3351,7 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = 
         box.removeEventListener('scroll', check);
       }
       loading = false;
+      // content may still sit above the threshold (short pages) — re-check
       if (!done) check();
     }).catch(() => {
       sp.remove();
@@ -3979,79 +3367,22 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = 
     },
   };
 }
-/* ---- round 7: topbar onIdentity SUPERSEDE + attach/channel sheets (#86) ---- */
-function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', onIdentity = null, actions = [] } = {}) {
-  const el = document.createElement('header');
-  el.className = 'c-topbar';
-  el.dataset.variant = variant;
-
-  if ((variant === 'view' || variant === 'chat') && onBack) {
-    el.append(createButton({
-      type: 'text', size: 44,
-      icon: icon('arrow-left'),
-      ariaLabel: backLabel,
-      onClick: onBack,
-    }));
-  }
-
-  if (variant === 'chat' && identity) {
-    // identity wrap: BUTTON when onIdentity is wired (bot channel selector /
-    // chat info) — accessible name comes from the name+sub content
-    const wrap = document.createElement(onIdentity ? 'button' : 'div');
-    wrap.className = 'c-topbar__identity-wrap';
-    if (onIdentity) {
-      wrap.type = 'button';
-      wrap.addEventListener('click', onIdentity);
-    }
-    wrap.append(createAvatar({
-      src: identity.avatar, name: identity.name, address: identity.address,
-      size: 40, online: !!identity.online,
-    }));
-    const id = document.createElement('div');
-    id.className = 'c-topbar__identity';
-    const nameEl = document.createElement('span');
-    nameEl.className = 'c-topbar__name';
-    nameEl.textContent = identity.name || identity.address || '';
-    const subEl = document.createElement('span');
-    subEl.className = 'c-topbar__sub';
-    subEl.setAttribute('aria-live', 'polite'); // presence/typing changes announced
-    subEl.textContent = identity.sub || '';
-    id.append(nameEl, subEl);
-    wrap.append(id);
-    el.append(wrap);
-  } else {
-    const titleEl = document.createElement('div');
-    titleEl.className = 'c-topbar__title';
-    if (variant === 'root' && logo) {
-      const mark = icon('logo', { size: 28 });
-      mark.classList.add('c-topbar__logo');
-      const word = document.createElement('span');
-      word.textContent = title || 'Spixi';
-      titleEl.append(mark, word);
-    } else {
-      titleEl.textContent = title;
-    }
-    el.append(titleEl);
-  }
-
-  if (actions.length) {
-    const wrap = document.createElement('div');
-    wrap.className = 'c-topbar__actions';
-    for (const a of actions) {
-      wrap.append(createButton({
-        type: 'text', size: 44,
-        icon: icon(a.icon),
-        ariaLabel: a.label,
-        onClick: a.onClick,
-      }));
-    }
-    el.append(wrap);
-  }
-
-  return el;
-}
 
 /* ---- src/components/attach-sheet.js ---- */
+/**
+ * c-attach — composer ⊕ attach sheet (#87①, Damir interview 2026-07-03):
+ * TILE GRID on c-sheet (creation verbs scan better as tiles; still the same
+ * overlay stack). Bridge-real actions: file / pay / request / app invite.
+ * Photo + GIF are DESIGNED-IN but FEATURE-FLAGGED (`media: false`) until the
+ * BE image standard lands (#81) — the #64 voice-flag precedent.
+ *
+ * openAttachSheet({ host, media = false, onAction, strings }) → sheet
+ *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
+ *   (shell routes: sendfile / sendmedia / payment intent / app invite)
+ */
+
+
+
 const ATTACH_ACTIONS = [
   { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
   { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flagged: true },
@@ -4091,10 +3422,27 @@ function openAttachSheet({ host, media = false, onAction, strings = {} } = {}) {
 }
 
 /* ---- src/components/channel-sheet.js ---- */
+/**
+ * c-channels — bot-chat channel selector sheet (#86 bot surface). Bot chat =
+ * a big group chat (Damir): the topbar identity is TAPPABLE (createTopbar
+ * onIdentity) and opens this sheet; picking a channel re-renders the
+ * conversation (shell duty — bridge setSelectedChannel).
+ * Bridge: addChannelToSelector / setSelectedChannel / setChannelSelectorStatus
+ * — the shell aggregates those into the `channels` list passed at open.
+ *
+ * openChannelSheet({ host, channels: [{ id, name, status, unread, selected }],
+ *                    onSelect, strings }) → sheet
+ */
+
+
+
+
 function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) {
   const list = document.createElement('div');
   list.className = 'c-channels';
-  // freeze audit: no list/listitem roles — they replace button semantics
+  // freeze audit: NO list/listitem roles — role=listitem on a <button>
+  // replaces its button semantics for SRs (a column of buttons in a dialog
+  // needs no list wrapper)
 
   for (const ch of channels) {
     const row = document.createElement('button');
@@ -4140,17 +3488,47 @@ function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) 
   openSheet(sheet);
   return sheet;
 }
-/* ---- src/components/member-sheet.js (#99) ---- */
+
+/* ---- src/components/member-sheet.js ---- */
+/**
+ * c-member — group member identity sheet (#99, Damir-approved round 8).
+ * Opened by tapping a sender label or its avatar in group/bot chats: the
+ * nickname is user-set and spoofable — the ADDRESS is the truth, so it shows
+ * FULL and copyable, plus the contact-request path (normal/bot groups).
+ * BLIND groups render the hidden-identity state instead (no address, no
+ * request) — bridge must flag blindness per chat (BE question, #99).
+ *
+ * openMemberSheet({ host, member: { name, address, avatar }, blind = false,
+ *                   relation = 'none' | 'pending' | 'contact',  // shell knows
+ *                   onRequest,        // 'none' → "Send contact request"
+ *                   onMessage,        // 'contact' → "Message" (open 1:1)
+ *                   onPay, onRequestPayment, // 'contact' ONLY (round 10):
+ *                                     // payment affordances stay behind the
+ *                                     // contact relationship — pointing money
+ *                                     // UI at unverified strangers = scam bait
+ *                   onViewContact,    // 'contact': identity block tappable →
+ *                                     // full contact page (shell nav)
+ *                   strings }) → sheet
+ * relation states (Damir sanity check): none → request button · pending →
+ * "Request sent" badge (no button) · contact → "In your contacts" badge +
+ * Message + Pay|Request row + tappable identity.
+ */
+
+
+
+
+
+
 function openMemberSheet({
   host,
   member = {},
   blind = false,
-  relation = 'none', // none | pending | contact (Damir sanity check)
+  relation = 'none',
   onRequest,
   onMessage,
-  onPay,             // contact ONLY (round 10 guard rail)
-  onRequestPayment,  // contact ONLY
-  onViewContact,     // contact: identity → full contact page (shell nav)
+  onPay,
+  onRequestPayment,
+  onViewContact,
   strings = {},
 } = {}) {
   const content = document.createElement('div');
@@ -4170,7 +3548,8 @@ function openMemberSheet({
       'Members of a blind group can’t be viewed or added to contacts.';
     content.append(med, t, sub);
   } else {
-    // identity block — for CONTACTS it's a button → full contact page (round 10)
+    // identity block — for CONTACTS it's a button → full contact page
+    // (round 10; the page itself lands with the contacts shell)
     const canView = relation === 'contact' && !!onViewContact;
     const id = document.createElement(canView ? 'button' : 'div');
     id.className = 'c-member__id';
@@ -4187,7 +3566,7 @@ function openMemberSheet({
     if (canView) {
       const chev = icon('chevron-right', { size: 18 });
       chev.classList.add('c-member__chevron');
-      nameRow.append(chev);
+      nameRow.append(chev); // affordance: identity leads somewhere
     }
     id.append(nameRow);
     content.append(id);
@@ -4210,7 +3589,7 @@ function openMemberSheet({
         if (navigator.clipboard) navigator.clipboard.writeText(member.address).catch(() => {});
         copy.textContent = '';
         copy.append(icon('check', { size: 18 })); // brief confirmation morph
-        copy.setAttribute('aria-label', strings.copied || 'Address copied'); // SRs hear the confirm too
+        copy.setAttribute('aria-label', strings.copied || 'Address copied'); // SRs hear the confirm too (freeze audit)
         setTimeout(() => {
           copy.textContent = '';
           copy.append(icon('copy', { size: 18 }));
@@ -4221,7 +3600,8 @@ function openMemberSheet({
       content.append(label, addrRow);
     }
 
-    // relation-aware footer: never offer a request to an existing contact
+    // relation-aware footer (Damir sanity check): never offer a request to
+    // someone who's already a contact or already asked
     if (relation === 'contact') {
       const badge = createBadge({
         type: 'success', weight: 'tonal',
@@ -4269,6 +3649,7 @@ function openMemberSheet({
         type: 'fill', size: 44,
         icon: icon('heart-handshake', { size: 18 }),
         onClick: (e) => {
+          // state-changing → latch (r2 guard family); shell/bridge confirms
           if (e.currentTarget.dataset.acted !== undefined) return;
           e.currentTarget.dataset.acted = '';
           e.currentTarget.disabled = true;
@@ -4290,7 +3671,23 @@ function openMemberSheet({
   openSheet(sheet);
   return sheet;
 }
-/* ---- src/components/media-viewer.js (#86) ---- */
+
+/* ---- src/components/media-viewer.js ---- */
+/**
+ * c-mviewer — full-screen media viewer (#86 last v1 gap): the c-mbubble
+ * onOpen target. V1 = fit-to-screen + close (+ optional Save); pinch/zoom is
+ * post-v1 (#86 note). Rides the overlay stack (#56): Esc, ✕ and
+ * swipe-to-dismiss close it (the viewer covers the scrim, so scrim-tap is
+ * unreachable — freeze audit); focus contained, back-hook via
+ * dismissTopOverlay.
+ *
+ * openMediaViewer({ host, src, alt, kind, onSave, strings }) → el
+ *   onSave — shell hook (P2P: saving = local file op via bridge); omitted =
+ *   no Save button.
+ */
+
+
+
 function openMediaViewer({
   host,
   src = '',
@@ -4348,8 +3745,9 @@ function openMediaViewer({
   el.append(stage);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
 
-  // swipe-to-dismiss (Damir): vertical drag either direction — image rides
-  // the finger, viewer fades; past threshold = dismiss, under = spring back
+  // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
+  // drag EITHER direction — the image rides the finger and the viewer fades;
+  // past the threshold on release = dismiss, under it = spring back.
   const DISMISS_PX = 80;
   let startY = 0;
   let dragY = null;
@@ -4358,7 +3756,7 @@ function openMediaViewer({
     startY = e.clientY;
     dragY = 0;
     stage.setPointerCapture(e.pointerId);
-    img.style.transition = 'none';
+    img.style.transition = 'none'; // finger-follow must not lag
   });
   stage.addEventListener('pointermove', (e) => {
     if (dragY === null) return;
@@ -4369,7 +3767,7 @@ function openMediaViewer({
   const endDrag = () => {
     if (dragY === null) return;
     const past = Math.abs(dragY) > DISMISS_PX;
-    img.style.transition = '';
+    img.style.transition = ''; // spring-back transition returns (css)
     if (past) {
       dismissOverlay(el);
     } else {
@@ -4386,7 +3784,25 @@ function openMediaViewer({
   return el;
 }
 
-/* ---- src/components/call-overlay.js (#86) ---- */
+/* ---- src/components/call-overlay.js ---- */
+/**
+ * c-callin — incoming voice call overlay (#86 last v1 gap; Damir: accept /
+ * decline / ignore). Rides the overlay stack; renders at the call layer
+ * (z-60, above modals — an incoming call outranks everything but toasts).
+ * Ongoing-call UI stays c-callbar (#57); Accept typically chains into
+ * showCallBar (shell duty). All three actions latch (state-changing).
+ *
+ * showIncomingCall({ host, caller: { name, address, avatar }, sub,
+ *                    onAccept, onDecline, onIgnore, strings }) → el
+ *   sub — line under the name (default "Incoming voice call…")
+ *   Ignore = overlay dismisses, ringing continues muted (shell duty);
+ *   Esc / scrim tap route to onIgnore too (safe dismiss = quietest action).
+ * hideIncomingCall(el) — bridge hook (peer hung up before an answer).
+ */
+
+
+
+
 function showIncomingCall({
   host,
   caller = {},
@@ -4407,7 +3823,7 @@ function showIncomingCall({
   const id = document.createElement('div');
   id.className = 'c-callin__identity';
   const avatarWrap = document.createElement('span');
-  avatarWrap.className = 'c-callin__avatar';
+  avatarWrap.className = 'c-callin__avatar'; // pulse ring lives here
   avatarWrap.append(createAvatar({
     src: caller.avatar, name: caller.name, address: caller.address, size: 48,
   }));
@@ -4450,11 +3866,14 @@ function showIncomingCall({
   action('decline', 'phone-end', strings.decline || 'Decline', onDecline);
   action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
   action('accept', 'phone', strings.accept || 'Accept', onAccept);
-  // freeze audit: autofocus the SAFE action (was Decline — first focusable)
+  // freeze audit: overlay autofocus took the FIRST focusable = Decline — a
+  // reflexive Enter while ringing killed the call. APG: focus the safe action.
   actions.querySelector('[data-kind="accept"]').dataset.autofocus = '';
   el.append(actions);
 
-  // Esc / scrim = quietest outcome; data-silent = remote hang-up, no onIgnore
+  // Esc / scrim = the QUIETEST outcome (ignore) — never auto-declines.
+  // data-silent (freeze audit): a REMOTE hang-up must not report onIgnore —
+  // that's not a user outcome (shell may log/telemetry the ignore path)
   setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: () => {
     if (!acted && el.dataset.silent === undefined) {
       acted = true;
@@ -4465,32 +3884,60 @@ function showIncomingCall({
   return el;
 }
 
+/** Bridge hook: caller hung up before an answer — drop the overlay SILENTLY
+ *  (no onIgnore; see data-silent above). */
 function hideIncomingCall(el) {
   el.dataset.silent = '';
   dismissOverlay(el);
 }
-/* ---- end BATCH 3 SECTION ---- */
 
-/* ---- chats-shell modules (hand-appended; run scripts/build-demo-bundle.mjs to regenerate cleanly) ---- */
+/* ---- src/components/contact-request.js ---- */
+/**
+ * c-contact-request — incoming contact-request row in the Chats list (step 3;
+ * spec §5). Promotes the app-frame inline block into a real component. Rendered
+ * at the top of the list for pending requests. Decline routes through the
+ * c-modal confirm (Cancel autofocused, APG); Accept fires onAccept(row). The
+ * #109 STAGED HANDSHAKE (step 6): the caller latches the Accept button via
+ * setRequestAccepting(row) — "Accepting…" loading — then transitions the request
+ * into a handshaking chat; entry unblocks only on the bridge handshake-complete
+ * signal. Non-contacts keep composer disabled downstream (#86, shell duty).
+ *
+ * createContactRequest({ name, nick, address, avatar, timestamp, strings, host,
+ *                        onAccept, onDecline }) → row element
+ * setRequestAccepting(row, strings) — latch Accept to "Accepting…" (loading).
+ */
+
+
+
+
+
+
+/** Middle-truncate a long address for display (keeps head + tail). */
 function crDisplayAddress(addr) {
   const s = String(addr || '');
   return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
 }
+
 function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = {}, host, onAccept, onDecline } = {}) {
   const display = nick || name || crDisplayAddress(address);
+
   const row = document.createElement('div');
   row.className = 'c-contact-request';
   row.dataset.kind = 'request';
+
+  // photo if present, else deterministic hue off the ADDRESS (identity-stable)
   row.append(createAvatar({ src: avatar, name: nick || name, address, size: 48 }));
+
   const body = document.createElement('div');
   body.className = 'c-contact-request__body';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-contact-request__name';
-  nameEl.textContent = display;
+  nameEl.textContent = display;                      // user data → textContent (XSS-safe)
   const sub = document.createElement('span');
   sub.className = 'c-contact-request__sub';
   sub.textContent = strings.wantsToConnect || 'Wants to connect';
   body.append(nameEl, sub);
+
   const actions = document.createElement('div');
   actions.className = 'c-contact-request__actions';
   const declineLabel = strings.decline || 'Decline';
@@ -4518,33 +3965,64 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
   actions.append(decline, accept);
   body.append(actions);
   row.append(body);
+
   const time = document.createElement('span');
   time.className = 'c-contact-request__time u-tabular';
   time.textContent = formatChatTimestamp(timestamp, strings);
   row.append(time);
+
   return row;
 }
 
+/** Latch the Accept button into "Accepting…" loading (staged handshake, #109);
+ *  Decline is disabled while accepting. The row is then transitioned into a
+ *  handshaking chat by the shell (acceptContactRequest). */
 function setRequestAccepting(row, strings = {}) {
   const btn = row && row.querySelector('[data-accept]');
   if (!btn) return;
   const accepting = strings.accepting || 'Accepting…';
   const label = btn.querySelector('.c-button__label');
   if (label) label.textContent = accepting;
-  btn.setAttribute('aria-label', accepting);
+  btn.setAttribute('aria-label', accepting);       // keep SR label in sync with the visible state
   setLoading(btn, true);
   const decline = row.querySelector('[data-decline]');
   if (decline) decline.disabled = true;
 }
 
-const CHATMENU_LONG_PRESS_MS = 500;
-const CHATMENU_MOVE_CANCEL_PX = 10;
+/* ---- src/components/chats-row-menu.js ---- */
+/**
+ * Chat-row context menu (step 4; spec §6). Long-press / right-click a chat row →
+ * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
+ * styling (message-menu.css) + the message-menu interaction pattern (long-press
+ * ~500ms, cancel on >10px move = scroll intent; desktop right-click; Android
+ * double-open guard). Delete routes through the c-modal confirm. Chat info is a
+ * stub (Damir: pane deferred) → fires onAction('info'), shell shows a toast.
+ *
+ * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
+ * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat
+ * info / Delete are always present. A HANDSHAKING row (#109, still establishing)
+ * gets a single "Cancel handshake" action instead — the row's only recovery path
+ * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
+ *
+ * openChatRowMenu({ chat, host, onAction, strings, capabilities, handshaking }) → sheet
+ *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake'
+ * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
+ */
+
+
+
+
+
+const CHATMENU_LONG_PRESS_MS = 500;   // §5b
+const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
+
 function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities = {}, handshaking = false } = {}) {
-  closeChatRowSwipe();
+  closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
-  content.className = 'c-msgmenu';
+  content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
+
   const act = (action) => { closeSheet(sheet); if (onAction) onAction(action); };
   const item = (glyph, label, onClick, destructive = false) => {
     const b = document.createElement('button');
@@ -4555,6 +4033,9 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities
     b.addEventListener('click', onClick);
     list.append(b);
   };
+
+  // #109: a handshaking row can ONLY be cancelled (its recovery path) — no
+  // pin/mute/mark-read/info/open while the key exchange is still in flight.
   if (handshaking) {
     item('x', strings.cancelHandshake || 'Cancel handshake', () => {
       closeSheet(sheet);
@@ -4573,10 +4054,21 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities
     openSheet(sheet);
     return sheet;
   }
-  if (capabilities.pin) item(chat.pinned ? 'pinned-off' : 'pin', chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'), () => act('pin'));
-  if (capabilities.mute) item(chat.muted ? 'bell' : 'bell-off', chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'), () => act('mute'));
+
+  // toggles reflect what tapping DOES (glyph + label). Pin/Mute parkable (§8).
+  if (capabilities.pin) {
+    item(chat.pinned ? 'pinned-off' : 'pin',
+         chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'),
+         () => act('pin'));
+  }
+  if (capabilities.mute) {
+    item(chat.muted ? 'bell' : 'bell-off',
+         chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
+         () => act('mute'));
+  }
   item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
+  // destructive last (§5b) — confirm via c-modal
   item('trash', strings.deleteChat || 'Delete chat', () => {
     closeSheet(sheet);
     openModal(createModal({
@@ -4584,25 +4076,30 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities
       body: strings.deleteChatBody || 'This removes the conversation from your device.',
       role: 'alertdialog', host,
       actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
         { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('delete'); } },
       ],
     }));
   }, true);
+
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
   return sheet;
 }
+
+/** Long-press (touch) + right-click (desktop) wiring for one chat row. */
 function attachChatRowMenu(row, opts = {}) {
   let timer = null;
   let startX = 0;
   let startY = 0;
   let fired = false;
+
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
   row.addEventListener('pointerdown', (e) => {
-    fired = false;
-    if (e.button !== 0) return;
+    fired = false;                              // any new gesture resets suppression (audit r4)
+    if (e.button !== 0) return;                 // right button → contextmenu path
     startX = e.clientX; startY = e.clientY;
     cancel();
     timer = setTimeout(() => {
@@ -4617,331 +4114,84 @@ function attachChatRowMenu(row, opts = {}) {
   });
   row.addEventListener('pointerup', cancel);
   row.addEventListener('pointercancel', cancel);
+  // long-press fired → the release click must not open the chat
   row.addEventListener('click', (e) => {
     if (fired) { e.preventDefault(); e.stopPropagation(); fired = false; }
   }, true);
+
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (fired) return;
+    if (fired) return;                          // Android fires contextmenu ≈ long-press (audit r3)
     cancel();
     fired = true;
     openChatRowMenu({ ...opts });
   });
+
+  // keyboard path to the context menu (a11y): the swipe accelerator is pointer-only,
+  // so keyboard users reach Pin/Mute/Mark-read/Delete here. Shift+F10 and the
+  // dedicated ContextMenu/Apps key are the standard "open context menu" bindings.
   row.addEventListener('keydown', (e) => {
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
       cancel();
-      fired = false;
+      fired = false;                            // keyboard open ≠ a click to suppress
       openChatRowMenu({ ...opts });
     }
   });
 }
 
-const CHATS_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'unread', label: 'Unread' },
-  { id: 'favorites', label: 'Favorites' },
-  { id: 'groups', label: 'Groups' },
-  { id: 'requests', label: 'Requests' },
-];
-function createChatsHeader({ activeFilter = 'all', strings = {}, favorites = false, onFilter, onQuery } = {}) {
-  const el = document.createElement('div');
-  el.className = 'c-chats-header';
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'c-chats-header__search';
-  searchWrap.append(createSearchField({
-    placeholder: strings.searchChats || 'Search chats',
-    onInput: (q) => { if (onQuery) onQuery(q); },
-  }));
-  el.append(searchWrap);
-  const chipsRow = document.createElement('div');
-  chipsRow.className = 'c-chats-header__filters';
-  chipsRow.setAttribute('role', 'group');
-  chipsRow.setAttribute('aria-label', strings.filterChats || 'Filter chats');
-  const chips = CHATS_FILTERS
-    .filter((f) => f.id !== 'favorites' || favorites)
-    .map((f) => {
-      const chip = createChip({
-        label: strings['chatsFilter_' + f.id] || f.label,
-        selected: f.id === activeFilter,
-        onClick: () => {
-          for (const c of chips) setChipSelected(c, c === chip);
-          if (onFilter) onFilter(f.id);
-        },
-      });
-      chip.dataset.filter = f.id;
-      return chip;
-    });
-  chipsRow.append(...chips);
-  el.append(chipsRow);
-  return el;
-}
-const CHATS_REVEAL_AT = 1;
-function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
-  const rm = reducedMotion != null ? reducedMotion
-    : (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  let naturalH = headerEl.offsetHeight || 0;
-  let collapsed = false;
-  let lastTop = scrollEl.scrollTop;
-  const setFocusable = (on) => {
-    for (const f of headerEl.querySelectorAll('input, button')) {
-      if (on) f.removeAttribute('tabindex'); else f.setAttribute('tabindex', '-1');
-    }
-  };
-  const onEnd = (e) => {
-    if (e.target === headerEl && e.propertyName === 'max-height' && !collapsed) {
-      headerEl.style.maxHeight = '';
-    }
-  };
-  headerEl.addEventListener('transitionend', onEnd);
-  const setCollapsed = (want) => {
-    if (want === collapsed) return;
-    if (want) {
-      const h = headerEl.offsetHeight || naturalH;
-      if (!h) return;
-      naturalH = h;
-      collapsed = true;
-      headerEl.style.maxHeight = naturalH + 'px';
-      void headerEl.offsetHeight;
-      headerEl.style.maxHeight = '0px';
-      headerEl.style.opacity = '0';
-      headerEl.setAttribute('inert', '');
-      headerEl.setAttribute('aria-hidden', 'true');
-      headerEl.dataset.collapsed = '';
-      setFocusable(false);
-    } else {
-      collapsed = false;
-      headerEl.style.maxHeight = naturalH + 'px';
-      headerEl.style.opacity = '';
-      if (rm) headerEl.style.maxHeight = '';
-      headerEl.removeAttribute('inert');
-      headerEl.removeAttribute('aria-hidden');
-      delete headerEl.dataset.collapsed;
-      setFocusable(true);
-    }
-  };
-  const onScroll = () => {
-    const top = scrollEl.scrollTop;
-    const delta = top - lastTop;
-    lastTop = top;
-    if (top <= CHATS_REVEAL_AT) setCollapsed(false);
-    else if (delta > 0) setCollapsed(true);
-  };
-  const onResize = () => {
-    if (!collapsed) { headerEl.style.maxHeight = ''; naturalH = headerEl.offsetHeight || naturalH; }
-  };
-  scrollEl.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onResize);
-  return function detachChatsCollapse() {
-    scrollEl.removeEventListener('scroll', onScroll);
-    window.removeEventListener('resize', onResize);
-    headerEl.removeEventListener('transitionend', onEnd);
-    headerEl.style.maxHeight = '';
-    headerEl.style.opacity = '';
-    headerEl.removeAttribute('inert');
-    headerEl.removeAttribute('aria-hidden');
-    delete headerEl.dataset.collapsed;
-    setFocusable(true);
-  };
-}
+/* ---- src/components/chats-swipe.js ---- */
+/**
+ * Chat-row swipe accelerator (step 5, spec §6; Damir: option 1 = iOS-Mail reveal
+ * + full-swipe). Pointer-only accelerator — the long-press sheet is the
+ * accessible/keyboard path (the action buttons here are tabindex=-1 + aria-hidden
+ * by design). Leading swipe = Pin/Unpin, trailing = Mute/Unmute, each shown ONLY
+ * if its capability is enabled (parkable until BE persists them, #67/§8). Delete
+ * stays menu-only; NON-destructive actions only.
+ *
+ *   wrapChatRowSwipe(rowEl, { chat, capabilities, strings, onAction, rtl }) → wrapper
+ *     onAction('pin'|'mute') fires on full-swipe commit OR action-button tap.
+ *   closeChatRowSwipe() — closes any currently-open drawer (call before a list
+ *     re-render so the single-open invariant + GC hold).
+ *
+ * If neither pin nor mute is enabled, returns rowEl unwrapped (no swipe).
+ * Behaviour: drag reveals the enabled side's labelled action; release past the
+ * COMMIT ratio fires it; release past OPEN settles the button open (tap to fire);
+ * otherwise springs back. Only one row open at a time. Tapping an open row (or
+ * touching another row) closes the drawer.
+ */
 
-function chatMatchesFilter(chat, filter) {
-  switch (filter) {
-    case 'unread': return (chat.unread || 0) > 0 || !!chat.mention;
-    case 'favorites': return !!chat.favorite;
-    case 'groups': return chat.type === 'group';
-    case 'requests': return false;
-    case 'all':
-    default: return true;
-  }
-}
-function chatMatchesQuery(item, needle) {
-  const q = (needle || '').trim().toLocaleLowerCase();
-  if (!q) return true;
-  const name = (item.name || item.address || '').toLocaleLowerCase();
-  if (name.includes(q)) return true;
-  const ex = item.excerpt && item.excerpt.text;
-  return typeof ex === 'string' && ex.toLocaleLowerCase().includes(q);
-}
-function orderedRequests(state) {
-  const f = state.filter;
-  if (f !== 'all' && f !== 'requests') return [];
-  return (state.requests || []).filter(Boolean).filter((r) => chatMatchesQuery(r, state.query));
-}
-function orderedChats(state) {
-  if (state.filter === 'requests') return [];
-  return (state.chats || [])
-    .filter(Boolean)
-    .filter((c) => chatMatchesFilter(c, state.filter) && chatMatchesQuery(c, state.query))
-    .slice()
-    .sort((a, b) => {
-      const pinDelta = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
-      if (pinDelta) return pinDelta;
-      return (b.timestamp || 0) - (a.timestamp || 0);
-    });
-}
-function orderedTimeline(state) {
-  const reqs = orderedRequests(state);
-  const chats = orderedChats(state);
-  const pinned = chats.filter((c) => c.pinned).map((c) => ({ kind: 'chat', item: c }));
-  const flow = [
-    ...chats.filter((c) => !c.pinned).map((c) => ({ ts: c.timestamp || 0, kind: 'chat', item: c })),
-    ...reqs.map((r) => ({ ts: r.timestamp || 0, kind: 'request', item: r })),
-  ]
-    .sort((a, b) => b.ts - a.ts)
-    .map(({ kind, item }) => ({ kind, item }));
-  return [...pinned, ...flow];
-}
-function chatsUnreadTotal(chats) {
-  return (chats || []).filter(Boolean).reduce((n, c) => {
-    if (c.muted) return n;
-    const u = Math.max(0, c.unread || 0);
-    return n + (u || (c.mention ? 1 : 0));
-  }, 0);
-}
-function chatsEmptyCopy(state, strings) {
-  const q = (state.query || '').trim();
-  if (q) return (strings.chatsEmptySearch || 'No chats match “{q}”').split('{q}').join(q);
-  switch (state.filter) {
-    case 'unread': return strings.chatsEmptyUnread || 'No unread chats';
-    case 'groups': return strings.chatsEmptyGroups || 'No groups yet';
-    case 'favorites': return strings.chatsEmptyFavorites || 'No favorites yet';
-    case 'requests': return strings.chatsEmptyRequests || 'No pending requests';
-    case 'all':
-    default: return strings.chatsEmptyAll || 'No chats yet';
-  }
-}
-function chatsEmptyState(state, strings) {
-  const el = document.createElement('div');
-  el.className = 'c-chats-empty';
-  el.setAttribute('role', 'note');
-  el.textContent = chatsEmptyCopy(state, strings);
-  return el;
-}
-function renderChatsList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
-  closeChatRowSwipe();
-  listEl.textContent = '';
-  const caps = opts.capabilities || {};
-  const renderRequest = (r) => {
-    listEl.append(createContactRequest({
-      ...r, strings, host: opts.host,
-      onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
-      onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
-    }));
-  };
-  const renderChat = (c) => {
-    const onClick = c.handshaking
-      ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
-      : (opts.onOpen ? () => opts.onOpen(c) : undefined);
-    const el = createChatItem({ ...c, strings, onClick });
-    if (c.pinned) el.dataset.pinned = '';
-    if (c.muted) el.dataset.muted = '';
-    if (c.handshaking) {
-      el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
-      if (opts.rowMenu !== false) {
-        attachChatRowMenu(el, {
-          chat: c, host: opts.host, strings, handshaking: true,
-          onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
-        });
-      }
-      listEl.append(el); return;
-    }
-    if (opts.rowMenu !== false) {
-      attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings, capabilities: caps,
-        onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
-      });
-    }
-    const node = wrapChatRowSwipe(el, {
-      chat: c, capabilities: caps, strings,
-      onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
-    });
-    listEl.append(node);
-  };
-  const timeline = orderedTimeline(state);
-  for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
-  if (!timeline.length) listEl.append(chatsEmptyState(state, strings));
-  return listEl;
-}
-function applyChatRowAction(listEl, state, chat, action, opts = {}) {
-  switch (action) {
-    case 'pin': chat.pinned = !chat.pinned; break;
-    case 'mute': chat.muted = !chat.muted; break;
-    case 'markRead': chat.unread = 0; chat.mention = false; break;
-    case 'delete': state.chats = (state.chats || []).filter((c) => c !== chat); break;
-    case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;
-    default: return;
-  }
-  if (opts.onPersist) opts.onPersist(action, chat);
-  renderChatsList(listEl, state, opts);
-  if (opts.onModelChange) opts.onModelChange(state);
-}
-function acceptContactRequest(listEl, state, req, opts = {}) {
-  if (!req || (state.requests || []).indexOf(req) === -1) return null;
-  const strings = opts.strings || {};
-  state.requests = (state.requests || []).filter((r) => r !== req);
-  const chat = {
-    name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
-    type: 'direct', timestamp: Date.now(), handshaking: true, unread: 0, mention: false,
-    excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
-  };
-  state.chats = [chat, ...(state.chats || [])];
-  renderChatsList(listEl, state, opts);
-  if (opts.onModelChange) opts.onModelChange(state);
-  return chat;
-}
-function completeHandshake(listEl, state, chat, opts = {}) {
-  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
-  const strings = opts.strings || {};
-  chat.handshaking = false;
-  chat.excerpt = { type: 'text', text: strings.handshakeReady || '' };
-  chat.timestamp = Date.now();
-  renderChatsList(listEl, state, opts);
-  if (opts.onModelChange) opts.onModelChange(state);
-}
-function failHandshake(listEl, state, chat, opts = {}) {
-  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
-  state.chats = (state.chats || []).filter((c) => c !== chat);
-  renderChatsList(listEl, state, opts);
-  if (opts.onModelChange) opts.onModelChange(state);
-}
-function createChatsList(state, opts = {}) {
-  const el = document.createElement('div');
-  el.className = 'c-chats-list';
-  renderChatsList(el, state, opts);
-  return el;
-}
-function setChatsFilter(listEl, state, filter, opts) {
-  state.filter = filter;
-  return renderChatsList(listEl, state, opts);
-}
-function setChatsQuery(listEl, state, query, opts) {
-  state.query = query;
-  return renderChatsList(listEl, state, opts);
-}
-const SWIPE_OPEN_PX = 76;
-const SWIPE_COMMIT_RATIO = 0.4;
-const SWIPE_DIRLOCK_PX = 8;
-let currentClose = null;
+
+const SWIPE_OPEN_PX = 76;         // settle offset that holds the action button open (== CSS min-width)
+const SWIPE_COMMIT_RATIO = 0.4;   // drag past this fraction of the row width → fire
+const SWIPE_DIRLOCK_PX = 8;       // travel before we decide horizontal vs vertical
+
+let currentClose = null;          // close fn of the currently-open row (only one open)
 function closeCurrent() { if (currentClose) { const c = currentClose; currentClose = null; c(); } }
+
+/** Close any open drawer — call before a list re-render (detaches would orphan it). */
 function closeChatRowSwipe() { closeCurrent(); }
+
 function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, onAction, rtl } = {}) {
-  const dir = rtl != null ? rtl : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
+  const dir = rtl != null ? rtl
+    : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
+  // physical sides ↔ logical actions (RTL mirrors leading/trailing)
   const leftAction = dir ? 'mute' : 'pin';
   const rightAction = dir ? 'pin' : 'mute';
   const enabled = (a) => (a === 'pin' ? !!capabilities.pin : !!capabilities.mute);
   const leftEnabled = enabled(leftAction);
   const rightEnabled = enabled(rightAction);
-  if (!leftEnabled && !rightEnabled) return rowEl;
+  if (!leftEnabled && !rightEnabled) return rowEl;   // fully parked → no swipe wrapper
+
   const wrap = document.createElement('div');
   wrap.className = 'c-swipe';
+
   const actionBtn = (action, side) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-swipe__action c-swipe__action--' + side;
     b.dataset.action = action;
-    b.tabIndex = -1;
+    b.tabIndex = -1;                          // pointer-only accelerator (sheet is the a11y path)
     b.setAttribute('aria-hidden', 'true');
     const label = action === 'pin'
       ? (chat.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'))
@@ -4960,25 +4210,29 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
   };
   if (leftEnabled) wrap.append(actionBtn(leftAction, 'left'));
   if (rightEnabled) wrap.append(actionBtn(rightAction, 'right'));
+
   const content = document.createElement('div');
   content.className = 'c-swipe__content';
   content.append(rowEl);
   wrap.append(content);
-  let offset = 0;
+
+  let offset = 0;                 // current translateX (physical px)
   let startX = 0, startY = 0, startOffset = 0;
   let dragging = false, decided = false, horiz = false, swiped = false;
+
   const setX = (x, animate) => {
-    content.style.transition = animate ? '' : 'none';
+    content.style.transition = animate ? '' : 'none';   // '' = CSS transition (spring)
     content.style.transform = x ? 'translateX(' + x + 'px)' : '';
     offset = x;
   };
   const close = () => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; };
   const openTo = (x) => { closeCurrent(); setX(x, true); wrap.dataset.open = ''; currentClose = close; };
   const fire = (action) => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; if (onAction) onAction(action); };
+
   content.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    swiped = false;
-    if (currentClose && currentClose !== close) closeCurrent();
+    swiped = false;                                         // reset per gesture (#2: never suppress a fresh tap)
+    if (currentClose && currentClose !== close) closeCurrent();   // touching another row closes the open one
     startX = e.clientX; startY = e.clientY; startOffset = offset;
     dragging = true; decided = false; horiz = false;
   });
@@ -4991,14 +4245,16 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
       horiz = Math.abs(dx) > Math.abs(dy);
       if (horiz) {
         swiped = true;
+        // cancel a pending long-press on the ROW without ending our own gesture
+        // (non-bubbling so it doesn't reach content's pointercancel → end). #3
         try { rowEl.dispatchEvent(new Event('pointercancel', { bubbles: false })); } catch (_) {}
         if (content.setPointerCapture) { try { content.setPointerCapture(e.pointerId); } catch (_) {} }
       }
     }
-    if (!horiz) return;
+    if (!horiz) return;            // vertical intent → let the list scroll, don't hijack
     e.preventDefault();
     let x = startOffset + dx;
-    if (x > 0 && !leftEnabled) x = 0;
+    if (x > 0 && !leftEnabled) x = 0;      // can't reveal a parked side
     if (x < 0 && !rightEnabled) x = 0;
     const w = wrap.offsetWidth || 320;
     x = Math.max(-w, Math.min(w, x));
@@ -5007,7 +4263,7 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
   const end = () => {
     if (!dragging) return;
     dragging = false;
-    if (!horiz) return;
+    if (!horiz) return;            // stationary / vertical gesture — nothing to settle
     const w = wrap.offsetWidth || 320;
     const commit = w * SWIPE_COMMIT_RATIO;
     if (offset >= commit && leftEnabled) return fire(leftAction);
@@ -5018,29 +4274,487 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
   };
   content.addEventListener('pointerup', end);
   content.addEventListener('pointercancel', end);
+
+  // a swipe must not also open the chat; and tapping an OPEN row closes the drawer
   content.addEventListener('click', (e) => {
     if (swiped) { e.preventDefault(); e.stopPropagation(); swiped = false; return; }
     if (wrap.dataset.open !== undefined) { e.preventDefault(); e.stopPropagation(); close(); }
   }, true);
+
   return wrap;
 }
-/* ---- end chats-shell modules ---- */
 
-/* ---- apps shell modules ---- */
+/* ---- src/components/chats-shell.js ---- */
+/**
+ * c-chats-shell — Chats flow shell scaffold: model + render pipeline. Spec:
+ * docs/chats-shell-spec.md. Steps: 1 model/render · 3 c-contact-request ·
+ * 4 row context menu · 5 swipe accelerator.
+ *
+ * Holds the chats/requests MODEL and renders the visible list — requests on top,
+ * then pinned, then recency. Filter + search operate on the MODEL, not the DOM
+ * (#52). Inline mock data feeds it (no bridge module yet — Damir). Reuses
+ * createChatItem + createContactRequest + attachChatRowMenu + wrapChatRowSwipe.
+ *
+ * Model shapes:
+ *   chat:    { name, address, online, pinned, muted, favorite, type,
+ *              timestamp, status, unread, mention, handshaking,
+ *              excerpt:{type,text,sender} }
+ *   request: { name, address, avatar, timestamp }   // normalized 'pending' entry
+ *   state:   { chats:[], requests:[], filter:'all', query:'' }
+ *   filter ∈ 'all' | 'unread' | 'favorites' | 'groups' | 'requests'
+ *
+ * #109 staged accept: acceptContactRequest turns a request into a handshaking
+ * chat (excerpt "Establishing a quantum-secure handshake…", typing style); it's
+ * un-openable/un-swipeable/un-menuable until completeHandshake fires on the bridge
+ * signal. The caller latches the Accept button first (setRequestAccepting).
+ *
+ * opts: { strings, host, capabilities:{pin,mute,favorites,…}, rowMenu,
+ *         onOpen, onHandshakeBlocked(chat), onRequestAccept(req,row),
+ *         onRequestDecline(req), onChatInfo(chat), onModelChange(state),
+ *         onPersist(action,chat) }
+ * capabilities gate BE-dependent features so they can be PARKED until BE ships
+ * (#67/§8): pin/mute swipe + menu items render only when their flag is truthy.
+ * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
+ */
+
+
+
+
+
+/* —————————————————————— model (pure, DOM-free, testable) —————————————————————— */
+
+/** Does a chat pass the active filter chip? Requests are handled separately. */
+function chatMatchesFilter(chat, filter) {
+  switch (filter) {
+    case 'unread': return (chat.unread || 0) > 0 || !!chat.mention;
+    case 'favorites': return !!chat.favorite;          // BE-gated (§8) — empty until then
+    case 'groups': return chat.type === 'group';
+    case 'requests': return false;                     // requests are not chats
+    case 'all':
+    default: return true;
+  }
+}
+
+/** Locale-aware substring match over name (or address) + excerpt text.
+ *  Empty/whitespace needle matches everything. */
+function chatMatchesQuery(item, needle) {
+  const q = (needle || '').trim().toLocaleLowerCase();
+  if (!q) return true;
+  const name = (item.name || item.address || '').toLocaleLowerCase();
+  if (name.includes(q)) return true;
+  const ex = item.excerpt && item.excerpt.text;
+  return typeof ex === 'string' && ex.toLocaleLowerCase().includes(q);
+}
+
+/** Requests appear in the 'all' and 'requests' filters; searchable. In 'all'
+ *  they INTERLEAVE by arrival time (see orderedTimeline), not pinned on top —
+ *  Damir 2026-07-04: a request sits at its chronological place; accepting it
+ *  slides the new chat to the top (latest action). Not shown in Groups (1:1). */
+function orderedRequests(state) {
+  const f = state.filter;
+  if (f !== 'all' && f !== 'requests') return [];
+  return (state.requests || []).filter(Boolean).filter((r) => chatMatchesQuery(r, state.query));
+}
+
+/** Visible chats: filtered by chip + query, then pinned-first, then newest-first.
+ *  Array#sort is stable (ES2019+), so equal keys keep source order. */
+function orderedChats(state) {
+  if (state.filter === 'requests') return [];
+  return (state.chats || [])
+    .filter(Boolean)                                    // harden against null entries from a bridge feed
+    .filter((c) => chatMatchesFilter(c, state.filter) && chatMatchesQuery(c, state.query))
+    .slice()                                            // never mutate the source array
+    .sort((a, b) => {
+      const pinDelta = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      if (pinDelta) return pinDelta;                    // pinned above the rest
+      return (b.timestamp || 0) - (a.timestamp || 0);   // newest first
+    });
+}
+
+/** Combined All-list order: **pinned chats stay on top**, then pending requests
+ *  and unpinned chats **interleave by recency** (newest first). A request sits at
+ *  its arrival time (not pinned to the top); an accepted chat (timestamp = now)
+ *  slides to the top of the unpinned flow. In the 'requests' filter orderedChats
+ *  is empty, so this yields just the requests, newest-first. Returns a flat list
+ *  of `{ kind: 'chat' | 'request', item }`. */
+function orderedTimeline(state) {
+  const reqs = orderedRequests(state);
+  const chats = orderedChats(state);
+  const pinned = chats.filter((c) => c.pinned).map((c) => ({ kind: 'chat', item: c }));
+  const flow = [
+    ...chats.filter((c) => !c.pinned).map((c) => ({ ts: c.timestamp || 0, kind: 'chat', item: c })),
+    ...reqs.map((r) => ({ ts: r.timestamp || 0, kind: 'request', item: r })),
+  ]
+    .sort((a, b) => b.ts - a.ts)                          // newest first; stable → chat before request on a tie
+    .map(({ kind, item }) => ({ kind, item }));
+  return [...pinned, ...flow];
+}
+
+/** Unread total excluding muted; a bare mention counts as 1 (mirrors #42 / the
+ *  value setUnreadIndicator should deliver). Drives the Chats nav badge. */
+function chatsUnreadTotal(chats) {
+  return (chats || []).filter(Boolean).reduce((n, c) => {
+    if (c.muted) return n;
+    const u = Math.max(0, c.unread || 0);            // clamp: a negative/corrupt count must not drag the badge below true
+    return n + (u || (c.mention ? 1 : 0));
+  }, 0);
+}
+
+/* ————————————————————————————— render pipeline ————————————————————————————— */
+
+/** Empty-state copy for the active filter/query (defaults; strings override).
+ *  (Placeholder copy — illustrations + CTAs are a later pass, Damir.) */
+function chatsEmptyCopy(state, strings) {
+  const q = (state.query || '').trim();
+  // split/join, not replace(): a query with $-patterns ($&, $', $1…) would be
+  // interpreted as replacement specials by String#replace and corrupt the text.
+  if (q) return (strings.chatsEmptySearch || 'No chats match “{q}”').split('{q}').join(q);
+  switch (state.filter) {
+    case 'unread': return strings.chatsEmptyUnread || 'No unread chats';
+    case 'groups': return strings.chatsEmptyGroups || 'No groups yet';
+    case 'favorites': return strings.chatsEmptyFavorites || 'No favorites yet';
+    case 'requests': return strings.chatsEmptyRequests || 'No pending requests';
+    case 'all':
+    default: return strings.chatsEmptyAll || 'No chats yet';
+  }
+}
+
+function chatsEmptyState(state, strings) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-empty';
+  el.setAttribute('role', 'note');
+  el.textContent = chatsEmptyCopy(state, strings);
+  return el;
+}
+
+/** (Re)render the whole list from the model. Full re-render for the scaffold
+ *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
+function renderChatsList(listEl, state, opts = {}) {
+  const strings = opts.strings || {};
+  const caps = opts.capabilities || {};
+  closeChatRowSwipe();                                   // close any open swipe drawer before detaching rows (#1: single-open + GC)
+  listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
+
+  const renderRequest = (r) => {
+    listEl.append(createContactRequest({
+      ...r, strings, host: opts.host,
+      onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
+      onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
+    }));
+  };
+  const renderChat = (c) => {
+    // handshaking chats (#109) are not yet openable — tapping routes to
+    // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
+    const onClick = c.handshaking
+      ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
+      : (opts.onOpen ? () => opts.onOpen(c) : undefined);
+    const el = createChatItem({ ...c, strings, onClick });
+    if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
+    if (c.muted) el.dataset.muted = '';
+    if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
+      el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
+      if (opts.rowMenu !== false) {
+        attachChatRowMenu(el, {
+          chat: c, host: opts.host, strings, handshaking: true,
+          onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
+        });
+      }
+      listEl.append(el); return;
+    }
+    if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
+      attachChatRowMenu(el, {
+        chat: c, host: opts.host, strings, capabilities: caps,
+        onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+      });
+    }
+    // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
+    const node = wrapChatRowSwipe(el, {
+      chat: c, capabilities: caps, strings,
+      onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+    });
+    listEl.append(node);
+  };
+
+  // pinned chats on top, then requests + unpinned chats interleaved by recency
+  const timeline = orderedTimeline(state);
+  for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
+
+  if (!timeline.length) listEl.append(chatsEmptyState(state, strings));
+  return listEl;
+}
+
+/** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin/
+ *  mute toggle, mark-read clears unread+mention, delete removes the chat; info is
+ *  a stub (no model change) → opts.onChatInfo. On a model change: fire
+ *  opts.onPersist(action, chat) — the bridge intent (mock no-op now; a real
+ *  `ixian:` command when BE ships, §8) — then re-render + opts.onModelChange. */
+function applyChatRowAction(listEl, state, chat, action, opts = {}) {
+  switch (action) {
+    case 'pin': chat.pinned = !chat.pinned; break;
+    case 'mute': chat.muted = !chat.muted; break;
+    case 'markRead': chat.unread = 0; chat.mention = false; break;
+    case 'delete': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;   // stub — no model change
+    default: return;
+  }
+  if (opts.onPersist) opts.onPersist(action, chat);      // bridge intent → C# persists (mock no-op)
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+
+/* ————————————————————— #109 staged accept handshake ————————————————————— */
+
+/** Accept a pending request → transition it into a HANDSHAKING chat. Removes the
+ *  request, prepends a chat with handshaking:true + the "Establishing a
+ *  quantum-secure handshake…" excerpt (typing style), re-renders, and returns the
+ *  new chat so the caller can settle it via completeHandshake on the bridge's
+ *  handshake-complete signal (§9). No-op (returns null) if the request is already
+ *  gone — guards double-accept from a double-tap before re-render. Opening the
+ *  handshaking chat is blocked (onHandshakeBlocked) until it completes. */
+function acceptContactRequest(listEl, state, req, opts = {}) {
+  if (!req || (state.requests || []).indexOf(req) === -1) return null;
+  const strings = opts.strings || {};
+  state.requests = (state.requests || []).filter((r) => r !== req);
+  const chat = {
+    name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
+    type: 'direct', timestamp: Date.now(), handshaking: true, unread: 0, mention: false,
+    excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
+  };
+  state.chats = [chat, ...(state.chats || [])];
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+  return chat;
+}
+
+/** The bridge handshake-complete signal landed — unblock entry. Clears the
+ *  handshaking flag + the establishing excerpt, re-renders. Bumping the timestamp
+ *  surfaces the just-secured contact at the top (you likely want to message them).
+ *  No-op if the chat was deleted/never-handshaking meanwhile (guards a late signal). */
+function completeHandshake(listEl, state, chat, opts = {}) {
+  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
+  const strings = opts.strings || {};
+  chat.handshaking = false;
+  chat.excerpt = { type: 'text', text: strings.handshakeReady || '' };   // empty until a real message arrives
+  chat.timestamp = Date.now();
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+
+/** Handshake failed / timed out / user-cancelled — remove the stranded chat so a
+ *  never-completing handshake is never an un-removable trap (bridge failure signal
+ *  §9, OR the row's Cancel-handshake action). No-op if it already settled/left. */
+function failHandshake(listEl, state, chat, opts = {}) {
+  if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
+  state.chats = (state.chats || []).filter((c) => c !== chat);
+  renderChatsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+
+/** Build the list container and render it. */
+function createChatsList(state, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-list';
+  renderChatsList(el, state, opts);
+  return el;
+}
+
+/* update APIs — free functions (#44): mutate state, re-render, return listEl */
+
+function setChatsFilter(listEl, state, filter, opts) {
+  state.filter = filter;
+  return renderChatsList(listEl, state, opts);
+}
+
+function setChatsQuery(listEl, state, query, opts) {
+  state.query = query;
+  return renderChatsList(listEl, state, opts);
+}
+
+/* ---- src/components/chats-header.js ---- */
+/**
+ * c-chats-header — collapsing header for the Chats shell (step 2): search field
+ * + filter chips as ONE unit, plus the scroll-collapse behavior (#67, Damir).
+ * Search wires to setChatsQuery, chips to setChatsFilter (chats-shell.js).
+ * Favorites is BE-gated (§8) → hidden unless opts.favorites.
+ * Spec: docs/chats-shell-spec.md §3–4.
+ *
+ * Two exports:
+ *   createChatsHeader(opts) → header element (search + chips)
+ *   attachChatsCollapse(headerEl, scrollEl, opts) → detach()  [scroll behavior]
+ */
+
+
+
+const CHATS_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'unread', label: 'Unread' },
+  { id: 'favorites', label: 'Favorites' },   // BE-gated (§8) — hidden unless favorites:true
+  { id: 'groups', label: 'Groups' },
+  { id: 'requests', label: 'Requests' },
+];
+
+/** Build the header: search field + exclusive filter-chip group. */
+function createChatsHeader({ activeFilter = 'all', strings = {}, favorites = false, onFilter, onQuery } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-chats-header';
+
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'c-chats-header__search';
+  searchWrap.append(createSearchField({
+    placeholder: strings.searchChats || 'Search chats',
+    onInput: (q) => { if (onQuery) onQuery(q); },
+  }));
+  el.append(searchWrap);
+
+  const chipsRow = document.createElement('div');
+  chipsRow.className = 'c-chats-header__filters';
+  chipsRow.setAttribute('role', 'group');
+  chipsRow.setAttribute('aria-label', strings.filterChats || 'Filter chats');
+
+  const chips = CHATS_FILTERS
+    .filter((f) => f.id !== 'favorites' || favorites)      // Favorites hidden until BE (§8)
+    .map((f) => {
+      const chip = createChip({
+        label: strings['chatsFilter_' + f.id] || f.label,
+        selected: f.id === activeFilter,
+        onClick: () => {
+          for (const c of chips) setChipSelected(c, c === chip);   // exclusive group
+          if (onFilter) onFilter(f.id);
+        },
+      });
+      chip.dataset.filter = f.id;
+      return chip;
+    });
+  chipsRow.append(...chips);
+  el.append(chipsRow);
+
+  return el;
+}
+
+// reveal ONLY within this many px of the absolute top (Damir: "appear only at
+// absolute top"); 1px covers sub-pixel scroll rest positions.
+const CHATS_REVEAL_AT = 1;
+
+/**
+ * Scroll-collapse (#67, Damir): binary, TRIGGERED CSS transition (smooth, not
+ * finger-tracking). The header collapses on downward scroll and reveals ONLY
+ * when the list is back at the absolute top — scrolling up partway does NOT
+ * reveal it. Animates `max-height` + `opacity` (transition lives in
+ * chats-header.css, --duration-300 --easing-standard; reduced-motion zeros it).
+ *
+ * a11y: collapsed header leaves the tab order via `inert` + `aria-hidden`, plus
+ * a fallback (`data-collapsed` → pointer-events:none + `tabindex="-1"` on the
+ * focusables) because `inert` needs a modern WebView (Chromium ≥102, #4). All
+ * toggle only on collapse⇄reveal transitions.
+ */
+function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
+  const rm = reducedMotion != null ? reducedMotion
+    : (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  let naturalH = headerEl.offsetHeight || 0;   // full height (re-captured at each collapse)
+  let collapsed = false;
+  let lastTop = scrollEl.scrollTop;
+
+  const setFocusable = (on) => {
+    for (const f of headerEl.querySelectorAll('input, button')) {
+      if (on) f.removeAttribute('tabindex'); else f.setAttribute('tabindex', '-1');
+    }
+  };
+
+  const onEnd = (e) => {
+    // once fully expanded, release max-height to natural so a later collapse
+    // re-measures fresh (handles font-load / orientation while collapsed)
+    if (e.target === headerEl && e.propertyName === 'max-height' && !collapsed) {
+      headerEl.style.maxHeight = '';
+    }
+  };
+  headerEl.addEventListener('transitionend', onEnd);
+
+  const setCollapsed = (want) => {
+    if (want === collapsed) return;
+    if (want) {
+      const h = headerEl.offsetHeight || naturalH;      // capture current height
+      if (!h) return;                                   // never collapse an UNMEASURED header (stay expanded)
+      naturalH = h;
+      collapsed = true;
+      headerEl.style.maxHeight = naturalH + 'px';
+      void headerEl.offsetHeight;                       // reflow so 0 transitions FROM naturalH
+      headerEl.style.maxHeight = '0px';
+      headerEl.style.opacity = '0';
+      headerEl.setAttribute('inert', '');
+      headerEl.setAttribute('aria-hidden', 'true');
+      headerEl.dataset.collapsed = '';
+      setFocusable(false);
+    } else {
+      collapsed = false;
+      headerEl.style.maxHeight = naturalH + 'px';       // 0 → naturalH (transition)
+      headerEl.style.opacity = '';                      // release to CSS default (1); animates 0→1
+      if (rm) headerEl.style.maxHeight = '';            // instant → release immediately
+      headerEl.removeAttribute('inert');
+      headerEl.removeAttribute('aria-hidden');
+      delete headerEl.dataset.collapsed;
+      setFocusable(true);
+    }
+  };
+
+  const onScroll = () => {
+    const top = scrollEl.scrollTop;
+    const delta = top - lastTop;
+    lastTop = top;
+    if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
+    else if (delta > 0) setCollapsed(true);            // collapse on downward scroll (stays collapsed on up)
+  };
+
+  const onResize = () => {                    // re-measure while expanded (can't while collapsed)
+    if (!collapsed) { headerEl.style.maxHeight = ''; naturalH = headerEl.offsetHeight || naturalH; }
+  };
+
+  scrollEl.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onResize);
+
+  return function detachChatsCollapse() {
+    scrollEl.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onResize);
+    headerEl.removeEventListener('transitionend', onEnd);
+    headerEl.style.maxHeight = '';
+    headerEl.style.opacity = '';
+    headerEl.removeAttribute('inert');
+    headerEl.removeAttribute('aria-hidden');
+    delete headerEl.dataset.collapsed;
+    setFocusable(true);
+  };
+}
+
+/* ---- src/components/apps-icon.js ---- */
+/**
+ * c-app-icon — a mini-app's icon as a rounded-SQUARE tile (the square sibling of
+ * the round c-avatar). Shows the app image, or a deterministic gradient placeholder
+ * (first letter, or the apps glyph) when no icon is available. Reuses the avatar
+ * hue hash so a given app is always the same colour. Sizes: 48 (row) / 64 (card).
+ *
+ * createAppIcon({ src, name, size = 48 }) → span
+ */
+
+
+
+/** First letter for the placeholder (any script); null for empty/non-letter names. */
 function appInitial(name) {
   const s = String(name || '').trim();
   if (!/^\p{L}/u.test(s)) return null;
-  return [...s][0].toLocaleUpperCase();
+  return [...s][0].toLocaleUpperCase();   // [...s] not s[0] — first char may be astral-plane
 }
+
 function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   const el = document.createElement('span');
   el.className = 'c-app-icon';
   el.dataset.size = String(size);
   if (size !== 48 && size !== 64) { el.style.width = size + 'px'; el.style.height = size + 'px'; }
+
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-app-icon__img';
-    img.src = src; img.alt = '';
+    img.src = src;
+    img.alt = '';                          // decorative — the name label carries meaning
     el.append(img);
   } else {
     const hue = hashHue(name || 'app');
@@ -5060,21 +4774,40 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   }
   return el;
 }
+
+/* ---- src/components/apps-item.js ---- */
+/**
+ * c-app-item — one installed mini-app, in two renderings off ONE model (spec §2.1):
+ *   layout 'list' → a horizontal ROW (icon 48 · name+creator · ⋮)
+ *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
+ *
+ * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
+ *   .c-app-item__open  — the big tap target → onOpen(app)  (opens app details)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (Open/Details/Uninstall)
+ * Creator (publisher) is a §8 field — rendered only when provided.
+ *
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
+ */
+
+
+
 function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = {}, onOpen, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
   if (id != null) el.dataset.appId = String(id);
+
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'c-app-item__open';
   open.setAttribute('aria-label', name || (strings.app || 'App'));
   open.append(createAppIcon({ src: iconSrc, name, size: layout === 'grid' ? 64 : 48 }));
+
   const text = document.createElement('span');
   text.className = 'c-app-item__text';
   const nm = document.createElement('span');
   nm.className = 'c-app-item__name';
-  nm.textContent = name;
+  nm.textContent = name;                                 // user data → textContent (XSS-safe)
   text.append(nm);
   if (creator) {
     const cr = document.createElement('span');
@@ -5085,6 +4818,7 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   open.append(text);
   if (onOpen) open.addEventListener('click', () => onOpen({ id, name, creator }));
   el.append(open);
+
   const menuBtn = document.createElement('button');
   menuBtn.type = 'button';
   menuBtn.className = 'c-app-item__menu';
@@ -5092,13 +4826,32 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   menuBtn.append(icon('dots', { size: 24 }));
   if (onMenu) menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
   el.append(menuBtn);
+
   return el;
 }
+
+/* ---- src/components/apps-menu.js ---- */
+/**
+ * App ⋮ overflow menu (spec §2.1). Tapping an app's ⋮ opens a c-sheet (reusing the
+ * c-msgmenu styling, same infra as chats-row-menu): App details · Uninstall (confirm
+ * via c-modal). Launch is the row's primary tap now, so it's not repeated here.
+ * onAction(action, app) — 'details' | 'uninstall'.
+ *
+ * NB: uninstalling from the list menu assumes the bridge accepts uninstall-by-id from
+ * the apps list (today `ixian:uninstall` is details-page-scoped) — flagged for BE (§8).
+ *
+ * openAppMenu({ app, host, onAction, strings }) → sheet
+ */
+
+
+
+
 function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
+
   const act = (action) => { closeSheet(sheet); if (onAction) onAction(action, app); };
   const item = (glyph, label, onClick, destructive = false) => {
     const b = document.createElement('button');
@@ -5109,13 +4862,14 @@ function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
     b.addEventListener('click', onClick);
     list.append(b);
   };
-  item('player-play', strings.openApp || 'Open', () => act('open'));
+
   item('info-circle', strings.appDetails || 'App details', () => act('details'));
   item('trash', strings.uninstall || 'Uninstall', () => {
     closeSheet(sheet);
     openModal(createModal({
       title: strings.uninstallTitle || 'Uninstall app?',
-      body: (strings.uninstallBody || 'This removes {name} from your device.').split('{name}').join(app.name || strings.thisApp || 'this app'),
+      body: (strings.uninstallBody || 'This removes {name} from your device.')
+        .split('{name}').join(app.name || strings.thisApp || 'this app'),
       role: 'alertdialog', host,
       actions: [
         { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
@@ -5123,25 +4877,74 @@ function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
       ],
     }));
   }, true);
+
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
   return sheet;
 }
+
+/* ---- src/components/apps-shell.js ---- */
+/**
+ * c-apps-shell — Apps flow shell: model + render pipeline (spec: docs/apps-shell-spec.md).
+ * Holds the installed-apps MODEL and renders them as a list (rows) or grid (cards)
+ * per state.layout. Search filters the MODEL, not the DOM (#52). Reuses createAppItem.
+ * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
+ *
+ * Model:
+ *   app:   { id, name, icon, creator }
+ *   state: { apps:[], query:'', layout:'list'|'grid' }
+ * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange }
+ *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
+ *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
+ */
+
+
+
+/* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
+
+/** Substring match over name (+ creator). Empty/whitespace needle matches all. */
 function appMatchesQuery(app, needle) {
   const q = (needle || '').trim().toLocaleLowerCase();
   if (!q) return true;
   if ((app.name || '').toLocaleLowerCase().includes(q)) return true;
   return (app.creator || '').toLocaleLowerCase().includes(q);
 }
+
+/** Visible apps: source order (install order, as the bridge appends), query-filtered.
+ *  (Alphabetical sort is a logged enhancement — keeps parity with today's addApp.) */
 function orderedApps(state) {
-  return (state.apps || []).filter(Boolean).filter((a) => appMatchesQuery(a, state.query));
+  return (state.apps || [])
+    .filter(Boolean)                                   // harden against null entries from a bridge feed
+    .filter((a) => appMatchesQuery(a, state.query));
 }
+
+/** Recents model: `state.recents` is a most-recent-first list of app ids. Launching an
+ *  app moves it to the front (deduped, capped). Resolved back to live app objects for
+ *  render — uninstalled/unknown ids drop out automatically. In-memory (persistence §7). */
+function recordRecent(state, app) {
+  if (!app || app.id == null) return state;
+  const arr = (state.recents || []).filter((x) => x !== app.id);
+  arr.unshift(app.id);
+  state.recents = arr.slice(0, 12);
+  return state;
+}
+function orderedRecents(state, limit = 8) {
+  const byId = new Map((state.apps || []).filter(Boolean).map((a) => [a.id, a]));
+  return (state.recents || [])
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+/* ————————————————————————————— render pipeline ————————————————————————————— */
+
 function appsEmptyCopy(state, strings) {
   const q = (state.query || '').trim();
   if (q) return (strings.appsEmptySearch || 'No apps match “{q}”').split('{q}').join(q);
   return strings.appsEmptyAll || 'No mini apps yet';
 }
+
 function appsEmptyState(state, strings) {
   const el = document.createElement('div');
   el.className = 'c-apps-empty';
@@ -5149,16 +4952,20 @@ function appsEmptyState(state, strings) {
   el.textContent = appsEmptyCopy(state, strings);
   return el;
 }
+
+/** (Re)render the whole list from the model. `state.layout` picks row vs card and
+ *  sets `listEl[data-layout]` so the CSS switches between a column and a 2-up grid. */
 function renderAppsList(listEl, state, opts = {}) {
   const strings = opts.strings || {};
   const layout = state.layout === 'grid' ? 'grid' : 'list';
   listEl.dataset.layout = layout;
-  listEl.textContent = '';
+  listEl.textContent = '';                             // clear (detaches old rows + listeners for GC)
+
   const apps = orderedApps(state);
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onOpen ? () => opts.onOpen(a) : undefined,
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
@@ -5168,6 +4975,10 @@ function renderAppsList(listEl, state, opts = {}) {
   if (!apps.length) listEl.append(appsEmptyState(state, strings));
   return listEl;
 }
+
+/** Apply an app ⋮-menu action (spec §2.1). 'open' launches (opts.onLaunch), 'details'
+ *  opens the details view (opts.onOpen), 'uninstall' removes the app from the model,
+ *  fires opts.onUninstall (bridge intent → `ixian:uninstall`, mock now), re-renders. */
 function applyAppAction(listEl, state, app, action, opts = {}) {
   switch (action) {
     case 'open': if (opts.onLaunch) opts.onLaunch(app); return;
@@ -5175,27 +4986,101 @@ function applyAppAction(listEl, state, app, action, opts = {}) {
     case 'uninstall': state.apps = (state.apps || []).filter((a) => a !== app); break;
     default: return;
   }
-  if (opts.onUninstall) opts.onUninstall(app);
+  if (opts.onUninstall) opts.onUninstall(app);              // bridge intent (mock no-op)
   renderAppsList(listEl, state, opts);
   if (opts.onModelChange) opts.onModelChange(state);
 }
+
+/** Build the list container and render it. */
 function createAppsList(state, opts = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-list';
   renderAppsList(el, state, opts);
   return el;
 }
+
+/* update APIs — free functions (#44): mutate state, re-render, return listEl */
+
 function setAppsLayout(listEl, state, layout, opts) {
-  state.layout = layout === 'grid' ? 'grid' : 'list';
+  state.layout = layout === 'grid' ? 'grid' : 'list';   // in-memory preference (persistence deferred, §7)
   return renderAppsList(listEl, state, opts);
 }
+
 function setAppsQuery(listEl, state, query, opts) {
   state.query = query;
   return renderAppsList(listEl, state, opts);
 }
+
+/* ---- src/components/apps-recents.js ---- */
+/**
+ * c-apps-recents — a horizontal "Recently used" strip above the installed list.
+ * Reuses c-app-icon; each tile taps to LAUNCH (opts.onLaunch). Hidden when there are
+ * no recents. Model lives in apps-shell (recordRecent / orderedRecents), in-memory
+ * for now (persistence deferred, §7).
+ *
+ * createAppsRecents(state, opts) → section
+ * renderAppsRecents(el, state, opts) — free-fn updater (#44): rebuilds the strip.
+ */
+
+
+
+function renderAppsRecents(el, state, opts = {}) {
+  const strings = opts.strings || {};
+  el.textContent = '';
+  const recents = orderedRecents(state, 8);
+  if (!recents.length) { el.hidden = true; return el; }   // graceful — nothing launched yet
+  el.hidden = false;
+
+  const title = document.createElement('h2');
+  title.className = 'c-apps-recents__title';
+  title.textContent = strings.recentlyUsed || 'Recently used';
+  el.append(title);
+
+  const strip = document.createElement('div');
+  strip.className = 'c-apps-recents__strip';
+  strip.setAttribute('role', 'list');
+  for (const app of recents) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-apps-recents__item';
+    tile.setAttribute('role', 'listitem');
+    tile.setAttribute('aria-label', app.name || strings.app || 'App');
+    tile.append(createAppIcon({ src: app.icon, name: app.name, size: 56 }));
+    const nm = document.createElement('span');
+    nm.className = 'c-apps-recents__name';
+    nm.textContent = app.name || '';
+    tile.append(nm);
+    if (opts.onLaunch) tile.addEventListener('click', () => opts.onLaunch(app));
+    strip.append(tile);
+  }
+  el.append(strip);
+  return el;
+}
+
+function createAppsRecents(state, opts = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-apps-recents';
+  renderAppsRecents(el, state, opts);
+  return el;
+}
+
+/* ---- src/components/apps-header.js ---- */
+/**
+ * c-apps-header — the Apps screen header (spec §2.1): a search field, a self-syncing
+ * list⇄grid layout toggle, and the blue "Explore Spixi Mini Apps" discover banner.
+ * The toggle shows the layout you'll switch TO and reports the new layout via
+ * onToggleLayout(next); the demo wires that to setAppsLayout.
+ *
+ * createAppsHeader({ layout, strings, discover, onQuery, onToggleLayout, onExplore }) → div
+ */
+
+
+
 function createAppsHeader({ layout = 'list', strings = {}, discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-header';
+
+  /* search + layout toggle */
   const row = document.createElement('div');
   row.className = 'c-apps-header__row';
   row.append(createSearchField({
@@ -5203,6 +5088,7 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
     onInput: (v) => { if (onQuery) onQuery(v); },
     strings,
   }));
+
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'c-apps-header__toggle';
@@ -5210,10 +5096,12 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
   const applyToggle = (lay) => {
     current = lay;
     toggle.dataset.layout = lay;
-    const target = lay === 'list' ? 'grid' : 'list';
+    const target = lay === 'list' ? 'grid' : 'list';        // clicking switches to this
     toggle.textContent = '';
     toggle.append(icon(target === 'grid' ? 'apps' : 'menu-2', { size: 22 }));
-    toggle.setAttribute('aria-label', target === 'grid' ? (strings.viewAsGrid || 'View as grid') : (strings.viewAsList || 'View as list'));
+    toggle.setAttribute('aria-label', target === 'grid'
+      ? (strings.viewAsGrid || 'View as grid')
+      : (strings.viewAsList || 'View as list'));
   };
   applyToggle(current);
   toggle.addEventListener('click', () => {
@@ -5223,6 +5111,8 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
   });
   row.append(toggle);
   el.append(row);
+
+  /* explore / discover banner (parked until the feed lands, §2.4) */
   const banner = document.createElement('button');
   banner.type = 'button';
   banner.className = 'c-apps-explore';
@@ -5247,13 +5137,41 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
   banner.setAttribute('aria-label', bt1.textContent + ' ' + ctaText);
   banner.addEventListener('click', () => { if (onExplore) onExplore(); });
   el.append(banner);
+
   return el;
 }
-function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile } = {}) {
+
+/* ---- src/components/apps-add.js ---- */
+/**
+ * c-apps-add — the "Add mini app" surface (spec §2.2), now combined with Discover
+ * (Damir: "combine discover with adding custom link"). Three method TILES — Paste
+ * link (reveals an inline URL field → `ixian:fetch:url`), Scan QR (`ixian:quickscan`),
+ * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
+ * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
+ *
+ * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory }) → view
+ * Free fns (#44): setAddUrl(el, url) reveals + fills the field (QR → setScannedData);
+ *                 setAddError(el, msg) shows the inline invalid-URL error.
+ */
+
+
+
+
+function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
+
+  /* lead */
+  const lead = document.createElement('p');
+  lead.className = 'c-apps-add__lead';
+  lead.textContent = strings.addLead
+    || 'Add a mini app from a link, a QR code, or a file — or explore the directory below.';
+  el.append(lead);
+
+  /* URL field (revealed by the Paste-link tile / a QR scan) */
   const field = document.createElement('div');
   field.className = 'c-apps-add__field';
+  field.hidden = true;
   const label = document.createElement('label');
   label.className = 'c-apps-add__label';
   label.textContent = strings.appUrlLabel || 'Mini app link';
@@ -5269,38 +5187,105 @@ function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile } = {}) {
   err.hidden = true;
   err.setAttribute('role', 'alert');
   input.addEventListener('input', () => { err.hidden = true; input.removeAttribute('aria-invalid'); });
-  field.append(label, input, err);
-  el.append(field);
+  const getBtn = createButton({
+    label: strings.getFromUrl || 'Get app', type: 'fill', size: 56, width: 'full',
+    icon: icon('download', { size: 20 }),
+    onClick: () => { if (onFetchUrl) onFetchUrl(input.value.trim()); },
+  });
+  field.append(label, input, err, getBtn);
+
+  /* method tiles */
   const methods = document.createElement('div');
   methods.className = 'c-apps-add__methods';
+  methods.setAttribute('role', 'group');
+  methods.setAttribute('aria-label', strings.addMethods || 'Ways to add a mini app');
+  const method = (glyph, text, onClick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-apps-add__method';
+    const ic = document.createElement('span');
+    ic.className = 'c-apps-add__method-icon';
+    ic.append(icon(glyph, { size: 24 }));
+    const t = document.createElement('span');
+    t.className = 'c-apps-add__method-label';
+    t.textContent = text;
+    b.append(ic, t);
+    b.addEventListener('click', onClick);
+    return b;
+  };
   methods.append(
-    createButton({ label: strings.getFromUrl || 'Get from link', type: 'fill', size: 56, width: 'full', icon: icon('download', { size: 20 }), onClick: () => { if (onFetchUrl) onFetchUrl(input.value.trim()); } }),
-    createButton({ label: strings.scanQr || 'Scan QR code', type: 'outline', size: 56, width: 'full', icon: icon('scan', { size: 20 }), onClick: () => { if (onScan) onScan(); } }),
-    createButton({ label: strings.pickFile || 'Choose a file', type: 'outline', size: 56, width: 'full', icon: icon('file-isr', { size: 20 }), onClick: () => { if (onPickFile) onPickFile(); } }),
+    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
+    method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
-  el.append(methods);
+  el.append(methods, field);
+
+  /* trust banner */
   const info = document.createElement('div');
   info.className = 'c-apps-add__info';
   info.append(icon('info-circle', { size: 20 }));
   const itext = document.createElement('span');
-  itext.textContent = strings.miniAppInfo || 'Mini apps are lightweight web apps that run securely inside Spixi. Only add apps from sources you trust.';
+  itext.textContent = strings.miniAppInfo
+    || 'Mini apps are lightweight web apps that run securely inside Spixi. Only add apps from sources you trust.';
   info.append(itext);
   el.append(info);
+
+  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands) */
+  const disc = document.createElement('section');
+  disc.className = 'c-apps-add__discover';
+  const dTitle = document.createElement('h2');
+  dTitle.className = 'c-apps-add__sectiontitle';
+  dTitle.textContent = strings.discover || 'Discover';
+  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory }));
+  el.append(disc);
+
   return el;
 }
+
+/** Reveal + populate the URL field (used by the QR-scan callback → setScannedData). */
 function setAddUrl(el, url) {
   const input = el && el.querySelector('.c-apps-add__input');
-  if (input) input.value = url == null ? '' : String(url);
+  const field = el && el.querySelector('.c-apps-add__field');
+  if (field) field.hidden = false;
+  if (input) { input.value = url == null ? '' : String(url); input.focus(); }
 }
+
+/** Show an inline invalid-URL error (the shell's `showUrlError` hook). */
 function setAddError(el, msg) {
   if (!el) return;
+  const field = el.querySelector('.c-apps-add__field');
   const errEl = el.querySelector('.c-apps-add__error');
   const input = el.querySelector('.c-apps-add__input');
+  if (field) field.hidden = false;
   if (!errEl) return;
   errEl.textContent = msg || 'That doesn’t look like a valid mini-app link.';
   errEl.hidden = false;
   if (input) input.setAttribute('aria-invalid', 'true');
 }
+
+/* ---- src/components/apps-details.js ---- */
+/**
+ * c-app-details — mini-app details / installer (spec §2.3; premiumised per Damir 2026-07-04).
+ * Header (icon, name, publisher, verified badge via c-badge),
+ * description (clamped + Read more), capability CHIPS (reuse c-chip readonly),
+ * an Advanced disclosure for the dev install-URL, a "runs securely" trust line,
+ * and the actions. Install confirm = a **c-modal** (permission chips tap-to-explain +
+ * source); on confirm the Install button **morphs inline** (loading → success check →
+ * re-render as installed) — no separate installing/success modals. Uninstall = confirm modal.
+ *
+ * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
+ *                    onReport, onInstalled, onCopyUrl }) → view
+ *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
+ */
+
+
+
+
+
+
+
+
+
 const APP_CAP_LABELS = {
   MultiUser: 'Multi-user',
   Authentication: 'Sign in as you',
@@ -5315,6 +5300,7 @@ const APP_CAP_EXPLAIN = {
   RegisteredNamesManagement: 'Can read and manage your registered Ixian names.',
   Storage: 'Can save data on your device so it remembers things between sessions.',
 };
+
 function normalizeCaps(caps) {
   let arr = [];
   if (Array.isArray(caps)) arr = caps.slice();
@@ -5324,16 +5310,114 @@ function normalizeCaps(caps) {
 }
 function capLabel(c, strings) { return strings['cap_' + c] || APP_CAP_LABELS[c] || c; }
 function capExplain(c, strings) { return strings['capx_' + c] || APP_CAP_EXPLAIN[c] || ''; }
+
+/** Hero cover (App-Store style). app.cover → the artwork; otherwise the app's own
+ *  icon blurred behind its deterministic hue gradient (reuses the c-app-icon hue
+ *  recipe so an app's hero always matches its tile). A bottom scrim keeps the
+ *  overlapping icon + name legible over bright covers. */
+function appHero(app) {
+  const hero = document.createElement('div');
+  hero.className = 'c-app-hero';
+  if (app.cover) {
+    const art = document.createElement('img');
+    art.className = 'c-app-hero__art';
+    art.src = app.cover; art.alt = '';
+    hero.append(art);
+  } else {
+    const hue = hashHue(app.name || 'app');
+    hero.dataset.placeholder = '';
+    hero.style.setProperty('--ai-h1', hue);
+    hero.style.setProperty('--ai-h2', (hue + 40) % 360);
+    if (app.icon) {                              // blurred copy of the icon adds depth over the gradient
+      const art = document.createElement('img');
+      art.className = 'c-app-hero__art';
+      art.dataset.blur = '';
+      art.src = app.icon; art.alt = '';
+      hero.append(art);
+    }
+  }
+  const scrim = document.createElement('div');
+  scrim.className = 'c-app-hero__scrim';
+  hero.append(scrim);
+  return hero;
+}
+
+/** Titled section wrapper (reused by permissions / screenshots / related). */
+function detailsSection(title) {
+  const sec = document.createElement('section');
+  sec.className = 'c-app-details__section';
+  if (title) {
+    const h = document.createElement('h2');
+    h.className = 'c-app-details__sectiontitle';
+    h.textContent = title;
+    sec.append(h);
+  }
+  return sec;
+}
+
+/** Screenshot gallery — horizontal scroll-snap strip (rendered only when the app
+ *  ships screenshots; graceful omit otherwise, pending the BE preview payload). */
+function screenshotStrip(shots, strings) {
+  const sec = detailsSection(strings.preview || 'Preview');
+  const strip = document.createElement('div');
+  strip.className = 'c-app-shots';
+  strip.setAttribute('role', 'list');
+  strip.tabIndex = 0;
+  strip.setAttribute('aria-label', strings.preview || 'Preview');
+  for (const src of shots) {
+    const img = document.createElement('img');
+    img.className = 'c-app-shots__item';
+    img.setAttribute('role', 'listitem');
+    img.loading = 'lazy';
+    img.src = src; img.alt = '';
+    strip.append(img);
+  }
+  sec.append(strip);
+  return sec;
+}
+
+/** "More mini apps" — compact tappable tiles (reuse c-app-icon). Each opens that
+ *  app's details via onOpen. Rendered only when the app carries related entries. */
+function relatedStrip(related, strings, onOpen) {
+  const sec = detailsSection(strings.moreApps || 'More mini apps');
+  const strip = document.createElement('div');
+  strip.className = 'c-app-related';
+  strip.setAttribute('role', 'list');
+  for (const rel of related) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-app-related__item';
+    tile.setAttribute('role', 'listitem');
+    tile.append(createAppIcon({ src: rel.icon, name: rel.name, size: 56 }));
+    const nm = document.createElement('span');
+    nm.className = 'c-app-related__name';
+    nm.textContent = rel.name || '';
+    tile.append(nm);
+    if (onOpen) tile.addEventListener('click', () => onOpen(rel));
+    strip.append(tile);
+  }
+  sec.append(strip);
+  return sec;
+}
+
+/** Capability chips (reuse c-chip readonly). explain:true → tappable chips that reveal
+ *  a plain-language line beneath (the install-confirm "tap to explain"). */
 function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'c-app-caps';
   const row = document.createElement('div');
   row.className = 'c-app-caps__row';
   let line;
+  // explain → tappable chips that fill a plain-language line. reserve (modal only) pins
+  // the line's height so revealing text doesn't resize the dialog (flicker). In the details
+  // page there's no modal to flicker, so the line just grows.
   if (explain) { line = document.createElement('p'); line.className = 'c-app-caps__explain'; if (reserve) line.dataset.reserve = ''; }
   for (const c of caps) {
     if (explain) {
-      row.append(createChip({ label: capLabel(c, strings), icon: 'shield-lock', size: 'small', onClick: () => { line.textContent = capExplain(c, strings); } }));
+      row.append(createChip({
+        label: capLabel(c, strings), icon: 'shield-lock', size: 'small',
+        onClick: () => { line.textContent = capExplain(c, strings); },
+      }));
     } else {
       row.append(createChip({ label: capLabel(c, strings), icon: 'shield-lock', size: 'small', readonly: true }));
     }
@@ -5342,59 +5426,17 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   if (explain) wrap.append(line);
   return wrap;
 }
-function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) {
-  const content = document.createElement('div');
-  content.className = 'c-app-install';
-  if (caps.length) {
-    const lead = document.createElement('p');
-    lead.className = 'c-app-install__lead';
-    lead.textContent = strings.installLead || 'This app can do the following — tap any to learn more:';
-    content.append(lead, capChips(caps, strings, { explain: true, reserve: true }));
-  }
-  if (app.url) {
-    const src = document.createElement('p');
-    src.className = 'c-app-install__src';
-    src.textContent = (strings.source || 'Source: ') + app.url;
-    content.append(src);
-  }
-  openModal(createModal({
-    title: (strings.installTitle || 'Install {name}?').split('{name}').join(app.name || 'this app'),
-    content, role: 'dialog', host,
-    actions: [
-      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-      { label: strings.install || 'Install', type: 'fill', onClick: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) },
-    ],
-  }));
-}
-function runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) {
-  if (!installBtn) { if (onInstall) onInstall(app, { done: () => {}, fail: () => {} }); return; }
-  setLoading(installBtn, true);
-  const done = () => {
-    setLoading(installBtn, false);
-    setSuccess(installBtn, { label: strings.installed || 'Installed' });
-    if (onInstalled) setTimeout(() => onInstalled(app), 1200);
-  };
-  const fail = () => { setLoading(installBtn, false); showAppInstallFailed({ host, strings }); };
-  if (onInstall) onInstall(app, { done, fail }); else done();
-}
-function openUninstallConfirm({ app, host, strings, onUninstall }) {
-  openModal(createModal({
-    title: strings.uninstallTitle || 'Uninstall app?',
-    body: (strings.uninstallBody || 'This removes {name} from your device.').split('{name}').join(app.name || 'this app'),
-    role: 'alertdialog', host,
-    actions: [
-      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-      { label: strings.uninstall || 'Uninstall', type: 'fill', intent: 'destructive', onClick: () => { if (onUninstall) onUninstall(app); } },
-    ],
-  }));
-}
-function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl } = {}) {
+
+function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
+
+  /* hero cover + overlapping header */
+  el.append(appHero(app));
   const header = document.createElement('div');
   header.className = 'c-app-details__header';
-  header.append(createAppIcon({ src: app.icon, name: app.name, size: 64 }));
+  header.append(createAppIcon({ src: app.icon, name: app.name, size: 72 }));
   const htext = document.createElement('div');
   htext.className = 'c-app-details__heading';
   const name = document.createElement('h1');
@@ -5403,7 +5445,7 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
   htext.append(name);
   const pubrow = document.createElement('div');
   pubrow.className = 'c-app-details__pubrow';
-  const publisher = app.publisher || app.creator;
+  const publisher = app.publisher || app.creator;   // list row calls it "creator"; bridge init calls it "publisher"
   if (publisher) {
     const pub = document.createElement('span');
     pub.className = 'c-app-details__publisher';
@@ -5414,6 +5456,8 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
   htext.append(pubrow);
   header.append(htext);
   el.append(header);
+
+  /* description (clamped + Read more) */
   if (app.description) {
     const desc = document.createElement('p');
     desc.className = 'c-app-details__desc';
@@ -5428,25 +5472,36 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
       if (clamped) delete desc.dataset.clamped; else desc.dataset.clamped = '';
       more.textContent = clamped ? (strings.readLess || 'Read less') : (strings.readMore || 'Read more');
     });
+    // only show "Read more" when the text actually clamps (overflows the line-clamp).
+    // measured after layout — the view isn't in the DOM at build time.
     more.hidden = true;
     const revealIfClamped = () => { more.hidden = !(desc.scrollHeight > desc.clientHeight + 1); };
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { if (desc.clientHeight > 0) { revealIfClamped(); ro.disconnect(); } });
+      const ro = new ResizeObserver(() => { ro.disconnect(); if (desc.clientHeight > 0) revealIfClamped(); });
       ro.observe(desc);
     } else if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(revealIfClamped);
     }
     el.append(desc, more);
   }
+
+  /* screenshots (graceful — only when the app ships previews) */
+  if (Array.isArray(app.screenshots) && app.screenshots.length) {
+    el.append(screenshotStrip(app.screenshots, strings));
+  }
+
+  /* capability chips (display) */
   if (caps.length) {
     const sec = document.createElement('section');
     sec.className = 'c-app-details__section';
     const h = document.createElement('h2');
     h.className = 'c-app-details__sectiontitle';
     h.textContent = strings.permissions || 'Permissions';
-    sec.append(h, capChips(caps, strings, { explain: true }));
+    sec.append(h, capChips(caps, strings, { explain: true }));   // tap a chip → plain-language line (grows; no modal to flicker)
     el.append(sec);
   }
+
+  /* meta rows */
   const meta = document.createElement('div');
   meta.className = 'c-app-details__meta';
   const metaRow = (label, value) => {
@@ -5462,9 +5517,12 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
     r.append(l, v);
     meta.append(r);
   };
+  metaRow(strings.developer || 'Developer', publisher);
   metaRow(strings.version || 'Version', app.version);
   metaRow(strings.size || 'Size', app.size);
   if (meta.childNodes.length) el.append(meta);
+
+  /* trust line */
   const trust = document.createElement('p');
   trust.className = 'c-app-details__trust';
   trust.append(icon('shield-lock', { size: 16 }));
@@ -5472,6 +5530,13 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
   tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi — nothing leaves your device without your permission.';
   trust.append(tt);
   el.append(trust);
+
+  /* more mini apps (graceful — only when related entries are provided) */
+  if (Array.isArray(app.related) && app.related.length) {
+    el.append(relatedStrip(app.related, strings, onOpen));
+  }
+
+  /* Advanced disclosure — dev install URL + copy + app id */
   if (app.url || app.id) {
     const adv = document.createElement('details');
     adv.className = 'c-app-details__advanced';
@@ -5505,20 +5570,79 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
     }
     el.append(adv);
   }
+
+  /* actions */
   const actions = document.createElement('div');
   actions.className = 'c-app-details__actions';
   if (app.installed) {
     actions.append(
-      createButton({ label: strings.openApp || 'Open', type: 'fill', size: 56, width: 'full', icon: icon('player-play', { size: 20 }), onClick: () => { if (onLaunch) onLaunch(app); } }),
-      createButton({ label: strings.uninstall || 'Uninstall', type: 'outline', size: 56, width: 'full', intent: 'destructive', icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }),
+      createButton({ label: strings.openApp || 'Open', type: 'fill', size: 56, width: 'full',
+        icon: icon('player-play', { size: 20 }), onClick: () => { if (onLaunch) onLaunch(app); } }),
+      createButton({ label: strings.uninstall || 'Uninstall', type: 'outline', size: 56, width: 'full', intent: 'destructive',
+        icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }),
     );
   } else {
-    const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full', icon: icon('download', { size: 20 }), onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
+    const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full',
+      icon: icon('download', { size: 20 }),
+      onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
     actions.append(installBtn);
   }
   el.append(actions);
   return el;
 }
+
+/* —— install confirm = c-modal (rich content slot) → inline button morph —— */
+function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) {
+  const content = document.createElement('div');
+  content.className = 'c-app-install';
+  if (caps.length) {
+    const lead = document.createElement('p');
+    lead.className = 'c-app-install__lead';
+    lead.textContent = strings.installLead || 'This app can do the following — tap any to learn more:';
+    content.append(lead, capChips(caps, strings, { explain: true, reserve: true }));
+  }
+  if (app.url) {
+    const src = document.createElement('p');
+    src.className = 'c-app-install__src';
+    src.textContent = (strings.source || 'Source: ') + app.url;
+    content.append(src);
+  }
+  openModal(createModal({
+    title: (strings.installTitle || 'Install {name}?').split('{name}').join(app.name || 'this app'),
+    content, role: 'dialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+      { label: strings.install || 'Install', type: 'fill', onClick: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) },
+    ],
+  }));
+}
+
+/** Inline install morph: button → loading → success check → onInstalled (re-render installed). */
+function runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) {
+  if (!installBtn) { if (onInstall) onInstall(app, { done: () => {}, fail: () => {} }); return; }
+  setLoading(installBtn, true);
+  const done = () => {
+    setLoading(installBtn, false);
+    setSuccess(installBtn, { label: strings.installed || 'Installed' });
+    if (onInstalled) setTimeout(() => onInstalled(app), 1200);   // re-render as installed after the check
+  };
+  const fail = () => { setLoading(installBtn, false); showAppInstallFailed({ host, strings }); };
+  if (onInstall) onInstall(app, { done, fail }); else done();
+}
+
+function openUninstallConfirm({ app, host, strings, onUninstall }) {
+  openModal(createModal({
+    title: strings.uninstallTitle || 'Uninstall app?',
+    body: (strings.uninstallBody || 'This removes {name} from your device.').split('{name}').join(app.name || 'this app'),
+    role: 'alertdialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+      { label: strings.uninstall || 'Uninstall', type: 'fill', intent: 'destructive', onClick: () => { if (onUninstall) onUninstall(app); } },
+    ],
+  }));
+}
+
+/* —— bridge-driven progress states (kept for the C# showInstalling/…Failed hooks) —— */
 function showAppInstalling({ host, strings = {}, name = '' } = {}) {
   const m = createModal({
     title: strings.installing || 'Installing…',
@@ -5546,11 +5670,26 @@ function showAppRemoved({ host, strings = {} } = {}) {
     host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
   }));
 }
+
+/* ---- src/components/apps-discover.js ---- */
+/**
+ * c-apps-discover — the Discover view (spec §2.4), PARKED until the apps.spixi.io
+ * directory feed is wired (Damir to source). Renders the category chip row and,
+ * while parked, a "coming soon" placeholder; when `ready` flips true, it exposes a
+ * grid container that the feed populates (icon · name · creator cards → details).
+ *
+ * createAppsDiscover({ strings, categories, ready, onCategory }) → view
+ */
+
+
+
 const APP_CATEGORIES = ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'];
+
 function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready = false, onCategory } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-discover';
   if (!ready) el.dataset.parked = '';
+
   const cats = document.createElement('div');
   cats.className = 'c-apps-discover__cats';
   cats.setAttribute('role', 'group');
@@ -5559,8 +5698,9 @@ function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready =
     cats.append(createChip({ label: cat, selected: i === 0, onClick: () => { if (onCategory) onCategory(cat); }, strings }));
   });
   el.append(cats);
+
   if (ready) {
-    const grid = document.createElement('div');
+    const grid = document.createElement('div');       // fed by the directory once wired
     grid.className = 'c-apps-list';
     grid.dataset.layout = 'grid';
     el.append(grid);
@@ -5570,13 +5710,13 @@ function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready =
     soon.setAttribute('role', 'note');
     soon.append(icon('rocket', { size: 32 }));
     const t = document.createElement('p');
-    t.textContent = strings.discoverSoon || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
+    t.textContent = strings.discoverSoon
+      || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
     soon.append(t);
     el.append(soon);
   }
   return el;
 }
-/* ---- end apps shell modules ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, wrapChatRowSwipe: wrapChatRowSwipe, closeChatRowSwipe: closeChatRowSwipe, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover };
+  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover };
 })();

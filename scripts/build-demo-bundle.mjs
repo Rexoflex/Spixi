@@ -58,6 +58,7 @@ const FILES = [
   'src/components/apps-item.js',
   'src/components/apps-menu.js',
   'src/components/apps-shell.js',
+  'src/components/apps-recents.js',
   'src/components/apps-header.js',
   'src/components/apps-add.js',
   'src/components/apps-details.js',

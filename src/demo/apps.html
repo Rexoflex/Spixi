@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="../styles/components/apps-icon.css">
 <link rel="stylesheet" href="../styles/components/apps-item.css">
 <link rel="stylesheet" href="../styles/components/apps-shell.css">
+<link rel="stylesheet" href="../styles/components/apps-recents.css">
 <link rel="stylesheet" href="../styles/components/apps-header.css">
 <link rel="stylesheet" href="../styles/components/apps-add.css">
 <link rel="stylesheet" href="../styles/components/apps-details.css">
@@ -77,9 +78,10 @@
 <script>
   const {
     createTopbar, createBottomNav, createButton,
-    createAppsList, renderAppsList, setAppsQuery, setAppsLayout,
+    createAppsList, renderAppsList, setAppsQuery, setAppsLayout, recordRecent,
+    createAppsRecents, renderAppsRecents,
     createAppsHeader, createAppsAdd, setAddUrl, setAddError, createAppDetails,
-    createAppsDiscover, showAppInstalling, showAppInstalled, showAppRemoved,
+    showAppInstalling, showAppInstalled, showAppRemoved,
     closeModal, showToast,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
@@ -116,11 +118,15 @@
   /* —— mock installed apps (mirrors bridge addApp; creator = §8 publisher) —— */
   const APPS = [
     { id: 'tictactoe', name: 'TicTacToe', creator: 'IXI Labs', installed: true, verified: true,
-      description: 'Play and win a game of Tic-Tac-Toe with a friend, right inside your chat.',
-      version: '1.2.0', size: '240 KB', url: 'https://apps.spixi.io/tictactoe/appinfo.spixi', capabilities: ['MultiUser'] },
+      description: 'Play and win a game of Tic-Tac-Toe with a friend, right inside your chat. Take turns, track your score across rounds, and challenge anyone in your contacts to a quick match — no sign-up, no downloads, it just runs inside Spixi.',
+      version: '1.2.0', size: '240 KB', url: 'https://apps.spixi.io/tictactoe/appinfo.spixi', capabilities: ['MultiUser'],
+      screenshots: ['https://picsum.photos/seed/ttt1/360/640', 'https://picsum.photos/seed/ttt2/360/640', 'https://picsum.photos/seed/ttt3/360/640'],
+      related: [{ id: 'starwind', name: 'Starwind Arena' }, { id: 'sushi', name: 'Sushi Master' }, { id: 'mistral', name: 'Mistral Roads' }] },
     { id: 'starwind', name: 'Ixian Starwind Arena', creator: 'IXI Labs', installed: true, verified: true,
       description: 'A fast-paced multiplayer space arena. Team up and battle across the galaxy.',
-      version: '0.9.1', size: '1.4 MB', url: 'https://apps.spixi.io/starwind/appinfo.spixi', capabilities: ['MultiUser', 'Storage'] },
+      version: '0.9.1', size: '1.4 MB', url: 'https://apps.spixi.io/starwind/appinfo.spixi', capabilities: ['MultiUser', 'Storage'],
+      cover: 'https://picsum.photos/seed/starwindcover/900/400',
+      screenshots: ['https://picsum.photos/seed/sw1/360/640', 'https://picsum.photos/seed/sw2/360/640'] },
     { id: 'mistral', name: 'Mistral Roads', creator: 'Jean Pierre B', installed: true,
       description: 'Plan road trips across Europe with friends.',
       version: '2.0', size: '820 KB', url: 'https://apps.spixi.io/mistral/appinfo.spixi', capabilities: ['Storage'] },
@@ -141,30 +147,39 @@
       version: '1.1', size: '95 KB', url: 'https://apps.spixi.io/smoothie/appinfo.spixi', capabilities: [] },
   ];
 
-  const state = { apps: APPS.slice(), query: '', layout: 'list' };
+  const state = { apps: APPS.slice(), query: '', layout: 'list', recents: ['tictactoe', 'sunny', 'mistral'] };
   const strings = {};
+
+  // primary tap launches the app + records it in Recently used (re-renders the strip)
+  function launchApp(app) {
+    recordRecent(state, app);
+    renderAppsRecents(recentsEl, state, opts);
+    toast('Launch ' + app.name + ' — demo only');
+  }
 
   const opts = {
     strings, host: phone,
-    onOpen: (app) => showDetails(app),                 // tap → details
-    onLaunch: (app) => toast('Launch ' + app.name + ' — demo only'),
+    onLaunch: (app) => launchApp(app),                 // tap → LAUNCH
+    onOpen: (app) => showDetails(app),                 // ⋮ → App details
     onUninstall: (app) => toast(app.name + ' uninstalled'),
     onModelChange: () => {},
   };
 
   const list = createAppsList(state, opts);
+  const recentsEl = createAppsRecents(state, opts);
   const header = createAppsHeader({
-    layout: state.layout, strings, discover: false,   // discover parked until the feed lands
+    layout: state.layout, strings, discover: false,   // discover now lives in the Add surface
     exploreImage: '../assets/images/discover-apps.svg',
     onQuery: (q) => setAppsQuery(list, state, q, opts),
     onToggleLayout: (next) => setAppsLayout(list, state, next, opts),
-    onExplore: () => showDiscover(),
+    onExplore: () => showAdd(),                        // Explore → Add & Discover surface
   });
 
   /* —— view switching —— */
   function showInstalled() {
     topbar.replaceChildren(createTopbar({ variant: 'root', title: 'Apps' }));
-    content.replaceChildren(header, list);
+    renderAppsRecents(recentsEl, state, opts);
+    content.replaceChildren(header, recentsEl, list);
     document.getElementById('fab').style.display = '';
   }
   function pushTopbar(title) {
@@ -177,7 +192,8 @@
     document.getElementById('fab').style.display = 'none';
     content.replaceChildren(createAppDetails({
       app, strings, host: phone,
-      onLaunch: (a) => toast('Launch ' + a.name + ' — demo only'),
+      onLaunch: (a) => launchApp(a),
+      onOpen: (a) => showDetails(a),               // related tiles → that app's details
       onCopyUrl: () => {},
       // mock bridge install: run the "install", then ctrl.done() drives the button morph
       onInstall: (a, ctrl) => {
@@ -192,15 +208,12 @@
       onUninstall: (a) => runUninstall(a),
     }));
   }
-  function showDiscover() {
-    pushTopbar('Discover');
-    content.replaceChildren(createAppsDiscover({ strings, ready: false, onCategory: (c) => toast(c) }));
-  }
   let addEl = null;
   function showAdd() {
     pushTopbar('Add mini app');
     addEl = createAppsAdd({
       strings,
+      onCategory: (c) => toast(c),
       onFetchUrl: (url) => {
         if (!url) { setAddError(addEl); return; }
         showDetails({ id: 'fetched', name: 'Fetched Mini App', creator: 'Unknown publisher', installed: false,

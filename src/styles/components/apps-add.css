@@ -1,0 +1,57 @@
+/* c-apps-add — add-mini-app view (spec §2.2). */
+
+.c-apps-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-16);
+}
+
+/* —— URL field —— */
+.c-apps-add__field { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-apps-add__label {
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-apps-add__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+}
+.c-apps-add__input::placeholder { color: var(--text-neutral-02); }
+.c-apps-add__input:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-apps-add__input[aria-invalid] { border-color: var(--text-error); }
+.c-apps-add__error {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+
+/* —— methods —— */
+.c-apps-add__methods { display: flex; flex-direction: column; gap: var(--spacing-12); }
+
+/* —— info banner —— */
+.c-apps-add__info {
+  display: flex;
+  gap: var(--spacing-12);
+  align-items: flex-start;
+  padding: var(--spacing-16);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-apps-add__info svg { flex: none; color: var(--icon-neutral-02); }

@@ -1,0 +1,68 @@
+/* c-apps-header — search + list⇄grid toggle + Explore-Discover banner (spec §2.1). */
+
+.c-apps-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-4);
+}
+
+/* —— search + toggle row —— */
+.c-apps-header__row { display: flex; align-items: center; gap: var(--spacing-8); }
+.c-apps-header__row .c-search-field { flex: 1; min-width: 0; }
+
+.c-apps-header__toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--icon-neutral-01);
+  cursor: pointer;
+}
+@media (hover: hover) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
+.c-apps-header__toggle:active { background: var(--surface-interactive-pressed); }
+
+/* —— Explore / Discover banner —— */
+.c-apps-explore {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+  padding: var(--spacing-12);                /* Figma: spacing-12 all sides */
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  /* Damir: identical in BOTH themes → pin to the theme-STABLE primitives (--primary-600
+     + --neutral-10), not the semantic action tokens which flip to a lighter blue +
+     near-black ink in dark. Same rich light-mode banner everywhere. */
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
+  color: var(--neutral-10);
+}
+.c-apps-explore__text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.c-apps-explore__title { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); opacity: 0.85; }
+.c-apps-explore__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.c-apps-explore__cta svg { flex: none; }
+.c-apps-explore__illo {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 132px;                             /* taller than the banner → overflows top/bottom, clipped */
+  width: auto;
+  max-width: 48%;
+  object-fit: contain;
+  pointer-events: none;
+}

@@ -1,0 +1,29 @@
+/* c-apps-discover — Discover view (spec §2.4), parked until the feed is wired. */
+
+.c-apps-discover { display: flex; flex-direction: column; gap: var(--spacing-12); }
+
+.c-apps-discover__cats {
+  display: flex;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.c-apps-discover__cats::-webkit-scrollbar { display: none; }
+
+.c-apps-discover__soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  text-align: center;
+  padding: var(--spacing-32) var(--spacing-24);
+  color: var(--text-neutral-02);
+}
+.c-apps-discover__soon svg { color: var(--icon-neutral-03); }
+.c-apps-discover__soon p {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  max-width: 32ch;
+}

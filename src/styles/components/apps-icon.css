@@ -1,0 +1,44 @@
+/* c-app-icon — rounded-square app-image tile (square sibling of c-avatar).
+   Same deterministic gradient placeholder recipe as the avatar (--ai-h1/h2 from
+   JS, S/L themed here so it tracks light/dark). Sizes 48/64 are component-intrinsic
+   tile dimensions (sanctioned px — apps use a distinct scale from avatars). */
+
+:root {
+  --app-icon-grad-s1: 58%; --app-icon-grad-l1: 48%;
+  --app-icon-grad-s2: 55%; --app-icon-grad-l2: 34%;
+}
+[data-theme="dark"] {
+  --app-icon-grad-s1: 52%; --app-icon-grad-l1: 62%;
+  --app-icon-grad-s2: 48%; --app-icon-grad-l2: 48%;
+}
+
+.c-app-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px; height: 48px;                 /* component-intrinsic tile size */
+  border-radius: var(--radius-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--text-neutral-inverse-01);     /* initial/glyph over the gradient */
+  overflow: hidden;
+}
+.c-app-icon[data-size="64"] { width: 64px; height: 64px; border-radius: var(--radius-16); }
+
+.c-app-icon[data-placeholder] {
+  background-image: linear-gradient(135deg,
+    hsl(var(--ai-h1, 0), var(--app-icon-grad-s1), var(--app-icon-grad-l1)),
+    hsl(var(--ai-h2, 40), var(--app-icon-grad-s2), var(--app-icon-grad-l2)));
+}
+
+.c-app-icon__img { width: 100%; height: 100%; object-fit: cover; }
+
+.c-app-icon__initial {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: 18px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.c-app-icon[data-size="64"] .c-app-icon__initial { font-size: 24px; }

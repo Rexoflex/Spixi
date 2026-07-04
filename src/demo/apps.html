@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Apps shell — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/apps-icon.css">
+<link rel="stylesheet" href="../styles/components/apps-item.css">
+<link rel="stylesheet" href="../styles/components/apps-shell.css">
+<link rel="stylesheet" href="../styles/components/apps-header.css">
+<link rel="stylesheet" href="../styles/components/apps-add.css">
+<link rel="stylesheet" href="../styles/components/apps-details.css">
+<link rel="stylesheet" href="../styles/components/apps-discover.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+  }
+  .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+  .fab {
+    position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+    width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
+    background: var(--surface-action-default); color: var(--text-neutral-on-action);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--elevation-2); z-index: var(--z-10);
+  }
+  @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
+  .fab:active { background: var(--surface-action-pressed); }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Apps shell</h1>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="apps-topbar"></div>
+        <div class="content" id="apps-content"></div>
+        <button class="fab" id="fab" aria-label="Add mini app"></button>
+        <div id="apps-nav"></div>
+      </div>
+      <div class="demo-caption">Apps shell — installed list ⇄ grid toggle · search · Explore banner (parked) · per-app ⋮ menu · add + details/installer</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createTopbar, createBottomNav, createButton,
+    createAppsList, renderAppsList, setAppsQuery, setAppsLayout,
+    createAppsHeader, createAppsAdd, setAddUrl, setAddError, createAppDetails,
+    createAppsDiscover, showAppInstalling, showAppInstalled, showAppRemoved,
+    closeModal, showToast,
+  } = window.Spixi;
+  const icon = window.SpixiIcons.icon;
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+  const themeBtn = createButton({
+    label: document.documentElement.dataset.theme === 'dark' ? 'Toggle light' : 'Toggle dark',
+    type: 'outline', size: 32,
+    onClick: () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme === 'dark';
+      root.classList.add('theme-switching');
+      root.dataset.theme = dark ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+      themeBtn.querySelector('.c-button__label').textContent = dark ? 'Toggle dark' : 'Toggle light';
+    },
+  });
+  document.getElementById('theme-slot').append(themeBtn);
+
+  const phone = document.querySelector('.demo-phone');
+  const topbar = document.getElementById('apps-topbar');
+  const content = document.getElementById('apps-content');
+  const toast = (text, tone) => showToast({ text, tone: tone || 'info', host: phone });
+
+  document.getElementById('fab').append(icon('circle-plus'));
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  document.getElementById('apps-nav').append(createBottomNav({ items: NAV_ITEMS, active: 'apps' }));
+
+  /* —— mock installed apps (mirrors bridge addApp; creator = §8 publisher) —— */
+  const APPS = [
+    { id: 'tictactoe', name: 'TicTacToe', creator: 'IXI Labs', installed: true, verified: true,
+      description: 'Play and win a game of Tic-Tac-Toe with a friend, right inside your chat.',
+      version: '1.2.0', size: '240 KB', url: 'https://apps.spixi.io/tictactoe/appinfo.spixi', capabilities: ['MultiUser'] },
+    { id: 'starwind', name: 'Ixian Starwind Arena', creator: 'IXI Labs', installed: true, verified: true,
+      description: 'A fast-paced multiplayer space arena. Team up and battle across the galaxy.',
+      version: '0.9.1', size: '1.4 MB', url: 'https://apps.spixi.io/starwind/appinfo.spixi', capabilities: ['MultiUser', 'Storage'] },
+    { id: 'mistral', name: 'Mistral Roads', creator: 'Jean Pierre B', installed: true,
+      description: 'Plan road trips across Europe with friends.',
+      version: '2.0', size: '820 KB', url: 'https://apps.spixi.io/mistral/appinfo.spixi', capabilities: ['Storage'] },
+    { id: 'sushi', name: 'Sushi Master', creator: 'Hiro Nakamura', installed: true,
+      description: 'Learn to roll the perfect sushi, step by step.',
+      version: '1.0', size: '640 KB', url: 'https://apps.spixi.io/sushi/appinfo.spixi', capabilities: [] },
+    { id: 'sunny', name: 'Is it sunny — Weather app', creator: 'Spoony', installed: true,
+      description: 'A tiny, friendly weather companion.',
+      version: '3.1', size: '180 KB', url: 'https://apps.spixi.io/sunny/appinfo.spixi', capabilities: ['Storage'] },
+    { id: 'vintage', name: 'Vintage shoes store', creator: 'Vinted', installed: true,
+      description: 'Buy and sell vintage sneakers with in-chat payments.',
+      version: '1.5', size: '2.1 MB', url: 'https://apps.spixi.io/vintage/appinfo.spixi', capabilities: ['TransactionSigning', 'Storage'] },
+    { id: 'pizza', name: 'Pizzeria Scanner', creator: 'IXI Labs', installed: true,
+      description: 'Scan a menu and order in seconds.',
+      version: '0.4', size: '310 KB', url: 'https://apps.spixi.io/pizza/appinfo.spixi', capabilities: [] },
+    { id: 'smoothie', name: 'Smoothie recipes', creator: 'IXI Labs', installed: true,
+      description: 'Fresh smoothie ideas, blended daily.',
+      version: '1.1', size: '95 KB', url: 'https://apps.spixi.io/smoothie/appinfo.spixi', capabilities: [] },
+  ];
+
+  const state = { apps: APPS.slice(), query: '', layout: 'list' };
+  const strings = {};
+
+  const opts = {
+    strings, host: phone,
+    onOpen: (app) => showDetails(app),                 // tap → details
+    onLaunch: (app) => toast('Launch ' + app.name + ' — demo only'),
+    onUninstall: (app) => toast(app.name + ' uninstalled'),
+    onModelChange: () => {},
+  };
+
+  const list = createAppsList(state, opts);
+  const header = createAppsHeader({
+    layout: state.layout, strings, discover: false,   // discover parked until the feed lands
+    exploreImage: '../assets/images/discover-apps.svg',
+    onQuery: (q) => setAppsQuery(list, state, q, opts),
+    onToggleLayout: (next) => setAppsLayout(list, state, next, opts),
+    onExplore: () => showDiscover(),
+  });
+
+  /* —— view switching —— */
+  function showInstalled() {
+    topbar.replaceChildren(createTopbar({ variant: 'root', title: 'Apps' }));
+    content.replaceChildren(header, list);
+    document.getElementById('fab').style.display = '';
+  }
+  function pushTopbar(title) {
+    topbar.replaceChildren(createTopbar({ variant: 'view', title, onBack: showInstalled }));
+    document.getElementById('fab').style.display = 'none';
+  }
+  function showDetails(app) {
+    // back-only bar: the app name lives in the details hero right below — no vertical repeat (Damir)
+    topbar.replaceChildren(createTopbar({ variant: 'view', title: '', onBack: showInstalled }));
+    document.getElementById('fab').style.display = 'none';
+    content.replaceChildren(createAppDetails({
+      app, strings, host: phone,
+      onLaunch: (a) => toast('Launch ' + a.name + ' — demo only'),
+      onCopyUrl: () => {},
+      // mock bridge install: run the "install", then ctrl.done() drives the button morph
+      onInstall: (a, ctrl) => {
+        setTimeout(() => {
+          a.installed = true;
+          if (!state.apps.some((x) => x.id === a.id)) state.apps = [a, ...state.apps];
+          renderAppsList(list, state, opts);
+          ctrl.done();
+        }, 1400);
+      },
+      onInstalled: (a) => showDetails(a),          // re-render details as installed (Open)
+      onUninstall: (a) => runUninstall(a),
+    }));
+  }
+  function showDiscover() {
+    pushTopbar('Discover');
+    content.replaceChildren(createAppsDiscover({ strings, ready: false, onCategory: (c) => toast(c) }));
+  }
+  let addEl = null;
+  function showAdd() {
+    pushTopbar('Add mini app');
+    addEl = createAppsAdd({
+      strings,
+      onFetchUrl: (url) => {
+        if (!url) { setAddError(addEl); return; }
+        showDetails({ id: 'fetched', name: 'Fetched Mini App', creator: 'Unknown publisher', installed: false,
+          description: 'A mini app fetched from a link. Review its permissions before installing.',
+          version: '1.0', size: '—', url, capabilities: ['Storage'] });
+      },
+      onScan: () => { setAddUrl(addEl, 'https://apps.spixi.io/tictactoe/appinfo.spixi'); toast('Scanned — link filled in'); },
+      onPickFile: () => showDetails({ id: 'filed', name: 'Local Mini App', creator: 'From file', installed: false,
+        description: 'A mini app loaded from a file. Review its permissions before installing.',
+        version: '1.0', size: '512 KB', capabilities: ['MultiUser', 'Storage'] }),
+    });
+    content.replaceChildren(addEl);
+  }
+
+  /* —— uninstall flow —— */
+  function runUninstall(app) {
+    state.apps = state.apps.filter((a) => a.id !== app.id);
+    renderAppsList(list, state, opts);
+    showInstalled();
+    showAppRemoved({ host: phone, strings });
+  }
+
+  document.getElementById('fab').addEventListener('click', showAdd);
+
+  showInstalled();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+/* c-apps-list — installed apps container. A column of rows (list) or a 2-up grid
+   of cards (grid), switched by [data-layout] set from state.layout (spec §2.1). */
+
+.c-apps-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-8) var(--spacing-12);
+}
+
+.c-apps-list[data-layout="grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));   /* minmax(0,…) lets tracks shrink below content → no overflow */
+  gap: var(--spacing-12);
+  align-content: start;
+}
+
+.c-apps-empty {
+  padding: var(--spacing-32) var(--spacing-24);
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-apps-list[data-layout="grid"] .c-apps-empty { grid-column: 1 / -1; }   /* empty spans both columns */

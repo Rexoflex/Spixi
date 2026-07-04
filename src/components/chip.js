@@ -5,7 +5,9 @@
  * (no nested button); the X glyph is decorative.
  *
  * createChip({ label, size = 'large', selected = false, icon = null,
- *              dismissible = false, disabled = false, onClick, strings })
+ *              dismissible = false, disabled = false, readonly = false, onClick, strings })
+ *   readonly — a non-interactive DISPLAY chip (e.g. capability/permission tags): a
+ *   <span>, no toggle/pressed/hover, no hit-area expansion. Variant of the same chip.
  * Updates via free function (#44): setChipSelected(el, selected)
  */
 import { icon } from './icons.js';
@@ -15,13 +17,14 @@ const CHIP_DISMISS_SIZE = { large: 16, small: 14 }; // trailing (Figma)
 
 export function createChip({
   label = '', size = 'large', selected = false, icon: leading = null,
-  dismissible = false, disabled = false, onClick, strings = {},
+  dismissible = false, disabled = false, readonly = false, onClick, strings = {},
 } = {}) {
-  const el = document.createElement('button');
-  el.type = 'button';
+  const el = document.createElement(readonly ? 'span' : 'button');
+  if (!readonly) el.type = 'button';
   el.className = 'c-chip';
   el.dataset.size = size;
-  el.disabled = disabled;
+  if (readonly) el.dataset.readonly = '';
+  else el.disabled = disabled;
 
   if (leading) {
     const glyph = icon(leading, { size: CHIP_ICON_SIZE[size] || 18 });
@@ -33,6 +36,8 @@ export function createChip({
   text.className = 'c-chip__label';
   text.textContent = label;
   el.append(text);
+
+  if (readonly) return el;                          // display-only: no toggle/dismiss/click wiring
 
   if (dismissible) {
     // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)

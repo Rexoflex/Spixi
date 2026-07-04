@@ -1,0 +1,145 @@
+/* c-app-details — mini-app details / installer (spec §2.3, premiumised). */
+
+.c-app-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16);
+}
+
+/* —— header —— */
+.c-app-details__header { display: flex; gap: var(--spacing-16); align-items: center; }
+.c-app-details__heading { min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-app-details__name {
+  margin: 0;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-xs);      /* smaller — doesn't fight the topbar title (Damir) */
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-app-details__pubrow { display: flex; align-items: center; gap: var(--spacing-8); flex-wrap: wrap; }
+.c-app-details__publisher { font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+
+/* —— description (clamp + Read more) —— */
+.c-app-details__desc {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-01);
+}
+.c-app-details__desc[data-clamped] {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.c-app-details__more {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text-action-default);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+/* —— sections + capability chips (chips are c-chip readonly) —— */
+.c-app-details__section { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-app-details__sectiontitle {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-app-caps { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-app-caps__row { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+.c-app-caps__explain {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+}
+/* modal only: reserve ~2 lines so tapping a chip doesn't resize the dialog (no flicker).
+   In the details page the line just grows — the page scrolls, nothing to flicker. */
+.c-app-caps__explain[data-reserve] { min-height: 2.8em; }
+
+/* —— meta rows —— */
+.c-app-details__meta { display: flex; flex-direction: column; }
+.c-app-details__metarow {
+  display: flex; justify-content: space-between; gap: var(--spacing-16);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-02);
+}
+.c-app-details__metarow:last-child { border-block-end: 0; }
+.c-app-details__metalabel { color: var(--text-neutral-02); font-size: var(--font-size-body-md); flex: none; }
+.c-app-details__metavalue {
+  color: var(--text-neutral-01); font-size: var(--font-size-body-md);
+  text-align: end; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* —— trust line —— */
+.c-app-details__trust {
+  display: flex; align-items: flex-start; gap: var(--spacing-8);
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-app-details__trust svg { flex: none; color: var(--icon-success); }
+
+/* —— Advanced disclosure (dev URL + id) —— */
+.c-app-details__advanced { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-app-details__advanced > summary {
+  cursor: pointer;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  padding-block: var(--spacing-4);
+}
+.c-app-details__url {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-16) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-app-details__urlvalue {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-app-details__copy {
+  flex: none; width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full); background: transparent;
+  color: var(--icon-neutral-02); cursor: pointer;
+}
+@media (hover: hover) { .c-app-details__copy:hover { background: var(--surface-interactive-hover); } }
+.c-app-details__copy:active { background: var(--surface-interactive-pressed); }
+
+/* —— actions —— */
+.c-app-details__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  margin-block-start: var(--spacing-8);
+  padding-block: var(--spacing-12);
+  background: var(--surface-screen);
+  border-block-start: var(--outline-width-1) solid var(--outline-neutral-02);
+}
+
+/* —— install-confirm modal content —— */
+.c-app-install { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-app-install__lead {
+  margin: 0; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);              /* muted subtext above the chips (Damir) */
+}
+.c-app-install__src {
+  margin: 0; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); word-break: break-all;
+}

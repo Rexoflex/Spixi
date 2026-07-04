@@ -690,13 +690,14 @@ const CHIP_DISMISS_SIZE = { large: 16, small: 14 }; // trailing (Figma)
 
 function createChip({
   label = '', size = 'large', selected = false, icon: leading = null,
-  dismissible = false, disabled = false, onClick, strings = {},
+  dismissible = false, disabled = false, readonly = false, onClick, strings = {},
 } = {}) {
-  const el = document.createElement('button');
-  el.type = 'button';
+  const el = document.createElement(readonly ? 'span' : 'button');
+  if (!readonly) el.type = 'button';
   el.className = 'c-chip';
   el.dataset.size = size;
-  el.disabled = disabled;
+  if (readonly) el.dataset.readonly = '';
+  else el.disabled = disabled;
 
   if (leading) {
     const glyph = icon(leading, { size: CHIP_ICON_SIZE[size] || 18 });
@@ -708,6 +709,8 @@ function createChip({
   text.className = 'c-chip__label';
   text.textContent = label;
   el.append(text);
+
+  if (readonly) return el;
 
   if (dismissible) {
     // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)
@@ -1198,7 +1201,7 @@ function closeSheet(el) { dismissOverlay(el); }
 
 
 function createModal({
-  title = '', body = '', actions = [], role = 'dialog', host,
+  title = '', body = '', content = null, actions = [], role = 'dialog', host,
   lightDismiss = false, escDismiss = true, onDismiss, strings = {},
 } = {}) {
   const el = document.createElement('section');
@@ -1229,6 +1232,8 @@ function createModal({
     el.setAttribute('aria-describedby', b.id);
     el.append(b);
   }
+
+  if (content) el.append(content);
 
   if (actions.length) {
     const row = document.createElement('div');
@@ -5021,5 +5026,557 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
 }
 /* ---- end chats-shell modules ---- */
 
-  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, wrapChatRowSwipe: wrapChatRowSwipe, closeChatRowSwipe: closeChatRowSwipe };
+/* ---- apps shell modules ---- */
+function appInitial(name) {
+  const s = String(name || '').trim();
+  if (!/^\p{L}/u.test(s)) return null;
+  return [...s][0].toLocaleUpperCase();
+}
+function createAppIcon({ src = null, name = '', size = 48 } = {}) {
+  const el = document.createElement('span');
+  el.className = 'c-app-icon';
+  el.dataset.size = String(size);
+  if (size !== 48 && size !== 64) { el.style.width = size + 'px'; el.style.height = size + 'px'; }
+  if (src) {
+    const img = document.createElement('img');
+    img.className = 'c-app-icon__img';
+    img.src = src; img.alt = '';
+    el.append(img);
+  } else {
+    const hue = hashHue(name || 'app');
+    el.dataset.placeholder = '';
+    el.style.setProperty('--ai-h1', hue);
+    el.style.setProperty('--ai-h2', (hue + 40) % 360);
+    const letter = appInitial(name);
+    if (letter) {
+      const t = document.createElement('span');
+      t.className = 'c-app-icon__initial';
+      t.setAttribute('aria-hidden', 'true');
+      t.textContent = letter;
+      el.append(t);
+    } else {
+      el.append(icon('apps', { size: Math.round(size * 0.5) }));
+    }
+  }
+  return el;
+}
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = {}, onOpen, onMenu } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-app-item';
+  el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
+  if (id != null) el.dataset.appId = String(id);
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'c-app-item__open';
+  open.setAttribute('aria-label', name || (strings.app || 'App'));
+  open.append(createAppIcon({ src: iconSrc, name, size: layout === 'grid' ? 64 : 48 }));
+  const text = document.createElement('span');
+  text.className = 'c-app-item__text';
+  const nm = document.createElement('span');
+  nm.className = 'c-app-item__name';
+  nm.textContent = name;
+  text.append(nm);
+  if (creator) {
+    const cr = document.createElement('span');
+    cr.className = 'c-app-item__creator';
+    cr.textContent = creator;
+    text.append(cr);
+  }
+  open.append(text);
+  if (onOpen) open.addEventListener('click', () => onOpen({ id, name, creator }));
+  el.append(open);
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'c-app-item__menu';
+  menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+  menuBtn.append(icon('dots', { size: 24 }));
+  if (onMenu) menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
+  el.append(menuBtn);
+  return el;
+}
+function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-msgmenu';
+  const list = document.createElement('div');
+  list.className = 'c-msgmenu__list';
+  const act = (action) => { closeSheet(sheet); if (onAction) onAction(action, app); };
+  const item = (glyph, label, onClick, destructive = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__item';
+    if (destructive) b.dataset.destructive = '';
+    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.addEventListener('click', onClick);
+    list.append(b);
+  };
+  item('player-play', strings.openApp || 'Open', () => act('open'));
+  item('info-circle', strings.appDetails || 'App details', () => act('details'));
+  item('trash', strings.uninstall || 'Uninstall', () => {
+    closeSheet(sheet);
+    openModal(createModal({
+      title: strings.uninstallTitle || 'Uninstall app?',
+      body: (strings.uninstallBody || 'This removes {name} from your device.').split('{name}').join(app.name || strings.thisApp || 'this app'),
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.uninstall || 'Uninstall', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('uninstall', app); } },
+      ],
+    }));
+  }, true);
+  content.append(list);
+  const sheet = createSheet({ content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+function appMatchesQuery(app, needle) {
+  const q = (needle || '').trim().toLocaleLowerCase();
+  if (!q) return true;
+  if ((app.name || '').toLocaleLowerCase().includes(q)) return true;
+  return (app.creator || '').toLocaleLowerCase().includes(q);
+}
+function orderedApps(state) {
+  return (state.apps || []).filter(Boolean).filter((a) => appMatchesQuery(a, state.query));
+}
+function appsEmptyCopy(state, strings) {
+  const q = (state.query || '').trim();
+  if (q) return (strings.appsEmptySearch || 'No apps match “{q}”').split('{q}').join(q);
+  return strings.appsEmptyAll || 'No mini apps yet';
+}
+function appsEmptyState(state, strings) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-empty';
+  el.setAttribute('role', 'note');
+  el.textContent = appsEmptyCopy(state, strings);
+  return el;
+}
+function renderAppsList(listEl, state, opts = {}) {
+  const strings = opts.strings || {};
+  const layout = state.layout === 'grid' ? 'grid' : 'list';
+  listEl.dataset.layout = layout;
+  listEl.textContent = '';
+  const apps = orderedApps(state);
+  for (const a of apps) {
+    listEl.append(createAppItem({
+      ...a, layout, strings,
+      onOpen: opts.onOpen ? () => opts.onOpen(a) : undefined,
+      onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
+        app: a, host: opts.host, strings,
+        onAction: (action) => applyAppAction(listEl, state, a, action, opts),
+      }),
+    }));
+  }
+  if (!apps.length) listEl.append(appsEmptyState(state, strings));
+  return listEl;
+}
+function applyAppAction(listEl, state, app, action, opts = {}) {
+  switch (action) {
+    case 'open': if (opts.onLaunch) opts.onLaunch(app); return;
+    case 'details': if (opts.onOpen) opts.onOpen(app); return;
+    case 'uninstall': state.apps = (state.apps || []).filter((a) => a !== app); break;
+    default: return;
+  }
+  if (opts.onUninstall) opts.onUninstall(app);
+  renderAppsList(listEl, state, opts);
+  if (opts.onModelChange) opts.onModelChange(state);
+}
+function createAppsList(state, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-list';
+  renderAppsList(el, state, opts);
+  return el;
+}
+function setAppsLayout(listEl, state, layout, opts) {
+  state.layout = layout === 'grid' ? 'grid' : 'list';
+  return renderAppsList(listEl, state, opts);
+}
+function setAppsQuery(listEl, state, query, opts) {
+  state.query = query;
+  return renderAppsList(listEl, state, opts);
+}
+function createAppsHeader({ layout = 'list', strings = {}, discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-header';
+  const row = document.createElement('div');
+  row.className = 'c-apps-header__row';
+  row.append(createSearchField({
+    placeholder: strings.searchApps || 'Find installed apps',
+    onInput: (v) => { if (onQuery) onQuery(v); },
+    strings,
+  }));
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'c-apps-header__toggle';
+  let current = layout === 'grid' ? 'grid' : 'list';
+  const applyToggle = (lay) => {
+    current = lay;
+    toggle.dataset.layout = lay;
+    const target = lay === 'list' ? 'grid' : 'list';
+    toggle.textContent = '';
+    toggle.append(icon(target === 'grid' ? 'apps' : 'menu-2', { size: 22 }));
+    toggle.setAttribute('aria-label', target === 'grid' ? (strings.viewAsGrid || 'View as grid') : (strings.viewAsList || 'View as list'));
+  };
+  applyToggle(current);
+  toggle.addEventListener('click', () => {
+    const next = current === 'grid' ? 'list' : 'grid';
+    applyToggle(next);
+    if (onToggleLayout) onToggleLayout(next);
+  });
+  row.append(toggle);
+  el.append(row);
+  const banner = document.createElement('button');
+  banner.type = 'button';
+  banner.className = 'c-apps-explore';
+  const btext = document.createElement('span');
+  btext.className = 'c-apps-explore__text';
+  const bt1 = document.createElement('span');
+  bt1.className = 'c-apps-explore__title';
+  bt1.textContent = strings.exploreTitle || 'Not sure where to start?';
+  const bt2 = document.createElement('span');
+  bt2.className = 'c-apps-explore__cta';
+  const ctaText = strings.exploreCta || 'Explore Spixi Mini Apps';
+  bt2.append(document.createTextNode(ctaText), icon('arrow-right', { size: 18 }));
+  btext.append(bt1, bt2);
+  banner.append(btext);
+  if (exploreImage) {
+    const illo = document.createElement('img');
+    illo.className = 'c-apps-explore__illo';
+    illo.src = exploreImage;
+    illo.alt = '';
+    banner.append(illo);
+  }
+  banner.setAttribute('aria-label', bt1.textContent + ' ' + ctaText);
+  banner.addEventListener('click', () => { if (onExplore) onExplore(); });
+  el.append(banner);
+  return el;
+}
+function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-add';
+  const field = document.createElement('div');
+  field.className = 'c-apps-add__field';
+  const label = document.createElement('label');
+  label.className = 'c-apps-add__label';
+  label.textContent = strings.appUrlLabel || 'Mini app link';
+  label.setAttribute('for', 'apps-add-url');
+  const input = document.createElement('input');
+  input.type = 'url';
+  input.id = 'apps-add-url';
+  input.className = 'c-apps-add__input';
+  input.placeholder = strings.appUrlPlaceholder || 'https://…';
+  input.setAttribute('aria-label', strings.appUrlLabel || 'Mini app link');
+  const err = document.createElement('span');
+  err.className = 'c-apps-add__error';
+  err.hidden = true;
+  err.setAttribute('role', 'alert');
+  input.addEventListener('input', () => { err.hidden = true; input.removeAttribute('aria-invalid'); });
+  field.append(label, input, err);
+  el.append(field);
+  const methods = document.createElement('div');
+  methods.className = 'c-apps-add__methods';
+  methods.append(
+    createButton({ label: strings.getFromUrl || 'Get from link', type: 'fill', size: 56, width: 'full', icon: icon('download', { size: 20 }), onClick: () => { if (onFetchUrl) onFetchUrl(input.value.trim()); } }),
+    createButton({ label: strings.scanQr || 'Scan QR code', type: 'outline', size: 56, width: 'full', icon: icon('scan', { size: 20 }), onClick: () => { if (onScan) onScan(); } }),
+    createButton({ label: strings.pickFile || 'Choose a file', type: 'outline', size: 56, width: 'full', icon: icon('file-isr', { size: 20 }), onClick: () => { if (onPickFile) onPickFile(); } }),
+  );
+  el.append(methods);
+  const info = document.createElement('div');
+  info.className = 'c-apps-add__info';
+  info.append(icon('info-circle', { size: 20 }));
+  const itext = document.createElement('span');
+  itext.textContent = strings.miniAppInfo || 'Mini apps are lightweight web apps that run securely inside Spixi. Only add apps from sources you trust.';
+  info.append(itext);
+  el.append(info);
+  return el;
+}
+function setAddUrl(el, url) {
+  const input = el && el.querySelector('.c-apps-add__input');
+  if (input) input.value = url == null ? '' : String(url);
+}
+function setAddError(el, msg) {
+  if (!el) return;
+  const errEl = el.querySelector('.c-apps-add__error');
+  const input = el.querySelector('.c-apps-add__input');
+  if (!errEl) return;
+  errEl.textContent = msg || 'That doesn’t look like a valid mini-app link.';
+  errEl.hidden = false;
+  if (input) input.setAttribute('aria-invalid', 'true');
+}
+const APP_CAP_LABELS = {
+  MultiUser: 'Multi-user',
+  Authentication: 'Sign in as you',
+  TransactionSigning: 'Sign transactions',
+  RegisteredNamesManagement: 'Manage names',
+  Storage: 'Local storage',
+};
+const APP_CAP_EXPLAIN = {
+  MultiUser: 'Runs shared sessions so you can use this app together with friends.',
+  Authentication: 'Can prove who you are to this app using your Spixi identity — without a password.',
+  TransactionSigning: 'Can ask you to approve IXI payments. You always confirm each one yourself.',
+  RegisteredNamesManagement: 'Can read and manage your registered Ixian names.',
+  Storage: 'Can save data on your device so it remembers things between sessions.',
+};
+function normalizeCaps(caps) {
+  let arr = [];
+  if (Array.isArray(caps)) arr = caps.slice();
+  else if (typeof caps === 'string') arr = caps.split(',').map((s) => s.trim());
+  else if (caps && typeof caps === 'object') arr = Object.keys(caps).filter((k) => caps[k]);
+  return arr.filter((c) => c && c !== 'SingleUser');
+}
+function capLabel(c, strings) { return strings['cap_' + c] || APP_CAP_LABELS[c] || c; }
+function capExplain(c, strings) { return strings['capx_' + c] || APP_CAP_EXPLAIN[c] || ''; }
+function capChips(caps, strings, { explain = false, reserve = false } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-app-caps';
+  const row = document.createElement('div');
+  row.className = 'c-app-caps__row';
+  let line;
+  if (explain) { line = document.createElement('p'); line.className = 'c-app-caps__explain'; if (reserve) line.dataset.reserve = ''; }
+  for (const c of caps) {
+    if (explain) {
+      row.append(createChip({ label: capLabel(c, strings), icon: 'shield-lock', size: 'small', onClick: () => { line.textContent = capExplain(c, strings); } }));
+    } else {
+      row.append(createChip({ label: capLabel(c, strings), icon: 'shield-lock', size: 'small', readonly: true }));
+    }
+  }
+  wrap.append(row);
+  if (explain) wrap.append(line);
+  return wrap;
+}
+function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) {
+  const content = document.createElement('div');
+  content.className = 'c-app-install';
+  if (caps.length) {
+    const lead = document.createElement('p');
+    lead.className = 'c-app-install__lead';
+    lead.textContent = strings.installLead || 'This app can do the following — tap any to learn more:';
+    content.append(lead, capChips(caps, strings, { explain: true, reserve: true }));
+  }
+  if (app.url) {
+    const src = document.createElement('p');
+    src.className = 'c-app-install__src';
+    src.textContent = (strings.source || 'Source: ') + app.url;
+    content.append(src);
+  }
+  openModal(createModal({
+    title: (strings.installTitle || 'Install {name}?').split('{name}').join(app.name || 'this app'),
+    content, role: 'dialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+      { label: strings.install || 'Install', type: 'fill', onClick: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) },
+    ],
+  }));
+}
+function runInstall({ app, host, strings, onInstall, installBtn, onInstalled }) {
+  if (!installBtn) { if (onInstall) onInstall(app, { done: () => {}, fail: () => {} }); return; }
+  setLoading(installBtn, true);
+  const done = () => {
+    setLoading(installBtn, false);
+    setSuccess(installBtn, { label: strings.installed || 'Installed' });
+    if (onInstalled) setTimeout(() => onInstalled(app), 1200);
+  };
+  const fail = () => { setLoading(installBtn, false); showAppInstallFailed({ host, strings }); };
+  if (onInstall) onInstall(app, { done, fail }); else done();
+}
+function openUninstallConfirm({ app, host, strings, onUninstall }) {
+  openModal(createModal({
+    title: strings.uninstallTitle || 'Uninstall app?',
+    body: (strings.uninstallBody || 'This removes {name} from your device.').split('{name}').join(app.name || 'this app'),
+    role: 'alertdialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+      { label: strings.uninstall || 'Uninstall', type: 'fill', intent: 'destructive', onClick: () => { if (onUninstall) onUninstall(app); } },
+    ],
+  }));
+}
+function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-app-details';
+  const caps = normalizeCaps(app.capabilities);
+  const header = document.createElement('div');
+  header.className = 'c-app-details__header';
+  header.append(createAppIcon({ src: app.icon, name: app.name, size: 64 }));
+  const htext = document.createElement('div');
+  htext.className = 'c-app-details__heading';
+  const name = document.createElement('h1');
+  name.className = 'c-app-details__name';
+  name.textContent = app.name || '';
+  htext.append(name);
+  const pubrow = document.createElement('div');
+  pubrow.className = 'c-app-details__pubrow';
+  const publisher = app.publisher || app.creator;
+  if (publisher) {
+    const pub = document.createElement('span');
+    pub.className = 'c-app-details__publisher';
+    pub.textContent = publisher;
+    pubrow.append(pub);
+  }
+  if (app.verified) pubrow.append(createBadge({ label: strings.verified || 'Verified', type: 'accent', icon: 'checks' }));
+  htext.append(pubrow);
+  header.append(htext);
+  el.append(header);
+  if (app.description) {
+    const desc = document.createElement('p');
+    desc.className = 'c-app-details__desc';
+    desc.dataset.clamped = '';
+    desc.textContent = app.description;
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'c-app-details__more';
+    more.textContent = strings.readMore || 'Read more';
+    more.addEventListener('click', () => {
+      const clamped = desc.dataset.clamped !== undefined;
+      if (clamped) delete desc.dataset.clamped; else desc.dataset.clamped = '';
+      more.textContent = clamped ? (strings.readLess || 'Read less') : (strings.readMore || 'Read more');
+    });
+    more.hidden = true;
+    const revealIfClamped = () => { more.hidden = !(desc.scrollHeight > desc.clientHeight + 1); };
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { if (desc.clientHeight > 0) { revealIfClamped(); ro.disconnect(); } });
+      ro.observe(desc);
+    } else if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(revealIfClamped);
+    }
+    el.append(desc, more);
+  }
+  if (caps.length) {
+    const sec = document.createElement('section');
+    sec.className = 'c-app-details__section';
+    const h = document.createElement('h2');
+    h.className = 'c-app-details__sectiontitle';
+    h.textContent = strings.permissions || 'Permissions';
+    sec.append(h, capChips(caps, strings, { explain: true }));
+    el.append(sec);
+  }
+  const meta = document.createElement('div');
+  meta.className = 'c-app-details__meta';
+  const metaRow = (label, value) => {
+    if (value == null || value === '') return;
+    const r = document.createElement('div');
+    r.className = 'c-app-details__metarow';
+    const l = document.createElement('span');
+    l.className = 'c-app-details__metalabel';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'c-app-details__metavalue';
+    v.textContent = String(value);
+    r.append(l, v);
+    meta.append(r);
+  };
+  metaRow(strings.version || 'Version', app.version);
+  metaRow(strings.size || 'Size', app.size);
+  if (meta.childNodes.length) el.append(meta);
+  const trust = document.createElement('p');
+  trust.className = 'c-app-details__trust';
+  trust.append(icon('shield-lock', { size: 16 }));
+  const tt = document.createElement('span');
+  tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi — nothing leaves your device without your permission.';
+  trust.append(tt);
+  el.append(trust);
+  if (app.url || app.id) {
+    const adv = document.createElement('details');
+    adv.className = 'c-app-details__advanced';
+    const sum = document.createElement('summary');
+    sum.textContent = strings.advanced || 'Advanced';
+    adv.append(sum);
+    if (app.url) {
+      const urlRow = document.createElement('div');
+      urlRow.className = 'c-app-details__url';
+      const u = document.createElement('span');
+      u.className = 'c-app-details__urlvalue';
+      u.textContent = app.url;
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'c-app-details__copy';
+      copyBtn.setAttribute('aria-label', strings.copyUrl || 'Copy link');
+      copyBtn.append(icon('copy', { size: 18 }));
+      copyBtn.addEventListener('click', () => {
+        if (onCopyUrl) onCopyUrl(app.url);
+        showToast({ text: strings.copied || 'Link copied', tone: 'success', host });
+      });
+      urlRow.append(u, copyBtn);
+      adv.append(urlRow);
+    }
+    if (app.id) {
+      const idRow = document.createElement('div');
+      idRow.className = 'c-app-details__metarow';
+      const l = document.createElement('span'); l.className = 'c-app-details__metalabel'; l.textContent = strings.appId || 'App ID';
+      const v = document.createElement('span'); v.className = 'c-app-details__metavalue'; v.textContent = String(app.id);
+      idRow.append(l, v); adv.append(idRow);
+    }
+    el.append(adv);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'c-app-details__actions';
+  if (app.installed) {
+    actions.append(
+      createButton({ label: strings.openApp || 'Open', type: 'fill', size: 56, width: 'full', icon: icon('player-play', { size: 20 }), onClick: () => { if (onLaunch) onLaunch(app); } }),
+      createButton({ label: strings.uninstall || 'Uninstall', type: 'outline', size: 56, width: 'full', intent: 'destructive', icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }),
+    );
+  } else {
+    const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full', icon: icon('download', { size: 20 }), onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
+    actions.append(installBtn);
+  }
+  el.append(actions);
+  return el;
+}
+function showAppInstalling({ host, strings = {}, name = '' } = {}) {
+  const m = createModal({
+    title: strings.installing || 'Installing…',
+    body: (strings.installingBody || 'Installing {name}…').split('{name}').join(name || 'the app'),
+    host, escDismiss: false,
+  });
+  openModal(m);
+  return m;
+}
+function showAppInstalled({ host, strings = {}, onView } = {}) {
+  openModal(createModal({
+    title: strings.installedTitle || 'Installed', body: strings.installedBody || 'The mini app is ready to use.',
+    host, actions: [{ label: strings.viewApp || 'View app', type: 'fill', autofocus: true, onClick: () => { if (onView) onView(); } }],
+  }));
+}
+function showAppInstallFailed({ host, strings = {} } = {}) {
+  openModal(createModal({
+    title: strings.failedTitle || 'Install failed', body: strings.failedBody || 'Something went wrong installing this app. Please try again.',
+    role: 'alertdialog', host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
+  }));
+}
+function showAppRemoved({ host, strings = {} } = {}) {
+  openModal(createModal({
+    title: strings.removedTitle || 'App removed', body: strings.removedBody || 'The mini app was uninstalled.',
+    host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
+  }));
+}
+const APP_CATEGORIES = ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'];
+function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready = false, onCategory } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-discover';
+  if (!ready) el.dataset.parked = '';
+  const cats = document.createElement('div');
+  cats.className = 'c-apps-discover__cats';
+  cats.setAttribute('role', 'group');
+  cats.setAttribute('aria-label', strings.categories || 'Categories');
+  categories.filter(Boolean).forEach((cat, i) => {
+    cats.append(createChip({ label: cat, selected: i === 0, onClick: () => { if (onCategory) onCategory(cat); }, strings }));
+  });
+  el.append(cats);
+  if (ready) {
+    const grid = document.createElement('div');
+    grid.className = 'c-apps-list';
+    grid.dataset.layout = 'grid';
+    el.append(grid);
+  } else {
+    const soon = document.createElement('div');
+    soon.className = 'c-apps-discover__soon';
+    soon.setAttribute('role', 'note');
+    soon.append(icon('rocket', { size: 32 }));
+    const t = document.createElement('p');
+    t.textContent = strings.discoverSoon || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
+    soon.append(t);
+    el.append(soon);
+  }
+  return el;
+}
+/* ---- end apps shell modules ---- */
+
+  window.Spixi = { formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, hashHue: hashHue, dayBucketLabel: dayBucketLabel, createMessageBubble: createMessageBubble, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, createPaymentBubble: createPaymentBubble, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, formatIxiAmount: formatIxiAmount, setPaymentStatus: setPaymentStatus, setMessageStatus: setMessageStatus, removeMessage: removeMessage, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, setComposerContext: setComposerContext, getComposerContext: getComposerContext, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, setComposerCost: setComposerCost, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, wrapChatRowSwipe: wrapChatRowSwipe, closeChatRowSwipe: closeChatRowSwipe, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover };
 })();

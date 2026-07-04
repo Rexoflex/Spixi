@@ -44,6 +44,13 @@
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
 
+/* view variant — secondary screens (app details, add, discover). Hairline below so the
+   sticky bar reads against the scrolling content, same language as the chat bar (Damir). */
+.c-topbar[data-variant="view"] {
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+[data-theme="dark"] .c-topbar[data-variant="view"] { border-bottom-color: var(--outline-neutral-02); }
+
 /* chat variant — identity block (Damir 2026-07-03: name label-md, sub body-sm text-02).
    Hairline below (not shadow — matches bottomnav/composer language) so the bar
    reads against white incoming bubbles on the canvas. */

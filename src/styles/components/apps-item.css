@@ -1,0 +1,78 @@
+/* c-app-item — installed mini-app, list ROW or grid CARD (spec §2.1).
+   Two sibling buttons: __open (big tap target) + __menu (⋮ overflow). */
+
+.c-app-item { position: relative; }
+
+/* —— the tap target (icon + text) —— */
+.c-app-item__open {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  color: var(--text-neutral-01);
+}
+@media (hover: hover) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
+.c-app-item__open:active { background: var(--surface-interactive-pressed); }
+
+.c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
+.c-app-item__name {
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-app-item__creator {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* —— ⋮ overflow —— */
+.c-app-item__menu {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;                 /* touch target */
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  color: var(--icon-neutral-02);
+}
+@media (hover: hover) { .c-app-item__menu:hover { background: var(--surface-interactive-hover); } }
+.c-app-item__menu:active { background: var(--surface-interactive-pressed); }
+
+/* —— LIST (row) —— */
+.c-app-item[data-layout="list"] { display: flex; align-items: center; }
+.c-app-item[data-layout="list"] .c-app-item__open { flex: 1; min-width: 0; }
+.c-app-item[data-layout="list"] .c-app-item__menu { margin-inline-end: var(--spacing-4); }
+
+/* —— GRID (card) —— */
+.c-app-item[data-layout="grid"] {
+  min-width: 0;                              /* grid child must shrink below content so names truncate */
+  background: var(--surface-neutral-02);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+}
+.c-app-item[data-layout="grid"] .c-app-item__open {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  min-width: 0;
+}
+.c-app-item[data-layout="grid"] .c-app-item__text { width: 100%; min-width: 0; }
+.c-app-item[data-layout="grid"] .c-app-item__menu {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+}

@@ -54,6 +54,14 @@ const FILES = [
   'src/components/chats-swipe.js',
   'src/components/chats-shell.js',
   'src/components/chats-header.js',
+  'src/components/apps-icon.js',
+  'src/components/apps-item.js',
+  'src/components/apps-menu.js',
+  'src/components/apps-shell.js',
+  'src/components/apps-header.js',
+  'src/components/apps-add.js',
+  'src/components/apps-details.js',
+  'src/components/apps-discover.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

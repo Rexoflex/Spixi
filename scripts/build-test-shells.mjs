@@ -25,6 +25,7 @@ const OUT_DIR = join(root, '..', 'WebViewTest', 'WebViewTest', 'Resources', 'Raw
 const SHELLS = [
   { in: 'src/demo/chats.html', out: 'chats.test.html' },
   { in: 'src/demo/chat.html',  out: 'chat.test.html' },
+  { in: 'src/demo/apps.html',  out: 'apps.test.html' },
 ];
 
 const FONT_MIME = { woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf' };

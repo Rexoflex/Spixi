@@ -51,6 +51,16 @@
 
 .c-chip__icon, .c-chip__dismiss { flex: none; }
 
+/* readonly (display) variant — non-interactive tags e.g. app permissions/capabilities */
+.c-chip[data-readonly] {
+  cursor: default;
+  background: var(--surface-neutral-02);
+  border-color: transparent;
+  color: var(--text-neutral-01);
+}
+.c-chip[data-readonly] .c-chip__icon { color: var(--icon-neutral-02); }
+.c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
+
 /* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
    action ink; pressed-on-unselected keeps its outline so the two stay distinct */
 .c-chip[aria-pressed="true"] {

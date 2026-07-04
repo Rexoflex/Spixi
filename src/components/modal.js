@@ -4,8 +4,10 @@
  * (confirmations are explicit) but Esc DOES (safe dismiss path, ARIA APG).
  * Destructive confirms: role=alertdialog + autofocus the SAFE action.
  *
- * createModal({ title, body, actions, role = 'dialog', host,
+ * createModal({ title, body, content, actions, role = 'dialog', host,
  *               lightDismiss = false, escDismiss = true, onDismiss, strings })
+ *   body    — plain-text description (string)
+ *   content — optional Element for RICH bodies (e.g. permission chips); appended after body
  *   actions: [{ label, type = 'text'|'fill'|…, intent, onClick, autofocus }]
  *   an action returning false from onClick keeps the modal open.
  *   lightDismiss — scrim click closes (modal default: false)
@@ -17,7 +19,7 @@ import { openOverlay, dismissOverlay, setOverlayOpts, overlayId } from './overla
 import { createButton } from './button.js';
 
 export function createModal({
-  title = '', body = '', actions = [], role = 'dialog', host,
+  title = '', body = '', content = null, actions = [], role = 'dialog', host,
   lightDismiss = false, escDismiss = true, onDismiss, strings = {},
 } = {}) {
   const el = document.createElement('section');
@@ -48,6 +50,8 @@ export function createModal({
     el.setAttribute('aria-describedby', b.id);
     el.append(b);
   }
+
+  if (content) el.append(content);                 // rich body (e.g. permission chips)
 
   if (actions.length) {
     const row = document.createElement('div');

@@ -1329,6 +1329,338 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'u-scroll reserves the scrollbar gutter — QR/payments expand no longer reflows content (#145 ⑤)');
 }
 
+console.log('chats.html — contacts flow (Phase 1 #2)');
+{
+  const dom = await load('chats.html');
+  const d = dom.window.document, W = dom.window;
+
+  // —— FAB → picker ——
+  d.getElementById('fab').click();
+  const picker = d.querySelector('.demo-panel .c-contacts');
+  ok(!!picker, 'FAB opens the contacts picker takeover');
+  const rows = [...picker.querySelectorAll('.c-contacts__row')];
+  ok(rows.length === 10, 'roster renders 10 rows');
+  ok(rows[0].querySelector('.c-contacts__name').textContent === 'Baracuda'
+    && rows[rows.length - 1].querySelector('.c-contacts__name').textContent === '335Hxq21abcd5OP32',
+    'named contacts A–Z first, address-only after (spec §3a)');
+  const pendingRow = rows.find((r) => r.dataset.pending !== undefined);
+  ok(!!pendingRow && !!pendingRow.querySelector('.c-badge') && !pendingRow.disabled,
+    'pending contact: badge, still tappable in browse (Damir pick)');
+
+  // —— search narrows on name+address substring ——
+  const search = picker.querySelector('.c-search-field__input');
+  search.value = 'han';
+  search.dispatchEvent(new W.Event('input', { bubbles: true }));
+  ok(picker.querySelectorAll('.c-contacts__row').length === 1, 'search narrows the roster');
+
+  // F11: address substring must ALSO narrow the roster (covers the c-address branch
+  // of the filter, not just the name branch) — 'qwertz990' only occurs in QWERTZ's
+  // address ('5qwertz9900aa'), not in any name.
+  search.value = 'qwertz990';
+  search.dispatchEvent(new W.Event('input', { bubbles: true }));
+  const addrMatch = [...picker.querySelectorAll('.c-contacts__row')];
+  ok(addrMatch.length === 1 && addrMatch[0].querySelector('.c-contacts__name').textContent === 'QWERTZ',
+    'F11: address-substring search surfaces the matching row (QWERTZ, by address)');
+
+  search.value = '';
+  search.dispatchEvent(new W.Event('input', { bubbles: true }));
+
+  // —— Create group → multi-select ——
+  const actionsCard = picker.querySelector('.c-contacts__action').closest('.c-contacts__group');
+  [...picker.querySelectorAll('.c-contacts__action')][1].click();
+  ok(picker.querySelector('.c-contacts__footer').hidden === false && actionsCard.hidden === true,
+    'multi mode: footer Next appears, top actions hide');
+  const mrows = [...picker.querySelectorAll('.c-contacts__row')];
+  const rowByNameM = (n) => mrows.find((r) => r.querySelector('.c-contacts__name').textContent === n);
+  // F3: assert the SPECIFIC rows, not just a count of 2 — the pending row (Ben
+  // Kenobi) and the type-2 bot row (Ixian News) must be disabled, and a normal
+  // contact (Han Solo) must NOT be.
+  ok(mrows.filter((r) => r.disabled).length === 2, 'pending + bot rows disabled in multi-select');
+  ok(!!rowByNameM('Ben Kenobi').disabled, 'the pending row specifically is disabled in multi-select');
+  ok(!!rowByNameM('Ixian News').disabled, 'the type-2 bot row specifically is disabled in multi-select');
+  ok(!rowByNameM('Han Solo').disabled, 'a normal contact row is NOT disabled in multi-select');
+  const nextBtn = picker.querySelector('.c-contacts__footer .c-button');
+  ok(nextBtn.disabled, 'Next disabled at 0 selected');
+  const rowByName = rowByNameM;
+  // F4: multi-select rows are role=checkbox / aria-checked (idiomatic mapping for
+  // an independent multi-select roster), not role=button + aria-pressed.
+  const hanRow = rowByName('Han Solo');
+  ok(hanRow.getAttribute('role') === 'checkbox' && hanRow.getAttribute('aria-checked') === 'false',
+    'unselected multi-select row: role=checkbox, aria-checked=false (F4)');
+  hanRow.click();
+  rowByName('Sarah Jo').click();
+  ok(!nextBtn.disabled && nextBtn.textContent.includes('(2)'), 'Next counts the selection');
+  ok(hanRow.getAttribute('aria-checked') === 'true', 'selecting a row flips aria-checked (F4)');
+  ok(!!hanRow.querySelector('.c-contacts__check')
+    && W.getComputedStyle(hanRow.querySelector('.c-contacts__check')).backgroundColor !== '',
+    'trailing check-circle still renders (with a fill) on a checked row (F4 visual affordance)');
+
+  // —— F2 regression: two contacts with a falsy/empty address must not collapse
+  // into one Set entry and co-select each other; the emitted selection must never
+  // carry a falsy address (component-level, synthetic roster — pre-fix: both
+  // address-less rows were keyed on `undefined` in the selection Set).
+  let f2Selection = null;
+  const f2Picker = W.Spixi.createContactsPicker({
+    contacts: [
+      { name: 'Alice', address: 'f2-alice-addr', type: 0 },
+      { name: 'Bare One', address: '', type: 0 },
+      { name: 'Bare Two', address: null, type: 0 },
+    ],
+    onCreateGroup: () => {},
+    onNext: (sel) => { f2Selection = sel; },
+  });
+  d.body.append(f2Picker);
+  [...f2Picker.querySelectorAll('.c-contacts__action')][1].click();   // Create group → multi
+  const f2Rows = [...f2Picker.querySelectorAll('.c-contacts__row')];
+  const f2RowByName = (n) => f2Rows.find((r) => r.querySelector('.c-contacts__name').textContent === n);
+  ok(!!f2RowByName('Bare One').disabled && !!f2RowByName('Bare Two').disabled,
+    'F2: address-less contacts are blocked (disabled) in multi-select, not co-selectable');
+  f2RowByName('Alice').click();
+  const f2Next = f2Picker.querySelector('.c-contacts__footer .c-button');
+  ok(!f2Next.disabled && f2Next.textContent.includes('(1)'),
+    'F2: only the real-address contact counts toward the selection');
+  f2Next.click();
+  ok(Array.isArray(f2Selection) && f2Selection.length === 1 && f2Selection[0].address === 'f2-alice-addr',
+    'F2: onNext payload never carries a falsy address — no ghost co-selection');
+  f2Picker.remove();
+
+  // —— group setup ——
+  nextBtn.click();
+  const setup = d.querySelector('.demo-panel .c-contacts-group');
+  ok(!!setup, 'Next opens group setup');
+  ok(setup.querySelector('.c-contacts-group__members-head').textContent.includes('2')
+    && setup.querySelectorAll('.c-contacts-group__chips .c-chip').length === 2,
+    'member chips mirror the selection');
+  const sw = setup.querySelector('.c-contacts-group__switch');
+  sw.click();
+  ok(sw.getAttribute('aria-checked') === 'true', 'blind-group switch toggles');
+  const nameInput = setup.querySelector('.c-contacts-group__name');
+  const createBtn = setup.querySelector('.c-contacts__footer .c-button');
+  const nameErr = setup.querySelector('.c-contacts-add__error');
+  nameInput.value = 'bad:|name';
+  createBtn.click();
+  ok(!nameErr.hidden && !!d.querySelector('.demo-panel .c-contacts-group'),
+    'group name containing ":|" blocked inline — never sent (bridge-audit-A.md:544)');
+  nameInput.value = '   ';
+  createBtn.click();
+  ok(!nameErr.hidden, 'empty group name blocked inline');
+  const chips = () => [...setup.querySelectorAll('.c-contacts-group__chips .c-chip')];
+  chips()[0].click();
+  ok(chips().length === 1, 'chip dismiss removes a member');
+  chips()[0].click();
+  ok(createBtn.disabled, 'Create disabled with 0 members');
+
+  // —— F6 regression: removal must splice by the row's own index, not by object
+  // identity (list.indexOf(m)) — a duplicated member object (or a look-alike with
+  // the same reference) must not remove the wrong chip / collapse to indexOf's
+  // first match.
+  let f6Change = null;
+  const dupeMember = { name: 'Dupe', address: 'dupe-addr' };
+  const f6Setup = W.Spixi.createGroupSetup({
+    members: [{ name: 'Alex', address: 'alex-addr' }, dupeMember, dupeMember],
+    onMembersChange: (addrs) => { f6Change = addrs; },
+  });
+  d.body.append(f6Setup);
+  const f6Chips = () => [...f6Setup.querySelectorAll('.c-contacts-group__chips .c-chip')];
+  ok(f6Chips().length === 3, 'F6 setup: 3 chips render, including the duplicated member object');
+  f6Chips()[1].click();          // remove the FIRST "Dupe" chip specifically (index 1)
+  ok(f6Chips().length === 2 && f6Chips()[1].textContent.includes('Dupe')
+    && f6Change.length === 2 && f6Change[1] === 'dupe-addr',
+    'F6: removing by row index leaves the second Dupe chip intact (not both wiped via indexOf identity)');
+  f6Setup.remove();
+
+  // —— back out: setup → picker (multi → browse) → tap contact opens chat ——
+  setup.querySelector('.c-topbar .c-button').click();
+  ok(!d.querySelector('.demo-panel .c-contacts-group'), 'setup back returns to the picker');
+  picker.querySelector('.c-topbar .c-button').click();
+  ok(picker.querySelector('.c-contacts__footer').hidden === true, 'picker back exits multi-select first (not the picker)');
+  [...picker.querySelectorAll('.c-contacts__row')]
+    .find((r) => r.querySelector('.c-contacts__name').textContent === 'Han Solo').click();
+  ok(!d.querySelector('.demo-panel .c-contacts'), 'tapping a contact opens the chat — picker closes');
+
+  // —— component-level: onCreate payload = ixian:select grammar inputs ——
+  let payload = null;
+  const gs = W.Spixi.createGroupSetup({
+    members: [{ name: 'A', address: 'addr-a' }, { name: 'B', address: 'addr-b' }],
+    onCreate: (p, ctrl) => { payload = p; ctrl.done(); },
+  });
+  d.body.append(gs);
+  gs.querySelector('.c-contacts-group__switch').click();
+  gs.querySelector('.c-contacts-group__name').value = 'Falcon crew';
+  gs.querySelector('.c-contacts__footer .c-button').click();
+  ok(!!payload && payload.blind === true && payload.name === 'Falcon crew'
+    && payload.addresses.join('|') === 'addr-a|addr-b',
+    'onCreate payload carries name + blind flag + addresses (ixian:select grammar)');
+
+  // —— #141-m4: sync throw routes to fail, nothing wedges ——
+  const gs2 = W.Spixi.createGroupSetup({
+    members: [{ name: 'A', address: 'a1' }],
+    onCreate: () => { throw new Error('boom'); },
+  });
+  d.body.append(gs2);
+  gs2.querySelector('.c-contacts-group__name').value = 'X';
+  const gs2Btn = gs2.querySelector('.c-contacts__footer .c-button');
+  gs2Btn.click();
+  ok(!gs2.querySelector('.c-contacts-add__error').hidden && !gs2Btn.disabled,
+    'sync throw in onCreate → inline error, button restored (#141-m4)');
+
+  // —— add-contact (component-level: gate, ✓ affordance, success latch, throw) ——
+  let opened = null, checked = 0;
+  const add = W.Spixi.createAddContact({
+    onCheckAddress: (a, ctrl) => { checked++; ctrl.done(); },
+    onSendRequest: (a, ctrl) => ctrl.done(),
+    onOpened: (a) => { opened = a; },
+  });
+  d.body.append(add);
+  const addInput = add.querySelector('.c-contacts-add__input');
+  const sendBtn = add.querySelector('.c-contacts__footer .c-button');
+  addInput.value = 'short';
+  sendBtn.click();
+  ok(!add.querySelector('.c-contacts-add__error').hidden, 'short address blocked inline (20–128 QR-accept gate)');
+  W.Spixi.setAddContactAddress(add, '4fj2solo4fj2solo4fj2solo');
+  await sleep(400);
+  ok(checked === 1 && !add.querySelector('.c-contacts-add__valid').hidden,
+    'checkAddress ✓ affordance after debounce (confirm-only — silent-fail bridge contract)');
+  sendBtn.click();
+  await sleep(1100);
+  ok(opened === '4fj2solo4fj2solo4fj2solo', 'send success → onOpened(address) — post-add opens the conversation');
+  ok(sendBtn.disabled, 'send button latched after success (one request per screen visit)');
+
+  const add2 = W.Spixi.createAddContact({ onSendRequest: () => { throw new Error('boom'); } });
+  d.body.append(add2);
+  add2.querySelector('.c-contacts-add__input').value = 'x'.repeat(30);
+  const send2 = add2.querySelector('.c-contacts__footer .c-button');
+  send2.click();
+  ok(!add2.querySelector('.c-contacts-add__error').hidden && !send2.disabled
+    && !add2.querySelector('.c-contacts-add__input').disabled,
+    'sync throw in onSendRequest → inline error, field + button restored (#141-m4)');
+
+  // —— F1 regression: a stale debounced checkAddress reply must not flash ✓
+  // while a request is in flight (pre-fix: submit() left checkTimer running and
+  // the done() callback didn't gate on inFlight).
+  let slowCtrl = null, sendCtrl3 = null;
+  const add3 = W.Spixi.createAddContact({
+    onCheckAddress: (a, ctrl) => { slowCtrl = ctrl; },     // never resolves on its own — driven manually
+    onSendRequest: (a, ctrl) => { sendCtrl3 = ctrl; },     // held open — genuine in-flight window
+  });
+  d.body.append(add3);
+  const in3 = add3.querySelector('.c-contacts-add__input');
+  const send3 = add3.querySelector('.c-contacts__footer .c-button');
+  in3.value = 'y'.repeat(24);
+  in3.dispatchEvent(new W.Event('input', { bubbles: true }));
+  await sleep(300);                     // debounce fires, onCheckAddress captured slowCtrl
+  send3.click();                        // submit while the check is still "in flight" (sendCtrl3 held open)
+  slowCtrl.done();                      // stale reply arrives AFTER submit started — must be swallowed
+  ok(add3.querySelector('.c-contacts-add__valid').hidden,
+    'F1: a stale checkAddress ✓ reply does not surface while a send is in flight');
+  sendCtrl3.done();                     // let the held submit resolve so the ctrl doesn't leak into later tests
+
+  // —— F5 regression: setAddContactAddress no-ops mid-flight, and unlatches on a
+  // genuinely new address after a latched success (pre-fix: QR return mid-submit
+  // could re-enable the field, and post-success the screen was permanently stuck).
+  // Also pins the setSuccess/latch fight: setSuccess is called WITHOUT a manual
+  // pre-disable, so its own +1400ms restore re-enables the button instead of
+  // racing unlatch()'s re-enable with a stale re-disable timer.
+  let sendCtrl5 = null, sendCount5 = 0;
+  const add5 = W.Spixi.createAddContact({
+    onSendRequest: (a, ctrl) => { sendCtrl5 = ctrl; sendCount5++; },   // held open — genuine in-flight window
+  });
+  d.body.append(add5);
+  const in5 = add5.querySelector('.c-contacts-add__input');
+  const send5 = add5.querySelector('.c-contacts__footer .c-button');
+  in5.value = 'z'.repeat(24);
+  send5.click();                        // now genuinely in flight (ctrl held by the test)
+  W.Spixi.setAddContactAddress(add5, 'ignored-mid-flight-address-000000');
+  ok(in5.value === 'z'.repeat(24),
+    'F5: setAddContactAddress no-ops while a request is in flight (field untouched)');
+  sendCtrl5.done();
+  await sleep(1000);                    // within the setSuccess morph window (< 1400ms) — still disabled
+  ok(send5.disabled, 'F5: send button disabled during the success morph window');
+  send5.click();                        // a click during the success/latch window must not re-submit
+  ok(sendCount5 === 1, 'F5: latched flag blocks re-submit during the success window (call-count stays 1)');
+  W.Spixi.setAddContactAddress(add5, 'brandnewaddress0000000000');
+  ok(in5.value === 'brandnewaddress0000000000',
+    'F5: a new address after a latched success re-fills the field immediately');
+  await sleep(1500);                    // past setSuccess's +1400ms restore — this is the assertion that
+                                         // fails pre-fix (stale restore re-disables after unlatch re-enables)
+  ok(!send5.disabled,
+    'F5: send button is enabled once setSuccess\'s own restore lands (no fight with unlatch)');
+  send5.click();
+  ok(sendCount5 === 2,
+    'F5: a fresh submit after the new address + restore window actually fires onSendRequest again');
+
+  // —— topbar Contacts → DIRECTORY: no Create group, tap = details (Damir round 4) ——
+  d.querySelector('.c-topbar__actions .c-button[aria-label="Contacts"]').click();
+  const dir = d.querySelector('.demo-panel .c-contacts[data-purpose="directory"]');
+  ok(!!dir, 'topbar Contacts opens the directory picker');
+  const dirActions = [...dir.querySelectorAll('.c-contacts__action')];
+  ok(dirActions.length === 1 && dirActions[0].textContent.includes('Add contact'),
+    'directory: Add contact only — Create group stays with the FAB');
+  [...dir.querySelectorAll('.c-contacts__row')]
+    .find((r) => r.querySelector('.c-contacts__name').textContent === 'Sarah Jo').click();
+  const prof = d.querySelector('.demo-panel .c-chat-info');
+  ok(!!prof, 'directory tap opens contact DETAILS (chat-info contact context), not the chat');
+  // F18: match the exact danger-row label (scoped to .c-chat-info__danger-row), not
+  // a loose .includes('Remove contact') that a hypothetical "Remove contact request"
+  // row would also satisfy.
+  ok(!!prof.querySelector('.c-chat-info__nick-edit') && !!prof.querySelector('.c-chat-info__txs-list')
+    && [...prof.querySelectorAll('.c-chat-info__danger-row')].some((b) => b.textContent.trim() === 'Remove contact'),
+    'directory profile carries the SAME controls as chat-info contact page (nickname edit · payments · remove) — Damir parity ask');
+  // F13: the parity check above only confirms what's PRESENT — also assert what
+  // must be ABSENT: chat-side rows (delete history, disappearing messages) never
+  // render on a directory-opened (context:'contact') profile (#142③).
+  ok(![...prof.querySelectorAll('button, .c-chat-info__danger-row')].some((b) => b.textContent.includes('Delete chat history'))
+    && !prof.querySelector('.c-chat-info__setting'),
+    'F13: directory profile drops "Delete chat history" and the disappearing-messages row (chat-side only)');
+  d.querySelector('.demo-panel .c-chat-info .c-topbar .c-button').click();   // back → directory
+
+  // pending contact → minimal profile + cancel (ixian:undorequest covers remove too)
+  [...dir.querySelectorAll('.c-contacts__row')]
+    .find((r) => r.querySelector('.c-contacts__name').textContent === 'Ben Kenobi').click();
+  const pendPanel = d.querySelector('.demo-panel .c-contacts-pending');
+  ok(!!pendPanel && !!pendPanel.querySelector('.c-badge'),
+    'pending contact opens the MINIMAL profile with a Pending badge (Damir pick)');
+  ok([...pendPanel.querySelectorAll('.c-button')].filter((b) => b.textContent.includes('Cancel request')).length === 1
+    && !pendPanel.querySelector('.c-chat-info'),
+    'pending profile: single Cancel-request action, no money/call/chat rows');
+  [...pendPanel.querySelectorAll('.c-button')].find((b) => b.textContent.includes('Cancel request')).click();
+  await sleep(900);
+  ok(!d.querySelector('.demo-panel .c-contacts-pending'),
+    'cancel request resolves and closes the pending profile');
+
+  // #141-m4 on the pending profile too
+  const pend2 = W.Spixi.createPendingContact({ name: 'X', address: 'a1', onCancelRequest: () => { throw new Error('boom'); } });
+  d.body.append(pend2);
+  const pend2Btn = [...pend2.querySelectorAll('.c-button')].pop();
+  pend2Btn.click();
+  ok(!pend2.querySelector('.c-contacts-add__error').hidden && !pend2Btn.disabled,
+    'sync throw in onCancelRequest → inline error, button restored (#141-m4)');
+}
+
+{
+  /* static guards — contacts batch (jsdom is layout-blind; read the source text) */
+  const chatsHtml = readFileSync(join(root, 'src/demo/chats.html'), 'utf8');
+  const cjs = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
+  const ccss = readFileSync(join(root, 'src/styles/components/contacts-shell.css'), 'utf8');
+  const bundleFiles = readFileSync(join(root, 'scripts/build-demo-bundle.mjs'), 'utf8');
+  ok(/contacts-shell\.css/.test(chatsHtml), 'chats demo links contacts-shell.css');
+  ok(/\.demo-panel \{[^}]*inset: 44px 0 0 0/.test(chatsHtml),
+    'contacts takeover starts below the 44px mock statusbar (#145① class)');
+  ok(bundleFiles.indexOf('contacts-shell.js') > bundleFiles.indexOf('chat-info.js')
+    && bundleFiles.indexOf('contacts-shell.js') < bundleFiles.indexOf('settings-shell.js'),
+    'bundle FILES: contacts-shell after chat-info, before settings-shell (merge-safety anchor)');
+  ok(/--switch-track-off/.test(ccss) && /--switch-knob/.test(ccss),
+    'blind switch rides the #148① shared track/knob token pair');
+  ok(/\.c-contacts__name \{[^}]*min-width: 0/.test(ccss) && /\.c-contacts__col \{[^}]*min-width: 0/.test(ccss),
+    'row name/col carry min-width:0 (#140③ class)');
+  ok(!/disc\('error'/.test(cjs), 'no error-hue disc in contacts (reservation #147②)');
+  ok(/name\.includes\(':\|'\)/.test(cjs), 'group-name ":|" split-token gate present (bridge-audit-A.md:544)');
+  // F12: the demo must emit the blind-flag bridge grammar — first char of the name
+  // slot is '1' (blind) / '0' (normal) (bridge-audit-A.md:530).
+  ok(/\(blind \? '1' : '0'\)/.test(chatsHtml),
+    'F12: chats.html demo emits the (blind ? \'1\' : \'0\') prefix on the ixian:select string');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

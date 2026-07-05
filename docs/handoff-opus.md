@@ -1,3 +1,5 @@
+> 🗄️ **STALE — superseded.** Historical only (2026-07-03 fable→opus orientation). Current entry point: **`docs/handoff-fable-next-batch.md`**. Decisions preserved in `DECISIONS.md`.
+
 # Handoff brief — continuing the Spixi frontend redesign
 
 Written 2026-07-03 by the previous Claude session (Fable), for the next session (Opus).

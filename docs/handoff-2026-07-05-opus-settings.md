@@ -1,3 +1,5 @@
+> 🗄️ **STALE — superseded.** Historical only. Current entry point: **`docs/handoff-fable-next-batch.md`**. Decisions preserved in `DECISIONS.md` (#146–#151).
+
 # Handoff — Account/Settings shell Opus round done → next slice (2026-07-05)
 
 For the next conversation (fable). Read `CLAUDE.md`, then `DECISIONS.md` #150 + **#151** (this round), then this file.

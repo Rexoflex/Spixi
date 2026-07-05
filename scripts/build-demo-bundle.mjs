@@ -73,6 +73,7 @@ const FILES = [
   'src/components/tip-sheet.js',
   'src/components/chat-select.js',
   'src/components/chat-info.js',
+  'src/components/contacts-shell.js',   // Phase 1 #2: FAB picker · add-contact · group setup
   'src/components/settings-shell.js',   // #146: exports backupStatusParts — must precede settings-backup
   'src/components/settings-backup.js',
   'src/components/settings-screens.js', // #147: chat appearance · privacy · notifications · security tiers

@@ -265,6 +265,7 @@ export function createSettingsHub({
   onLanguage,                    // (code, ctrl) — ixian:language:<code>
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
+  onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
   onChatAppearance,              // nav → chat-appearance screen (FE-only, #147)
   onNotifications,               // nav → notifications screen (§9-gated)
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
@@ -711,6 +712,15 @@ export function createSettingsHub({
     failMsg: strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.',
     onToggle: onPaymentAuth,
   }));
+
+  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
+     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
+     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
+  if (onChangePassword) sec.card.append(settingRow({
+    glyph: 'pencil', hue: 'primary',
+    label: strings.changePassword || 'Change wallet password',
+    onClick: () => onChangePassword(),
+  }).section);
 
   if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
     glyph: 'user-cog', hue: 'primary',

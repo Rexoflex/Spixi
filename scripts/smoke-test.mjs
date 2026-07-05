@@ -1858,6 +1858,354 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
     'F12: chats.html demo emits the (blind ? \'1\' : \'0\') prefix on the ixian:select string');
 }
 
+console.log('chats.html — scan shell (Phase 1 #3)');
+{
+  const dom = await load('chats.html');
+  const d = dom.window.document, W = dom.window;
+
+  // —— demo e2e: add-contact scan stub → full takeover, prompt → denied → scanning → decode → auto-fill ——
+  d.getElementById('fab').click();
+  [...d.querySelectorAll('.demo-panel .c-contacts .c-contacts__action')][0].click();
+  const add = d.querySelector('.demo-panel .c-contacts-add');
+  add.querySelector('.c-contacts-add__scan').click();
+  const scan = d.querySelector('.demo-panel .c-scan');
+  ok(!!scan && scan.dataset.state === 'prompt',
+    'add-contact scan button opens the FULL scan takeover in the permission-prompt state (Damir picks ①)');
+  const frame = scan.querySelector('.c-scan__frame');
+  const card = scan.querySelector('.c-scan__card');
+  const cta = card.querySelector('.c-button');
+  ok(frame.hidden && !card.hidden && cta.textContent.includes('Allow camera'),
+    'prompt state: card + Allow CTA visible, scan frame hidden');
+
+  cta.click();                                  // demo mock: FIRST attempt DENIES (deterministic)
+  await sleep(700);
+  ok(scan.dataset.state === 'denied', 'first Allow attempt lands in DENIED (demo recovery-state mock)');
+  ok(scan.querySelector('.c-scan__copy').textContent.includes('settings')
+    && cta.textContent.includes('Try again'),
+    'denied: honest recovery copy (device settings) + inline Try again — no dead end (Damir pick ④)');
+
+  cta.click();                                  // Try again → granted
+  await sleep(700);
+  ok(scan.dataset.state === 'scanning' && !frame.hidden && card.hidden,
+    'Try again re-requests and lands in scanning (frame shown, card gone)');
+  const hint = scan.querySelector('.c-scan__hint');
+  ok(!hint.hidden && hint.getAttribute('role') === 'status' && hint.textContent.length > 0,
+    'scanning hint is a live role=status line');
+
+  // torch: present (demo provides onTorch), optimistic aria-pressed flip
+  const torch = scan.querySelector('.c-scan__torch');
+  ok(!!torch && !torch.hidden && torch.getAttribute('aria-pressed') === 'false',
+    'torch toggle present while scanning (Damir pick ③ — flip deferred)');
+  torch.click();
+  ok(torch.getAttribute('aria-pressed') === 'true', 'torch flips optimistically');
+  await sleep(300);
+  ok(torch.getAttribute('aria-pressed') === 'true', 'torch stays on after the mock ack');
+
+  // decode → success flash → auto-fill + return (Damir pick ②)
+  const SCAN_DEMO_ADDR = 'QRj2NewFriend77xKpR8mWzD2cF6JuEwA1vBq3';
+  scan.querySelector('.demo-scan-sim').click();
+  ok(!scan.querySelector('.c-scan__success').hidden, 'decode shows the success flash immediately');
+  await sleep(600);
+  ok(!d.querySelector('.demo-panel .c-scan'), 'scan view auto-returns (closes) after the decode lands');
+  const addInput = add.querySelector('.c-contacts-add__input');
+  ok(addInput.value === SCAN_DEMO_ADDR,
+    'decoded payload auto-fills the add-contact field (ixian:qrresult → setAddress mirror)');
+  await sleep(700);                             // debounce 250 + mock checkAddress 450, from the t=350 fill
+  ok(!add.querySelector('.c-contacts-add__valid').hidden,
+    'auto-filled address re-runs the live checkAddress ✓ (entry symmetry with typed input)');
+
+  // —— component-level: one decode per view (allowScanning mirror, bridge-audit-B.md:170) ——
+  const decoded = [];
+  const s2 = W.Spixi.createScanView({ state: 'scanning', onDecode: (t) => decoded.push(t) });
+  d.body.append(s2);
+  W.Spixi.deliverScanResult(s2, 'a'.repeat(30));
+  W.Spixi.deliverScanResult(s2, 'b'.repeat(30));
+  await sleep(500);
+  ok(decoded.length === 1 && decoded[0] === 'a'.repeat(30),
+    'one decode per view — second deliverScanResult is swallowed (allowScanning mirror)');
+
+  // decode gated to the scanning state (no decode before permission)
+  const early = [];
+  const s3 = W.Spixi.createScanView({ state: 'prompt', onDecode: (t) => early.push(t) });
+  d.body.append(s3);
+  W.Spixi.deliverScanResult(s3, 'c'.repeat(30));
+  await sleep(450);
+  ok(early.length === 0 && s3.querySelector('.c-scan__success').hidden,
+    'deliverScanResult is a no-op outside the scanning state');
+
+  // hazard gates: empty/whitespace + self-prefixed hostile payload never emit
+  const bad = [];
+  const s4 = W.Spixi.createScanView({ state: 'scanning', onDecode: (t) => bad.push(t) });
+  d.body.append(s4);
+  W.Spixi.deliverScanResult(s4, '   ');
+  W.Spixi.deliverScanResult(s4, 'evil-ixian:qrresult:split-me');
+  await sleep(450);
+  ok(bad.length === 0 && s4.querySelector('.c-scan__success').hidden,
+    'empty and \'ixian:qrresult:\'-embedding payloads are dropped, view keeps scanning (spec §1 hazards)');
+  W.Spixi.deliverScanResult(s4, 'd'.repeat(30));
+  await sleep(450);
+  ok(bad.length === 1, 'a clean payload after a dropped hostile one still decodes (no false latch)');
+
+  // #141-m4: sync throw in onRequestPermission → denied, CTA restored (not wedged)
+  const s5 = W.Spixi.createScanView({ onRequestPermission: () => { throw new Error('boom'); } });
+  d.body.append(s5);
+  const s5cta = s5.querySelector('.c-scan__card .c-button');
+  s5cta.click();
+  ok(s5.dataset.state === 'denied' && !s5cta.disabled,
+    'sync throw in onRequestPermission routes to DENIED, CTA restored (#141-m4)');
+
+  // #141-m4: sync throw in onTorch → optimistic flip reverts
+  const s6 = W.Spixi.createScanView({ state: 'scanning', onTorch: () => { throw new Error('boom'); } });
+  d.body.append(s6);
+  const s6torch = s6.querySelector('.c-scan__torch');
+  s6torch.click();
+  ok(s6torch.getAttribute('aria-pressed') === 'false',
+    'sync throw in onTorch reverts the optimistic flip (#141-m4)');
+
+  // capability gate: no onTorch → no torch affordance at all
+  const s7 = W.Spixi.createScanView({ state: 'scanning' });
+  d.body.append(s7);
+  ok(!s7.querySelector('.c-scan__torch'), 'torch affordance absent without an onTorch callback (capability gate)');
+
+  // cancel → onCancel (→ ixian:back, C# pops + GC.Collect)
+  let cancelled = 0;
+  const s8 = W.Spixi.createScanView({ onCancel: () => cancelled++ });
+  d.body.append(s8);
+  s8.querySelector('.c-topbar .c-button').click();
+  ok(cancelled === 1, 'topbar back fires onCancel (ixian:back grammar)');
+}
+
+{
+  /* static guards — scan batch (jsdom is layout-blind; read the source text) */
+  const chatsHtml = readFileSync(join(root, 'src/demo/chats.html'), 'utf8');
+  const sjs = readFileSync(join(root, 'src/components/scan-shell.js'), 'utf8');
+  const scss = readFileSync(join(root, 'src/styles/components/scan-shell.css'), 'utf8');
+  const bundleFiles = readFileSync(join(root, 'scripts/build-demo-bundle.mjs'), 'utf8');
+  ok(/scan-shell\.css/.test(chatsHtml), 'chats demo links scan-shell.css');
+  ok(bundleFiles.indexOf('scan-shell.js') > bundleFiles.indexOf('contacts-shell.js')
+    && bundleFiles.indexOf('scan-shell.js') < bundleFiles.indexOf('settings-shell.js'),
+    'bundle FILES: scan-shell after contacts-shell, before settings-shell');
+  ok(/includes\('ixian:qrresult:'\)/.test(sjs),
+    'hostile self-prefixed payload gate present in source (C# Splits on the literal, bridge-audit-B.md:170)');
+  ok(/st\.delivered = true/.test(sjs) && /st\.delivered\) return/.test(sjs),
+    'one-shot delivered latch present + checked (allowScanning mirror)');
+  ok(/sanctioned: fixed-dark camera bed/.test(scss),
+    'camera bed fixed-dark is a SANCTIONED raw value (fixed-pair precedent, not a theme token)');
+  ok(/--disc-success-bg/.test(scss) && /--disc-success-ink/.test(scss),
+    'success flash rides the #147② disc token pair (both-mode safe)');
+  ok(/margin-inline: auto/.test(scss) && !/translateX\(-50%\)/.test(scss),
+    'torch centering is logical/symmetric (no translateX — #151 RTL-knob class avoided)');
+  ok(/aria-pressed/.test(sjs) && /'role', 'status'/.test(sjs),
+    'torch uses aria-pressed; the scanning hint is role=status');
+}
+
+console.log('settings.html — lock shell (Phase 1 #4)');
+{
+  const dom = await load('settings.html');
+  const d = dom.window.document, W = dom.window;
+  const toolbarBtn = (label) => [...d.querySelectorAll('.demo-toolbar .c-button')]
+    .find((b) => b.textContent.includes(label));
+
+  // —— unlock mode: chrome + empty gate ——
+  toolbarBtn('Lock now').click();
+  const lock = d.querySelector('.demo-lock .c-lock');
+  ok(!!lock && lock.dataset.mode === 'unlock' && !lock.querySelector('.c-topbar'),
+    'Lock now opens the unlock takeover — no topbar (no back from lock)');
+  // #160 round (Damir screenshot): app-level copy · fixed-dark pin · equal buttons
+  ok(lock.querySelector('.c-lock__title').textContent === 'Spixi is locked',
+    '#160: title is app-level ("Spixi is locked", never "Wallet locked")');
+  ok(lock.dataset.theme === 'dark',
+    '#160: lock subtree pinned [data-theme=dark] — fixed-dark brand surface both themes');
+  const input = lock.querySelector('.c-lock__input');
+  const err = lock.querySelector('.c-lock__error');
+  const btns = [...lock.querySelectorAll('.c-button')];
+  const unlockBtn = btns.find((b) => b.textContent.includes('Unlock'));
+  ok(input.type === 'password' && input.autocomplete === 'off',
+    'password field is type=password, autocomplete=off (SECURITY §5)');
+  // #160b⑦: our show-password eye (native ::-ms-reveal is WebView2-only)
+  const reveal = lock.querySelector('.c-lock__reveal');
+  reveal.click();
+  ok(input.type === 'text' && reveal.getAttribute('aria-pressed') === 'true',
+    '#160b⑦: eye reveals the password (type=text, aria-pressed)');
+  reveal.click();
+  ok(input.type === 'password' && reveal.getAttribute('aria-pressed') === 'false',
+    '#160b⑦: second tap re-masks');
+  unlockBtn.click();
+  ok(!err.hidden, 'empty password blocked inline');
+  ok(!!btns.find((b) => b.textContent.includes('fingerprint')),
+    'biometric retry present (biometrics-gated; re-emits ixian:onload)');
+  ok(unlockBtn.dataset.size === '56'
+    && btns.find((b) => b.textContent.includes('fingerprint')).dataset.size === '56',
+    '#160: Unlock + fingerprint buttons are the SAME size family (56)');
+  const hatch = lock.querySelector('.c-lock__hatch');
+  ok(!!hatch && !hatch.hidden, 'unlock mode shows the quiet "Use a different wallet…" link');
+
+  // —— the spec §3 no-callback contract: wrong password → NO ctrl → auto-release ——
+  input.value = 'wrong-password';
+  input.dispatchEvent(new W.Event('input', { bubbles: true }));
+  unlockBtn.click();
+  ok(input.disabled, 'submit latches the field (aria-busy window)');
+  await sleep(2100);                              // demo mock never calls ctrl on wrong password
+  ok(!input.disabled && !unlockBtn.disabled && input.value === 'wrong-password',
+    'no-callback contract: silent auto-release after 1600ms, value kept (spec §3)');
+
+  // —— correct password: done → morph, field scrubbed, overlay closes ——
+  input.value = 'hunter2';
+  input.dispatchEvent(new W.Event('input', { bubbles: true }));
+  unlockBtn.click();
+  await sleep(700);
+  ok(input.value === '', 'success scrubs the password from the field (SECURITY §5)');
+  await sleep(900);
+  ok(!d.querySelector('.demo-lock'), 'unlock success closes the takeover (mock page replacement)');
+
+  // —— escape hatch: confirm modal → ixian:change ——
+  toolbarBtn('Lock now').click();
+  const lock2 = d.querySelector('.demo-lock .c-lock');
+  lock2.querySelector('.c-lock__hatch').click();
+  const hatchModal = d.querySelector('.c-modal');
+  ok(!!hatchModal && hatchModal.textContent.includes('different wallet'),
+    'escape hatch opens a confirm modal first (Damir pick — deliberateness, C# stays the boundary)');
+  const modalBtns = [...hatchModal.querySelectorAll('.c-modal__actions .c-button')];
+  modalBtns[modalBtns.length - 1].click();        // Go to setup
+  await sleep(500);
+  ok(!d.querySelector('.demo-lock'), 'confirming the hatch fires ixian:change and leaves the lock screen');
+
+  // —— confirm-action mode (setJustConfirm) ——
+  toolbarBtn('Confirm action').click();
+  const conf = d.querySelector('.demo-lock .c-lock');
+  ok(conf.dataset.mode === 'confirm', 'Confirm action opens confirm mode');
+  ok(conf.querySelector('.c-lock__hatch').hidden, 'confirm mode hides the escape hatch');
+  const cancelBtn = [...conf.querySelectorAll('.c-button')].find((b) => b.textContent.trim().includes('Cancel'));
+  ok(!!cancelBtn && !cancelBtn.hidden, 'confirm mode shows Cancel (ixian:change → authSucceeded(false))');
+  cancelBtn.click();
+  ok(!d.querySelector('.demo-lock'), 'Cancel closes the confirm takeover');
+
+  // setLockMode free fn flips the chrome both ways
+  const flip = W.Spixi.createLockScreen({ mode: 'unlock', onCancel: () => {} });
+  d.body.append(flip);
+  W.Spixi.setLockMode(flip, 'confirm');
+  ok(flip.dataset.mode === 'confirm' && flip.querySelector('.c-lock__hatch').hidden,
+    'setLockMode(el, "confirm") — setJustConfirm mirror hides the hatch');
+  W.Spixi.setLockMode(flip, 'unlock');
+  ok(flip.dataset.mode === 'unlock' && !flip.querySelector('.c-lock__hatch').hidden,
+    'setLockMode flips back to unlock');
+
+  // #141-m4: sync throw in onUnlock → inline error, restored (ctrl.fail path)
+  const throwLock = W.Spixi.createLockScreen({ onUnlock: () => { throw new Error('boom'); } });
+  d.body.append(throwLock);
+  const tIn = throwLock.querySelector('.c-lock__input');
+  tIn.value = 'x';
+  throwLock.querySelectorAll('.c-button').forEach((b) => { if (b.textContent.includes('Unlock')) b.click(); });
+  ok(!throwLock.querySelector('.c-lock__error').hidden && !tIn.disabled,
+    'sync throw in onUnlock → inline error, field restored (#141-m4)');
+
+  // —— encpass: hub row → screen, gates, scrub ——
+  const secRows = [...d.querySelectorAll('.c-settings .c-settings__body button')];
+  const encRow = secRows.find((b) => b.textContent.includes('Change wallet password'));
+  ok(!!encRow, 'hub Security & privacy carries the Change wallet password row (ixian:encpass nav)');
+  encRow.click();
+  const enc = d.querySelector('.c-encpass');
+  ok(!!enc, 'row opens the encpass takeover');
+  const [cur, next, repeat] = [...enc.querySelectorAll('.c-lock__input')];
+  const encErr = enc.querySelector('.c-lock__error');
+  const saveBtn = enc.querySelector('.c-encpass__footer .c-button');
+  ok(cur.autocomplete === 'off' && next.autocomplete === 'new-password',
+    'current=off, new=new-password autocomplete split (SECURITY §5)');
+  ok(enc.querySelectorAll('.c-lock__reveal').length === 3,
+    '#160b⑦: every encpass field carries its own show-password eye');
+  cur.value = 'hunter2'; next.value = 'short'; repeat.value = 'short';
+  saveBtn.click();
+  ok(!encErr.hidden && encErr.textContent.includes('8'), 'new password under the 8-char floor blocked inline (spec flag ①)');
+  next.value = 'longenough1'; repeat.value = 'longenough2';
+  saveBtn.click();
+  ok(!encErr.hidden && encErr.textContent.includes('match'), 'repeat mismatch blocked inline');
+  let encSent = false;
+  // component-level for the delimiter gate (the demo mock would accept it)
+  const encGate = W.Spixi.createEncPassScreen({ onChangePassword: () => { encSent = true; } });
+  d.body.append(encGate);
+  const [gc, gn, gr] = [...encGate.querySelectorAll('.c-lock__input')];
+  gc.value = 'oldpass-ok'; gn.value = 'has--1ec4ce59e0535704d4--inside'; gr.value = gn.value;
+  encGate.querySelector('.c-encpass__footer .c-button').click();
+  ok(!encGate.querySelector('.c-lock__error').hidden && encSent === false,
+    'a password containing the magic changepass delimiter is NEVER sent (C# Split hazard, spec §2)');
+  encGate.remove();   // fixture hygiene (f2Picker precedent) — a stray .c-encpass in <body>
+                      // makes the later "!querySelector('.c-encpass')" asserts lie
+
+  // wrong current (demo mock: current must be hunter2) → inline error on the current field
+  cur.value = 'not-hunter2'; next.value = 'longenough1'; repeat.value = 'longenough1';
+  saveBtn.click();
+  await sleep(1100);
+  ok(!encErr.hidden && !cur.disabled, 'wrong current password → inline error, fields restored');
+
+  // success: morph → scrub → back to hub (with a REVEALED field: scrub must re-mask)
+  cur.value = 'hunter2'; next.value = 'longenough1'; repeat.value = 'longenough1';
+  enc.querySelector('.c-lock__reveal').click();   // reveal the current field
+  ok(cur.type === 'text', '#160b⑦ setup: current field revealed before submit');
+  saveBtn.click();
+  await sleep(1100);
+  ok(cur.value === '' && next.value === '' && repeat.value === '',
+    'success scrubs all three password fields (SECURITY §5)');
+  ok(cur.type === 'password',
+    '#160b⑦: scrub also RE-MASKS a revealed field (never leaves plaintext mode behind)');
+  await sleep(1000);
+  ok(!d.querySelector('.c-encpass'), 'success returns to the hub (legacy pop mirror)');
+
+  // back scrubs too
+  encRow.click();
+  const enc2 = d.querySelector('.c-encpass');
+  const enc2in = enc2.querySelector('.c-lock__input');
+  enc2in.value = 'sekrit';
+  enc2.querySelector('.c-topbar .c-button').click();
+  ok(enc2in.value === '' && !d.querySelector('.c-encpass'), 'back scrubs the fields before leaving (SECURITY §5)');
+
+  // #141-m4 on encpass
+  const encThrow = W.Spixi.createEncPassScreen({ onChangePassword: () => { throw new Error('boom'); } });
+  d.body.append(encThrow);
+  const [tc, tn, tr] = [...encThrow.querySelectorAll('.c-lock__input')];
+  tc.value = 'oldpass-ok'; tn.value = 'longenough1'; tr.value = 'longenough1';
+  encThrow.querySelector('.c-encpass__footer .c-button').click();
+  ok(!encThrow.querySelector('.c-lock__error').hidden && !tc.disabled,
+    'sync throw in onChangePassword → inline error, fields restored (#141-m4)');
+  encThrow.remove(); flip.remove(); throwLock.remove();   // fixture hygiene
+}
+
+{
+  /* static guards — lock batch (jsdom is layout-blind; read the source text) */
+  const setHtml = readFileSync(join(root, 'src/demo/settings.html'), 'utf8');
+  const ljs = readFileSync(join(root, 'src/components/lock-shell.js'), 'utf8');
+  const lcss = readFileSync(join(root, 'src/styles/components/lock-shell.css'), 'utf8');
+  const shellJs = readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8');
+  const bundleFiles = readFileSync(join(root, 'scripts/build-demo-bundle.mjs'), 'utf8');
+  ok(/lock-shell\.css/.test(setHtml), 'settings demo links lock-shell.css');
+  ok(bundleFiles.indexOf('lock-shell.js') > bundleFiles.indexOf('scan-shell.js')
+    && bundleFiles.indexOf('lock-shell.js') < bundleFiles.indexOf('settings-shell.js'),
+    'bundle FILES: lock-shell after scan-shell, before settings-shell');
+  ok(!/console\./.test(ljs), 'lock-shell.js never logs (passwords in scope — SECURITY §5)');
+  ok(/--1ec4ce59e0535704d4--/.test(ljs), 'the magic changepass delimiter gate is present (bridge-audit-B.md:128)');
+  ok(/pagehide/.test(ljs), 'encpass scrubs on pagehide (backgrounded WebView — SECURITY §5)');
+  ok(/c-lock__reveal/.test(ljs) && /::-ms-reveal[^}]*display: none/.test(lcss.replace(/\n/g, ' ')),
+    '#160b⑦: shell-owned show-password eye + native WebView2 eye suppressed (no double eye)');
+  ok(/onChangePassword/.test(shellJs) && /Change wallet password/.test(shellJs),
+    'settings hub carries the encpass nav row (presence-gated — ixian:encpass exists)');
+  ok(/min-height: 0/.test(lcss) && /flex: none/.test(lcss),
+    'encpass body follows the scroll-column rules (#136①, #148③/#150① classes)');
+  // #160 round guards
+  const tok2 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/--gradient-lock:/.test(tok2) && /var\(--gradient-lock\)/.test(lcss),
+    '#160: --gradient-lock token defined (code-only, fixed both themes) and consumed by .c-lock');
+  ok(/dataset\.theme = 'dark'/.test(ljs),
+    '#160: lock screen pins its subtree dark in JS (the #20 override precedent)');
+  ok(/openModal\(createModal\(/.test(ljs),
+    '#160b: the hatch modal is OPENED, not just created (createModal does not self-mount — Damir smoke-crash class)');
+  ok(/c-lock__brand/.test(ljs) && /c-lock__spacer/.test(lcss) && /flex: 1\.2 1 0/.test(lcss),
+    '#160b: brand/form/spacer/tail zones present — action cluster rides the lower half');
+  ok(/\.demo-lock \{ position: absolute; inset: 0;/.test(setHtml)
+    && /env\(safe-area-inset-top\)/.test(lcss),
+    '#160b⑧: lock takeover is FULL-BLEED (gradient under the statusbar; safe-area padding for the real page)');
+  ok(!/c-lock__logo \{[^}]*border-radius/.test(lcss.replace(/\n/g, ' ')) && /drop-shadow/.test(lcss),
+    '#160: logo is a bare glowing glyph — no disc/circle chrome');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

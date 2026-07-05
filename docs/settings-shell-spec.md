@@ -70,6 +70,10 @@ chat-info section grammar (`> * + *` dividers).
      revert-on-fail (notifications-toggle grammar); OFF = **pending, not
      optimistic** — switch stays checked + `aria-busy` until ctrl.done (auth
      succeeded) flips it; ctrl.fail (auth canceled) clears busy, stays ON.
+   - **Change wallet password** → nav row (`onChangePassword`, presence-gated —
+     legacy nav verb `ixian:encpass` exists, bridge-audit-A:258) → lock-shell
+     encpass takeover (Phase 1 #4, `docs/lock-spec.md`). Absorbs the legacy
+     EncryptionPassword page; SetLockPage is absorbed by the App-lock switch.
 3. **Backup row** — shield-lock glyph · "Backup" · status sub-line + badge
    (backup-ux-spec §3.1/§4 state machine): never → warning "Action needed" ·
    clean → date sub, no badge · dirty → info badge + "{n} new contacts since

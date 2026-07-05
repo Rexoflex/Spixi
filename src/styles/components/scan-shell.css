@@ -1,0 +1,138 @@
+/* c-scan — Scan takeover (docs/scan-spec.md, Phase 1 #3).
+   The camera area is FIXED-DARK in both themes (a camera feed is dark
+   regardless of theme — the --surface-qr fixed-pair precedent), so its inks
+   are sanctioned raw values, not theme tokens. html5-qrcode's <video> mounts
+   in .c-scan__feed at Phase 3; the demo leaves the feed empty (mock camera). */
+
+.c-scan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+
+.c-scan__camera {
+  position: relative;
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #101214;              /* sanctioned: fixed-dark camera bed, both themes */
+}
+.c-scan__feed { position: absolute; inset: 0; }
+.c-scan__feed > video { width: 100%; height: 100%; object-fit: cover; }
+
+/* —— scanning: corner-bracket frame over a scrim cutout —— */
+.c-scan__frame {
+  position: relative;
+  width: 240px;                     /* sanctioned: frame size, Damir eyeball (spec §5②) */
+  height: 240px;
+  border-radius: var(--radius-16);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); /* sanctioned: cutout scrim on the fixed-dark bed */
+}
+.c-scan__corner {
+  position: absolute;
+  width: 28px;                      /* sanctioned: bracket arm */
+  height: 28px;
+  border: 3px solid #ffffff;        /* sanctioned: on-camera ink */
+}
+.c-scan__corner[data-pos='tl'] { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: var(--radius-16); }
+.c-scan__corner[data-pos='tr'] { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: var(--radius-16); }
+.c-scan__corner[data-pos='bl'] { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: var(--radius-16); }
+.c-scan__corner[data-pos='br'] { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: var(--radius-16); }
+
+.c-scan__hint {
+  position: absolute;
+  inset-inline: var(--spacing-24);
+  bottom: var(--spacing-24);
+  margin: 0;
+  text-align: center;
+  color: #ffffff;                   /* sanctioned: on-camera ink */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+/* torch toggle — translucent chip on the feed; pressed = lit */
+.c-scan__torch {
+  position: absolute;
+  bottom: calc(var(--spacing-24) + 40px); /* sanctioned: clears the hint line */
+  inset-inline: 0;
+  margin-inline: auto;              /* symmetric center — RTL-safe, no transform */
+  width: 48px;                      /* sanctioned: touch target */
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--outline-width-1) solid rgba(255, 255, 255, 0.4); /* sanctioned: on-camera ink */
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.12);  /* sanctioned: on-camera wash */
+  color: #ffffff;                   /* sanctioned: on-camera ink */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-scan__torch:hover { background: rgba(255, 255, 255, 0.2); } } /* sanctioned */
+.c-scan__torch[aria-pressed='true'] {
+  background: #ffffff;              /* sanctioned: torch lit */
+  color: #101214;                   /* sanctioned: matches the camera bed */
+}
+.c-scan__torch:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* —— prompt / denied card (normal token surface ON the dark bed) —— */
+.c-scan__card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  max-width: 320px;                 /* sanctioned: card measure on the 419px frame */
+  margin: var(--spacing-24);
+  padding: var(--spacing-24);
+  text-align: center;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-2);
+  --surface-input: var(--surface-input-on-card);  /* #150③ */
+}
+.c-scan__card-title {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.c-scan__copy {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+/* —— decode success flash —— */
+.c-scan__success {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);  /* sanctioned: flash scrim on the fixed-dark bed */
+}
+.c-scan__success-disc {
+  width: 64px;                      /* sanctioned: flash disc */
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--disc-success-bg);
+  color: var(--disc-success-ink);
+}

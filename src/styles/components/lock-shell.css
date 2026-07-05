@@ -1,0 +1,209 @@
+/* c-lock / c-encpass — unlock · confirm-action · change-encryption-password
+   (docs/lock-spec.md, Phase 1 #4). Token surfaces throughout; the unlock
+   screen is a boot takeover with NO topbar (no back from lock). */
+
+/* #160 (Damir): fixed-dark BRAND surface — the JS pins data-theme="dark" on
+   the section (subtree token pin, #20 precedent) and --gradient-lock never
+   flips, so both themes render the same purple/blue multi-angle moment. */
+.c-lock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  background: var(--gradient-lock);
+  padding: var(--spacing-24);
+  /* #160b⑧: the gradient BLEEDS under the OS statusbar (LockPage owns the
+     whole screen) — content stays clear of the notch/inset, paint doesn't */
+  padding-top: max(var(--spacing-24), env(safe-area-inset-top));
+}
+/* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
+   cluster lands in the lower half (form top ≈ 63% of free space with the
+   0.7fr spacer below), hatch/cancel = quiet footer. Tune the two flex
+   ratios to slide the cluster. */
+.c-lock__brand {
+  flex: 1.2 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  text-align: center;
+}
+.c-lock__form {
+  flex: none;
+  width: 100%;
+  max-width: 320px;                 /* sanctioned: form measure on the 419px frame */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+.c-lock__spacer { flex: 0.7 1 0; min-height: var(--spacing-16); }
+.c-lock__tail {
+  flex: none;
+  width: 100%;
+  max-width: 320px;                 /* sanctioned: form measure */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding-bottom: var(--spacing-8);
+}
+/* #160: bare glyph, NO disc (Damir) — a soft brand glow instead of chrome */
+.c-lock__logo {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-8);
+  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  filter: drop-shadow(0 0 28px rgba(123, 92, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
+}
+.c-lock__title {
+  margin: 0;
+  min-width: 0;
+  text-align: center;
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);   /* #58: all titles heading-sm */
+  font-weight: var(--font-weight-semibold);
+}
+.c-lock__copy {
+  margin: 0;
+  min-width: 0;
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.c-lock__input {
+  width: 100%;
+  min-height: 48px;                 /* sanctioned: #160 premium rhythm beside 56 buttons */
+  padding: var(--spacing-8) var(--spacing-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+/* #160: on the lock gradient the input goes GLASS (scan on-camera wash
+   precedent) — encpass keeps the token surface via its own card scope */
+.c-lock .c-lock__input {
+  background: rgba(255, 255, 255, 0.07);   /* sanctioned: glass on the fixed gradient */
+  border-color: rgba(255, 255, 255, 0.16); /* sanctioned */
+}
+.c-lock__input::placeholder { color: var(--text-neutral-02); }
+.c-lock__input:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;              /* #51 text-field focus grammar */
+  border-color: var(--outline-action-default);
+}
+/* —— show-password eye (#160b⑦) — OURS, cross-platform: the #152① native
+   ::-ms-reveal is WebView2-only (Android/iOS WebKit have none), so the shell
+   owns the toggle and the native eye is SUPPRESSED (no double eye).
+   settings-backup keeps its native-eye approach — its own surface. —— */
+.c-lock__input::-ms-reveal { display: none; }
+.c-lock__field {
+  position: relative;
+  width: 100%;
+  display: flex;
+}
+.c-lock__field .c-lock__input {
+  flex: 1;
+  min-width: 0;
+  padding-inline-end: 48px;         /* sanctioned: clears the 36px eye + gap */
+}
+.c-lock__reveal {
+  position: absolute;
+  inset-inline-end: var(--spacing-4);
+  top: 50%;
+  transform: translateY(-50%);      /* vertical only — RTL-safe */
+  width: 36px;                      /* sanctioned: icon-button target inside a 48px field */
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-lock__reveal:hover { color: var(--text-neutral-01); } }
+.c-lock__reveal:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+.c-lock__error {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-error);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+/* [hidden] handled by the base.css !important rule */
+
+/* quiet escape hatch (unlock mode only) — a text link, not a button row */
+.c-lock__hatch {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  text-decoration: underline;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-lock__hatch:hover { color: var(--text-neutral-01); } }
+.c-lock__hatch:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-radius: var(--radius-8);
+}
+
+/* —— encpass —— */
+.c-encpass {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-encpass__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+.c-encpass__body > * { flex: none; }  /* #148③/#150① class */
+.c-encpass__note {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+.c-encpass__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-16);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③ */
+}
+.c-encpass__card .c-lock__input { background: var(--surface-input); }
+.c-encpass__footer {
+  flex: none;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: var(--surface-screen);
+}

@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="../styles/components/contacts-shell.css">
 <link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- chat-info payments rows (#142 precedent) -->
 <link rel="stylesheet" href="../styles/components/chat-info.css"><!-- directory → accepted-contact profile -->
+<link rel="stylesheet" href="../styles/components/scan-shell.css"><!-- add-contact scan entry (Phase 1 #3) -->
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -55,6 +56,8 @@
   /* contacts flow takeover — chat.html .demo-sendpanel grammar: starts below
      the 44px mock statusbar (real app: native safe-area, Phase 2 #22) */
   .demo-panel { position: absolute; inset: 44px 0 0 0; z-index: 25; display: flex; flex-direction: column; background: var(--surface-screen); }
+  /* demo-only: a mock camera can't decode — the sim button stands in for html5-qrcode */
+  .demo-scan-sim { position: absolute; inset-inline: 0; margin-inline: auto; width: max-content; top: 72px; z-index: 3; } /* below the scan topbar */
 </style>
 </head>
 <body>
@@ -89,8 +92,9 @@
     startTimestampTicker, refreshTimestamps,
     showToast,
     createContactsPicker, setPickerSelection, setPickerContacts,
-    createAddContact, createGroupSetup, createPendingContact,
+    createAddContact, setAddContactAddress, createGroupSetup, createPendingContact,
     createChatInfo,
+    createScanView, deliverScanResult,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
@@ -254,24 +258,64 @@
   };
 
   const openAddContact = (closePicker) => {
-    openPanel((closeAdd) => createAddContact({
-      strings,
-      onBack: closeAdd,
-      onScan: () => showToast({ text: 'Scan shell — Phase 1 #3 (stub)', tone: 'info', host: phone }),
-      // mock ixian:checkAddress → onValidAddress (silent on failure, bridge-audit-A.md:201)
-      onCheckAddress: (a, ctrl) => setTimeout(() => ctrl.done(), 450),
-      // mock ixian:request:<address> — known dupe fails like C# (self/existing reject)
-      onSendRequest: (a, ctrl) => setTimeout(() => {
-        if (a === 'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z') ctrl.fail('Already in your contacts.');
-        else ctrl.done();
-      }, 900),
-      onOpened: (a) => {
-        closeAdd();
-        closePicker();
-        openConversation({ name: '', address: a, pending: true });
-        showToast({ text: 'Request sent — conversation opened (chat surface lives in chat.html)', tone: 'success', host: phone });
-      },
-    }));
+    openPanel((closeAdd) => {
+      const add = createAddContact({
+        strings,
+        onBack: closeAdd,
+        onScan: () => openScan(add),               // Phase 1 #3: full scan takeover (docs/scan-spec.md)
+        // mock ixian:checkAddress → onValidAddress (silent on failure, bridge-audit-A.md:201)
+        onCheckAddress: (a, ctrl) => setTimeout(() => ctrl.done(), 450),
+        // mock ixian:request:<address> — known dupe fails like C# (self/existing reject)
+        onSendRequest: (a, ctrl) => setTimeout(() => {
+          if (a === 'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z') ctrl.fail('Already in your contacts.');
+          else ctrl.done();
+        }, 900),
+        onOpened: (a) => {
+          closeAdd();
+          closePicker();
+          openConversation({ name: '', address: a, pending: true });
+          showToast({ text: 'Request sent — conversation opened (chat surface lives in chat.html)', tone: 'success', host: phone });
+        },
+      });
+      return add;
+    });
+  };
+
+  /* —— Scan takeover (Phase 1 #3, docs/scan-spec.md) —— */
+
+  // deterministic permission mock: the FIRST Allow attempt DENIES so the
+  // recovery state is demoable (and smoke-stable); Try again grants.
+  let camGranted = false;
+  const SCAN_DEMO_ADDR = 'QRj2NewFriend77xKpR8mWzD2cF6JuEwA1vBq3';
+  const openScan = (addEl) => {
+    openPanel((closeScan) => {
+      const scan = createScanView({
+        strings,
+        onCancel: closeScan,                       // → ixian:back (C# pops + GC.Collect)
+        onRequestPermission: (ctrl) => setTimeout(() => {
+          if (!camGranted) {
+            camGranted = true;
+            ctrl.fail();
+            showToast({ text: 'Mock: first attempt denied — demos the recovery state', tone: 'info', host: phone });
+          } else ctrl.done();
+        }, 500),
+        onTorch: (on, ctrl) => setTimeout(() => ctrl.done(), 200), // mock — real torch = device tests (Phase 3)
+        // ixian:qrresult:<text> → C# pops the page → parent setAddress (auto-fill + return)
+        onDecode: (text) => {
+          closeScan();
+          setAddContactAddress(addEl, text);
+          showToast({ text: 'ixian:qrresult → setAddress (mock)', tone: 'success', host: phone });
+        },
+      });
+      // demo-only: mock camera can't decode — this button stands in for html5-qrcode
+      const sim = createButton({
+        label: 'Simulate QR decode', type: 'outline', size: 32,
+        onClick: () => deliverScanResult(scan, SCAN_DEMO_ADDR),
+      });
+      sim.classList.add('demo-scan-sim');
+      scan.append(sim);
+      return scan;
+    });
   };
 
   const openGroupSetup = (picker, sel, closePicker) => {

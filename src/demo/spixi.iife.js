@@ -11807,6 +11807,636 @@ function setGroupAvatar(el, src) {
   st.avatarBtn.append(img);
 }
 
+/* ---- src/components/scan-shell.js ---- */
+/**
+ * scan-shell — Scan takeover (Phase 1 #3, docs/scan-spec.md). Bridge grammar
+ * (bridge-audit-B.md §5): legacy scan.html decodes IN the WebView and emits
+ * ixian:qrresult:<text>; C# is allowScanning ONE-SHOT, pops the page, then
+ * raises scanSucceeded to the parent page. Cancel/back → ixian:back.
+ *
+ * createScanView({ state = 'prompt', onRequestPermission, onDecode, onTorch,
+ *                  onCancel, strings })
+ *   onRequestPermission(ctrl) — ctrl.done() → scanning · ctrl.fail() → denied
+ *     (honest recovery copy + Try again; NO OS-settings deep link — no bridge
+ *     verb exists, Damir pick). Latched while in flight, #141-m4 guarded.
+ *   onDecode(text) — fires ONCE per view (allowScanning mirror,
+ *     bridge-audit-B.md:170) ~350ms after the success flash; the host forwards
+ *     to ixian:qrresult:<text> and closes (auto-fill + return, Damir pick).
+ *   onTorch(on, ctrl) — OPTIONAL; absent = no torch affordance. Optimistic
+ *     aria-pressed flip; ctrl.fail()/sync throw reverts (#141-m4). Camera-flip
+ *     deferred to device testing (Damir pick).
+ *   onCancel() — topbar back → ixian:back (C# pops + GC.Collect()).
+ *
+ * Free fns (#44): setScanState(el, 'prompt'|'denied'|'scanning')
+ *                 deliverScanResult(el, text) — decode entry point (html5-qrcode
+ *                 callback at Phase 3 integration; mock button in the demo).
+ *
+ * deliverScanResult gates (never emitted): not in 'scanning' · already
+ * delivered · empty/whitespace payload · payload containing the literal
+ * 'ixian:qrresult:' (C# Splits on it — a hostile QR could truncate itself
+ * into a different payload; spec §1 + §9 ask for a C#-side guard).
+ */
+
+
+
+
+const scanState = new WeakMap(); // el → { state, delivered, requesting, opts, els }
+
+function scanCtrl(onDone, onFail) {              // one-shot (contactsCtrl grammar)
+  let used = false;
+  return {
+    done: (payload) => { if (used) return; used = true; onDone(payload); },
+    fail: (msg) => { if (used) return; used = true; onFail(msg); },
+  };
+}
+
+const STATES = ['prompt', 'denied', 'scanning'];
+
+function sync(st) {
+  const { root, frame, hint, torch, card, disc, cardTitle, cardCopy, cta } = st.els;
+  const { strings } = st.opts;
+  const scanning = st.state === 'scanning';
+  root.dataset.state = st.state;
+
+  frame.hidden = !scanning;
+  hint.hidden = !scanning;
+  if (torch) torch.hidden = !scanning;
+  card.hidden = scanning;
+  if (scanning) {
+    hint.textContent = strings.scanHint || 'Point your camera at a Spixi QR code';
+    return;
+  }
+
+  const denied = st.state === 'denied';
+  disc.dataset.hue = denied ? 'warning' : 'primary';
+  disc.textContent = '';
+  // eye-off = "camera blocked" stand-in on the denied disc (spec §5①)
+  disc.append(icon(denied ? 'eye-off' : 'scan', { size: 20 }));
+  cardTitle.textContent = denied
+    ? (strings.scanDeniedTitle || 'Camera access is off')
+    : (strings.scanPromptTitle || 'Scan a QR code');
+  cardCopy.textContent = denied
+    ? (strings.scanDeniedCopy
+      || 'Spixi can’t use the camera right now. Allow camera access for Spixi in your device settings, then try again.')
+    : (strings.scanPromptCopy
+      || 'Spixi needs the camera to scan a contact’s QR code. Nothing is captured until you allow it.');
+  const label = cta.querySelector('.c-button__label');
+  if (label) {
+    label.textContent = denied
+      ? (strings.tryAgain || 'Try again')
+      : (strings.allowCamera || 'Allow camera');
+  }
+}
+
+function createScanView({
+  state = 'prompt', onRequestPermission, onDecode, onTorch, onCancel, strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-scan';
+  el.append(createTopbar({
+    variant: 'view',
+    title: strings.scanTitle || 'Scan QR code',
+    onBack: onCancel,                            // → ixian:back (C# pops + GC.Collect)
+    backLabel: strings.back || 'Back',
+  }));
+
+  const cam = document.createElement('div');
+  cam.className = 'c-scan__camera';
+
+  // feed slot — html5-qrcode mounts its <video> here at Phase 3; demo leaves it dark
+  const feed = document.createElement('div');
+  feed.className = 'c-scan__feed';
+  feed.setAttribute('aria-hidden', 'true');
+  cam.append(feed);
+
+  const frame = document.createElement('div');
+  frame.className = 'c-scan__frame';
+  frame.setAttribute('aria-hidden', 'true');
+  for (const pos of ['tl', 'tr', 'bl', 'br']) {
+    const c = document.createElement('span');
+    c.className = 'c-scan__corner';
+    c.dataset.pos = pos;
+    frame.append(c);
+  }
+  cam.append(frame);
+
+  const hint = document.createElement('p');
+  hint.className = 'c-scan__hint';
+  hint.setAttribute('role', 'status');
+  cam.append(hint);
+
+  let torch = null;
+  if (onTorch) {                                 // capability-gated affordance (spec §2)
+    torch = document.createElement('button');
+    torch.type = 'button';
+    torch.className = 'c-scan__torch';
+    torch.setAttribute('aria-pressed', 'false');
+    torch.setAttribute('aria-label', strings.torch || 'Torch');
+    torch.append(icon('eye', { size: 20 }));     // icon gap: no bulb/flashlight glyph (spec §5①)
+    let torchBusy = false;
+    torch.addEventListener('click', () => {
+      if (torchBusy) return;
+      const on = torch.getAttribute('aria-pressed') !== 'true';
+      torch.setAttribute('aria-pressed', String(on));   // optimistic
+      torchBusy = true;
+      const ctrl = scanCtrl(
+        () => { torchBusy = false; },
+        () => { torchBusy = false; torch.setAttribute('aria-pressed', String(!on)); },
+      );
+      try { onTorch(on, ctrl); } catch { ctrl.fail(); } // #141-m4
+    });
+    cam.append(torch);
+  }
+
+  // prompt / denied card
+  const card = document.createElement('div');
+  card.className = 'c-scan__card';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc';
+  const cardTitle = document.createElement('p');
+  cardTitle.className = 'c-scan__card-title';
+  const cardCopy = document.createElement('p');
+  cardCopy.className = 'c-scan__copy';
+  const cta = createButton({ label: strings.allowCamera || 'Allow camera', size: 44, width: 'full' });
+  card.append(disc, cardTitle, cardCopy, cta);
+  cam.append(card);
+
+  // decode success flash (visual; the role=status hint carries the SR announcement)
+  const success = document.createElement('div');
+  success.className = 'c-scan__success';
+  success.hidden = true;
+  success.setAttribute('aria-hidden', 'true');
+  const successDisc = document.createElement('span');
+  successDisc.className = 'c-scan__success-disc';
+  successDisc.append(icon('check', { size: 32 }));
+  success.append(successDisc);
+  cam.append(success);
+
+  el.append(cam);
+
+  const st = {
+    state: STATES.includes(state) ? state : 'prompt',
+    delivered: false,
+    requesting: false,
+    opts: { onRequestPermission, onDecode, onTorch, onCancel, strings },
+    els: { root: el, frame, hint, torch, card, disc, cardTitle, cardCopy, cta, success },
+  };
+  scanState.set(el, st);
+
+  cta.addEventListener('click', () => {          // Allow camera / Try again — same request
+    if (st.requesting) return;
+    st.requesting = true;
+    setLoading(cta, true);
+    const ctrl = scanCtrl(
+      () => { st.requesting = false; setLoading(cta, false); setScanState(el, 'scanning'); },
+      () => { st.requesting = false; setLoading(cta, false); setScanState(el, 'denied'); },
+    );
+    try {
+      if (onRequestPermission) onRequestPermission(ctrl); else ctrl.done();
+    } catch { ctrl.fail(); }                     // #141-m4
+  });
+
+  sync(st);
+  return el;
+}
+
+/** Move between permission states; 'scanning' shows frame + hint + torch. */
+function setScanState(el, state) {
+  const st = scanState.get(el);
+  if (!st || !STATES.includes(state) || st.state === state) return;
+  st.state = state;
+  sync(st);
+}
+
+/**
+ * Decode entry point (html5-qrcode callback in the app; mock in the demo).
+ * One-shot per view (allowScanning mirror); success flash → onDecode(text).
+ */
+function deliverScanResult(el, text) {
+  const st = scanState.get(el);
+  if (!st || st.state !== 'scanning' || st.delivered) return;
+  const payload = String(text == null ? '' : text).trim();
+  if (!payload) return;
+  if (payload.includes('ixian:qrresult:')) return;   // hostile self-prefixed QR (spec §1)
+  st.delivered = true;
+  st.els.success.hidden = false;
+  st.els.hint.textContent = st.opts.strings.scanned || 'Code scanned';
+  setTimeout(() => {                             // let the flash land (spec §5④)
+    if (st.opts.onDecode) st.opts.onDecode(payload);
+  }, 350);
+}
+
+/* ---- src/components/lock-shell.js ---- */
+/**
+ * lock-shell — unlock · confirm-action · change-encryption-password
+ * (docs/lock-spec.md, Phase 1 #4). Bridge grammar (bridge-audit-A.md §11,
+ * bridge-audit-B.md §3 — FROZEN): ixian:unlock:<password> · ixian:change ·
+ * ixian:onload re-emit (biometric retry, Damir pick) · ixian:changepass with
+ * the magic delimiter. Set-lock is ABSORBED by the settings hub switch.
+ *
+ * SECURITY.md: passwords live ONLY in field values, transiently — scrubbed on
+ * back/success/pagehide/escape-hatch; no logging, no storage, no DOM echo.
+ * Shells emit intent; WalletStorage.verifyWallet / LockPage stay the C#
+ * boundary. NO logging of any kind in this file (smoke-guarded).
+ *
+ * createLockScreen({ mode = 'unlock', biometrics = false, onUnlock,
+ *                    onBiometricRetry, onUseAnotherWallet, onCancel, strings })
+ *   onUnlock(password, ctrl) — NO-CALLBACK CONTRACT (spec §3): C# answers a
+ *     WRONG password with a NATIVE alert only. ctrl.done() = keep latched +
+ *     "Unlocked" morph (C# is replacing the page) · ctrl.fail(msg) = inline
+ *     error (mock / future §9 unlockFailed) · NEITHER within 1600ms =
+ *     silent auto-release (value kept — the native alert already spoke).
+ *   onBiometricRetry() — re-emit ixian:onload (LockPage.onLoad relaunches
+ *     Plugin.Fingerprint); button hidden unless biometrics (WinUI hosts: false).
+ *   onUseAnotherWallet() — AFTER the confirm modal → ixian:change (lock mode:
+ *     C# pushes LaunchPage). Unlock mode only.
+ *   onCancel() — confirm mode Cancel → ixian:change (authSucceeded(false)).
+ *   Free fn: setLockMode(el, 'unlock'|'confirm')  (setJustConfirm mirror).
+ *
+ * createEncPassScreen({ onChangePassword, onBack, strings, host })
+ *   onChangePassword(oldPass, newPass, ctrl) — shell emits ixian:changepass
+ *     (delimiter-joined C#-side). ctrl.fail(msg) → inline error on the CURRENT
+ *     field (legacy invalid-current path) · ctrl.done() → success morph →
+ *     scrub → onBack(). Inline gates in submit() — see ENC_DELIM hazard.
+ */
+
+
+
+
+
+const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
+
+// C# splits the changepass URL on this literal (bridge-audit-B.md:128) — a
+// password CONTAINING it would shift the split slots. Gated here; §9 ask: C#
+// must guard too.
+const ENC_DELIM = '--1ec4ce59e0535704d4--';
+const ENC_MIN = 8;                 // ⚠ spec §6 flag ①: legacy minimum unknown
+const UNLOCK_RELEASE_MS = 1600;    // spec §3 auto-release window (flag ③)
+
+function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl grammar)
+  let used = false;
+  return {
+    done: (payload) => { if (used) return; used = true; onDone(payload); },
+    fail: (msg) => { if (used) return; used = true; onFail(msg); },
+  };
+}
+
+/**
+ * Password field with OUR show-password eye (#160b⑦, Damir): the #152① native
+ * `::-ms-reveal` is WebView2-only — Android/iOS WebKit have none, so the
+ * shell owns the toggle (native eye suppressed in CSS to avoid a double eye).
+ * mask() re-masks (scrub paths — never leave a revealed field behind).
+ */
+function passwordField({ label, current = false, strings = {} }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-lock__field';
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.className = 'c-lock__input';
+  // SECURITY §5: current = off (never offer to save the wallet password);
+  // new fields = new-password (managers must not autofill the OLD one).
+  // ⚠ spec §6 flag ②: Damir may prefer manager-friendly settings.
+  input.autocomplete = current ? 'off' : 'new-password';
+  input.spellcheck = false;
+  input.placeholder = label;
+  input.setAttribute('aria-label', label);
+
+  const reveal = document.createElement('button');
+  reveal.type = 'button';
+  reveal.className = 'c-lock__reveal';
+  reveal.setAttribute('aria-pressed', 'false');
+  reveal.setAttribute('aria-label', strings.showPassword || 'Show password');
+  reveal.append(icon('eye', { size: 20 }));
+  const setGlyph = (shown) => {
+    reveal.textContent = '';
+    reveal.append(icon(shown ? 'eye-off' : 'eye', { size: 20 }));
+  };
+  reveal.addEventListener('click', () => {
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    reveal.setAttribute('aria-pressed', String(show));
+    reveal.setAttribute('aria-label', show
+      ? (strings.hidePassword || 'Hide password')
+      : (strings.showPassword || 'Show password'));
+    setGlyph(show);
+    input.focus();
+  });
+  const mask = () => {
+    if (input.type === 'password') return;
+    input.type = 'password';
+    reveal.setAttribute('aria-pressed', 'false');
+    reveal.setAttribute('aria-label', strings.showPassword || 'Show password');
+    setGlyph(false);
+  };
+  wrap.append(input, reveal);
+  return { wrap, input, mask };
+}
+
+function lockSync(st) {
+  const { title, copy, hatch, cancel } = st.els;
+  const { strings } = st.opts;
+  const confirm = st.mode === 'confirm';
+  st.els.root.dataset.mode = st.mode;
+  // #160 (Damir): the whole APP is locked, not just the wallet — never
+  // "Wallet locked"; the body copy keeps "wallet password" (that IS the secret)
+  title.textContent = confirm
+    ? (strings.confirmTitle || 'Confirm it’s you')
+    : (strings.lockTitle || 'Spixi is locked');
+  copy.textContent = confirm
+    ? (strings.confirmCopy || 'Enter your wallet password to continue.')
+    : (strings.lockCopy || 'Enter your wallet password to unlock.');
+  hatch.hidden = confirm;                        // escape hatch = unlock mode only
+  cancel.hidden = !confirm;                      // Cancel = confirm mode only
+}
+
+function createLockScreen({
+  mode = 'unlock', biometrics = false, onUnlock, onBiometricRetry,
+  onUseAnotherWallet, onCancel, strings = {},
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-lock';                       // NO topbar — there is no back from lock
+  // #160 (Damir): fixed-dark brand surface — pin the SUBTREE to dark tokens
+  // ([data-theme] is an unscoped attribute selector, tokens.css:497; the #20
+  // contextual-override precedent, zero token duplication). --gradient-lock
+  // never flips, so both themes render the same brand moment.
+  el.dataset.theme = 'dark';
+
+  // #160b zones (Damir): brand centers in the UPPER share; the action cluster
+  // lands in the lower half ("middle / lower-middle of the lower half");
+  // hatch/cancel become a quiet footer. Ratios live in lock-shell.css.
+  const brand = document.createElement('div');
+  brand.className = 'c-lock__brand';
+
+  const logo = document.createElement('span');
+  logo.className = 'c-lock__logo';               // #160: bare glyph, no disc (Damir)
+  logo.setAttribute('aria-hidden', 'true');
+  logo.append(icon('logo', { size: 56 }));
+  brand.append(logo);
+
+  const title = document.createElement('h1');
+  title.className = 'c-lock__title';
+  const copy = document.createElement('p');
+  copy.className = 'c-lock__copy';
+  brand.append(title, copy);
+
+  const form = document.createElement('div');
+  form.className = 'c-lock__form';
+
+  const pwField = passwordField({ label: strings.walletPassword || 'Wallet password', current: true, strings });
+  const input = pwField.input;
+  form.append(pwField.wrap);
+
+  const err = document.createElement('p');
+  err.className = 'c-lock__error';
+  err.setAttribute('role', 'alert');
+  err.hidden = true;
+  form.append(err);
+
+  const unlockBtn = createButton({ label: strings.unlock || 'Unlock', size: 56, width: 'full' });
+  form.append(unlockBtn);
+
+  let bio = null;
+  if (biometrics && onBiometricRetry) {          // WinUI hosts pass biometrics:false
+    bio = createButton({
+      label: strings.bioRetry || 'Try fingerprint again',
+      type: 'outline', size: 56, width: 'full',   // #160: equal-size button family
+    });
+    bio.addEventListener('click', () => {
+      // re-emit ixian:onload — LockPage.onLoad relaunches AuthenticateAsync
+      // (Damir pick; §9 flag: BE blesses the reuse or ships ixian:bioretry)
+      try { onBiometricRetry(); } catch { /* nav-style fire-and-forget (#141-m4 scope: no latch to wedge) */ }
+    });
+    form.append(bio);
+  }
+
+  const tail = document.createElement('div');
+  tail.className = 'c-lock__tail';
+
+  // unlock mode: quiet escape hatch (Damir pick: link + confirm modal;
+  // C# LaunchPage stays the real boundary — the FE modal is deliberateness #146③)
+  const hatch = document.createElement('button');
+  hatch.type = 'button';
+  hatch.className = 'c-lock__hatch';
+  hatch.textContent = strings.otherWallet || 'Use a different wallet…';
+  hatch.addEventListener('click', () => {
+    openModal(createModal({                      // #160b: createModal doesn't self-mount
+      title: strings.otherWalletTitle || 'Use a different wallet?',
+      body: strings.otherWalletBody
+        || 'You’ll leave this screen and go to setup to create or restore another wallet. Your current wallet stays encrypted on this device.',
+      role: 'alertdialog',
+      host: el.closest('.demo-phone') || undefined,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        {
+          label: strings.otherWalletCta || 'Go to setup', type: 'fill', intent: 'destructive',
+          onClick: () => {
+            input.value = '';                    // SECURITY §5: scrub before leaving
+            pwField.mask();
+            try { if (onUseAnotherWallet) onUseAnotherWallet(); } catch { /* nav — nothing to wedge */ }
+          },
+        },
+      ],
+    }));
+  });
+  tail.append(hatch);
+
+  // confirm mode: Cancel → ixian:change (authSucceeded(false) + pop)
+  const cancel = createButton({ label: strings.cancel || 'Cancel', type: 'text', size: 56, width: 'full' }); // #160 family
+  cancel.addEventListener('click', () => {
+    input.value = '';                            // SECURITY §5: scrub on cancel
+    pwField.mask();
+    try { if (onCancel) onCancel(); } catch { /* nav — nothing to wedge */ }
+  });
+  tail.append(cancel);
+
+  const spacer = document.createElement('div');
+  spacer.className = 'c-lock__spacer';
+  spacer.setAttribute('aria-hidden', 'true');
+
+  el.append(brand, form, spacer, tail);
+
+  const st = {
+    mode: mode === 'confirm' ? 'confirm' : 'unlock',
+    inFlight: false,
+    opts: { onUnlock, strings },
+    els: { root: el, title, copy, hatch, cancel, input, err, unlockBtn },
+  };
+  lockState.set(el, st);
+
+  const setError = (msg) => { err.textContent = msg; err.hidden = !msg; };
+
+  const submit = () => {
+    if (st.inFlight) return;
+    const pass = input.value;                    // NOT trimmed — passwords may edge-space
+    if (!pass) {
+      setError(strings.passwordEmpty || 'Enter your wallet password.');
+      input.focus();
+      return;
+    }
+    setError('');
+    st.inFlight = true;
+    input.disabled = true;
+    if (bio) bio.disabled = true;
+    setLoading(unlockBtn, true);
+    let settled = false;
+    const restore = () => {
+      st.inFlight = false;
+      input.disabled = false;
+      if (bio) bio.disabled = false;
+      setLoading(unlockBtn, false);
+    };
+    // spec §3: NO wrong-password callback exists — auto-release silently if
+    // neither ctrl lands (the native alert has already told the user; value kept)
+    const release = setTimeout(() => { if (!settled) { settled = true; restore(); } }, UNLOCK_RELEASE_MS);
+    const ctrl = lockCtrl(
+      () => {                                    // success: C# is replacing the page
+        if (settled) return;
+        settled = true;
+        clearTimeout(release);
+        st.inFlight = false;                     // morph owns the button; field stays disabled
+        setLoading(unlockBtn, false);
+        setSuccess(unlockBtn, { label: strings.unlocked || 'Unlocked' });
+        input.value = '';                        // SECURITY §5: scrub — the page is going away
+        pwField.mask();
+      },
+      (msg) => {                                 // mock now; §9 unlockFailed later
+        if (settled) return;
+        settled = true;
+        clearTimeout(release);
+        restore();
+        setError(msg || strings.unlockFailed || 'That password didn’t unlock the wallet.');
+        input.focus();
+      },
+    );
+    try {
+      if (onUnlock) onUnlock(pass, ctrl);
+    } catch { ctrl.fail(); }                     // #141-m4
+  };
+  unlockBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  input.addEventListener('input', () => setError(''));
+
+  lockSync(st);
+  return el;
+}
+
+/** setJustConfirm("True") mirror — flips title/copy/hatch/cancel. */
+function setLockMode(el, mode) {
+  const st = lockState.get(el);
+  if (!st || (mode !== 'unlock' && mode !== 'confirm') || st.mode === mode) return;
+  st.mode = mode;
+  lockSync(st);
+}
+
+/* ————————————————— change encryption password ————————————————— */
+
+function createEncPassScreen({
+  onChangePassword, onBack, strings = {}, host,
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-encpass';
+
+  const scrub = () => {                          // values AND reveal state (§5)
+    cur.value = ''; next.value = ''; repeat.value = '';
+    curF.mask(); nextF.mask(); repF.mask();
+  };
+
+  el.append(createTopbar({
+    variant: 'view',
+    title: strings.changePassword || 'Change wallet password',
+    onBack: () => { scrub(); if (onBack) onBack(); },  // SECURITY §5: scrub on back
+    backLabel: strings.back || 'Back',
+  }));
+
+  const body = document.createElement('div');
+  body.className = 'c-encpass__body u-scroll';
+
+  const note = document.createElement('p');
+  note.className = 'c-encpass__note';
+  note.textContent = strings.encpassNote
+    || 'This is the password that encrypts your wallet on this device. Spixi can’t recover it for you.';
+  body.append(note);
+
+  const card = document.createElement('div');
+  card.className = 'c-encpass__card';
+  const curF = passwordField({ label: strings.currentPassword || 'Current password', current: true, strings });
+  const nextF = passwordField({ label: strings.newPassword || 'New password', strings });
+  const repF = passwordField({ label: strings.repeatPassword || 'Repeat new password', strings });
+  const cur = curF.input, next = nextF.input, repeat = repF.input;
+  card.append(curF.wrap, nextF.wrap, repF.wrap);
+
+  const err = document.createElement('p');
+  err.className = 'c-lock__error';
+  err.setAttribute('role', 'alert');
+  err.hidden = true;
+  card.append(err);
+  body.append(card);
+  el.append(body);
+
+  const footer = document.createElement('div');
+  footer.className = 'c-encpass__footer';
+  const saveBtn = createButton({ label: strings.changeCta || 'Change password', size: 56, width: 'full' });
+  footer.append(saveBtn);
+  el.append(footer);
+
+  // SECURITY §5: never leave plaintext in a hidden WebView (app backgrounded/closed)
+  el.addEventListener('pagehide', scrub);
+
+  const setError = (msg, focusEl) => {
+    err.textContent = msg;
+    err.hidden = !msg;
+    if (msg && focusEl) focusEl.focus();
+  };
+
+  let inFlight = false;
+  const submit = () => {
+    if (inFlight) return;
+    const o = cur.value, n = next.value, r = repeat.value;
+    if (!o) return setError(strings.currentEmpty || 'Enter your current password.', cur);
+    if (!n) return setError(strings.newEmpty || 'Enter a new password.', next);
+    if (n.length < ENC_MIN) {                    // ⚠ spec §6 flag ①
+      return setError((strings.newTooShort || 'The new password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), next);
+    }
+    if (n !== r) return setError(strings.repeatMismatch || 'The new passwords don’t match.', repeat);
+    if (n === o) return setError(strings.sameAsOld || 'The new password matches the current one.', next);
+    if (o.includes(ENC_DELIM) || n.includes(ENC_DELIM)) {
+      // C# Split hazard (spec §2) — never sent; §9 ask logged for a C#-side guard
+      return setError(strings.badPassword || 'That password contains an unsupported character sequence.', next);
+    }
+    setError('');
+    inFlight = true;
+    cur.disabled = true; next.disabled = true; repeat.disabled = true;
+    setLoading(saveBtn, true);
+    const restore = () => {
+      inFlight = false;
+      cur.disabled = false; next.disabled = false; repeat.disabled = false;
+      setLoading(saveBtn, false);
+    };
+    const ctrl = lockCtrl(
+      () => {
+        restore();
+        scrub();                                 // SECURITY §5: scrub on success
+        setSuccess(saveBtn, { label: strings.passwordChanged || 'Password changed' });
+        setTimeout(() => { if (onBack) onBack(); }, 900); // legacy pops after its success alert
+      },
+      (msg) => {
+        restore();
+        setError(msg || strings.wrongCurrent || 'That current password isn’t right.', cur);
+      },
+    );
+    try {
+      if (onChangePassword) onChangePassword(o, n, ctrl); else ctrl.done();
+    } catch { ctrl.fail(); }                     // #141-m4
+  };
+  saveBtn.addEventListener('click', submit);
+  repeat.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  cur.addEventListener('input', () => setError(''));
+  next.addEventListener('input', () => setError(''));
+  repeat.addEventListener('input', () => setError(''));
+
+  return el;
+}
+
 /* ---- src/components/settings-shell.js ---- */
 /**
  * c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
@@ -12075,6 +12705,7 @@ function createSettingsHub({
   onLanguage,                    // (code, ctrl) — ixian:language:<code>
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
+  onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
   onChatAppearance,              // nav → chat-appearance screen (FE-only, #147)
   onNotifications,               // nav → notifications screen (§9-gated)
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
@@ -12521,6 +13152,15 @@ function createSettingsHub({
     failMsg: strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.',
     onToggle: onPaymentAuth,
   }));
+
+  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
+     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
+     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
+  if (onChangePassword) sec.card.append(settingRow({
+    glyph: 'pencil', hue: 'primary',
+    label: strings.changePassword || 'Change wallet password',
+    onClick: () => onChangePassword(),
+  }).section);
 
   if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
     glyph: 'user-cog', hue: 'primary',
@@ -13879,5 +14519,5 @@ function createSettingsContributors({
   return el;
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors };
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors };
 })();

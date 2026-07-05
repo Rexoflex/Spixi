@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="../styles/components/settings-screens.css">
 <link rel="stylesheet" href="../styles/components/search-field.css">
 <link rel="stylesheet" href="../styles/components/settings-app.css">
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- unlock/confirm + encpass (Phase 1 #4) -->
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); flex-wrap: wrap; }
@@ -40,11 +41,19 @@
     color: var(--text-neutral-01);
   }
   .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; }
+  /* lock takeover — FULL-BLEED (#160b⑧, Damir): unlike the #145① inset-44
+     takeovers, LockPage owns the WHOLE screen — the gradient runs under the
+     statusbar, whose text floats above (mirrors the OS statusbar over the
+     brand surface; real contrast handling is the OS's job at Phase 3) */
+  .demo-lock { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; }
+  .statusbar { position: relative; z-index: 26; }
 </style>
 </head>
 <body>
   <div class="demo-toolbar">
     <h1 class="t-heading-md" style="margin-right:auto">Account/Settings shell — #146 + #147 premium round</h1>
+    <span id="lock-slot"></span>
+    <span id="confirm-slot"></span>
     <span id="fail-slot"></span>
     <span id="theme-slot"></span>
   </div>
@@ -56,7 +65,7 @@
         <div class="content" id="settings-content"></div>
         <div id="settings-nav"></div>
       </div>
-      <div class="demo-caption">Hub: QR-forward hero · tinted discs · card groups · theme preview tiles · chat appearance (FE-only, live) · privacy/notifications/security tiers (§9-gated, caps ON here) · backup (password: <code>hunter2</code>) · danger split · slice 2: Downloads (search/open/delete/clear) · Developer log (viewer+copy) · Contributors</div>
+      <div class="demo-caption">Hub: QR-forward hero · tinted discs · card groups · theme preview tiles · chat appearance (FE-only, live) · privacy/notifications/security tiers (§9-gated, caps ON here) · backup (password: <code>hunter2</code>) · danger split · slice 2: Downloads (search/open/delete/clear) · Developer log (viewer+copy) · Contributors · lock shell: toolbar Lock now / Confirm action (password <code>hunter2</code>; wrong = native-alert contract, 1.6s auto-release) + Change wallet password row</div>
     </div>
   </div>
 
@@ -70,6 +79,7 @@
     createChatAppearance, createPrivacy, createNotificationsScreen, createSecurityLevel,
     createSettingsDownloads, setDownloads, createSettingsDev, setDevLog,
     createSettingsContributors,
+    createLockScreen, setLockMode, createEncPassScreen,
     showToast,
   } = window.Spixi;
 
@@ -301,6 +311,59 @@
     show(createSettingsContributors({ strings, onBack: showHub }));
   }
 
+  /* —— lock shell (Phase 1 #4, docs/lock-spec.md) —— */
+
+  function showEncPass() {
+    show(createEncPassScreen({
+      strings, host: phone,
+      onBack: showHub,
+      // ixian:changepass:--delim--<old>--delim--<new> — wrong current = legacy alert path
+      onChangePassword: (oldPass, newPass, ctrl) => setTimeout(() => {
+        if (bridgeFails || oldPass !== 'hunter2') { ctrl.fail(); return; }
+        ctrl.done();
+        toast('ixian:changepass → writeWallet(new) — C# alerts success + pops (mock)');
+      }, 900),
+    }));
+  }
+
+  // full-phone lock overlay (unlock or confirm-action mode). Password: hunter2.
+  // Wrong password mirrors the REAL contract (spec §3): NO ctrl callback — C#
+  // alerts natively (toast here) and the shell auto-releases after 1600ms.
+  function openLock(mode) {
+    const panel = document.createElement('div');
+    panel.className = 'demo-lock';
+    const close = () => panel.remove();
+    const lock = createLockScreen({
+      mode, biometrics: true, strings,
+      onUnlock: (pass, ctrl) => setTimeout(() => {
+        if (pass === 'hunter2') {
+          ctrl.done();                            // C# would replace the page — demo closes after the morph
+          setTimeout(close, 900);
+          toast(mode === 'confirm' ? 'authSucceeded(true) — action confirmed (mock)' : 'performUnlock — Home restored (mock)');
+        } else if (bridgeFails) {
+          ctrl.fail('That password didn’t unlock the wallet.');   // §9 unlockFailed path (mock-only)
+        } else {
+          toast('C# native alert: invalid password (no JS callback — spec §3)');
+        }
+      }, 500),
+      // re-emit ixian:onload → LockPage.onLoad relaunches biometrics (mock: succeeds)
+      onBiometricRetry: () => {
+        toast('ixian:onload re-emitted → Plugin.Fingerprint retry (mock: success)');
+        setTimeout(close, 800);
+      },
+      onUseAnotherWallet: () => {                 // ixian:change in lock mode → LaunchPage
+        toast('ixian:change → LaunchPage (create/restore another wallet) — mock');
+        close();
+      },
+      onCancel: () => {                           // ixian:change in confirm mode → authSucceeded(false)
+        toast('ixian:change → authSucceeded(false) — action canceled (mock)');
+        close();
+      },
+    });
+    panel.append(lock);
+    phone.append(panel);
+  }
+
   /* —— the hub —— */
   const hub = createSettingsHub({
     name: state.nick,
@@ -375,6 +438,7 @@
       ctrl.done();
       toast(next ? 'Payments now ask for PIN/biometrics first' : 'Payment confirmation off');
     }, next ? 400 : 900),
+    onChangePassword: showEncPass,
     onChatAppearance: showChatAppearance,
     onNotifications: showNotifications,
     onSecurity: showSecurity,
@@ -398,6 +462,12 @@
   const nav = createBottomNav({ items: NAV_ITEMS, active: 'account' });
   document.getElementById('settings-nav').append(nav);
   setNavBadge(nav, 'chats', 4);
+
+  /* —— demo chrome: lock-shell entries —— */
+  const lockBtn = createButton({ label: 'Lock now', size: 32, type: 'outline', onClick: () => openLock('unlock') });
+  document.getElementById('lock-slot').append(lockBtn);
+  const confirmBtn = createButton({ label: 'Confirm action', size: 32, type: 'outline', onClick: () => openLock('confirm') });
+  document.getElementById('confirm-slot').append(confirmBtn);
 
   /* —— simulate the BE "dirty" signal: 3 new contacts since backup (only
      meaningful once backed up; before that the warning state stands) —— */

@@ -24,12 +24,11 @@ export function renderAppsRecents(el, state, opts = {}) {
 
   const strip = document.createElement('div');
   strip.className = 'c-apps-recents__strip';
-  strip.setAttribute('role', 'list');
   for (const app of recents) {
+    // plain buttons — role="listitem" would override button semantics for SRs (#106③ precedent)
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-apps-recents__item';
-    tile.setAttribute('role', 'listitem');
     tile.setAttribute('aria-label', app.name || strings.app || 'App');
     tile.append(createAppIcon({ src: app.icon, name: app.name, size: 56 }));
     const nm = document.createElement('span');

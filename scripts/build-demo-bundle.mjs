@@ -63,6 +63,10 @@ const FILES = [
   'src/components/apps-add.js',
   'src/components/apps-details.js',
   'src/components/apps-discover.js',
+  'src/components/apps-feed.js',
+  'src/components/wallet-hero.js',
+  'src/components/wallet-shell.js',
+  'src/components/wallet-send.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

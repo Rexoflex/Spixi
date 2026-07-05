@@ -1,11 +1,14 @@
 /**
  * c-app-details — mini-app details / installer (spec §2.3; premiumised per Damir 2026-07-04).
- * Header (icon, name, publisher, verified badge via c-badge),
- * description (clamped + Read more), capability CHIPS (reuse c-chip readonly),
- * an Advanced disclosure for the dev install-URL, a "runs securely" trust line,
- * and the actions. Install confirm = a **c-modal** (permission chips tap-to-explain +
- * source); on confirm the Install button **morphs inline** (loading → success check →
- * re-render as installed) — no separate installing/success modals. Uninstall = confirm modal.
+ * Hero cover + header (icon overlaps the cover; name/publisher/verified sit BELOW it —
+ * installed apps get a compact **Open pill** in the header, App-Store style), screenshots
+ * strip (Store order: artwork before words), description (clamped + Read more),
+ * capability CHIPS (tap-to-explain), meta rows, trust line, related tiles, an Advanced
+ * disclosure for the dev install-URL. Actions: NOT installed → sticky full-width Install
+ * bar (conversion CTA); installed → NO sticky bar — Open is the header pill, Uninstall is
+ * a quiet destructive text-row at the page bottom (confirm modal). Install confirm =
+ * c-modal (chips tap-to-explain + source); on confirm the Install button morphs inline
+ * (loading → success check → re-render as installed).
  *
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
@@ -95,17 +98,17 @@ function screenshotStrip(shots, strings) {
   const sec = detailsSection(strings.preview || 'Preview');
   const strip = document.createElement('div');
   strip.className = 'c-app-shots';
-  strip.setAttribute('role', 'list');
+  strip.setAttribute('role', 'region');                  // labelled scroll region (a11y scroll-container pattern)
   strip.tabIndex = 0;                                    // focusable so the strip scrolls with arrow keys
   strip.setAttribute('aria-label', strings.preview || 'Preview');
-  for (const src of shots) {
+  shots.forEach((src, i) => {
     const img = document.createElement('img');
     img.className = 'c-app-shots__item';
-    img.setAttribute('role', 'listitem');
     img.loading = 'lazy';
-    img.src = src; img.alt = '';
+    img.src = src;
+    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + shots.length;   // region has readable content
     strip.append(img);
-  }
+  });
   sec.append(strip);
   return sec;
 }
@@ -116,12 +119,11 @@ function relatedStrip(related, strings, onOpen) {
   const sec = detailsSection(strings.moreApps || 'More mini apps');
   const strip = document.createElement('div');
   strip.className = 'c-app-related';
-  strip.setAttribute('role', 'list');
   for (const rel of related) {
+    // plain buttons — role="listitem" would override button semantics for SRs (#106③ precedent)
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-app-related__item';
-    tile.setAttribute('role', 'listitem');
     tile.append(createAppIcon({ src: rel.icon, name: rel.name, size: 56 }));
     const nm = document.createElement('span');
     nm.className = 'c-app-related__name';
@@ -145,7 +147,12 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   // explain → tappable chips that fill a plain-language line. reserve (modal only) pins
   // the line's height so revealing text doesn't resize the dialog (flicker). In the details
   // page there's no modal to flicker, so the line just grows.
-  if (explain) { line = document.createElement('p'); line.className = 'c-app-caps__explain'; if (reserve) line.dataset.reserve = ''; }
+  if (explain) {
+    line = document.createElement('p');
+    line.className = 'c-app-caps__explain';
+    line.setAttribute('role', 'status');                 // announce chip-tap explanations to SRs (polite)
+    if (reserve) line.dataset.reserve = '';
+  }
   for (const c of caps) {
     if (explain) {
       row.append(createChip({
@@ -189,7 +196,19 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
   if (app.verified) pubrow.append(createBadge({ label: strings.verified || 'Verified', type: 'accent', icon: 'checks' }));
   htext.append(pubrow);
   header.append(htext);
+  if (app.installed) {
+    // installed → compact Open pill in the header (App-Store pattern); no sticky bar
+    const openPill = createButton({ label: strings.openApp || 'Open', type: 'fill', size: 44,
+      icon: icon('player-play', { size: 18 }), onClick: () => { if (onLaunch) onLaunch(app); } });
+    openPill.classList.add('c-app-details__openpill');
+    header.append(openPill);
+  }
   el.append(header);
+
+  /* screenshots first — artwork sells before words (Store order; graceful omit without previews) */
+  if (Array.isArray(app.screenshots) && app.screenshots.length) {
+    el.append(screenshotStrip(app.screenshots, strings));
+  }
 
   /* description (clamped + Read more) */
   if (app.description) {
@@ -201,27 +220,28 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
     more.type = 'button';
     more.className = 'c-app-details__more';
     more.textContent = strings.readMore || 'Read more';
+    more.setAttribute('aria-expanded', 'false');
     more.addEventListener('click', () => {
       const clamped = desc.dataset.clamped !== undefined;
       if (clamped) delete desc.dataset.clamped; else desc.dataset.clamped = '';
       more.textContent = clamped ? (strings.readLess || 'Read less') : (strings.readMore || 'Read more');
+      more.setAttribute('aria-expanded', clamped ? 'true' : 'false');
     });
     // only show "Read more" when the text actually clamps (overflows the line-clamp).
     // measured after layout — the view isn't in the DOM at build time.
     more.hidden = true;
     const revealIfClamped = () => { more.hidden = !(desc.scrollHeight > desc.clientHeight + 1); };
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { ro.disconnect(); if (desc.clientHeight > 0) revealIfClamped(); });
+      // stays observing (rotation/resize can change the clamp); syncs only while STILL
+      // clamped so it never fights an expanded state. GC'd with the view (self-referential).
+      const ro = new ResizeObserver(() => {
+        if (desc.clientHeight > 0 && desc.dataset.clamped !== undefined) revealIfClamped();
+      });
       ro.observe(desc);
     } else if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(revealIfClamped);
     }
     el.append(desc, more);
-  }
-
-  /* screenshots (graceful — only when the app ships previews) */
-  if (Array.isArray(app.screenshots) && app.screenshots.length) {
-    el.append(screenshotStrip(app.screenshots, strings));
   }
 
   /* capability chips (display) */
@@ -294,6 +314,11 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
       });
       urlRow.append(u, copyBtn);
       adv.append(urlRow);
+      const shareHint = document.createElement('p');
+      shareHint.className = 'c-app-details__sharehint';
+      shareHint.textContent = strings.shareHint
+        || 'Share this link with anyone — they can add the app in Spixi from it.';
+      adv.append(shareHint);
     }
     if (app.id) {
       const idRow = document.createElement('div');
@@ -305,23 +330,24 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
     el.append(adv);
   }
 
-  /* actions */
-  const actions = document.createElement('div');
-  actions.className = 'c-app-details__actions';
+  /* actions — installed: quiet destructive Uninstall row at the very bottom (scrolled-to,
+     not sticky; Open lives as the header pill + list tap-to-launch). Not-installed: the
+     sticky Install bar stays — it's a conversion CTA and the page's single action. */
   if (app.installed) {
-    actions.append(
-      createButton({ label: strings.openApp || 'Open', type: 'fill', size: 56, width: 'full',
-        icon: icon('player-play', { size: 20 }), onClick: () => { if (onLaunch) onLaunch(app); } }),
-      createButton({ label: strings.uninstall || 'Uninstall', type: 'outline', size: 56, width: 'full', intent: 'destructive',
-        icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }),
-    );
+    const danger = document.createElement('div');
+    danger.className = 'c-app-details__danger';
+    danger.append(createButton({ label: strings.uninstall || 'Uninstall', type: 'text', size: 44, width: 'full', intent: 'destructive',
+      icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }));
+    el.append(danger);
   } else {
+    const actions = document.createElement('div');
+    actions.className = 'c-app-details__actions';
     const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full',
       icon: icon('download', { size: 20 }),
       onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
     actions.append(installBtn);
+    el.append(actions);
   }
-  el.append(actions);
   return el;
 }
 
@@ -329,6 +355,12 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
 function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) {
   const content = document.createElement('div');
   content.className = 'c-app-install';
+  // identity anchor — the app's icon (same deterministic hue as its tile/hero) so the
+  // dialog visually reads as THIS app, Store-install style. Reuses c-app-icon, no new assets.
+  const idrow = document.createElement('div');
+  idrow.className = 'c-app-install__icon';
+  idrow.append(createAppIcon({ src: app.icon, name: app.name, size: 48 }));
+  content.append(idrow);
   if (caps.length) {
     const lead = document.createElement('p');
     lead.className = 'c-app-install__lead';
@@ -338,7 +370,12 @@ function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, o
   if (app.url) {
     const src = document.createElement('p');
     src.className = 'c-app-install__src';
-    src.textContent = (strings.source || 'Source: ') + app.url;
+    // domain, not the full URL — the dialog is a decision moment, the domain is the trust
+    // signal; the full URL stays one tap away (details → Advanced). Unparseable → full string.
+    let from = app.url;
+    try { from = new URL(app.url).hostname || app.url; } catch { /* keep full string */ }
+    src.textContent = (strings.source || 'Source: ') + from;
+    src.title = app.url;
     content.append(src);
   }
   openModal(createModal({

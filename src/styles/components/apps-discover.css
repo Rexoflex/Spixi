@@ -27,3 +27,90 @@
   line-height: var(--line-height-body-md);
   max-width: 32ch;
 }
+
+/* —— LIVE feed sections (#131) —— */
+.c-apps-discover__live { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-apps-discover__sectiontitle {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* featured — horizontal tile strip (same grammar as c-apps-recents) */
+.c-apps-discover__featured {
+  display: flex;
+  gap: var(--spacing-16);
+  overflow-x: auto;
+  padding-block-end: var(--spacing-4);
+  scrollbar-width: none;
+}
+.c-apps-discover__featured::-webkit-scrollbar { display: none; }
+.c-apps-discover__ftile {
+  flex: none;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-apps-discover__fname {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (hover: hover) { .c-apps-discover__ftile:hover .c-apps-discover__fname { color: var(--text-action-default); } }
+
+/* grid — one card per feed app */
+.c-apps-discover__grid { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-apps-discover__card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) { .c-apps-discover__card:hover { background: var(--surface-interactive-hover); } }
+.c-apps-discover__card:active { background: var(--surface-interactive-pressed); }
+.c-apps-discover__cardtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
+.c-apps-discover__cardname {
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-apps-discover__cardpub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-apps-discover__card .c-badge { flex: none; }
+
+.c-apps-discover__empty {
+  margin: 0;
+  padding: var(--spacing-24);
+  text-align: center;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}

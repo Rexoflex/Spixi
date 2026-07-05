@@ -102,3 +102,31 @@
 
 /* —— embedded Discover —— */
 .c-apps-add__discover { display: flex; flex-direction: column; }
+
+/* —— developer CTA (quiet, page bottom — "anyone can build a mini app", #128③) —— */
+.c-apps-add__dev {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-start: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--text-neutral-02);
+}
+.c-apps-add__dev svg { flex: none; color: var(--icon-neutral-02); }
+.c-apps-add__dev-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-apps-add__dev-link {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-8);                 /* comfortable tap without a 44 button's visual weight */
+  margin-inline-end: calc(-1 * var(--spacing-8));
+  color: var(--text-action-default);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}

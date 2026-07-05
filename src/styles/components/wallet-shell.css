@@ -1,0 +1,193 @@
+/* c-wallet-shell — filters row + tx list + tx/missing-tx sheets (spec §2/§5, #133/#134). */
+
+/* —— sticky tools: search + filters (scroll UX #134) —— */
+.c-wallet-tools {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding-block-start: var(--spacing-12);
+  padding-inline: var(--spacing-16);
+  background: var(--surface-screen);
+  max-height: 160px;                          /* > natural height; enables the tuck-away transition (#114 pattern) */
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              padding-block var(--duration-300) var(--easing-standard);
+}
+.c-wallet-tools[data-hidden] {
+  max-height: 0;
+  opacity: 0;
+  padding-block: 0;
+  pointer-events: none;                       /* fallback for pre-inert WebViews (#4/#113) */
+}
+
+/* —— filters row: chips + the #98 "Missing a transaction?" pill at the row end —— */
+.c-wallet-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-8) var(--spacing-12);
+  flex: none;
+}
+.c-wallet-misstx {
+  margin-inline-start: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-action-tonal-default);
+  color: var(--text-action-default);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
+.c-wallet-misstx:active { background: var(--surface-action-tonal-pressed); }
+/* #98 ①: narrow phones — the pill collapses to the ⓘ glyph (aria-label carries the name).
+   NB viewport query only — a <360px PANE in the #89 desktop split-view won't trigger it;
+   container queries are off the conservative baseline (#4), revisit at desktop build. */
+@media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
+
+/* —— tx list + empty —— */
+.c-wallet-txlist { display: flex; flex-direction: column; }
+.c-wallet-empty {
+  padding: var(--spacing-32) var(--spacing-24);
+  text-align: center;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+
+/* —— tx detail sheet —— */
+.c-txsheet { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-txsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }
+/* direction circle mirrors c-txlist-item's (48, same state inks) so list → sheet reads
+   as the same object */
+.c-txsheet__dir {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  color: var(--icon-neutral-01);
+}
+.c-txsheet__dir[data-type="received"] { border-color: var(--outline-success-inverse); color: var(--text-success); }
+.c-txsheet__dir[data-type="failed"] { color: var(--text-error); }
+.c-txsheet__headtext { flex: 1; min-width: 0; }
+.c-txsheet__title {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-lg);        /* heading-xs overpowered the sheet (Damir #135) */
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-txsheet__head .c-badge { flex: none; }
+.c-txsheet__amount {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-txsheet__amount[data-type="received"] { color: var(--text-success); }
+.c-txsheet__amount[data-type="pending"] { color: var(--text-neutral-02); }          /* mirrors txlist pending muting */
+.c-txsheet__amount[data-type="failed"] { color: var(--text-neutral-disabled); text-decoration: line-through; }
+.c-txsheet__fiat {
+  margin-block-start: calc(-1 * var(--spacing-8));
+  font-size: var(--font-size-body-md);
+  color: var(--text-neutral-02);
+}
+
+/* address — member-sheet addr-chip pattern (#99): full address, wraps, copy morphs */
+.c-txsheet__addrlabel {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  margin-block-end: calc(-1 * var(--spacing-8));   /* hugs its chip (parent gap is 12) */
+}
+.c-txsheet__addr {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-txsheet__addrvalue {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;                     /* the FULL address is the verification truth (#99) */
+}
+
+.c-txsheet__meta { display: flex; flex-direction: column; }
+.c-txsheet__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-txsheet__row:last-child { border-block-end: 0; }
+.c-txsheet__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-txsheet__rowvalue {
+  flex: 1; min-width: 0;
+  text-align: end;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* fee ⓘ + one-line explanation (Damir #135) */
+.c-txsheet__row--fee { flex-wrap: wrap; }
+.c-txsheet__info {
+  display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: middle;
+  margin-inline-start: var(--spacing-4);
+  border: 0; background: transparent; padding: var(--spacing-4);
+  position: relative;
+  border-radius: var(--radius-full);
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+.c-txsheet__info::after { content: ''; position: absolute; inset: -8px; }   /* ≥44 hit area (#106 family) */
+.c-txsheet__explain {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-txsheet__explain:empty { display: none; }
+
+.c-txsheet__copy {
+  flex: none;
+  width: 32px; height: 32px;                   /* visual 32; hit area extended below to ≥44 (#106 family) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-txsheet__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) { .c-txsheet__copy:hover { background: var(--surface-interactive-hover); } }
+.c-txsheet__copy:active { background: var(--surface-interactive-pressed); }
+
+/* —— missing-tx sheet (#98; title rendered by c-sheet) —— */
+.c-misstx { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-misstx__body {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }

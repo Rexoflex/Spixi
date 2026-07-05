@@ -5,15 +5,21 @@
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory }) → view
+ * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
+ *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
+ *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
+ *   onOpenApp    — a live-Discover card/tile tap → that app's details
  * Free fns (#44): setAddUrl(el, url) reveals + fills the field (QR → setScannedData);
- *                 setAddError(el, msg) shows the inline invalid-URL error.
+ *                 setAddError(el, msg) shows the inline invalid-URL error;
+ *                 setAddDiscoverFeed(el, feed, opts) — shell fetched the directory (#131):
+ *                 flips the embedded Discover live (parsed via apps-feed.js).
  */
 import { createButton } from './button.js';
-import { createAppsDiscover } from './apps-discover.js';
+import { createAppsDiscover, setDiscoverFeed } from './apps-discover.js';
 import { icon } from './icons.js';
 
-export function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory } = {}) {
+export function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -92,8 +98,27 @@ export function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, on
   const dTitle = document.createElement('h2');
   dTitle.className = 'c-apps-add__sectiontitle';
   dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory }));
+  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
   el.append(disc);
+
+  /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
+  if (onLearnBuild) {
+    const dev = document.createElement('div');
+    dev.className = 'c-apps-add__dev';
+    dev.append(icon('rocket', { size: 20 }));   // ⚠ 'code' glyph not in the icon export yet — swap when Damir exports it (glyph-sweep list)
+    const dtext = document.createElement('span');
+    dtext.className = 'c-apps-add__dev-text';
+    dtext.textContent = strings.devLead
+      || 'Anyone can build a mini app — web-friendly tech, no backend to run.';
+    dev.append(dtext);
+    const learn = document.createElement('button');
+    learn.type = 'button';
+    learn.className = 'c-apps-add__dev-link';
+    learn.textContent = strings.devLearn || 'Learn how';
+    learn.addEventListener('click', onLearnBuild);
+    dev.append(learn);
+    el.append(dev);
+  }
 
   return el;
 }
@@ -104,6 +129,13 @@ export function setAddUrl(el, url) {
   const field = el && el.querySelector('.c-apps-add__field');
   if (field) field.hidden = false;
   if (input) { input.value = url == null ? '' : String(url); input.focus(); }
+}
+
+/** Shell fetched the directory feed (#131) — flip the embedded Discover live. */
+export function setAddDiscoverFeed(el, feed, opts = {}) {
+  const disc = el && el.querySelector('.c-apps-discover');
+  if (disc) setDiscoverFeed(disc, feed, opts);
+  return el;
 }
 
 /** Show an inline invalid-URL error (the shell's `showUrlError` hook). */

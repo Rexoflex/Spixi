@@ -81,6 +81,7 @@
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, recordRecent,
     createAppsRecents, renderAppsRecents,
     createAppsHeader, createAppsAdd, setAddUrl, setAddError, createAppDetails,
+    setAddDiscoverFeed, parseAppsFeed, APPS_FEED_URL,
     showAppInstalling, showAppInstalled, showAppRemoved,
     closeModal, showToast,
   } = window.Spixi;
@@ -117,7 +118,8 @@
 
   /* —— mock installed apps (mirrors bridge addApp; creator = §8 publisher) —— */
   const APPS = [
-    { id: 'tictactoe', name: 'TicTacToe', creator: 'IXI Labs', installed: true, verified: true,
+    // reverse-DNS id matches the live directory feed → Discover badges it "Installed" (#131)
+    { id: 'com.ixilabs.spixi.tictactoe', name: 'TicTacToe', creator: 'IXI Labs', installed: true, verified: true,
       description: 'Play and win a game of Tic-Tac-Toe with a friend, right inside your chat. Take turns, track your score across rounds, and challenge anyone in your contacts to a quick match — no sign-up, no downloads, it just runs inside Spixi.',
       version: '1.2.0', size: '240 KB', url: 'https://apps.spixi.io/tictactoe/appinfo.spixi', capabilities: ['MultiUser'],
       screenshots: ['https://picsum.photos/seed/ttt1/360/640', 'https://picsum.photos/seed/ttt2/360/640', 'https://picsum.photos/seed/ttt3/360/640'],
@@ -147,7 +149,7 @@
       version: '1.1', size: '95 KB', url: 'https://apps.spixi.io/smoothie/appinfo.spixi', capabilities: [] },
   ];
 
-  const state = { apps: APPS.slice(), query: '', layout: 'list', recents: ['tictactoe', 'sunny', 'mistral'] };
+  const state = { apps: APPS.slice(), query: '', layout: 'list', recents: ['com.ixilabs.spixi.tictactoe', 'sunny', 'mistral'] };
   const strings = {};
 
   // primary tap launches the app + records it in Recently used (re-renders the strip)
@@ -187,6 +189,9 @@
     document.getElementById('fab').style.display = 'none';
   }
   function showDetails(app) {
+    // resolve to the live installed entry when we have it — related tiles carry bare {id,name}
+    // stubs and would otherwise render an installed app as installable (cosmetic, demo-only)
+    app = state.apps.find((x) => x.id === app.id) || app;
     // back-only bar: the app name lives in the details hero right below — no vertical repeat (Damir)
     topbar.replaceChildren(createTopbar({ variant: 'view', title: '', onBack: showInstalled }));
     document.getElementById('fab').style.display = 'none';
@@ -224,8 +229,38 @@
       onPickFile: () => showDetails({ id: 'filed', name: 'Local Mini App', creator: 'From file', installed: false,
         description: 'A mini app loaded from a file. Review its permissions before installing.',
         version: '1.0', size: '512 KB', capabilities: ['MultiUser', 'Storage'] }),
+      // both route through the external-link confirm in the real shell; toast-mocked here
+      onBrowseWeb: () => toast('Would open apps.spixi.io (external-link confirm)'),
+      onLearnBuild: () => toast('Would open the mini-app resources page (external-link confirm)'),
+      onOpenApp: (a) => showDetails(a),                 // live-Discover card → details (installed → Open pill)
     });
     content.replaceChildren(addEl);
+    loadDiscoverFeed(addEl);
+  }
+
+  /* —— live Discover (#131): fetch the real directory, fall back to a snapshot —— */
+  // Snapshot of https://apps.spixi.io/data/apps.json (2026-07-05) so the file:// demo
+  // shows the live experience even when fetch is blocked; the real shell fetches live
+  // (transport question — direct vs bridge proxy — logged for BE, §9).
+  const FEED_SNAPSHOT = { categories: ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'], apps: [
+    { id: 'com.ixilabs.spixi.auth', name: 'Spixi Authenticator', publisher: 'IXI Labs', description: 'QR code authentication utility for secure Spixi identity verification.', category: 'Tools', featured: false, version: '1.0.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.auth.spixi', singleUser: true, multiUser: false },
+    { id: 'com.ixilabs.spixi.gate-control', name: 'Gate Control', publisher: 'IXI Labs', description: 'QuIXI Gate Control example app for IoT device management.', category: 'IoT', featured: false, version: '1.0.2', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.gate-control.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.starwind-arena', name: 'StarWind Arena', publisher: 'IXI Labs', description: 'Classic multi-player tanks game. Play with friends through Spixi.', category: 'Games', featured: true, version: '1.0.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.starwind-arena.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.tictactoe', name: 'Tic-Tac-Toe', publisher: 'IXI Labs', description: 'Classic multi-player Tic-Tac-Toe game. Play with friends through Spixi.', category: 'Games', featured: true, version: '1.0.7', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.tictactoe.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.video-test', name: 'Spixi Video Test', publisher: 'IXI Labs', description: 'Local video testing app for developers to test video functionality in Spixi Mini Apps.', category: 'Dev Tools', featured: false, version: '0.1.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.video-test.spixi', singleUser: true },
+    { id: 'com.ixilabs.spixi.whiteboard', name: 'Whiteboard', publisher: 'IXI Labs', description: 'Collaborative drawing whiteboard for real-time visual collaboration with friends.', category: 'Tools', featured: true, version: '1.0.2', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.whiteboard.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.mini-apps-test', name: 'Mini Apps Test', publisher: 'IXI Labs', description: 'SDK testing and demo playground for developers building Spixi Mini Apps.', category: 'Dev Tools', featured: true, version: '1.3.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.mini-apps-test.spixi', multiUser: true },
+  ] };
+  async function loadDiscoverFeed(target) {
+    const apply = (json) => setAddDiscoverFeed(target, parseAppsFeed(json, state),
+      { strings, onOpen: (a) => showDetails(a) });
+    try {
+      const res = await fetch(APPS_FEED_URL, { cache: 'default' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      apply(await res.json());
+    } catch (e) {
+      apply(FEED_SNAPSHOT);                             // file:// / offline → snapshot
+    }
   }
 
   /* —— uninstall flow —— */

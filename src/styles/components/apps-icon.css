@@ -41,4 +41,6 @@
   user-select: none;
   -webkit-user-select: none;
 }
+.c-app-icon[data-size="56"] .c-app-icon__initial { font-size: 21px; }   /* recents/related tiles */
 .c-app-icon[data-size="64"] .c-app-icon__initial { font-size: 24px; }
+.c-app-icon[data-size="72"] .c-app-icon__initial { font-size: 28px; }   /* details hero icon */

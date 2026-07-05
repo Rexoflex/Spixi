@@ -83,5 +83,9 @@
   display: flex;
   gap: var(--spacing-8);
   justify-content: flex-end;
+  /* rich `content` slots carry no trailing margin (only __body does) — without this the
+     last content line sat flush against the buttons (Damir screenshot, install modal).
+     Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
+  margin-block-start: var(--spacing-24);
 }
 .c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */

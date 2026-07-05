@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Wallet shell — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/txlist-item.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/wallet-hero.css">
+<link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<link rel="stylesheet" href="../styles/components/wallet-send.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+  }
+  /* hero screens: the STATUS BAR floats transparent over the hero paint — the hero owns
+     the inset (component pads via env(safe-area-inset-top); the demo simulates the 44px
+     notch inset below). Two stacked paints created the seam Damir flagged (#134). */
+  .statusbar { position: absolute; inset-inline: 0; inset-block-start: 0; z-index: 1; background: transparent; color: var(--text-on-hero); }
+  .statusbar[data-plain] { color: var(--text-neutral-01); position: static; }  /* non-hero views (send) */
+  .demo-phone .c-wallet-hero { padding-block-start: 44px; }  /* demo stand-in for env(safe-area-inset-top) */
+  .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Wallet shell — slice 1 (home)</h1>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div id="wallet-hero"></div>
+        <div class="content u-scroll" id="wallet-content"></div>
+        <div id="wallet-nav"></div>
+      </div>
+      <div class="demo-caption">Wallet home — hero (hide-balance, quick actions) · filter chips + “Missing a transaction?” (#98) · tx rows → detail sheet</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createBottomNav, createButton, createTopbar, setNavBadge,
+    createWalletHero, setWalletBalance, setBalanceHidden,
+    createWalletTxList, renderWalletTxList, setWalletFilter,
+    createWalletTools, attachWalletScroll,
+    createWalletSend, setSendAddress,
+    openTxSheet, openMissingTxSheet,
+    showToast,
+  } = window.Spixi;
+  const icon = window.SpixiIcons.icon;
+
+  const strings = {};
+  const phone = document.querySelector('.demo-phone');
+  const toast = (text) => showToast({ text, host: phone });
+
+  /* —— theme toggle —— */
+  const themeBtn = createButton({ label: 'Toggle light', size: 32, type: 'outline', onClick: () => {
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+  } });
+  document.getElementById('theme-slot').append(themeBtn);
+  document.documentElement.dataset.theme = 'dark';
+
+  /* —— mock model (mirrors bridge addPaymentActivity: pre-formatted amount/fiat, #55) —— */
+  const now = Date.now();
+  const H = 3600e3, D = 24 * H;
+  // contact:true → sheet personalizes with the deterministic avatar; fee/status per the
+  // legacy tx object (fee is a §9 payload ask — mock carries it so the sheet demos it)
+  const state = { filter: 'all', txs: [
+    { txid: 'a3f9d27b81c21e', direction: 'out', status: 'confirmed', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: now - 20 * H, amount: '-18,000.00', fiat: '-$30.87', fee: '0.00001 IXI' },
+    { txid: 'b7d1e0aa3288aa', direction: 'in', status: 'confirmed', name: '425H…5CQen',
+      address: '425HqzWpMkV3dTgJnS85CQen', timestamp: now - 2 * D, amount: '+65,000.00', fiat: '+$100.87' },
+    { txid: 'c9e2f14bb941bb', direction: 'out', status: 'pending', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: now - 2 * D - 3 * H, amount: '-18,000.00', fiat: '-$30.87', fee: '0.00001 IXI' },
+    { txid: 'd0013c7cae7c7c', direction: 'out', status: 'failed', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: now - 3 * D, amount: '18,000.00', fiat: '$30.87', fee: '0.00001 IXI' },
+    { txid: 'e5aa719d0f19d0', direction: 'in', status: 'unknown', name: 'Baracuda', contact: true,
+      address: '8xPa1kQq7ZrYwNvJmm2W', timestamp: now - 4 * D, amount: '+25.00', fiat: '+$0.04' },
+  ] };
+  // deeper history so the scroll choreography (hero minimize + tools reveal) demos properly
+  const NAMES = [['Han Solo', '4kdJ2fN8w1qLxCvB7tRz9fQz', true], ['Baracuda', '8xPa1kQq7ZrYwNvJmm2W', true],
+    ['425H…5CQen', '425HqzWpMkV3dTgJnS85CQen', false], ['Sarah Jo', '7NmQw3RtY6uIkLp0oJhG5fDs', true]];
+  for (let i = 0; i < 16; i++) {
+    const [name, address, contact] = NAMES[i % NAMES.length];
+    const dirIn = i % 3 === 0;
+    state.txs.push({
+      txid: 'f' + i.toString(16).padStart(3, '0') + 'aa00bb11cc22', direction: dirIn ? 'in' : 'out',
+      status: 'confirmed', name, contact, address, timestamp: now - (5 + i) * D,
+      amount: (dirIn ? '+' : '-') + (120 + i * 7) + '.00', fiat: (dirIn ? '+$' : '-$') + (0.2 + i * 0.01).toFixed(2),
+      fee: dirIn ? undefined : '0.00001 IXI',
+    });
+  }
+
+  /* —— explorer intents (legacy parity: ixian:explorer / viewexplorer) —— */
+  const onExplorer = (tx) => toast(tx
+    ? 'Would open explorer.ixian.io — transaction ' + tx.txid + ' (external-link confirm)'
+    : 'Would open explorer.ixian.io — this address (external-link confirm)');
+
+  /* —— hero —— */
+  const hero = createWalletHero({
+    balance: '923,852.00', fiat: '$1,845.62', strings,
+    onSend: () => showSend(),
+    onReceive: () => toast('Receive — slice 3'),
+    onScan: () => toast('Would open the QR scanner (ixian:quickscan)'),
+  });
+  const heroSlot = document.getElementById('wallet-hero');
+  heroSlot.append(hero);
+
+  /* —— list + sticky tools (search + filters) + scroll choreography (#134) —— */
+  const content = document.getElementById('wallet-content');
+  const opts = { strings, host: phone, onExplorer };
+  const list = createWalletTxList(state, opts);
+  opts.listEl = list;
+  const tools = createWalletTools(state, opts);
+  content.append(tools, list);
+  let detachScroll = attachWalletScroll(content, { hero, tools });
+
+  /* —— send flow (slice 2): hero Send → one-screen send + #26 review sheet —— */
+  const statusbar = document.querySelector('.statusbar');
+  function showHome() {
+    delete statusbar.dataset.plain;
+    heroSlot.replaceChildren(hero);
+    renderWalletTxList(list, state, opts);
+    content.replaceChildren(tools, list);
+    detachScroll = attachWalletScroll(content, { hero, tools });
+  }
+  function showSend() {
+    detachScroll();                                      // the send view owns the scroll container now
+    statusbar.dataset.plain = '';
+    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.sendIxi || 'Send IXI', onBack: showHome }));
+    const send = createWalletSend({
+      contacts: [
+        { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+        { name: 'Baracuda', address: '8xPa1kQq7ZrYwNvJmm2W' },
+        { name: 'Sarah Jo', address: '7NmQw3RtY6uIkLp0oJhG5fDs' },
+      ],
+      balance: 923852, fee: 0.00001, strings, host: phone,
+      // mock quickscan: bridge would return the scanned payload → setSendAddress
+      onQuickScan: () => { setSendAddress(send, '425HqzWpMkV3dTgJnS85CQen:send:120'); toast('Scanned — address filled in'); },
+      onSend: (payload, ctrl) => setTimeout(ctrl.done, 1400),      // mock bridge send
+      onDone: (payload) => {
+        const r = payload.recipients[0];
+        state.txs.unshift({
+          txid: 'pending' + Date.now().toString(16), direction: 'out', status: 'pending',
+          name: r.name || r.address, contact: !!r.name, address: r.address,
+          timestamp: Date.now(), amount: '-' + payload.amount, fee: payload.fee + ' IXI',
+        });
+        showHome();
+        toast('Payment sent — confirming on the chain');
+      },
+    });
+    content.replaceChildren(send);
+  }
+
+  /* —— nav —— */
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({ items: NAV_ITEMS, active: 'wallet' });
+  document.getElementById('wallet-nav').append(nav);
+  setNavBadge(nav, 'chats', 4);
+
+  /* —— live balance tick demo —— */
+  setTimeout(() => setWalletBalance(hero, { balance: '923,877.00', fiat: '$1,845.67' }), 4000);
+</script>
+</body>
+</html>

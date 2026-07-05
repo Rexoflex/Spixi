@@ -1,0 +1,131 @@
+/* c-wallet-hero — Wallet home hero (#20 hero region, #21 tnum, #58 title; spec §2).
+   Ports the app-frame demo recipe into the component (tokens verbatim). */
+
+.c-wallet-hero {
+  background: var(--gradient-hero-overlay), var(--surface-hero);
+  color: var(--text-on-hero);
+  /* the hero owns the top safe-area so the status-bar region paints hero-colored with
+     NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
+  padding-block-start: env(safe-area-inset-top, 0px);
+  padding-block-end: var(--spacing-24);
+  border-end-start-radius: var(--radius-24);
+  border-end-end-radius: var(--radius-24);
+}
+
+.c-wallet-hero__titlerow { display: flex; align-items: center; padding-inline-end: var(--spacing-16); }
+.c-wallet-hero__title {
+  margin: 0;
+  padding: var(--spacing-16);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);     /* one title scale app-wide (#58) */
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+  font-weight: var(--font-weight-semibold);   /* heading roles are semibold (t-heading-*) */
+}
+/* compact balance — appears in the title row while minimized (#134 scroll UX) */
+.c-wallet-hero__compactbal {
+  margin-inline-start: auto;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-lg);
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-wallet-hero[data-compact] .c-wallet-hero__compactbal { opacity: 1; }
+
+/* minimized hero: balance block + actions collapse (binary triggered CSS transition —
+   the #114 pattern; reduced motion zeroes the duration tokens globally) */
+.c-wallet-hero__balance,
+.c-wallet-hero__actions {
+  max-height: 160px;                          /* > natural height; enables the collapse transition */
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              padding-block var(--duration-300) var(--easing-standard);
+}
+.c-wallet-hero[data-compact] .c-wallet-hero__balance,
+.c-wallet-hero[data-compact] .c-wallet-hero__actions {
+  max-height: 0;
+  opacity: 0;
+  padding-block: 0;
+}
+.c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
+.c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
+
+.c-wallet-hero__balance { padding-inline: var(--spacing-16); }
+.c-wallet-hero__label {
+  color: var(--text-on-hero-muted);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-wallet-hero__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-hero__amount {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-lg);
+  line-height: var(--line-height-heading-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading-lg);  /* −1px — the sanctioned hero-amount tracking (#20/#36) */
+  overflow-wrap: anywhere;
+}
+.c-wallet-hero__unit {
+  font-size: 0.62em;                           /* sanctioned ratio from the app-frame recipe (unit shrinks with the amount) */
+  font-weight: var(--font-weight-bold);
+  margin-inline-start: var(--spacing-8);
+}
+.c-wallet-hero__eye {
+  margin-inline-start: auto;
+  flex: none;
+  background: none; border: 0;
+  color: var(--icon-on-hero);
+  cursor: pointer;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-full);
+  min-width: var(--size-target-min); min-height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.c-wallet-hero__fiat { color: var(--text-on-hero-muted); font-size: var(--font-size-body-md); }
+
+.c-wallet-hero__actions {
+  display: flex;
+  gap: var(--spacing-24);
+  padding: var(--spacing-24) var(--spacing-16) 0;
+}
+.c-wallet-hero__qa {
+  display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8);
+  background: none; border: 0;
+  color: var(--text-on-hero);
+  cursor: pointer;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-hero__qacircle {
+  width: 56px; height: 56px;                   /* sanctioned: matches the button/56 scale (app-frame recipe) */
+  border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--text-on-hero-muted);
+  color: var(--icon-on-hero);
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+/* (the special filled Send circle was removed — all three actions identical, Damir #135) */
+
+/* keyboard focus — the global ring color ≈ light surface-hero, invisible here (#106
+   on-scrim family): pin the ring to the on-hero ink */
+.c-wallet-hero__eye:focus-visible,
+.c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
+
+/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline) */
+@media (hover: hover) {
+  .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
+  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
+}
+.c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
+.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
+
+/* tap-to-hide affordance (Damir #135): the whole balance block + compact balance toggle.
+   The compact balance is a ghost while the hero is expanded (opacity 0) — it must not
+   be a clickable invisible region (audit m1). */
+.c-wallet-hero__balance { cursor: pointer; }
+.c-wallet-hero__compactbal { cursor: pointer; pointer-events: none; }
+.c-wallet-hero[data-compact] .c-wallet-hero__compactbal { pointer-events: auto; }

@@ -4,8 +4,8 @@
  *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
  *
  * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
- *   .c-app-item__open  — the big tap target → onOpen(app)  (opens app details)
- *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (Open/Details/Uninstall)
+ *   .c-app-item__open  — the big tap target → onOpen(app)  (LAUNCHES the app, #126 2B)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (App details / Uninstall)
  * Creator (publisher) is a §8 field — rendered only when provided.
  *
  * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div

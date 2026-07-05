@@ -4782,8 +4782,8 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
  *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
  *
  * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
- *   .c-app-item__open  — the big tap target → onOpen(app)  (opens app details)
- *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (Open/Details/Uninstall)
+ *   .c-app-item__open  — the big tap target → onOpen(app)  (LAUNCHES the app, #126 2B)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (App details / Uninstall)
  * Creator (publisher) is a §8 field — rendered only when provided.
  *
  * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
@@ -5038,12 +5038,11 @@ function renderAppsRecents(el, state, opts = {}) {
 
   const strip = document.createElement('div');
   strip.className = 'c-apps-recents__strip';
-  strip.setAttribute('role', 'list');
   for (const app of recents) {
+    // plain buttons — role="listitem" would override button semantics for SRs (#106③ precedent)
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-apps-recents__item';
-    tile.setAttribute('role', 'listitem');
     tile.setAttribute('aria-label', app.name || strings.app || 'App');
     tile.append(createAppIcon({ src: app.icon, name: app.name, size: 56 }));
     const nm = document.createElement('span');
@@ -5149,15 +5148,21 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory }) → view
+ * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
+ *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
+ *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
+ *   onOpenApp    — a live-Discover card/tile tap → that app's details
  * Free fns (#44): setAddUrl(el, url) reveals + fills the field (QR → setScannedData);
- *                 setAddError(el, msg) shows the inline invalid-URL error.
+ *                 setAddError(el, msg) shows the inline invalid-URL error;
+ *                 setAddDiscoverFeed(el, feed, opts) — shell fetched the directory (#131):
+ *                 flips the embedded Discover live (parsed via apps-feed.js).
  */
 
 
 
 
-function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory } = {}) {
+function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -5236,8 +5241,27 @@ function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategor
   const dTitle = document.createElement('h2');
   dTitle.className = 'c-apps-add__sectiontitle';
   dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory }));
+  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
   el.append(disc);
+
+  /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
+  if (onLearnBuild) {
+    const dev = document.createElement('div');
+    dev.className = 'c-apps-add__dev';
+    dev.append(icon('rocket', { size: 20 }));   // ⚠ 'code' glyph not in the icon export yet — swap when Damir exports it (glyph-sweep list)
+    const dtext = document.createElement('span');
+    dtext.className = 'c-apps-add__dev-text';
+    dtext.textContent = strings.devLead
+      || 'Anyone can build a mini app — web-friendly tech, no backend to run.';
+    dev.append(dtext);
+    const learn = document.createElement('button');
+    learn.type = 'button';
+    learn.className = 'c-apps-add__dev-link';
+    learn.textContent = strings.devLearn || 'Learn how';
+    learn.addEventListener('click', onLearnBuild);
+    dev.append(learn);
+    el.append(dev);
+  }
 
   return el;
 }
@@ -5248,6 +5272,13 @@ function setAddUrl(el, url) {
   const field = el && el.querySelector('.c-apps-add__field');
   if (field) field.hidden = false;
   if (input) { input.value = url == null ? '' : String(url); input.focus(); }
+}
+
+/** Shell fetched the directory feed (#131) — flip the embedded Discover live. */
+function setAddDiscoverFeed(el, feed, opts = {}) {
+  const disc = el && el.querySelector('.c-apps-discover');
+  if (disc) setDiscoverFeed(disc, feed, opts);
+  return el;
 }
 
 /** Show an inline invalid-URL error (the shell's `showUrlError` hook). */
@@ -5266,12 +5297,15 @@ function setAddError(el, msg) {
 /* ---- src/components/apps-details.js ---- */
 /**
  * c-app-details — mini-app details / installer (spec §2.3; premiumised per Damir 2026-07-04).
- * Header (icon, name, publisher, verified badge via c-badge),
- * description (clamped + Read more), capability CHIPS (reuse c-chip readonly),
- * an Advanced disclosure for the dev install-URL, a "runs securely" trust line,
- * and the actions. Install confirm = a **c-modal** (permission chips tap-to-explain +
- * source); on confirm the Install button **morphs inline** (loading → success check →
- * re-render as installed) — no separate installing/success modals. Uninstall = confirm modal.
+ * Hero cover + header (icon overlaps the cover; name/publisher/verified sit BELOW it —
+ * installed apps get a compact **Open pill** in the header, App-Store style), screenshots
+ * strip (Store order: artwork before words), description (clamped + Read more),
+ * capability CHIPS (tap-to-explain), meta rows, trust line, related tiles, an Advanced
+ * disclosure for the dev install-URL. Actions: NOT installed → sticky full-width Install
+ * bar (conversion CTA); installed → NO sticky bar — Open is the header pill, Uninstall is
+ * a quiet destructive text-row at the page bottom (confirm modal). Install confirm =
+ * c-modal (chips tap-to-explain + source); on confirm the Install button morphs inline
+ * (loading → success check → re-render as installed).
  *
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
@@ -5361,17 +5395,17 @@ function screenshotStrip(shots, strings) {
   const sec = detailsSection(strings.preview || 'Preview');
   const strip = document.createElement('div');
   strip.className = 'c-app-shots';
-  strip.setAttribute('role', 'list');
-  strip.tabIndex = 0;
+  strip.setAttribute('role', 'region');                  // labelled scroll region (a11y scroll-container pattern)
+  strip.tabIndex = 0;                                    // focusable so the strip scrolls with arrow keys
   strip.setAttribute('aria-label', strings.preview || 'Preview');
-  for (const src of shots) {
+  shots.forEach((src, i) => {
     const img = document.createElement('img');
     img.className = 'c-app-shots__item';
-    img.setAttribute('role', 'listitem');
     img.loading = 'lazy';
-    img.src = src; img.alt = '';
+    img.src = src;
+    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + shots.length;   // region has readable content
     strip.append(img);
-  }
+  });
   sec.append(strip);
   return sec;
 }
@@ -5382,12 +5416,11 @@ function relatedStrip(related, strings, onOpen) {
   const sec = detailsSection(strings.moreApps || 'More mini apps');
   const strip = document.createElement('div');
   strip.className = 'c-app-related';
-  strip.setAttribute('role', 'list');
   for (const rel of related) {
+    // plain buttons — role="listitem" would override button semantics for SRs (#106③ precedent)
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-app-related__item';
-    tile.setAttribute('role', 'listitem');
     tile.append(createAppIcon({ src: rel.icon, name: rel.name, size: 56 }));
     const nm = document.createElement('span');
     nm.className = 'c-app-related__name';
@@ -5411,7 +5444,12 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   // explain → tappable chips that fill a plain-language line. reserve (modal only) pins
   // the line's height so revealing text doesn't resize the dialog (flicker). In the details
   // page there's no modal to flicker, so the line just grows.
-  if (explain) { line = document.createElement('p'); line.className = 'c-app-caps__explain'; if (reserve) line.dataset.reserve = ''; }
+  if (explain) {
+    line = document.createElement('p');
+    line.className = 'c-app-caps__explain';
+    line.setAttribute('role', 'status');                 // announce chip-tap explanations to SRs (polite)
+    if (reserve) line.dataset.reserve = '';
+  }
   for (const c of caps) {
     if (explain) {
       row.append(createChip({
@@ -5455,7 +5493,19 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
   if (app.verified) pubrow.append(createBadge({ label: strings.verified || 'Verified', type: 'accent', icon: 'checks' }));
   htext.append(pubrow);
   header.append(htext);
+  if (app.installed) {
+    // installed → compact Open pill in the header (App-Store pattern); no sticky bar
+    const openPill = createButton({ label: strings.openApp || 'Open', type: 'fill', size: 44,
+      icon: icon('player-play', { size: 18 }), onClick: () => { if (onLaunch) onLaunch(app); } });
+    openPill.classList.add('c-app-details__openpill');
+    header.append(openPill);
+  }
   el.append(header);
+
+  /* screenshots first — artwork sells before words (Store order; graceful omit without previews) */
+  if (Array.isArray(app.screenshots) && app.screenshots.length) {
+    el.append(screenshotStrip(app.screenshots, strings));
+  }
 
   /* description (clamped + Read more) */
   if (app.description) {
@@ -5467,27 +5517,28 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
     more.type = 'button';
     more.className = 'c-app-details__more';
     more.textContent = strings.readMore || 'Read more';
+    more.setAttribute('aria-expanded', 'false');
     more.addEventListener('click', () => {
       const clamped = desc.dataset.clamped !== undefined;
       if (clamped) delete desc.dataset.clamped; else desc.dataset.clamped = '';
       more.textContent = clamped ? (strings.readLess || 'Read less') : (strings.readMore || 'Read more');
+      more.setAttribute('aria-expanded', clamped ? 'true' : 'false');
     });
     // only show "Read more" when the text actually clamps (overflows the line-clamp).
     // measured after layout — the view isn't in the DOM at build time.
     more.hidden = true;
     const revealIfClamped = () => { more.hidden = !(desc.scrollHeight > desc.clientHeight + 1); };
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => { ro.disconnect(); if (desc.clientHeight > 0) revealIfClamped(); });
+      // stays observing (rotation/resize can change the clamp); syncs only while STILL
+      // clamped so it never fights an expanded state. GC'd with the view (self-referential).
+      const ro = new ResizeObserver(() => {
+        if (desc.clientHeight > 0 && desc.dataset.clamped !== undefined) revealIfClamped();
+      });
       ro.observe(desc);
     } else if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(revealIfClamped);
     }
     el.append(desc, more);
-  }
-
-  /* screenshots (graceful — only when the app ships previews) */
-  if (Array.isArray(app.screenshots) && app.screenshots.length) {
-    el.append(screenshotStrip(app.screenshots, strings));
   }
 
   /* capability chips (display) */
@@ -5560,6 +5611,11 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
       });
       urlRow.append(u, copyBtn);
       adv.append(urlRow);
+      const shareHint = document.createElement('p');
+      shareHint.className = 'c-app-details__sharehint';
+      shareHint.textContent = strings.shareHint
+        || 'Share this link with anyone — they can add the app in Spixi from it.';
+      adv.append(shareHint);
     }
     if (app.id) {
       const idRow = document.createElement('div');
@@ -5571,23 +5627,24 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
     el.append(adv);
   }
 
-  /* actions */
-  const actions = document.createElement('div');
-  actions.className = 'c-app-details__actions';
+  /* actions — installed: quiet destructive Uninstall row at the very bottom (scrolled-to,
+     not sticky; Open lives as the header pill + list tap-to-launch). Not-installed: the
+     sticky Install bar stays — it's a conversion CTA and the page's single action. */
   if (app.installed) {
-    actions.append(
-      createButton({ label: strings.openApp || 'Open', type: 'fill', size: 56, width: 'full',
-        icon: icon('player-play', { size: 20 }), onClick: () => { if (onLaunch) onLaunch(app); } }),
-      createButton({ label: strings.uninstall || 'Uninstall', type: 'outline', size: 56, width: 'full', intent: 'destructive',
-        icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }),
-    );
+    const danger = document.createElement('div');
+    danger.className = 'c-app-details__danger';
+    danger.append(createButton({ label: strings.uninstall || 'Uninstall', type: 'text', size: 44, width: 'full', intent: 'destructive',
+      icon: icon('trash', { size: 20 }), onClick: () => openUninstallConfirm({ app, host, strings, onUninstall }) }));
+    el.append(danger);
   } else {
+    const actions = document.createElement('div');
+    actions.className = 'c-app-details__actions';
     const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full',
       icon: icon('download', { size: 20 }),
       onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
     actions.append(installBtn);
+    el.append(actions);
   }
-  el.append(actions);
   return el;
 }
 
@@ -5595,6 +5652,12 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
 function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) {
   const content = document.createElement('div');
   content.className = 'c-app-install';
+  // identity anchor — the app's icon (same deterministic hue as its tile/hero) so the
+  // dialog visually reads as THIS app, Store-install style. Reuses c-app-icon, no new assets.
+  const idrow = document.createElement('div');
+  idrow.className = 'c-app-install__icon';
+  idrow.append(createAppIcon({ src: app.icon, name: app.name, size: 48 }));
+  content.append(idrow);
   if (caps.length) {
     const lead = document.createElement('p');
     lead.className = 'c-app-install__lead';
@@ -5604,7 +5667,12 @@ function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, o
   if (app.url) {
     const src = document.createElement('p');
     src.className = 'c-app-install__src';
-    src.textContent = (strings.source || 'Source: ') + app.url;
+    // domain, not the full URL — the dialog is a decision moment, the domain is the trust
+    // signal; the full URL stays one tap away (details → Advanced). Unparseable → full string.
+    let from = app.url;
+    try { from = new URL(app.url).hostname || app.url; } catch { /* keep full string */ }
+    src.textContent = (strings.source || 'Source: ') + from;
+    src.title = app.url;
     content.append(src);
   }
   openModal(createModal({
@@ -5673,37 +5741,136 @@ function showAppRemoved({ host, strings = {} } = {}) {
 
 /* ---- src/components/apps-discover.js ---- */
 /**
- * c-apps-discover — the Discover view (spec §2.4), PARKED until the apps.spixi.io
- * directory feed is wired (Damir to source). Renders the category chip row and,
- * while parked, a "coming soon" placeholder; when `ready` flips true, it exposes a
- * grid container that the feed populates (icon · name · creator cards → details).
+ * c-apps-discover — the Discover view (spec §2.4), now LIVE-capable (DECISIONS #131):
+ * `setDiscoverFeed(el, feed, opts)` renders a parsed apps.spixi.io feed (apps-feed.js) —
+ * Featured strip + card grid, category chips filtering client-side, installed apps
+ * badged and routed to the SAME onOpen (details resolves installed → Open pill).
  *
- * createAppsDiscover({ strings, categories, ready, onCategory }) → view
+ * Without a feed it stays PARKED: chips + "coming soon" + the `onBrowseWeb` fallback
+ * button (the web directory exists today, so Explore never dead-ends; shell routes the
+ * tap through the external-link confirm, like every outbound link).
+ *
+ * The component never fetches — the SHELL owns transport (direct fetch where the WebView
+ * allows it; bridge proxy otherwise — iOS WKWebView whitelist question, §9) and calls
+ * setDiscoverFeed on success. Fetch failure → simply don't call it (parked view stands).
+ *
+ * createAppsDiscover({ strings, categories, ready, onCategory, onBrowseWeb, onOpen }) → view
+ * setDiscoverFeed(el, feed, { strings, onCategory, onOpen }) — free fn (#44)
  */
+
+
+
 
 
 
 const APP_CATEGORIES = ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'];
 
-function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready = false, onCategory } = {}) {
-  const el = document.createElement('div');
-  el.className = 'c-apps-discover';
-  if (!ready) el.dataset.parked = '';
-
+function chipRow(categories, strings, onPick) {
   const cats = document.createElement('div');
   cats.className = 'c-apps-discover__cats';
   cats.setAttribute('role', 'group');
   cats.setAttribute('aria-label', strings.categories || 'Categories');
   categories.filter(Boolean).forEach((cat, i) => {
-    cats.append(createChip({ label: cat, selected: i === 0, onClick: () => { if (onCategory) onCategory(cat); }, strings }));
+    cats.append(createChip({
+      label: cat, selected: i === 0,
+      onClick: (e) => {
+        for (const c of cats.children) setChipSelected(c, c === e.currentTarget);
+        onPick(cat);
+      },
+      strings,
+    }));
   });
-  el.append(cats);
+  return cats;
+}
+
+/** One discover card — icon · name+publisher · Installed badge (when installed). */
+function discoverCard(app, strings, onOpen) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'c-apps-discover__card';
+  card.append(createAppIcon({ src: app.icon, name: app.name, size: 48 }));
+  const text = document.createElement('span');
+  text.className = 'c-apps-discover__cardtext';
+  const nm = document.createElement('span');
+  nm.className = 'c-apps-discover__cardname';
+  nm.textContent = app.name || '';
+  text.append(nm);
+  if (app.publisher) {
+    const pub = document.createElement('span');
+    pub.className = 'c-apps-discover__cardpub';
+    pub.textContent = app.publisher;
+    text.append(pub);
+  }
+  card.append(text);
+  if (app.installed) card.append(createBadge({ label: strings.installed || 'Installed', type: 'accent', icon: 'check' }));
+  if (onOpen) card.addEventListener('click', () => onOpen(app));
+  return card;
+}
+
+/** Render/refresh the live sections (featured + grid) for a category. */
+function renderLive(el, feed, category, { strings = {}, onOpen } = {}) {
+  const host = el.querySelector('.c-apps-discover__live');
+  if (!host) return;
+  host.textContent = '';
+  const all = feed.apps || [];
+  const inCat = (a) => category === 'All' || !category || a.category === category;
+
+  const featured = all.filter((a) => a.featured && inCat(a));
+  if (featured.length) {
+    const ftitle = document.createElement('h3');
+    ftitle.className = 'c-apps-discover__sectiontitle';
+    ftitle.textContent = strings.featured || 'Featured';
+    const strip = document.createElement('div');
+    strip.className = 'c-apps-discover__featured';
+    for (const app of featured) {
+      // plain buttons — role="listitem" would override button semantics for SRs (#106③)
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'c-apps-discover__ftile';
+      tile.append(createAppIcon({ src: app.icon, name: app.name, size: 56 }));
+      const nm = document.createElement('span');
+      nm.className = 'c-apps-discover__fname';
+      nm.textContent = app.name || '';
+      tile.append(nm);
+      if (app.installed) tile.dataset.installed = '';
+      if (onOpen) tile.addEventListener('click', () => onOpen(app));
+      strip.append(tile);
+    }
+    host.append(ftitle, strip);
+  }
+
+  const rest = all.filter(inCat);
+  if (rest.length) {
+    const grid = document.createElement('div');
+    grid.className = 'c-apps-discover__grid';
+    for (const app of rest) grid.append(discoverCard(app, strings, onOpen));
+    host.append(grid);
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'c-apps-discover__empty';
+    empty.setAttribute('role', 'note');
+    empty.textContent = (strings.discoverEmptyCat || 'No {cat} apps yet — check back soon.')
+      .split('{cat}').join(category || '');
+    host.append(empty);
+  }
+}
+
+function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready = false, onCategory, onBrowseWeb, onOpen } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-apps-discover';
+  if (!ready) el.dataset.parked = '';
+
+  el.append(chipRow(categories, strings, (cat) => {
+    if (el.dataset.parked === undefined) renderLive(el, el._feed || { apps: [] }, cat, { strings, onOpen: el._onOpen });
+    el._category = cat;
+    if (onCategory) onCategory(cat);
+  }));
+  el._category = categories[0] || 'All';
 
   if (ready) {
-    const grid = document.createElement('div');       // fed by the directory once wired
-    grid.className = 'c-apps-list';
-    grid.dataset.layout = 'grid';
-    el.append(grid);
+    const live = document.createElement('div');
+    live.className = 'c-apps-discover__live';
+    el.append(live);
   } else {
     const soon = document.createElement('div');
     soon.className = 'c-apps-discover__soon';
@@ -5713,10 +5880,1168 @@ function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready =
     t.textContent = strings.discoverSoon
       || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
     soon.append(t);
+    if (onBrowseWeb) {                                   // fallback — the web directory exists today
+      soon.append(createButton({
+        label: strings.browseWeb || 'Browse on the web', type: 'outline', size: 44,
+        icon: icon('arrow-right', { size: 18 }), iconPosition: 'trailing',
+        onClick: onBrowseWeb,
+      }));
+    }
     el.append(soon);
   }
   return el;
 }
 
-  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover };
+/** Free fn (#44): feed arrived — flip a parked view live (or refresh a live one) and
+ *  render. `feed` = parseAppsFeed output; its categories rebuild the chip row when they
+ *  differ from what's shown. Keeps the current category selection when still present. */
+function setDiscoverFeed(el, feed, { strings = {}, onCategory, onOpen } = {}) {
+  if (!el || !feed) return el;
+  el._feed = feed;
+  el._onOpen = onOpen;
+  delete el.dataset.parked;
+
+  const soon = el.querySelector('.c-apps-discover__soon');
+  if (soon) soon.remove();
+  if (!el.querySelector('.c-apps-discover__live')) {
+    const live = document.createElement('div');
+    live.className = 'c-apps-discover__live';
+    el.append(live);
+  }
+  if (feed.categories && feed.categories.length) {
+    const current = el.querySelector('.c-apps-discover__cats');
+    const shown = current ? [...current.querySelectorAll('.c-chip')].map((c) => c.textContent) : [];
+    if (shown.join(' ') !== feed.categories.join(' ')) {
+      const fresh = chipRow(feed.categories, strings, (cat) => {
+        renderLive(el, el._feed, cat, { strings, onOpen });
+        el._category = cat;
+        if (onCategory) onCategory(cat);
+      });
+      if (current) current.replaceWith(fresh); else el.prepend(fresh);
+      el._category = feed.categories[0];
+    }
+  }
+  if (!feed.categories || !feed.categories.includes(el._category)) el._category = 'All';
+  renderLive(el, feed, el._category, { strings, onOpen });
+  return el;
+}
+
+/* ---- src/components/apps-feed.js ---- */
+/**
+ * apps-feed — the apps.spixi.io directory CONTRACT (DECISIONS #128④; endpoint confirmed
+ * by Damir 2026-07-05): GET https://apps.spixi.io/data/apps.json — CORS `*`, max-age=600,
+ * static GitHub Pages. Pure mapping, NO fetching here — the shell owns transport
+ * (direct fetch where the WebView allows it; bridge proxy otherwise — the iOS WKWebView
+ * http/https whitelist question is logged for BE, §9).
+ *
+ * Feed entry shape (site repo: ixian-platform/Spixi-Mini-Apps-Website):
+ *   { id, name, publisher, description, category, featured, version,
+ *     icon (png url), spixiUrl (install url), github, singleUser, multiUser }
+ * Top level: { apps: [...], categories: ['All','AI','Games','IoT','Tools','Dev Tools'] }
+ * (categories match c-apps-discover's built-in set — feed wins when present).
+ *
+ * Missing vs the details model — site-schema WISHLIST (Damir owns the repo):
+ *   cover, screenshots[], related[], size, verified.
+ *
+ * feedEntryToApp(entry, state) → app (our model; `installed` resolved against state.apps
+ *   so Discover can flag installed apps and route to the installed details, Damir ask)
+ * parseAppsFeed(json, state) → { apps, categories } (json string or object; throws on
+ *   malformed JSON — caller guards and falls back to the parked view)
+ */
+
+const APPS_FEED_URL = 'https://apps.spixi.io/data/apps.json';
+
+function feedEntryToApp(entry, state) {
+  if (!entry || typeof entry !== 'object' || entry.id == null) return null;
+  const installed = !!(state && (state.apps || []).some((a) => a && a.id === entry.id));
+  const caps = [];
+  if (entry.multiUser) caps.push('MultiUser');
+  return {
+    id: entry.id,
+    name: String(entry.name || ''),
+    publisher: entry.publisher || '',
+    description: entry.description || '',
+    category: entry.category || '',
+    featured: !!entry.featured,
+    version: entry.version || '',
+    icon: entry.icon || null,
+    url: entry.spixiUrl || '',
+    github: entry.github || '',
+    capabilities: caps,
+    installed,
+  };
+}
+
+function parseAppsFeed(json, state) {
+  const data = typeof json === 'string' ? JSON.parse(json) : json;
+  const entries = data && Array.isArray(data.apps) ? data.apps : [];
+  const cats = data && Array.isArray(data.categories) ? data.categories.filter(Boolean) : [];
+  return {
+    apps: entries.map((e) => feedEntryToApp(e, state)).filter(Boolean),
+    categories: cats.length ? cats : undefined,
+  };
+}
+
+/* ---- src/components/wallet-hero.js ---- */
+/**
+ * c-wallet-hero — the Wallet home hero (spec docs/wallet-shell-spec.md §2, #133/#134).
+ * Hero-region pattern (#20: `surface/hero` + on-hero inks, gradient overlay), screen
+ * title at heading-sm (#58), balance in tabular numerals (#21) with the unit inline,
+ * an optional fiat line (renders ONLY when the bridge provides one — balance-level
+ * fiat source is a §9 question; Damir's app-frame reference shows it, so the demo
+ * seeds it), a hide-balance eye toggle, and the three quick actions from the reference:
+ * Send (primary) · Receive · Scan.
+ *
+ * Balance/fiat arrive PRE-FORMATTED strings from the bridge (#55/#77) — component dumb.
+ * Hidden state masks amount + fiat with bullets; the real strings live only in the
+ * WeakMap (no DOM/aria leak). Eye = aria-pressed toggle with a CONSTANT label
+ * ("Hide balance" — APG: pressed carries the state, the label must not flip); the
+ * glyph is state-vocabulary per member-sheet: eye = visible, eye-off = hidden.
+ *
+ * The hero owns the top safe-area inset (`env(safe-area-inset-top)`) so the status-bar
+ * region paints hero-colored with NO seam — the #22 watch-item surface.
+ *
+ * createWalletHero({ title, balance, unit, fiat, hidden, strings,
+ *                    onSend, onReceive, onScan, onToggleHidden }) → header
+ * Free fns (#44): setWalletBalance(el, { balance, fiat }) — bridge balance tick;
+ *                 setBalanceHidden(el, hidden) — eye state (shell owns persistence, §7).
+ */
+
+
+const MASK = '••••••';
+const store = new WeakMap();   // el → { balance, fiat, hidden, strings }
+
+function renderAmounts(el) {
+  const s = store.get(el);
+  if (!s) return;
+  const amount = el.querySelector('.c-wallet-hero__amountvalue');
+  const fiat = el.querySelector('.c-wallet-hero__fiat');
+  const compact = el.querySelector('.c-wallet-hero__compactbal');
+  if (amount) amount.textContent = s.hidden ? MASK : (s.balance || '');
+  if (compact) compact.textContent = s.hidden ? MASK : (s.balance || '');
+  if (fiat) {
+    fiat.textContent = s.hidden ? '••••' : (s.fiat || '');
+    fiat.hidden = !s.fiat;
+  }
+  const eye = el.querySelector('.c-wallet-hero__eye');
+  if (eye) {
+    eye.setAttribute('aria-pressed', String(!!s.hidden));   // label stays constant (APG)
+    eye.textContent = '';
+    eye.append(icon(s.hidden ? 'eye-off' : 'eye', { size: 22 }));   // glyph = state (member-sheet vocabulary)
+  }
+}
+
+function quickAction({ glyph, label, onClick }) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'c-wallet-hero__qa';
+  const circle = document.createElement('span');
+  circle.className = 'c-wallet-hero__qacircle';
+  circle.append(icon(glyph, { size: 24 }));
+  b.append(circle, document.createTextNode(label));
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+
+function createWalletHero({
+  title = 'Wallet', balance = '', unit = 'IXI', fiat = '', hidden = false,
+  strings = {}, onSend, onReceive, onScan, onToggleHidden,
+} = {}) {
+  const el = document.createElement('header');
+  el.className = 'c-wallet-hero';
+
+  const trow = document.createElement('div');
+  trow.className = 'c-wallet-hero__titlerow';
+  const t = document.createElement('h1');
+  t.className = 'c-wallet-hero__title';
+  t.textContent = strings.walletTitle || title;
+  trow.append(t);
+  // compact balance — visible only while the hero is minimized on scroll (#134 scroll UX)
+  const toggleHidden = () => {
+    const s = store.get(el);
+    s.hidden = !s.hidden;
+    renderAmounts(el);
+    if (onToggleHidden) onToggleHidden(s.hidden);   // shell persistence stays in sync (audit M4)
+  };
+  const cb = document.createElement('span');
+  cb.className = 'c-wallet-hero__compactbal u-tabular';
+  cb.setAttribute('aria-hidden', 'true');   // the full balance block stays the AT source
+  // minimized hero: tapping the compact balance toggles hide too (Damir #135; pointer
+  // convenience — the balance-block/eye path returns when the hero expands)
+  cb.addEventListener('click', toggleHidden);
+  trow.append(cb);
+  el.append(trow);
+
+  const bal = document.createElement('div');
+  bal.className = 'c-wallet-hero__balance';
+  const label = document.createElement('div');
+  label.className = 'c-wallet-hero__label';
+  label.textContent = strings.availableBalance || 'Available Balance';
+  bal.append(label);
+
+  const row = document.createElement('div');
+  row.className = 'c-wallet-hero__amountrow';
+  const amount = document.createElement('div');
+  amount.className = 'c-wallet-hero__amount u-tabular';
+  const value = document.createElement('span');
+  value.className = 'c-wallet-hero__amountvalue';
+  const u = document.createElement('span');
+  u.className = 'c-wallet-hero__unit';
+  u.textContent = unit;
+  amount.append(value, u);                               // gap via CSS margin — no stray text node
+  const eye = document.createElement('button');
+  eye.type = 'button';
+  eye.className = 'c-wallet-hero__eye';
+  eye.setAttribute('aria-label', strings.hideBalance || 'Hide balance');   // constant (APG toggle)
+  eye.addEventListener('click', toggleHidden);
+  // pointer convenience (Damir #135): tapping ANYWHERE on the balance block toggles too —
+  // the eye stays the accessible control (keyboard/SR path)
+  bal.addEventListener('click', (e) => {
+    if (e.target.closest('.c-wallet-hero__eye')) return;   // eye handles its own click
+    toggleHidden();
+  });
+  row.append(amount, eye);
+  bal.append(row);
+
+  const f = document.createElement('div');
+  f.className = 'c-wallet-hero__fiat u-tabular';
+  bal.append(f);
+  el.append(bal);
+
+  const actions = document.createElement('div');
+  actions.className = 'c-wallet-hero__actions';
+  actions.append(
+    // all three identical — the special filled Send circle "felt weird" (Damir #135)
+    quickAction({ glyph: 'arrow-up-right', label: strings.send || 'Send', onClick: onSend }),
+    quickAction({ glyph: 'arrow-down-left', label: strings.receive || 'Receive', onClick: onReceive }),
+    quickAction({ glyph: 'scan', label: strings.scan || 'Scan', onClick: onScan }),
+  );
+  el.append(actions);
+
+  store.set(el, { balance, fiat, hidden: !!hidden, strings });
+  renderAmounts(el);
+  return el;
+}
+
+/** Bridge balance tick (#44). Pass pre-formatted strings; fiat '' hides the line. */
+function setWalletBalance(el, { balance, fiat } = {}) {
+  const s = store.get(el);
+  if (!s) return el;
+  if (balance != null) s.balance = balance;
+  if (fiat != null) s.fiat = fiat;
+  renderAmounts(el);
+  return el;
+}
+
+/** Set the hidden state explicitly (shell restores its in-memory preference, §7). */
+function setBalanceHidden(el, hidden) {
+  const s = store.get(el);
+  if (!s) return el;
+  s.hidden = !!hidden;
+  renderAmounts(el);
+  return el;
+}
+
+/** Minimize/restore the hero (scroll UX, #134): balance block + quick actions collapse,
+ *  the title row gains a compact balance. Pure state toggle — the scroll wiring lives
+ *  in wallet-shell's attachWalletScroll. */
+function setWalletHeroCompact(el, compact) {
+  if (!el) return el;
+  if (compact) el.dataset.compact = ''; else delete el.dataset.compact;
+  // collapsed zones leave the a11y tree + tab order (#113 inert pattern + fallback for
+  // pre-inert WebViews — conservative baseline #4)
+  for (const zone of el.querySelectorAll('.c-wallet-hero__balance, .c-wallet-hero__actions')) {
+    if (compact) {
+      zone.setAttribute('aria-hidden', 'true');
+      if ('inert' in zone) zone.inert = true;
+      for (const b of zone.querySelectorAll('button')) b.tabIndex = -1;
+    } else {
+      zone.removeAttribute('aria-hidden');
+      if ('inert' in zone) zone.inert = false;
+      for (const b of zone.querySelectorAll('button')) b.removeAttribute('tabindex');
+    }
+  }
+  return el;
+}
+
+/* ---- src/components/wallet-shell.js ---- */
+/**
+ * c-wallet-shell — Wallet flow shell, slice 1 (spec docs/wallet-shell-spec.md, #133/#134):
+ * tx MODEL + render pipeline, filter chips (All/Sent/Received) with the #98
+ * "Missing a transaction?" info pill at the row end, c-txlist-item rows (#55),
+ * the tx-detail BOTTOM SHEET (Damir) and the missing-tx explainer sheet.
+ *
+ * Model tx: { txid, direction:'in'|'out', status:'confirmed'|'pending'|'failed'|'unknown',
+ *             name, contact?, address?, timestamp, amount, fiat, fee? }
+ *   status mirrors the legacy confirmation enum (true→confirmed / false→pending /
+ *   error→failed / unknown). amount/fiat/fee arrive PRE-FORMATTED (#55/#77); rows
+ *   render only when the field is present (data-honest — addPaymentActivity carries
+ *   no fee today: §9 ask = extend the payload or a detail fetch). `contact:true` (or a
+ *   name distinct from the address) personalizes the sheet with the deterministic
+ *   avatar (Damir 2026-07-05).
+ * state: { txs: [], filter: 'all'|'sent'|'received' }
+ *
+ * Explorer links (legacy parity): address-level = `ixian:explorer` → explorer.ixian.io
+ * address view; tx-level mirrors WalletSentPage's viewexplorer URL. The shell routes
+ * BOTH through the external-link confirm and fires the bridge intent via
+ * opts.onExplorer(txOrNull). Naming follows the legacy lang keys ("Explorer").
+ *
+ * createWalletTxList(state, opts) / renderWalletTxList(listEl, state, opts)
+ * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
+ * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
+ * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
+ */
+
+
+
+
+
+
+
+
+
+
+
+/* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
+
+/** Sent = everything outgoing incl. pending/failed (badge carries the caveat —
+ *  🟡 flagged for Damir: should failed sends list under "Sent"?). */
+function txMatchesFilter(tx, filter) {
+  if (!tx) return false;
+  if (filter === 'sent') return tx.direction !== 'in';
+  if (filter === 'received') return tx.direction === 'in';
+  return true;
+}
+
+/** Frontend tx search (#52 boundary: list-level only — everything the WebView holds):
+ *  counterparty name, address, txid. Empty/whitespace needle matches all. */
+function txMatchesQuery(tx, needle) {
+  const q = (needle || '').trim().toLocaleLowerCase();
+  if (!q) return true;
+  if (!tx) return false;
+  if ((tx.name || '').toLocaleLowerCase().includes(q)) return true;
+  if ((tx.address || '').toLocaleLowerCase().includes(q)) return true;
+  return (tx.txid || '').toLocaleLowerCase().includes(q);
+}
+
+function orderedTxs(state) {
+  return (state.txs || [])
+    .filter(Boolean)
+    .filter((t) => txMatchesFilter(t, state.filter || 'all'))
+    .filter((t) => txMatchesQuery(t, state.query));
+}
+
+/* ————————————————————————————— tx list ————————————————————————————— */
+
+function walletEmpty(state, strings) {
+  const el = document.createElement('div');
+  el.className = 'c-wallet-empty';
+  el.setAttribute('role', 'note');
+  const q = (state.query || '').trim();
+  const f = state.filter || 'all';
+  el.textContent = q ? (strings.walletEmptySearch || 'No transactions match “{q}”').split('{q}').join(q)
+    : f === 'sent' ? (strings.walletEmptySent || 'No sent payments yet')
+    : f === 'received' ? (strings.walletEmptyReceived || 'No received payments yet')
+    : (strings.walletEmptyAll || 'No activity yet — payments you send and receive show up here');
+  return el;
+}
+
+function renderWalletTxList(listEl, state, opts = {}) {
+  const strings = opts.strings || {};
+  listEl.textContent = '';
+  const txs = orderedTxs(state);
+  for (const tx of txs) {
+    listEl.append(createTxItem({
+      ...tx, strings,
+      onClick: () => openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
+    }));
+  }
+  if (!txs.length) listEl.append(walletEmpty(state, strings));
+  return listEl;
+}
+
+function createWalletTxList(state, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-wallet-txlist';
+  renderWalletTxList(el, state, opts);
+  return el;
+}
+
+/** Free fn (#44): switch the filter and re-render. */
+function setWalletFilter(listEl, state, filter, opts) {
+  state.filter = filter === 'sent' || filter === 'received' ? filter : 'all';
+  return renderWalletTxList(listEl, state, opts);
+}
+
+/** Free fn (#44): set the search query and re-render. */
+function setWalletQuery(listEl, state, query, opts) {
+  state.query = query;
+  return renderWalletTxList(listEl, state, opts);
+}
+
+/* —————————————————— filter chips + "Missing a transaction?" —————————————————— */
+
+const FILTERS = [
+  { id: 'all', label: 'All', key: 'filterAll' },
+  { id: 'sent', label: 'Sent', key: 'filterSent' },
+  { id: 'received', label: 'Received', key: 'filterReceived' },
+];
+
+function createWalletFilters(state, opts = {}) {
+  const strings = opts.strings || {};
+  const row = document.createElement('div');
+  row.className = 'c-wallet-filters';
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', strings.filterTx || 'Filter transactions');
+  const chips = FILTERS.map((f) => createChip({
+    label: strings[f.key] || f.label,
+    selected: (state.filter || 'all') === f.id,
+    onClick: (e) => {
+      for (const c of row.querySelectorAll('.c-chip')) setChipSelected(c, c === e.currentTarget);
+      if (opts.listEl) setWalletFilter(opts.listEl, state, f.id, opts);
+      if (opts.onFilter) opts.onFilter(f.id);
+    },
+    strings,
+  }));
+  row.append(...chips);
+
+  // #98: standing quiet affordance for the chain-read-lag property; sits at the row END,
+  // action-tonal so it owns the wash (chips stay neutral-outline unselected). Narrow
+  // contexts collapse it to the ⓘ glyph alone (CSS; aria-label carries the name).
+  const miss = document.createElement('button');
+  miss.type = 'button';
+  miss.className = 'c-wallet-misstx';
+  miss.append(icon('info-circle', { size: 16 }));
+  const mlabel = document.createElement('span');
+  mlabel.className = 'c-wallet-misstx__label';
+  mlabel.textContent = strings.missingTx || 'Missing a transaction?';
+  miss.append(mlabel);
+  miss.setAttribute('aria-label', strings.missingTx || 'Missing a transaction?');
+  miss.addEventListener('click', () => openMissingTxSheet({
+    host: opts.host, strings, onExplorer: opts.onExplorer,
+  }));
+  row.append(miss);
+  return row;
+}
+
+/* ———————————— tools block (search + filters) + scroll UX (#134 Damir) ———————————— */
+
+/** Sticky tools: c-search-field (FE search: names/addresses/txids) above the filter
+ *  row. Sits at the top of the scroll container; attachWalletScroll hides/reveals it. */
+function createWalletTools(state, opts = {}) {
+  const strings = opts.strings || {};
+  const el = document.createElement('div');
+  el.className = 'c-wallet-tools';
+  const search = createSearchField({
+    placeholder: strings.searchTx || 'Search transactions',
+    onInput: (v) => { if (opts.listEl) setWalletQuery(opts.listEl, state, v, opts); },
+    strings,
+  });
+  el.append(search, createWalletFilters(state, opts));
+  return el;
+}
+
+/** Scroll choreography (Damir #134, the #113/#114 family — binary triggered CSS
+ *  transitions, no scroll-linked per-frame writes):
+ *  · scroll DOWN past `collapseAt` → hero minimizes (compact title+balance) and,
+ *    past a small accumulated delta, the tools row tucks away → single-page tx list
+ *  · a brief scroll UP (≥ `reveal` px accumulated) → tools return (search + filters)
+ *  · at the absolute top → hero expands again
+ *  Guards: tools never hide while they hold focus or a non-empty query (the user is
+ *  mid-search). Returns detach().
+ */
+function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 24 } = {}) {
+  let last = scrollEl.scrollTop || 0;
+  let up = 0;
+
+  const toolsBusy = () => {
+    if (!tools) return false;
+    if (tools.contains(document.activeElement)) return true;
+    const input = tools.querySelector('input');
+    return !!(input && input.value.trim());
+  };
+  const setTools = (hiddenFlag) => {
+    if (!tools) return;
+    if (hiddenFlag) {
+      if (toolsBusy()) return;
+      tools.dataset.hidden = '';
+      tools.setAttribute('aria-hidden', 'true');
+      if ('inert' in tools) tools.inert = true;
+      for (const f of tools.querySelectorAll('button, input')) f.tabIndex = -1;
+    } else {
+      delete tools.dataset.hidden;
+      tools.removeAttribute('aria-hidden');
+      if ('inert' in tools) tools.inert = false;
+      for (const f of tools.querySelectorAll('button, input')) f.removeAttribute('tabindex');
+    }
+  };
+
+  const onScroll = () => {
+    const top = scrollEl.scrollTop;
+    const d = top - last;
+    last = top;
+    if (top <= 1) {                                      // absolute top → everything back
+      if (hero) setWalletHeroCompact(hero, false);
+      setTools(false);
+      up = 0;
+      return;
+    }
+    if (d > 0) {                                         // downward
+      up = 0;
+      if (top > collapseAt) {
+        if (hero) setWalletHeroCompact(hero, true);
+        setTools(true);
+      }
+    } else if (d < 0) {                                  // upward — brief pull reveals tools
+      up += -d;
+      if (up >= reveal) setTools(false);
+    }
+  };
+  scrollEl.addEventListener('scroll', onScroll, { passive: true });
+  return () => scrollEl.removeEventListener('scroll', onScroll);
+}
+
+/* ————————————————————————— shared bits ————————————————————————— */
+
+/** Copy button with the member-sheet clipboard + check-morph pattern (audit #134①). */
+function copyButton(value, label, strings = {}) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'c-txsheet__copy';
+  const idleLabel = (strings.copy || 'Copy') + ' — ' + label;
+  btn.setAttribute('aria-label', idleLabel);
+  btn.append(icon('copy', { size: 16 }));
+  btn.addEventListener('click', () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(String(value)).catch(() => {});
+    btn.textContent = '';
+    btn.append(icon('check', { size: 16 }));               // confirmation morph — no false toast
+    btn.setAttribute('aria-label', strings.txCopied || 'Copied');   // SRs hear the confirm
+    setTimeout(() => {
+      btn.textContent = '';
+      btn.append(icon('copy', { size: 16 }));
+      btn.setAttribute('aria-label', idleLabel);
+    }, 1400);
+  });
+  return btn;
+}
+
+/** Latch a sheet-closing bridge intent so the exit transition can't re-fire it (#72④). */
+function latched(sheetRef, fn) {
+  return (e) => {
+    const b = e.currentTarget;
+    if (b.dataset.acted !== undefined) return;
+    b.dataset.acted = '';
+    b.disabled = true;
+    closeSheet(sheetRef());
+    fn();
+  };
+}
+
+const STATUS_META = {
+  confirmed: { label: 'Confirmed', key: 'txConfirmed', type: 'success', glyph: 'checks' },
+  pending: { label: 'Pending', key: 'txPending', type: 'warning', glyph: 'clock-hour-10' },
+  failed: { label: 'Failed', key: 'txFailed', type: 'error', glyph: 'alert-square-rounded' },
+  unknown: { label: 'Unknown', key: 'txUnknown', type: 'info', glyph: 'hourglass-empty' },   // badge types: warning|error|info|success|accent (#54)
+};
+
+/* ————————————————————————— tx detail sheet (Damir: bottom sheet) ————————————————————————— */
+
+function sheetRow(label, value) {
+  if (value == null || value === '') return null;
+  const r = document.createElement('div');
+  r.className = 'c-txsheet__row';
+  const l = document.createElement('span');
+  l.className = 'c-txsheet__rowlabel';
+  l.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'c-txsheet__rowvalue u-tabular';
+  v.textContent = String(value);
+  r.append(l, v);
+  return r;
+}
+
+function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
+  const status = STATUS_META[tx.status] ? tx.status : 'unknown';
+  const meta = STATUS_META[status];
+  const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
+  const isContact = !!tx.contact || (!!tx.name && !!tx.address && tx.name !== tx.address);
+
+  const content = document.createElement('div');
+  content.className = 'c-txsheet';
+
+  /* header — contact avatar personalizes when we know the counterparty (Damir #134);
+     otherwise the direction circle carries the identity slot */
+  const head = document.createElement('div');
+  head.className = 'c-txsheet__head';
+  if (isContact) {
+    head.append(createAvatar({ name: tx.name, address: tx.address, size: 48 }));
+  } else {
+    const dir = document.createElement('span');
+    dir.className = 'c-txsheet__dir';
+    dir.dataset.type = type;
+    dir.append(icon(tx.direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', { size: 24 }));
+    head.append(dir);
+  }
+  const htext = document.createElement('div');
+  htext.className = 'c-txsheet__headtext';
+  const title = document.createElement('h2');
+  title.className = 'c-txsheet__title';
+  title.textContent = tx.direction === 'in'
+    ? (isContact ? ((strings.receivedFrom || 'Received from {name}').split('{name}').join(tx.name)) : (strings.received || 'Received'))
+    : (isContact ? ((strings.sentTo || 'Sent to {name}').split('{name}').join(tx.name)) : (strings.sent || 'Sent'));
+  htext.append(title);
+  head.append(htext);
+  head.append(createBadge({ label: strings[meta.key] || meta.label, type: meta.type, weight: 'tonal', icon: meta.glyph }));
+  content.append(head);
+
+  /* amount */
+  const amt = document.createElement('div');
+  amt.className = 'c-txsheet__amount u-tabular';
+  amt.dataset.type = type;
+  amt.textContent = tx.amount || '';
+  content.append(amt);
+  if (tx.fiat) {
+    const fiat = document.createElement('div');
+    fiat.className = 'c-txsheet__fiat u-tabular';
+    fiat.textContent = tx.fiat;
+    content.append(fiat);
+  }
+
+  /* address — member-sheet addr-chip pattern (#99): FULL address, wrapping, working copy.
+     Labelled by WHOSE address it is (Damir #135): received → sender's, sent → recipient's. */
+  if (tx.address) {
+    const addrLabel = document.createElement('div');
+    addrLabel.className = 'c-txsheet__addrlabel';
+    addrLabel.textContent = tx.direction === 'in'
+      ? (strings.senderAddress || "Sender's address")
+      : (strings.recipientAddress || "Recipient's address");
+    const addrRow = document.createElement('div');
+    addrRow.className = 'c-txsheet__addr';
+    const addr = document.createElement('span');
+    addr.className = 'c-txsheet__addrvalue u-tabular';
+    addr.textContent = tx.address;
+    addrRow.append(addr, copyButton(tx.address, addrLabel.textContent, strings));
+    content.append(addrLabel, addrRow);
+  }
+
+  /* meta — rows render only when the bridge provided the field (data-honest);
+     Status always renders (legacy confirmation enum incl. unknown, Damir #134) */
+  const metaBox = document.createElement('div');
+  metaBox.className = 'c-txsheet__meta';
+  const rows = [
+    sheetRow(strings.status || 'Status', strings[meta.key] || meta.label),
+    sheetRow(strings.date || 'Date', tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : ''),
+  ].filter(Boolean);
+  if (tx.fee != null && tx.fee !== '') {
+    // fee row carries an ⓘ that reveals a one-line explanation (Damir #135)
+    const feeRow = sheetRow(strings.fee || 'Fee', tx.fee);
+    const feeExplain = document.createElement('p');
+    feeExplain.className = 'c-txsheet__explain';
+    feeExplain.setAttribute('role', 'status');           // announced when filled (polite)
+    const feeInfo = document.createElement('button');
+    feeInfo.type = 'button';
+    feeInfo.className = 'c-txsheet__info';
+    feeInfo.setAttribute('aria-label', strings.whatsThisFee || 'What is this fee?');
+    feeInfo.setAttribute('aria-expanded', 'false');      // disclosure state for AT (audit n1)
+    feeInfo.append(icon('info-circle', { size: 14 }));
+    feeInfo.addEventListener('click', () => {
+      const open = !feeExplain.textContent;
+      feeExplain.textContent = open
+        ? (strings.feeExplain || 'Network fee — paid to the Ixian network for processing this transaction, not to Spixi.')
+        : '';
+      feeInfo.setAttribute('aria-expanded', String(open));
+    });
+    feeRow.querySelector('.c-txsheet__rowlabel').append(feeInfo);
+    feeRow.append(feeExplain);
+    feeRow.classList.add('c-txsheet__row--fee');
+    rows.push(feeRow);
+  }
+  if (tx.txid) {
+    const idRow = sheetRow(strings.txId || 'Transaction ID', tx.txid);
+    idRow.append(copyButton(tx.txid, strings.txId || 'Transaction ID', strings));
+    rows.push(idRow);
+  }
+  metaBox.append(...rows);
+  content.append(metaBox);
+
+  /* explorer — routes through the external-link confirm in the shell (onExplorer duty) */
+  if (onExplorer) {
+    content.append(createButton({
+      label: strings.viewExplorer || 'View in Explorer', type: 'outline', size: 44, width: 'full',
+      icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
+      onClick: latched(() => sheet, () => onExplorer(tx)),
+    }));
+  }
+
+  const sheet = createSheet({ content, host, strings, title: '' });   // head carries the identity
+  sheet.setAttribute('aria-label', strings.txDetails || 'Transaction details');
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
+
+function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-misstx';
+  const body = document.createElement('p');
+  body.className = 'c-misstx__body';
+  body.textContent = strings.missingTxBody
+    || 'Spixi reads your history directly from the Ixian blockchain — recent transactions can take a moment to appear, and very old ones may not be listed here.';
+  content.append(body);
+
+  const actions = document.createElement('div');
+  actions.className = 'c-misstx__actions';
+  // single action — no refresh command exists in the bridge (Damir #135); the list
+  // already rebuilds on every addPaymentActivity tick
+  if (onExplorer) {
+    // legacy parity: `ixian:explorer` opens THIS address on explorer.ixian.io
+    actions.append(createButton({
+      label: strings.viewAllExplorer || 'View all transactions on Explorer', type: 'fill', size: 44, width: 'full',
+      icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
+      onClick: latched(() => sheet, () => onExplorer(null)),
+    }));
+  }
+  content.append(actions);
+
+  const sheet = createSheet({
+    content, host, strings,
+    title: strings.missingTx || 'Missing a transaction?',   // sheet title = accessible name
+  });
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ---- src/components/wallet-send.js ---- */
+/**
+ * c-wallet-send — the send flow, slice 2 (spec §3, #133: ONE screen + review sheet).
+ * Replaces the legacy 3-page hop (wallet_send → send2 → sent):
+ *
+ * 1. RECIPIENT — search over contacts (deterministic avatars) OR a raw address input
+ *    ("Send to an address" reveal) OR QR (`ixian:quickscan` via onQuickScan; the shell
+ *    calls setSendAddress with the scan result). Selecting shows a recipient row with ✕.
+ * 2. AMOUNT — decimal-sanitized input (≤8 decimals, chain precision), Available line,
+ *    Max (balance − fee, #77 truncation), live fee + total; inline insufficient error.
+ * 3. REVIEW = c-sheet (#26 deliberateness step): recipient · amount · fee · total +
+ *    explicit Confirm (latched → loading, #29/#72④) / Cancel. onSend(payload, ctrl) —
+ *    the bridge runs the real send: ctrl.done() → success morph → onDone(payload)
+ *    (shell returns home; the pending row arrives via addPaymentActivity); ctrl.fail(msg)
+ *    → inline error in the sheet, Confirm re-enabled (retry stays possible).
+ *
+ * Numbers: user input is RAW here (the one surface where FE math is unavoidable —
+ * validation + Max + total); display strings still follow #77 (truncate, never round).
+ * The bridge remains the source of truth and re-validates on its side.
+ * Legacy multi-recipient stays commented out C#-side — payload is single-recipient but
+ * shaped plural-ready ({ recipients: [ { address, name? } ] }).
+ *
+ * createWalletSend({ contacts, balance, fee, strings, host,
+ *                    onQuickScan, onSend, onDone }) → view
+ * Free fn (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
+ */
+
+
+
+
+
+
+
+/** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
+ *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
+ *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
+ *  ('12,5' → '12.5') — never a silent magnitude change. */
+function sanitizeAmount(raw) {
+  let s = String(raw || '');
+  s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
+  s = s.replace(/[^0-9.]/g, '');
+  const i = s.indexOf('.');
+  if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');
+  const [int, dec] = s.split('.');
+  return dec != null ? int + '.' + dec.slice(0, 8) : s;
+}
+
+/* —— exact money math in integer 1e-8 units via BigInt (ES2020 floor, #45; audit M1:
+      binary floats falsely rejected exactly-fitting amounts and Max could overshoot;
+      Number×1e8 overflows 2^53 at Ixian-scale balances) —— */
+function toUnits(v) {
+  const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
+  const neg = s.startsWith('-');
+  const [i = '0', d = ''] = (neg ? s.slice(1) : s).split('.');
+  const u = BigInt(i || '0') * 100000000n + BigInt((d + '00000000').slice(0, 8));
+  return neg ? -u : u;
+}
+function fromUnits(u) {
+  const neg = u < 0n;
+  const a = neg ? -u : u;
+  const i = (a / 100000000n).toString();
+  const d = (a % 100000000n).toString().padStart(8, '0').replace(/0+$/, '');
+  return (neg ? '-' : '') + i + (d ? '.' + d : '');
+}
+
+function createWalletSend({
+  contacts = [], balance = 0, fee = 0, strings = {}, host,
+  onQuickScan, onSend, onDone,
+} = {}) {
+  // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
+  // the one FE surface doing money math. Pre-formatted display strings (hero-style
+  // '923,852.00') are NOT valid inputs here.
+  const el = document.createElement('div');
+  el.className = 'c-wallet-send';
+  const balU = toUnits(balance);
+  const feeU = toUnits(fee);
+  const state = { recipient: null, amount: '', sending: false, attempt: 0 };
+
+  /* ——— recipient section ——— */
+  const recSec = document.createElement('section');
+  recSec.className = 'c-wallet-send__section';
+  const recTitle = document.createElement('h2');
+  recTitle.className = 'c-wallet-send__label';
+  recTitle.textContent = strings.sendTo || 'Send to';
+  recSec.append(recTitle);
+
+  /* selected recipient row (hidden until picked) */
+  const picked = document.createElement('div');
+  picked.className = 'c-wallet-send__picked';
+  picked.hidden = true;
+  recSec.append(picked);
+
+  /* picker: search + contact rows + address reveal */
+  const picker = document.createElement('div');
+  picker.className = 'c-wallet-send__picker';
+  const search = createSearchField({
+    placeholder: strings.searchContacts || 'Search contacts',
+    onInput: (v) => renderContacts(v),
+    strings,
+  });
+  picker.append(search);
+  const rows = document.createElement('div');
+  rows.className = 'c-wallet-send__contacts';
+  picker.append(rows);
+
+  const addrReveal = document.createElement('button');
+  addrReveal.type = 'button';
+  addrReveal.className = 'c-wallet-send__addrreveal';
+  addrReveal.append(icon('qrcode', { size: 18 }));
+  addrReveal.append(document.createTextNode(strings.sendToAddress || 'Send to an address'));
+  picker.append(addrReveal);
+
+  const addrField = document.createElement('div');
+  addrField.className = 'c-wallet-send__addrfield';
+  addrField.hidden = true;
+  const addrInput = document.createElement('input');
+  addrInput.className = 'c-wallet-send__addrinput';
+  addrInput.type = 'text';
+  addrInput.autocomplete = 'off';
+  addrInput.spellcheck = false;
+  addrInput.placeholder = strings.ixianAddress || 'Ixian address';
+  addrInput.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
+  const scanBtn = document.createElement('button');
+  scanBtn.type = 'button';
+  scanBtn.className = 'c-wallet-send__scan';
+  scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
+  scanBtn.append(icon('scan', { size: 20 }));
+  if (onQuickScan) scanBtn.addEventListener('click', onQuickScan);   // → ixian:quickscan; result via setSendAddress
+  addrField.append(addrInput, scanBtn);
+  const addrUse = createButton({
+    label: strings.useAddress || 'Use this address', type: 'outline', size: 44, width: 'full',
+    onClick: () => {
+      const a = addrInput.value.trim();
+      if (a.length < 12) { setSendError(el, strings.badAddress || 'That doesn’t look like an Ixian address.'); return; }
+      pick({ address: a });
+    },
+  });
+  addrField.append(addrUse);
+  picker.append(addrField);
+  addrReveal.addEventListener('click', () => { addrField.hidden = false; addrInput.focus(); });
+
+  const errLine = document.createElement('p');
+  errLine.className = 'c-wallet-send__error';
+  errLine.setAttribute('role', 'alert');
+  errLine.hidden = true;
+  picker.append(errLine);
+  recSec.append(picker);
+  el.append(recSec);
+
+  function renderContacts(q) {
+    const needle = (q || '').trim().toLocaleLowerCase();
+    rows.textContent = '';
+    const list = contacts.filter((c) => !needle
+      || (c.name || '').toLocaleLowerCase().includes(needle)
+      || (c.address || '').toLocaleLowerCase().includes(needle));
+    for (const c of list.slice(0, 6)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-wallet-send__contact';
+      b.append(createAvatar({ name: c.name, address: c.address, size: 40 }));
+      const t = document.createElement('span');
+      t.className = 'c-wallet-send__contactname';
+      t.textContent = c.name || c.address;
+      b.append(t);
+      b.addEventListener('click', () => pick({ ...c, contact: true }));
+      rows.append(b);
+    }
+    if (!list.length && needle) {
+      const none = document.createElement('p');
+      none.className = 'c-wallet-send__none';
+      none.setAttribute('role', 'note');
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
+      rows.append(none);
+    }
+  }
+
+  function pick(recipient) {
+    state.recipient = recipient;
+    errLine.hidden = true;
+    picked.textContent = '';
+    picked.hidden = false;
+    picker.hidden = true;
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+    else {
+      const glyph = document.createElement('span');
+      glyph.className = 'c-wallet-send__pickedglyph';
+      glyph.append(icon('qrcode', { size: 20 }));
+      picked.append(glyph);
+    }
+    const pt = document.createElement('span');
+    pt.className = 'c-wallet-send__pickedtext';
+    const pn = document.createElement('span');
+    pn.className = 'c-wallet-send__pickedname';
+    pn.textContent = recipient.name || (strings.address || 'Address');
+    pt.append(pn);
+    const pa = document.createElement('span');
+    pa.className = 'c-wallet-send__pickedaddr u-tabular';
+    pa.textContent = recipient.address;
+    pt.append(pa);
+    picked.append(pt);
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'c-wallet-send__clear';
+    clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
+    clear.append(icon('x', { size: 18 }));
+    clear.addEventListener('click', () => {
+      state.recipient = null;
+      picked.hidden = true;
+      picker.hidden = false;
+      sync();
+      const si = picker.querySelector('input');
+      if (si) si.focus();                                // focus back into the picker (audit m2)
+    });
+    picked.append(clear);
+    sync();
+    amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
+  }
+
+  /* ——— amount section ——— */
+  const amtSec = document.createElement('section');
+  amtSec.className = 'c-wallet-send__section';
+  const amtTitle = document.createElement('h2');
+  amtTitle.className = 'c-wallet-send__label';
+  amtTitle.textContent = strings.amount || 'Amount';
+  amtSec.append(amtTitle);
+
+  const amtRow = document.createElement('div');
+  amtRow.className = 'c-wallet-send__amountrow';
+  const amtInput = document.createElement('input');
+  amtInput.className = 'c-wallet-send__amount u-tabular';
+  amtInput.type = 'text';
+  amtInput.inputMode = 'decimal';
+  amtInput.placeholder = '0';
+  amtInput.setAttribute('aria-label', strings.amount || 'Amount');
+  amtInput.addEventListener('input', () => {
+    const v = sanitizeAmount(amtInput.value);
+    if (v !== amtInput.value) amtInput.value = v;
+    state.amount = v;
+    sync();
+  });
+  const unit = document.createElement('span');
+  unit.className = 'c-wallet-send__unit';
+  unit.textContent = 'IXI';
+  const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32,
+    onClick: () => {
+      const maxU = balU - feeU;
+      state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots, no exponential notation
+      amtInput.value = state.amount;
+      sync();
+    } });
+  amtRow.append(amtInput, unit, maxBtn);
+  amtSec.append(amtRow);
+
+  const availLine = document.createElement('p');
+  availLine.className = 'c-wallet-send__meta u-tabular';
+  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(fromUnits(balU));
+  amtSec.append(availLine);
+
+  const feeLine = document.createElement('p');
+  feeLine.className = 'c-wallet-send__meta u-tabular';
+  amtSec.append(feeLine);
+
+  const insuff = document.createElement('p');
+  insuff.className = 'c-wallet-send__error';
+  insuff.setAttribute('role', 'alert');
+  insuff.hidden = true;
+  amtSec.append(insuff);
+  el.append(amtSec);
+
+  /* ——— continue ——— */
+  const cont = createButton({
+    label: strings.reviewSend || 'Review', type: 'fill', size: 56, width: 'full',
+    icon: icon('arrow-up-right', { size: 20 }),
+    onClick: () => openSendReview(),
+  });
+  cont.disabled = true;
+  const contWrap = document.createElement('div');
+  contWrap.className = 'c-wallet-send__actions';
+  contWrap.append(cont);
+  el.append(contWrap);
+
+  /* exact integer-unit math throughout (audit M1); EXACT strings at the money moments —
+     #77 truncation is a feed-display rule, not a confirm-step rule (audit M3) */
+  const amountU = () => toUnits(state.amount || '0');
+  function valid() {
+    if (!state.recipient || !state.amount) return false;
+    const a = amountU();
+    return a > 0n && a + feeU <= balU;
+  }
+  function sync() {
+    const a = amountU();
+    const total = a > 0n ? a + feeU : feeU;
+    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
+      .split('{f}').join(fromUnits(feeU)).split('{t}').join(fromUnits(total));
+    const over = a > 0n && a + feeU > balU;
+    insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
+    if (over) insuff.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
+    cont.disabled = !valid();
+  }
+  sync();
+
+  /* ——— review sheet (#26) ——— */
+  function openSendReview() {
+    if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
+    const r = state.recipient;
+    const aU = amountU();
+    const content = document.createElement('div');
+    content.className = 'c-sendreview';
+
+    const who = document.createElement('div');
+    who.className = 'c-sendreview__who';
+    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, size: 48 }));
+    const wt = document.createElement('div');
+    wt.className = 'c-sendreview__whotext';
+    const wn = document.createElement('div');
+    wn.className = 'c-sendreview__name';
+    wn.textContent = r.name || (strings.address || 'Address');
+    const wa = document.createElement('div');
+    wa.className = 'c-sendreview__addr u-tabular';
+    wa.textContent = r.address;
+    wt.append(wn, wa);
+    who.append(wt);
+    content.append(who);
+
+    const rowsBox = document.createElement('div');
+    rowsBox.className = 'c-sendreview__rows';
+    const row = (label, value) => {
+      const rr = document.createElement('div');
+      rr.className = 'c-sendreview__row';
+      const l = document.createElement('span'); l.className = 'c-sendreview__rowlabel'; l.textContent = label;
+      const v = document.createElement('span'); v.className = 'c-sendreview__rowvalue u-tabular'; v.textContent = value;
+      rr.append(l, v);
+      return rr;
+    };
+    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent
+    rowsBox.append(
+      row(strings.amount || 'Amount', fromUnits(aU) + ' IXI'),
+      row(strings.fee || 'Fee', fromUnits(feeU) + ' IXI'),
+      row(strings.total || 'Total', fromUnits(aU + feeU) + ' IXI'),
+    );
+    content.append(rowsBox);
+
+    const sheetErr = document.createElement('p');
+    sheetErr.className = 'c-wallet-send__error';
+    sheetErr.setAttribute('role', 'alert');
+    sheetErr.hidden = true;
+    content.append(sheetErr);
+
+    const actions = document.createElement('div');
+    actions.className = 'c-sendreview__actions';
+    const cancel = createButton({ label: strings.cancel || 'Cancel', type: 'text', size: 44,
+      onClick: () => { if (!state.sending) closeSheet(sheet); } });
+    const confirm = createButton({ label: strings.confirmSend || 'Confirm & send', type: 'fill', size: 44,
+      icon: icon('arrow-up-right', { size: 18 }),
+      onClick: (e) => {
+        if (e.currentTarget.dataset.acted !== undefined || state.sending) return;   // #72④ latch + view token
+        e.currentTarget.dataset.acted = '';
+        state.sending = true;
+        const attempt = ++state.attempt;                 // invalidates stale bridge callbacks
+        // money in flight → the sheet must NOT be dismissible (audit C1): no Esc, no
+        // scrim, Cancel disabled; fail() restores the safe-dismiss paths for retry
+        cancel.disabled = true;
+        setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: false });
+        sheetErr.hidden = true;
+        setLoading(confirm, true);
+        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeU) };
+        const done = () => {
+          if (attempt !== state.attempt) return;         // stale callback from a superseded attempt
+          state.sending = false;
+          setLoading(confirm, false);
+          setSuccess(confirm, { label: strings.sent || 'Sent' });
+          setTimeout(() => { closeSheet(sheet); if (onDone) onDone(payload); }, 900);
+        };
+        const fail = (msg) => {
+          if (attempt !== state.attempt) return;
+          state.sending = false;
+          setLoading(confirm, false);
+          delete confirm.dataset.acted;                  // retry stays possible
+          cancel.disabled = false;
+          setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: true });
+          sheetErr.hidden = false;                       // unhide BEFORE text → alert announces
+          sheetErr.textContent = msg || strings.sendFailed || 'The payment could not be sent. Please try again.';
+        };
+        if (onSend) onSend(payload, { done, fail }); else done();
+      } });
+    actions.append(cancel, confirm);                               // #60: two short labels side-by-side
+    content.append(actions);
+
+    // lightDismiss OFF from the start — a money confirmation is explicit (#56 modal
+    // philosophy); Esc stays a safe dismiss until the send is actually in flight
+    const sheet = createSheet({ content, host, strings, lightDismiss: false,
+      title: strings.reviewTitle || 'Review payment' });
+    openSheet(sheet);
+    return sheet;
+  }
+
+  renderContacts('');
+  return el;
+}
+
+/** QR-scan result lands here (shell wires `ixian:quickscan` → setSendAddress). Accepts
+ *  the legacy QR formats `addr`, `addr:ixi`, `addr:send:amount`. */
+function setSendAddress(el, scanned) {
+  if (!el) return el;
+  const raw = String(scanned || '');
+  const parts = raw.split(':');
+  const address = parts[0] || '';
+  // a scan supersedes an already-picked recipient — restore the picker first so the
+  // filled field is actually visible (audit m4)
+  const clearBtn = el.querySelector('.c-wallet-send__clear');
+  if (clearBtn) clearBtn.click();
+  const input = el.querySelector('.c-wallet-send__addrinput');
+  const field = el.querySelector('.c-wallet-send__addrfield');
+  if (field) field.hidden = false;
+  if (input) { input.value = address; input.focus(); }
+  if (parts[1] === 'send' && parts[2]) {
+    const amt = el.querySelector('.c-wallet-send__amount');
+    if (amt) { amt.value = parts[2]; amt.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  return el;
+}
+
+/** Inline error on the send view (shell hook parity with apps-add's setAddError). */
+function setSendError(el, msg) {
+  const err = el && el.querySelector('.c-wallet-send__error');
+  if (!err) return el;
+  err.hidden = !msg;                                     // unhide BEFORE text → alert announces (audit m3)
+  err.textContent = msg || '';
+  return el;
+}
+
+  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError };
 })();

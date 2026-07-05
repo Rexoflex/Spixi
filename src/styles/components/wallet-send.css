@@ -1,0 +1,189 @@
+/* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
+
+.c-wallet-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-16);
+}
+.c-wallet-send__section { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__label {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— recipient picker —— */
+.c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__contacts { display: flex; flex-direction: column; }
+.c-wallet-send__contact {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
+.c-wallet-send__contactname {
+  font-size: var(--font-size-body-lg);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__addrreveal {
+  display: inline-flex; align-items: center; gap: var(--spacing-8);
+  align-self: flex-start;
+  border: 0; background: transparent; padding: var(--spacing-8) 0;
+  color: var(--text-action-default);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+.c-wallet-send__addrinput {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-wallet-send__addrinput:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;                                   /* matches the apps-add input treatment (#51 text-field focus) */
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__scan {
+  flex: none;
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__addrfield .c-button { flex-basis: 100%; }
+
+/* selected recipient */
+.c-wallet-send__picked {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-wallet-send__pickedglyph {
+  width: 40px; height: 40px; flex: none;                /* mirrors avatar-40 slot */
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--icon-neutral-02);
+}
+.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-wallet-send__pickedname {
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-wallet-send__pickedaddr {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__clear {
+  flex: none;
+  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount —— */
+.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-send__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__meta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+
+/* —— review sheet (#26) —— */
+.c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-sendreview__who { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-sendreview__whotext { flex: 1; min-width: 0; }
+.c-sendreview__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-sendreview__addr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow-wrap: anywhere;                              /* full address at the decision moment (#99) */
+}
+.c-sendreview__rows { display: flex; flex-direction: column; }
+.c-sendreview__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-sendreview__row:last-child { border-block-end: 0; }
+.c-sendreview__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
+.c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
+.c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */

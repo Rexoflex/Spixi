@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
+<link rel="stylesheet" href="../styles/components/wallet-receive.css">
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -73,6 +74,7 @@
     createWalletTxList, renderWalletTxList, setWalletFilter,
     createWalletTools, attachWalletScroll, flashWalletTx,
     createWalletSend, setSendAddress,
+    createWalletReceive, setRequestAmount,
     openTxSheet, openMissingTxSheet,
     showToast,
   } = window.Spixi;
@@ -132,7 +134,7 @@
   const hero = createWalletHero({
     balance: '923,852.00', fiat: '$1,845.62', strings,
     onSend: () => showSend(),
-    onReceive: () => toast('Receive — slice 3'),
+    onReceive: () => showReceive(),
     onScan: () => toast('Would open the QR scanner (ixian:quickscan)'),
   });
   const heroSlot = document.getElementById('wallet-hero');
@@ -155,6 +157,8 @@
     renderWalletTxList(list, state, opts);
     content.replaceChildren(tools, list);
     detachScroll = attachWalletScroll(content, { hero, tools });
+    content.scrollTop = 0;                                 // audit m5: no stale offset from the previous view
+    content.dispatchEvent(new Event('scroll'));            // component's own top-restore path expands hero + tools
   }
   function showSend() {
     detachScroll();                                      // the send view owns the scroll container now
@@ -190,6 +194,35 @@
       },
     });
     content.replaceChildren(send);
+    content.scrollTop = 0;                                 // audit m5
+  }
+
+  /* —— receive/request (slice 3): ONE progressive surface (Damir 2026-07-05) —— */
+  function showReceive() {
+    detachScroll();
+    statusbar.dataset.plain = '';
+    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.receiveIxi || 'Receive IXI', onBack: showHome }));
+    const receive = createWalletReceive({
+      address: '425HqzWpMkV3dTgJnS85CQen',                 // demo: own address
+      contacts: [
+        { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+        { name: 'Baracuda', address: '8xPa1kQq7ZrYwNvJmm2W' },
+        { name: 'Sarah Jo', address: '7NmQw3RtY6uIkLp0oJhG5fDs' },
+        { name: 'John Connor', address: '2AbCw9XyZ7rQpLm4kJhV3nTe' },
+        { name: 'Martins Obademo', address: '5QwErTy8uIoP3aSdF6gHjK1z' },
+        { name: 'Lando C', address: '9ZxCvB2nM4qWeR7tYuI0oPl5' },
+        { name: 'Chewbacca', address: '3RrGhJ6kLz8xCvB1nMq5wEt9' },
+      ],
+      strings, host: phone,
+      // no share bridge command exists (§9 ask) — shells use navigator.share where present
+      onShare: ({ address, amount }) => toast(amount
+        ? 'Would share a request for ' + amount + ' IXI (system share sheet)'
+        : 'Would share your address (system share sheet)'),
+      // legacy parity: ixian:sendrequest → the contact gets the payment-request chat bubble
+      onSendRequest: ({ contact, amount }) => toast('Request for ' + amount + ' IXI sent to ' + contact.name + ' (chat bubble)'),
+    });
+    content.replaceChildren(receive);
+    content.scrollTop = 0;                                 // audit m5
   }
 
   /* —— nav —— */

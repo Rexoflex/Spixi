@@ -16,6 +16,7 @@ catch { console.error('jsdom not installed — run: npm i --no-save jsdom'); pro
 
 const failures = [];
 const ok = (cond, msg) => { if (!cond) failures.push(msg); console.log((cond ? '  ✓ ' : '  ✗ ') + msg); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); // top-level: shared by every demo block
 
 const load = (file) => new Promise((resolve) => {
   const vc = new VirtualConsole();
@@ -67,7 +68,6 @@ console.log('app-frame.html');
   ok(variants.join('+') === 'count-muted+muted', 'muted chat shows count-muted + bell-off');
 
   // overlays (#56): Esc = safe dismiss everywhere; lightDismiss governs scrim only
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const esc = () => d.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   d.getElementById('fab').click();
   ok(!!d.querySelector('.c-sheet[role="dialog"]') && !!d.querySelector('.c-scrim'), 'FAB opens sheet + scrim');
@@ -179,6 +179,13 @@ console.log('wallet.html');
   ok(!!send, 'Send quick action opens the send view');
   ok(!!send.querySelector('.c-wallet-send__picker .c-wallet-send__contact .c-wallet-send__addrglyph'),
     'address row first, contact-aligned (#136)');
+  /* bad-address error placement (Damir bug, round 3): under ITS input */
+  send.querySelector('.c-wallet-send__picker .c-wallet-send__contact').click();
+  const af = send.querySelector('.c-wallet-send__addrfield');
+  af.querySelector('.c-wallet-send__addrinput').value = 'short';
+  af.querySelector('.c-button').click();
+  ok(!!af.querySelector('.c-wallet-send__error') && !af.querySelector('.c-wallet-send__error').hidden,
+    'bad-address error renders inside the address field, not below the contacts');
   send.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
   const amt = send.querySelector('.c-wallet-send__amount');
   amt.value = '12.5'; amt.dispatchEvent(new W.Event('input', { bubbles: true }));
@@ -190,8 +197,235 @@ console.log('wallet.html');
   ok(!!review, 'Review sheet opens (#26 deliberateness step)');
   const vals = [...review.querySelectorAll('.c-sendreview__rowvalue')].map((v) => v.textContent);
   ok(vals.includes('12.5 IXI') && vals.includes('0.00001 IXI'), 'review shows EXACT amount + fee (no truncation at confirm)');
+
+  /* receive/request (slice 3, #137): fresh frame — hero Receive → ONE progressive surface */
+  const dom2 = await load('wallet.html');
+  const d2 = dom2.window.document, W2 = dom2.window;
+  // failed sends list under "Sent" (Damir 2026-07-05)
+  const sentChip = [...d2.querySelectorAll('.c-wallet-filters .c-chip')].find((c) => c.textContent.trim() === 'Sent');
+  sentChip.click();
+  const sentRows = [...d2.querySelectorAll('.c-txlist-item')];
+  ok(sentRows.some((r) => r.dataset.txid === 'd0013c7cae7c7c'), 'failed send lists under Sent (badge carries it)');
+  ok(sentRows.length === 13 && sentRows.every((r) => r.dataset.type !== 'received'), 'Sent filter stays outgoing-only (13 out rows, none received-typed)');
+
+  d2.querySelectorAll('.c-wallet-hero__qa')[1].click();   // Receive
+  await sleep(50);
+  const rec = d2.querySelector('.c-wallet-receive');
+  ok(!!rec, 'Receive quick action opens the receive view');
+  const rqr = rec.querySelector('.c-qr');
+  ok(!!rqr && rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', 'QR encodes the legacy address:ixi receive format');
+  ok(rqr.getAttribute('role') === 'img' && !!rqr.getAttribute('aria-label'), 'QR is a labelled image');
+  ok((rqr.querySelector('path').getAttribute('fill') || '').includes('--on-qr'), 'QR ink rides the --on-qr token');
+  ok((rec.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen', 'FULL own address in the chip (#99)');
+
+  const reqRow = rec.querySelector('.c-wallet-receive__reqrow');
+  ok(reqRow.getAttribute('aria-expanded') === 'false', 'request reveal starts collapsed');
+  reqRow.click();
+  ok(reqRow.getAttribute('aria-expanded') === 'true' && !rec.querySelector('.c-wallet-receive__reqbox').hidden,
+    'Request an amount expands in place (one progressive surface)');
+  const ramt = rec.querySelector('.c-wallet-receive__amount');
+  ramt.value = '12,5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(ramt.value === '12.5', 'request amount follows the send sanitize rules (shared export)');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:12.5', 'QR morphs to addr:send:amount in place');
+  ramt.value = '12.'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:12', 'trailing-dot amount canonicalized in the QR (audit M1)');
+  ramt.value = '12.5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  const ask = rec.querySelector('.c-wallet-receive__ask');
+  ok(!ask.hidden, 'amount active → send-request-to-contact strip appears');
+  ok(ask.querySelectorAll('.c-wallet-receive__contact').length === 5 && !!ask.querySelector('.c-wallet-receive__none'),
+    'contact strip caps at 5 with the keep-typing note (#136 scaling)');
+  const target = ask.querySelector('.c-wallet-receive__contact');
+  target.click(); target.click();
+  ok(d2.querySelectorAll('.c-toast').length === 1, 'send-request latched on the row (no double fire, #72④)');
+  const strip = [...ask.querySelectorAll('.c-wallet-receive__contact')];
+  ok(!target.disabled && strip.filter((b) => b.disabled).length === strip.length - 1,
+    'acted row stays enabled (focus kept) — the rest latch (audit M3)');
+  const askSearch = ask.querySelector('input');
+  askSearch.value = 'a'; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok([...ask.querySelectorAll('.c-wallet-receive__contact')].some((b) => b.dataset.acted !== undefined),
+    'latch survives a contact-search re-render (audit M2)');
+  askSearch.value = ''; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ramt.value = '9'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(![...ask.querySelectorAll('.c-wallet-receive__contact')].some((b) => b.dataset.acted !== undefined)
+    && [...ask.querySelectorAll('.c-wallet-receive__contact')].every((b) => !b.disabled),
+    'amount edit mid-latch resets the strip — no stale sent-✓ (audit M5)');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:9', 'QR follows the new amount after the reset');
+  const rcopy = rec.querySelector('.c-wallet-receive__copy');
+  rcopy.click();
+  ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'), 'no clipboard → honest failure morph, no false Copied (audit m1)');
+
+  reqRow.click();                                          // collapse clears the request
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi' && ask.hidden,
+    'collapsing the reveal restores the plain receive QR (state honesty)');
+  W2.Spixi.setRequestAmount(rec, 0.0000001);
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:0.0000001',
+    'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17)');
+
+  /* tipping (#138, docs/tipping-spec.md): #26-lite sheet — presets + custom, ONE latched confirm */
+  let tipCalls = 0, tipPayload = null, tipCtrl = null;
+  W2.Spixi.openTipSheet({
+    message: { id: 'm1', excerpt: 'nice one!' }, recipient: { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+    balance: 100, host: d2.querySelector('.demo-phone'),
+    onTip: (p, ctrl) => { tipCalls++; tipPayload = p; tipCtrl = ctrl; },
+  });
+  await sleep(50);
+  const tipEl = d2.querySelector('.c-tipsheet');
+  ok(!!tipEl && !!tipEl.querySelector('.c-avatar') && tipEl.querySelector('.c-tipsheet__title').textContent === 'Tip Han Solo',
+    'tip sheet opens with the recipient visible (#26-lite)');
+  const tchips = [...tipEl.querySelectorAll('.c-chip')];
+  ok(tchips.length === 4, 'presets 1/5/10 + Custom');
+  const tconfirm = [...tipEl.querySelectorAll('.c-button')].pop();
+  ok(tconfirm.disabled, 'confirm disabled until an amount is chosen');
+  tchips[1].click();
+  ok(!tconfirm.disabled && tconfirm.textContent.includes('Tip 5 IXI'), 'confirm label carries the amount (the sheet IS the review)');
+  ok(tipEl.querySelector('.c-tipsheet__customrow').dataset.ghost !== undefined,
+    'custom slot reserved (ghosted) from the start — sheet opens at full size, never grows');
+  tchips[3].click();
+  const tcustom = tipEl.querySelector('.c-tipsheet__custom');
+  ok(tipEl.querySelector('.c-tipsheet__customrow').dataset.ghost === undefined, 'Custom un-ghosts the reserved input');
+  tcustom.value = '250'; tcustom.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(tconfirm.disabled && !tipEl.querySelector('.c-tipsheet__error').hidden, 'over-balance tip → inline guard, confirm stays off');
+  tchips[0].click(); tchips[3].click();
+  ok(tcustom.value === '', 'preset supersedes → stale custom cleared (tip-audit m3)');
+  tcustom.value = '2.'; tcustom.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  tconfirm.click(); tconfirm.click();
+  ok(tipCalls === 1 && tipPayload.amount === '2' && tipPayload.messageId === 'm1',
+    'ONE latched confirm → canonical payload once (no double-tip)');
+  /* in flight = locked on EVERY path (tip-audit C1: overlay opts read LIVE) */
+  d2.dispatchEvent(new W2.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  [...d2.querySelectorAll('.c-scrim')].pop().click();
+  await sleep(500);
+  ok(!!d2.querySelector('.c-tipsheet'), 'Esc + scrim both held while the tip is in flight (live overlay lock)');
+  ok(W2.Spixi.dismissTopOverlay() === true && !!d2.querySelector('.c-tipsheet'),
+    'back press consumed but does NOT dismiss in flight');
+  ok([...tipEl.querySelectorAll('.c-chip')].every((c) => c.disabled), 'amount controls frozen in flight (tip-audit M3)');
+  tipCtrl.done();
+  await sleep(1400);
+  ok(!d2.querySelector('.c-tipsheet'), 'success morph closes the tip sheet');
+
+  /* balance guard precision (tip-audit M2): 1e-8 above a 1e8 balance must trip */
+  W2.Spixi.openTipSheet({ message: { id: 'm2' }, recipient: { name: 'B' }, balance: 100000000,
+    host: d2.querySelector('.demo-phone'), onTip: () => {} });
+  await sleep(50);
+  const tip2 = d2.querySelector('.c-tipsheet');
+  [...tip2.querySelectorAll('.c-chip')].pop().click();
+  const in2 = tip2.querySelector('.c-tipsheet__custom');
+  const btn2 = [...tip2.querySelectorAll('.c-button')].pop();
+  in2.value = '100000000.00000001'; in2.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(btn2.disabled, 'guard exact at 1e-8 over a 1e8 balance (integer units — tip-audit M2)');
+  in2.value = '100000000'; in2.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(!btn2.disabled, 'exact-balance tip allowed');
+  d2.dispatchEvent(new W2.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(500);
+  ok(!d2.querySelector('.c-tipsheet'), 'pre-confirm Esc still dismisses (lock is in-flight only)');
+
+  /* lockedRecipient (#139): chat Pay — pre-picked peer, no picker, no ✕ */
+  const lockHost = d2.createElement('div');
+  d2.body.append(lockHost);
+  const lockedSend = W2.Spixi.createWalletSend({
+    lockedRecipient: { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+    balance: 10, fee: 0.1, host: lockHost,
+  });
+  lockHost.append(lockedSend);
+  ok(lockedSend.querySelector('.c-wallet-send__picker').hidden === true
+    && !lockedSend.querySelector('.c-wallet-send__clear')
+    && lockedSend.querySelector('.c-wallet-send__pickedname').textContent === 'Han Solo',
+    'lockedRecipient: pre-picked, picker gone, no change affordance');
+  lockHost.remove();
+
+  /* request sheet (#139): amount-sheet machinery, request copy, NO balance guard */
+  let reqPayload = null, reqCtrl = null;
+  W2.Spixi.openRequestSheet({ recipient: { name: 'Han Solo' }, host: d2.querySelector('.demo-phone'),
+    onRequest: (p, c) => { reqPayload = p; reqCtrl = c; } });
+  await sleep(50);
+  const reqEl = d2.querySelector('.c-tipsheet[data-kind="request"]');
+  ok(!!reqEl && reqEl.querySelector('.c-tipsheet__title').textContent === 'Request from Han Solo',
+    'request sheet reuses the audited amount-sheet machinery');
+  [...reqEl.querySelectorAll('.c-chip')].pop().click();
+  const rin = reqEl.querySelector('.c-tipsheet__custom');
+  rin.value = '5000000'; rin.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  const rbtn = [...reqEl.querySelectorAll('.c-button')].pop();
+  ok(!rbtn.disabled && rbtn.textContent.includes('Request 5000000 IXI'),
+    'no balance guard on requests — the label still carries the amount');
+  rbtn.click();
+  ok(reqPayload && reqPayload.amount === '5000000', 'request payload canonical');
+  reqCtrl.done();
+  await sleep(1400);
+  ok(!d2.querySelector('.c-tipsheet'), 'request success closes the sheet');
+
+  /* multi-select + copy + split-paste (#139) — component-level in this frame */
+  const selHost = d2.querySelector('.demo-phone');
+  const fakeList = d2.createElement('div');
+  const mkRow = (sender, text) => {
+    const r = d2.createElement('div');
+    r.className = 'c-bubble-row';
+    if (sender) r.dataset.sender = sender;
+    if (text) r.dataset.copytext = text;
+    r.textContent = text;
+    fakeList.append(r);
+    return r;
+  };
+  const sr1 = mkRow('Alex', 'Crew — cabin trip is ON.');
+  const sr2 = mkRow('Han Solo', 'Chewie counts as two people.');
+  mkRow('', '');
+  selHost.append(fakeList);
+  let copied = 0;
+  W2.Spixi.enterChatSelect(fakeList, { initialRow: sr1, host: selHost, onCopy: (n) => { copied = n; } });
+  ok(fakeList.dataset.selecting !== undefined && !!selHost.querySelector('.c-chatselect-bar'),
+    'Select → selection mode + count bar');
+  sr2.click();
+  ok(selHost.querySelector('.c-chatselect-bar__count').textContent.includes('2'), 'taps toggle — count reaches 2');
+  [...selHost.querySelectorAll('.c-chatselect-bar .c-button')].pop().click();
+  const sbuf = W2.Spixi.getChatCopyBuffer();
+  ok(copied === 2 && sbuf.items.length === 2
+    && sbuf.joined === 'Alex: Crew — cabin trip is ON.\nHan Solo: Chewie counts as two people.',
+    'multi-copy = "Sender: text" lines (Damir pick); buffer holds the items');
+  ok(!selHost.querySelector('.c-chatselect-bar') && fakeList.dataset.selecting === undefined,
+    'copy exits selection mode');
+  const comp = W2.Spixi.createComposer({ placeholder: 'Message' });
+  selHost.append(comp);
+  const sentEach = [];
+  W2.Spixi.attachSplitPaste(comp, { onSendEach: (items) => sentEach.push(...items) });
+  const cInput = comp.querySelector('.c-composer__input');
+  cInput.value = sbuf.joined; cInput.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(!!comp.querySelector('.c-splitpaste'), 'pasting the multi-copy → split offer appears');
+  comp.querySelector('.c-splitpaste .c-button').click();
+  ok(sentEach.length === 2 && sentEach[1].text === 'Chewie counts as two people.' && cInput.value === '',
+    'split-paste sends RAW texts and clears the draft');
+  cInput.value = 'unrelated'; cInput.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(!comp.querySelector('.c-splitpaste'), 'the offer only appears for the matching paste');
+  fakeList.remove(); comp.remove();
+}
+
+{
+  /* static guards: demos must link every component stylesheet they render —
+     jsdom is style-blind; the tip sheet shipped once with native-looking chips
+     because chat.html lacked chip.css (Damir round 1) */
+  const chat = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
+  ok(chat.includes('components/chip.css') && chat.includes('components/tip-sheet.css'),
+    'chat demo links chip.css + tip-sheet.css (tip sheet renders on-brand)');
+}
+
+{
+  /* static guards — bug round 2026-07-05c (Damir): ② the live request-out card
+     must ship status 'pending' ('actionable' is a request-IN state — the card
+     rendered bare: no badge, no Cancel); ③ the composer ctx strip needs
+     min-width:0 (it's a nested flex container — min-width:auto resolves to the
+     NOWRAP excerpt's width and pushes the cancel ✕ off-screen; jsdom is
+     layout-blind so we guard the CSS text); ④ every demo row-append path keeps
+     the typing pill last; string patches to setPaymentStatus are silent no-ops. */
+  const chat = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
+  ok(/role: 'request-out', amount: p\.amount, status: 'pending'/.test(chat),
+    'live request-out card ships pending + Cancel request (2026-07-05c ②)');
+  ok(!/setPaymentStatus\(\w+, '/.test(chat),
+    'no string patches to setPaymentStatus in the chat demo (silent no-op)');
+  ok((chat.match(/keepTypingLast\(box\)/g) || []).length >= 3,
+    'all demo append paths keep the typing pill last (2026-07-05c ④)');
+  const compCss = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
+  ok(/c-composer__ctx \{[^}]*min-width: 0/.test(compCss),
+    'ctx strip has min-width:0 — cancel ✕ stays on-screen (2026-07-05c ③)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
-process.exit(0); // jsdom windows hold live timers (timestamp ticker) — exit explicitly
+process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

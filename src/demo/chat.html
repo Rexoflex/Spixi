@@ -22,6 +22,16 @@
 <link rel="stylesheet" href="../styles/components/typing-indicator.css">
 <link rel="stylesheet" href="../styles/components/scroll-latest.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/chip.css"><!-- tip-sheet amount chips (Damir: unstyled natives rendered off-brand + broke dark mode) -->
+<link rel="stylesheet" href="../styles/components/tip-sheet.css">
+<link rel="stylesheet" href="../styles/components/wallet-send.css"><!-- #139: in-chat Pay → send screen takeover -->
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/chat-select.css"><!-- #139: multi-select + split-paste -->
+<style>
+  /* #139: in-chat Pay — the send screen takes over the phone, topbar back returns */
+  .demo-sendpanel { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: var(--surface-screen); }
+  .demo-sendpanel__body { flex: 1; overflow-y: auto; }
+</style>
 <link rel="stylesheet" href="../styles/components/media-bubble.css">
 <link rel="stylesheet" href="../styles/components/system-notice.css">
 <link rel="stylesheet" href="../styles/components/lazy-history.css">
@@ -167,7 +177,8 @@
     createPaymentBubble, createAppBubble, createCallBubble, createFileBubble,
     createUnreadDivider, setFileProgress,
     addReactions, createTypingIndicator, createScrollToLatest,
-    setScrollLatestCount, attachMessageMenu,
+    setScrollLatestCount, attachMessageMenu, openTipSheet, openRequestSheet,
+    createWalletSend, enterChatSelect, attachSplitPaste,
     setComposerContext, getComposerContext,
     createMediaBubble, createModal, openModal,
     setMessageStatus, setPaymentStatus, removeMessage,
@@ -199,6 +210,7 @@
      curated sets incl. the tip pill — the bridge re-emits full lists, so the
      demo must merge like the shell aggregation would) */
   const rowRx = new WeakMap(); // row → { reactions, tip, host }
+  const rowText = new WeakMap(); // row → copyable text (#139 multi-select source of truth)
   const demoReact = (row, emoji, phone) => {
     const st = rowRx.get(row) || { reactions: [] };
     const r = st.reactions.find((x) => x.emoji === emoji);
@@ -245,8 +257,21 @@
   /* batch 3: context menu on every message row (long-press / right-click).
      Demo react action paints a reaction on the row so the loop is playable;
      the real shell routes to ixian:contextAction. */
+  let demoMsgSeq = 0;
+  /* group-head sender resolution (tip-audit M4): labels render first-of-group only —
+     walk back to the group head; the REAL shell resolves from its model, never the DOM */
+  const rowSender = (row) => {
+    for (let n = row; n; n = n.previousElementSibling) {
+      const s = n.querySelector?.('.c-bubble__sender');
+      if (s) return s.textContent;
+      if (n.dataset && n.dataset.direction === 'sent') break;   // crossed into own run — 1:1 peer fallback
+    }
+    return 'Han Solo';
+  };
   const wireMenu = (row, phone, text = '') => {
     const isSent = row.dataset.direction === 'sent';
+    if (!row.dataset.msgid) row.dataset.msgid = 'demo-m' + (++demoMsgSeq);   // tip target (tip-audit m2)
+    if (text) rowText.set(row, text);                                        // #139 multi-select copy source
     attachMessageMenu(row, {
       host: phone,
       text,
@@ -254,6 +279,7 @@
         get reply() { return caps.reply; },                       // §8-gated (#25)
         get edit() { return caps.edit && isSent && !!text; },     // own TEXT messages only (audit r3)
         tip: true,
+        select: !!text,                                    // #139 multi-select entry
         report: false,
       },
       onAction: (action, arg) => {
@@ -280,6 +306,41 @@
               text: (meta && meta.text) || text, replySender: senderName, replyMeta: meta,
             });
           }
+          return;
+        }
+        if (action === 'select') {
+          // #139: selection mode on this chat's list (rows are direct box children)
+          enterChatSelect(row.parentElement, {
+            initialRow: row, host: phone,
+            textOf: (r) => rowText.get(r) || '',
+            senderOf: (r) => (r.dataset.direction === 'sent' ? 'You' : rowSender(r)),
+            onCopy: (n) => showToast({
+              text: n === 1 ? 'Message copied' : n + ' messages copied — paste them in the other chat',
+              tone: 'info', host: phone,
+            }),
+          });
+          return;
+        }
+        if (action === 'tip') {
+          // #138 (docs/tipping-spec.md): #26-lite sheet — the sheet IS the review
+          if (isSent) { showToast({ text: 'That’s your own message', tone: 'info', host: phone }); return; }
+          const tipTo = rowSender(row);                    // group-head resolution (tip-audit M4)
+          openTipSheet({
+            message: { id: row.dataset.msgid, excerpt: text || undefined },
+            recipient: { name: tipTo, address: '4fj2hansolo' },
+            balance: 923852, host: phone,
+            // mock bridge: ixian:contextAction:tip:MSGID:AMOUNT → done → the #65
+            // pill + wallet tx land (demo merges into the row's reaction state)
+            onTip: (p, ctrl) => setTimeout(() => {
+              ctrl.done();
+              const st = rowRx.get(row) || { reactions: [] };
+              st.tip = p.amount + ' IXI';
+              rowRx.set(row, st);
+              addReactions(row, { reactions: st.reactions, tip: st.tip, host: phone,
+                animate: true, onToggle: (e) => demoReact(row, e, phone) });
+              showToast({ text: 'Tipped ' + p.amount + ' IXI — lands as a wallet tx too', tone: 'info', host: phone });
+            }, 900),
+          });
           return;
         }
         showToast({ text: action + ' — demo only', tone: 'info', host: phone });
@@ -599,6 +660,88 @@
   let voice = false;
   const composers = [];
 
+  /* —— #139: in-chat money actions — Pay → SEND SCREEN takeover (recipient locked,
+     the peer is known), Request → the #26-lite request sheet (Damir: sheet over the
+     QR-centric receive screen when the counterparty is known) —— */
+  const peerByPhone = new Map();                           // phone → { name, address } ('' address = group room)
+  const groupSendContacts = [
+    { name: 'Alex', address: '77aleXaddr' },
+    { name: 'Han Solo', address: '4fj2hansolo' },
+    { name: 'Lando', address: 'lando88cloud' },
+  ];
+  // bug round 2026-07-05c ④: EVERY row append must keep the typing pill LAST
+  // (shell duty mirrored in the demo) — the money flows bypassed sendMessage's
+  // re-append and pushed the pill above the new cards
+  const keepTypingLast = (box) => {
+    const t = box.querySelector('.c-typing');
+    if (t) box.append(t.closest('.c-bubble-row'));
+  };
+  const openSendTakeover = (phone, box, peer) => {
+    const panel = document.createElement('div');
+    panel.className = 'demo-sendpanel';
+    const close = () => panel.remove();
+    panel.append(createTopbar({ variant: 'view', title: 'Send IXI', onBack: close }));
+    const body = document.createElement('div');
+    body.className = 'demo-sendpanel__body u-scroll';
+    body.append(createWalletSend({
+      // 1:1 → locked to the peer (no change, we know who we're paying);
+      // group → member picker (recipient IS the open question there)
+      lockedRecipient: peer.address ? { name: peer.name, address: peer.address } : null,
+      contacts: peer.address ? [] : groupSendContacts,
+      balance: 923852, fee: 0.00001, strings: {}, host: phone,
+      onSend: (p, ctrl) => setTimeout(ctrl.done, 1200),    // mock bridge
+      onDone: (p) => {
+        close();
+        let payRow = createPaymentBubble({
+          role: 'sent', amount: '-' + p.amount, status: 'pending', timestamp: Date.now(),
+          gutter: !peer.address, strings: {},
+          onDetails: () => showToast({ text: 'Would open the wallet tx sheet', tone: 'info', host: phone }),
+        });
+        box.append(payRow);
+        keepTypingLast(box);
+        box.scrollTop = box.scrollHeight;
+        // ④-adjacent: the patch must be an OBJECT — a bare 'completed' string
+        // is a silent no-op ({...str} spreads chars), the card sat on Pending
+        setTimeout(() => { payRow = setPaymentStatus(payRow, { status: 'completed' }); }, 2200);
+        showToast({ text: 'Payment sent — confirming on the chain', tone: 'info', host: phone });
+      },
+    }));
+    panel.append(body);
+    phone.append(panel);
+  };
+  const handleAttach = (id, phone, box) => {
+    const peer = peerByPhone.get(phone) || {};
+    if (id === 'pay') { openSendTakeover(phone, box, peer); return; }
+    if (id === 'request') {
+      openRequestSheet({
+        recipient: { name: peer.name || 'this chat', address: peer.address },
+        host: phone,
+        // legacy sendrequest = a chat message; the request bubble is the receipt
+        onRequest: (p, ctrl) => setTimeout(() => {
+          ctrl.done();
+          setTimeout(() => {
+            // ② standard request-out card = pending + Cancel request ('actionable'
+            // is a request-IN state — the card rendered bare: no badge, no cancel)
+            let reqRow = createPaymentBubble({
+              role: 'request-out', amount: p.amount, status: 'pending', timestamp: Date.now(),
+              gutter: !peer.address, strings: {},
+              onCancel: (e) => {                             // ixian:undorequest — demo
+                window.Spixi.setLoading(e.currentTarget, true);
+                setTimeout(() => { reqRow = setPaymentStatus(reqRow, { status: 'canceled' }); }, 900);
+              },
+            });
+            box.append(reqRow);
+            keepTypingLast(box);
+            box.scrollTop = box.scrollHeight;
+          }, 950);                                         // lands after the sheet's success morph closes
+          showToast({ text: 'Request for ' + p.amount + ' IXI sent to the chat', tone: 'info', host: phone });
+        }, 900),
+      });
+      return;
+    }
+    showToast({ text: 'Attach: ' + id + ' — demo only', tone: 'info', host: phone });
+  };
+
   const wireComposer = (slotId, box, phone) => {
     let lastSent = null; // { row, at }
     const sendMessage = (text) => {
@@ -646,9 +789,7 @@
       setTimeout(clearIn, 400);
       box.append(row);
       wireMenu(row, phone, text); // batch 3: live sends get the context menu too
-      // typing pill stays the LAST row (shell duty mirrored in the demo)
-      const typing = box.querySelector('.c-typing');
-      if (typing) box.append(typing.closest('.c-bubble-row'));
+      keepTypingLast(box); // typing pill stays the LAST row (shell duty mirrored in the demo)
       lastSent = { row, at };
       box.scrollTop = box.scrollHeight;
       // status ticks via the #86 in-place updater: sending → delivered → read
@@ -667,11 +808,13 @@
         // ⊕ attach sheet (#87①): tile grid; media tiles shown (flag ON in demo)
         onAttach: () => openAttachSheet({
           host: phone, media: true,
-          onAction: (id) => showToast({ text: 'Attach: ' + id + ' — demo only', tone: 'info', host: phone }),
+          onAction: (id) => handleAttach(id, phone, box),  // #139: pay/request are LIVE
         }),
         onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
       });
       slot.append(entry.el);
+      // #139: paste of a multi-copy → inline "Send as N separate messages" offer
+      attachSplitPaste(entry.el, { onSendEach: (items) => items.forEach((it) => sendMessage(it.text)) });
     };
     mount();
     entry.remount = mount;
@@ -681,6 +824,8 @@
 
   wireComposer('composer-direct', boxD, phoneDirect);
   wireComposer('composer-group', boxG, phoneGroup);
+  peerByPhone.set(phoneDirect, { name: 'Han Solo', address: '4fj2hansolo' });   // 1:1: pay/request lock to the peer
+  peerByPhone.set(phoneGroup, { name: 'Falcon Crew', address: '' });            // group: request → the room, pay → member picker
 
   // #86 incoming-call overlay demo: ring the 1:1 phone — Accept chains into
   // the callbar, Decline drops a declined-call card into the log

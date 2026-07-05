@@ -1,0 +1,238 @@
+/**
+ * c-tipsheet — the "#26-lite" amount sheet: chat TIPPING and chat REQUESTS
+ * (docs/tipping-spec.md, #136/#138/#139).
+ *
+ * One machinery, two kinds — both are "small in-context money asks" where the
+ * sheet IS the review (recipient avatar+name + amount on the same surface as the
+ * single latched confirm whose label carries the amount):
+ *   openTipSheet({ …, onTip })         — "Tip {name}" / "Tip {a} IXI"; balance guard ON
+ *     (you can't tip what you don't have) in INTEGER 1e-8 units (tip-audit M2).
+ *   openRequestSheet({ …, onRequest }) — "Request from {name}" / "Request {a} IXI";
+ *     NO balance guard (it's the payer's money) — chat attach → Request (#139,
+ *     Damir: sheet over the QR-centric receive screen when the counterparty is known).
+ *
+ * Presets 1/5/10 IXI (c-chip toggles, aria-pressed) + Custom → decimal input on the
+ * shared wallet-send sanitize rules; payload amount is CANONICAL (shared
+ * canonicalAmount). The custom slot is GHOSTED not hidden (Damir round 2): space
+ * reserved from the start, the sheet never grows under the finger.
+ *
+ * Dismissal: light dismiss ALLOWED pre-confirm; IN FLIGHT = LOCKED for real
+ * (tip-audit C1: live overlay opts — Esc, scrim, back all hold); onDismiss bumps
+ * the attempt counter (M1); controls freeze + sync() stands down in flight (M3);
+ * ctrl one-shot per attempt (m1); failure alert separate from the guard (m4).
+ *
+ * Bridge: tip → legacy `ixian:contextAction:tip:MSGID:AMOUNT`; request → the
+ * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
+ */
+import { createAvatar } from './avatar.js';
+import { createButton, setLoading, setSuccess } from './button.js';
+import { createChip, setChipSelected } from './chip.js';
+import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { setOverlayOpts } from './overlay.js';
+import { sanitizeAmount, toUnits } from './wallet-send.js';
+import { canonicalAmount } from './wallet-receive.js';   // 🟡 shared-money-module candidate
+
+function amountSheetCopy(kind, strings) {
+  return kind === 'request' ? {
+    title: strings.requestName || 'Request from {name}',
+    confirm: strings.requestConfirm || 'Request {a} IXI',
+    idle: strings.request || 'Request',
+    success: strings.requested || 'Requested',
+    fail: strings.requestFailed || 'The request could not be sent. Please try again.',
+  } : {
+    title: strings.tipName || 'Tip {name}',
+    confirm: strings.tipConfirm || 'Tip {a} IXI',
+    idle: strings.tip || 'Tip',
+    success: strings.tipped || 'Tipped',
+    fail: strings.tipFailed || 'The tip could not be sent. Please try again.',
+  };
+}
+
+function openAmountSheet({
+  message = {}, recipient = {}, balance = null,
+  presets = ['1', '5', '10'], strings = {}, host, onSubmit,
+} = {}, kind) {
+  const copy = amountSheetCopy(kind, strings);
+  const content = document.createElement('div');
+  content.className = 'c-tipsheet';
+  content.dataset.kind = kind;
+  const state = { amount: '', sending: false, attempt: 0 };
+  const balU = balance != null ? toUnits(balance) : null;
+
+  /* head — recipient VISIBLE at the confirm moment (#26-lite) */
+  const head = document.createElement('div');
+  head.className = 'c-tipsheet__head';
+  head.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+  const htext = document.createElement('div');
+  htext.className = 'c-tipsheet__headtext';
+  const title = document.createElement('h2');
+  title.className = 'c-tipsheet__title';
+  title.textContent = copy.title.split('{name}').join(recipient.name || '');
+  htext.append(title);
+  if (message.excerpt) {
+    const ex = document.createElement('p');
+    ex.className = 'c-tipsheet__excerpt';
+    ex.textContent = message.excerpt;                      // which message this lands on
+    htext.append(ex);
+  }
+  head.append(htext);
+  content.append(head);
+
+  /* presets + Custom (c-chip toggles, aria-pressed carries state) */
+  const chipRow = document.createElement('div');
+  chipRow.className = 'c-tipsheet__chips';
+  chipRow.setAttribute('role', 'group');
+  chipRow.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  const chips = [];
+  const selectChip = (chip) => { for (const c of chips) setChipSelected(c, c === chip); };
+  for (const p of presets) {
+    const chip = createChip({
+      label: p + ' IXI',
+      onClick: (e) => {
+        if (state.sending) return;                         // frozen in flight (tip-audit M3)
+        selectChip(e.currentTarget);
+        customRow.dataset.ghost = '';                      // back to reserved slot — sheet height constant
+        customInput.value = '';                            // preset supersedes → stale custom cleared (m3)
+        state.amount = String(p);
+        sync();
+      },
+      strings,
+    });
+    chips.push(chip);
+    chipRow.append(chip);
+  }
+  const customChip = createChip({
+    label: strings.custom || 'Custom',
+    onClick: (e) => {
+      if (state.sending) return;
+      selectChip(e.currentTarget);
+      delete customRow.dataset.ghost;                      // slot was always there — just becomes visible
+      state.amount = sanitizeAmount(customInput.value);
+      sync();
+      customInput.focus();
+    },
+    strings,
+  });
+  chips.push(customChip);
+  chipRow.append(customChip);
+  content.append(chipRow);
+
+  /* custom amount — GHOSTED slot (Damir round 2): reserved space, no reflow */
+  const customRow = document.createElement('div');
+  customRow.className = 'c-tipsheet__customrow';
+  customRow.dataset.ghost = '';
+  const customInput = document.createElement('input');
+  customInput.className = 'c-tipsheet__custom u-tabular';
+  customInput.type = 'text';
+  customInput.inputMode = 'decimal';
+  customInput.placeholder = '0';
+  customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  customInput.addEventListener('input', () => {
+    if (state.sending) return;
+    const v = sanitizeAmount(customInput.value);
+    if (v !== customInput.value) customInput.value = v;
+    state.amount = v;
+    sync();
+  });
+  customInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !confirm.disabled) confirm.click();   // no form — Enter still confirms
+  });
+  const unit = document.createElement('span');
+  unit.className = 'c-tipsheet__unit';
+  unit.textContent = 'IXI';
+  customRow.append(customInput, unit);
+  content.append(customRow);
+
+  /* insufficient guard and send-failure alert are SEPARATE elements (tip-audit m4) */
+  const guard = document.createElement('p');
+  guard.className = 'c-tipsheet__error';
+  guard.setAttribute('role', 'alert');
+  guard.hidden = true;
+  content.append(guard);
+  const sendErr = document.createElement('p');
+  sendErr.className = 'c-tipsheet__error';
+  sendErr.setAttribute('role', 'alert');
+  sendErr.hidden = true;
+  content.append(sendErr);
+
+  /* ONE confirm — label carries the amount (the sheet IS the review) */
+  const confirm = createButton({
+    label: copy.idle, type: 'fill', size: 44, width: 'full',
+    onClick: (e) => {
+      if (e.currentTarget.dataset.acted !== undefined || state.sending || !valid()) return;   // #72④ latch + in-flight token
+      e.currentTarget.dataset.acted = '';
+      state.sending = true;
+      const attempt = ++state.attempt;
+      let settled = false;                                 // ctrl one-shot per attempt (tip-audit m1)
+      setFrozen(true);
+      // money in flight → no dismiss paths; live overlay opts make this REAL (C1)
+      setOverlayOpts(sheet, { lightDismiss: false, escDismiss: false });
+      sendErr.hidden = true;
+      setLoading(confirm, true);
+      const payload = { messageId: message.id, amount: canonicalAmount(state.amount) };
+      const done = () => {
+        if (settled || attempt !== state.attempt) return;  // one-shot + stale-attempt guard
+        settled = true;
+        state.sending = false;
+        setLoading(confirm, false);
+        setSuccess(confirm, { label: copy.success });
+        setTimeout(() => closeSheet(sheet), 900);          // the result lands via the bridge (#65 pill / request bubble)
+      };
+      const fail = (msg) => {
+        if (settled || attempt !== state.attempt) return;
+        settled = true;
+        state.sending = false;
+        setLoading(confirm, false);
+        delete confirm.dataset.acted;                      // retry stays possible
+        setFrozen(false);
+        setOverlayOpts(sheet, { lightDismiss: true, escDismiss: true });
+        sendErr.hidden = false;                            // unhide BEFORE text → alert announces
+        sendErr.textContent = msg || copy.fail;
+      };
+      if (onSubmit) onSubmit(payload, { done, fail }); else done();
+    },
+  });
+  confirm.disabled = true;
+  content.append(confirm);
+
+  function setFrozen(f) {                                  // amount controls freeze in flight (M3)
+    for (const c of chips) c.disabled = f;
+    customInput.disabled = f;
+  }
+  function valid() {
+    if (!state.amount || !/[1-9]/.test(state.amount)) return false;
+    if (balU != null && toUnits(canonicalAmount(state.amount)) > balU) return false;   // integer 1e-8 units (M2)
+    return true;
+  }
+  function sync() {
+    if (state.sending) return;                             // in flight: nothing re-enables the confirm (M3)
+    const a = canonicalAmount(state.amount);
+    const over = !!a && /[1-9]/.test(a) && balU != null && toUnits(a) > balU;
+    guard.hidden = !over;
+    if (over) guard.textContent = strings.tipInsufficient || 'Not enough IXI for this tip.';
+    confirm.disabled = !valid();
+    const label = confirm.querySelector('.c-button__label') || confirm;
+    label.textContent = valid() ? copy.confirm.split('{a}').join(a) : copy.idle;
+  }
+  sync();
+
+  // pre-confirm: light dismiss allowed (speed — spec §3); flips off in flight.
+  // onDismiss: ANY dismissal voids pending bridge callbacks (tip-audit M1)
+  const sheet = createSheet({
+    content, host, strings, lightDismiss: true,
+    onDismiss: () => { state.attempt++; state.sending = false; },
+  });
+  sheet.setAttribute('aria-label', title.textContent);
+  openSheet(sheet);
+  return sheet;
+}
+
+export function openTipSheet({ onTip, ...opts } = {}) {
+  return openAmountSheet({ ...opts, onSubmit: onTip }, 'tip');
+}
+
+/** Chat attach → Request (#139): the counterparty is known — a sheet beats the
+ *  QR-centric receive screen. No balance guard: the AMOUNT is the payer's problem. */
+export function openRequestSheet({ onRequest, ...opts } = {}) {
+  return openAmountSheet({ ...opts, balance: null, onSubmit: onRequest }, 'request');
+}

@@ -75,9 +75,13 @@ shell adapter like chats/apps did; NO new C# required for v1 (frozen bridge, #1)
 
 ## 8. Slices (each with #46 audit loop)
 
-1. **Home**: hero + chips + #98 pill/sheet + activity from mock feed + tx detail sheet.
-2. **Send**: screen + review sheet + success/failure paths (mock bridge).
-3. **Receive/Request**: QR surfaces + share/copy.
+1. **Home**: hero + chips + #98 pill/sheet + activity from mock feed + tx detail sheet. ✅ #134
+2. **Send**: screen + review sheet + success/failure paths (mock bridge). ✅ #135/#136
+3. **Receive/Request**: QR surfaces + share/copy. ✅ #137 — ONE progressive surface
+   (Damir 2026-07-05): receive QR (`address:ixi`) default; "Request an amount" reveal
+   morphs the QR in place to `address:send:amount` + contact strip (send-as-message,
+   `ixian:sendrequest` mirror). QR = vendored qrcode-generator (`qr.js`, jsQR-verified),
+   `--surface-qr`/`--on-qr` pair fixed across themes.
 4. **Polish pass**: on-device check (hero safe-area watch-item #22 applies HERE most).
 
 Prereq for slice 1: **Figma frames scan (#31)** — wallet home, send, receive, tx detail

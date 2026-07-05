@@ -79,6 +79,7 @@
 @media (hover: hover) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 .c-wallet-send__addrfield .c-button { flex-basis: 100%; }
+.c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
 
 /* selected recipient */
 .c-wallet-send__picked {

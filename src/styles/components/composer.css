@@ -33,6 +33,11 @@
 /* —— reply/edit context strip (batch 3b, §8-gated #25) —— */
 .c-composer__ctx {
   flex-basis: 100%;
+  /* bug 2026-07-05c ③: the strip is itself a flex container, so its
+     min-width:auto resolves to the NOWRAP excerpt's full width — the strip
+     blew past the phone edge and hid the cancel ✕. min-width:0 restores the
+     basis+shrink sizing (headless-Chrome verified: 642px → container width) */
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--spacing-8);

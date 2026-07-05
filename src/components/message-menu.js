@@ -80,6 +80,7 @@ export function openMessageMenu({
   if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
   if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
   if (text) item('copy', strings.copy || 'Copy', 'copy');
+  if (capabilities.select && text) item('checks', strings.select || 'Select', 'select');   // multi-select entry (#139)
   if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
   // destructive group last (§5b)
   item('trash', strings.deleteMessage || 'Delete', 'delete', true);

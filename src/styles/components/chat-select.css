@@ -1,0 +1,69 @@
+/* chat-select — selection mode + count bar + split-paste offer (#139). */
+
+/* selection mode: rows become toggle targets; selected rows get the tonal wash */
+[data-selecting] .c-bubble-row { cursor: pointer; }
+[data-selecting] .c-bubble-row[data-selected] {
+  background: var(--surface-action-tonal-default);
+  border-radius: var(--radius-12);
+}
+
+/* count bar — overlays the top of the phone/host (native apps morph the topbar) */
+.c-chatselect-bar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-card-raised);
+  box-shadow: var(--elevation-1);
+}
+.c-chatselect-bar__cancel {
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-01);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-chatselect-bar__cancel:hover { background: var(--surface-interactive-hover); } }
+.c-chatselect-bar__cancel:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-chatselect-bar__count {
+  flex: 1; min-width: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+
+/* split-paste offer — sits above the composer input row */
+.c-splitpaste {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--surface-action-tonal-default);
+  margin-block-end: var(--spacing-8);
+}
+.c-splitpaste__label {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-action-default);
+}
+.c-splitpaste__dismiss {
+  flex: none;
+  width: 32px; height: 32px;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-splitpaste__dismiss::after { content: ''; position: absolute; inset: -6px; }   /* 44px hit (#106) */
+@media (hover: hover) { .c-splitpaste__dismiss:hover { background: var(--surface-interactive-hover); } }
+.c-splitpaste__dismiss:active { background: var(--surface-interactive-pressed); }

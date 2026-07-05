@@ -7,6 +7,12 @@
  * Dismissal policy: Esc is the safe dismiss path (opts.escDismiss — sheet and
  * modal both default it true, per ARIA APG); opts.lightDismiss governs ONLY
  * scrim click (sheet true, modal false).
+ *
+ * Dismissal opts are read LIVE (tip-audit C1): setOverlayOpts on an OPEN overlay
+ * takes effect immediately — Esc, scrim AND the shell back hook all consult the
+ * current opts, so an in-flight money sheet (lightDismiss+escDismiss false) is
+ * actually locked on every path. escDismiss:false also makes dismissTopOverlay
+ * CONSUME the back press without closing (back must not dismiss what Esc can't).
  */
 
 const stack = []; // { el, scrim, opts, opener }
@@ -17,8 +23,15 @@ let uid = 0;
 /** Unique DOM id for overlay labelling (aria-labelledby / aria-describedby). */
 export function overlayId(prefix) { return prefix + '-' + (++uid); }
 
-/** Attach open-time options to an overlay element (read by openOverlay). */
-export function setOverlayOpts(el, opts) { overlayOpts.set(el, opts); }
+/** Attach/adjust overlay options. MERGES into existing opts (a later in-flight
+ *  lock must not drop an earlier onDismiss — tip-audit C1/M1) and is read live
+ *  by every dismissal path, so calling this on an open overlay works. */
+export function setOverlayOpts(el, opts) {
+  overlayOpts.set(el, { ...(overlayOpts.get(el) || {}), ...opts });
+}
+
+/** Current dismissal policy for a stack entry — LIVE WeakMap first (tip-audit C1). */
+function liveOpts(entry) { return overlayOpts.get(entry.el) || entry.opts || {}; }
 
 function focusables(el) {
   return [...el.querySelectorAll(
@@ -32,7 +45,7 @@ function onDocKeydown(e) {
   if (stack.length === 0) return;
   const top = stack[stack.length - 1];
   if (e.key === 'Escape') {
-    if (top.opts.escDismiss) dismissOverlay(top.el);
+    if (liveOpts(top).escDismiss) dismissOverlay(top.el);   // live — in-flight locks hold (tip-audit C1)
     return;
   }
   if (e.key !== 'Tab') return;
@@ -77,13 +90,18 @@ export function openOverlay(el, opts) {
   if (finishPending) finishPending();
 
   opts = opts || overlayOpts.get(el) || {};
+  overlayOpts.set(el, opts);                    // WeakMap = the single live source for policy reads
   const host = opts.host || document.body;
   const opener = document.activeElement;
 
   const scrim = document.createElement('div');
   scrim.className = 'c-scrim';
   scrim.setAttribute('aria-hidden', 'true');
-  if (opts.lightDismiss) scrim.addEventListener('click', () => dismissOverlay(el));
+  // bound ALWAYS, policy checked at CLICK time — open-time binding froze the
+  // policy and made in-flight setOverlayOpts a silent no-op (tip-audit C1)
+  scrim.addEventListener('click', () => {
+    if ((overlayOpts.get(el) || opts).lightDismiss) dismissOverlay(el);
+  });
 
   host.append(scrim, el);
   host.dataset.overlayOpen = '';
@@ -147,7 +165,8 @@ export function dismissOverlay(el) {
     if (!stack.some((s) => (s.opts.host || document.body) === host)) {
       delete host.dataset.overlayOpen;
     }
-    if (entry.opts.onDismiss) entry.opts.onDismiss();
+    const cb = liveOpts(entry).onDismiss || entry.opts.onDismiss;   // merge-safe (tip-audit M1)
+    if (cb) cb();
   };
   entry.el.addEventListener('transitionend', onEnd);
   fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
@@ -155,8 +174,12 @@ export function dismissOverlay(el) {
   return true;
 }
 
-/** Shell onBack hook: dismiss the top overlay if any. True = consumed. */
+/** Shell onBack hook: dismiss the top overlay if any. True = consumed.
+ *  escDismiss:false = LOCKED (money in flight): the press is consumed but the
+ *  overlay stays — back must not dismiss what Esc can't (tip-audit C1). */
 export function dismissTopOverlay() {
   if (stack.length === 0) return false;
-  return dismissOverlay(stack[stack.length - 1].el);
+  const top = stack[stack.length - 1];
+  if (liveOpts(top).escDismiss === false) return true;
+  return dismissOverlay(top.el);
 }

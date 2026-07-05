@@ -1045,6 +1045,12 @@ function createTxItem({
  * Dismissal policy: Esc is the safe dismiss path (opts.escDismiss — sheet and
  * modal both default it true, per ARIA APG); opts.lightDismiss governs ONLY
  * scrim click (sheet true, modal false).
+ *
+ * Dismissal opts are read LIVE (tip-audit C1): setOverlayOpts on an OPEN overlay
+ * takes effect immediately — Esc, scrim AND the shell back hook all consult the
+ * current opts, so an in-flight money sheet (lightDismiss+escDismiss false) is
+ * actually locked on every path. escDismiss:false also makes dismissTopOverlay
+ * CONSUME the back press without closing (back must not dismiss what Esc can't).
  */
 
 const stack = []; // { el, scrim, opts, opener }
@@ -1055,8 +1061,15 @@ let uid = 0;
 /** Unique DOM id for overlay labelling (aria-labelledby / aria-describedby). */
 function overlayId(prefix) { return prefix + '-' + (++uid); }
 
-/** Attach open-time options to an overlay element (read by openOverlay). */
-function setOverlayOpts(el, opts) { overlayOpts.set(el, opts); }
+/** Attach/adjust overlay options. MERGES into existing opts (a later in-flight
+ *  lock must not drop an earlier onDismiss — tip-audit C1/M1) and is read live
+ *  by every dismissal path, so calling this on an open overlay works. */
+function setOverlayOpts(el, opts) {
+  overlayOpts.set(el, { ...(overlayOpts.get(el) || {}), ...opts });
+}
+
+/** Current dismissal policy for a stack entry — LIVE WeakMap first (tip-audit C1). */
+function liveOpts(entry) { return overlayOpts.get(entry.el) || entry.opts || {}; }
 
 function focusables(el) {
   return [...el.querySelectorAll(
@@ -1070,7 +1083,7 @@ function onDocKeydown(e) {
   if (stack.length === 0) return;
   const top = stack[stack.length - 1];
   if (e.key === 'Escape') {
-    if (top.opts.escDismiss) dismissOverlay(top.el);
+    if (liveOpts(top).escDismiss) dismissOverlay(top.el);   // live — in-flight locks hold (tip-audit C1)
     return;
   }
   if (e.key !== 'Tab') return;
@@ -1115,13 +1128,18 @@ function openOverlay(el, opts) {
   if (finishPending) finishPending();
 
   opts = opts || overlayOpts.get(el) || {};
+  overlayOpts.set(el, opts);                    // WeakMap = the single live source for policy reads
   const host = opts.host || document.body;
   const opener = document.activeElement;
 
   const scrim = document.createElement('div');
   scrim.className = 'c-scrim';
   scrim.setAttribute('aria-hidden', 'true');
-  if (opts.lightDismiss) scrim.addEventListener('click', () => dismissOverlay(el));
+  // bound ALWAYS, policy checked at CLICK time — open-time binding froze the
+  // policy and made in-flight setOverlayOpts a silent no-op (tip-audit C1)
+  scrim.addEventListener('click', () => {
+    if ((overlayOpts.get(el) || opts).lightDismiss) dismissOverlay(el);
+  });
 
   host.append(scrim, el);
   host.dataset.overlayOpen = '';
@@ -1185,7 +1203,8 @@ function dismissOverlay(el) {
     if (!stack.some((s) => (s.opts.host || document.body) === host)) {
       delete host.dataset.overlayOpen;
     }
-    if (entry.opts.onDismiss) entry.opts.onDismiss();
+    const cb = liveOpts(entry).onDismiss || entry.opts.onDismiss;   // merge-safe (tip-audit M1)
+    if (cb) cb();
   };
   entry.el.addEventListener('transitionend', onEnd);
   fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
@@ -1193,10 +1212,14 @@ function dismissOverlay(el) {
   return true;
 }
 
-/** Shell onBack hook: dismiss the top overlay if any. True = consumed. */
+/** Shell onBack hook: dismiss the top overlay if any. True = consumed.
+ *  escDismiss:false = LOCKED (money in flight): the press is consumed but the
+ *  overlay stays — back must not dismiss what Esc can't (tip-audit C1). */
 function dismissTopOverlay() {
   if (stack.length === 0) return false;
-  return dismissOverlay(stack[stack.length - 1].el);
+  const top = stack[stack.length - 1];
+  if (liveOpts(top).escDismiss === false) return true;
+  return dismissOverlay(top.el);
 }
 
 /* ---- src/components/sheet.js ---- */
@@ -3024,6 +3047,7 @@ function openMessageMenu({
   if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
   if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
   if (text) item('copy', strings.copy || 'Copy', 'copy');
+  if (capabilities.select && text) item('checks', strings.select || 'Select', 'select');   // multi-select entry (#139)
   if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
   // destructive group last (§5b)
   item('trash', strings.deleteMessage || 'Delete', 'delete', true);
@@ -5911,7 +5935,7 @@ function setDiscoverFeed(el, feed, { strings = {}, onCategory, onOpen } = {}) {
   if (feed.categories && feed.categories.length) {
     const current = el.querySelector('.c-apps-discover__cats');
     const shown = current ? [...current.querySelectorAll('.c-chip')].map((c) => c.textContent) : [];
-    if (shown.join(' ') !== feed.categories.join(' ')) {
+    if (shown.join(' ') !== feed.categories.join(' ')) {
       const fresh = chipRow(feed.categories, strings, (cat) => {
         renderLive(el, el._feed, cat, { strings, onOpen });
         el._category = cat;
@@ -6207,8 +6231,9 @@ function setWalletHeroCompact(el, compact) {
 
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
-/** Sent = everything outgoing incl. pending/failed (badge carries the caveat —
- *  🟡 flagged for Damir: should failed sends list under "Sent"?). */
+/** Sent = everything outgoing incl. pending/failed — the status badge carries the
+ *  caveat (Damir decided 2026-07-05: failed attempts LIST under "Sent"; users look
+ *  for "that send I tried" there, hiding them makes failures invisible). */
 function txMatchesFilter(tx, filter) {
   if (!tx) return false;
   if (filter === 'sent') return tx.direction !== 'in';
@@ -6666,7 +6691,8 @@ function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
 /** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
  *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
  *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
- *  ('12,5' → '12.5') — never a silent magnitude change. */
+ *  ('12,5' → '12.5') — never a silent magnitude change.
+ *  Exported (slice 3): wallet-receive's request amount follows the SAME rules. */
 function sanitizeAmount(raw) {
   let s = String(raw || '');
   s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
@@ -6680,6 +6706,8 @@ function sanitizeAmount(raw) {
 /* —— exact money math in integer 1e-8 units via BigInt (ES2020 floor, #45; audit M1:
       binary floats falsely rejected exactly-fitting amounts and Max could overshoot;
       Number×1e8 overflows 2^53 at Ixian-scale balances) —— */
+/** Exported (#138): the tip sheet's balance guard compares in the same units —
+ *  Number comparison re-imports the audit-M1 float bug at ≥1e8 IXI balances. */
 function toUnits(v) {
   const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
   const neg = s.startsWith('-');
@@ -6695,8 +6723,11 @@ function fromUnits(u) {
   return (neg ? '-' : '') + i + (d ? '.' + d : '');
 }
 
+let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
+
 function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = {}, host,
+  lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   onQuickScan, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
@@ -6704,6 +6735,7 @@ function createWalletSend({
   // '923,852.00') are NOT valid inputs here.
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
+  const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
   const balU = toUnits(balance);
   const feeU = toUnits(fee);
   const state = { recipient: null, amount: '', sending: false, attempt: 0 };
@@ -6740,6 +6772,7 @@ function createWalletSend({
   addrRow.type = 'button';
   addrRow.className = 'c-wallet-send__contact';
   addrRow.setAttribute('aria-expanded', 'false');
+  addrRow.setAttribute('aria-controls', (addrFieldId));   // reveal linked for AT (receive-audit n2, applied here too)
   const addrGlyph = document.createElement('span');
   addrGlyph.className = 'c-wallet-send__addrglyph';
   addrGlyph.append(icon('qrcode', { size: 20 }));
@@ -6751,6 +6784,7 @@ function createWalletSend({
 
   const addrField = document.createElement('div');
   addrField.className = 'c-wallet-send__addrfield';
+  addrField.id = addrFieldId;
   addrField.hidden = true;
   const addrInput = document.createElement('input');
   addrInput.className = 'c-wallet-send__addrinput';
@@ -6789,7 +6823,7 @@ function createWalletSend({
   errLine.className = 'c-wallet-send__error';
   errLine.setAttribute('role', 'alert');
   errLine.hidden = true;
-  picker.append(errLine);
+  addrField.append(errLine);   // under the input it validates — it rendered BELOW the contacts (Damir bug, round 3)
   recSec.append(picker);
   el.append(recSec);
 
@@ -6855,20 +6889,22 @@ function createWalletSend({
     pa.textContent = recipient.address;
     pt.append(pa);
     picked.append(pt);
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.className = 'c-wallet-send__clear';
-    clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
-    clear.append(icon('x', { size: 18 }));
-    clear.addEventListener('click', () => {
-      state.recipient = null;
-      picked.hidden = true;
-      picker.hidden = false;
-      sync();
-      const si = picker.querySelector('input');
-      if (si) si.focus();                                // focus back into the picker (audit m2)
-    });
-    picked.append(clear);
+    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'c-wallet-send__clear';
+      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
+      clear.append(icon('x', { size: 18 }));
+      clear.addEventListener('click', () => {
+        state.recipient = null;
+        picked.hidden = true;
+        picker.hidden = false;
+        sync();
+        const si = picker.querySelector('input');
+        if (si) si.focus();                              // focus back into the picker (audit m2)
+      });
+      picked.append(clear);
+    }
     sync();
     amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
   }
@@ -7065,6 +7101,7 @@ function createWalletSend({
   }
 
   renderContacts('');
+  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to the amount
   return el;
 }
 
@@ -7099,5 +7136,3100 @@ function setSendError(el, msg) {
   return el;
 }
 
-  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError };
+/* ---- src/components/qr.js ---- */
+/**
+ * qr.js — QR encoder for the wallet Receive/Request surface (slice 3, spec §4).
+ *
+ * Vendored: qrcode-generator v1.5.x by Kazuhiko Arase (MIT) — the same lineage as
+ * the legacy Resources/Raw/html/js/qrcode.min.js, so encoding behaviour matches the
+ * legacy wallet_request page. Vendored body is wrapped in a module-scope IIFE
+ * (indented — nothing leaks top-level into the demo bundle's shared scope); the UMD
+ * factory tail is dropped. 'QR Code' is a registered trademark of DENSO WAVE.
+ *
+ * Verified against a real decoder (jsQR): addr:ixi / addr:send:amount payloads
+ * round-trip exactly (2026-07-05).
+ *
+ * createQrSvg(text, { ecc, quiet, label }) → <svg role=img> — modules as one path,
+ *   ink = var(--on-qr) on transparent (the QR CARD paints --surface-qr behind it:
+ *   near-white in BOTH themes for scan contrast). data-qr-value carries the payload
+ *   (testability + the shell can read back what is encoded).
+ * setQrValue(svg, text, { label }) — free fn (#44): re-encode in place (request
+ *   amount typing morphs the receive QR without replacing the node).
+ */
+const qrcodeLib = (() => {
+  //---------------------------------------------------------------------
+  //
+  // QR Code Generator for JavaScript
+  //
+  // Copyright (c) 2009 Kazuhiko Arase
+  //
+  // URL: http://www.d-project.com/
+  //
+  // Licensed under the MIT license:
+  //  http://www.opensource.org/licenses/mit-license.php
+  //
+  // The word 'QR Code' is registered trademark of
+  // DENSO WAVE INCORPORATED
+  //  http://www.denso-wave.com/qrcode/faqpatent-e.html
+  //
+  //---------------------------------------------------------------------
+
+  var qrcode = function() {
+
+    //---------------------------------------------------------------------
+    // qrcode
+    //---------------------------------------------------------------------
+
+    /**
+     * qrcode
+     * @param typeNumber 1 to 40
+     * @param errorCorrectionLevel 'L','M','Q','H'
+     */
+    var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+      var PAD0 = 0xEC;
+      var PAD1 = 0x11;
+
+      var _typeNumber = typeNumber;
+      var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+      var _modules = null;
+      var _moduleCount = 0;
+      var _dataCache = null;
+      var _dataList = [];
+
+      var _this = {};
+
+      var makeImpl = function(test, maskPattern) {
+
+        _moduleCount = _typeNumber * 4 + 17;
+        _modules = function(moduleCount) {
+          var modules = new Array(moduleCount);
+          for (var row = 0; row < moduleCount; row += 1) {
+            modules[row] = new Array(moduleCount);
+            for (var col = 0; col < moduleCount; col += 1) {
+              modules[row][col] = null;
+            }
+          }
+          return modules;
+        }(_moduleCount);
+
+        setupPositionProbePattern(0, 0);
+        setupPositionProbePattern(_moduleCount - 7, 0);
+        setupPositionProbePattern(0, _moduleCount - 7);
+        setupPositionAdjustPattern();
+        setupTimingPattern();
+        setupTypeInfo(test, maskPattern);
+
+        if (_typeNumber >= 7) {
+          setupTypeNumber(test);
+        }
+
+        if (_dataCache == null) {
+          _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+        }
+
+        mapData(_dataCache, maskPattern);
+      };
+
+      var setupPositionProbePattern = function(row, col) {
+
+        for (var r = -1; r <= 7; r += 1) {
+
+          if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+          for (var c = -1; c <= 7; c += 1) {
+
+            if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+            if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+                || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+                || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+              _modules[row + r][col + c] = true;
+            } else {
+              _modules[row + r][col + c] = false;
+            }
+          }
+        }
+      };
+
+      var getBestMaskPattern = function() {
+
+        var minLostPoint = 0;
+        var pattern = 0;
+
+        for (var i = 0; i < 8; i += 1) {
+
+          makeImpl(true, i);
+
+          var lostPoint = QRUtil.getLostPoint(_this);
+
+          if (i == 0 || minLostPoint > lostPoint) {
+            minLostPoint = lostPoint;
+            pattern = i;
+          }
+        }
+
+        return pattern;
+      };
+
+      var setupTimingPattern = function() {
+
+        for (var r = 8; r < _moduleCount - 8; r += 1) {
+          if (_modules[r][6] != null) {
+            continue;
+          }
+          _modules[r][6] = (r % 2 == 0);
+        }
+
+        for (var c = 8; c < _moduleCount - 8; c += 1) {
+          if (_modules[6][c] != null) {
+            continue;
+          }
+          _modules[6][c] = (c % 2 == 0);
+        }
+      };
+
+      var setupPositionAdjustPattern = function() {
+
+        var pos = QRUtil.getPatternPosition(_typeNumber);
+
+        for (var i = 0; i < pos.length; i += 1) {
+
+          for (var j = 0; j < pos.length; j += 1) {
+
+            var row = pos[i];
+            var col = pos[j];
+
+            if (_modules[row][col] != null) {
+              continue;
+            }
+
+            for (var r = -2; r <= 2; r += 1) {
+
+              for (var c = -2; c <= 2; c += 1) {
+
+                if (r == -2 || r == 2 || c == -2 || c == 2
+                    || (r == 0 && c == 0) ) {
+                  _modules[row + r][col + c] = true;
+                } else {
+                  _modules[row + r][col + c] = false;
+                }
+              }
+            }
+          }
+        }
+      };
+
+      var setupTypeNumber = function(test) {
+
+        var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+        for (var i = 0; i < 18; i += 1) {
+          var mod = (!test && ( (bits >> i) & 1) == 1);
+          _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+        }
+
+        for (var i = 0; i < 18; i += 1) {
+          var mod = (!test && ( (bits >> i) & 1) == 1);
+          _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+        }
+      };
+
+      var setupTypeInfo = function(test, maskPattern) {
+
+        var data = (_errorCorrectionLevel << 3) | maskPattern;
+        var bits = QRUtil.getBCHTypeInfo(data);
+
+        // vertical
+        for (var i = 0; i < 15; i += 1) {
+
+          var mod = (!test && ( (bits >> i) & 1) == 1);
+
+          if (i < 6) {
+            _modules[i][8] = mod;
+          } else if (i < 8) {
+            _modules[i + 1][8] = mod;
+          } else {
+            _modules[_moduleCount - 15 + i][8] = mod;
+          }
+        }
+
+        // horizontal
+        for (var i = 0; i < 15; i += 1) {
+
+          var mod = (!test && ( (bits >> i) & 1) == 1);
+
+          if (i < 8) {
+            _modules[8][_moduleCount - i - 1] = mod;
+          } else if (i < 9) {
+            _modules[8][15 - i - 1 + 1] = mod;
+          } else {
+            _modules[8][15 - i - 1] = mod;
+          }
+        }
+
+        // fixed module
+        _modules[_moduleCount - 8][8] = (!test);
+      };
+
+      var mapData = function(data, maskPattern) {
+
+        var inc = -1;
+        var row = _moduleCount - 1;
+        var bitIndex = 7;
+        var byteIndex = 0;
+        var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+        for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+          if (col == 6) col -= 1;
+
+          while (true) {
+
+            for (var c = 0; c < 2; c += 1) {
+
+              if (_modules[row][col - c] == null) {
+
+                var dark = false;
+
+                if (byteIndex < data.length) {
+                  dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+                }
+
+                var mask = maskFunc(row, col - c);
+
+                if (mask) {
+                  dark = !dark;
+                }
+
+                _modules[row][col - c] = dark;
+                bitIndex -= 1;
+
+                if (bitIndex == -1) {
+                  byteIndex += 1;
+                  bitIndex = 7;
+                }
+              }
+            }
+
+            row += inc;
+
+            if (row < 0 || _moduleCount <= row) {
+              row -= inc;
+              inc = -inc;
+              break;
+            }
+          }
+        }
+      };
+
+      var createBytes = function(buffer, rsBlocks) {
+
+        var offset = 0;
+
+        var maxDcCount = 0;
+        var maxEcCount = 0;
+
+        var dcdata = new Array(rsBlocks.length);
+        var ecdata = new Array(rsBlocks.length);
+
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+
+          var dcCount = rsBlocks[r].dataCount;
+          var ecCount = rsBlocks[r].totalCount - dcCount;
+
+          maxDcCount = Math.max(maxDcCount, dcCount);
+          maxEcCount = Math.max(maxEcCount, ecCount);
+
+          dcdata[r] = new Array(dcCount);
+
+          for (var i = 0; i < dcdata[r].length; i += 1) {
+            dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+          }
+          offset += dcCount;
+
+          var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+          var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+          var modPoly = rawPoly.mod(rsPoly);
+          ecdata[r] = new Array(rsPoly.getLength() - 1);
+          for (var i = 0; i < ecdata[r].length; i += 1) {
+            var modIndex = i + modPoly.getLength() - ecdata[r].length;
+            ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+          }
+        }
+
+        var totalCodeCount = 0;
+        for (var i = 0; i < rsBlocks.length; i += 1) {
+          totalCodeCount += rsBlocks[i].totalCount;
+        }
+
+        var data = new Array(totalCodeCount);
+        var index = 0;
+
+        for (var i = 0; i < maxDcCount; i += 1) {
+          for (var r = 0; r < rsBlocks.length; r += 1) {
+            if (i < dcdata[r].length) {
+              data[index] = dcdata[r][i];
+              index += 1;
+            }
+          }
+        }
+
+        for (var i = 0; i < maxEcCount; i += 1) {
+          for (var r = 0; r < rsBlocks.length; r += 1) {
+            if (i < ecdata[r].length) {
+              data[index] = ecdata[r][i];
+              index += 1;
+            }
+          }
+        }
+
+        return data;
+      };
+
+      var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+        var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+        var buffer = qrBitBuffer();
+
+        for (var i = 0; i < dataList.length; i += 1) {
+          var data = dataList[i];
+          buffer.put(data.getMode(), 4);
+          buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+          data.write(buffer);
+        }
+
+        // calc num max data.
+        var totalDataCount = 0;
+        for (var i = 0; i < rsBlocks.length; i += 1) {
+          totalDataCount += rsBlocks[i].dataCount;
+        }
+
+        if (buffer.getLengthInBits() > totalDataCount * 8) {
+          throw 'code length overflow. ('
+            + buffer.getLengthInBits()
+            + '>'
+            + totalDataCount * 8
+            + ')';
+        }
+
+        // end code
+        if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+          buffer.put(0, 4);
+        }
+
+        // padding
+        while (buffer.getLengthInBits() % 8 != 0) {
+          buffer.putBit(false);
+        }
+
+        // padding
+        while (true) {
+
+          if (buffer.getLengthInBits() >= totalDataCount * 8) {
+            break;
+          }
+          buffer.put(PAD0, 8);
+
+          if (buffer.getLengthInBits() >= totalDataCount * 8) {
+            break;
+          }
+          buffer.put(PAD1, 8);
+        }
+
+        return createBytes(buffer, rsBlocks);
+      };
+
+      _this.addData = function(data, mode) {
+
+        mode = mode || 'Byte';
+
+        var newData = null;
+
+        switch(mode) {
+        case 'Numeric' :
+          newData = qrNumber(data);
+          break;
+        case 'Alphanumeric' :
+          newData = qrAlphaNum(data);
+          break;
+        case 'Byte' :
+          newData = qr8BitByte(data);
+          break;
+        case 'Kanji' :
+          newData = qrKanji(data);
+          break;
+        default :
+          throw 'mode:' + mode;
+        }
+
+        _dataList.push(newData);
+        _dataCache = null;
+      };
+
+      _this.isDark = function(row, col) {
+        if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+          throw row + ',' + col;
+        }
+        return _modules[row][col];
+      };
+
+      _this.getModuleCount = function() {
+        return _moduleCount;
+      };
+
+      _this.make = function() {
+        if (_typeNumber < 1) {
+          var typeNumber = 1;
+
+          for (; typeNumber < 40; typeNumber++) {
+            var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+            var buffer = qrBitBuffer();
+
+            for (var i = 0; i < _dataList.length; i++) {
+              var data = _dataList[i];
+              buffer.put(data.getMode(), 4);
+              buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+              data.write(buffer);
+            }
+
+            var totalDataCount = 0;
+            for (var i = 0; i < rsBlocks.length; i++) {
+              totalDataCount += rsBlocks[i].dataCount;
+            }
+
+            if (buffer.getLengthInBits() <= totalDataCount * 8) {
+              break;
+            }
+          }
+
+          _typeNumber = typeNumber;
+        }
+
+        makeImpl(false, getBestMaskPattern() );
+      };
+
+      _this.createTableTag = function(cellSize, margin) {
+
+        cellSize = cellSize || 2;
+        margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+        var qrHtml = '';
+
+        qrHtml += '<table style="';
+        qrHtml += ' border-width: 0px; border-style: none;';
+        qrHtml += ' border-collapse: collapse;';
+        qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+        qrHtml += '">';
+        qrHtml += '<tbody>';
+
+        for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+          qrHtml += '<tr>';
+
+          for (var c = 0; c < _this.getModuleCount(); c += 1) {
+            qrHtml += '<td style="';
+            qrHtml += ' border-width: 0px; border-style: none;';
+            qrHtml += ' border-collapse: collapse;';
+            qrHtml += ' padding: 0px; margin: 0px;';
+            qrHtml += ' width: ' + cellSize + 'px;';
+            qrHtml += ' height: ' + cellSize + 'px;';
+            qrHtml += ' background-color: ';
+            qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+            qrHtml += ';';
+            qrHtml += '"/>';
+          }
+
+          qrHtml += '</tr>';
+        }
+
+        qrHtml += '</tbody>';
+        qrHtml += '</table>';
+
+        return qrHtml;
+      };
+
+      _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+        var opts = {};
+        if (typeof arguments[0] == 'object') {
+          // Called by options.
+          opts = arguments[0];
+          // overwrite cellSize and margin.
+          cellSize = opts.cellSize;
+          margin = opts.margin;
+          alt = opts.alt;
+          title = opts.title;
+        }
+
+        cellSize = cellSize || 2;
+        margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+        // Compose alt property surrogate
+        alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+        alt.text = alt.text || null;
+        alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+        // Compose title property surrogate
+        title = (typeof title === 'string') ? {text: title} : title || {};
+        title.text = title.text || null;
+        title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+        var size = _this.getModuleCount() * cellSize + margin * 2;
+        var c, mc, r, mr, qrSvg='', rect;
+
+        rect = 'l' + cellSize + ',0 0,' + cellSize +
+          ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+        qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+        qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+        qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+        qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+        qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+            escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+        qrSvg += '>';
+        qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+            escapeXml(title.text) + '</title>' : '';
+        qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+            escapeXml(alt.text) + '</description>' : '';
+        qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+        qrSvg += '<path d="';
+
+        for (r = 0; r < _this.getModuleCount(); r += 1) {
+          mr = r * cellSize + margin;
+          for (c = 0; c < _this.getModuleCount(); c += 1) {
+            if (_this.isDark(r, c) ) {
+              mc = c*cellSize+margin;
+              qrSvg += 'M' + mc + ',' + mr + rect;
+            }
+          }
+        }
+
+        qrSvg += '" stroke="transparent" fill="black"/>';
+        qrSvg += '</svg>';
+
+        return qrSvg;
+      };
+
+      _this.createDataURL = function(cellSize, margin) {
+
+        cellSize = cellSize || 2;
+        margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+        var size = _this.getModuleCount() * cellSize + margin * 2;
+        var min = margin;
+        var max = size - margin;
+
+        return createDataURL(size, size, function(x, y) {
+          if (min <= x && x < max && min <= y && y < max) {
+            var c = Math.floor( (x - min) / cellSize);
+            var r = Math.floor( (y - min) / cellSize);
+            return _this.isDark(r, c)? 0 : 1;
+          } else {
+            return 1;
+          }
+        } );
+      };
+
+      _this.createImgTag = function(cellSize, margin, alt) {
+
+        cellSize = cellSize || 2;
+        margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+        var size = _this.getModuleCount() * cellSize + margin * 2;
+
+        var img = '';
+        img += '<img';
+        img += '\u0020src="';
+        img += _this.createDataURL(cellSize, margin);
+        img += '"';
+        img += '\u0020width="';
+        img += size;
+        img += '"';
+        img += '\u0020height="';
+        img += size;
+        img += '"';
+        if (alt) {
+          img += '\u0020alt="';
+          img += escapeXml(alt);
+          img += '"';
+        }
+        img += '/>';
+
+        return img;
+      };
+
+      var escapeXml = function(s) {
+        var escaped = '';
+        for (var i = 0; i < s.length; i += 1) {
+          var c = s.charAt(i);
+          switch(c) {
+          case '<': escaped += '&lt;'; break;
+          case '>': escaped += '&gt;'; break;
+          case '&': escaped += '&amp;'; break;
+          case '"': escaped += '&quot;'; break;
+          default : escaped += c; break;
+          }
+        }
+        return escaped;
+      };
+
+      var _createHalfASCII = function(margin) {
+        var cellSize = 1;
+        margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+        var size = _this.getModuleCount() * cellSize + margin * 2;
+        var min = margin;
+        var max = size - margin;
+
+        var y, x, r1, r2, p;
+
+        var blocks = {
+          '██': '█',
+          '█ ': '▀',
+          ' █': '▄',
+          '  ': ' '
+        };
+
+        var blocksLastLineNoMargin = {
+          '██': '▀',
+          '█ ': '▀',
+          ' █': ' ',
+          '  ': ' '
+        };
+
+        var ascii = '';
+        for (y = 0; y < size; y += 2) {
+          r1 = Math.floor((y - min) / cellSize);
+          r2 = Math.floor((y + 1 - min) / cellSize);
+          for (x = 0; x < size; x += 1) {
+            p = '█';
+
+            if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+              p = ' ';
+            }
+
+            if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+              p += ' ';
+            }
+            else {
+              p += '█';
+            }
+
+            // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+            ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+          }
+
+          ascii += '\n';
+        }
+
+        if (size % 2 && margin > 0) {
+          return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+        }
+
+        return ascii.substring(0, ascii.length-1);
+      };
+
+      _this.createASCII = function(cellSize, margin) {
+        cellSize = cellSize || 1;
+
+        if (cellSize < 2) {
+          return _createHalfASCII(margin);
+        }
+
+        cellSize -= 1;
+        margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+        var size = _this.getModuleCount() * cellSize + margin * 2;
+        var min = margin;
+        var max = size - margin;
+
+        var y, x, r, p;
+
+        var white = Array(cellSize+1).join('██');
+        var black = Array(cellSize+1).join('  ');
+
+        var ascii = '';
+        var line = '';
+        for (y = 0; y < size; y += 1) {
+          r = Math.floor( (y - min) / cellSize);
+          line = '';
+          for (x = 0; x < size; x += 1) {
+            p = 1;
+
+            if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+              p = 0;
+            }
+
+            // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+            line += p ? white : black;
+          }
+
+          for (r = 0; r < cellSize; r += 1) {
+            ascii += line + '\n';
+          }
+        }
+
+        return ascii.substring(0, ascii.length-1);
+      };
+
+      _this.renderTo2dContext = function(context, cellSize) {
+        cellSize = cellSize || 2;
+        var length = _this.getModuleCount();
+        for (var row = 0; row < length; row++) {
+          for (var col = 0; col < length; col++) {
+            context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+            context.fillRect(row * cellSize, col * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // qrcode.stringToBytes
+    //---------------------------------------------------------------------
+
+    qrcode.stringToBytesFuncs = {
+      'default' : function(s) {
+        var bytes = [];
+        for (var i = 0; i < s.length; i += 1) {
+          var c = s.charCodeAt(i);
+          bytes.push(c & 0xff);
+        }
+        return bytes;
+      }
+    };
+
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+    //---------------------------------------------------------------------
+    // qrcode.createStringToBytes
+    //---------------------------------------------------------------------
+
+    /**
+     * @param unicodeData base64 string of byte array.
+     * [16bit Unicode],[16bit Bytes], ...
+     * @param numChars
+     */
+    qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+      // create conversion map.
+
+      var unicodeMap = function() {
+
+        var bin = base64DecodeInputStream(unicodeData);
+        var read = function() {
+          var b = bin.read();
+          if (b == -1) throw 'eof';
+          return b;
+        };
+
+        var count = 0;
+        var unicodeMap = {};
+        while (true) {
+          var b0 = bin.read();
+          if (b0 == -1) break;
+          var b1 = read();
+          var b2 = read();
+          var b3 = read();
+          var k = String.fromCharCode( (b0 << 8) | b1);
+          var v = (b2 << 8) | b3;
+          unicodeMap[k] = v;
+          count += 1;
+        }
+        if (count != numChars) {
+          throw count + ' != ' + numChars;
+        }
+
+        return unicodeMap;
+      }();
+
+      var unknownChar = '?'.charCodeAt(0);
+
+      return function(s) {
+        var bytes = [];
+        for (var i = 0; i < s.length; i += 1) {
+          var c = s.charCodeAt(i);
+          if (c < 128) {
+            bytes.push(c);
+          } else {
+            var b = unicodeMap[s.charAt(i)];
+            if (typeof b == 'number') {
+              if ( (b & 0xff) == b) {
+                // 1byte
+                bytes.push(b);
+              } else {
+                // 2bytes
+                bytes.push(b >>> 8);
+                bytes.push(b & 0xff);
+              }
+            } else {
+              bytes.push(unknownChar);
+            }
+          }
+        }
+        return bytes;
+      };
+    };
+
+    //---------------------------------------------------------------------
+    // QRMode
+    //---------------------------------------------------------------------
+
+    var QRMode = {
+      MODE_NUMBER :    1 << 0,
+      MODE_ALPHA_NUM : 1 << 1,
+      MODE_8BIT_BYTE : 1 << 2,
+      MODE_KANJI :     1 << 3
+    };
+
+    //---------------------------------------------------------------------
+    // QRErrorCorrectionLevel
+    //---------------------------------------------------------------------
+
+    var QRErrorCorrectionLevel = {
+      L : 1,
+      M : 0,
+      Q : 3,
+      H : 2
+    };
+
+    //---------------------------------------------------------------------
+    // QRMaskPattern
+    //---------------------------------------------------------------------
+
+    var QRMaskPattern = {
+      PATTERN000 : 0,
+      PATTERN001 : 1,
+      PATTERN010 : 2,
+      PATTERN011 : 3,
+      PATTERN100 : 4,
+      PATTERN101 : 5,
+      PATTERN110 : 6,
+      PATTERN111 : 7
+    };
+
+    //---------------------------------------------------------------------
+    // QRUtil
+    //---------------------------------------------------------------------
+
+    var QRUtil = function() {
+
+      var PATTERN_POSITION_TABLE = [
+        [],
+        [6, 18],
+        [6, 22],
+        [6, 26],
+        [6, 30],
+        [6, 34],
+        [6, 22, 38],
+        [6, 24, 42],
+        [6, 26, 46],
+        [6, 28, 50],
+        [6, 30, 54],
+        [6, 32, 58],
+        [6, 34, 62],
+        [6, 26, 46, 66],
+        [6, 26, 48, 70],
+        [6, 26, 50, 74],
+        [6, 30, 54, 78],
+        [6, 30, 56, 82],
+        [6, 30, 58, 86],
+        [6, 34, 62, 90],
+        [6, 28, 50, 72, 94],
+        [6, 26, 50, 74, 98],
+        [6, 30, 54, 78, 102],
+        [6, 28, 54, 80, 106],
+        [6, 32, 58, 84, 110],
+        [6, 30, 58, 86, 114],
+        [6, 34, 62, 90, 118],
+        [6, 26, 50, 74, 98, 122],
+        [6, 30, 54, 78, 102, 126],
+        [6, 26, 52, 78, 104, 130],
+        [6, 30, 56, 82, 108, 134],
+        [6, 34, 60, 86, 112, 138],
+        [6, 30, 58, 86, 114, 142],
+        [6, 34, 62, 90, 118, 146],
+        [6, 30, 54, 78, 102, 126, 150],
+        [6, 24, 50, 76, 102, 128, 154],
+        [6, 28, 54, 80, 106, 132, 158],
+        [6, 32, 58, 84, 110, 136, 162],
+        [6, 26, 54, 82, 110, 138, 166],
+        [6, 30, 58, 86, 114, 142, 170]
+      ];
+      var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+      var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+      var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+      var _this = {};
+
+      var getBCHDigit = function(data) {
+        var digit = 0;
+        while (data != 0) {
+          digit += 1;
+          data >>>= 1;
+        }
+        return digit;
+      };
+
+      _this.getBCHTypeInfo = function(data) {
+        var d = data << 10;
+        while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+          d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+        }
+        return ( (data << 10) | d) ^ G15_MASK;
+      };
+
+      _this.getBCHTypeNumber = function(data) {
+        var d = data << 12;
+        while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+          d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+        }
+        return (data << 12) | d;
+      };
+
+      _this.getPatternPosition = function(typeNumber) {
+        return PATTERN_POSITION_TABLE[typeNumber - 1];
+      };
+
+      _this.getMaskFunction = function(maskPattern) {
+
+        switch (maskPattern) {
+
+        case QRMaskPattern.PATTERN000 :
+          return function(i, j) { return (i + j) % 2 == 0; };
+        case QRMaskPattern.PATTERN001 :
+          return function(i, j) { return i % 2 == 0; };
+        case QRMaskPattern.PATTERN010 :
+          return function(i, j) { return j % 3 == 0; };
+        case QRMaskPattern.PATTERN011 :
+          return function(i, j) { return (i + j) % 3 == 0; };
+        case QRMaskPattern.PATTERN100 :
+          return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+        case QRMaskPattern.PATTERN101 :
+          return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+        case QRMaskPattern.PATTERN110 :
+          return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+        case QRMaskPattern.PATTERN111 :
+          return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+        default :
+          throw 'bad maskPattern:' + maskPattern;
+        }
+      };
+
+      _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+        var a = qrPolynomial([1], 0);
+        for (var i = 0; i < errorCorrectLength; i += 1) {
+          a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+        }
+        return a;
+      };
+
+      _this.getLengthInBits = function(mode, type) {
+
+        if (1 <= type && type < 10) {
+
+          // 1 - 9
+
+          switch(mode) {
+          case QRMode.MODE_NUMBER    : return 10;
+          case QRMode.MODE_ALPHA_NUM : return 9;
+          case QRMode.MODE_8BIT_BYTE : return 8;
+          case QRMode.MODE_KANJI     : return 8;
+          default :
+            throw 'mode:' + mode;
+          }
+
+        } else if (type < 27) {
+
+          // 10 - 26
+
+          switch(mode) {
+          case QRMode.MODE_NUMBER    : return 12;
+          case QRMode.MODE_ALPHA_NUM : return 11;
+          case QRMode.MODE_8BIT_BYTE : return 16;
+          case QRMode.MODE_KANJI     : return 10;
+          default :
+            throw 'mode:' + mode;
+          }
+
+        } else if (type < 41) {
+
+          // 27 - 40
+
+          switch(mode) {
+          case QRMode.MODE_NUMBER    : return 14;
+          case QRMode.MODE_ALPHA_NUM : return 13;
+          case QRMode.MODE_8BIT_BYTE : return 16;
+          case QRMode.MODE_KANJI     : return 12;
+          default :
+            throw 'mode:' + mode;
+          }
+
+        } else {
+          throw 'type:' + type;
+        }
+      };
+
+      _this.getLostPoint = function(qrcode) {
+
+        var moduleCount = qrcode.getModuleCount();
+
+        var lostPoint = 0;
+
+        // LEVEL1
+
+        for (var row = 0; row < moduleCount; row += 1) {
+          for (var col = 0; col < moduleCount; col += 1) {
+
+            var sameCount = 0;
+            var dark = qrcode.isDark(row, col);
+
+            for (var r = -1; r <= 1; r += 1) {
+
+              if (row + r < 0 || moduleCount <= row + r) {
+                continue;
+              }
+
+              for (var c = -1; c <= 1; c += 1) {
+
+                if (col + c < 0 || moduleCount <= col + c) {
+                  continue;
+                }
+
+                if (r == 0 && c == 0) {
+                  continue;
+                }
+
+                if (dark == qrcode.isDark(row + r, col + c) ) {
+                  sameCount += 1;
+                }
+              }
+            }
+
+            if (sameCount > 5) {
+              lostPoint += (3 + sameCount - 5);
+            }
+          }
+        };
+
+        // LEVEL2
+
+        for (var row = 0; row < moduleCount - 1; row += 1) {
+          for (var col = 0; col < moduleCount - 1; col += 1) {
+            var count = 0;
+            if (qrcode.isDark(row, col) ) count += 1;
+            if (qrcode.isDark(row + 1, col) ) count += 1;
+            if (qrcode.isDark(row, col + 1) ) count += 1;
+            if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+            if (count == 0 || count == 4) {
+              lostPoint += 3;
+            }
+          }
+        }
+
+        // LEVEL3
+
+        for (var row = 0; row < moduleCount; row += 1) {
+          for (var col = 0; col < moduleCount - 6; col += 1) {
+            if (qrcode.isDark(row, col)
+                && !qrcode.isDark(row, col + 1)
+                &&  qrcode.isDark(row, col + 2)
+                &&  qrcode.isDark(row, col + 3)
+                &&  qrcode.isDark(row, col + 4)
+                && !qrcode.isDark(row, col + 5)
+                &&  qrcode.isDark(row, col + 6) ) {
+              lostPoint += 40;
+            }
+          }
+        }
+
+        for (var col = 0; col < moduleCount; col += 1) {
+          for (var row = 0; row < moduleCount - 6; row += 1) {
+            if (qrcode.isDark(row, col)
+                && !qrcode.isDark(row + 1, col)
+                &&  qrcode.isDark(row + 2, col)
+                &&  qrcode.isDark(row + 3, col)
+                &&  qrcode.isDark(row + 4, col)
+                && !qrcode.isDark(row + 5, col)
+                &&  qrcode.isDark(row + 6, col) ) {
+              lostPoint += 40;
+            }
+          }
+        }
+
+        // LEVEL4
+
+        var darkCount = 0;
+
+        for (var col = 0; col < moduleCount; col += 1) {
+          for (var row = 0; row < moduleCount; row += 1) {
+            if (qrcode.isDark(row, col) ) {
+              darkCount += 1;
+            }
+          }
+        }
+
+        var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+        lostPoint += ratio * 10;
+
+        return lostPoint;
+      };
+
+      return _this;
+    }();
+
+    //---------------------------------------------------------------------
+    // QRMath
+    //---------------------------------------------------------------------
+
+    var QRMath = function() {
+
+      var EXP_TABLE = new Array(256);
+      var LOG_TABLE = new Array(256);
+
+      // initialize tables
+      for (var i = 0; i < 8; i += 1) {
+        EXP_TABLE[i] = 1 << i;
+      }
+      for (var i = 8; i < 256; i += 1) {
+        EXP_TABLE[i] = EXP_TABLE[i - 4]
+          ^ EXP_TABLE[i - 5]
+          ^ EXP_TABLE[i - 6]
+          ^ EXP_TABLE[i - 8];
+      }
+      for (var i = 0; i < 255; i += 1) {
+        LOG_TABLE[EXP_TABLE[i] ] = i;
+      }
+
+      var _this = {};
+
+      _this.glog = function(n) {
+
+        if (n < 1) {
+          throw 'glog(' + n + ')';
+        }
+
+        return LOG_TABLE[n];
+      };
+
+      _this.gexp = function(n) {
+
+        while (n < 0) {
+          n += 255;
+        }
+
+        while (n >= 256) {
+          n -= 255;
+        }
+
+        return EXP_TABLE[n];
+      };
+
+      return _this;
+    }();
+
+    //---------------------------------------------------------------------
+    // qrPolynomial
+    //---------------------------------------------------------------------
+
+    function qrPolynomial(num, shift) {
+
+      if (typeof num.length == 'undefined') {
+        throw num.length + '/' + shift;
+      }
+
+      var _num = function() {
+        var offset = 0;
+        while (offset < num.length && num[offset] == 0) {
+          offset += 1;
+        }
+        var _num = new Array(num.length - offset + shift);
+        for (var i = 0; i < num.length - offset; i += 1) {
+          _num[i] = num[i + offset];
+        }
+        return _num;
+      }();
+
+      var _this = {};
+
+      _this.getAt = function(index) {
+        return _num[index];
+      };
+
+      _this.getLength = function() {
+        return _num.length;
+      };
+
+      _this.multiply = function(e) {
+
+        var num = new Array(_this.getLength() + e.getLength() - 1);
+
+        for (var i = 0; i < _this.getLength(); i += 1) {
+          for (var j = 0; j < e.getLength(); j += 1) {
+            num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+          }
+        }
+
+        return qrPolynomial(num, 0);
+      };
+
+      _this.mod = function(e) {
+
+        if (_this.getLength() - e.getLength() < 0) {
+          return _this;
+        }
+
+        var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+        var num = new Array(_this.getLength() );
+        for (var i = 0; i < _this.getLength(); i += 1) {
+          num[i] = _this.getAt(i);
+        }
+
+        for (var i = 0; i < e.getLength(); i += 1) {
+          num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+        }
+
+        // recursive call
+        return qrPolynomial(num, 0).mod(e);
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // QRRSBlock
+    //---------------------------------------------------------------------
+
+    var QRRSBlock = function() {
+
+      var RS_BLOCK_TABLE = [
+
+        // L
+        // M
+        // Q
+        // H
+
+        // 1
+        [1, 26, 19],
+        [1, 26, 16],
+        [1, 26, 13],
+        [1, 26, 9],
+
+        // 2
+        [1, 44, 34],
+        [1, 44, 28],
+        [1, 44, 22],
+        [1, 44, 16],
+
+        // 3
+        [1, 70, 55],
+        [1, 70, 44],
+        [2, 35, 17],
+        [2, 35, 13],
+
+        // 4
+        [1, 100, 80],
+        [2, 50, 32],
+        [2, 50, 24],
+        [4, 25, 9],
+
+        // 5
+        [1, 134, 108],
+        [2, 67, 43],
+        [2, 33, 15, 2, 34, 16],
+        [2, 33, 11, 2, 34, 12],
+
+        // 6
+        [2, 86, 68],
+        [4, 43, 27],
+        [4, 43, 19],
+        [4, 43, 15],
+
+        // 7
+        [2, 98, 78],
+        [4, 49, 31],
+        [2, 32, 14, 4, 33, 15],
+        [4, 39, 13, 1, 40, 14],
+
+        // 8
+        [2, 121, 97],
+        [2, 60, 38, 2, 61, 39],
+        [4, 40, 18, 2, 41, 19],
+        [4, 40, 14, 2, 41, 15],
+
+        // 9
+        [2, 146, 116],
+        [3, 58, 36, 2, 59, 37],
+        [4, 36, 16, 4, 37, 17],
+        [4, 36, 12, 4, 37, 13],
+
+        // 10
+        [2, 86, 68, 2, 87, 69],
+        [4, 69, 43, 1, 70, 44],
+        [6, 43, 19, 2, 44, 20],
+        [6, 43, 15, 2, 44, 16],
+
+        // 11
+        [4, 101, 81],
+        [1, 80, 50, 4, 81, 51],
+        [4, 50, 22, 4, 51, 23],
+        [3, 36, 12, 8, 37, 13],
+
+        // 12
+        [2, 116, 92, 2, 117, 93],
+        [6, 58, 36, 2, 59, 37],
+        [4, 46, 20, 6, 47, 21],
+        [7, 42, 14, 4, 43, 15],
+
+        // 13
+        [4, 133, 107],
+        [8, 59, 37, 1, 60, 38],
+        [8, 44, 20, 4, 45, 21],
+        [12, 33, 11, 4, 34, 12],
+
+        // 14
+        [3, 145, 115, 1, 146, 116],
+        [4, 64, 40, 5, 65, 41],
+        [11, 36, 16, 5, 37, 17],
+        [11, 36, 12, 5, 37, 13],
+
+        // 15
+        [5, 109, 87, 1, 110, 88],
+        [5, 65, 41, 5, 66, 42],
+        [5, 54, 24, 7, 55, 25],
+        [11, 36, 12, 7, 37, 13],
+
+        // 16
+        [5, 122, 98, 1, 123, 99],
+        [7, 73, 45, 3, 74, 46],
+        [15, 43, 19, 2, 44, 20],
+        [3, 45, 15, 13, 46, 16],
+
+        // 17
+        [1, 135, 107, 5, 136, 108],
+        [10, 74, 46, 1, 75, 47],
+        [1, 50, 22, 15, 51, 23],
+        [2, 42, 14, 17, 43, 15],
+
+        // 18
+        [5, 150, 120, 1, 151, 121],
+        [9, 69, 43, 4, 70, 44],
+        [17, 50, 22, 1, 51, 23],
+        [2, 42, 14, 19, 43, 15],
+
+        // 19
+        [3, 141, 113, 4, 142, 114],
+        [3, 70, 44, 11, 71, 45],
+        [17, 47, 21, 4, 48, 22],
+        [9, 39, 13, 16, 40, 14],
+
+        // 20
+        [3, 135, 107, 5, 136, 108],
+        [3, 67, 41, 13, 68, 42],
+        [15, 54, 24, 5, 55, 25],
+        [15, 43, 15, 10, 44, 16],
+
+        // 21
+        [4, 144, 116, 4, 145, 117],
+        [17, 68, 42],
+        [17, 50, 22, 6, 51, 23],
+        [19, 46, 16, 6, 47, 17],
+
+        // 22
+        [2, 139, 111, 7, 140, 112],
+        [17, 74, 46],
+        [7, 54, 24, 16, 55, 25],
+        [34, 37, 13],
+
+        // 23
+        [4, 151, 121, 5, 152, 122],
+        [4, 75, 47, 14, 76, 48],
+        [11, 54, 24, 14, 55, 25],
+        [16, 45, 15, 14, 46, 16],
+
+        // 24
+        [6, 147, 117, 4, 148, 118],
+        [6, 73, 45, 14, 74, 46],
+        [11, 54, 24, 16, 55, 25],
+        [30, 46, 16, 2, 47, 17],
+
+        // 25
+        [8, 132, 106, 4, 133, 107],
+        [8, 75, 47, 13, 76, 48],
+        [7, 54, 24, 22, 55, 25],
+        [22, 45, 15, 13, 46, 16],
+
+        // 26
+        [10, 142, 114, 2, 143, 115],
+        [19, 74, 46, 4, 75, 47],
+        [28, 50, 22, 6, 51, 23],
+        [33, 46, 16, 4, 47, 17],
+
+        // 27
+        [8, 152, 122, 4, 153, 123],
+        [22, 73, 45, 3, 74, 46],
+        [8, 53, 23, 26, 54, 24],
+        [12, 45, 15, 28, 46, 16],
+
+        // 28
+        [3, 147, 117, 10, 148, 118],
+        [3, 73, 45, 23, 74, 46],
+        [4, 54, 24, 31, 55, 25],
+        [11, 45, 15, 31, 46, 16],
+
+        // 29
+        [7, 146, 116, 7, 147, 117],
+        [21, 73, 45, 7, 74, 46],
+        [1, 53, 23, 37, 54, 24],
+        [19, 45, 15, 26, 46, 16],
+
+        // 30
+        [5, 145, 115, 10, 146, 116],
+        [19, 75, 47, 10, 76, 48],
+        [15, 54, 24, 25, 55, 25],
+        [23, 45, 15, 25, 46, 16],
+
+        // 31
+        [13, 145, 115, 3, 146, 116],
+        [2, 74, 46, 29, 75, 47],
+        [42, 54, 24, 1, 55, 25],
+        [23, 45, 15, 28, 46, 16],
+
+        // 32
+        [17, 145, 115],
+        [10, 74, 46, 23, 75, 47],
+        [10, 54, 24, 35, 55, 25],
+        [19, 45, 15, 35, 46, 16],
+
+        // 33
+        [17, 145, 115, 1, 146, 116],
+        [14, 74, 46, 21, 75, 47],
+        [29, 54, 24, 19, 55, 25],
+        [11, 45, 15, 46, 46, 16],
+
+        // 34
+        [13, 145, 115, 6, 146, 116],
+        [14, 74, 46, 23, 75, 47],
+        [44, 54, 24, 7, 55, 25],
+        [59, 46, 16, 1, 47, 17],
+
+        // 35
+        [12, 151, 121, 7, 152, 122],
+        [12, 75, 47, 26, 76, 48],
+        [39, 54, 24, 14, 55, 25],
+        [22, 45, 15, 41, 46, 16],
+
+        // 36
+        [6, 151, 121, 14, 152, 122],
+        [6, 75, 47, 34, 76, 48],
+        [46, 54, 24, 10, 55, 25],
+        [2, 45, 15, 64, 46, 16],
+
+        // 37
+        [17, 152, 122, 4, 153, 123],
+        [29, 74, 46, 14, 75, 47],
+        [49, 54, 24, 10, 55, 25],
+        [24, 45, 15, 46, 46, 16],
+
+        // 38
+        [4, 152, 122, 18, 153, 123],
+        [13, 74, 46, 32, 75, 47],
+        [48, 54, 24, 14, 55, 25],
+        [42, 45, 15, 32, 46, 16],
+
+        // 39
+        [20, 147, 117, 4, 148, 118],
+        [40, 75, 47, 7, 76, 48],
+        [43, 54, 24, 22, 55, 25],
+        [10, 45, 15, 67, 46, 16],
+
+        // 40
+        [19, 148, 118, 6, 149, 119],
+        [18, 75, 47, 31, 76, 48],
+        [34, 54, 24, 34, 55, 25],
+        [20, 45, 15, 61, 46, 16]
+      ];
+
+      var qrRSBlock = function(totalCount, dataCount) {
+        var _this = {};
+        _this.totalCount = totalCount;
+        _this.dataCount = dataCount;
+        return _this;
+      };
+
+      var _this = {};
+
+      var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+        switch(errorCorrectionLevel) {
+        case QRErrorCorrectionLevel.L :
+          return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+        case QRErrorCorrectionLevel.M :
+          return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+        case QRErrorCorrectionLevel.Q :
+          return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+        case QRErrorCorrectionLevel.H :
+          return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+        default :
+          return undefined;
+        }
+      };
+
+      _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+        var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+        if (typeof rsBlock == 'undefined') {
+          throw 'bad rs block @ typeNumber:' + typeNumber +
+              '/errorCorrectionLevel:' + errorCorrectionLevel;
+        }
+
+        var length = rsBlock.length / 3;
+
+        var list = [];
+
+        for (var i = 0; i < length; i += 1) {
+
+          var count = rsBlock[i * 3 + 0];
+          var totalCount = rsBlock[i * 3 + 1];
+          var dataCount = rsBlock[i * 3 + 2];
+
+          for (var j = 0; j < count; j += 1) {
+            list.push(qrRSBlock(totalCount, dataCount) );
+          }
+        }
+
+        return list;
+      };
+
+      return _this;
+    }();
+
+    //---------------------------------------------------------------------
+    // qrBitBuffer
+    //---------------------------------------------------------------------
+
+    var qrBitBuffer = function() {
+
+      var _buffer = [];
+      var _length = 0;
+
+      var _this = {};
+
+      _this.getBuffer = function() {
+        return _buffer;
+      };
+
+      _this.getAt = function(index) {
+        var bufIndex = Math.floor(index / 8);
+        return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+      };
+
+      _this.put = function(num, length) {
+        for (var i = 0; i < length; i += 1) {
+          _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+        }
+      };
+
+      _this.getLengthInBits = function() {
+        return _length;
+      };
+
+      _this.putBit = function(bit) {
+
+        var bufIndex = Math.floor(_length / 8);
+        if (_buffer.length <= bufIndex) {
+          _buffer.push(0);
+        }
+
+        if (bit) {
+          _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+        }
+
+        _length += 1;
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // qrNumber
+    //---------------------------------------------------------------------
+
+    var qrNumber = function(data) {
+
+      var _mode = QRMode.MODE_NUMBER;
+      var _data = data;
+
+      var _this = {};
+
+      _this.getMode = function() {
+        return _mode;
+      };
+
+      _this.getLength = function(buffer) {
+        return _data.length;
+      };
+
+      _this.write = function(buffer) {
+
+        var data = _data;
+
+        var i = 0;
+
+        while (i + 2 < data.length) {
+          buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+          i += 3;
+        }
+
+        if (i < data.length) {
+          if (data.length - i == 1) {
+            buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+          } else if (data.length - i == 2) {
+            buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+          }
+        }
+      };
+
+      var strToNum = function(s) {
+        var num = 0;
+        for (var i = 0; i < s.length; i += 1) {
+          num = num * 10 + chatToNum(s.charAt(i) );
+        }
+        return num;
+      };
+
+      var chatToNum = function(c) {
+        if ('0' <= c && c <= '9') {
+          return c.charCodeAt(0) - '0'.charCodeAt(0);
+        }
+        throw 'illegal char :' + c;
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // qrAlphaNum
+    //---------------------------------------------------------------------
+
+    var qrAlphaNum = function(data) {
+
+      var _mode = QRMode.MODE_ALPHA_NUM;
+      var _data = data;
+
+      var _this = {};
+
+      _this.getMode = function() {
+        return _mode;
+      };
+
+      _this.getLength = function(buffer) {
+        return _data.length;
+      };
+
+      _this.write = function(buffer) {
+
+        var s = _data;
+
+        var i = 0;
+
+        while (i + 1 < s.length) {
+          buffer.put(
+            getCode(s.charAt(i) ) * 45 +
+            getCode(s.charAt(i + 1) ), 11);
+          i += 2;
+        }
+
+        if (i < s.length) {
+          buffer.put(getCode(s.charAt(i) ), 6);
+        }
+      };
+
+      var getCode = function(c) {
+
+        if ('0' <= c && c <= '9') {
+          return c.charCodeAt(0) - '0'.charCodeAt(0);
+        } else if ('A' <= c && c <= 'Z') {
+          return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+        } else {
+          switch (c) {
+          case ' ' : return 36;
+          case '$' : return 37;
+          case '%' : return 38;
+          case '*' : return 39;
+          case '+' : return 40;
+          case '-' : return 41;
+          case '.' : return 42;
+          case '/' : return 43;
+          case ':' : return 44;
+          default :
+            throw 'illegal char :' + c;
+          }
+        }
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // qr8BitByte
+    //---------------------------------------------------------------------
+
+    var qr8BitByte = function(data) {
+
+      var _mode = QRMode.MODE_8BIT_BYTE;
+      var _data = data;
+      var _bytes = qrcode.stringToBytes(data);
+
+      var _this = {};
+
+      _this.getMode = function() {
+        return _mode;
+      };
+
+      _this.getLength = function(buffer) {
+        return _bytes.length;
+      };
+
+      _this.write = function(buffer) {
+        for (var i = 0; i < _bytes.length; i += 1) {
+          buffer.put(_bytes[i], 8);
+        }
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // qrKanji
+    //---------------------------------------------------------------------
+
+    var qrKanji = function(data) {
+
+      var _mode = QRMode.MODE_KANJI;
+      var _data = data;
+
+      var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+      if (!stringToBytes) {
+        throw 'sjis not supported.';
+      }
+      !function(c, code) {
+        // self test for sjis support.
+        var test = stringToBytes(c);
+        if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+          throw 'sjis not supported.';
+        }
+      }('\u53cb', 0x9746);
+
+      var _bytes = stringToBytes(data);
+
+      var _this = {};
+
+      _this.getMode = function() {
+        return _mode;
+      };
+
+      _this.getLength = function(buffer) {
+        return ~~(_bytes.length / 2);
+      };
+
+      _this.write = function(buffer) {
+
+        var data = _bytes;
+
+        var i = 0;
+
+        while (i + 1 < data.length) {
+
+          var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+          if (0x8140 <= c && c <= 0x9FFC) {
+            c -= 0x8140;
+          } else if (0xE040 <= c && c <= 0xEBBF) {
+            c -= 0xC140;
+          } else {
+            throw 'illegal char at ' + (i + 1) + '/' + c;
+          }
+
+          c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+          buffer.put(c, 13);
+
+          i += 2;
+        }
+
+        if (i < data.length) {
+          throw 'illegal char at ' + (i + 1);
+        }
+      };
+
+      return _this;
+    };
+
+    //=====================================================================
+    // GIF Support etc.
+    //
+
+    //---------------------------------------------------------------------
+    // byteArrayOutputStream
+    //---------------------------------------------------------------------
+
+    var byteArrayOutputStream = function() {
+
+      var _bytes = [];
+
+      var _this = {};
+
+      _this.writeByte = function(b) {
+        _bytes.push(b & 0xff);
+      };
+
+      _this.writeShort = function(i) {
+        _this.writeByte(i);
+        _this.writeByte(i >>> 8);
+      };
+
+      _this.writeBytes = function(b, off, len) {
+        off = off || 0;
+        len = len || b.length;
+        for (var i = 0; i < len; i += 1) {
+          _this.writeByte(b[i + off]);
+        }
+      };
+
+      _this.writeString = function(s) {
+        for (var i = 0; i < s.length; i += 1) {
+          _this.writeByte(s.charCodeAt(i) );
+        }
+      };
+
+      _this.toByteArray = function() {
+        return _bytes;
+      };
+
+      _this.toString = function() {
+        var s = '';
+        s += '[';
+        for (var i = 0; i < _bytes.length; i += 1) {
+          if (i > 0) {
+            s += ',';
+          }
+          s += _bytes[i];
+        }
+        s += ']';
+        return s;
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // base64EncodeOutputStream
+    //---------------------------------------------------------------------
+
+    var base64EncodeOutputStream = function() {
+
+      var _buffer = 0;
+      var _buflen = 0;
+      var _length = 0;
+      var _base64 = '';
+
+      var _this = {};
+
+      var writeEncoded = function(b) {
+        _base64 += String.fromCharCode(encode(b & 0x3f) );
+      };
+
+      var encode = function(n) {
+        if (n < 0) {
+          // error.
+        } else if (n < 26) {
+          return 0x41 + n;
+        } else if (n < 52) {
+          return 0x61 + (n - 26);
+        } else if (n < 62) {
+          return 0x30 + (n - 52);
+        } else if (n == 62) {
+          return 0x2b;
+        } else if (n == 63) {
+          return 0x2f;
+        }
+        throw 'n:' + n;
+      };
+
+      _this.writeByte = function(n) {
+
+        _buffer = (_buffer << 8) | (n & 0xff);
+        _buflen += 8;
+        _length += 1;
+
+        while (_buflen >= 6) {
+          writeEncoded(_buffer >>> (_buflen - 6) );
+          _buflen -= 6;
+        }
+      };
+
+      _this.flush = function() {
+
+        if (_buflen > 0) {
+          writeEncoded(_buffer << (6 - _buflen) );
+          _buffer = 0;
+          _buflen = 0;
+        }
+
+        if (_length % 3 != 0) {
+          // padding
+          var padlen = 3 - _length % 3;
+          for (var i = 0; i < padlen; i += 1) {
+            _base64 += '=';
+          }
+        }
+      };
+
+      _this.toString = function() {
+        return _base64;
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // base64DecodeInputStream
+    //---------------------------------------------------------------------
+
+    var base64DecodeInputStream = function(str) {
+
+      var _str = str;
+      var _pos = 0;
+      var _buffer = 0;
+      var _buflen = 0;
+
+      var _this = {};
+
+      _this.read = function() {
+
+        while (_buflen < 8) {
+
+          if (_pos >= _str.length) {
+            if (_buflen == 0) {
+              return -1;
+            }
+            throw 'unexpected end of file./' + _buflen;
+          }
+
+          var c = _str.charAt(_pos);
+          _pos += 1;
+
+          if (c == '=') {
+            _buflen = 0;
+            return -1;
+          } else if (c.match(/^\s$/) ) {
+            // ignore if whitespace.
+            continue;
+          }
+
+          _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+          _buflen += 6;
+        }
+
+        var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+        _buflen -= 8;
+        return n;
+      };
+
+      var decode = function(c) {
+        if (0x41 <= c && c <= 0x5a) {
+          return c - 0x41;
+        } else if (0x61 <= c && c <= 0x7a) {
+          return c - 0x61 + 26;
+        } else if (0x30 <= c && c <= 0x39) {
+          return c - 0x30 + 52;
+        } else if (c == 0x2b) {
+          return 62;
+        } else if (c == 0x2f) {
+          return 63;
+        } else {
+          throw 'c:' + c;
+        }
+      };
+
+      return _this;
+    };
+
+    //---------------------------------------------------------------------
+    // gifImage (B/W)
+    //---------------------------------------------------------------------
+
+    var gifImage = function(width, height) {
+
+      var _width = width;
+      var _height = height;
+      var _data = new Array(width * height);
+
+      var _this = {};
+
+      _this.setPixel = function(x, y, pixel) {
+        _data[y * _width + x] = pixel;
+      };
+
+      _this.write = function(out) {
+
+        //---------------------------------
+        // GIF Signature
+
+        out.writeString('GIF87a');
+
+        //---------------------------------
+        // Screen Descriptor
+
+        out.writeShort(_width);
+        out.writeShort(_height);
+
+        out.writeByte(0x80); // 2bit
+        out.writeByte(0);
+        out.writeByte(0);
+
+        //---------------------------------
+        // Global Color Map
+
+        // black
+        out.writeByte(0x00);
+        out.writeByte(0x00);
+        out.writeByte(0x00);
+
+        // white
+        out.writeByte(0xff);
+        out.writeByte(0xff);
+        out.writeByte(0xff);
+
+        //---------------------------------
+        // Image Descriptor
+
+        out.writeString(',');
+        out.writeShort(0);
+        out.writeShort(0);
+        out.writeShort(_width);
+        out.writeShort(_height);
+        out.writeByte(0);
+
+        //---------------------------------
+        // Local Color Map
+
+        //---------------------------------
+        // Raster Data
+
+        var lzwMinCodeSize = 2;
+        var raster = getLZWRaster(lzwMinCodeSize);
+
+        out.writeByte(lzwMinCodeSize);
+
+        var offset = 0;
+
+        while (raster.length - offset > 255) {
+          out.writeByte(255);
+          out.writeBytes(raster, offset, 255);
+          offset += 255;
+        }
+
+        out.writeByte(raster.length - offset);
+        out.writeBytes(raster, offset, raster.length - offset);
+        out.writeByte(0x00);
+
+        //---------------------------------
+        // GIF Terminator
+        out.writeString(';');
+      };
+
+      var bitOutputStream = function(out) {
+
+        var _out = out;
+        var _bitLength = 0;
+        var _bitBuffer = 0;
+
+        var _this = {};
+
+        _this.write = function(data, length) {
+
+          if ( (data >>> length) != 0) {
+            throw 'length over';
+          }
+
+          while (_bitLength + length >= 8) {
+            _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+            length -= (8 - _bitLength);
+            data >>>= (8 - _bitLength);
+            _bitBuffer = 0;
+            _bitLength = 0;
+          }
+
+          _bitBuffer = (data << _bitLength) | _bitBuffer;
+          _bitLength = _bitLength + length;
+        };
+
+        _this.flush = function() {
+          if (_bitLength > 0) {
+            _out.writeByte(_bitBuffer);
+          }
+        };
+
+        return _this;
+      };
+
+      var getLZWRaster = function(lzwMinCodeSize) {
+
+        var clearCode = 1 << lzwMinCodeSize;
+        var endCode = (1 << lzwMinCodeSize) + 1;
+        var bitLength = lzwMinCodeSize + 1;
+
+        // Setup LZWTable
+        var table = lzwTable();
+
+        for (var i = 0; i < clearCode; i += 1) {
+          table.add(String.fromCharCode(i) );
+        }
+        table.add(String.fromCharCode(clearCode) );
+        table.add(String.fromCharCode(endCode) );
+
+        var byteOut = byteArrayOutputStream();
+        var bitOut = bitOutputStream(byteOut);
+
+        // clear code
+        bitOut.write(clearCode, bitLength);
+
+        var dataIndex = 0;
+
+        var s = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        while (dataIndex < _data.length) {
+
+          var c = String.fromCharCode(_data[dataIndex]);
+          dataIndex += 1;
+
+          if (table.contains(s + c) ) {
+
+            s = s + c;
+
+          } else {
+
+            bitOut.write(table.indexOf(s), bitLength);
+
+            if (table.size() < 0xfff) {
+
+              if (table.size() == (1 << bitLength) ) {
+                bitLength += 1;
+              }
+
+              table.add(s + c);
+            }
+
+            s = c;
+          }
+        }
+
+        bitOut.write(table.indexOf(s), bitLength);
+
+        // end code
+        bitOut.write(endCode, bitLength);
+
+        bitOut.flush();
+
+        return byteOut.toByteArray();
+      };
+
+      var lzwTable = function() {
+
+        var _map = {};
+        var _size = 0;
+
+        var _this = {};
+
+        _this.add = function(key) {
+          if (_this.contains(key) ) {
+            throw 'dup key:' + key;
+          }
+          _map[key] = _size;
+          _size += 1;
+        };
+
+        _this.size = function() {
+          return _size;
+        };
+
+        _this.indexOf = function(key) {
+          return _map[key];
+        };
+
+        _this.contains = function(key) {
+          return typeof _map[key] != 'undefined';
+        };
+
+        return _this;
+      };
+
+      return _this;
+    };
+
+    var createDataURL = function(width, height, getPixel) {
+      var gif = gifImage(width, height);
+      for (var y = 0; y < height; y += 1) {
+        for (var x = 0; x < width; x += 1) {
+          gif.setPixel(x, y, getPixel(x, y) );
+        }
+      }
+
+      var b = byteArrayOutputStream();
+      gif.write(b);
+
+      var base64 = base64EncodeOutputStream();
+      var bytes = b.toByteArray();
+      for (var i = 0; i < bytes.length; i += 1) {
+        base64.writeByte(bytes[i]);
+      }
+      base64.flush();
+
+      return 'data:image/gif;base64,' + base64;
+    };
+
+    //---------------------------------------------------------------------
+    // returns qrcode function.
+
+    return qrcode;
+  }();
+
+  // multibyte support
+  !function() {
+
+    qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+      // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+      function toUTF8Array(str) {
+        var utf8 = [];
+        for (var i=0; i < str.length; i++) {
+          var charcode = str.charCodeAt(i);
+          if (charcode < 0x80) utf8.push(charcode);
+          else if (charcode < 0x800) {
+            utf8.push(0xc0 | (charcode >> 6),
+                0x80 | (charcode & 0x3f));
+          }
+          else if (charcode < 0xd800 || charcode >= 0xe000) {
+            utf8.push(0xe0 | (charcode >> 12),
+                0x80 | ((charcode>>6) & 0x3f),
+                0x80 | (charcode & 0x3f));
+          }
+          // surrogate pair
+          else {
+            i++;
+            // UTF-16 encodes 0x10000-0x10FFFF by
+            // subtracting 0x10000 and splitting the
+            // 20 bits of 0x0-0xFFFFF into two halves
+            charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+              | (str.charCodeAt(i) & 0x3ff));
+            utf8.push(0xf0 | (charcode >>18),
+                0x80 | ((charcode>>12) & 0x3f),
+                0x80 | ((charcode>>6) & 0x3f),
+                0x80 | (charcode & 0x3f));
+          }
+        }
+        return utf8;
+      }
+      return toUTF8Array(s);
+    };
+
+  }();
+  return qrcode;
+})();
+
+function createQrSvg(text, opts = {}) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('c-qr');
+  svg.setAttribute('role', 'img');
+  return setQrValue(svg, text, opts);
+}
+
+function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
+  const qr = qrcodeLib(0, ecc);                 // typeNumber 0 = smallest fitting version
+  qr.addData(String(text), 'Byte');
+  qr.make();
+  const n = qr.getModuleCount();
+  const size = n + quiet * 2;
+  svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+  svg.setAttribute('aria-label', label || 'QR code');
+  svg.dataset.qrValue = String(text);
+  let d = '';
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (qr.isDark(r, c)) d += 'M' + (c + quiet) + ' ' + (r + quiet) + 'h1v1h-1z';
+    }
+  }
+  svg.textContent = '';
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'var(--on-qr, #131415)');
+  svg.append(path);
+  return svg;
+}
+
+/* ---- src/components/wallet-receive.js ---- */
+/**
+ * c-wallet-receive — Receive/Request, slice 3 (spec §4, #133; shape per Damir
+ * 2026-07-05: ONE progressive surface, matching the send screen's grammar).
+ *
+ * Default = RECEIVE: QR of the own address in the legacy `address:ixi` format
+ * (wallet_request.html parity) on the --surface-qr card (near-white in BOTH themes —
+ * scan contrast), the FULL address in the member-sheet chip pattern (#99) with an
+ * HONEST copy morph (✓ only after the clipboard write resolves — audit m1), and
+ * Share (shell duty via onShare — NO share bridge command exists in the legacy set,
+ * §9 ask; shells can use navigator.share where present).
+ *
+ * "Request an amount" (aria-expanded/-controls row, send-screen grammar) morphs the
+ * surface: the amount input follows wallet-send's sanitize rules (shared export),
+ * the QR re-encodes IN PLACE to `address:send:amount` — amount CANONICALIZED
+ * ('12.'→'12', '.5'→'0.5', '007'→'7'; audit M1: what the QR carries is what a legacy
+ * parser must read) — and a contact strip appears: "Send request to a contact" →
+ * onSendRequest({ contact, amount }) mirrors the legacy `ixian:sendrequest` payload.
+ * onSendRequest is FIRE-AND-FORGET (audit m4): the ✓ morph confirms the intent left
+ * this surface, not chain/chat delivery — matching the legacy command's semantics.
+ * Collapsing the reveal clears the amount (the visible QR must never encode an
+ * amount the user can no longer see — state honesty).
+ *
+ * Request latch (audit M2/M3/M5 rework): the latch lives in STATE, not on row DOM —
+ * search re-renders keep it; the acted row stays ENABLED (focus is not dropped) and
+ * carries the ✓; a hidden live region announces the send; changing the amount
+ * mid-latch cancels it and resets the morph (no stale "sent" against a new amount).
+ *
+ * No FE money math here beyond sanitize — a request is a message, not a spend;
+ * the bridge re-validates when the payer acts on it.
+ *
+ * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest }) → view
+ * Free fn (#44): setRequestAmount(el, amount) — programmatic amount (tests/bridge);
+ *   Numbers are expanded to plain decimals first (audit C1: String(1e-7) → '1e-7'
+ *   would sanitize into '17' — a silent magnitude change).
+ */
+
+
+
+
+
+
+
+/** '0', '0.', '' → not a requestable amount (plain receive stays). */
+function requestable(amount) {
+  return !!amount && /[1-9]/.test(amount);
+}
+
+/** Canonical payload form of a sanitized amount (audit M1): no trailing dot, no bare
+ *  leading dot, no redundant leading zeros — '12.'→'12', '.5'→'0.5', '007'→'7'.
+ *  Exported (#138): the tip sheet sends the same canonical form to the bridge. */
+function canonicalAmount(amount) {
+  let s = String(amount || '');
+  if (s.endsWith('.')) s = s.slice(0, -1);
+  if (s.startsWith('.')) s = '0' + s;
+  s = s.replace(/^0+(?=\d)/, '');
+  return s;
+}
+
+let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
+
+function createWalletReceive({
+  address = '', contacts = [], strings = {}, host,
+  onShare, onSendRequest,
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-wallet-receive';
+  const state = { amount: '', contactQuery: '', latch: null };   // latch: { address, timer }
+
+  /* guard (audit m2): a receive surface without an address must not present a
+     confidently scannable garbage QR */
+  if (!String(address).trim()) {
+    const none = document.createElement('p');
+    none.className = 'c-wallet-receive__none';
+    none.setAttribute('role', 'note');
+    none.textContent = strings.noOwnAddress || 'Your address isn’t available yet.';
+    el.append(none);
+    return el;
+  }
+
+  const qrLabel = () => requestable(state.amount)
+    ? (strings.qrRequestLabel || 'QR code — payment request for {a} IXI').split('{a}').join(canonicalAmount(state.amount))
+    : (strings.qrReceiveLabel || 'QR code — your Ixian address');
+  const qrValue = () => requestable(state.amount)
+    ? address + ':send:' + canonicalAmount(state.amount)   // legacy request format — setSendAddress parses it
+    : address + ':ixi';                                    // legacy receive format (wallet_request parity)
+
+  /* ——— QR card ——— */
+  const card = document.createElement('div');
+  card.className = 'c-wallet-receive__qrcard';
+  const qr = createQrSvg(qrValue(), { label: qrLabel() });
+  card.append(qr);
+  el.append(card);
+
+  const caption = document.createElement('p');
+  caption.className = 'c-wallet-receive__caption';         // visible copy — announcements go to the live region
+  el.append(caption);
+
+  /* hidden live region (audit m3/M3): announces MODE TRANSITIONS and the request-sent
+     confirmation — not every keystroke (the caption used to be aria-live and spammed) */
+  const live = document.createElement('p');
+  live.className = 'c-wallet-receive__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
+
+  /* ——— address (member-sheet chip pattern, #99: FULL address, honest copy) ——— */
+  const addrLabel = document.createElement('div');
+  addrLabel.className = 'c-wallet-receive__addrlabel';
+  addrLabel.textContent = strings.yourAddress || 'Your address';
+  const addrRow = document.createElement('div');
+  addrRow.className = 'c-wallet-receive__addr';
+  const addrValue = document.createElement('span');
+  addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
+  addrValue.textContent = address;
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'c-wallet-receive__copy';
+  const copyIdle = (strings.copy || 'Copy') + ' — ' + (strings.yourAddress || 'Your address');
+  copy.setAttribute('aria-label', copyIdle);
+  copy.append(icon('copy', { size: 16 }));
+  let copyTimer = null;
+  const copyMorph = (glyph, label) => {
+    copy.textContent = '';
+    copy.append(icon(glyph, { size: 16 }));
+    copy.setAttribute('aria-label', label);
+    if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
+    copyTimer = setTimeout(() => {
+      copy.textContent = '';
+      copy.append(icon('copy', { size: 16 }));
+      copy.setAttribute('aria-label', copyIdle);
+      copyTimer = null;
+    }, 1400);
+  };
+  copy.addEventListener('click', () => {
+    // ✓ only when the write actually resolved — this is a payment address, a false
+    // "Copied" is a money-adjacent lie (audit m1)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(address).then(
+        () => copyMorph('check', strings.txCopied || 'Copied'),
+        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+      );
+    } else {
+      copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+    }
+  });
+  addrRow.append(addrValue, copy);
+  el.append(addrLabel, addrRow);
+
+  /* ——— share (shell duty — no legacy bridge command; §9) ——— */
+  if (onShare) {
+    el.append(createButton({
+      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
+      icon: icon('share-3', { size: 18 }),
+      onClick: () => onShare({
+        address,
+        amount: requestable(state.amount) ? canonicalAmount(state.amount) : null,
+        value: qrValue(),
+      }),
+    }));
+  }
+
+  /* ——— request an amount (progressive reveal, send-screen row grammar) ——— */
+  const boxId = 'c-wallet-receive-reqbox-' + (++walletReceiveSeq);
+  const reqRow = document.createElement('button');
+  reqRow.type = 'button';
+  reqRow.className = 'c-wallet-receive__reqrow';
+  reqRow.setAttribute('aria-expanded', 'false');
+  reqRow.setAttribute('aria-controls', boxId);             // reveal is programmatically linked (audit n2)
+  const reqGlyph = document.createElement('span');
+  reqGlyph.className = 'c-wallet-receive__reqglyph';
+  reqGlyph.append(icon('arrow-down-left', { size: 20 }));
+  const reqLabel = document.createElement('span');
+  reqLabel.className = 'c-wallet-receive__reqlabel';
+  reqLabel.textContent = strings.requestAmount || 'Request an amount';
+  reqRow.append(reqGlyph, reqLabel, icon('chevron-down', { size: 18 }));
+  el.append(reqRow);
+
+  const reqBox = document.createElement('div');
+  reqBox.className = 'c-wallet-receive__reqbox';
+  reqBox.id = boxId;
+  reqBox.hidden = true;
+  el.append(reqBox);
+
+  const amtRow = document.createElement('div');
+  amtRow.className = 'c-wallet-receive__amountrow';
+  const amtInput = document.createElement('input');
+  amtInput.className = 'c-wallet-receive__amount u-tabular';
+  amtInput.type = 'text';
+  amtInput.inputMode = 'decimal';                          // mobile decimal pad (#136④ parity)
+  amtInput.placeholder = '0';
+  amtInput.setAttribute('aria-label', strings.requestAmount || 'Request an amount');
+  const unit = document.createElement('span');
+  unit.className = 'c-wallet-receive__unit';
+  unit.textContent = 'IXI';
+  amtRow.append(amtInput, unit);
+  reqBox.append(amtRow);
+
+  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment bubble) */
+  const askBox = document.createElement('div');
+  askBox.className = 'c-wallet-receive__ask';
+  askBox.hidden = true;
+  const askLabel = document.createElement('h2');
+  askLabel.className = 'c-wallet-receive__asklabel';
+  askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
+  askBox.append(askLabel);
+  const search = createSearchField({
+    placeholder: strings.searchContacts || 'Search contacts',
+    onInput: (v) => renderContacts(v),
+    strings,
+  });
+  askBox.append(search);
+  const rows = document.createElement('div');
+  rows.className = 'c-wallet-receive__contacts';
+  askBox.append(rows);
+  reqBox.append(askBox);
+
+  /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
+  function clearLatch(rerender) {
+    if (!state.latch) return;
+    clearTimeout(state.latch.timer);
+    state.latch = null;
+    if (rerender) renderContacts(state.contactQuery);      // resets morphs + re-enables rows
+  }
+
+  function renderContacts(q) {
+    state.contactQuery = q || '';
+    const needle = state.contactQuery.trim().toLocaleLowerCase();
+    rows.textContent = '';
+    const list = contacts.filter((c) => !needle
+      || (c.name || '').toLocaleLowerCase().includes(needle)
+      || (c.address || '').toLocaleLowerCase().includes(needle));
+    const cap = needle ? 8 : 5;                            // #136③ scaling: search is the path through hundreds
+    for (const c of list.slice(0, cap)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-wallet-receive__contact';
+      b.append(createAvatar({ name: c.name, address: c.address, size: 40 }));
+      const t = document.createElement('span');
+      t.className = 'c-wallet-receive__contactname';
+      t.textContent = c.name || c.address;
+      const go = document.createElement('span');
+      go.className = 'c-wallet-receive__contactgo';
+      b.append(t, go);
+      if (state.latch && state.latch.address === c.address) {
+        // the acted row survives re-renders with its ✓ (audit M2) and stays ENABLED —
+        // disabling the focused control would drop keyboard focus to body (audit M3)
+        b.dataset.acted = '';
+        go.append(icon('check', { size: 18 }));
+      } else {
+        go.append(icon('send-2', { size: 18 }));
+        if (state.latch) b.disabled = true;                // one request in flight at a time
+      }
+      b.addEventListener('click', () => {
+        if (state.latch) return;                           // #72④: a request is a message — no double fire
+        const amount = canonicalAmount(state.amount);
+        state.latch = {
+          address: c.address,
+          timer: setTimeout(() => { state.latch = null; renderContacts(state.contactQuery); }, 1600),
+        };
+        b.dataset.acted = '';
+        go.textContent = '';
+        go.append(icon('check', { size: 18 }));
+        for (const row of rows.querySelectorAll('button')) { if (row !== b) row.disabled = true; }
+        live.textContent = (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
+          .split('{a}').join(amount).split('{name}').join(c.name || c.address);
+        if (onSendRequest) onSendRequest({ contact: c, amount });
+      });
+      rows.append(b);
+    }
+    if (list.length > cap) {
+      const more = document.createElement('p');
+      more.className = 'c-wallet-receive__none';
+      more.setAttribute('role', 'note');
+      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
+        .split('{n}').join(String(list.length - cap));
+      rows.append(more);
+    }
+    if (!list.length && needle) {
+      const none = document.createElement('p');
+      none.className = 'c-wallet-receive__none';
+      none.setAttribute('role', 'note');
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”.').split('{q}').join(q);
+      rows.append(none);
+    }
+  }
+
+  let wasActive = false;
+  function sync() {
+    const active = requestable(state.amount);
+    setQrValue(qr, qrValue(), { label: qrLabel() });       // re-encode in place — no node swap
+    caption.textContent = active
+      ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
+      : (strings.receiveCaption || 'Scan to send IXI to this address');
+    askBox.hidden = !active;
+    if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
+      wasActive = active;
+      live.textContent = active
+        ? (strings.requestModeAnnounce || 'QR now requests a specific amount')
+        : (strings.receiveModeAnnounce || 'QR shows your plain address again');
+    }
+  }
+
+  amtInput.addEventListener('input', () => {
+    const v = sanitizeAmount(amtInput.value);
+    if (v !== amtInput.value) amtInput.value = v;
+    state.amount = v;
+    clearLatch(true);                                      // a new amount invalidates a pending "sent ✓" (audit M5)
+    sync();
+  });
+
+  reqRow.addEventListener('click', () => {
+    const open = reqBox.hidden;
+    reqBox.hidden = !open;
+    reqRow.setAttribute('aria-expanded', String(open));
+    if (open) { amtInput.focus(); return; }
+    // collapsing the section clears the request — the visible QR must never encode
+    // an amount the user can no longer see (state honesty)
+    amtInput.value = '';
+    state.amount = '';
+    clearLatch(true);
+    sync();
+  });
+
+  sync();
+  renderContacts('');
+  return el;
+}
+
+/** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).
+ *  Numbers are expanded to plain decimal first — String(1e-7) is '1e-7', which the
+ *  shared sanitizer would strip into '17': a silent magnitude change (audit C1). */
+function setRequestAmount(el, amount) {
+  if (!el) return el;
+  const row = el.querySelector('.c-wallet-receive__reqrow');
+  const box = el.querySelector('.c-wallet-receive__reqbox');
+  const input = el.querySelector('.c-wallet-receive__amount');
+  if (!row || !box || !input) return el;
+  if (box.hidden) { box.hidden = false; row.setAttribute('aria-expanded', 'true'); }
+  const plain = typeof amount === 'number'
+    ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
+    : String(amount == null ? '' : amount);
+  input.value = plain;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  return el;
+}
+
+/* ---- src/components/tip-sheet.js ---- */
+/**
+ * c-tipsheet — the "#26-lite" amount sheet: chat TIPPING and chat REQUESTS
+ * (docs/tipping-spec.md, #136/#138/#139).
+ *
+ * One machinery, two kinds — both are "small in-context money asks" where the
+ * sheet IS the review (recipient avatar+name + amount on the same surface as the
+ * single latched confirm whose label carries the amount):
+ *   openTipSheet({ …, onTip })         — "Tip {name}" / "Tip {a} IXI"; balance guard ON
+ *     (you can't tip what you don't have) in INTEGER 1e-8 units (tip-audit M2).
+ *   openRequestSheet({ …, onRequest }) — "Request from {name}" / "Request {a} IXI";
+ *     NO balance guard (it's the payer's money) — chat attach → Request (#139,
+ *     Damir: sheet over the QR-centric receive screen when the counterparty is known).
+ *
+ * Presets 1/5/10 IXI (c-chip toggles, aria-pressed) + Custom → decimal input on the
+ * shared wallet-send sanitize rules; payload amount is CANONICAL (shared
+ * canonicalAmount). The custom slot is GHOSTED not hidden (Damir round 2): space
+ * reserved from the start, the sheet never grows under the finger.
+ *
+ * Dismissal: light dismiss ALLOWED pre-confirm; IN FLIGHT = LOCKED for real
+ * (tip-audit C1: live overlay opts — Esc, scrim, back all hold); onDismiss bumps
+ * the attempt counter (M1); controls freeze + sync() stands down in flight (M3);
+ * ctrl one-shot per attempt (m1); failure alert separate from the guard (m4).
+ *
+ * Bridge: tip → legacy `ixian:contextAction:tip:MSGID:AMOUNT`; request → the
+ * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
+ */
+
+
+
+
+
+
+
+
+function amountSheetCopy(kind, strings) {
+  return kind === 'request' ? {
+    title: strings.requestName || 'Request from {name}',
+    confirm: strings.requestConfirm || 'Request {a} IXI',
+    idle: strings.request || 'Request',
+    success: strings.requested || 'Requested',
+    fail: strings.requestFailed || 'The request could not be sent. Please try again.',
+  } : {
+    title: strings.tipName || 'Tip {name}',
+    confirm: strings.tipConfirm || 'Tip {a} IXI',
+    idle: strings.tip || 'Tip',
+    success: strings.tipped || 'Tipped',
+    fail: strings.tipFailed || 'The tip could not be sent. Please try again.',
+  };
+}
+
+function openAmountSheet({
+  message = {}, recipient = {}, balance = null,
+  presets = ['1', '5', '10'], strings = {}, host, onSubmit,
+} = {}, kind) {
+  const copy = amountSheetCopy(kind, strings);
+  const content = document.createElement('div');
+  content.className = 'c-tipsheet';
+  content.dataset.kind = kind;
+  const state = { amount: '', sending: false, attempt: 0 };
+  const balU = balance != null ? toUnits(balance) : null;
+
+  /* head — recipient VISIBLE at the confirm moment (#26-lite) */
+  const head = document.createElement('div');
+  head.className = 'c-tipsheet__head';
+  head.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+  const htext = document.createElement('div');
+  htext.className = 'c-tipsheet__headtext';
+  const title = document.createElement('h2');
+  title.className = 'c-tipsheet__title';
+  title.textContent = copy.title.split('{name}').join(recipient.name || '');
+  htext.append(title);
+  if (message.excerpt) {
+    const ex = document.createElement('p');
+    ex.className = 'c-tipsheet__excerpt';
+    ex.textContent = message.excerpt;                      // which message this lands on
+    htext.append(ex);
+  }
+  head.append(htext);
+  content.append(head);
+
+  /* presets + Custom (c-chip toggles, aria-pressed carries state) */
+  const chipRow = document.createElement('div');
+  chipRow.className = 'c-tipsheet__chips';
+  chipRow.setAttribute('role', 'group');
+  chipRow.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  const chips = [];
+  const selectChip = (chip) => { for (const c of chips) setChipSelected(c, c === chip); };
+  for (const p of presets) {
+    const chip = createChip({
+      label: p + ' IXI',
+      onClick: (e) => {
+        if (state.sending) return;                         // frozen in flight (tip-audit M3)
+        selectChip(e.currentTarget);
+        customRow.dataset.ghost = '';                      // back to reserved slot — sheet height constant
+        customInput.value = '';                            // preset supersedes → stale custom cleared (m3)
+        state.amount = String(p);
+        sync();
+      },
+      strings,
+    });
+    chips.push(chip);
+    chipRow.append(chip);
+  }
+  const customChip = createChip({
+    label: strings.custom || 'Custom',
+    onClick: (e) => {
+      if (state.sending) return;
+      selectChip(e.currentTarget);
+      delete customRow.dataset.ghost;                      // slot was always there — just becomes visible
+      state.amount = sanitizeAmount(customInput.value);
+      sync();
+      customInput.focus();
+    },
+    strings,
+  });
+  chips.push(customChip);
+  chipRow.append(customChip);
+  content.append(chipRow);
+
+  /* custom amount — GHOSTED slot (Damir round 2): reserved space, no reflow */
+  const customRow = document.createElement('div');
+  customRow.className = 'c-tipsheet__customrow';
+  customRow.dataset.ghost = '';
+  const customInput = document.createElement('input');
+  customInput.className = 'c-tipsheet__custom u-tabular';
+  customInput.type = 'text';
+  customInput.inputMode = 'decimal';
+  customInput.placeholder = '0';
+  customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  customInput.addEventListener('input', () => {
+    if (state.sending) return;
+    const v = sanitizeAmount(customInput.value);
+    if (v !== customInput.value) customInput.value = v;
+    state.amount = v;
+    sync();
+  });
+  customInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !confirm.disabled) confirm.click();   // no form — Enter still confirms
+  });
+  const unit = document.createElement('span');
+  unit.className = 'c-tipsheet__unit';
+  unit.textContent = 'IXI';
+  customRow.append(customInput, unit);
+  content.append(customRow);
+
+  /* insufficient guard and send-failure alert are SEPARATE elements (tip-audit m4) */
+  const guard = document.createElement('p');
+  guard.className = 'c-tipsheet__error';
+  guard.setAttribute('role', 'alert');
+  guard.hidden = true;
+  content.append(guard);
+  const sendErr = document.createElement('p');
+  sendErr.className = 'c-tipsheet__error';
+  sendErr.setAttribute('role', 'alert');
+  sendErr.hidden = true;
+  content.append(sendErr);
+
+  /* ONE confirm — label carries the amount (the sheet IS the review) */
+  const confirm = createButton({
+    label: copy.idle, type: 'fill', size: 44, width: 'full',
+    onClick: (e) => {
+      if (e.currentTarget.dataset.acted !== undefined || state.sending || !valid()) return;   // #72④ latch + in-flight token
+      e.currentTarget.dataset.acted = '';
+      state.sending = true;
+      const attempt = ++state.attempt;
+      let settled = false;                                 // ctrl one-shot per attempt (tip-audit m1)
+      setFrozen(true);
+      // money in flight → no dismiss paths; live overlay opts make this REAL (C1)
+      setOverlayOpts(sheet, { lightDismiss: false, escDismiss: false });
+      sendErr.hidden = true;
+      setLoading(confirm, true);
+      const payload = { messageId: message.id, amount: canonicalAmount(state.amount) };
+      const done = () => {
+        if (settled || attempt !== state.attempt) return;  // one-shot + stale-attempt guard
+        settled = true;
+        state.sending = false;
+        setLoading(confirm, false);
+        setSuccess(confirm, { label: copy.success });
+        setTimeout(() => closeSheet(sheet), 900);          // the result lands via the bridge (#65 pill / request bubble)
+      };
+      const fail = (msg) => {
+        if (settled || attempt !== state.attempt) return;
+        settled = true;
+        state.sending = false;
+        setLoading(confirm, false);
+        delete confirm.dataset.acted;                      // retry stays possible
+        setFrozen(false);
+        setOverlayOpts(sheet, { lightDismiss: true, escDismiss: true });
+        sendErr.hidden = false;                            // unhide BEFORE text → alert announces
+        sendErr.textContent = msg || copy.fail;
+      };
+      if (onSubmit) onSubmit(payload, { done, fail }); else done();
+    },
+  });
+  confirm.disabled = true;
+  content.append(confirm);
+
+  function setFrozen(f) {                                  // amount controls freeze in flight (M3)
+    for (const c of chips) c.disabled = f;
+    customInput.disabled = f;
+  }
+  function valid() {
+    if (!state.amount || !/[1-9]/.test(state.amount)) return false;
+    if (balU != null && toUnits(canonicalAmount(state.amount)) > balU) return false;   // integer 1e-8 units (M2)
+    return true;
+  }
+  function sync() {
+    if (state.sending) return;                             // in flight: nothing re-enables the confirm (M3)
+    const a = canonicalAmount(state.amount);
+    const over = !!a && /[1-9]/.test(a) && balU != null && toUnits(a) > balU;
+    guard.hidden = !over;
+    if (over) guard.textContent = strings.tipInsufficient || 'Not enough IXI for this tip.';
+    confirm.disabled = !valid();
+    const label = confirm.querySelector('.c-button__label') || confirm;
+    label.textContent = valid() ? copy.confirm.split('{a}').join(a) : copy.idle;
+  }
+  sync();
+
+  // pre-confirm: light dismiss allowed (speed — spec §3); flips off in flight.
+  // onDismiss: ANY dismissal voids pending bridge callbacks (tip-audit M1)
+  const sheet = createSheet({
+    content, host, strings, lightDismiss: true,
+    onDismiss: () => { state.attempt++; state.sending = false; },
+  });
+  sheet.setAttribute('aria-label', title.textContent);
+  openSheet(sheet);
+  return sheet;
+}
+
+function openTipSheet({ onTip, ...opts } = {}) {
+  return openAmountSheet({ ...opts, onSubmit: onTip }, 'tip');
+}
+
+/** Chat attach → Request (#139): the counterparty is known — a sheet beats the
+ *  QR-centric receive screen. No balance guard: the AMOUNT is the payer's problem. */
+function openRequestSheet({ onRequest, ...opts } = {}) {
+  return openAmountSheet({ ...opts, balance: null, onSubmit: onRequest }, 'request');
+}
+
+/* ---- src/components/chat-select.js ---- */
+/**
+ * chat-select — multi-select messages: copy + split-paste (#139, Damir).
+ *
+ * Best-practice mimicry (WhatsApp/Telegram), cheapest honest implementation:
+ * · message menu → "Select" → SELECTION MODE on the message list: taps toggle
+ *   rows (only rows the caller can extract text from), a count bar overlays the
+ *   top of the host with Copy + Cancel, Esc exits, count 0 exits.
+ * · COPY: single message → raw text (cleanest paste anywhere); multiple →
+ *   "Sender: text" one per line (Damir pick — Telegram-style provenance without
+ *   timestamp noise). Written to the system clipboard AND kept in an internal
+ *   buffer for split-paste.
+ * · SPLIT-PASTE (Damir pick: offer, don't auto-split): attachSplitPaste watches a
+ *   composer input — when its value matches the buffer's joined text (covers ⌘V,
+ *   context-menu paste, anything), an inline offer appears: "Send as N separate
+ *   messages". Taking it clears the input and fires onSendEach(items) — RAW texts,
+ *   re-sent as the user's own messages (not quotes). Ignoring it and sending keeps
+ *   the standard one-multiline-message behaviour every other app has.
+ *
+ * The buffer is module-level (chat A copy → chat B paste in the same WebView).
+ * Clipboard write is fire-and-forget here: the BUFFER is the source of truth for
+ * split-paste; onCopy(count) lets shells confirm (toast) once the write resolves.
+ *
+ * enterChatSelect(listEl, { initialRow, host, rowSelector, textOf, senderOf,
+ *                           strings, onCopy, onExit }) → { exit }
+ * attachSplitPaste(composerEl, { onSendEach, strings }) → detach()
+ * getChatCopyBuffer() → { joined, items: [{ sender, text }] } | null
+ */
+
+
+
+let copyBuffer = null;
+
+function getChatCopyBuffer() { return copyBuffer; }
+
+function enterChatSelect(listEl, {
+  initialRow = null, host, rowSelector = '.c-bubble-row',
+  textOf = (row) => row.dataset.copytext || '',
+  senderOf = (row) => row.dataset.sender || '',
+  strings = {}, onCopy, onExit,
+} = {}) {
+  if (!listEl || listEl.dataset.selecting !== undefined) return null;
+  listEl.dataset.selecting = '';
+  const hostEl = host || listEl;
+
+  const bar = document.createElement('div');
+  bar.className = 'c-chatselect-bar';
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', strings.selectMessages || 'Select messages');
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'c-chatselect-bar__cancel';
+  cancel.setAttribute('aria-label', strings.cancel || 'Cancel');
+  cancel.append(icon('x', { size: 20 }));
+  const count = document.createElement('span');
+  count.className = 'c-chatselect-bar__count u-tabular';
+  count.setAttribute('aria-live', 'polite');               // count changes are announced
+  const copyBtn = createButton({
+    label: strings.copy || 'Copy', type: 'fill', size: 32,
+    icon: icon('copy', { size: 16 }),
+    onClick: () => copySelected(),
+  });
+  bar.append(cancel, count, copyBtn);
+  hostEl.append(bar);
+
+  const selected = () => [...listEl.querySelectorAll(rowSelector)].filter((r) => r.dataset.selected !== undefined);
+
+  const setCount = () => {
+    const n = selected().length;
+    count.textContent = (strings.selectedCount || '{n} selected').split('{n}').join(String(n));
+    copyBtn.disabled = n === 0;
+    if (n === 0) exit();                                   // 0 = done, like the natives
+  };
+
+  const toggle = (row) => {
+    if (!textOf(row)) return;                              // nothing copyable on this row (media/cards — v2)
+    if (row.dataset.selected !== undefined) delete row.dataset.selected;
+    else row.dataset.selected = '';
+    setCount();
+  };
+
+  // capture phase: in selection mode EVERY row tap toggles — bubbles, cards and
+  // links must not act underneath (same swallow pattern as the long-press menu)
+  const onClick = (e) => {
+    const row = e.target.closest(rowSelector);
+    if (!row || !listEl.contains(row)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    toggle(row);
+  };
+  const onKeydown = (e) => { if (e.key === 'Escape') exit(); };
+  listEl.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKeydown);
+
+  function copySelected() {
+    const items = selected().map((row) => ({ sender: senderOf(row) || '', text: textOf(row) }));
+    if (!items.length) return;
+    // single = raw text; multiple = "Sender: text" lines (Damir pick)
+    const joined = items.length === 1 ? items[0].text
+      : items.map((it) => (it.sender ? it.sender + ': ' : '') + it.text).join('\n');
+    copyBuffer = { joined, items };
+    const finish = () => { if (onCopy) onCopy(items.length); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(joined).then(finish, finish);   // buffer is the split-paste truth either way
+    } else finish();
+    exit();
+  }
+
+  function exit() {
+    if (listEl.dataset.selecting === undefined) return;
+    delete listEl.dataset.selecting;
+    for (const r of selected()) delete r.dataset.selected;
+    listEl.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKeydown);
+    bar.remove();
+    if (onExit) onExit();
+  }
+
+  if (initialRow) toggle(initialRow);
+  else setCount();
+  return { exit };
+}
+
+/** Watch a composer for a paste of the multi-copy buffer → offer to split.
+ *  Value-match (not paste-event-only) covers every paste path incl. mobile menus. */
+function attachSplitPaste(composerEl, { onSendEach, strings = {} } = {}) {
+  const input = composerEl && composerEl.querySelector('.c-composer__input');
+  if (!input) return () => {};
+  let offer = null;
+
+  const removeOffer = () => { if (offer) { offer.remove(); offer = null; } };
+  const check = () => {
+    const buf = copyBuffer;
+    const match = buf && buf.items.length > 1 && input.value.trim() === buf.joined.trim();
+    if (!match) { removeOffer(); return; }
+    if (offer) return;
+    offer = document.createElement('div');
+    offer.className = 'c-splitpaste';
+    offer.setAttribute('role', 'status');                  // the offer announces itself
+    const label = document.createElement('span');
+    label.className = 'c-splitpaste__label';
+    label.textContent = (strings.splitPasteLabel || 'Pasted {n} copied messages').split('{n}').join(String(buf.items.length));
+    const go = createButton({
+      label: (strings.splitPasteAction || 'Send as {n} separate messages').split('{n}').join(String(buf.items.length)),
+      type: 'outline', size: 32,
+      onClick: () => {
+        const items = buf.items.slice();
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));   // composer resyncs (send btn state, autosize)
+        removeOffer();
+        if (onSendEach) onSendEach(items);                 // RAW texts — re-sent, not quoted
+      },
+    });
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'c-splitpaste__dismiss';
+    dismiss.setAttribute('aria-label', strings.dismiss || 'Dismiss');
+    dismiss.append(icon('x', { size: 16 }));
+    dismiss.addEventListener('click', removeOffer);
+    offer.append(label, go, dismiss);
+    composerEl.prepend(offer);                             // sits above the input row
+  };
+
+  input.addEventListener('input', check);
+  input.addEventListener('paste', () => setTimeout(check, 0));
+  return () => { removeOffer(); input.removeEventListener('input', check); };
+}
+
+  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, sanitizeAmount: sanitizeAmount, toUnits: toUnits, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, canonicalAmount: canonicalAmount, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste };
 })();

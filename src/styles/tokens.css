@@ -387,6 +387,7 @@
   --surface-bubble-received: var(--neutral-10); /* white — pops on the pattern canvas (Damir 2026-07-03) */
   --surface-input: var(--neutral-50);
   --surface-qr: var(--neutral-10);
+  --on-qr: #131415; /* QR module ink — FIXED dark in both themes (scan contrast on the near-white card) */
   --surface-presence-online: var(--success-500);
   --surface-progress-track: var(--neutral-200);
   --surface-progress-fill: var(--primary-600);
@@ -550,6 +551,7 @@
   --surface-bubble-received: var(--neutral-700);
   --surface-input: var(--neutral-800);
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
+  --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
   --surface-presence-online: var(--success-400);
   --surface-progress-track: var(--neutral-700);
   --surface-progress-fill: var(--primary-400);

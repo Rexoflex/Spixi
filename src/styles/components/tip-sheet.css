@@ -1,0 +1,82 @@
+/* c-tipsheet — chat tipping, #26-lite (docs/tipping-spec.md, #138).
+   Requires chip.css (amount options are c-chips — #50 tonal selected).
+   Damir round 1: roomier sheet (gap 24, padded), amount options sized up to real
+   44px equal-width targets, extra clearance before the CTA (misclick guard). */
+
+.c-tipsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding-block: var(--spacing-8);
+}
+
+.c-tipsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-tipsheet__headtext { flex: 1; min-width: 0; }
+.c-tipsheet__title {
+  margin: 0;
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-tipsheet__excerpt {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;   /* one line of context */
+}
+
+.c-tipsheet__chips { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+/* amount options: c-chips sized UP to full 44px equal-width targets — money
+   choices deserve button-scale hits, not tag-scale (Damir round 1); the #50
+   tonal selected wash + outline vocabulary still carries the brand */
+.c-tipsheet__chips .c-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-lg);
+  border-radius: var(--radius-12);
+}
+.c-tipsheet__chips .c-chip::after { content: none; }   /* real-size target — no hit-area extender needed */
+
+/* clearance before the money button: gap-24 + this margin ≈ 40px — a stray tap
+   below the chips lands on nothing (Damir round 1 misclick guard) */
+.c-tipsheet > .c-button { margin-block-start: var(--spacing-16); }
+
+.c-tipsheet__customrow { display: flex; align-items: center; gap: var(--spacing-12); }
+/* ghost = space reserved, nothing shown: the sheet opens at its FULL size and
+   picking Custom never grows it (Damir round 2 — no reflow under the finger) */
+.c-tipsheet__customrow[data-ghost] { visibility: hidden; }
+.c-tipsheet__custom {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);                  /* money entry stays the hero (send parity) */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-tipsheet__custom:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-tipsheet__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+
+.c-tipsheet__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}

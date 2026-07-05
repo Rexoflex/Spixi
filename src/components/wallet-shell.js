@@ -37,8 +37,9 @@ import { icon } from './icons.js';
 
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
-/** Sent = everything outgoing incl. pending/failed (badge carries the caveat —
- *  🟡 flagged for Damir: should failed sends list under "Sent"?). */
+/** Sent = everything outgoing incl. pending/failed — the status badge carries the
+ *  caveat (Damir decided 2026-07-05: failed attempts LIST under "Sent"; users look
+ *  for "that send I tried" there, hiding them makes failures invisible). */
 export function txMatchesFilter(tx, filter) {
   if (!tx) return false;
   if (filter === 'sent') return tx.direction !== 'in';

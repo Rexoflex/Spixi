@@ -34,8 +34,9 @@ import { icon } from './icons.js';
 /** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
  *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
  *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
- *  ('12,5' → '12.5') — never a silent magnitude change. */
-function sanitizeAmount(raw) {
+ *  ('12,5' → '12.5') — never a silent magnitude change.
+ *  Exported (slice 3): wallet-receive's request amount follows the SAME rules. */
+export function sanitizeAmount(raw) {
   let s = String(raw || '');
   s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
   s = s.replace(/[^0-9.]/g, '');
@@ -48,7 +49,9 @@ function sanitizeAmount(raw) {
 /* —— exact money math in integer 1e-8 units via BigInt (ES2020 floor, #45; audit M1:
       binary floats falsely rejected exactly-fitting amounts and Max could overshoot;
       Number×1e8 overflows 2^53 at Ixian-scale balances) —— */
-function toUnits(v) {
+/** Exported (#138): the tip sheet's balance guard compares in the same units —
+ *  Number comparison re-imports the audit-M1 float bug at ≥1e8 IXI balances. */
+export function toUnits(v) {
   const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
   const neg = s.startsWith('-');
   const [i = '0', d = ''] = (neg ? s.slice(1) : s).split('.');
@@ -63,8 +66,11 @@ function fromUnits(u) {
   return (neg ? '-' : '') + i + (d ? '.' + d : '');
 }
 
+let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
+
 export function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = {}, host,
+  lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   onQuickScan, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
@@ -72,6 +78,7 @@ export function createWalletSend({
   // '923,852.00') are NOT valid inputs here.
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
+  const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
   const balU = toUnits(balance);
   const feeU = toUnits(fee);
   const state = { recipient: null, amount: '', sending: false, attempt: 0 };
@@ -108,6 +115,7 @@ export function createWalletSend({
   addrRow.type = 'button';
   addrRow.className = 'c-wallet-send__contact';
   addrRow.setAttribute('aria-expanded', 'false');
+  addrRow.setAttribute('aria-controls', (addrFieldId));   // reveal linked for AT (receive-audit n2, applied here too)
   const addrGlyph = document.createElement('span');
   addrGlyph.className = 'c-wallet-send__addrglyph';
   addrGlyph.append(icon('qrcode', { size: 20 }));
@@ -119,6 +127,7 @@ export function createWalletSend({
 
   const addrField = document.createElement('div');
   addrField.className = 'c-wallet-send__addrfield';
+  addrField.id = addrFieldId;
   addrField.hidden = true;
   const addrInput = document.createElement('input');
   addrInput.className = 'c-wallet-send__addrinput';
@@ -157,7 +166,7 @@ export function createWalletSend({
   errLine.className = 'c-wallet-send__error';
   errLine.setAttribute('role', 'alert');
   errLine.hidden = true;
-  picker.append(errLine);
+  addrField.append(errLine);   // under the input it validates — it rendered BELOW the contacts (Damir bug, round 3)
   recSec.append(picker);
   el.append(recSec);
 
@@ -223,20 +232,22 @@ export function createWalletSend({
     pa.textContent = recipient.address;
     pt.append(pa);
     picked.append(pt);
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.className = 'c-wallet-send__clear';
-    clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
-    clear.append(icon('x', { size: 18 }));
-    clear.addEventListener('click', () => {
-      state.recipient = null;
-      picked.hidden = true;
-      picker.hidden = false;
-      sync();
-      const si = picker.querySelector('input');
-      if (si) si.focus();                                // focus back into the picker (audit m2)
-    });
-    picked.append(clear);
+    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'c-wallet-send__clear';
+      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
+      clear.append(icon('x', { size: 18 }));
+      clear.addEventListener('click', () => {
+        state.recipient = null;
+        picked.hidden = true;
+        picker.hidden = false;
+        sync();
+        const si = picker.querySelector('input');
+        if (si) si.focus();                              // focus back into the picker (audit m2)
+      });
+      picked.append(clear);
+    }
     sync();
     amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
   }
@@ -433,6 +444,7 @@ export function createWalletSend({
   }
 
   renderContacts('');
+  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to the amount
   return el;
 }
 

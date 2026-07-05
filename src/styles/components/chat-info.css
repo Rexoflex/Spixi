@@ -15,11 +15,23 @@
   gap: var(--spacing-16);
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
 }
-/* #142: section dividers — the screen read as one undivided blur (Damir).
-   Every top-level section after the hero draws its own separator. */
-.c-chat-info__body > * + * {
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
-  padding-top: var(--spacing-16);
+/* #150①: children of a SCROLLING flex column are shrinkable — overflow:hidden
+   (#149①) dropped the payments section's min-height:auto floor to 0, so it
+   absorbed ALL the shrink and rendered as a clipped sliver (Damir). The #148③
+   settings guard, applied here too: never shrink. */
+.c-chat-info__body > * { flex: none; }
+
+/* #142 dividers → #148 CARD sections (the settings-family grammar, Damir:
+   consistent treatment): every section after the hero sits on --surface-card.
+   Hero + money stay on the screen; danger rows are their own bordered cards.
+   #150③: cards REASSIGN --surface-input (input === card in both modes made
+   fields invisible) — the #20 contextual-override precedent. */
+.c-chat-info__body > :not(.c-chat-info__hero):not(.c-chat-info__money):not(.c-chat-info__danger) {
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-12);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);
 }
 
 /* clip-hidden live region (wallet-receive __live pattern) */
@@ -174,11 +186,14 @@
 .c-chat-info__qr {
   display: flex;
   justify-content: center;
-  padding: var(--spacing-16);
-  border-radius: var(--radius-12);
+  align-self: center;               /* #149③: hug the code — the white card spanned the
+                                       full section width; account-hub parity */
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
   background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
+  box-shadow: var(--elevation-1);
 }
-.c-chat-info__qr svg { width: 180px; height: 180px; }
+.c-chat-info__qr svg { width: 148px; height: 148px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) */
 
 /* —— money row —— */
 .c-chat-info__money {
@@ -199,7 +214,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: 44px;
+  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room
+                                       (#149② — the notifications card read squeezed;
+                                       settings-row parity) */
 }
 /* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
 .c-chat-info__setting {
@@ -288,17 +305,18 @@
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
 }
-.c-chat-info__row-label svg { color: var(--icon-neutral-02); }
+.c-chat-info__row-label > svg { color: var(--icon-neutral-02); }   /* #148: > — the disc owns its own ink */
 .c-chat-info__switch {
   flex: none;
   position: relative;
   width: 48px;
   height: 28px;
-  border: 0;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-03);
+  background: var(--switch-track-off);   /* #148: dedicated pair — neutral-03 was near-invisible on cards */
   cursor: pointer;
-  transition: background-color var(--duration-200) var(--easing-standard);
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
   -webkit-tap-highlight-color: transparent;
 }
 .c-chat-info__switch::after {      /* 44px target on a 28px control */
@@ -306,15 +324,19 @@
   position: absolute;
   inset: -8px;
 }
-.c-chat-info__switch[aria-checked='true'] { background: var(--surface-action-default); }
+.c-chat-info__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
 .c-chat-info__switch-knob {
   position: absolute;
-  top: 3px;
-  inset-inline-start: 3px;
+  top: 2px;
+  inset-inline-start: 2px;
   width: 22px;
   height: 22px;
   border-radius: var(--radius-full);
-  background: var(--text-neutral-on-action);   /* the fill-button ink pair */
+  background: var(--switch-knob);              /* #148: on-action ink goes near-black in dark — invisible knob */
+  box-shadow: var(--elevation-1);
   transition: transform var(--duration-200) var(--easing-standard);
 }
 .c-chat-info__switch[aria-checked='true'] .c-chat-info__switch-knob {
@@ -398,7 +420,21 @@
 }
 
 /* —— payments (#142: collapsed accordion — reveal grammar shared with Show QR) —— */
-.c-chat-info__txs { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__txs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  overflow: hidden;                 /* #149①: full-bleed rows clip to the card radius */
+}
+/* #149① (Damir): tx rows run FULL-BLEED across the card — the press state
+   spans edge to edge instead of a floating inset rectangle. The negative
+   margins cancel the card padding; the rows' own inline padding re-aligns
+   their content with the card. */
+.c-chat-info__txs-list {
+  margin-inline: calc(-1 * var(--spacing-12));
+  margin-block-end: calc(-1 * var(--spacing-12));
+}
+.c-chat-info__txs-list .c-txlist-item { border-radius: 0; }
 .c-chat-info__txs-toggle {
   display: flex;
   align-items: center;
@@ -480,5 +516,8 @@
   display: flex;
   gap: var(--spacing-8);
   margin-top: var(--spacing-8);
+  width: 100%;                      /* #150②: the sheet centers its children — the
+                                       hugging row made Kick/Ban read smaller than
+                                       Pay/Request; span the row, flex:1 splits it */
 }
 .c-member__actions > .c-button { flex: 1; }

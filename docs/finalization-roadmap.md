@@ -23,7 +23,7 @@ shared money module (`canonicalAmount`/`toUnits`) dedupe.
 
 | # | Surface | Views | Notes |
 |---|---------|-------|-------|
-| 1 | **Account/Settings shell** | hub · backup · downloads · dev/log · contributors | `backup-ux-spec.md` is READY (incl. nudge state machine + onboarding tail). Hub = settings rows (theme, language, lock, backup, about). Downloads/dev/contributors are 90% list/toolbar — cheap. |
+| 1 | **Account/Settings shell** | hub · backup · downloads · dev/log · contributors | **Slice 1 (hub+backup+danger) BUILT #146** — `settings-shell-spec.md`; pending Damir build+smoke + demo pass + the Opus round. Remaining: downloads/dev/contributors screens (rows exist, 90% list/toolbar — cheap). |
 | 2 | **Contacts** | add-contact · contact profile | Profile EXISTS (`createChatInfo` `context:'contact'`, #142③) — the shell just opens it. Add-contact = field + QR/scan entry + request send (`ixian:` inventory in bridge-audit-A). |
 | 3 | **Scan shell** | camera view | Isolated by design (html5-qrcode payload). Mock camera in demo; frame/torch/permission-denied states. |
 | 4 | **Lock shell** | unlock · confirm-action · set-lock · change-encryption-password | PIN/biometric area; small, but security-adjacent — SECURITY.md checklist pass mandatory. |

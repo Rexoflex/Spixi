@@ -720,6 +720,10 @@
      bubbles vanish at the bottom (Damir 2026-07-03) */
   --chat-pattern-ink: var(--primary-200);
   --chat-pattern-opacity: 0.5;
+  /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
+     compute font-size * this; ADOPTION in message-bubble.css lands at the
+     chat-shell integration pass (flagged) — the settings preview uses it now. */
+  --chat-text-scale: 1;
   /* light gradient v2 (Damir 2026-07-03, 2nd round): sky-blue diagonal wash,
      alphas composited over surface-screen (the trailing color layer). Raw
      rgba sanctioned like --gradient-hero-overlay (gradients = code-only
@@ -742,6 +746,39 @@
   --text-on-scrim: var(--neutral-10);
   --icon-on-scrim: var(--neutral-10);
 
+  /* settings row-icon discs (#147 — Damir: tinted per-row badges, the
+     Telegram/reference grammar; plain neutral glyphs read flat). Soft disc +
+     strong ink per semantic hue; pairs flip per theme below. DS-DOC at next
+     mirror pass. error is RESERVED for destructive rows. */
+  --disc-primary-bg: var(--primary-100);   --disc-primary-ink: var(--primary-600);
+  --disc-accent-bg: var(--accent-100);     --disc-accent-ink: var(--accent-600);
+  --disc-info-bg: var(--info-100);         --disc-info-ink: var(--info-600);
+  --disc-success-bg: var(--success-100);   --disc-success-ink: var(--success-600);
+  --disc-warning-bg: var(--warning-100);   --disc-warning-ink: var(--warning-600);
+  --disc-error-bg: var(--error-100);       --disc-error-ink: var(--error-600);
+  --disc-neutral-bg: var(--neutral-100);   --disc-neutral-ink: var(--neutral-600);
+
+  /* theme-picker preview tiles (#147): FIXED light/dark paints — a preview
+     must show its OWN mode regardless of the active theme (the --surface-qr
+     fixed-pair precedent). Mode-less by design. */
+  --preview-light-surface: var(--neutral-10);
+  --preview-light-line: var(--neutral-200);
+  --preview-dark-surface: var(--neutral-950);
+  --preview-dark-line: var(--neutral-700);
+
+  /* switch control (#148 — Damir: the off-track/knob pair was near-invisible
+     on card surfaces in both modes; the on-action knob ink goes near-black in
+     dark). Dedicated pair per mode; ON track stays --surface-action-default. */
+  --switch-track-off: var(--neutral-200);
+  --switch-knob: var(--neutral-10);
+
+  /* input ON A CARD (#150③): --surface-input === --surface-card in BOTH modes
+     (neutral-50/-800 twins) — fields vanish on the #147/#148 card sections.
+     Carded containers REASSIGN --surface-input to this (the #20 contextual
+     region-override precedent — no component overrides). Inset reading:
+     slightly darker than the card in light, deeper than it in dark. */
+  --surface-input-on-card: var(--neutral-100);
+
   /* elevation — light: shadows */
   --elevation-0: none;
   --elevation-1: 0 1px 2px rgba(17, 18, 19, 0.06), 0 1px 3px rgba(17, 18, 19, 0.1);
@@ -750,6 +787,22 @@
 }
 
 [data-theme="dark"] {
+  /* settings row-icon discs — dark pairs (#147) */
+  --disc-primary-bg: var(--primary-900);   --disc-primary-ink: var(--primary-300);
+  --disc-accent-bg: var(--accent-900);     --disc-accent-ink: var(--accent-300);
+  --disc-info-bg: var(--info-900);         --disc-info-ink: var(--info-300);
+  --disc-success-bg: var(--success-900);   --disc-success-ink: var(--success-300);
+  --disc-warning-bg: var(--warning-900);   --disc-warning-ink: var(--warning-300);
+  --disc-error-bg: var(--error-900);       --disc-error-ink: var(--error-300);
+  --disc-neutral-bg: var(--neutral-800);   --disc-neutral-ink: var(--neutral-300);
+
+  /* switch control — dark pair (#148) */
+  --switch-track-off: var(--neutral-700);
+  --switch-knob: var(--neutral-100);
+
+  /* input on a card — dark (#150③): deeper than the neutral-800 card = inset */
+  --surface-input-on-card: var(--neutral-900);
+
   /* elevation — dark: shadows read poorly; raised surfaces use surface-card(-raised) */
   --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);

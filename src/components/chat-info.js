@@ -76,6 +76,16 @@ function sectionLabel(text) {
   return l;
 }
 
+/* tinted icon disc (#148 — the settings-family atom from base.css; Damir:
+   chat-info/contact follows the same treatment for consistency) */
+function infoDisc(glyph, hue) {
+  const d = document.createElement('span');
+  d.className = 'c-disc';
+  d.dataset.hue = hue;
+  d.append(icon(glyph, { size: 16 }));
+  return d;
+}
+
 export function createChatInfo({
   kind = 'contact',              // 'contact' | 'group' | 'bot'
   context = 'chat',              // 'chat' | 'contact' — contact page reuses this surface (#142)
@@ -331,7 +341,7 @@ export function createChatInfo({
     row.className = 'c-chat-info__row';
     const lab = document.createElement('span');
     lab.className = 'c-chat-info__row-label';
-    lab.append(icon('bell', { size: 20 }), document.createTextNode(strings.notifications || 'Notifications'));
+    lab.append(infoDisc('bell', 'warning'), document.createTextNode(strings.notifications || 'Notifications'));
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'c-chat-info__switch';
@@ -357,7 +367,13 @@ export function createChatInfo({
       ));
     });
     row.append(lab, toggle);
-    body.append(row);
+    // #150④: same wrapper structure as the sd row — the bare row WAS the card,
+    // so its border-box min-height swallowed the card padding and it rendered
+    // shorter than the (wrapped) disappearing-messages row (Damir screenshot)
+    const notifSection = document.createElement('div');
+    notifSection.className = 'c-chat-info__setting-section';
+    notifSection.append(row);
+    body.append(notifSection);
   }
 
   /* ——— disappearing messages (#142 — chat-side policy, so chat context only;
@@ -368,7 +384,7 @@ export function createChatInfo({
     sdRow.className = 'c-chat-info__row c-chat-info__setting';
     const sdLab = document.createElement('span');
     sdLab.className = 'c-chat-info__row-label';
-    sdLab.append(icon('hourglass-empty', { size: 20 }),
+    sdLab.append(infoDisc('hourglass-empty', 'accent'),
       document.createTextNode(strings.selfDestruct || 'Disappearing messages'));
     const sdVal = document.createElement('span');
     sdVal.className = 'c-chat-info__setting-value';
@@ -603,7 +619,7 @@ export function createChatInfo({
     toggle.type = 'button';
     toggle.className = 'c-chat-info__txs-toggle';
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.append(icon('wallet', { size: 20 }),
+    toggle.append(infoDisc('wallet', 'success'),
       document.createTextNode((strings.payments || 'Payments') + ' (' + txs.length + ')'));
     const chev = icon('chevron-down', { size: 18 });
     chev.classList.add('c-chat-info__txs-chevron');
@@ -651,7 +667,7 @@ export function createChatInfo({
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-chat-info__danger-row';
-    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.append(infoDisc(glyph, 'error'), document.createTextNode(label));   // #148: error disc = destructive reservation
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));

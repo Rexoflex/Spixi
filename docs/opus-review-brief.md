@@ -7,11 +7,37 @@ case fixed.** Nothing else. No new features, no redesigns.
 ## Read first (in this order)
 
 1. `CLAUDE.md` — ground rules (note: Status section is stale; DECISIONS.md is current).
-2. `DECISIONS.md` rows **#135–#142** (current era). Never contradict a ✅ row —
+2. `DECISIONS.md` rows **#135–#150** (current era). Never contradict a ✅ row —
    architectural findings become 🟡 rows + a question to Damir, never silent changes.
 3. Specs for whatever you're touching: `docs/chat-info-spec.md`,
    `docs/wallet-shell-spec.md`, `docs/chats-shell-spec.md`, `docs/apps-shell-spec.md`,
-   `docs/overlays-spec.md`.
+   `docs/overlays-spec.md`, `docs/settings-shell-spec.md` (+ its companion
+   `docs/backup-ux-spec.md`).
+
+## Current round (2026-07-05, per #146 + #147 + #148)
+
+Scope: the **Account/Settings shell** (settings-shell.js / settings-backup.js /
+settings-screens.js / their CSS / settings.html / the #146–#148 smoke blocks /
+tokens.css additions [--disc-*, --preview-*, --chat-text-scale,
+--switch-track-off/--switch-knob] / base.css `.c-disc` atom / **the #148
+chat-info harmonization diff** [discs + card sections + switch pair + `> svg`
+ink scoping — audited behavior must be UNCHANGED there]) — built +
+premium-redesigned in a finalize-only session, NOT yet adversarially audited.
+Run the full loop over it. Known watch-list: per-row commit mapping onto
+`ixian:save:<nick>` (spec §2) · lock ON/OFF asymmetry · avatar sheet latch ·
+password-modal lock (#135-C1) · `_backupBits`/`_statusBits` expando hooks ·
+theme-tile latch vs option-sheet latch (duplicated grammar — dedupe candidate;
+note the theme sheet now STAYS OPEN and re-releases its latch, #148②) ·
+segGroup `current` closure · security-tier latch/spinner cleanup on BOTH
+paths · `.c-settings__group` card grammar reuse inside settings-screens.css ·
+hero art + clip-path + preview paints (layout-blind jsdom — reason about the
+CSS) · error-hue reservation (one disc per surface, smoke-guarded) · the
+`> * {flex:none}` scroll-body guard — check OTHER shells' scroll columns for
+the same crushed-fixed-height class (#148③ root cause) · chat-info leftovers:
+`.c-chat-info__txs-toggle > svg:first-child` rule is now inert (disc replaced
+the bare glyph) — clean up. #149 adds full-bleed tx rows via negative margins
+inside the card (check RTL + the gap-4 strips between rows) and the 52px row
+height — verify no chat-info functional assertion regressed.
 
 ## Environment rules (violating these wastes Damir's money)
 

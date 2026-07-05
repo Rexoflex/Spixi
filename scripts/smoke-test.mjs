@@ -637,6 +637,518 @@ console.log('chat.html — chat info (#141)');
     'money.toUnits: exact integer 1e-8 units via BigInt (#135-M1/#138-M2)');
 }
 
+console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
+{
+  const dom = await load('settings.html');
+  const d = dom.window.document, W4 = dom.window;
+  const S = W4.Spixi;
+  const key = (t, k) => t.dispatchEvent(new W4.KeyboardEvent('keydown', { key: k, bubbles: true }));
+
+  /* —— demo wiring: hub renders as the account root tab —— */
+  ok(!!d.querySelector('.c-settings__hero') && !!d.querySelector('.c-settings__address-row'),
+    'hub renders identity hero + own-address chip');
+  ok((d.querySelector('.c-settings__address-value') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen',
+    'FULL own address in the chip (#99)');
+  ok(!!d.querySelector('.c-bottomnav'), 'bottomnav present (Account tab active)');
+
+  /* #147: QR-FORWARD — immediately visible, no reveal step */
+  const qrEl = d.querySelector('.c-settings__qr');
+  ok(!!qrEl && !!qrEl.querySelector('svg path') && !d.querySelector('.c-settings__qr-toggle'),
+    'QR is immediately visible in the hero — the reveal step is GONE (#147)');
+  ok(qrEl.querySelector('.c-qr').dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
+    'hero QR encodes the legacy address:ixi format');
+
+  /* #147: tinted discs + card groups (#148: the disc is the shared .c-disc atom) */
+  ok(d.querySelectorAll('.c-disc').length >= 8,
+    'rows carry tinted icon discs (#147/#148 shared atom)');
+  const hubErrDiscs = [...d.querySelectorAll('.c-settings .c-disc[data-hue="error"]')];
+  ok(hubErrDiscs.length === 1
+    && hubErrDiscs[0].closest('.c-settings__row').textContent.includes('Delete'),
+    'error hue is RESERVED — only the Delete data row wears it');
+  ok(d.querySelectorAll('.c-settings__group').length >= 4,
+    'hub groups sit on card surfaces (#147)');
+
+  /* #148⑤: share beside copy on the address chip */
+  ok(!!d.querySelector('.c-settings__share'),
+    'address chip carries a share button (§9 share ask, wallet-receive precedent)');
+
+  /* #148⑥: language sheet — flags + a scrolling taller list (10 languages) */
+  const langRow = [...d.querySelectorAll('.c-settings__row')]
+    .find((r) => r.textContent.includes('Language'));
+  langRow.click();
+  await sleep(50);
+  const langOpts = d.querySelectorAll('.c-settings__opt');
+  ok(langOpts.length === 10
+    && d.querySelectorAll('.c-settings__opt-flag').length === 10
+    && d.querySelector('.c-settings__opts').classList.contains('c-settings__opts--scroll'),
+    'language sheet: 10 languages with leading flags, list scrolls (#148⑥)');
+  d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(500);
+
+  /* —— component-level: controllable ctrls —— */
+  let themeCalls = 0, themeCtrl = null, themeVal = null;
+  let lockCalls = [], lockCtrl = null;
+  let nickCalls = 0, nickCtrl = null;
+  let avCtrl = null;
+  const host = d.createElement('div');
+  d.body.append(host);
+  const hub = S.createSettingsHub({
+    name: 'Damir', address: 'xaddr9000', theme: 0,
+    languages: [{ code: 'en-us', label: 'English' }, { code: 'de-de', label: 'Deutsch' }],
+    language: 'en-us', lockEnabled: false,
+    backup: { last: null, dirtyCount: 0 },
+    version: '2.1.4', capabilities: { dev: true },
+    onNickname: (nick, ctrl) => { nickCalls++; nickCtrl = ctrl; },
+    onAvatarChange: (ctrl) => { avCtrl = ctrl; },
+    onAvatarRemove: (ctrl) => { avCtrl = ctrl; },
+    onTheme: (v, ctrl) => { themeCalls++; themeVal = v; themeCtrl = ctrl; },
+    onLanguage: () => {},
+    onLock: (next, ctrl) => { lockCalls.push(next); lockCtrl = ctrl; },
+    onBackup: () => {}, onDownloads: () => {}, onContributors: () => {}, onDev: () => {},
+    onChatAppearance: () => {}, onNotifications: () => {}, onSecurity: () => {}, onPrivacy: () => {},
+    onDanger: () => {},
+  });
+  host.append(hub);
+
+  /* §9 gating honesty: callbacks wired but caps OFF → the rows must not render */
+  const hubRowText = [...hub.querySelectorAll('.c-settings__row')].map((r) => r.textContent).join('|');
+  ok(hubRowText.includes('Chat appearance')
+    && !hubRowText.includes('Notifications') && !hubRowText.includes('Security level')
+    && !hubRowText.includes('Privacy') && !hubRowText.includes('Confirm payments'),
+    'chat appearance renders ungated (FE-only); notifications/security/privacy/payment-auth hide without caps (§9 honesty)');
+
+  /* #150⑤: confirm-payments switch — the lock ON/OFF asymmetry */
+  let paCtrl = null;
+  const paHost = d.createElement('div');
+  d.body.append(paHost);
+  const paHub = S.createSettingsHub({
+    name: 'D', address: 'pa1', paymentAuth: false,
+    capabilities: { paymentAuth: true },
+    onPaymentAuth: (next, ctrl) => { paCtrl = ctrl; },
+    onBackup: () => {},
+  });
+  paHost.append(paHub);
+  const paRow = [...paHub.querySelectorAll('.c-settings__row')]
+    .find((r) => r.textContent.includes('Confirm payments'));
+  const paSw = paRow.querySelector('.c-settings__switch');
+  ok(!!paSw && paSw.getAttribute('aria-checked') === 'false',
+    'Confirm payments renders with its cap, starts from the pref (#150⑤)');
+  paSw.click();
+  ok(paSw.getAttribute('aria-checked') === 'true', 'enabling payment-auth is optimistic');
+  paCtrl.done();
+  paSw.click();
+  ok(paSw.getAttribute('aria-checked') === 'true' && paSw.getAttribute('aria-busy') === 'true',
+    'disabling payment-auth PENDS on auth — weakening security costs an auth (#150⑤)');
+  paCtrl.fail();
+  ok(paSw.getAttribute('aria-checked') === 'true' && !paSw.getAttribute('aria-busy'),
+    'auth canceled → payment confirmation stays ON');
+  paHost.remove();
+
+  /* backup row — the standing nudge (backup-ux-spec §3.1/§4 state machine) */
+  ok(hub.querySelector('.c-settings__backup-sub').textContent === 'Not backed up yet'
+    && !!hub.querySelector('.c-settings__backup-badge .c-badge'),
+    'never-backed-up → warning badge + status sub (the standing nudge)');
+  S.setBackupStatus(hub, { last: '12 Mar', dirtyCount: 3 });
+  ok(hub.querySelector('.c-settings__backup-sub').textContent.includes('3 new contacts')
+    && !!hub.querySelector('.c-settings__backup-badge .c-badge'),
+    'dirty state → info badge + "{n} new contacts" sub (setBackupStatus free fn)');
+  S.setBackupStatus(hub, { last: '12 Mar', dirtyCount: 0 });
+  ok(hub.querySelector('.c-settings__backup-sub').textContent.includes('12 Mar')
+    && !hub.querySelector('.c-settings__backup-badge .c-badge'),
+    'clean state → date sub, badge GONE (quiet when truthful)');
+
+  /* nickname: EMPTY = inline error + NO commit (legacy ixian:error honesty);
+     Enter+blur = ONE call (#141-M1 latch) */
+  hub.querySelector('.c-settings__nick-edit').click();
+  const nin = hub.querySelector('.c-settings__nick-input');
+  nin.value = '   ';
+  key(nin, 'Enter');
+  ok(nickCalls === 0 && !hub.querySelector('.c-settings__nick-error').hidden,
+    'empty nickname → inline error, NO commit (legacy validates non-empty)');
+  nin.value = 'Dax';
+  key(nin, 'Enter');
+  nin.dispatchEvent(new W4.Event('blur'));
+  ok(nickCalls === 1, 'Enter+blur double-commit latched: ONE onNickname call (#141-M1)');
+  nickCtrl.done();
+  ok(hub.querySelector('.c-settings__name').textContent === 'Dax', 'nickname commit lands in the hero');
+
+  /* theme sheet (#147): VISUAL PREVIEW TILES — commit-per-pick, latched */
+  const themeRow = [...hub.querySelectorAll('.c-settings__row')]
+    .find((r) => r.textContent.includes('Theme'));
+  themeRow.click();
+  await sleep(50);
+  const tiles = [...d.querySelectorAll('.c-settings__theme')];
+  ok(tiles.length === 3 && tiles[0].getAttribute('aria-checked') === 'true'
+    && tiles.map((t) => t.dataset.mode).join('+') === 'system+light+dark',
+    'theme sheet: 3 PREVIEW TILES (system/light/dark), current checked (#147)');
+  ok(tiles.every((t) => !!t.querySelector('.c-settings__theme-art')),
+    'every tile carries a mini-screen preview (fixed --preview-* paints)');
+  tiles[1].click();                           // Light
+  tiles[2].click();                           // in-flight: must not fire
+  ok(themeCalls === 1 && themeVal === 1, 'picking Light commits index 1 ONCE (latched)');
+  ok(!!tiles[1].querySelector('.c-settings__opt-status .c-button__spinner'),
+    'spinner lands in the tile status slot (#145③ grammar)');
+  themeCtrl.done();
+  /* #148②: the sheet STAYS OPEN — trying themes must not cost a reopen */
+  ok(!!d.querySelector('.c-settings__themes')
+    && tiles[1].getAttribute('aria-checked') === 'true'
+    && tiles[0].getAttribute('aria-checked') === 'false',
+    'ctrl.done keeps the sheet OPEN and moves the check (#148② — keep trying themes)');
+  ok(themeRow.querySelector('.c-settings__row-value').textContent === 'Light',
+    'the row value updates behind the open sheet');
+  tiles[2].click();                           // latch released → a second pick works
+  ok(themeCalls === 2 && themeVal === 2, 'latch releases after done — next pick commits');
+  themeCtrl.done();
+  key(d, 'Escape');
+  await sleep(500);
+  ok(!d.querySelector('.c-settings__themes'), 'user dismisses the theme sheet when done');
+
+  /* lock: ON optimistic; OFF pending until the LockPage auth resolves (#146⑦) */
+  const sw = hub.querySelector('.c-settings__switch');
+  sw.click();
+  ok(sw.getAttribute('aria-checked') === 'true' && lockCalls.join() === 'true',
+    'lock ON flips optimistically + commits');
+  lockCtrl.done();
+  sw.click();
+  ok(sw.getAttribute('aria-checked') === 'true' && sw.getAttribute('aria-busy') === 'true',
+    'lock OFF does NOT flip — pending (aria-busy) while C# auth round-trips');
+  lockCtrl.fail();
+  ok(sw.getAttribute('aria-checked') === 'true' && !sw.getAttribute('aria-busy'),
+    'auth canceled → switch stays ON, busy cleared');
+  sw.click();
+  lockCtrl.done();
+  ok(sw.getAttribute('aria-checked') === 'false', 'auth success → setLockEnabled lands, switch flips OFF');
+
+  /* avatar sheet: remove offered ONLY with a custom avatar (showRemoveAvatar honesty) */
+  hub.querySelector('.c-settings__avatar').click();
+  await sleep(50);
+  let avOpts = [...d.querySelectorAll('.c-settings__avatar-option')];
+  ok(avOpts.length === 1 && avOpts[0].textContent.includes('Choose'),
+    'no custom avatar → only "Choose photo" in the sheet');
+  avOpts[0].click();
+  avCtrl.done({ src: 'data:image/png;base64,x' });
+  await sleep(450);
+  ok(!!hub.querySelector('.c-settings__avatar .c-avatar__img'),
+    'picked photo renders in the hero avatar (ctrl.done({src}))');
+  hub.querySelector('.c-settings__avatar').click();
+  await sleep(50);
+  avOpts = [...d.querySelectorAll('.c-settings__avatar-option')];
+  ok(avOpts.length === 2 && avOpts[1].dataset.destructive !== undefined,
+    'custom avatar present → "Remove photo" appears (destructive)');
+  key(d, 'Escape');
+  await sleep(500);
+
+  /* —— danger screen (#147 tone split): quiet rows + heavy cards, LOCKED confirms —— */
+  let delWalletCtrl = null;
+  const dhost = d.createElement('div');
+  d.body.append(dhost);
+  const danger = S.createSettingsDanger({
+    onBack() {},
+    onDeleteHistory() {}, onDeleteDownloads() {}, onDeleteAccount() {},
+    onDeleteWallet: (ctrl) => { delWalletCtrl = ctrl; },
+  });
+  dhost.append(danger);
+  const quietRows = [...danger.querySelectorAll('.c-settings__row')];
+  const cards = [...danger.querySelectorAll('.c-settings-danger__card')];
+  ok(quietRows.length === 2 && quietRows[0].textContent.includes('history'),
+    'free-up-space tier: history + downloads as QUIET rows (#147 tone split)');
+  ok(cards.length === 2 && cards[1].textContent.includes('wallet'),
+    'danger zone: account + wallet as heavy cards, wallet LAST (blast-radius order)');
+  cards[1].click();
+  const dmodal = [...d.querySelectorAll('.c-modal')].pop();
+  ok(!!dmodal && dmodal.getAttribute('role') === 'alertdialog'
+    && dmodal.textContent.includes('cannot be recovered'),
+    'delete-wallet confirm is an alertdialog carrying the unrecoverability line');
+  ok(!!dmodal.querySelector('.c-settings-danger__confirm-warn')
+    && dmodal.textContent.includes('This action cannot be undone'),
+    'every delete confirm wears the standing cannot-be-undone strip (#150⑥)');
+  await sleep(50);
+  ok(d.activeElement && d.activeElement.textContent.trim() === 'Cancel',
+    'confirm autofocuses the safe action (Cancel)');
+  const dbtns = dmodal.querySelectorAll('.c-modal__actions .c-button');
+  dbtns[dbtns.length - 1].click();            // confirm → in flight
+  key(d, 'Escape');
+  ok(!!delWalletCtrl && [...d.querySelectorAll('.c-modal')].includes(dmodal),
+    'Esc mid-flight does NOT dismiss the wallet confirm (lock holds)');
+  dbtns[0].click();
+  ok([...d.querySelectorAll('.c-modal')].includes(dmodal), 'Cancel is dead while in flight');
+  delWalletCtrl.fail('Authentication was canceled.');
+  ok(!dmodal.querySelector('.c-settings-danger__confirm-error').hidden,
+    'ctrl.fail surfaces the inline error and unlatches');
+  delWalletCtrl = null;
+  dbtns[dbtns.length - 1].click();            // fresh attempt, fresh ctrl (#138 m1)
+  delWalletCtrl.done();
+  await sleep(450);
+  ok(![...d.querySelectorAll('.c-modal')].includes(dmodal), 'retry → ctrl.done closes the confirm');
+  dhost.remove();
+
+  /* —— backup screen: password modal, inline errors, success morph —— */
+  let bkPayload = null, bkCtrl = null, exCtrl = null, exCalls = 0;
+  const bhost = d.createElement('div');
+  d.body.append(bhost);
+  const bk = S.createSettingsBackup({
+    status: { last: null, dirtyCount: 0 },
+    onBack() {},
+    onBackup: (p, ctrl) => { bkPayload = p; bkCtrl = ctrl; },
+    onExportWallet: (ctrl) => { exCalls++; exCtrl = ctrl; },
+  });
+  bhost.append(bk);
+  ok(!!bk.querySelector('.c-settings-backup__art-disc')
+    && bk.querySelectorAll('.c-settings-backup__art-sat').length === 3,
+    'hero placeholder art: shield disc + 3 satellite motifs (#146④ — illustration #6 slot)');
+  ok(bk.querySelector('.c-settings-backup__status').textContent === 'Not backed up yet',
+    'screen status line shares the hub-row vocabulary');
+  ok(bk.querySelectorAll('.c-settings-backup__inside-tile').length === 4
+    && bk.querySelectorAll('.c-settings-backup__inside-tile .c-disc').length === 4,
+    'What’s-inside: 2×2 disc tiles — Identity · Wallet · Contacts · Avatar (#148③)');
+  ok(!!bk.querySelector('.c-settings-backup__hero .c-settings-backup__cta'),
+    'the CTA lives ON the hero panel — promise/status/action as one moment (#148③)');
+
+  bk.querySelector('.c-settings-backup__cta').click();
+  await sleep(50);
+  const pmodal = [...d.querySelectorAll('.c-modal')].pop();
+  const pin = pmodal.querySelector('.c-settings-backup__pw-input');
+  ok(!!pin && pin.type === 'password', 'CTA opens the password confirm modal');
+  const pbtns = pmodal.querySelectorAll('.c-modal__actions .c-button');
+  pbtns[pbtns.length - 1].click();
+  ok(!bkPayload && !pmodal.querySelector('.c-settings-backup__pw-error').hidden,
+    'empty password → inline error, no bridge call');
+  pin.value = 'wrong';
+  pbtns[pbtns.length - 1].click();
+  ok(bkPayload && bkPayload.password === 'wrong', 'confirm sends the password payload');
+  key(d, 'Escape');
+  ok([...d.querySelectorAll('.c-modal')].includes(pmodal),
+    'Esc dead while the backup round-trips (#135-C1 lock)');
+  bkCtrl.fail();
+  ok(!pmodal.querySelector('.c-settings-backup__pw-error').hidden
+    && [...d.querySelectorAll('.c-modal')].includes(pmodal),
+    'invalid password → INLINE error on the field, modal stays (never an alert)');
+  pin.value = 'right';
+  pbtns[pbtns.length - 1].click();
+  bkCtrl.done();
+  await sleep(450);
+  ok(![...d.querySelectorAll('.c-modal')].includes(pmodal),
+    'ctrl.done closes the password modal');
+  ok(bk.querySelector('.c-settings-backup__cta').textContent.includes('Backed up'),
+    'CTA morphs to "Backed up" (#29 setSuccess)');
+  S.setBackupScreenStatus(bk, { last: '5 Jul', dirtyCount: 0 });
+  ok(bk.querySelector('.c-settings-backup__status').textContent.includes('5 Jul'),
+    'setBackupScreenStatus refreshes the status line');
+
+  /* advanced reveal (#147: ANIMATED — data-open drives max-height/opacity) + latched export */
+  const advT = bk.querySelector('.c-settings-backup__adv-toggle');
+  const advBox = bk.querySelector('.c-settings-backup__adv-box');
+  ok(advT.getAttribute('aria-expanded') === 'false'
+    && advBox.dataset.open === undefined && advBox.getAttribute('aria-hidden') === 'true',
+    'Advanced starts collapsed (wallet-only export demoted; animated reveal)');
+  advT.click();
+  ok(advBox.dataset.open !== undefined && advBox.getAttribute('aria-hidden') === 'false',
+    'Advanced opens via data-open (transition-friendly, a11y state carried)');
+  const exBtn = bk.querySelector('.c-settings-backup__adv-box .c-button');
+  exBtn.click(); exBtn.click();
+  ok(exCalls === 1, 'wallet export latched — no double share');
+  exCtrl.done();
+  bhost.remove();
+
+  /* —— #147 sub-screens (settings-screens.js) —— */
+
+  /* chat appearance — FE-only: segmented picks apply instantly to the preview */
+  let patternPick = null, scalePick = null;
+  const ahost = d.createElement('div');
+  d.body.append(ahost);
+  const appear = S.createChatAppearance({
+    patternOpacity: 0.5, textScale: 1,
+    onBack() {},
+    onPattern: (v) => { patternPick = v; },
+    onTextScale: (v) => { scalePick = v; },
+  });
+  ahost.append(appear);
+  ok(appear.querySelector('.c-settings-appearance__preview').classList.contains('c-chat-canvas'),
+    'appearance preview rides the REAL chat canvas paint (gradient + pattern mask)');
+  const segs = [...appear.querySelectorAll('.c-settings-seg')];
+  ok(segs.length === 2
+    && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
+    && segs[1].querySelectorAll('.c-settings-seg__pill').length === 4,
+    'pattern intensity + text size segmented groups (4 pills each)');
+  segs[0].querySelector('.c-settings-seg__pill').click();       // Off (0)
+  ok(patternPick === 0
+    && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') === '0',
+    'pattern pick applies INSTANTLY to the preview + fires the FE-only callback');
+  [...segs[1].querySelectorAll('.c-settings-seg__pill')].pop().click();   // XL (1.25)
+  ok(scalePick === 1.25, 'text-size pick fires with the scale value');
+  ahost.remove();
+
+  /* privacy — §9-gated switches: optimistic + revert-on-fail */
+  let rrCtrl = null;
+  const phost = d.createElement('div');
+  d.body.append(phost);
+  const priv = S.createPrivacy({
+    readReceipts: true, typingIndicators: true,
+    capabilities: { readReceipts: true, typing: true },
+    onBack() {},
+    onReadReceipts: (next, ctrl) => { rrCtrl = ctrl; },
+    onTyping: () => {},
+  });
+  phost.append(priv);
+  const privSw = [...priv.querySelectorAll('.c-settings__switch')];
+  ok(privSw.length === 2, 'privacy: read receipts + typing switches render with caps ON');
+  privSw[0].click();
+  ok(privSw[0].getAttribute('aria-checked') === 'false', 'privacy toggle flips optimistically');
+  rrCtrl.fail();
+  ok(privSw[0].getAttribute('aria-checked') === 'true', 'ctrl.fail reverts the optimistic flip');
+  const privOff = S.createPrivacy({ capabilities: {}, onBack() {}, onReadReceipts() {}, onTyping() {} });
+  ok(privOff.querySelectorAll('.c-settings__switch').length === 0,
+    'privacy rows hide without their caps (§9 honesty)');
+  phost.remove();
+
+  /* notifications — §9-gated master/previews/sounds */
+  const nhost = d.createElement('div');
+  d.body.append(nhost);
+  const notifs = S.createNotificationsScreen({
+    capabilities: { globalNotifications: true },
+    onBack() {}, onEnabled() {}, onPreviews() {}, onSounds() {},
+  });
+  nhost.append(notifs);
+  ok(notifs.querySelectorAll('.c-settings__switch').length === 3,
+    'notifications: master + previews + sounds switches (§9-gated, caps ON)');
+  nhost.remove();
+
+  /* security level (#147 tiers) — 4 cards, latched commit */
+  let tierPick = null, tierCtrl = null;
+  const shost2 = d.createElement('div');
+  d.body.append(shost2);
+  const secEl = S.createSecurityLevel({
+    tier: 'basic', capabilities: { securityTiers: true },
+    onBack() {},
+    onSecurityTier: (t, ctrl) => { tierPick = t; tierCtrl = ctrl; },
+  });
+  shost2.append(secEl);
+  const tierCards = [...secEl.querySelectorAll('.c-settings-security__tier')];
+  ok(tierCards.length === 4
+    && tierCards.map((t) => t.dataset.tier).join('+') === 'basic+moderate+strict+custom'
+    && tierCards[0].getAttribute('aria-checked') === 'true',
+    'security level: Basic/Moderate/Strict/Custom tier cards, current checked (#147)');
+  tierCards[2].click();                       // Strict
+  tierCards[3].click();                       // in-flight: must not fire
+  ok(tierPick === 'strict' && !!tierCards[2].querySelector('.c-button__spinner'),
+    'tier pick commits ONCE, latched, spinner in the status slot');
+  tierCtrl.done();
+  ok(tierCards[2].getAttribute('aria-checked') === 'true'
+    && tierCards[0].getAttribute('aria-checked') === 'false',
+    'ctrl.done moves the checked state to the new tier');
+  const secOff = S.createSecurityLevel({ capabilities: {}, onBack() {}, onSecurityTier() {} });
+  ok(secOff.querySelectorAll('.c-settings-security__tier').length === 0,
+    'security tiers hide without the cap (§9 honesty)');
+  shost2.remove();
+  host.remove();
+}
+
+{
+  /* static guards — #146 settings shell + #147 premium round. jsdom is
+     layout/paint-blind — these read the CSS/HTML/token text. */
+  const setHtml = readFileSync(join(root, 'src/demo/settings.html'), 'utf8');
+  ok(setHtml.includes('components/settings-shell.css') && setHtml.includes('components/settings-backup.css')
+    && setHtml.includes('components/settings-screens.css')
+    && setHtml.includes('components/badge.css') && setHtml.includes('components/avatar.css'),
+    'settings demo links every component stylesheet it renders (#138/#142 class)');
+  ok(setHtml.includes('components/message-bubble.css') && setHtml.includes('styles/chat-pattern.css'),
+    'settings demo links the chat-canvas paint pair — the appearance preview needs BOTH (#147)');
+  const setCss = readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8');
+  ok(/\.c-settings__name \{[^}]*min-width: 0/.test(setCss),
+    'settings hero name has min-width:0 — long names/RTL ellipsize (#140③/#144① class)');
+  ok(/\.c-settings__address-row \{[^}]*background: var\(--surface-input\)/.test(setCss)
+    && /\.c-settings__copy \{[^}]*width: 32px/.test(setCss),
+    'own-address chip: --surface-input + 32px copy button (#145④ parity)');
+  ok(/\.c-settings__group \{[^}]*background: var\(--surface-card\)/.test(setCss),
+    'hub groups sit on --surface-card (#147 — depth over hairline flatness)');
+  /* #147 disc + preview tokens: defined for BOTH modes (a light-only pair would
+     silently wash out in dark — the #48 dark-badge lesson) */
+  const tok = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok((tok.match(/--disc-primary-bg:/g) || []).length === 2
+    && (tok.match(/--disc-error-ink:/g) || []).length === 2,
+    '--disc-* token pairs defined in BOTH light and dark blocks (#147)');
+  ok(/--preview-light-surface:/.test(tok) && /--preview-dark-surface:/.test(tok)
+    && /--chat-text-scale: 1/.test(tok),
+    'theme-preview fixed pairs + --chat-text-scale default live in tokens.css (#147)');
+  ok(/\.c-settings__theme-art \{[^}]*background: var\(--preview-light-surface\)/.test(setCss),
+    'theme tiles paint with the FIXED preview pair — a preview shows its OWN mode (#137 --surface-qr precedent)');
+  const bkCss = readFileSync(join(root, 'src/styles/components/settings-backup.css'), 'utf8');
+  ok(/\.c-settings-backup__adv-box \{[^}]*max-height: 0/.test(bkCss)
+    && /\.c-settings-backup__adv-box\[data-open\]/.test(bkCss),
+    'Advanced reveal animates via data-open max-height/opacity (#147 — reveals must not snap)');
+  ok(/\.c-settings-backup__adv-chevron, \.c-settings-backup__adv-box \{ transition: none/.test(bkCss),
+    'Advanced reveal transition is reduced-motion guarded');
+  const bundleScript = readFileSync(join(root, 'scripts/build-demo-bundle.mjs'), 'utf8');
+  ok(bundleScript.indexOf('settings-shell.js') < bundleScript.indexOf('settings-backup.js')
+    && bundleScript.indexOf('settings-shell.js') !== -1
+    && bundleScript.includes('settings-screens.js'),
+    'bundle FILES: settings-shell.js → settings-backup.js → settings-screens.js registered');
+  const bkJs = readFileSync(join(root, 'src/components/settings-backup.js'), 'utf8');
+  ok(/import \{ backupStatusParts \} from '\.\/settings-shell\.js'/.test(bkJs),
+    'backup screen imports the SHARED status vocabulary — no local copy (one nudge truth)');
+  const shellJs = readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8');
+  ok((shellJs.match(/hue: 'error'/g) || []).length === 1,
+    "hue 'error' appears exactly once in the hub (the Delete data row) — error stays reserved (#147)");
+
+  /* —— #148 guards —— */
+  ok((tok.match(/--switch-track-off:/g) || []).length === 2
+    && (tok.match(/--switch-knob:/g) || []).length === 2,
+    'switch control pair defined in BOTH modes (#148① — the invisible-toggle fix)');
+  const baseCss2 = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  ok(/\.c-disc \{/.test(baseCss2) && /\.c-disc\[data-hue='error'\]/.test(baseCss2),
+    'the tinted disc is the shared .c-disc atom in base.css (#148 — one treatment app-wide)');
+  ok(/background: var\(--switch-track-off\)/.test(setCss)
+    && /background: var\(--switch-knob\)/.test(setCss),
+    'settings switch rides the dedicated pair (#148①)');
+  const infoCss2 = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
+  ok(/background: var\(--switch-track-off\)/.test(infoCss2)
+    && /background: var\(--switch-knob\)/.test(infoCss2),
+    'chat-info switch rides the same pair (#148 harmonization)');
+  ok(/\.c-chat-info__body > :not\(\.c-chat-info__hero\)/.test(infoCss2)
+    && /background: var\(--surface-card\)/.test(infoCss2),
+    'chat-info sections sit on cards — the settings grammar (#148, Damir consistency call)');
+  const infoJs2 = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
+  ok(/function infoDisc/.test(infoJs2)
+    && (infoJs2.match(/infoDisc\((?:'[^']+'|glyph), 'error'\)/g) || []).length === 1
+    && /infoDisc\('bell', 'warning'\)/.test(infoJs2),
+    'chat-info rows wear discs; error disc only on the destructive rows (#148)');
+  ok(/\.c-settings-backup__body > \* \{ flex: none/.test(bkCss)
+    && /\.c-settings__body > \*,\n\.c-settings-danger__body > \* \{ flex: none/.test(setCss),
+    'scroll-column children never shrink — the crushed-CTA class is guarded (#148③)');
+  ok(/\.c-settings-backup__hero \{[^}]*background: var\(--surface-card\)/.test(bkCss),
+    'backup hero is a raised PANEL carrying art/status/CTA (#148③ premium pass)');
+
+  /* —— #149 guards (Damir chat-info review, 3 items — all layout, jsdom-blind) —— */
+  ok(/\.c-chat-info__txs-list \{\n  margin-inline: calc\(-1 \* var\(--spacing-12\)\)/.test(infoCss2)
+    && /\.c-chat-info__txs \{[^}]*overflow: hidden/.test(infoCss2),
+    'chat-info tx rows run full-bleed in the card, clipped to its radius (#149①)');
+  ok(/\.c-chat-info__row \{[^}]*min-height: 52px/.test(infoCss2),
+    'chat-info rows breathe at 52px — settings parity (#149②)');
+  ok(/\.c-chat-info__qr \{[^}]*align-self: center/.test(infoCss2)
+    && /\.c-chat-info__qr svg \{ width: 148px/.test(infoCss2),
+    'chat-info QR hugs the code at 148px — account-hub parity (#149③)');
+
+  /* —— #150 guards (Damir regression screenshots) —— */
+  ok(/\.c-chat-info__body > \* \{ flex: none/.test(infoCss2),
+    'chat-info scroll-column children never shrink — the #149 overflow:hidden made payments the only shrinkable child and it clipped to a sliver (#150①)');
+  ok(/\.c-member__actions \{[^}]*width: 100%/.test(infoCss2),
+    'member-sheet actions span the row — Kick/Ban match the Pay/Request size (#150②)');
+  ok((tok.match(/--surface-input-on-card:/g) || []).length === 2,
+    'input-on-card pair defined in BOTH modes (#150③ — input === card made fields invisible)');
+  ok(/--surface-input: var\(--surface-input-on-card\)/.test(infoCss2)
+    && /--surface-input: var\(--surface-input-on-card\)/.test(setCss),
+    'carded containers reassign --surface-input (the #20 contextual-override precedent, #150③)');
+  const infoJs3 = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
+  ok(/notifSection\.className = 'c-chat-info__setting-section'/.test(infoJs3),
+    'notifications row wrapped like the sd row — equal single-row card heights (#150④)');
+  const scrCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
+  ok(/data-side='sent'\] \{[^}]*color: var\(--text-bubble-sent\)/.test(scrCss)
+    && /data-side='received'\] \{[^}]*color: var\(--text-bubble-received\)/.test(scrCss),
+    'appearance preview bubbles ride the REAL bubble ink pair — no dark-on-blue (#150⑦)');
+  ok(/\.c-settings-danger__confirm-warn \{[^}]*background: var\(--disc-error-bg\)/.test(setCss),
+    'cannot-undo strip styled as the error-tonal wash (#150⑥)');
+}
+
 {
   /* static guards: demos must link every component stylesheet they render —
      jsdom is style-blind; the tip sheet shipped once with native-looking chips

@@ -10349,6 +10349,16 @@ function sectionLabel(text) {
   return l;
 }
 
+/* tinted icon disc (#148 — the settings-family atom from base.css; Damir:
+   chat-info/contact follows the same treatment for consistency) */
+function infoDisc(glyph, hue) {
+  const d = document.createElement('span');
+  d.className = 'c-disc';
+  d.dataset.hue = hue;
+  d.append(icon(glyph, { size: 16 }));
+  return d;
+}
+
 function createChatInfo({
   kind = 'contact',              // 'contact' | 'group' | 'bot'
   context = 'chat',              // 'chat' | 'contact' — contact page reuses this surface (#142)
@@ -10604,7 +10614,7 @@ function createChatInfo({
     row.className = 'c-chat-info__row';
     const lab = document.createElement('span');
     lab.className = 'c-chat-info__row-label';
-    lab.append(icon('bell', { size: 20 }), document.createTextNode(strings.notifications || 'Notifications'));
+    lab.append(infoDisc('bell', 'warning'), document.createTextNode(strings.notifications || 'Notifications'));
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'c-chat-info__switch';
@@ -10630,7 +10640,13 @@ function createChatInfo({
       ));
     });
     row.append(lab, toggle);
-    body.append(row);
+    // #150④: same wrapper structure as the sd row — the bare row WAS the card,
+    // so its border-box min-height swallowed the card padding and it rendered
+    // shorter than the (wrapped) disappearing-messages row (Damir screenshot)
+    const notifSection = document.createElement('div');
+    notifSection.className = 'c-chat-info__setting-section';
+    notifSection.append(row);
+    body.append(notifSection);
   }
 
   /* ——— disappearing messages (#142 — chat-side policy, so chat context only;
@@ -10641,7 +10657,7 @@ function createChatInfo({
     sdRow.className = 'c-chat-info__row c-chat-info__setting';
     const sdLab = document.createElement('span');
     sdLab.className = 'c-chat-info__row-label';
-    sdLab.append(icon('hourglass-empty', { size: 20 }),
+    sdLab.append(infoDisc('hourglass-empty', 'accent'),
       document.createTextNode(strings.selfDestruct || 'Disappearing messages'));
     const sdVal = document.createElement('span');
     sdVal.className = 'c-chat-info__setting-value';
@@ -10876,7 +10892,7 @@ function createChatInfo({
     toggle.type = 'button';
     toggle.className = 'c-chat-info__txs-toggle';
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.append(icon('wallet', { size: 20 }),
+    toggle.append(infoDisc('wallet', 'success'),
       document.createTextNode((strings.payments || 'Payments') + ' (' + txs.length + ')'));
     const chev = icon('chevron-down', { size: 18 });
     chev.classList.add('c-chat-info__txs-chevron');
@@ -10924,7 +10940,7 @@ function createChatInfo({
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-chat-info__danger-row';
-    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.append(infoDisc(glyph, 'error'), document.createTextNode(label));   // #148: error disc = destructive reservation
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));
@@ -11016,5 +11032,1642 @@ function createChatInfo({
   return el;
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo };
+/* ---- src/components/settings-shell.js ---- */
+/**
+ * c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
+ * DECISIONS #146 build · #147 premium round).
+ *
+ * #147 (Damir, reference-driven): identity hero CENTERED + QR-FORWARD (P2P —
+ * "add me" is THE account action: avatar/name, QR card immediately visible,
+ * full address chip under it, no reveal step) · rows carry TINTED ICON DISCS
+ * (--disc-* token pairs; error hue reserved for destructive) · hub groups sit
+ * on CARD surfaces (--surface-card) · theme picker = VISUAL PREVIEW TILES
+ * (fixed --preview-* paints; System splits diagonally) · danger screen split:
+ * quiet "free up space" rows vs heavy account/wallet cards.
+ *
+ * Commit grammar (#146): PER-ROW, no Save button. nickname/avatar → immediate
+ * ixian:save:<nick> (side-effect persists lang/lock — already committed
+ * per-row); theme/language ride their legacy immediate commands
+ * (ixian:appearance:<int> — automatic=0/light=1/dark=2, ThemeManager.cs:9 —
+ * and ixian:language:<code>). Lock OFF is PENDING, not optimistic (C# LockPage
+ * auth → setLockEnabled("False")).
+ *
+ * Sub-screens (chat appearance / privacy / notifications / security level)
+ * live in settings-screens.js — the hub only navs to them, capability-gated.
+ *
+ * Async callbacks use the house (payload, ctrl) contract, one-shot (#138 m1).
+ * Icon stand-ins (#146 gaps): language 'at' (world pending), lock
+ * 'square-asterisk' (lock pending).
+ */
+
+
+
+
+
+
+
+
+
+
+const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
+  { value: 0, key: 'themeSystem', label: 'System' },
+  { value: 1, key: 'themeLight', label: 'Light' },
+  { value: 2, key: 'themeDark', label: 'Dark' },
+];
+
+// one-shot ctrl (#138 m1) — named uniquely: chat-info owns `ctrlFor` at module scope
+function settingsCtrl(onDone, onFail) {
+  let used = false;
+  return {
+    done: (payload) => { if (used) return; used = true; onDone(payload); },
+    fail: (msg) => { if (used) return; used = true; onFail(msg); },
+  };
+}
+
+function settingsLabel(text) {
+  const l = document.createElement('h3');
+  l.className = 'c-settings__label';
+  l.textContent = text;
+  return l;
+}
+
+/* tinted icon disc (#147) — data-hue rides the --disc-* token pairs */
+function settingsDisc(glyph, hue) {
+  const d = document.createElement('span');
+  d.className = 'c-disc';
+  d.dataset.hue = hue;
+  d.append(icon(glyph, { size: 16 }));
+  return d;
+}
+
+/* backup row/screen share one status vocabulary (backup-ux-spec §3.1/§4):
+   { last: string|null (pre-formatted date label), dirtyCount: number } */
+function backupStatusParts(status = {}, strings = {}) {
+  const { last = null, dirtyCount = 0 } = status;
+  if (!last) {
+    return {
+      text: strings.backupStatusNever || 'Not backed up yet',
+      badgeType: 'warning', badgeLabel: strings.backupActionNeeded || 'Action needed',
+    };
+  }
+  if (dirtyCount > 0) {
+    return {
+      text: (strings.backupStatusDirty || '{n} new contacts since last backup')
+        .split('{n}').join(String(dirtyCount)),
+      badgeType: 'info', badgeLabel: strings.backupUpdate || 'Update',
+    };
+  }
+  return {
+    text: (strings.backupStatusDate || 'Backed up · {date}').split('{date}').join(last),
+    badgeType: null, badgeLabel: '',
+  };
+}
+
+/* shared radio option sheet (language & friends) — sd-sheet grammar (#142):
+   commit-per-pick, latched; spinner in the fixed status slot (#145③) */
+function settingsOptionSheet({ title, hint, options, current, host, strings = {}, commit, onPicked }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings__opts';
+  // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
+  // search joins here later when the list outgrows scanning (chat-list grammar)
+  if (options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
+  wrap.setAttribute('role', 'radiogroup');
+  wrap.setAttribute('aria-label', title);
+  if (hint) {
+    const h = document.createElement('p');
+    h.className = 'c-settings__opts-hint';
+    h.textContent = hint;
+    wrap.append(h);
+  }
+  let inFlight = false;
+  for (const o of options) {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'c-settings__opt';
+    opt.setAttribute('role', 'radio');
+    opt.setAttribute('aria-checked', String(o.value === current));
+    if (o.flag) {                              // #148⑥: leading flag slot (emoji now; SVG assets can swap in)
+      const fl = document.createElement('span');
+      fl.className = 'c-settings__opt-flag';
+      fl.setAttribute('aria-hidden', 'true');
+      fl.textContent = o.flag;
+      opt.append(fl);
+    }
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__opt-label';
+    lab.textContent = o.label;
+    const status = document.createElement('span');
+    status.className = 'c-settings__opt-status';
+    const tick = icon('check', { size: 18 });
+    tick.classList.add('c-settings__opt-check');
+    status.append(tick);
+    opt.append(lab, status);
+    opt.addEventListener('click', () => {
+      if (inFlight || o.value === current) return;
+      inFlight = true;
+      opt.dataset.loading = '';
+      opt.setAttribute('aria-busy', 'true');
+      const spinner = document.createElement('span');
+      spinner.className = 'c-button__spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      status.append(spinner);
+      commit(o.value, settingsCtrl(
+        () => { closeSheet(sheet); if (onPicked) onPicked(o); },
+        (msg) => {
+          inFlight = false;
+          opt.removeAttribute('aria-busy');
+          delete opt.dataset.loading;
+          spinner.remove();
+          if (onPicked) onPicked(null, msg);
+        },
+      ));
+    });
+    wrap.append(opt);
+  }
+  const sheet = createSheet({ content: wrap, host, title, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+/* theme sheet (#147): VISUAL PREVIEW TILES — light/dark painted with the FIXED
+   --preview-* pairs (a preview must show its own mode regardless of the active
+   theme; the --surface-qr precedent), System = diagonal split. Same latch +
+   commit-per-pick contract as the option sheet. */
+function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings__themes';
+  wrap.setAttribute('role', 'radiogroup');
+  wrap.setAttribute('aria-label', strings.theme || 'Theme');
+  let inFlight = false;
+  const tilesByValue = new Map();
+  // #148②: the sheet STAYS OPEN after a pick — trying themes must not cost a
+  // reopen per try (Damir). The check moves live; the user dismisses when done.
+  const paint = () => {
+    for (const [v, t] of tilesByValue) t.setAttribute('aria-checked', String(v === current));
+  };
+  for (const o of THEME_OPTIONS) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-settings__theme';
+    tile.setAttribute('role', 'radio');
+    tile.dataset.mode = ['system', 'light', 'dark'][o.value];
+    tile.setAttribute('aria-checked', String(o.value === current));
+    const art = document.createElement('span');
+    art.className = 'c-settings__theme-art';
+    art.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 3; i++) {                 // mini screen: bar + two lines
+      const line = document.createElement('span');
+      line.className = 'c-settings__theme-line';
+      art.append(line);
+    }
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__theme-label';
+    lab.textContent = strings[o.key] || o.label;
+    const status = document.createElement('span');
+    status.className = 'c-settings__opt-status';
+    const tick = icon('check', { size: 18 });
+    tick.classList.add('c-settings__opt-check');
+    status.append(tick);
+    const foot = document.createElement('span');
+    foot.className = 'c-settings__theme-foot';
+    foot.append(lab, status);
+    tile.append(art, foot);
+    tile.addEventListener('click', () => {
+      if (inFlight || o.value === current) return;
+      inFlight = true;
+      tile.dataset.loading = '';
+      tile.setAttribute('aria-busy', 'true');
+      const spinner = document.createElement('span');
+      spinner.className = 'c-button__spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      status.append(spinner);
+      const settle = () => {
+        inFlight = false;
+        tile.removeAttribute('aria-busy');
+        delete tile.dataset.loading;
+        spinner.remove();
+      };
+      commit(o.value, settingsCtrl(
+        () => {
+          settle();
+          current = o.value;
+          paint();                             // sheet stays open (#148②) — keep trying
+          if (onPicked) onPicked(o);
+        },
+        (msg) => {
+          settle();
+          if (onPicked) onPicked(null, msg);
+        },
+      ));
+    });
+    tilesByValue.set(o.value, tile);
+    wrap.append(tile);
+  }
+  const sheet = createSheet({ content: wrap, host, title: strings.theme || 'Theme', strings });
+  openSheet(sheet);
+  return sheet;
+}
+
+function createSettingsHub({
+  name = '',                     // account nickname (legacy setNickname push)
+  address = '',                  // own address — identity truth
+  avatarSrc = null,              // custom avatar path (legacy loadAvatar push)
+  hasCustomAvatar = false,       // legacy showRemoveAvatar flag
+  theme = 0,                     // ThemeAppearance index
+  languages = [],                // [{ code, label }] — §9 ask: list source
+  language = '',                 // current code
+  lockEnabled = false,
+  paymentAuth = false,           // #150⑤: confirm-payments preference (§9-gated)
+  backup = {},                   // { last, dirtyCount } — see backupStatusParts
+  version = '',                  // About row value (§9 ask: no bridge push exists)
+  capabilities = {},             // { dev, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
+  host,
+  onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
+  onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
+  onAvatarChange,                // (ctrl) — ixian:avatar picker; ctrl.done({ src })
+  onAvatarRemove,                // (ctrl) — ixian:remove
+  onTheme,                       // (index, ctrl) — ixian:appearance:<int>
+  onLanguage,                    // (code, ctrl) — ixian:language:<code>
+  onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
+  onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
+  onChatAppearance,              // nav → chat-appearance screen (FE-only, #147)
+  onNotifications,               // nav → notifications screen (§9-gated)
+  onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
+  onPrivacy,                     // nav → privacy screen (§9-gated)
+  onBackup,                      // nav → backup screen
+  onDownloads, onContributors, onDev,   // nav (screens = next slice)
+  onDanger,                      // nav → danger screen
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-settings';
+
+  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account' }));
+
+  const body = document.createElement('div');
+  body.className = 'c-settings__body u-scroll';
+  el.append(body);
+
+  const live = document.createElement('p');
+  live.className = 'c-settings__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
+
+  const hostFor = () => host || el.closest('.demo-phone') || undefined;
+
+  /* ——— identity hero: CENTERED, QR-FORWARD (#147) ——— */
+  const hero = document.createElement('div');
+  hero.className = 'c-settings__hero';
+
+  const avatarBtn = document.createElement('button');
+  avatarBtn.type = 'button';
+  avatarBtn.className = 'c-settings__avatar';
+  avatarBtn.setAttribute('aria-label', strings.changePhoto || 'Change photo');
+  let avatarEl = createAvatar({ src: avatarSrc, name, address, size: 80 });
+  avatarBtn.append(avatarEl);
+  const avatarEditDot = document.createElement('span');
+  avatarEditDot.className = 'c-settings__avatar-edit';
+  avatarEditDot.setAttribute('aria-hidden', 'true');
+  avatarEditDot.append(icon('pencil', { size: 12 }));
+  avatarBtn.append(avatarEditDot);
+  const renderAvatar = () => {
+    const next = createAvatar({ src: avatarSrc, name, address, size: 80 });
+    avatarEl.replaceWith(next);
+    avatarEl = next;
+  };
+
+  if (onAvatarChange || onAvatarRemove) {
+    avatarBtn.addEventListener('click', () => {
+      const wrap = document.createElement('div');
+      wrap.className = 'c-settings__avatar-sheet';
+      let inFlight = false;
+      const option = (label, glyph, destructive, run) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-settings__avatar-option';
+        if (destructive) b.dataset.destructive = '';
+        b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+        b.addEventListener('click', () => {
+          if (inFlight) return;
+          inFlight = true;
+          b.setAttribute('aria-busy', 'true');
+          run(settingsCtrl(
+            (payload) => {
+              if (payload && 'src' in payload) { avatarSrc = payload.src; hasCustomAvatar = !!payload.src; }
+              else { avatarSrc = null; hasCustomAvatar = false; }
+              renderAvatar();
+              closeSheet(sheet);
+            },
+            (msg) => {
+              inFlight = false;
+              b.removeAttribute('aria-busy');
+              live.textContent = msg || strings.avatarFailed || 'Couldn’t update the photo.';
+            },
+          ));
+        });
+        wrap.append(b);
+      };
+      if (onAvatarChange) option(strings.choosePhoto || 'Choose photo', 'photo', false, onAvatarChange);
+      // remove only when a CUSTOM avatar exists (legacy showRemoveAvatar honesty)
+      if (onAvatarRemove && hasCustomAvatar) option(strings.removePhoto || 'Remove photo', 'trash', true, onAvatarRemove);
+      const sheet = createSheet({
+        content: wrap, host: hostFor(),
+        title: strings.profilePhoto || 'Profile photo', strings,
+      });
+      openSheet(sheet);
+    });
+  } else {
+    avatarBtn.disabled = true;
+  }
+  hero.append(avatarBtn);
+
+  const nameRow = document.createElement('div');
+  nameRow.className = 'c-settings__name-row';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'c-settings__name';
+  nameEl.textContent = name;
+  nameRow.append(nameEl);
+  hero.append(nameRow);
+
+  /* nickname edit — chat-info grammar (#141-M1 committing latch); EMPTY nick =
+     inline error, no commit (legacy validates non-empty via ixian:error) */
+  if (onNickname) {
+    const pencil = createButton({
+      type: 'text', size: 44, icon: icon('pencil', { size: 18 }),
+      onClick: startNickEdit,
+    });
+    pencil.classList.add('c-settings__nick-edit');
+    pencil.setAttribute('aria-label', strings.editNickname || 'Edit nickname');
+    nameRow.append(pencil);
+
+    const nickErr = document.createElement('span');
+    nickErr.className = 'c-settings__nick-error';
+    nickErr.setAttribute('role', 'alert');
+    nickErr.hidden = true;
+    hero.append(nickErr);
+
+    function startNickEdit() {
+      if (nameRow.querySelector('.c-settings__nick-input')) return;
+      nickErr.hidden = true;
+      const input = document.createElement('input');
+      input.className = 'c-settings__nick-input';
+      input.type = 'text';
+      input.value = name;
+      input.setAttribute('aria-label', strings.nickname || 'Nickname');
+      nameEl.hidden = true;
+      pencil.hidden = true;
+      nameRow.insertBefore(input, nameEl);
+      input.focus();
+      let closed = false;
+      let committing = false;                 // #141-M1: Enter→disable→blur double-commit latch
+      const closeEdit = () => {
+        if (closed) return;
+        closed = true;
+        input.remove();
+        nameEl.hidden = false;
+        pencil.hidden = false;
+      };
+      const showErr = (msg) => {
+        committing = false;
+        input.disabled = false;
+        nickErr.textContent = msg;
+        nickErr.hidden = false;
+        input.focus();
+      };
+      const commit = () => {
+        if (closed || committing) return;
+        const nick = input.value.trim();
+        if (nick === name) { closeEdit(); return; }
+        if (!nick) {                          // legacy: empty nickname is invalid
+          showErr(strings.nicknameEmpty || 'Enter a nickname — it’s how contacts see you.');
+          return;
+        }
+        committing = true;
+        input.disabled = true;
+        onNickname(nick, settingsCtrl(
+          () => {
+            name = nick;
+            nameEl.textContent = name;
+            closeEdit();
+            pencil.focus();                   // #137 M3: never drop focus
+          },
+          (msg) => showErr(msg || strings.nicknameFailed || 'Couldn’t save the nickname.'),
+        ));
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') {
+          e.stopPropagation();
+          if (committing) return;             // no escape hatch mid-flight
+          closeEdit();
+          pencil.focus();
+        }
+      });
+      input.addEventListener('blur', commit);
+    }
+  }
+
+  /* QR — immediately visible (#147: no reveal; scanning IS the add-me action) */
+  if (address) {
+    const qrBox = document.createElement('div');
+    qrBox.className = 'c-settings__qr';
+    qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
+    hero.append(qrBox);
+
+    /* full address chip + honest copy morph (#137 m1) */
+    const row = document.createElement('div');
+    row.className = 'c-settings__address-row';
+    const value = document.createElement('span');
+    value.className = 'c-settings__address-value u-tabular';
+    value.textContent = address;
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'c-settings__copy';
+    copy.append(icon('copy', { size: 18 }));
+    copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
+    let morphTimer = null;
+    const morph = (glyph, announce) => {
+      copy.replaceChildren(icon(glyph, { size: 18 }));
+      live.textContent = announce;
+      clearTimeout(morphTimer);
+      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
+    };
+    copy.addEventListener('click', () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(address).then(
+          () => morph('check', strings.copied || 'Copied'),
+          () => morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+        );
+      } else {
+        morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+      }
+    });
+    row.append(value, copy);
+    if (onShare) {                             // #148⑤ — share beside copy (system sheet via shell)
+      const share = document.createElement('button');
+      share.type = 'button';
+      share.className = 'c-settings__copy c-settings__share';
+      share.append(icon('share-3', { size: 18 }));
+      share.setAttribute('aria-label', strings.shareAddress || 'Share address');
+      share.addEventListener('click', () => onShare({ address }));
+      row.append(share);
+    }
+    hero.append(row);
+  }
+  body.append(hero);
+
+  /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
+  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls }) => {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement(onClick ? 'button' : 'div');
+    if (onClick) row.type = 'button';
+    row.className = 'c-settings__row' + (onClick ? '' : ' c-settings__row--static') + (cls ? ' ' + cls : '');
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
+    if (sub) {
+      const top = document.createElement('span');
+      top.className = 'c-settings__row-top';
+      top.append(settingsDisc(glyph, hue), document.createTextNode(label));
+      const s = document.createElement('span');
+      s.className = 'c-settings__row-sub';
+      s.textContent = sub;
+      lab.append(top, s);
+    } else {
+      lab.append(settingsDisc(glyph, hue), document.createTextNode(label));
+    }
+    row.append(lab);
+    const val = document.createElement('span');
+    val.className = 'c-settings__row-value';
+    val.textContent = value;
+    row.append(val);
+    let badge = null;
+    if (badgeSlot) {
+      badge = document.createElement('span');
+      badge.className = 'c-settings__backup-badge';
+      row.append(badge);
+    }
+    if (onClick) {
+      row.append(icon('chevron-right', { size: 18 }));
+      row.addEventListener('click', onClick);
+    }
+    section.append(row);
+    return { section, row, val, sub: lab.querySelector('.c-settings__row-sub'), badge };
+  };
+
+  const group = (labelText) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-settings__groupwrap';
+    if (labelText) wrap.append(settingsLabel(labelText));
+    const card = document.createElement('div');
+    card.className = 'c-settings__group';
+    wrap.append(card);
+    return { wrap, card };
+  };
+
+  /* ——— preferences ——— */
+  const prefs = group(strings.preferences || 'Preferences');
+
+  if (onTheme) {
+    const themeLabelFor = (v) => {
+      const o = THEME_OPTIONS.find((x) => x.value === v) || THEME_OPTIONS[0];
+      return strings[o.key] || o.label;
+    };
+    const t = settingRow({
+      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme',
+      value: themeLabelFor(theme),
+      onClick: () => settingsThemeSheet({
+        current: theme, host: hostFor(), strings,
+        commit: (v, ctrl) => onTheme(v, ctrl),
+        onPicked: (o, msg) => {
+          if (!o) { live.textContent = msg || strings.themeFailed || 'Couldn’t change the theme.'; return; }
+          theme = o.value;
+          t.val.textContent = strings[o.key] || o.label;
+          live.textContent = (strings.theme || 'Theme') + ': ' + (strings[o.key] || o.label);
+        },
+      }),
+    });
+    prefs.card.append(t.section);
+  }
+
+  if (onLanguage && languages.length) {
+    const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
+    const lg = settingRow({
+      glyph: 'at', hue: 'info',                // stand-in — 'world' pending export (#146)
+      label: strings.language || 'Language',
+      value: langLabelFor(language),
+      onClick: () => settingsOptionSheet({
+        title: strings.language || 'Language',
+        options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
+        current: language, host: hostFor(), strings,
+        commit: (code, ctrl) => onLanguage(code, ctrl),
+        onPicked: (o, msg) => {
+          if (!o) { live.textContent = msg || strings.languageFailed || 'Couldn’t change the language.'; return; }
+          language = o.value;
+          lg.val.textContent = o.label;
+          live.textContent = (strings.language || 'Language') + ': ' + o.label;
+        },
+      }),
+    });
+    prefs.card.append(lg.section);
+  }
+
+  if (onChatAppearance) prefs.card.append(settingRow({
+    glyph: 'messages', hue: 'primary',
+    label: strings.chatAppearance || 'Chat appearance',
+    onClick: () => onChatAppearance(),
+  }).section);
+
+  if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
+    glyph: 'bell', hue: 'warning',
+    label: strings.notifications || 'Notifications',
+    onClick: () => onNotifications(),
+  }).section);
+
+  if (prefs.card.childElementCount) body.append(prefs.wrap);
+
+  /* ——— security & privacy (lock · tiers · privacy · backup nudge) ——— */
+  const sec = group(strings.securityPrivacy || 'Security & privacy');
+
+  /* app lock — switch row. ON = optimistic + revert-on-fail; OFF = PENDING
+     (stays checked + aria-busy until the LockPage auth round-trips, #146⑦) */
+  if (onLock) {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label';
+    lab.append(settingsDisc('square-asterisk', 'success'),   // stand-in — 'lock' pending export (#146)
+      document.createTextNode(strings.appLock || 'App lock'));
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'c-settings__switch';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', String(!!lockEnabled));
+    toggle.setAttribute('aria-label', strings.appLock || 'App lock');
+    const knob = document.createElement('span');
+    knob.className = 'c-settings__switch-knob';
+    toggle.append(knob);
+    let inFlight = false;
+    toggle.addEventListener('click', () => {
+      if (inFlight) return;
+      inFlight = true;
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      if (next) {
+        toggle.setAttribute('aria-checked', 'true');       // optimistic ON
+        onLock(true, settingsCtrl(
+          () => { inFlight = false; },
+          (msg) => {
+            toggle.setAttribute('aria-checked', 'false');  // revert
+            live.textContent = msg || strings.lockFailed || 'Couldn’t turn on the app lock.';
+            inFlight = false;
+          },
+        ));
+      } else {
+        toggle.setAttribute('aria-busy', 'true');          // pending — auth decides
+        onLock(false, settingsCtrl(
+          () => {
+            toggle.removeAttribute('aria-busy');
+            toggle.setAttribute('aria-checked', 'false');  // setLockEnabled("False") landed
+            inFlight = false;
+          },
+          (msg) => {
+            toggle.removeAttribute('aria-busy');           // auth canceled/failed → stays ON
+            if (msg) live.textContent = msg;
+            inFlight = false;
+          },
+        ));
+      }
+    });
+    row.append(lab, toggle);
+    section.append(row);
+    sec.card.append(section);
+  }
+
+  /* confirm payments (#150⑤, Damir): require PIN/biometric before a payment
+     leaves the review step. §9-GATED (no bridge command; C# LockPage is the
+     plausible plumbing). SECURITY.md note: the toggle is a PREFERENCE — the
+     enforcement lives C#-side, shells still emit intent only. Lock-row
+     asymmetry applies: ON optimistic, OFF = auth round-trip (weakening a
+     security setting must cost an auth). Cascades from the #147 tiers. */
+  if (capabilities.paymentAuth && onPaymentAuth) {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label c-settings__row-label--stack';
+    const top = document.createElement('span');
+    top.className = 'c-settings__row-top';
+    top.append(settingsDisc('wallet', 'warning'),
+      document.createTextNode(strings.paymentAuth || 'Confirm payments'));
+    const s = document.createElement('span');
+    s.className = 'c-settings__row-sub';
+    s.textContent = strings.paymentAuthSub || 'PIN or biometrics before anything is sent';
+    lab.append(top, s);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'c-settings__switch';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', String(!!paymentAuth));
+    toggle.setAttribute('aria-label', strings.paymentAuth || 'Confirm payments');
+    const knob = document.createElement('span');
+    knob.className = 'c-settings__switch-knob';
+    toggle.append(knob);
+    let inFlight = false;
+    toggle.addEventListener('click', () => {
+      if (inFlight) return;
+      inFlight = true;
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      if (next) {
+        toggle.setAttribute('aria-checked', 'true');       // optimistic ON
+        onPaymentAuth(true, settingsCtrl(
+          () => { inFlight = false; },
+          (msg) => {
+            toggle.setAttribute('aria-checked', 'false');
+            live.textContent = msg || strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.';
+            inFlight = false;
+          },
+        ));
+      } else {
+        toggle.setAttribute('aria-busy', 'true');          // pending — auth decides
+        onPaymentAuth(false, settingsCtrl(
+          () => {
+            toggle.removeAttribute('aria-busy');
+            toggle.setAttribute('aria-checked', 'false');
+            inFlight = false;
+          },
+          (msg) => {
+            toggle.removeAttribute('aria-busy');           // auth canceled → stays ON
+            if (msg) live.textContent = msg;
+            inFlight = false;
+          },
+        ));
+      }
+    });
+    row.append(lab, toggle);
+    section.append(row);
+    sec.card.append(section);
+  }
+
+  if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
+    glyph: 'user-cog', hue: 'primary',
+    label: strings.securityLevel || 'Security level',
+    onClick: () => onSecurity(),
+  }).section);
+
+  if ((capabilities.readReceipts || capabilities.typing) && onPrivacy) sec.card.append(settingRow({
+    glyph: 'eye-off', hue: 'info',
+    label: strings.privacy || 'Privacy',
+    onClick: () => onPrivacy(),
+  }).section);
+
+  /* backup row — the STANDING NUDGE (backup-ux-spec §3.1) */
+  if (onBackup) {
+    const b = settingRow({
+      glyph: 'shield-lock', hue: 'success',
+      label: strings.backup || 'Backup',
+      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup',
+      onClick: () => onBackup(),
+    });
+    // the status line keeps its own identity — setBackupStatus/smoke/css hook
+    // onto it (the #147 settingRow refactor silently dropped this class; smoke caught it)
+    b.sub.classList.add('c-settings__backup-sub');
+    sec.card.append(b.section);
+    el._backupBits = { subEl: b.sub, badgeSlot: b.badge, strings };   // setBackupStatus hook
+    setBackupStatus(el, backup);
+  }
+
+  if (sec.card.childElementCount) body.append(sec.wrap);
+
+  /* ——— app ——— */
+  const app = group(strings.app || 'App');
+  if (onDownloads) app.card.append(settingRow({
+    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
+    onClick: () => onDownloads(),
+  }).section);
+  if (onContributors) app.card.append(settingRow({
+    glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
+    onClick: () => onContributors(),
+  }).section);
+  if (capabilities.dev && onDev) app.card.append(settingRow({
+    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer',
+    onClick: () => onDev(),
+  }).section);
+  if (version) app.card.append(settingRow({
+    glyph: 'info-circle', hue: 'neutral', label: strings.version || 'Version', value: version,
+  }).section);
+  if (app.card.childElementCount) body.append(app.wrap);
+
+  /* ——— danger nav — ONE calm row (error disc reserved for exactly this) ——— */
+  if (onDanger) {
+    const dz = group();
+    dz.card.append(settingRow({
+      glyph: 'trash', hue: 'error', label: strings.deleteData || 'Delete data…',
+      onClick: () => onDanger(),
+    }).section);
+    body.append(dz.wrap);
+  }
+
+  return el;
+}
+
+/* free fn (#44): live backup-row state — the badge IS the standing nudge */
+function setBackupStatus(hub, status = {}) {
+  const bits = hub._backupBits;
+  if (!bits) return;
+  const parts = backupStatusParts(status, bits.strings);
+  bits.subEl.textContent = parts.text;
+  bits.badgeSlot.replaceChildren();
+  if (parts.badgeType) {
+    bits.badgeSlot.append(createBadge({ type: parts.badgeType, weight: 'tonal', label: parts.badgeLabel }));
+  }
+}
+
+/**
+ * Danger screen (#147 tone split): "Free up space" = QUIET rows (history,
+ * downloads — reversible-ish, device-local) · "Danger zone" = HEAVY bordered
+ * cards (account data, wallet). Every action behind the house LOCKED
+ * alertdialog confirm (#135-C1: Cancel autofocus, Esc/scrim/Cancel dead in
+ * flight via live setOverlayOpts, confirm latched). The LockPage auth on
+ * account/wallet is C#-SIDE — the FE confirm is deliberateness, not the
+ * security boundary.
+ */
+function createSettingsDanger({
+  host,
+  onBack,
+  onDeleteHistory,               // (ctrl) — ixian:deleteh (legacy UNGATED — §9 flag)
+  onDeleteDownloads,             // (ctrl) — ixian:deleted
+  onDeleteAccount,               // (ctrl) — ixian:deletea (C# LockPage gate)
+  onDeleteWallet,                // (ctrl) — ixian:delete (C# LockPage gate → Launch)
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-settings-danger';
+  el.append(createTopbar({ variant: 'view', title: strings.deleteData || 'Delete data', onBack }));
+
+  const body = document.createElement('div');
+  body.className = 'c-settings-danger__body u-scroll';
+  el.append(body);
+
+  const hostFor = () => host || el.closest('.demo-phone') || undefined;
+
+  function confirmAction({ title, bodyText, confirmLabel, run }) {
+    let inFlight = false;
+    const extra = document.createElement('div');
+    // #150⑥ (Damir): EVERY account-shell delete confirm carries the standing
+    // irreversibility warning as its own strip — not buried in body copy
+    const warn = document.createElement('p');
+    warn.className = 'c-settings-danger__confirm-warn';
+    warn.append(icon('alert-square-rounded', { size: 18 }),
+      document.createTextNode(strings.cannotUndo || 'This action cannot be undone.'));
+    const err = document.createElement('p');
+    err.className = 'c-settings-danger__confirm-error';
+    err.setAttribute('role', 'alert');
+    err.hidden = true;
+    extra.append(warn, err);
+    const modal = createModal({
+      title, body: bodyText, content: extra, role: 'alertdialog', host: hostFor(),
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true,
+          onClick: () => (inFlight ? false : undefined) },
+        {
+          label: confirmLabel, type: 'fill', intent: 'destructive',
+          onClick: () => {
+            if (inFlight) return false;
+            inFlight = true;
+            err.hidden = true;
+            const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+            const confirmBtn = btns[btns.length - 1];
+            setLoading(confirmBtn, true);
+            setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });
+            const fail = (msg) => {
+              inFlight = false;
+              setLoading(confirmBtn, false);
+              setOverlayOpts(modal, { escDismiss: true });
+              err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+              err.hidden = false;
+              confirmBtn.focus();
+            };
+            try {
+              run(settingsCtrl(() => dismissOverlay(modal), fail));
+            } catch (ex) {
+              fail();
+            }
+            return false;                    // closes on ctrl.done only
+          },
+        },
+      ],
+      strings,
+    });
+    openModal(modal);
+    return modal;
+  }
+
+  /* quiet tier — plain rows on a group card */
+  const quietWrap = document.createElement('div');
+  quietWrap.className = 'c-settings__groupwrap';
+  quietWrap.append(settingsLabel(strings.freeUpSpace || 'Free up space'));
+  const quiet = document.createElement('div');
+  quiet.className = 'c-settings__group';
+  quietWrap.append(quiet);
+  const quietRow = (label, sub, buildOpts) => {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-settings__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label c-settings__row-label--stack';
+    const top = document.createElement('span');
+    top.className = 'c-settings__row-top';
+    const disc = document.createElement('span');
+    disc.className = 'c-disc';
+    disc.dataset.hue = 'neutral';
+    disc.append(icon('trash', { size: 16 }));
+    top.append(disc, document.createTextNode(label));
+    const s = document.createElement('span');
+    s.className = 'c-settings__row-sub';
+    s.textContent = sub;
+    lab.append(top, s);
+    row.append(lab, icon('chevron-right', { size: 18 }));
+    row.addEventListener('click', () => confirmAction(buildOpts()));
+    section.append(row);
+    quiet.append(section);
+  };
+
+  if (onDeleteHistory) quietRow(
+    strings.deleteHistory || 'Delete all chat history',
+    strings.deleteHistorySub || 'Messages go from this device. Contacts keep theirs.',
+    () => ({
+      title: strings.deleteHistoryTitle || 'Delete all chat history?',
+      bodyText: strings.deleteHistoryBody || 'Every conversation is removed from this device.',
+      confirmLabel: strings.deleteConfirm || 'Delete',
+      run: (ctrl) => onDeleteHistory(ctrl),
+    }),
+  );
+  if (onDeleteDownloads) quietRow(
+    strings.deleteDownloads || 'Delete downloads',
+    strings.deleteDownloadsSub || 'Files received in chats go from this device.',
+    () => ({
+      title: strings.deleteDownloadsTitle || 'Delete downloads?',
+      bodyText: strings.deleteDownloadsBody || 'Received files are removed from this device. Senders keep theirs.',
+      confirmLabel: strings.deleteConfirm || 'Delete',
+      run: (ctrl) => onDeleteDownloads(ctrl),
+    }),
+  );
+  if (quiet.childElementCount) body.append(quietWrap);
+
+  /* heavy tier — bordered destructive cards */
+  const heavyWrap = document.createElement('div');
+  heavyWrap.className = 'c-settings__groupwrap';
+  heavyWrap.append(settingsLabel(strings.dangerZone || 'Danger zone'));
+  body.append(heavyWrap);
+  const heavy = document.createElement('div');
+  heavy.className = 'c-settings-danger__cards';
+  heavyWrap.append(heavy);
+  const card = (title, sub, buildOpts) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-danger__card';
+    const t = document.createElement('span');
+    t.className = 'c-settings-danger__card-title';
+    t.append(icon('trash', { size: 20 }), document.createTextNode(title));
+    const s = document.createElement('span');
+    s.className = 'c-settings-danger__card-sub';
+    s.textContent = sub;
+    b.append(t, s);
+    b.addEventListener('click', () => confirmAction(buildOpts()));
+    heavy.append(b);
+  };
+
+  if (onDeleteAccount) card(
+    strings.deleteAccount || 'Delete account data',
+    strings.deleteAccountSub || 'Removes contacts, history and your avatar. Your wallet stays.',
+    () => ({
+      title: strings.deleteAccountTitle || 'Delete account data?',
+      bodyText: strings.deleteAccountBody || 'Contacts, chat history and your avatar are removed. Your wallet is kept. Spixi will ask you to confirm with your PIN.',
+      confirmLabel: strings.deleteConfirm || 'Delete',
+      run: (ctrl) => onDeleteAccount(ctrl),
+    }),
+  );
+  if (onDeleteWallet) card(
+    strings.deleteWallet || 'Delete wallet',
+    strings.deleteWalletSub || 'Removes the wallet from this device and restarts Spixi.',
+    () => ({
+      title: strings.deleteWalletTitle || 'Delete wallet?',
+      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered — by anyone. Spixi will ask you to confirm with your PIN, then restart.',
+      confirmLabel: strings.deleteWalletConfirm || 'Delete wallet',
+      run: (ctrl) => onDeleteWallet(ctrl),
+    }),
+  );
+
+  return el;
+}
+
+/* ---- src/components/settings-backup.js ---- */
+/**
+ * c-settings-backup — the Backup screen (docs/backup-ux-spec.md §3.2, built per
+ * docs/settings-shell-spec.md §5, DECISIONS #146).
+ *
+ * ONE primary action: "Back up Spixi" = the full encrypted account backup
+ * (identity + wallet + contacts + avatar — ixian:backupAccount is a strict
+ * SUPERSET of the wallet backup). Wallet-only export is demoted to an Advanced
+ * reveal (ixian:backupWallet — cold storage / other Ixian tools).
+ *
+ * CTA → password confirm modal (validation errors render INLINE on the field,
+ * never an alert — the legacy ixian:error path, restyled) → in-flight fully
+ * locked (#135-C1 via live setOverlayOpts) → ctrl.done closes the modal, the
+ * CTA morphs setSuccess "Backed up" (#29) and the status line refreshes.
+ *
+ * Hero = token-styled PLACEHOLDER composition (#146④): shield-lock on a wash
+ * disc + satellite motifs (identity/wallet/contacts). `.c-settings-backup__art`
+ * is the swap slot for illustration #6 when the illustration language lands.
+ *
+ * State honesty (backup-ux-spec §5.4): "backed up" after ctrl.done is only as
+ * true as the share-sheet ambiguity allows — the real state needs the §9
+ * timestamp/completion asks; mocks stamp the date on done.
+ */
+
+
+
+
+
+
+
+function createSettingsBackup({
+  status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
+  host,
+  onBack,
+  onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
+  onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
+  strings = {},
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-settings-backup';
+  el.append(createTopbar({ variant: 'view', title: strings.backupTitle || 'Backup', onBack }));
+
+  const body = document.createElement('div');
+  body.className = 'c-settings-backup__body u-scroll';
+  el.append(body);
+
+  const live = document.createElement('p');
+  live.className = 'c-settings-backup__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
+
+  const hostFor = () => host || el.closest('.demo-phone') || undefined;
+
+  /* ——— hero: placeholder art + copy (illustration #6 swap slot) ——— */
+  const heroSec = document.createElement('div');
+  heroSec.className = 'c-settings-backup__hero';
+  const art = document.createElement('div');
+  art.className = 'c-settings-backup__art';
+  art.setAttribute('aria-hidden', 'true');
+  const disc = document.createElement('span');
+  disc.className = 'c-settings-backup__art-disc';
+  disc.append(icon('shield-lock', { size: 48 }));
+  art.append(disc);
+  for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
+    const sat = document.createElement('span');
+    sat.className = 'c-settings-backup__art-sat';
+    sat.dataset.pos = pos;
+    sat.append(icon(glyph, { size: 16 }));
+    art.append(sat);
+  }
+  heroSec.append(art);
+  const heroTitle = document.createElement('h2');
+  heroTitle.className = 'c-settings-backup__title';
+  heroTitle.textContent = strings.backupHeroTitle || 'One file protects everything';
+  const heroBody = document.createElement('p');
+  heroBody.className = 'c-settings-backup__copy';
+  heroBody.textContent = strings.backupHeroBody ||
+    'Your identity, wallet and contacts — encrypted with your password into a single backup file.';
+  heroSec.append(heroTitle, heroBody);
+
+  /* status line — shared source with the hub row */
+  const statusLine = document.createElement('p');
+  statusLine.className = 'c-settings-backup__status';
+  heroSec.append(statusLine);
+  body.append(heroSec);
+
+  /* ——— primary CTA → password confirm → latched backup ———
+     lives ON the hero panel (#148③): promise → status → action, one moment */
+  const cta = createButton({
+    label: strings.backupCta || 'Back up Spixi', type: 'fill', size: 56, width: 'full',
+    onClick: openPasswordConfirm,
+  });
+  cta.classList.add('c-settings-backup__cta');
+  heroSec.append(cta);
+
+  function openPasswordConfirm() {
+    let inFlight = false;
+    const wrap = document.createElement('div');
+    wrap.className = 'c-settings-backup__pw';
+    const label = document.createElement('label');
+    label.className = 'c-settings-backup__pw-label';
+    label.textContent = strings.backupPwLabel || 'Wallet password';
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.className = 'c-settings-backup__pw-input';
+    input.id = overlayId('c-settings-backup-pw');
+    input.autocomplete = 'current-password';
+    label.setAttribute('for', input.id);
+    const err = document.createElement('p');
+    err.className = 'c-settings-backup__pw-error';
+    err.setAttribute('role', 'alert');
+    err.hidden = true;
+    wrap.append(label, input, err);
+
+    const modal = createModal({
+      title: strings.backupConfirmTitle || 'Confirm your password',
+      body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
+      content: wrap, host: hostFor(),
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text',
+          onClick: () => (inFlight ? false : undefined) },       // dead in flight
+        {
+          label: strings.backupCta || 'Back up Spixi', type: 'fill',
+          onClick: () => {
+            if (inFlight) return false;
+            const password = input.value;
+            if (!password) {
+              err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
+              err.hidden = false;
+              input.focus();
+              return false;
+            }
+            inFlight = true;
+            err.hidden = true;
+            input.disabled = true;
+            const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+            const confirmBtn = btns[btns.length - 1];
+            setLoading(confirmBtn, true);
+            setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
+            const fail = (msg) => {
+              inFlight = false;
+              input.disabled = false;
+              setLoading(confirmBtn, false);
+              setOverlayOpts(modal, { escDismiss: true });
+              err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
+              err.hidden = false;
+              input.focus();                                     // inline, on the field — never an alert
+            };
+            try {
+              onBackup({ password }, backupCtrl(
+                () => {
+                  dismissOverlay(modal);
+                  setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+                  live.textContent = strings.backupDone || 'Backed up';
+                },
+                fail,
+              ));
+            } catch (ex) {
+              fail();
+            }
+            return false;                                        // closes on ctrl.done only
+          },
+        },
+      ],
+      strings,
+    });
+    openModal(modal);
+    input.focus();
+  }
+
+  /* ——— what's inside — 2×2 disc tiles (#148③ premium pass) ——— */
+  const inside = document.createElement('div');
+  inside.className = 'c-settings-backup__inside';
+  const insideTitle = document.createElement('h3');
+  insideTitle.className = 'c-settings-backup__label';
+  insideTitle.textContent = strings.backupInside || 'What’s inside';
+  inside.append(insideTitle);
+  const grid = document.createElement('div');
+  grid.className = 'c-settings-backup__inside-grid';
+  inside.append(grid);
+  for (const [glyph, hue, titleKey, titleFb, subKey, subFb] of [
+    ['user-circle', 'primary', 'backupInsideIdentity', 'Identity', 'backupInsideIdentitySub', 'Your account and its keys'],
+    ['wallet', 'success', 'backupInsideWallet', 'Wallet', 'backupInsideWalletSub', 'Your funds stay yours'],
+    ['users', 'info', 'backupInsideContacts', 'Contacts', 'backupInsideContactsSub', 'Everyone you’ve connected with'],
+    ['photo', 'accent', 'backupInsideAvatar', 'Avatar', 'backupInsideAvatarSub', 'Your profile photo'],
+  ]) {
+    const tile = document.createElement('div');
+    tile.className = 'c-settings-backup__inside-tile';
+    const disc = document.createElement('span');
+    disc.className = 'c-disc';
+    disc.dataset.hue = hue;
+    disc.append(icon(glyph, { size: 16 }));
+    const tt = document.createElement('span');
+    tt.className = 'c-settings-backup__inside-title';
+    tt.textContent = strings[titleKey] || titleFb;
+    const ts = document.createElement('span');
+    ts.className = 'c-settings-backup__inside-sub';
+    ts.textContent = strings[subKey] || subFb;
+    tile.append(disc, tt, ts);
+    grid.append(tile);
+  }
+  body.append(inside);
+
+  /* restore note — the honesty line (P2P: no server escrow) */
+  const note = document.createElement('p');
+  note.className = 'c-settings-backup__note';
+  note.textContent = strings.backupRestoreNote ||
+    'Restoring needs this file and your password. Spixi can’t recover either for you.';
+  body.append(note);
+
+  /* ——— Advanced reveal — wallet-only export (QR-reveal grammar) ——— */
+  if (onExportWallet) {
+    const adv = document.createElement('div');
+    adv.className = 'c-settings-backup__advanced';
+    const advRow = document.createElement('button');
+    advRow.type = 'button';
+    advRow.className = 'c-settings-backup__adv-toggle';
+    advRow.setAttribute('aria-expanded', 'false');
+    advRow.append(document.createTextNode(strings.advanced || 'Advanced'));
+    const chev = icon('chevron-down', { size: 18 });
+    chev.classList.add('c-settings-backup__adv-chevron');
+    advRow.append(chev);
+    const advBox = document.createElement('div');
+    advBox.className = 'c-settings-backup__adv-box';
+    advBox.setAttribute('aria-hidden', 'true');       // animated reveal (#147) — data-open drives it
+    advBox.id = overlayId('c-settings-backup-adv');
+    advRow.setAttribute('aria-controls', advBox.id);
+    const advNote = document.createElement('p');
+    advNote.className = 'c-settings-backup__adv-note';
+    advNote.textContent = strings.backupAdvancedNote ||
+      'The raw wallet file — for cold storage or other Ixian tools. Doesn’t include contacts or your account.';
+    let exporting = false;                                       // latched (one share at a time)
+    const exportBtn = createButton({
+      label: strings.backupAdvanced || 'Export wallet file only', type: 'outline', size: 44, width: 'full',
+      onClick: () => {
+        if (exporting) return;
+        exporting = true;
+        setLoading(exportBtn, true);
+        onExportWallet(backupCtrl(
+          () => {
+            exporting = false;
+            setLoading(exportBtn, false);
+            setSuccess(exportBtn, { label: strings.backupShared || 'Shared' });
+          },
+          (msg) => {
+            exporting = false;
+            setLoading(exportBtn, false);
+            live.textContent = msg || strings.backupExportFailed || 'Couldn’t export the wallet file.';
+          },
+        ));
+      },
+    });
+    advBox.append(advNote, exportBtn);
+    advRow.addEventListener('click', () => {
+      const open = advBox.dataset.open === undefined;
+      if (open) advBox.dataset.open = '';
+      else delete advBox.dataset.open;
+      advBox.setAttribute('aria-hidden', String(!open));
+      advRow.setAttribute('aria-expanded', String(open));
+    });
+    adv.append(advRow, advBox);
+    body.append(adv);
+  }
+
+  el._statusBits = { statusLine, strings };                      // setBackupScreenStatus hook
+  setBackupScreenStatus(el, status);
+  return el;
+}
+
+/* free fn (#44): the screen's status line — same vocabulary as the hub row */
+function setBackupScreenStatus(el, status = {}) {
+  const bits = el._statusBits;
+  if (!bits) return;
+  bits.statusLine.textContent = backupStatusParts(status, bits.strings).text;
+}
+
+/* one-shot ctrl (#138 m1) — module-local (chat-info owns `ctrlFor`) */
+function backupCtrl(onDone, onFail) {
+  let used = false;
+  return {
+    done: () => { if (used) return; used = true; onDone(); },
+    fail: (msg) => { if (used) return; used = true; onFail(msg); },
+  };
+}
+
+/* ---- src/components/settings-screens.js ---- */
+/**
+ * c-settings sub-screens (docs/settings-shell-spec.md §10, DECISIONS #147 —
+ * the premium round): Chat appearance · Privacy · Notifications · Security level.
+ *
+ * Bridge honesty: NOTHING here has a legacy command. Chat appearance is
+ * FE-ONLY (root css vars; persistence = WebView localStorage until the §9
+ * pref-sync ask). Privacy / Notifications / Security level are §9-GATED —
+ * capability-flagged designs (the 1:1-mute pattern): the shell hides them
+ * until their commands land; the demo enables the caps to show the design.
+ *
+ * Security tiers (Damir #147): Basic / Moderate / Strict presets + Custom.
+ * A tier CASCADES defaults into lock/privacy/notification policy — the
+ * translation table is a §9/ARCHITECTURE proposal (spec §8); the FE treats
+ * the tier as an opaque commitment (onSecurityTier) and Custom as "use my
+ * individual Security & privacy settings".
+ *
+ * Async callbacks use the house (payload, ctrl) contract, one-shot (#138 m1).
+ */
+
+
+
+const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
+  { value: 0, key: 'patternOff', label: 'Off' },
+  { value: 0.3, key: 'patternSubtle', label: 'Subtle' },
+  { value: 0.5, key: 'patternStandard', label: 'Standard' },
+  { value: 0.7, key: 'patternBold', label: 'Bold' },
+];
+const TEXT_SIZES = [            // --chat-text-scale — adoption wired at chat-shell integration (#147 flag)
+  { value: 0.9, key: 'textS', label: 'S' },
+  { value: 1, key: 'textM', label: 'M' },
+  { value: 1.1, key: 'textL', label: 'L' },
+  { value: 1.25, key: 'textXL', label: 'XL' },
+];
+const SECURITY_TIERS = [        // §9 proposal — see spec §8 translation table
+  { id: 'basic', key: 'tierBasic', label: 'Basic',
+    descKey: 'tierBasicDesc', desc: 'Convenience first. Lock optional, previews on, receipts on.' },
+  { id: 'moderate', key: 'tierModerate', label: 'Moderate',
+    descKey: 'tierModerateDesc', desc: 'Balanced. Lock required, auto-lock after 5 minutes, sender-only previews.' },
+  { id: 'strict', key: 'tierStrict', label: 'Strict',
+    descKey: 'tierStrictDesc', desc: 'Privacy first. Immediate auto-lock, no previews, receipts and typing off.' },
+  { id: 'custom', key: 'tierCustom', label: 'Custom',
+    descKey: 'tierCustomDesc', desc: 'Your individual Security & privacy settings apply as-is.' },
+];
+
+// one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
+function screensCtrl(onDone, onFail) {
+  let used = false;
+  return {
+    done: () => { if (used) return; used = true; onDone(); },
+    fail: (msg) => { if (used) return; used = true; onFail(msg); },
+  };
+}
+
+/* segmented pill group — inline picker (no sheet): FE-only instant settings */
+function segGroup({ options, current, ariaLabel, onPick }) {
+  const g = document.createElement('div');
+  g.className = 'c-settings-seg';
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', ariaLabel);
+  const paint = () => {
+    for (const b of g.children) {
+      b.setAttribute('aria-checked', String(Number(b.dataset.value) === current));
+    }
+  };
+  for (const o of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-seg__pill';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = String(o.value);
+    b.textContent = o.label;
+    b.addEventListener('click', () => {
+      if (o.value === current) return;
+      current = o.value;
+      paint();
+      onPick(o.value);
+    });
+    g.append(b);
+  }
+  paint();
+  return g;
+}
+
+/* switch row — optimistic toggle w/ revert (the chat-info notifications grammar) */
+function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }) {
+  const section = document.createElement('div');
+  section.className = 'c-settings__section';
+  const row = document.createElement('div');
+  row.className = 'c-settings__row c-settings__row--static';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
+  const disc = document.createElement('span');
+  disc.className = 'c-disc';
+  disc.dataset.hue = hue;
+  disc.append(icon(glyph, { size: 16 }));
+  if (sub) {
+    const top = document.createElement('span');
+    top.className = 'c-settings__row-top';
+    top.append(disc, document.createTextNode(label));
+    const s = document.createElement('span');
+    s.className = 'c-settings__row-sub';
+    s.textContent = sub;
+    lab.append(top, s);
+  } else {
+    lab.append(disc, document.createTextNode(label));
+  }
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'c-settings__switch';
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', String(!!checked));
+  toggle.setAttribute('aria-label', label);
+  const knob = document.createElement('span');
+  knob.className = 'c-settings__switch-knob';
+  toggle.append(knob);
+  let inFlight = false;
+  toggle.addEventListener('click', () => {
+    if (inFlight) return;
+    inFlight = true;
+    const next = toggle.getAttribute('aria-checked') !== 'true';
+    toggle.setAttribute('aria-checked', String(next));       // optimistic
+    onToggle(next, screensCtrl(
+      () => { inFlight = false; },
+      (msg) => {
+        toggle.setAttribute('aria-checked', String(!next));  // revert
+        if (live) live.textContent = msg || failText;
+        inFlight = false;
+      },
+    ));
+  });
+  row.append(lab, toggle);
+  section.append(row);
+  return section;
+}
+
+function screenShell(className, title, onBack) {
+  const el = document.createElement('div');
+  el.className = className;
+  el.append(createTopbar({ variant: 'view', title, onBack }));
+  const body = document.createElement('div');
+  body.className = 'c-settings__body u-scroll';
+  el.append(body);
+  const live = document.createElement('p');
+  live.className = 'c-settings__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
+  return { el, body, live };
+}
+
+/**
+ * Chat appearance — FE-ONLY (#147): live preview canvas + pattern intensity +
+ * message text size. Picks apply INSTANTLY (root css vars via callbacks) —
+ * no bridge, no latch; the preview rides the REAL .c-chat-canvas paint.
+ */
+function createChatAppearance({
+  patternOpacity = 0.5,
+  textScale = 1,
+  onBack,
+  onPattern,                     // (opacity) — shell sets --chat-pattern-opacity + persists
+  onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
+  strings = {},
+} = {}) {
+  const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
+
+  /* live preview — real canvas class: gradient + generated pattern mask */
+  const preview = document.createElement('div');
+  preview.className = 'c-chat-canvas c-settings-appearance__preview';
+  preview.setAttribute('aria-hidden', 'true');
+  const bubbleIn = document.createElement('div');
+  bubbleIn.className = 'c-settings-appearance__bubble';
+  bubbleIn.dataset.side = 'received';
+  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size —';
+  const bubbleOut = document.createElement('div');
+  bubbleOut.className = 'c-settings-appearance__bubble';
+  bubbleOut.dataset.side = 'sent';
+  bubbleOut.textContent = strings.previewOutgoing || '— exactly how your chats will look.';
+  preview.append(bubbleIn, bubbleOut);
+  body.append(preview);
+
+  const patternSec = document.createElement('div');
+  patternSec.className = 'c-settings__section';
+  const pLab = document.createElement('h3');
+  pLab.className = 'c-settings__label';
+  pLab.textContent = strings.patternIntensity || 'Background pattern';
+  patternSec.append(pLab, segGroup({
+    options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
+    current: patternOpacity,
+    ariaLabel: strings.patternIntensity || 'Background pattern',
+    onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', String(v)); if (onPattern) onPattern(v); },
+  }));
+  body.append(patternSec);
+
+  const sizeSec = document.createElement('div');
+  sizeSec.className = 'c-settings__section';
+  const sLab = document.createElement('h3');
+  sLab.className = 'c-settings__label';
+  sLab.textContent = strings.textSize || 'Message text size';
+  sizeSec.append(sLab, segGroup({
+    options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
+    current: textScale,
+    ariaLabel: strings.textSize || 'Message text size',
+    onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
+  }));
+  body.append(sizeSec);
+
+  // preview honors the incoming state
+  preview.style.setProperty('--chat-pattern-opacity', String(patternOpacity));
+  preview.style.setProperty('--chat-text-scale', String(textScale));
+  return el;
+}
+
+/**
+ * Privacy — §9-GATED toggles (read receipts / typing indicators). No legacy
+ * commands exist; every row renders ONLY when its capability is flagged.
+ */
+function createPrivacy({
+  readReceipts = true,
+  typingIndicators = true,
+  capabilities = {},             // { readReceipts, typing }
+  onBack,
+  onReadReceipts,                // (next, ctrl) — §9
+  onTyping,                      // (next, ctrl) — §9
+  strings = {},
+} = {}) {
+  const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
+
+  const note = document.createElement('p');
+  note.className = 'c-settings__note';
+  note.textContent = strings.privacyNote ||
+    'These apply to everyone you chat with. Turning one off also hides theirs from you.';
+  body.append(note);
+
+  if (capabilities.readReceipts && onReadReceipts) body.append(switchRow({
+    glyph: 'checks', hue: 'info',
+    label: strings.readReceipts || 'Read receipts',
+    sub: strings.readReceiptsSub || 'Others see when you’ve read their messages',
+    checked: readReceipts, live,
+    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    onToggle: onReadReceipts,
+  }));
+  if (capabilities.typing && onTyping) body.append(switchRow({
+    glyph: 'dots', hue: 'accent',
+    label: strings.typingIndicators || 'Typing indicators',
+    sub: strings.typingIndicatorsSub || 'Others see when you’re typing',
+    checked: typingIndicators, live,
+    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    onToggle: onTyping,
+  }));
+  return el;
+}
+
+/**
+ * Notifications — §9-GATED (global master + preview text + in-app sounds).
+ * Legacy only mutes groups/bots per-chat; the global surface is a proposal.
+ */
+function createNotificationsScreen({
+  enabled = true,
+  previews = true,
+  sounds = true,
+  capabilities = {},             // { globalNotifications }
+  onBack,
+  onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
+  strings = {},
+} = {}) {
+  const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
+  const failText = strings.notifFailed || 'Couldn’t update notifications.';
+  if (capabilities.globalNotifications) {
+    if (onEnabled) body.append(switchRow({
+      glyph: 'bell', hue: 'warning',
+      label: strings.notifAll || 'Allow notifications',
+      checked: enabled, live, failText, onToggle: onEnabled,
+    }));
+    if (onPreviews) body.append(switchRow({
+      glyph: 'eye', hue: 'info',
+      label: strings.notifPreviews || 'Show message previews',
+      sub: strings.notifPreviewsSub || 'Off = sender and text hidden on the lock screen',
+      checked: previews, live, failText, onToggle: onPreviews,
+    }));
+    if (onSounds) body.append(switchRow({
+      glyph: 'alert-small', hue: 'accent',
+      label: strings.notifSounds || 'In-app sounds',
+      checked: sounds, live, failText, onToggle: onSounds,
+    }));
+  }
+  return el;
+}
+
+/**
+ * Security level — §9-GATED tier picker (#147: Basic/Moderate/Strict presets
+ * + Custom). Selecting commits the TIER (onSecurityTier — the cascade into
+ * lock/privacy/notification policy is BE-side per the spec §8 table); Custom
+ * hands control back to the individual settings. Latched per pick.
+ */
+function createSecurityLevel({
+  tier = 'basic',
+  capabilities = {},             // { securityTiers }
+  onBack,
+  onSecurityTier,                // (tierId, ctrl) — §9/ARCHITECTURE proposal
+  strings = {},
+} = {}) {
+  const { el, body, live } = screenShell('c-settings-security', strings.securityLevel || 'Security level', onBack);
+  if (!capabilities.securityTiers || !onSecurityTier) return el;
+
+  const note = document.createElement('p');
+  note.className = 'c-settings__note';
+  note.textContent = strings.securityNote ||
+    'A level sets lock, privacy and notification policy together. You can switch anytime.';
+  body.append(note);
+
+  const group = document.createElement('div');
+  group.className = 'c-settings-security__tiers';
+  group.setAttribute('role', 'radiogroup');
+  group.setAttribute('aria-label', strings.securityLevel || 'Security level');
+  body.append(group);
+
+  let current = tier;
+  let inFlight = false;
+  const cards = new Map();
+  const paint = () => {
+    for (const [id, c] of cards) c.setAttribute('aria-checked', String(id === current));
+  };
+  for (const t of SECURITY_TIERS) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'c-settings-security__tier';
+    card.setAttribute('role', 'radio');
+    card.dataset.tier = t.id;
+    const head = document.createElement('span');
+    head.className = 'c-settings-security__tier-head';
+    const nm = document.createElement('span');
+    nm.className = 'c-settings-security__tier-name';
+    nm.textContent = strings[t.key] || t.label;
+    const status = document.createElement('span');
+    status.className = 'c-settings__opt-status';
+    const tick = icon('check', { size: 18 });
+    tick.classList.add('c-settings__opt-check');
+    status.append(tick);
+    head.append(nm, status);
+    const desc = document.createElement('span');
+    desc.className = 'c-settings-security__tier-desc';
+    desc.textContent = strings[t.descKey] || t.desc;
+    card.append(head, desc);
+    card.addEventListener('click', () => {
+      if (inFlight || t.id === current) return;
+      inFlight = true;
+      card.dataset.loading = '';
+      card.setAttribute('aria-busy', 'true');
+      const spinner = document.createElement('span');
+      spinner.className = 'c-button__spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      status.append(spinner);
+      onSecurityTier(t.id, screensCtrl(
+        () => {
+          inFlight = false;
+          delete card.dataset.loading;
+          card.removeAttribute('aria-busy');
+          spinner.remove();
+          current = t.id;
+          paint();
+          live.textContent = (strings.securityLevel || 'Security level') + ': ' + (strings[t.key] || t.label);
+        },
+        (msg) => {
+          inFlight = false;
+          delete card.dataset.loading;
+          card.removeAttribute('aria-busy');
+          spinner.remove();
+          live.textContent = msg || strings.securityFailed || 'Couldn’t change the security level.';
+        },
+      ));
+    });
+    cards.set(t.id, card);
+    group.append(card);
+  }
+  paint();
+  return el;
+}
+
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel };
 })();

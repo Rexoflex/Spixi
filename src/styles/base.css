@@ -111,3 +111,24 @@ img, svg { display: block; max-width: 100%; }
   .u-scroll:hover::-webkit-scrollbar-thumb,
   .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--outline-neutral-02); }
 }
+
+/* Tinted icon disc (DECISIONS #147/#148) — the row-icon atom shared by the
+   settings family AND chat-info/contact (Damir: one consistent treatment).
+   Hue rides the --disc-* token pairs; error is RESERVED for destructive rows. */
+.c-disc {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--disc-neutral-bg);
+  color: var(--disc-neutral-ink);
+}
+.c-disc[data-hue='primary'] { background: var(--disc-primary-bg); color: var(--disc-primary-ink); }
+.c-disc[data-hue='accent'] { background: var(--disc-accent-bg); color: var(--disc-accent-ink); }
+.c-disc[data-hue='info'] { background: var(--disc-info-bg); color: var(--disc-info-ink); }
+.c-disc[data-hue='success'] { background: var(--disc-success-bg); color: var(--disc-success-ink); }
+.c-disc[data-hue='warning'] { background: var(--disc-warning-bg); color: var(--disc-warning-ink); }
+.c-disc[data-hue='error'] { background: var(--disc-error-bg); color: var(--disc-error-ink); }

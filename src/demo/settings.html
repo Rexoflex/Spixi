@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Account/Settings shell — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/message-bubble.css">
+<link rel="stylesheet" href="../styles/chat-pattern.css">
+<link rel="stylesheet" href="../styles/components/settings-shell.css">
+<link rel="stylesheet" href="../styles/components/settings-backup.css">
+<link rel="stylesheet" href="../styles/components/settings-screens.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); flex-wrap: wrap; }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); max-width: 419px; }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+    color: var(--text-neutral-01);
+  }
+  .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Account/Settings shell — #146 + #147 premium round</h1>
+    <span id="fail-slot"></span>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div class="content" id="settings-content"></div>
+        <div id="settings-nav"></div>
+      </div>
+      <div class="demo-caption">Hub: QR-forward hero · tinted discs · card groups · theme preview tiles · chat appearance (FE-only, live) · privacy/notifications/security tiers (§9-gated, caps ON here) · backup (password: <code>hunter2</code>) · danger split</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createBottomNav, createButton, setNavBadge,
+    createSettingsHub, createSettingsDanger, setBackupStatus,
+    createSettingsBackup, setBackupScreenStatus,
+    createChatAppearance, createPrivacy, createNotificationsScreen, createSecurityLevel,
+    showToast,
+  } = window.Spixi;
+
+  const strings = {};
+  const phone = document.querySelector('.demo-phone');
+  const toast = (text) => showToast({ text, host: phone });
+
+  /* —— theme toggle (demo chrome) —— */
+  const themeBtn = createButton({ label: 'Toggle light', size: 32, type: 'outline', onClick: () => {
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+  } });
+  document.getElementById('theme-slot').append(themeBtn);
+  document.documentElement.dataset.theme = 'dark';
+
+  /* —— demo failure toggle: makes every mock bridge call fail (ctrl.fail paths) —— */
+  let bridgeFails = false;
+  const failBtn = createButton({ label: 'Bridge: OK', size: 32, type: 'outline', onClick: () => {
+    bridgeFails = !bridgeFails;
+    failBtn.querySelector('.c-button__label').textContent = bridgeFails ? 'Bridge: FAIL' : 'Bridge: OK';
+  } });
+  document.getElementById('fail-slot').append(failBtn);
+  // mock bridge round-trip: resolves ~700ms later, honors the failure toggle
+  const bridge = (ctrl, ms = 700, failMsg) => setTimeout(() => (bridgeFails ? ctrl.fail(failMsg) : ctrl.done()), ms);
+
+  /* —— mock account state —— */
+  const state = {
+    nick: 'Damir',
+    address: '425HqzWpMkV3dTgJnS85CQen',
+    theme: 0,                                   // ThemeAppearance: automatic
+    language: 'en-us',
+    lockEnabled: false,
+    backup: { last: null, dirtyCount: 0 },      // never backed up → warning nudge
+    patternOpacity: 0.5, textScale: 1,          // chat appearance (FE-only, #147)
+    readReceipts: true, typing: true,           // privacy (§9-gated)
+    notifs: { enabled: true, previews: true, sounds: true },   // §9-gated
+    securityTier: 'basic',                      // §9-gated (#147 tiers)
+  };
+  // #148⑥: 10 biggest languages, flags leading (emoji now — SVG assets can swap
+  // into the flag slot later); the >6 list scrolls inside the taller sheet
+  const LANGS = [
+    { code: 'en-us', label: 'English', flag: '🇺🇸' },
+    { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
+    { code: 'es-es', label: 'Español', flag: '🇪🇸' },
+    { code: 'hi-in', label: 'हिन्दी', flag: '🇮🇳' },
+    { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
+    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
+    { code: 'pt-br', label: 'Português', flag: '🇧🇷' },
+    { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
+    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
+    { code: 'sr-latn', label: 'Srpski', flag: '🇷🇸' },
+  ];
+  const CAPS = {                                // demo: every §9 gate ON to show the designs
+    dev: true, globalNotifications: true, securityTiers: true,
+    readReceipts: true, typing: true, paymentAuth: true,
+  };
+  const fmtToday = () => new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+  /* —— views: hub is the root tab; the rest are in-phone takeovers —— */
+  const content = document.getElementById('settings-content');
+
+  function show(view) {
+    content.replaceChildren(view);
+    content.scrollTop = 0;                      // audit m5: no stale offset
+  }
+  function showHub() { show(hub); }
+
+  function showBackup() {
+    const backup = createSettingsBackup({
+      status: state.backup, host: phone, strings,
+      onBack: showHub,
+      // legacy: ixian:backupAccount — password validated first (ixian:error → INLINE)
+      onBackup: ({ password }, ctrl) => setTimeout(() => {
+        if (password !== 'hunter2') { ctrl.fail(); return; }
+        if (bridgeFails) { ctrl.fail('Backup failed — try again.'); return; }
+        state.backup = { last: fmtToday(), dirtyCount: 0 };
+        setBackupStatus(hub, state.backup);           // the hub row nudge clears
+        setBackupScreenStatus(backup, state.backup);
+        ctrl.done();
+        toast('OS share sheet would open with spixi.account.backup.ixi');
+      }, 900),
+      // legacy: ixian:backupWallet — raw wallet.ixi share
+      onExportWallet: (ctrl) => setTimeout(() => {
+        if (bridgeFails) { ctrl.fail(); return; }
+        ctrl.done();
+        toast('OS share sheet would open with wallet.ixi');
+      }, 700),
+    });
+    show(backup);
+  }
+
+  function showDanger() {
+    show(createSettingsDanger({
+      host: phone, strings,
+      onBack: showHub,
+      onDeleteHistory: (ctrl) => bridge(ctrl, 900),          // ixian:deleteh (UNGATED legacy — §9 flag)
+      onDeleteDownloads: (ctrl) => bridge(ctrl, 700),        // ixian:deleted
+      onDeleteAccount: (ctrl) => setTimeout(() => {          // ixian:deletea → C# LockPage auth
+        if (bridgeFails) { ctrl.fail('Authentication was canceled.'); return; }
+        ctrl.done();
+        toast('C# would ask for your PIN first (LockPage), then delete account data');
+      }, 1100),
+      onDeleteWallet: (ctrl) => setTimeout(() => {           // ixian:delete → auth, shutdown, Launch
+        if (bridgeFails) { ctrl.fail('Authentication was canceled.'); return; }
+        ctrl.done();
+        toast('C# would auth via PIN, delete the wallet, shut down and restart to Launch');
+      }, 1100),
+    }));
+  }
+
+  function showChatAppearance() {
+    show(createChatAppearance({
+      patternOpacity: state.patternOpacity, textScale: state.textScale, strings,
+      onBack: showHub,
+      // FE-only: root var = every chat canvas follows; persistence = WebView localStorage (spec §10)
+      onPattern: (v) => {
+        state.patternOpacity = v;
+        document.documentElement.style.setProperty('--chat-pattern-opacity', String(v));
+      },
+      onTextScale: (v) => {
+        state.textScale = v;
+        document.documentElement.style.setProperty('--chat-text-scale', String(v));
+      },
+    }));
+  }
+
+  function showPrivacy() {
+    show(createPrivacy({
+      readReceipts: state.readReceipts, typingIndicators: state.typing,
+      capabilities: CAPS, strings,
+      onBack: showHub,
+      onReadReceipts: (next, ctrl) => { state.readReceipts = next; bridge(ctrl); },
+      onTyping: (next, ctrl) => { state.typing = next; bridge(ctrl); },
+    }));
+  }
+
+  function showNotifications() {
+    show(createNotificationsScreen({
+      enabled: state.notifs.enabled, previews: state.notifs.previews, sounds: state.notifs.sounds,
+      capabilities: CAPS, strings,
+      onBack: showHub,
+      onEnabled: (next, ctrl) => { state.notifs.enabled = next; bridge(ctrl); },
+      onPreviews: (next, ctrl) => { state.notifs.previews = next; bridge(ctrl); },
+      onSounds: (next, ctrl) => { state.notifs.sounds = next; bridge(ctrl); },
+    }));
+  }
+
+  function showSecurity() {
+    show(createSecurityLevel({
+      tier: state.securityTier, capabilities: CAPS, strings,
+      onBack: showHub,
+      onSecurityTier: (tier, ctrl) => setTimeout(() => {
+        if (bridgeFails) { ctrl.fail(); return; }
+        state.securityTier = tier;
+        ctrl.done();
+        toast('Tier "' + tier + '" would cascade lock/privacy/notification policy (§9 table)');
+      }, 800),
+    }));
+  }
+
+  /* —— the hub —— */
+  const hub = createSettingsHub({
+    name: state.nick,
+    address: state.address,
+    avatarSrc: null,
+    hasCustomAvatar: false,
+    theme: state.theme,
+    languages: LANGS,
+    language: state.language,
+    lockEnabled: state.lockEnabled,
+    paymentAuth: true,                          // #150⑤ demo: starts ON (Moderate-tier default)
+    backup: state.backup,
+    version: 'Spixi 2.1.4 (demo)',              // §9 ask: no bridge push for this yet
+    capabilities: CAPS,
+    host: phone,
+    strings,
+    // per-row commit (#146): the shell fires ixian:save:<nick> immediately
+    // NO legacy share command (§9, wallet-receive precedent) — shells use navigator.share
+    onShare: ({ address }) => toast('Would share your address via the system share sheet'),
+    onNickname: (nick, ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(); return; }
+      state.nick = nick;
+      ctrl.done();
+      toast('ixian:save:' + nick + ' — nickname broadcast to contacts');
+    }, 700),
+    // ixian:avatar → C# picker → loadAvatar(tmp) → promoted by the follow-up save
+    onAvatarChange: (ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(); return; }
+      // mock "picked photo": a deterministic data-URI tile stands in for avatar-tmp.jpg
+      const c = document.createElement('canvas');
+      c.width = c.height = 80;
+      const g = c.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, 80, 80);
+      grad.addColorStop(0, '#7b5cff'); grad.addColorStop(1, '#2ec5ff');
+      g.fillStyle = grad; g.fillRect(0, 0, 80, 80);
+      ctrl.done({ src: c.toDataURL() });
+      toast('ixian:avatar → picked; ixian:save promotes avatar-tmp.jpg');
+    }, 900),
+    onAvatarRemove: (ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(); return; }
+      ctrl.done();
+      toast('ixian:remove — default avatar restored');
+    }, 500),
+    // ixian:appearance:<int> — the demo REALLY swaps tokens (live proof, no reload)
+    onTheme: (index, ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(); return; }
+      state.theme = index;
+      const root = document.documentElement;
+      root.classList.add('theme-switching');
+      // 0 automatic → demo maps to dark (the frame default); 1 light; 2 dark
+      root.dataset.theme = index === 1 ? 'light' : 'dark';
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+      ctrl.done();
+    }, 500),
+    // ixian:language:<code> — legacy persists immediately + reloads; shell = live swap
+    onLanguage: (code, ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(); return; }
+      state.language = code;
+      ctrl.done();
+      toast('ixian:language:' + code + ' — strings would swap live');
+    }, 600),
+    // lock ON = flag (optimistic); lock OFF = C# LockPage auth round-trip (PENDING)
+    onLock: (next, ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(next ? undefined : 'Authentication was canceled.'); return; }
+      state.lockEnabled = next;
+      ctrl.done();
+      if (!next) toast('setLockEnabled("False") — auth succeeded (mock LockPage)');
+    }, next ? 400 : 900),                                   // OFF = the auth round-trip takes longer
+    // #150⑤: preference only — C# enforces at the payment step (§9)
+    onPaymentAuth: (next, ctrl) => setTimeout(() => {
+      if (bridgeFails) { ctrl.fail(next ? undefined : 'Authentication was canceled.'); return; }
+      ctrl.done();
+      toast(next ? 'Payments now ask for PIN/biometrics first' : 'Payment confirmation off');
+    }, next ? 400 : 900),
+    onChatAppearance: showChatAppearance,
+    onNotifications: showNotifications,
+    onSecurity: showSecurity,
+    onPrivacy: showPrivacy,
+    onBackup: showBackup,
+    onDownloads: () => toast('Downloads screen — next slice'),
+    onContributors: () => toast('Contributors screen — next slice'),
+    onDev: () => toast('Developer/log screen — next slice'),
+    onDanger: showDanger,
+  });
+
+  showHub();
+
+  /* —— nav —— */
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({ items: NAV_ITEMS, active: 'account' });
+  document.getElementById('settings-nav').append(nav);
+  setNavBadge(nav, 'chats', 4);
+
+  /* —— simulate the BE "dirty" signal: 3 new contacts since backup (only
+     meaningful once backed up; before that the warning state stands) —— */
+  setTimeout(() => {
+    if (state.backup.last) {
+      state.backup = { ...state.backup, dirtyCount: 3 };
+      setBackupStatus(hub, state.backup);
+    }
+  }, 20000);
+</script>
+</body>
+</html>

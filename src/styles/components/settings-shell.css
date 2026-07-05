@@ -1,0 +1,538 @@
+/* c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
+   #146 build · #147 premium round: centered QR-forward hero, tinted icon
+   discs [--disc-* pairs], group CARDS on --surface-card, theme preview tiles,
+   danger tone split). Sub-screens (settings-screens.js) reuse the row/section
+   grammar defined here; their own classes live in settings-screens.css. */
+
+.c-settings,
+.c-settings-danger {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-settings__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* #148: children of a SCROLLING flex column are shrinkable by default — the
+   56px CTA was compressing under overflow (Damir screenshot). Never shrink. */
+.c-settings__body > *,
+.c-settings-danger__body > * { flex: none; }
+
+/* clip-hidden live region */
+.c-settings__live,
+.c-settings-danger__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
+}
+
+.c-settings__label {
+  margin: 0 0 var(--spacing-8);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  padding-inline-start: var(--spacing-4);
+}
+.c-settings__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-inline: var(--spacing-4);
+}
+
+/* —— identity hero: CENTERED + QR-FORWARD (#147) —— */
+.c-settings__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-top: var(--spacing-8);
+}
+.c-settings__avatar {
+  flex: none;
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__avatar:disabled { cursor: default; }
+.c-settings__avatar-edit {            /* affordance: this avatar is editable */
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  width: 24px;                      /* sanctioned: edit-dot dim */
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  border: 2px solid var(--surface-screen);   /* sanctioned: ring cut against the screen, badge-ring precedent (#48) */
+}
+.c-settings__avatar:disabled .c-settings__avatar-edit { display: none; }
+.c-settings__name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  min-width: 0;
+  max-width: 100%;
+}
+.c-settings__name {
+  min-width: 0;                     /* nowrap flex item — the #140③ class */
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings__nick-input {
+  font: inherit;
+  font-size: var(--font-size-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  background: var(--surface-input);
+  border: var(--outline-width-1) solid var(--outline-action-default);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-2) var(--spacing-8);
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+.c-settings__nick-error {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-error);
+  text-align: center;
+}
+
+/* QR — immediately visible, the receive-card pair (never theme-flips, #137) */
+.c-settings__qr {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-12);
+  margin-top: var(--spacing-4);
+  border-radius: var(--radius-16);
+  background: var(--surface-qr);
+  box-shadow: var(--elevation-1);
+}
+.c-settings__qr svg { width: 148px; height: 148px; }   /* sanctioned: scan-comfort QR dim (receive-card family) */
+
+.c-settings__address-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: 100%;
+  min-width: 0;
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+}
+.c-settings__address-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;            /* FULL address — truth stays whole (#99) */
+  text-align: start;
+}
+.c-settings__copy {                 /* 32px icon button (#145④) */
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-settings__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
+@media (hover: hover) {
+  .c-settings__copy:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__copy:active { background: var(--surface-interactive-pressed); }
+
+/* —— groups: CARD surfaces (#147 — flat hairline rows read utilitarian) —— */
+.c-settings__groupwrap { display: flex; flex-direction: column; }
+.c-settings__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③: input === card otherwise */
+}
+/* hairline between rows INSIDE a card, inset past the disc column */
+.c-settings__group > .c-settings__section + .c-settings__section {
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+
+/* —— rows: disc · label · value · chevron —— */
+.c-settings__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room */
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-settings__row--static { cursor: default; }
+@media (hover: hover) {
+  .c-settings__row:not(.c-settings__row--static):hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__row:not(.c-settings__row--static):active { background: var(--surface-interactive-pressed); }
+.c-settings__row-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+}
+.c-settings__row-value {
+  margin-inline-start: auto;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  flex: none;
+}
+.c-settings__row > svg:last-child { color: var(--icon-neutral-02); flex: none; }
+
+/* tinted icon disc: PROMOTED to base.css as .c-disc (#148 — shared with
+   chat-info/contact for one consistent treatment) */
+
+/* stacked (two-line) rows — backup nudge, quiet danger rows */
+.c-settings__row-label--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  flex: 1;
+}
+.c-settings__row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-settings__row-sub,
+.c-settings__backup-sub {
+  padding-inline-start: calc(32px + var(--spacing-12));   /* sanctioned: aligns under the 32px disc */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  min-width: 0;
+}
+.c-settings__row--backup { min-height: 56px; }
+.c-settings__backup-badge { flex: none; }
+
+/* —— switch (chat-info parity) —— */
+.c-settings__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-full);
+  background: var(--switch-track-off);   /* #148: dedicated pair — neutral-03 vanished on card surfaces */
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__switch::after {        /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-settings__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
+.c-settings__switch[aria-busy='true'] { opacity: var(--opacity-disabled); }   /* pending auth (lock OFF) */
+.c-settings__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--switch-knob);        /* #148: on-action ink went near-black in dark — invisible knob */
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-settings__switch[aria-checked='true'] .c-settings__switch-knob {
+  transform: translateX(20px);
+}
+
+/* —— option sheet (language & friends — sd-sheet grammar, #145③ slot) —— */
+.c-settings__opts { display: flex; flex-direction: column; gap: var(--spacing-4); }
+/* #148⑥: long pickers scroll inside a taller sheet (search joins later) */
+.c-settings__opts--scroll {
+  max-height: min(56vh, 480px);     /* sanctioned: tall-sheet clearance */
+  padding-inline-end: var(--spacing-4);
+}
+.c-settings__opt-flag {
+  flex: none;
+  width: 28px;                      /* sanctioned: flag slot (emoji now, SVG swap later) */
+  font-size: 20px;                  /* sanctioned: emoji glyph size */
+  line-height: 1;
+  text-align: center;
+}
+.c-settings__opts-hint {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings__opt:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__opt:active { background: var(--surface-interactive-pressed); }
+.c-settings__opt-label {
+  flex: 1;                          /* #148⑥: keeps the check slot pinned right when a flag leads */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.c-settings__opt-status {           /* fixed slot: check OR spinner — label never moves */
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-success);
+}
+.c-settings__opt-check { visibility: hidden; }
+.c-settings__opt[aria-checked='true'] { font-weight: var(--font-weight-semibold); }
+.c-settings__opt[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
+.c-settings__opt[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— theme sheet: VISUAL PREVIEW TILES (#147) —— */
+.c-settings__themes {
+  display: flex;
+  gap: var(--spacing-8);
+}
+.c-settings__theme {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--duration-100) var(--easing-standard);
+}
+.c-settings__theme[aria-checked='true'] { border-color: var(--outline-action-default); }
+@media (hover: hover) {
+  .c-settings__theme:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__theme:active { background: var(--surface-interactive-pressed); }
+/* the mini screen — FIXED paints (a preview shows its OWN mode, --surface-qr precedent) */
+.c-settings__theme-art {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  height: 64px;                     /* sanctioned: preview miniature dim */
+  padding: var(--spacing-8);
+  border-radius: var(--radius-8);
+  background: var(--preview-light-surface);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  overflow: hidden;
+}
+.c-settings__theme-line {
+  height: 6px;                      /* sanctioned: preview miniature bars */
+  border-radius: var(--radius-full);
+  background: var(--preview-light-line);
+}
+.c-settings__theme-line:first-child { width: 40%; background: var(--surface-action-default); }
+.c-settings__theme-line:nth-child(2) { width: 90%; }
+.c-settings__theme-line:nth-child(3) { width: 65%; }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-art { background: var(--preview-dark-surface); }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-line { background: var(--preview-dark-line); }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-line:first-child { background: var(--surface-action-default); }
+/* System = diagonal split: light art + a dark wedge clipped over the right half */
+.c-settings__theme[data-mode='system'] .c-settings__theme-art {
+  position: relative;
+}
+.c-settings__theme[data-mode='system'] .c-settings__theme-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--preview-dark-surface);
+  clip-path: polygon(100% 0, 100% 100%, 35% 100%);
+}
+.c-settings__theme-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+.c-settings__theme-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings__theme[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
+.c-settings__theme[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— avatar sheet —— */
+.c-settings__avatar-sheet { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-settings__avatar-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings__avatar-option:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__avatar-option:active { background: var(--surface-interactive-pressed); }
+.c-settings__avatar-option svg { color: var(--icon-neutral-02); }
+.c-settings__avatar-option[data-destructive] { color: var(--text-error); }
+.c-settings__avatar-option[data-destructive] svg { color: currentColor; }
+
+/* —— danger screen (#147 tone split) —— */
+.c-settings-danger__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+.c-settings-danger__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+.c-settings-danger__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: var(--surface-card);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings-danger__card:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings-danger__card:active { background: var(--surface-interactive-pressed); }
+.c-settings-danger__card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 24px;
+  color: var(--text-error);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-danger__card-title svg { color: currentColor; flex: none; }
+.c-settings-danger__card-sub {
+  padding-inline-start: calc(20px + var(--spacing-12));   /* sanctioned: aligns under the 20px glyph */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+/* the standing irreversibility strip (#150⑥) — every delete confirm wears it */
+.c-settings-danger__confirm-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-danger__confirm-warn svg { flex: none; }
+.c-settings-danger__confirm-error {
+  margin: var(--spacing-8) 0 0;
+  color: var(--text-error);
+  font-size: var(--font-size-body-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-settings__switch, .c-settings__switch-knob { transition: none; }
+}

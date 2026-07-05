@@ -10519,15 +10519,17 @@ function createChatInfo({
     const value = document.createElement('span');
     value.className = 'c-chat-info__address-value u-tabular';
     value.textContent = address;                      // FULL — the address is the truth (#99)
-    const copy = createButton({ type: 'text', size: 44, icon: icon('copy', { size: 20 }) });
-    copy.classList.add('c-chat-info__copy');
+    const copy = document.createElement('button');    // plain 32px icon button — member-sheet parity (Damir: 44px text button sat misaligned)
+    copy.type = 'button';
+    copy.className = 'c-chat-info__copy';
+    copy.append(icon('copy', { size: 18 }));
     copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
     let morphTimer = null;
     const morph = (glyph, announce) => {              // HONEST morph (#137 m1)
-      copy.replaceChildren(icon(glyph, { size: 20 }));
+      copy.replaceChildren(icon(glyph, { size: 18 }));
       live.textContent = announce;
       clearTimeout(morphTimer);
-      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 20 })), 1600);
+      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
     };
     copy.addEventListener('click', () => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -10666,14 +10668,27 @@ function createChatInfo({
         opt.className = 'c-chat-info__sd-option';
         opt.setAttribute('role', 'radio');
         opt.setAttribute('aria-checked', String(o.value === selfDestruct));
-        opt.append(document.createTextNode(strings[o.key] || o.label));
+        const lab = document.createElement('span');
+        lab.className = 'c-chat-info__sd-option-label';
+        lab.textContent = strings[o.key] || o.label;
+        // fixed right-hand slot holds the success check OR the loading spinner —
+        // the LABEL never shifts (audit: setLoading prepended the spinner and
+        // shoved the label right; the spinner now lands where the check will be)
+        const status = document.createElement('span');
+        status.className = 'c-chat-info__sd-status';
         const tick = icon('check', { size: 18 });
         tick.classList.add('c-chat-info__sd-check');
-        opt.append(tick);
+        status.append(tick);
+        opt.append(lab, status);
         opt.addEventListener('click', () => {
           if (inFlight || o.value === selfDestruct) return;
           inFlight = true;
-          setLoading(opt, true);
+          opt.dataset.loading = '';
+          opt.setAttribute('aria-busy', 'true');
+          const spinner = document.createElement('span');
+          spinner.className = 'c-button__spinner';       // reuse the button spinner; inherits the success ink from the slot
+          spinner.setAttribute('aria-hidden', 'true');
+          status.append(spinner);                        // lands in the check slot, not before the label
           onSelfDestruct(o.value, ctrlFor(
             () => {
               selfDestruct = o.value;
@@ -10683,7 +10698,9 @@ function createChatInfo({
             },
             (msg) => {
               inFlight = false;
-              setLoading(opt, false);
+              opt.removeAttribute('aria-busy');
+              delete opt.dataset.loading;
+              spinner.remove();
               live.textContent = msg || strings.selfDestructFailed || 'Couldn’t update disappearing messages.';
             },
           ));
@@ -10696,7 +10713,13 @@ function createChatInfo({
       });
       openSheet(sheet);
     });
-    body.append(sdRow);
+    // wrap in a section div so the `> * + *` divider (hairline + breathing room)
+    // lands on the WRAPPER, not the button — the button keeps a tight interactive
+    // box so its pressed/focus state doesn't bleed into the divider gap (Damir)
+    const sdSection = document.createElement('div');
+    sdSection.className = 'c-chat-info__setting-section';
+    sdSection.append(sdRow);
+    body.append(sdSection);
   }
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */

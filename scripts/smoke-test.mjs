@@ -526,6 +526,8 @@ console.log('chat.html — chat info (#141)');
   const sdRow = sinfo.querySelector('.c-chat-info__setting');
   ok(!!sdRow && sdRow.querySelector('.c-chat-info__setting-value').textContent === 'Off',
     'disappearing-messages row renders with the current value (Off)');
+  ok(!!sinfo.querySelector('.c-chat-info__setting-section > .c-chat-info__setting'),
+    'disappearing row is wrapped in a divider section (pressed/tap state confined to the row — #145b)');
   sdRow.click();
   const sdOpts = [...d.querySelectorAll('.c-chat-info__sd-option')];
   ok(sdOpts.length === 4 && sdOpts[0].getAttribute('aria-checked') === 'true',
@@ -533,6 +535,13 @@ console.log('chat.html — chat info (#141)');
   sdOpts[1].click();                           // 1 hour
   sdOpts[2].click();                           // in-flight latch: second pick must not fire
   ok(sdSecs === 3600, 'picking 1 hour commits 3600s ONCE (latched while in flight)');
+  // #145: the spinner lands in the RIGHT status slot (where the check goes), and
+  // the label stays FIRST and unchanged — no left-shift (setLoading used to prepend)
+  ok(sdOpts[1].children[0].classList.contains('c-chat-info__sd-option-label')
+    && sdOpts[1].querySelector('.c-chat-info__sd-status .c-button__spinner')
+    && !sdOpts[1].querySelector('.c-chat-info__sd-option-label + .c-button__spinner')
+    && sdOpts[1].querySelector('.c-chat-info__sd-option-label').textContent === '1 hour',
+    'loading spinner sits in the check slot; the label stays put (#145)');
   sdCtrl.done();
   await sleep(450);
   ok(!d.querySelector('.c-chat-info__sd')
@@ -684,6 +693,26 @@ console.log('chat.html — chat info (#141)');
     'wallet-receive imports sanitize/canonical from money.js (#143 ②)');
   ok(/from '\.\/money\.js'/.test(tb) && !/export function formatIxiAmount/.test(tb),
     'typed-bubbles imports formatIxiAmount from money.js (no local copy — #143 ②)');
+}
+
+{
+  /* static guards — #145 chat-info polish (Damir demo review). jsdom is layout/
+     paint-blind, so these read the CSS/HTML text. */
+  const infoCss = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
+  const baseCss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  const chatHtml = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
+  ok(/\.demo-sendpanel \{[^}]*inset: 44px 0 0 0/.test(chatHtml),
+    'demo takeover starts BELOW the 44px mock statusbar — no cover (#145 ①)');
+  ok(/\.c-chat-info__setting-section > \.c-chat-info__setting/.test(infoCss),
+    'disappearing row uses a wrapper section for its divider — pressed/tap box stays off the gap (#145 ②)');
+  ok(/\.c-chat-info__sd-status \{[^}]*color: var\(--icon-success\)/.test(infoCss)
+    && /\.c-chat-info__sd-option\[data-loading\] \.c-chat-info__sd-check \{ display: none/.test(infoCss),
+    'sd check uses --icon-success (both themes) + loading swaps the check for a spinner in the slot (#145 ③)');
+  ok(/\.c-chat-info__address-row \{[^}]*background: var\(--surface-input\)/.test(infoCss)
+    && /\.c-chat-info__copy \{[^}]*width: 32px/.test(infoCss),
+    'address value sits on a --surface-input chip with a 32px copy button — member-sheet parity (#145 ④)');
+  ok(/scrollbar-gutter: stable/.test(baseCss),
+    'u-scroll reserves the scrollbar gutter — QR/payments expand no longer reflows content (#145 ⑤)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

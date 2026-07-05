@@ -29,7 +29,7 @@
 <link rel="stylesheet" href="../styles/components/chat-select.css"><!-- #139: multi-select + split-paste -->
 <style>
   /* #139: in-chat Pay — the send screen takes over the phone, topbar back returns */
-  .demo-sendpanel { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: var(--surface-screen); }
+  .demo-sendpanel { position: absolute; inset: 44px 0 0 0; z-index: 25; display: flex; flex-direction: column; background: var(--surface-screen); } /* top: 44px = mock statusbar height — the takeover must not cover it (real app: native safe-area, Phase 2 #22) */
   .demo-sendpanel__body { flex: 1; overflow-y: auto; }
 </style>
 <link rel="stylesheet" href="../styles/components/media-bubble.css">

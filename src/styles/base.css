@@ -96,6 +96,11 @@ img, svg { display: block; max-width: 100%; }
   .u-scroll {
     scrollbar-width: thin;                       /* FF + Chromium 121+ */
     scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;                    /* reserve the gutter so an appearing scrollbar
+                                                    never reflows content (the comment above always
+                                                    promised this; QR/payments expand used to shift
+                                                    + flicker — Damir). Pointer-only: touch WebViews
+                                                    keep their transient overlay, no reserved gutter. */
   }
   .u-scroll:hover, .u-scroll:focus-within {
     scrollbar-color: var(--outline-neutral-02) transparent;

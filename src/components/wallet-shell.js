@@ -112,6 +112,20 @@ export function setWalletQuery(listEl, state, query, opts) {
   return renderWalletTxList(listEl, state, opts);
 }
 
+/** Brief highlight on a just-landed row (Damir #136): the send flow returns home and the
+ *  fresh pending tx pulses once (~2s wash) so the eye lands on it. Reduced motion skips
+ *  the animation (explicit @media escape, #117 raw-keyframe precedent). */
+export function flashWalletTx(listEl, txid) {
+  if (!listEl || txid == null) return null;
+  const esc = window.CSS && CSS.escape ? CSS.escape(String(txid)) : String(txid).replace(/"/g, '\\"');
+  const row = listEl.querySelector('.c-txlist-item[data-txid="' + esc + '"]');
+  if (!row) return null;
+  row.dataset.flash = '';
+  row.addEventListener('animationend', () => { delete row.dataset.flash; }, { once: true });
+  setTimeout(() => { delete row.dataset.flash; }, 2400);   // reduced-motion/no-animation fallback cleanup
+  return row;
+}
+
 /* —————————————————— filter chips + "Missing a transaction?" —————————————————— */
 
 const FILTERS = [

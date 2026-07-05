@@ -6093,13 +6093,16 @@ function createWalletHero({
   eye.type = 'button';
   eye.className = 'c-wallet-hero__eye';
   eye.setAttribute('aria-label', strings.hideBalance || 'Hide balance');   // constant (APG toggle)
-  eye.addEventListener('click', toggleHidden);
-  // pointer convenience (Damir #135): tapping ANYWHERE on the balance block toggles too —
-  // the eye stays the accessible control (keyboard/SR path)
-  bal.addEventListener('click', (e) => {
-    if (e.target.closest('.c-wallet-hero__eye')) return;   // eye handles its own click
+  eye.addEventListener('click', (e) => {
+    // stopPropagation is LOAD-BEARING (Damir #136: center-taps "did nothing"): the toggle
+    // re-render DETACHES the tapped svg, so the balance-block guard's closest() failed on
+    // the orphaned target and the bubbled click toggled BACK (double-toggle = net zero)
+    e.stopPropagation();
     toggleHidden();
   });
+  // pointer convenience (Damir #135): tapping ANYWHERE on the balance block toggles too —
+  // the eye stays the accessible control (keyboard/SR path)
+  bal.addEventListener('click', toggleHidden);
   row.append(amount, eye);
   bal.append(row);
 
@@ -6277,6 +6280,20 @@ function setWalletFilter(listEl, state, filter, opts) {
 function setWalletQuery(listEl, state, query, opts) {
   state.query = query;
   return renderWalletTxList(listEl, state, opts);
+}
+
+/** Brief highlight on a just-landed row (Damir #136): the send flow returns home and the
+ *  fresh pending tx pulses once (~2s wash) so the eye lands on it. Reduced motion skips
+ *  the animation (explicit @media escape, #117 raw-keyframe precedent). */
+function flashWalletTx(listEl, txid) {
+  if (!listEl || txid == null) return null;
+  const esc = window.CSS && CSS.escape ? CSS.escape(String(txid)) : String(txid).replace(/"/g, '\\"');
+  const row = listEl.querySelector('.c-txlist-item[data-txid="' + esc + '"]');
+  if (!row) return null;
+  row.dataset.flash = '';
+  row.addEventListener('animationend', () => { delete row.dataset.flash; }, { once: true });
+  setTimeout(() => { delete row.dataset.flash; }, 2400);   // reduced-motion/no-animation fallback cleanup
+  return row;
 }
 
 /* —————————————————— filter chips + "Missing a transaction?" —————————————————— */
@@ -6645,6 +6662,7 @@ function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
 
 
 
+
 /** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
  *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
  *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
@@ -6714,15 +6732,22 @@ function createWalletSend({
   });
   picker.append(search);
   const rows = document.createElement('div');
-  rows.className = 'c-wallet-send__contacts';
-  picker.append(rows);
+  rows.className = 'c-wallet-send__contacts';           // appended after the address row below
 
-  const addrReveal = document.createElement('button');
-  addrReveal.type = 'button';
-  addrReveal.className = 'c-wallet-send__addrreveal';
-  addrReveal.append(icon('qrcode', { size: 18 }));
-  addrReveal.append(document.createTextNode(strings.sendToAddress || 'Send to an address'));
-  picker.append(addrReveal);
+  // "Send to an address" sits ON TOP of the contacts, aligned with them — a contact-style
+  // row whose avatar slot is the qrcode glyph (Damir #136); tapping expands the input below
+  const addrRow = document.createElement('button');
+  addrRow.type = 'button';
+  addrRow.className = 'c-wallet-send__contact';
+  addrRow.setAttribute('aria-expanded', 'false');
+  const addrGlyph = document.createElement('span');
+  addrGlyph.className = 'c-wallet-send__addrglyph';
+  addrGlyph.append(icon('qrcode', { size: 20 }));
+  const addrLabel = document.createElement('span');
+  addrLabel.className = 'c-wallet-send__contactname';
+  addrLabel.textContent = strings.sendToAddress || 'Send to an address';
+  addrRow.append(addrGlyph, addrLabel);
+  picker.append(addrRow);
 
   const addrField = document.createElement('div');
   addrField.className = 'c-wallet-send__addrfield';
@@ -6751,7 +6776,14 @@ function createWalletSend({
   });
   addrField.append(addrUse);
   picker.append(addrField);
-  addrReveal.addEventListener('click', () => { addrField.hidden = false; addrInput.focus(); });
+  addrRow.addEventListener('click', () => {
+    const open = addrField.hidden;
+    addrField.hidden = !open;
+    addrRow.setAttribute('aria-expanded', String(open));
+    if (open) addrInput.focus();
+  });
+
+  picker.append(rows);                                   // contacts BELOW the address row (Damir #136)
 
   const errLine = document.createElement('p');
   errLine.className = 'c-wallet-send__error';
@@ -6767,7 +6799,10 @@ function createWalletSend({
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
       || (c.address || '').toLocaleLowerCase().includes(needle));
-    for (const c of list.slice(0, 6)) {
+    // 100s-of-contacts scaling (Damir #136): a short browsable window, search narrows —
+    // no giant scrolling list competing with the amount section
+    const cap = needle ? 8 : 5;
+    for (const c of list.slice(0, cap)) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-wallet-send__contact';
@@ -6778,6 +6813,14 @@ function createWalletSend({
       b.append(t);
       b.addEventListener('click', () => pick({ ...c, contact: true }));
       rows.append(b);
+    }
+    if (list.length > cap) {
+      const more = document.createElement('p');
+      more.className = 'c-wallet-send__none';
+      more.setAttribute('role', 'note');
+      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
+        .split('{n}').join(String(list.length - cap));
+      rows.append(more);
     }
     if (!list.length && needle) {
       const none = document.createElement('p');
@@ -6857,10 +6900,23 @@ function createWalletSend({
   unit.textContent = 'IXI';
   const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32,
     onClick: () => {
+      // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
+      // safe action autofocused (APG), only then the field fills
       const maxU = balU - feeU;
-      state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots, no exponential notation
-      amtInput.value = state.amount;
-      sync();
+      openModal(createModal({
+        title: strings.maxTitle || 'Send your entire balance?',
+        body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
+          .split('{m}').join(fromUnits(maxU > 0n ? maxU : 0n)),
+        role: 'alertdialog', host,
+        actions: [
+          { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+          { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
+            state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
+            amtInput.value = state.amount;
+            sync();
+          } },
+        ],
+      }));
     } });
   amtRow.append(amtInput, unit, maxBtn);
   amtSec.append(amtRow);
@@ -7043,5 +7099,5 @@ function setSendError(el, msg) {
   return el;
 }
 
-  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError };
+  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError };
 })();

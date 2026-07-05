@@ -27,6 +27,7 @@ import { createAvatar } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { createModal, openModal } from './modal.js';
 import { setOverlayOpts } from './overlay.js';
 import { icon } from './icons.js';
 
@@ -99,15 +100,22 @@ export function createWalletSend({
   });
   picker.append(search);
   const rows = document.createElement('div');
-  rows.className = 'c-wallet-send__contacts';
-  picker.append(rows);
+  rows.className = 'c-wallet-send__contacts';           // appended after the address row below
 
-  const addrReveal = document.createElement('button');
-  addrReveal.type = 'button';
-  addrReveal.className = 'c-wallet-send__addrreveal';
-  addrReveal.append(icon('qrcode', { size: 18 }));
-  addrReveal.append(document.createTextNode(strings.sendToAddress || 'Send to an address'));
-  picker.append(addrReveal);
+  // "Send to an address" sits ON TOP of the contacts, aligned with them — a contact-style
+  // row whose avatar slot is the qrcode glyph (Damir #136); tapping expands the input below
+  const addrRow = document.createElement('button');
+  addrRow.type = 'button';
+  addrRow.className = 'c-wallet-send__contact';
+  addrRow.setAttribute('aria-expanded', 'false');
+  const addrGlyph = document.createElement('span');
+  addrGlyph.className = 'c-wallet-send__addrglyph';
+  addrGlyph.append(icon('qrcode', { size: 20 }));
+  const addrLabel = document.createElement('span');
+  addrLabel.className = 'c-wallet-send__contactname';
+  addrLabel.textContent = strings.sendToAddress || 'Send to an address';
+  addrRow.append(addrGlyph, addrLabel);
+  picker.append(addrRow);
 
   const addrField = document.createElement('div');
   addrField.className = 'c-wallet-send__addrfield';
@@ -136,7 +144,14 @@ export function createWalletSend({
   });
   addrField.append(addrUse);
   picker.append(addrField);
-  addrReveal.addEventListener('click', () => { addrField.hidden = false; addrInput.focus(); });
+  addrRow.addEventListener('click', () => {
+    const open = addrField.hidden;
+    addrField.hidden = !open;
+    addrRow.setAttribute('aria-expanded', String(open));
+    if (open) addrInput.focus();
+  });
+
+  picker.append(rows);                                   // contacts BELOW the address row (Damir #136)
 
   const errLine = document.createElement('p');
   errLine.className = 'c-wallet-send__error';
@@ -152,7 +167,10 @@ export function createWalletSend({
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
       || (c.address || '').toLocaleLowerCase().includes(needle));
-    for (const c of list.slice(0, 6)) {
+    // 100s-of-contacts scaling (Damir #136): a short browsable window, search narrows —
+    // no giant scrolling list competing with the amount section
+    const cap = needle ? 8 : 5;
+    for (const c of list.slice(0, cap)) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-wallet-send__contact';
@@ -163,6 +181,14 @@ export function createWalletSend({
       b.append(t);
       b.addEventListener('click', () => pick({ ...c, contact: true }));
       rows.append(b);
+    }
+    if (list.length > cap) {
+      const more = document.createElement('p');
+      more.className = 'c-wallet-send__none';
+      more.setAttribute('role', 'note');
+      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
+        .split('{n}').join(String(list.length - cap));
+      rows.append(more);
     }
     if (!list.length && needle) {
       const none = document.createElement('p');
@@ -242,10 +268,23 @@ export function createWalletSend({
   unit.textContent = 'IXI';
   const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32,
     onClick: () => {
+      // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
+      // safe action autofocused (APG), only then the field fills
       const maxU = balU - feeU;
-      state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots, no exponential notation
-      amtInput.value = state.amount;
-      sync();
+      openModal(createModal({
+        title: strings.maxTitle || 'Send your entire balance?',
+        body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
+          .split('{m}').join(fromUnits(maxU > 0n ? maxU : 0n)),
+        role: 'alertdialog', host,
+        actions: [
+          { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+          { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
+            state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
+            amtInput.value = state.amount;
+            sync();
+          } },
+        ],
+      }));
     } });
   amtRow.append(amtInput, unit, maxBtn);
   amtSec.append(amtRow);

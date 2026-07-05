@@ -5,6 +5,10 @@
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
+  /* flex: none is LOAD-BEARING: inside the flex-column scroll container, overflow:hidden
+     gives this box a min-height of 0 and flex-shrink collapsed it to nothing between the
+     hero and a tall list (Damir screenshot #136 — jsdom smoke can't see layout) */
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
@@ -59,6 +63,16 @@
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }
+
+/* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
+   Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);
+   explicit reduced-motion escape per the same precedent. */
+@keyframes c-wallet-txflash {
+  0% { background-color: var(--surface-action-tonal-default); }
+  100% { background-color: transparent; }
+}
+.c-txlist-item[data-flash] { animation: c-wallet-txflash 2s var(--easing-standard) both; }
+@media (prefers-reduced-motion: reduce) { .c-txlist-item[data-flash] { animation: none; } }
 .c-wallet-empty {
   padding: var(--spacing-32) var(--spacing-24);
   text-align: center;

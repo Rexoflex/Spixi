@@ -170,13 +170,16 @@ console.log('wallet.html');
   scrollTo(0);
   ok(!hero.hasAttribute('data-compact'), 'absolute top → hero expands');
 
-  /* send flow (slice 2, #135): hero Send → one-screen send + #26 review with exact money */
+  /* send flow (slice 2, #135/#136): hero Send → one-screen send + #26 review, exact money */
   ok(d.querySelectorAll('.c-wallet-hero__qa[data-primary]').length === 0, 'quick actions uniform (no special Send circle)');
+  ok(!!tools.offsetParent || tools.style.display !== 'none', 'tools present (flex:none guards layout collapse — #136)');
   d.querySelector('.c-wallet-hero__qa').click();
   await sleep(50);
   const send = d.querySelector('.c-wallet-send');
   ok(!!send, 'Send quick action opens the send view');
-  send.querySelector('.c-wallet-send__contact').click();
+  ok(!!send.querySelector('.c-wallet-send__picker .c-wallet-send__contact .c-wallet-send__addrglyph'),
+    'address row first, contact-aligned (#136)');
+  send.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
   const amt = send.querySelector('.c-wallet-send__amount');
   amt.value = '12.5'; amt.dispatchEvent(new W.Event('input', { bubbles: true }));
   const reviewBtn = send.querySelector('.c-wallet-send__actions .c-button');

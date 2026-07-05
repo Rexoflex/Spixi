@@ -108,13 +108,16 @@ export function createWalletHero({
   eye.type = 'button';
   eye.className = 'c-wallet-hero__eye';
   eye.setAttribute('aria-label', strings.hideBalance || 'Hide balance');   // constant (APG toggle)
-  eye.addEventListener('click', toggleHidden);
-  // pointer convenience (Damir #135): tapping ANYWHERE on the balance block toggles too —
-  // the eye stays the accessible control (keyboard/SR path)
-  bal.addEventListener('click', (e) => {
-    if (e.target.closest('.c-wallet-hero__eye')) return;   // eye handles its own click
+  eye.addEventListener('click', (e) => {
+    // stopPropagation is LOAD-BEARING (Damir #136: center-taps "did nothing"): the toggle
+    // re-render DETACHES the tapped svg, so the balance-block guard's closest() failed on
+    // the orphaned target and the bubbled click toggled BACK (double-toggle = net zero)
+    e.stopPropagation();
     toggleHidden();
   });
+  // pointer convenience (Damir #135): tapping ANYWHERE on the balance block toggles too —
+  // the eye stays the accessible control (keyboard/SR path)
+  bal.addEventListener('click', toggleHidden);
   row.append(amount, eye);
   bal.append(row);
 

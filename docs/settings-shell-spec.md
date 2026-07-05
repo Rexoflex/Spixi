@@ -160,6 +160,68 @@ done, the real state needs the §9 timestamp ask.
    takes `languages` opts. BE: expose available lang files, or FE ships the
    list at build time.
 
+## 9b. Slice 2 — Downloads · Developer (log) · Contributors (interview-locked 2026-07-05)
+
+Damir's picks: Downloads = open-on-tap + per-file delete + clear-all + search
+(all four) · Dev = read-only log **viewer + copy** (no export/tail — fits the
+frozen bridge) · Contributors = **static list** ported from legacy
+`contributors.html` (12 names, localizable via SL). All three are modal
+takeovers in legacy (back = `PopModalAsync`); in the shell they're view
+takeovers from the hub rows, `createTopbar({variant:'view', onBack})`.
+
+### Bridge grounding (bridge-audit-B §6–§8 — nothing invented)
+
+| Surface action | Legacy command | Notes |
+|---|---|---|
+| downloads list in | `clearFiles()` + `addFile(name, ctime)` | ctime = `DateTime.ToString()`, LOCALE-DEPENDENT opaque string (DownloadsPage.xaml.cs:98) — display as-is, never parse |
+| open file | `ixian:open:<fileName>` | OS open/preview; C# checks existence |
+| delete one file | `ixian:delete:<fileName>` | C# deletes + re-pushes the whole list (clearFiles+addFile) |
+| clear all | `ixian:deleted` | the danger-screen command reused; C# alerts with count |
+| dev log in | `setLog(text)` | whole ixian.log as ONE string (may arrive twice — OnAppearing + onload; idempotent replace) |
+| contributors | — | fully static, no pushes |
+
+### Screens (grammar reuse — no new component types)
+
+1. **Downloads** (`createSettingsDownloads`) — c-search-field (frontend filter,
+   name match, hidden when list < ~8) · file rows on a `.c-settings__group`
+   card: `file-isr` disc · name (1-line ellipsis) · ctime sub · trailing
+   trash icon-button → #135-C1 locked confirm (`onDeleteFile(name, ctrl)`);
+   row tap = `onOpenFile(name)` (fire-and-forget — C# owns the result) ·
+   toolbar/danger row "Delete all downloads" → confirmAction + #150⑥
+   cannot-undo strip (`onClearAll(ctrl)`, `ixian:deleted`) · empty state
+   (download disc + copy) — also what clearFiles renders · list driven by
+   free fns `setDownloads(el, files)` (wholesale re-push mirror) matching the
+   clearFiles/addFile contract.
+2. **Developer** (`createSettingsDev`) — read-only monospace log pane
+   (`u-scroll`, pre-wrap, newest at the bottom, auto-scrolled to end on set) ·
+   "Copy log" outline button (navigator.clipboard, honest morph like the
+   address copy — fail-soft when clipboard is absent) · **"Send log"** outline
+   button beside it (Damir follow-up): §9-gated by `onSendLog` presence —
+   wallet-export grammar (latched → loading → "Sent" morph); the proposal is
+   C# opening the OS email/share sheet with ixian.log ATTACHED (mailto: can't
+   carry the log — URL limits) · `setDevLog(el, text)` free fn (idempotent —
+   double push safe) · empty state until the push. Unbounded-log honesty:
+   text lands as ONE node, no per-line DOM.
+3. **Contributors** (`createSettingsContributors`) — art slot (heart-handshake
+   disc, illustration swaps later per illustrations-plan) · "Special thanks"
+   label + the 12 legacy names as chips/rows on a card · takes
+   `contributors: [names]` opts with the legacy list as default.
+
+Security notes: file NAMES from the bridge are untrusted → `textContent`
+only, never innerHTML (legacy concatenated HTML — do NOT port that). Log text
+= `textContent` into the pane. The `..` traversal gap on `ixian:open/delete:`
+is C#-side (bridge-audit-B §6 unusual) — carried as a §9 flag.
+
+### §9 additions from this slice
+5. `ixian:open:<file>` / `ixian:delete:<file>`: no path sanitization C#-side
+   (`..` traversal possible in principle) — BE should sanitize/normalize.
+6. `addFile` ctime is `DateTime.ToString()` locale-opaque — a stable ISO
+   timestamp would let the FE bucket/format properly (nice-to-have).
+7. **Send log** (Damir): new command (e.g. `ixian:sendlog`) — C# opens the OS
+   email/share sheet with ixian.log attached, suggested recipient
+   info@ixian.io (BE picks the address/mechanism). FE ships the button
+   §9-gated behind `onSendLog`.
+
 ## 10. #147 PREMIUM ROUND (Damir, 2026-07-05 — second interview; reference img)
 
 Locked picks: ① **QR-forward centered hero** — avatar-80 / name+pencil /

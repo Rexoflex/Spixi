@@ -177,6 +177,10 @@
   outline: none;
   border-color: var(--outline-action-default);
 }
+/* the show-password eye is the WebView2/Edge NATIVE ::-ms-reveal control —
+   it can't ride our tokens, so tint the black glyph readable in dark mode
+   (Damir screenshot 2026-07-05; Android/iOS WebViews render no native reveal) */
+[data-theme="dark"] .c-settings-backup__pw-input::-ms-reveal { filter: invert(0.8); }
 .c-settings-backup__pw-error {
   margin: 0;
   color: var(--text-error);

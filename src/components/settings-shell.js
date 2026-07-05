@@ -795,6 +795,65 @@ export function setBackupStatus(hub, status = {}) {
  * account/wallet is C#-SIDE — the FE confirm is deliberateness, not the
  * security boundary.
  */
+/**
+ * Shared LOCKED destructive confirm (#135-C1 + #150⑥) — the house alertdialog
+ * for every account-shell delete: Cancel autofocus, Esc/scrim/Cancel dead in
+ * flight (live setOverlayOpts), confirm latched, sync throw → fail path
+ * (#141-m4), standing cannot-undo warning strip. Used by the danger screen
+ * AND the downloads screen (slice 2) — exported so the contract lives once.
+ */
+export function settingsConfirm({ title, bodyText, confirmLabel, host, strings = {}, run }) {
+  let inFlight = false;
+  const extra = document.createElement('div');
+  // #150⑥ (Damir): EVERY account-shell delete confirm carries the standing
+  // irreversibility warning as its own strip — not buried in body copy
+  const warn = document.createElement('p');
+  warn.className = 'c-settings-danger__confirm-warn';
+  warn.append(icon('alert-square-rounded', { size: 18 }),
+    document.createTextNode(strings.cannotUndo || 'This action cannot be undone.'));
+  const err = document.createElement('p');
+  err.className = 'c-settings-danger__confirm-error';
+  err.setAttribute('role', 'alert');
+  err.hidden = true;
+  extra.append(warn, err);
+  const modal = createModal({
+    title, body: bodyText, content: extra, role: 'alertdialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true,
+        onClick: () => (inFlight ? false : undefined) },
+      {
+        label: confirmLabel, type: 'fill', intent: 'destructive',
+        onClick: () => {
+          if (inFlight) return false;
+          inFlight = true;
+          err.hidden = true;
+          const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+          const confirmBtn = btns[btns.length - 1];
+          setLoading(confirmBtn, true);
+          setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });
+          const fail = (msg) => {
+            inFlight = false;
+            setLoading(confirmBtn, false);
+            setOverlayOpts(modal, { escDismiss: true });
+            err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+            err.hidden = false;
+            confirmBtn.focus();
+          };
+          try {
+            run(settingsCtrl(() => dismissOverlay(modal), fail));
+          } catch (ex) {
+            fail();
+          }
+          return false;                    // closes on ctrl.done only
+        },
+      },
+    ],
+    strings,
+  });
+  openModal(modal);
+  return modal;
+}
+
 export function createSettingsDanger({
   host,
   onBack,
@@ -814,57 +873,7 @@ export function createSettingsDanger({
 
   const hostFor = () => host || el.closest('.demo-phone') || undefined;
 
-  function confirmAction({ title, bodyText, confirmLabel, run }) {
-    let inFlight = false;
-    const extra = document.createElement('div');
-    // #150⑥ (Damir): EVERY account-shell delete confirm carries the standing
-    // irreversibility warning as its own strip — not buried in body copy
-    const warn = document.createElement('p');
-    warn.className = 'c-settings-danger__confirm-warn';
-    warn.append(icon('alert-square-rounded', { size: 18 }),
-      document.createTextNode(strings.cannotUndo || 'This action cannot be undone.'));
-    const err = document.createElement('p');
-    err.className = 'c-settings-danger__confirm-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = true;
-    extra.append(warn, err);
-    const modal = createModal({
-      title, body: bodyText, content: extra, role: 'alertdialog', host: hostFor(),
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true,
-          onClick: () => (inFlight ? false : undefined) },
-        {
-          label: confirmLabel, type: 'fill', intent: 'destructive',
-          onClick: () => {
-            if (inFlight) return false;
-            inFlight = true;
-            err.hidden = true;
-            const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-            const confirmBtn = btns[btns.length - 1];
-            setLoading(confirmBtn, true);
-            setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });
-            const fail = (msg) => {
-              inFlight = false;
-              setLoading(confirmBtn, false);
-              setOverlayOpts(modal, { escDismiss: true });
-              err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
-              err.hidden = false;
-              confirmBtn.focus();
-            };
-            try {
-              run(settingsCtrl(() => dismissOverlay(modal), fail));
-            } catch (ex) {
-              fail();
-            }
-            return false;                    // closes on ctrl.done only
-          },
-        },
-      ],
-      strings,
-    });
-    openModal(modal);
-    return modal;
-  }
+  const confirmAction = (opts) => settingsConfirm({ ...opts, host: hostFor(), strings });
 
   /* quiet tier — plain rows on a group card */
   const quietWrap = document.createElement('div');

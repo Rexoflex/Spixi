@@ -1142,6 +1142,159 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(secOff.querySelectorAll('.c-settings-security__tier').length === 0,
     'security tiers hide without the cap (§9 honesty)');
   shost2.remove();
+
+  /* —— slice 2 (settings-app.js, spec §9b): downloads · dev log · contributors —— */
+
+  /* downloads — list render, search, open, delete confirm, clear-all */
+  let openName = null, delName = null, delCtrl = null, clearCtrl = null;
+  const dlhost = d.createElement('div');
+  d.body.append(dlhost);
+  const FILES = [
+    { name: 'report.pdf', time: '05/07/2026 10:12:44' },
+    { name: 'photo.jpg', time: '04/07/2026 21:03:11' },
+    { name: 'invoice.pdf', time: '03/07/2026 14:40:02' },
+    { name: 'note.m4a', time: '02/07/2026 09:15:37' },
+    { name: 'diagram.png', time: '01/07/2026 18:22:56' },
+    { name: 'deck.pptx', time: '29/06/2026 11:48:20' },
+    { name: 'notes.txt', time: '25/06/2026 08:02:13' },
+    { name: '<img src=x onerror=alert(1)>.zip', time: '21/06/2026 16:31:45' },
+  ];
+  const dl = S.createSettingsDownloads({
+    files: FILES, onBack() {},
+    onOpenFile: (n) => { openName = n; },
+    onDeleteFile: (n, ctrl) => { delName = n; delCtrl = ctrl; },
+    onClearAll: (ctrl) => { clearCtrl = ctrl; },
+  });
+  dlhost.append(dl);
+  const dlSections = () => [...dl.querySelectorAll('.c-settings__groupwrap')[0].querySelectorAll('.c-settings__section')];
+  ok(dlSections().length === 8 && dl.querySelector('.c-settings-dl__empty').hidden,
+    'downloads: 8 file rows on the card, empty state hidden');
+  ok(!dl.querySelector('.c-settings-dl__search').hidden,
+    'search field shows at ≥8 files');
+  ok(!dl.querySelector('.c-settings-dl__row img')
+    && dl.textContent.includes('<img src=x onerror=alert(1)>.zip'),
+    'bridge file names land as TEXT — the legacy innerHTML concat is NOT ported (XSS guard)');
+  dl.querySelector('.c-settings-dl__open').click();
+  ok(openName === 'report.pdf', 'row tap fires ixian:open with the file name');
+  const dlInput = dl.querySelector('.c-search-field__input');
+  dlInput.value = 'pdf';
+  dlInput.dispatchEvent(new W4.Event('input', { bubbles: true }));
+  ok(dlSections().filter((s) => !s.hidden).length === 2,
+    'search narrows to name matches (frontend-only filter)');
+  dlInput.value = 'zzz-no-such-file';
+  dlInput.dispatchEvent(new W4.Event('input', { bubbles: true }));
+  ok(!dl.querySelector('.c-settings-dl__nomatch').hidden,
+    'no-match note appears when the filter empties the list');
+  dlInput.value = '';
+  dlInput.dispatchEvent(new W4.Event('input', { bubbles: true }));
+  ok(dlSections().filter((s) => !s.hidden).length === 8, 'clearing the search restores every row');
+
+  /* per-file delete — the house locked confirm (settingsConfirm, one contract) */
+  dl.querySelector('.c-settings-dl__del').click();
+  const dlModal = [...d.querySelectorAll('.c-modal')].pop();
+  ok(!!dlModal && dlModal.getAttribute('role') === 'alertdialog'
+    && !!dlModal.querySelector('.c-settings-danger__confirm-warn')
+    && dlModal.textContent.includes('report.pdf'),
+    'file delete = locked alertdialog + cannot-undo strip (#150⑥), names the file');
+  const dlBtns = dlModal.querySelectorAll('.c-modal__actions .c-button');
+  dlBtns[dlBtns.length - 1].click();
+  ok(delName === 'report.pdf' && !!delCtrl, 'confirm fires onDeleteFile(name, ctrl)');
+  delCtrl.fail('Couldn’t delete.');
+  ok(!dlModal.querySelector('.c-settings-danger__confirm-error').hidden,
+    'delete ctrl.fail surfaces the inline error and unlatches');
+  delCtrl = null;
+  dlBtns[dlBtns.length - 1].click();          // fresh attempt, fresh ctrl
+  delCtrl.done();
+  await sleep(450);
+  ok(![...d.querySelectorAll('.c-modal')].includes(dlModal), 'retry → ctrl.done closes the confirm');
+  S.setDownloads(dl, FILES.slice(1));         // C# re-pushes the whole list after delete
+  ok(dlSections().length === 7, 'setDownloads mirrors the wholesale clearFiles+addFile re-push');
+
+  /* clear-all → ixian:deleted; empty state takes over */
+  const dlClear = [...dl.querySelectorAll('.c-settings__row')]
+    .find((r) => r.textContent.includes('Delete all downloads'));
+  ok(!!dlClear && dlClear.querySelector('.c-disc').dataset.hue === 'error',
+    'clear-all is the ONE error-hue row on the downloads surface (#147 reservation)');
+  dlClear.click();
+  const clModal = [...d.querySelectorAll('.c-modal')].pop();
+  const clBtns = clModal.querySelectorAll('.c-modal__actions .c-button');
+  clBtns[clBtns.length - 1].click();
+  clearCtrl.done();
+  await sleep(450);
+  S.setDownloads(dl, []);
+  ok(!dl.querySelector('.c-settings-dl__empty').hidden
+    && dl.querySelector('.c-settings-dl__search').hidden
+    && dl.querySelectorAll('.c-settings__groupwrap')[0].hidden,
+    'cleared list → empty state, search + list + clear-all rows retire');
+
+  /* sync throw in onDeleteFile → fail path, modal never wedges (#141-m4) */
+  const dlThrow = S.createSettingsDownloads({
+    files: [{ name: 'a.txt', time: 't' }], onBack() {},
+    onOpenFile() {}, onDeleteFile: () => { throw new Error('bridge not ready'); },
+  });
+  dlhost.append(dlThrow);
+  dlThrow.querySelector('.c-settings-dl__del').click();
+  const twModal = [...d.querySelectorAll('.c-modal')].pop();
+  const twBtns = twModal.querySelectorAll('.c-modal__actions .c-button');
+  twBtns[twBtns.length - 1].click();
+  ok(!twModal.querySelector('.c-settings-danger__confirm-error').hidden,
+    'sync throw in onDeleteFile routes to the inline fail path — confirm never wedges (#141-m4)');
+  key(d, 'Escape');
+  await sleep(500);
+  dlhost.remove();
+
+  /* dev — log viewer + copy + send (no export/tail command; send is §9-gated) */
+  let sendCalls = 0, sendCtrl = null;
+  const dvhost = d.createElement('div');
+  d.body.append(dvhost);
+  const dev = S.createSettingsDev({
+    onBack() {},
+    onSendLog: (ctrl) => { sendCalls++; sendCtrl = ctrl; },
+  });
+  dvhost.append(dev);
+  ok(dev.querySelector('.c-settings-dev__log').hidden
+    && !dev.querySelector('.c-settings-dev__waiting').hidden
+    && dev.querySelector('.c-settings-dev__actions').hidden,
+    'dev screen waits honestly until the setLog push lands (actions hidden too)');
+  S.setDevLog(dev, 'line 1\n<script>alert(1)</script>\nline 3');
+  S.setDevLog(dev, 'line 1\n<script>alert(1)</script>\nline 3');   // push may arrive twice
+  const pane = dev.querySelector('.c-settings-dev__log');
+  ok(!pane.hidden && pane.textContent.includes('<script>')
+    && !pane.querySelector('script'),
+    'setDevLog is idempotent and injects the log as TEXT (double-push + XSS safe)');
+  ok(pane.tagName === 'PRE' && pane.childNodes.length === 1,
+    'unbounded log lands as ONE text node — no per-line DOM');
+  ok(!dev.querySelector('.c-settings-dev__actions').hidden,
+    'Copy + Send actions appear with the log');
+  dev.querySelector('.c-settings-dev__copy').click();   // jsdom has no navigator.clipboard
+  ok(dev.querySelector('.c-settings__live').textContent.includes('Couldn’t copy'),
+    'copy fails SOFT when the clipboard is absent (WebView honesty)');
+  const sendBtn = dev.querySelector('.c-settings-dev__send');
+  sendBtn.click();
+  sendBtn.click();                            // latched — must not fire twice
+  ok(sendCalls === 1 && !!sendCtrl, 'Send log fires ONCE, latched while in flight');
+  sendCtrl.done();
+  ok(sendBtn.textContent.includes('Sent'), 'send ctrl.done morphs the button to Sent');
+  const devThrow = S.createSettingsDev({
+    log: 'x', onBack() {},
+    onSendLog: () => { throw new Error('bridge not ready'); },
+  });
+  dvhost.append(devThrow);
+  devThrow.querySelector('.c-settings-dev__send').click();
+  ok(devThrow.querySelector('.c-settings__live').textContent.includes('Couldn’t send')
+    && !devThrow.querySelector('.c-settings-dev__send .c-button__spinner'),
+    'sync throw in onSendLog routes to the fail path — button unlatches, no spinner left (#141-m4)');
+  const devGated = S.createSettingsDev({ log: 'x', onBack() {} });
+  ok(!devGated.querySelector('.c-settings-dev__send'),
+    'Send log hides without its callback (§9 honesty — no bridge command yet)');
+  dvhost.remove();
+
+  /* contributors — static port of the legacy 12 */
+  const con = S.createSettingsContributors({ onBack() {} });
+  const conNames = [...con.querySelectorAll('.c-settings-contrib__name')];
+  ok(conNames.length === 12 && conNames[0].textContent === 'Lex Scalp',
+    'contributors: the legacy 12 render as a static card list');
+
   host.remove();
 }
 
@@ -1249,6 +1402,40 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'appearance preview bubbles ride the REAL bubble ink pair — no dark-on-blue (#150⑦)');
   ok(/\.c-settings-danger__confirm-warn \{[^}]*background: var\(--disc-error-bg\)/.test(setCss),
     'cannot-undo strip styled as the error-tonal wash (#150⑥)');
+
+  /* —— slice 2 guards (settings-app.js, spec §9b) —— */
+  ok(setHtml.includes('components/settings-app.css') && setHtml.includes('components/search-field.css'),
+    'settings demo links settings-app.css + search-field.css (#138 class — downloads search renders on-brand)');
+  ok(bundleScript.indexOf('settings-shell.js') < bundleScript.indexOf('settings-app.js')
+    && bundleScript.includes('settings-app.js'),
+    'bundle FILES: settings-app.js registered AFTER settings-shell.js (imports settingsConfirm)');
+  const appJs = readFileSync(join(root, 'src/components/settings-app.js'), 'utf8');
+  ok(/import \{ settingsConfirm \} from '\.\/settings-shell\.js'/.test(appJs),
+    'downloads deletes ride the SHARED locked confirm — no local copy (one #135-C1/#150⑥ truth)');
+  ok((appJs.match(/dataset\.hue = 'error'/g) || []).length === 1,
+    "error hue appears exactly once in settings-app (the clear-all row) — reservation holds (#147)");
+  ok(!/\.innerHTML/.test(appJs),
+    'settings-app never touches .innerHTML — bridge names/log stay text (SECURITY; the word in the doc comment is fine)');
+  const appCss = readFileSync(join(root, 'src/styles/components/settings-app.css'), 'utf8');
+  ok(/\.c-settings-dl__open \{[^}]*min-width: 0/.test(appCss)
+    && /\.c-settings-dl__name \{[^}]*text-overflow: ellipsis/.test(appCss),
+    'long file names ellipsize — min-width:0 + ellipsis (#140③ class, jsdom is layout-blind)');
+  ok(/\.c-settings-dl__del \{[^}]*width: 44px/.test(appCss),
+    'per-file delete keeps the 44px touch target');
+  ok(/\.c-settings-dev__log\.u-scroll \{[^}]*flex: 1 1 auto/.test(appCss)
+    && /min-height: 0/.test(appCss),
+    'dev log pane is the sanctioned flex child of the scroll body (beats the #148③ flex:none guard)');
+
+  /* —— 2026-07-05 post-batch fixes (Damir screenshots/asks) —— */
+  ok(/\[data-theme="dark"\] \.c-settings-backup__pw-input::-ms-reveal \{ filter: invert/.test(bkCss),
+    'native show-password eye (WebView2 ::-ms-reveal) tinted readable in dark mode');
+  const wsJs = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8');
+  const wsCss = readFileSync(join(root, 'src/styles/components/wallet-send.css'), 'utf8');
+  ok(/c-wallet-send__max-warn/.test(wsJs) && /Payments cannot be undone/.test(wsJs)
+    && /content: maxWarn/.test(wsJs),
+    'Send-Max confirm carries the warning strip with ADAPTED text — the payment is irreversible, the fill is not (#150⑥ grammar)');
+  ok(/\.c-wallet-send__max-warn \{[^}]*background: var\(--disc-error-bg\)/.test(wsCss),
+    'Max strip rides the same error-tonal wash recipe as the delete confirms');
 }
 
 {

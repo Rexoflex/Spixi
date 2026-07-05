@@ -252,10 +252,18 @@ export function createWalletSend({
       // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
       // safe action autofocused (APG), only then the field fills
       const maxU = balU - feeU;
+      // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
+      // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
+      // fill itself is editable, it's the payment that can't be undone
+      const maxWarn = document.createElement('p');
+      maxWarn.className = 'c-wallet-send__max-warn';
+      maxWarn.append(icon('alert-square-rounded', { size: 18 }),
+        document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
       openModal(createModal({
         title: strings.maxTitle || 'Send your entire balance?',
         body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
           .split('{m}').join(fromUnits(maxU > 0n ? maxU : 0n)),
+        content: maxWarn,
         role: 'alertdialog', host,
         actions: [
           { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },

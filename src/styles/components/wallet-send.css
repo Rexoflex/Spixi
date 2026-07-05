@@ -1,5 +1,23 @@
 /* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
 
+/* Max-confirm warning strip — the #150⑥ delete-confirm recipe, adapted text
+   ("Payments cannot be undone."). Same wash/glyph grammar as
+   .c-settings-danger__confirm-warn; promote to a shared atom if a third
+   surface adopts it (the .c-disc precedent). */
+.c-wallet-send__max-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__max-warn svg { flex: none; }
+
 .c-wallet-send {
   display: flex;
   flex-direction: column;

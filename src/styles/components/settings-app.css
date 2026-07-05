@@ -1,0 +1,154 @@
+/* c-settings "App" screens (settings-app.js, spec §9b): Downloads · Developer
+   (log) · Contributors. Row/section/disc/group grammar comes from
+   settings-shell.css; screen-specific classes live here. Semantic tokens only;
+   logical properties (RTL-safe); hovers guarded. */
+
+.c-settings-dl,
+.c-settings-dev,
+.c-settings-contrib {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+
+/* —— downloads —— */
+
+/* split row: open (tap target) + delete — two SIBLING buttons, never nested */
+.c-settings-dl__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+.c-settings-dl__open {
+  flex: 1;
+  min-width: 0;                     /* the name ellipsis needs a shrinkable box */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 52px;                 /* settings-row parity (#149②) */
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings-dl__open:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings-dl__open:active { background: var(--surface-interactive-pressed); }
+.c-settings-dl__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-settings-dl__name {
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-dl__time {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings-dl__del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings-dl__del:hover {
+    background: var(--surface-interactive-hover);
+    color: var(--icon-error);
+  }
+}
+.c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
+
+/* empty state — centered, calm */
+.c-settings-dl__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-32) var(--spacing-16);
+  text-align: center;
+}
+
+/* —— developer log —— */
+
+/* the ONE sanctioned flex child of the settings scroll body: the log pane
+   fills the screen and scrolls itself (double-class beats the #148
+   `> * { flex:none }` guard without !important) */
+.c-settings-dev__log.u-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: var(--spacing-12);
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-02);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;  /* no mono token yet — flag at DS pass */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;          /* long unbroken log tokens must not overflow */
+  -webkit-user-select: text;        /* the copy fallback is manual selection */
+  user-select: text;
+}
+.c-settings-dev__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  justify-content: center;
+  flex-wrap: wrap;                  /* two 44s survive narrow frames */
+}
+
+/* —— contributors —— */
+.c-settings-contrib__art {
+  display: flex;
+  justify-content: center;
+  padding-block-start: var(--spacing-16);
+}
+.c-settings-contrib__art-disc {
+  width: 64px;                      /* sanctioned: art-slot disc (backup-hero precedent) */
+  height: 64px;
+}
+.c-settings-contrib__lead { text-align: center; }
+.c-settings-contrib__card { padding: var(--spacing-12); }
+.c-settings-contrib__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-8);
+}
+.c-settings-contrib__name {
+  padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-input); /* card scope reassigns to -on-card (#150③) */
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+}

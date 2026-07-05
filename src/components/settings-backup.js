@@ -111,54 +111,60 @@ export function createSettingsBackup({
     err.hidden = true;
     wrap.append(label, input, err);
 
+    let confirmBtn = null;
+    const fail = (msg) => {
+      inFlight = false;
+      input.disabled = false;
+      if (confirmBtn) setLoading(confirmBtn, false);
+      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
+      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
+      err.hidden = false;
+      input.focus();                                     // inline, on the field — never an alert
+    };
+    const submit = () => {                               // shared by the confirm button + Enter-in-field
+      if (inFlight) return;
+      const password = input.value;
+      if (!password) {
+        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
+        err.hidden = false;
+        input.focus();
+        return;
+      }
+      inFlight = true;
+      err.hidden = true;
+      input.disabled = true;
+      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+      confirmBtn = btns[btns.length - 1];
+      setLoading(confirmBtn, true);
+      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
+      try {
+        onBackup({ password }, backupCtrl(
+          () => {
+            dismissOverlay(modal);
+            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+            live.textContent = strings.backupDone || 'Backed up';
+          },
+          fail,
+        ));
+      } catch (ex) {
+        fail();
+      }
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
+    });
+
     const modal = createModal({
       title: strings.backupConfirmTitle || 'Confirm your password',
       body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
       content: wrap, host: hostFor(),
+      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
       actions: [
         { label: strings.cancel || 'Cancel', type: 'text',
           onClick: () => (inFlight ? false : undefined) },       // dead in flight
         {
           label: strings.backupCta || 'Back up Spixi', type: 'fill',
-          onClick: () => {
-            if (inFlight) return false;
-            const password = input.value;
-            if (!password) {
-              err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-              err.hidden = false;
-              input.focus();
-              return false;
-            }
-            inFlight = true;
-            err.hidden = true;
-            input.disabled = true;
-            const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-            const confirmBtn = btns[btns.length - 1];
-            setLoading(confirmBtn, true);
-            setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-            const fail = (msg) => {
-              inFlight = false;
-              input.disabled = false;
-              setLoading(confirmBtn, false);
-              setOverlayOpts(modal, { escDismiss: true });
-              err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-              err.hidden = false;
-              input.focus();                                     // inline, on the field — never an alert
-            };
-            try {
-              onBackup({ password }, backupCtrl(
-                () => {
-                  dismissOverlay(modal);
-                  setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-                  live.textContent = strings.backupDone || 'Backed up';
-                },
-                fail,
-              ));
-            } catch (ex) {
-              fail();
-            }
-            return false;                                        // closes on ctrl.done only
-          },
+          onClick: () => { submit(); return false; },            // closes on ctrl.done only
         },
       ],
       strings,
@@ -235,7 +241,7 @@ export function createSettingsBackup({
         if (exporting) return;
         exporting = true;
         setLoading(exportBtn, true);
-        onExportWallet(backupCtrl(
+        const ctrl = backupCtrl(
           () => {
             exporting = false;
             setLoading(exportBtn, false);
@@ -246,7 +252,12 @@ export function createSettingsBackup({
             setLoading(exportBtn, false);
             live.textContent = msg || strings.backupExportFailed || 'Couldn’t export the wallet file.';
           },
-        ));
+        );
+        try {
+          onExportWallet(ctrl);
+        } catch (ex) {
+          ctrl.fail();                       // sync throw → unlatch + clear spinner (#141-m4)
+        }
       },
     });
     advBox.append(advNote, exportBtn);

@@ -838,6 +838,68 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   key(d, 'Escape');
   await sleep(500);
 
+  /* —— Opus round: SYNC-THROW RESILIENCE (#141-m4) — a thrown shell callback
+     must route to the fail path, never wedge a latch/spinner/disabled field —— */
+  let lkThrows = 0, paThrows = 0;
+  const twHost = d.createElement('div'); d.body.append(twHost);
+  const twHub = S.createSettingsHub({
+    name: 'T', address: 'tw1', lockEnabled: false, paymentAuth: false,
+    capabilities: { paymentAuth: true },
+    onNickname: () => { throw new Error('bridge down'); },
+    onLock: () => { lkThrows++; throw new Error('bridge down'); },
+    onPaymentAuth: () => { paThrows++; throw new Error('bridge down'); },
+    onBackup: () => {},
+  });
+  twHost.append(twHub);
+  const twSwitches = [...twHub.querySelectorAll('.c-settings__switch')];
+  twSwitches[0].click();                       // lock ON optimistic → throw
+  ok(twSwitches[0].getAttribute('aria-checked') === 'false' && !twSwitches[0].getAttribute('aria-busy'),
+    'lock: a thrown onLock reverts the optimistic ON and clears aria-busy (no wedge, #141-m4)');
+  twSwitches[0].click();
+  ok(lkThrows === 2, 'lock switch stays operable after a thrown callback (inFlight cleared)');
+  twSwitches[1].click();                       // confirm-payments ON optimistic → throw
+  ok(twSwitches[1].getAttribute('aria-checked') === 'false' && paThrows === 1,
+    'confirm-payments: a thrown onPaymentAuth reverts + never wedges (#141-m4)');
+  twHub.querySelector('.c-settings__nick-edit').click();
+  const twNin = twHub.querySelector('.c-settings__nick-input');
+  twNin.value = 'NewName';
+  key(twNin, 'Enter');
+  ok(!twHub.querySelector('.c-settings__nick-error').hidden && !twNin.disabled,
+    'nickname: a thrown onNickname shows the inline error + re-enables the input (never a stuck field, #141-m4)');
+  twHost.remove();
+
+  let rrThrows = 0;
+  const pvHost = d.createElement('div'); d.body.append(pvHost);
+  const pvThrow = S.createPrivacy({
+    readReceipts: true, capabilities: { readReceipts: true }, onBack() {},
+    onReadReceipts: () => { rrThrows++; throw new Error('x'); }, onTyping() {},
+  });
+  pvHost.append(pvThrow);
+  const pvSw = pvThrow.querySelector('.c-settings__switch');
+  pvSw.click();
+  ok(pvSw.getAttribute('aria-checked') === 'true' && rrThrows === 1,
+    'privacy switch: a thrown toggle reverts to the prior state (#141-m4)');
+  pvSw.click();
+  ok(rrThrows === 2, 'privacy switch stays operable after a thrown callback');
+  pvHost.remove();
+
+  let stThrows = 0;
+  const stHost = d.createElement('div'); d.body.append(stHost);
+  const stThrow = S.createSecurityLevel({
+    tier: 'basic', capabilities: { securityTiers: true }, onBack() {},
+    onSecurityTier: () => { stThrows++; throw new Error('x'); },
+  });
+  stHost.append(stThrow);
+  const stCards = [...stThrow.querySelectorAll('.c-settings-security__tier')];
+  stCards[1].click();                          // moderate → throw
+  ok(stThrows === 1 && !stCards[1].querySelector('.c-button__spinner')
+    && !stCards[1].getAttribute('aria-busy')
+    && stCards[0].getAttribute('aria-checked') === 'true',
+    'security tier: a thrown onSecurityTier removes the spinner, clears the latch, keeps the current tier (#141-m4)');
+  stCards[1].click();
+  ok(stThrows === 2, 'security tier picker stays operable after a thrown callback');
+  stHost.remove();
+
   /* —— danger screen (#147 tone split): quiet rows + heavy cards, LOCKED confirms —— */
   let delWalletCtrl = null;
   const dhost = d.createElement('div');
@@ -949,6 +1011,46 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(exCalls === 1, 'wallet export latched — no double share');
   exCtrl.done();
   bhost.remove();
+
+  /* Opus round: Enter-in-field submits the password; the plaintext is scrubbed
+     from the DOM on close (SECURITY.md — no keys/passwords left in the WebView) */
+  let bk2Payload = null, bk2Ctrl = null;
+  const bhost2 = d.createElement('div'); d.body.append(bhost2);
+  const bk2 = S.createSettingsBackup({
+    status: { last: null, dirtyCount: 0 }, onBack() {},
+    onBackup: (p, ctrl) => { bk2Payload = p; bk2Ctrl = ctrl; },
+  });
+  bhost2.append(bk2);
+  bk2.querySelector('.c-settings-backup__cta').click();
+  await sleep(50);
+  const pm2 = [...d.querySelectorAll('.c-modal')].pop();
+  const pin2 = pm2.querySelector('.c-settings-backup__pw-input');
+  pin2.value = 'hunter2';
+  key(pin2, 'Enter');
+  ok(bk2Payload && bk2Payload.password === 'hunter2',
+    'Enter in the password field submits the backup (guarded in-flight)');
+  bk2Ctrl.done();
+  await sleep(450);
+  ok(pin2.value === '',
+    'password is scrubbed from the field on close — no plaintext left in the DOM (SECURITY.md)');
+  bhost2.remove();
+
+  /* Opus round: a thrown onExportWallet must not wedge the Advanced export latch (#141-m4) */
+  let exThrows = 0;
+  const bhost3 = d.createElement('div'); d.body.append(bhost3);
+  const bk3 = S.createSettingsBackup({
+    status: { last: null, dirtyCount: 0 }, onBack() {},
+    onBackup() {}, onExportWallet: () => { exThrows++; throw new Error('x'); },
+  });
+  bhost3.append(bk3);
+  bk3.querySelector('.c-settings-backup__adv-toggle').click();
+  const exThrowBtn = bk3.querySelector('.c-settings-backup__adv-box .c-button');
+  exThrowBtn.click();                          // export → throw
+  ok(exThrows === 1 && !exThrowBtn.querySelector('.c-button__spinner'),
+    'wallet export: a thrown onExportWallet unlatches + clears the spinner (#141-m4)');
+  exThrowBtn.click();
+  ok(exThrows === 2, 'export button stays operable after a thrown callback');
+  bhost3.remove();
 
   /* —— #147 sub-screens (settings-screens.js) —— */
 
@@ -1119,7 +1221,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'backup hero is a raised PANEL carrying art/status/CTA (#148③ premium pass)');
 
   /* —— #149 guards (Damir chat-info review, 3 items — all layout, jsdom-blind) —— */
-  ok(/\.c-chat-info__txs-list \{\n  margin-inline: calc\(-1 \* var\(--spacing-12\)\)/.test(infoCss2)
+  ok(/\.c-chat-info__txs-list \{[^}]*margin-inline: calc\(-1 \* var\(--spacing-12\)\)/.test(infoCss2)
     && /\.c-chat-info__txs \{[^}]*overflow: hidden/.test(infoCss2),
     'chat-info tx rows run full-bleed in the card, clipped to its radius (#149①)');
   ok(/\.c-chat-info__row \{[^}]*min-height: 52px/.test(infoCss2),

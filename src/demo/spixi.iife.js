@@ -11171,7 +11171,7 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = {}
       spinner.className = 'c-button__spinner';
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
-      commit(o.value, settingsCtrl(
+      const ctrl = settingsCtrl(
         () => { closeSheet(sheet); if (onPicked) onPicked(o); },
         (msg) => {
           inFlight = false;
@@ -11180,7 +11180,12 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = {}
           spinner.remove();
           if (onPicked) onPicked(null, msg);
         },
-      ));
+      );
+      try {
+        commit(o.value, ctrl);
+      } catch (ex) {
+        ctrl.fail();                          // sync throw → clear spinner/latch (#141-m4)
+      }
     });
     wrap.append(opt);
   }
@@ -11247,7 +11252,7 @@ function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
         delete tile.dataset.loading;
         spinner.remove();
       };
-      commit(o.value, settingsCtrl(
+      const ctrl = settingsCtrl(
         () => {
           settle();
           current = o.value;
@@ -11258,7 +11263,12 @@ function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
           settle();
           if (onPicked) onPicked(null, msg);
         },
-      ));
+      );
+      try {
+        commit(o.value, ctrl);
+      } catch (ex) {
+        ctrl.fail();                           // sync throw → settle spinner/latch (#141-m4)
+      }
     });
     tilesByValue.set(o.value, tile);
     wrap.append(tile);
@@ -11351,7 +11361,7 @@ function createSettingsHub({
           if (inFlight) return;
           inFlight = true;
           b.setAttribute('aria-busy', 'true');
-          run(settingsCtrl(
+          const ctrl = settingsCtrl(
             (payload) => {
               if (payload && 'src' in payload) { avatarSrc = payload.src; hasCustomAvatar = !!payload.src; }
               else { avatarSrc = null; hasCustomAvatar = false; }
@@ -11363,7 +11373,12 @@ function createSettingsHub({
               b.removeAttribute('aria-busy');
               live.textContent = msg || strings.avatarFailed || 'Couldn’t update the photo.';
             },
-          ));
+          );
+          try {
+            run(ctrl);
+          } catch (ex) {
+            ctrl.fail();                       // sync throw → unlatch + inline error (#141-m4)
+          }
         });
         wrap.append(b);
       };
@@ -11444,7 +11459,7 @@ function createSettingsHub({
         }
         committing = true;
         input.disabled = true;
-        onNickname(nick, settingsCtrl(
+        const ctrl = settingsCtrl(
           () => {
             name = nick;
             nameEl.textContent = name;
@@ -11452,7 +11467,12 @@ function createSettingsHub({
             pencil.focus();                   // #137 M3: never drop focus
           },
           (msg) => showErr(msg || strings.nicknameFailed || 'Couldn’t save the nickname.'),
-        ));
+        );
+        try {
+          onNickname(nick, ctrl);
+        } catch (ex) {
+          ctrl.fail();                        // sync throw → re-enable input + inline error (#141-m4)
+        }
       };
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); commit(); }
@@ -11565,6 +11585,80 @@ function createSettingsHub({
     return { wrap, card };
   };
 
+  /* app-lock / confirm-payments share ONE switch grammar (#146⑦/#150⑤):
+     turning ON = optimistic + revert-on-fail; turning OFF = PENDING (stays
+     checked + aria-busy until the LockPage auth round-trips — weakening a
+     security setting must cost an auth). A SYNCHRONOUS throw in the shell
+     callback routes to the fail path (#141-m4) so the switch never wedges. */
+  const authSwitchRow = ({ glyph, hue, label, sub, checked, failMsg, onToggle }) => {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
+    if (sub) {
+      const top = document.createElement('span');
+      top.className = 'c-settings__row-top';
+      top.append(settingsDisc(glyph, hue), document.createTextNode(label));
+      const s = document.createElement('span');
+      s.className = 'c-settings__row-sub';
+      s.textContent = sub;
+      lab.append(top, s);
+    } else {
+      lab.append(settingsDisc(glyph, hue), document.createTextNode(label));
+    }
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'c-settings__switch';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', String(!!checked));
+    toggle.setAttribute('aria-label', label);
+    const knob = document.createElement('span');
+    knob.className = 'c-settings__switch-knob';
+    toggle.append(knob);
+    let inFlight = false;
+    toggle.addEventListener('click', () => {
+      if (inFlight) return;
+      inFlight = true;
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      let ctrl;
+      if (next) {
+        toggle.setAttribute('aria-checked', 'true');         // optimistic ON
+        ctrl = settingsCtrl(
+          () => { inFlight = false; },
+          (msg) => {
+            toggle.setAttribute('aria-checked', 'false');    // revert
+            live.textContent = msg || failMsg;
+            inFlight = false;
+          },
+        );
+      } else {
+        toggle.setAttribute('aria-busy', 'true');            // pending — auth decides
+        ctrl = settingsCtrl(
+          () => {
+            toggle.removeAttribute('aria-busy');
+            toggle.setAttribute('aria-checked', 'false');    // setLockEnabled("False") landed
+            inFlight = false;
+          },
+          (msg) => {
+            toggle.removeAttribute('aria-busy');             // auth canceled/failed → stays ON
+            if (msg) live.textContent = msg;
+            inFlight = false;
+          },
+        );
+      }
+      try {
+        onToggle(next, ctrl);
+      } catch (ex) {
+        ctrl.fail();                                         // sync throw → revert/clear (#141-m4)
+      }
+    });
+    row.append(lab, toggle);
+    section.append(row);
+    return section;
+  };
+
   /* ——— preferences ——— */
   const prefs = group(strings.preferences || 'Preferences');
 
@@ -11629,61 +11723,14 @@ function createSettingsHub({
   /* ——— security & privacy (lock · tiers · privacy · backup nudge) ——— */
   const sec = group(strings.securityPrivacy || 'Security & privacy');
 
-  /* app lock — switch row. ON = optimistic + revert-on-fail; OFF = PENDING
-     (stays checked + aria-busy until the LockPage auth round-trips, #146⑦) */
-  if (onLock) {
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
-    const row = document.createElement('div');
-    row.className = 'c-settings__row c-settings__row--static';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    lab.append(settingsDisc('square-asterisk', 'success'),   // stand-in — 'lock' pending export (#146)
-      document.createTextNode(strings.appLock || 'App lock'));
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'c-settings__switch';
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', String(!!lockEnabled));
-    toggle.setAttribute('aria-label', strings.appLock || 'App lock');
-    const knob = document.createElement('span');
-    knob.className = 'c-settings__switch-knob';
-    toggle.append(knob);
-    let inFlight = false;
-    toggle.addEventListener('click', () => {
-      if (inFlight) return;
-      inFlight = true;
-      const next = toggle.getAttribute('aria-checked') !== 'true';
-      if (next) {
-        toggle.setAttribute('aria-checked', 'true');       // optimistic ON
-        onLock(true, settingsCtrl(
-          () => { inFlight = false; },
-          (msg) => {
-            toggle.setAttribute('aria-checked', 'false');  // revert
-            live.textContent = msg || strings.lockFailed || 'Couldn’t turn on the app lock.';
-            inFlight = false;
-          },
-        ));
-      } else {
-        toggle.setAttribute('aria-busy', 'true');          // pending — auth decides
-        onLock(false, settingsCtrl(
-          () => {
-            toggle.removeAttribute('aria-busy');
-            toggle.setAttribute('aria-checked', 'false');  // setLockEnabled("False") landed
-            inFlight = false;
-          },
-          (msg) => {
-            toggle.removeAttribute('aria-busy');           // auth canceled/failed → stays ON
-            if (msg) live.textContent = msg;
-            inFlight = false;
-          },
-        ));
-      }
-    });
-    row.append(lab, toggle);
-    section.append(row);
-    sec.card.append(section);
-  }
+  /* app lock — switch row (#146⑦). ON optimistic, OFF pending-auth. */
+  if (onLock) sec.card.append(authSwitchRow({
+    glyph: 'square-asterisk', hue: 'success',   // stand-in — 'lock' pending export (#146)
+    label: strings.appLock || 'App lock',
+    checked: lockEnabled,
+    failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',
+    onToggle: onLock,
+  }));
 
   /* confirm payments (#150⑤, Damir): require PIN/biometric before a payment
      leaves the review step. §9-GATED (no bridge command; C# LockPage is the
@@ -11691,65 +11738,14 @@ function createSettingsHub({
      enforcement lives C#-side, shells still emit intent only. Lock-row
      asymmetry applies: ON optimistic, OFF = auth round-trip (weakening a
      security setting must cost an auth). Cascades from the #147 tiers. */
-  if (capabilities.paymentAuth && onPaymentAuth) {
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
-    const row = document.createElement('div');
-    row.className = 'c-settings__row c-settings__row--static';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label c-settings__row-label--stack';
-    const top = document.createElement('span');
-    top.className = 'c-settings__row-top';
-    top.append(settingsDisc('wallet', 'warning'),
-      document.createTextNode(strings.paymentAuth || 'Confirm payments'));
-    const s = document.createElement('span');
-    s.className = 'c-settings__row-sub';
-    s.textContent = strings.paymentAuthSub || 'PIN or biometrics before anything is sent';
-    lab.append(top, s);
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'c-settings__switch';
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', String(!!paymentAuth));
-    toggle.setAttribute('aria-label', strings.paymentAuth || 'Confirm payments');
-    const knob = document.createElement('span');
-    knob.className = 'c-settings__switch-knob';
-    toggle.append(knob);
-    let inFlight = false;
-    toggle.addEventListener('click', () => {
-      if (inFlight) return;
-      inFlight = true;
-      const next = toggle.getAttribute('aria-checked') !== 'true';
-      if (next) {
-        toggle.setAttribute('aria-checked', 'true');       // optimistic ON
-        onPaymentAuth(true, settingsCtrl(
-          () => { inFlight = false; },
-          (msg) => {
-            toggle.setAttribute('aria-checked', 'false');
-            live.textContent = msg || strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.';
-            inFlight = false;
-          },
-        ));
-      } else {
-        toggle.setAttribute('aria-busy', 'true');          // pending — auth decides
-        onPaymentAuth(false, settingsCtrl(
-          () => {
-            toggle.removeAttribute('aria-busy');
-            toggle.setAttribute('aria-checked', 'false');
-            inFlight = false;
-          },
-          (msg) => {
-            toggle.removeAttribute('aria-busy');           // auth canceled → stays ON
-            if (msg) live.textContent = msg;
-            inFlight = false;
-          },
-        ));
-      }
-    });
-    row.append(lab, toggle);
-    section.append(row);
-    sec.card.append(section);
-  }
+  if (capabilities.paymentAuth && onPaymentAuth) sec.card.append(authSwitchRow({
+    glyph: 'wallet', hue: 'warning',
+    label: strings.paymentAuth || 'Confirm payments',
+    sub: strings.paymentAuthSub || 'PIN or biometrics before anything is sent',
+    checked: paymentAuth,
+    failMsg: strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.',
+    onToggle: onPaymentAuth,
+  }));
 
   if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
     glyph: 'user-cog', hue: 'primary',
@@ -12120,54 +12116,60 @@ function createSettingsBackup({
     err.hidden = true;
     wrap.append(label, input, err);
 
+    let confirmBtn = null;
+    const fail = (msg) => {
+      inFlight = false;
+      input.disabled = false;
+      if (confirmBtn) setLoading(confirmBtn, false);
+      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
+      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
+      err.hidden = false;
+      input.focus();                                     // inline, on the field — never an alert
+    };
+    const submit = () => {                               // shared by the confirm button + Enter-in-field
+      if (inFlight) return;
+      const password = input.value;
+      if (!password) {
+        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
+        err.hidden = false;
+        input.focus();
+        return;
+      }
+      inFlight = true;
+      err.hidden = true;
+      input.disabled = true;
+      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+      confirmBtn = btns[btns.length - 1];
+      setLoading(confirmBtn, true);
+      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
+      try {
+        onBackup({ password }, backupCtrl(
+          () => {
+            dismissOverlay(modal);
+            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+            live.textContent = strings.backupDone || 'Backed up';
+          },
+          fail,
+        ));
+      } catch (ex) {
+        fail();
+      }
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
+    });
+
     const modal = createModal({
       title: strings.backupConfirmTitle || 'Confirm your password',
       body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
       content: wrap, host: hostFor(),
+      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
       actions: [
         { label: strings.cancel || 'Cancel', type: 'text',
           onClick: () => (inFlight ? false : undefined) },       // dead in flight
         {
           label: strings.backupCta || 'Back up Spixi', type: 'fill',
-          onClick: () => {
-            if (inFlight) return false;
-            const password = input.value;
-            if (!password) {
-              err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-              err.hidden = false;
-              input.focus();
-              return false;
-            }
-            inFlight = true;
-            err.hidden = true;
-            input.disabled = true;
-            const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-            const confirmBtn = btns[btns.length - 1];
-            setLoading(confirmBtn, true);
-            setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-            const fail = (msg) => {
-              inFlight = false;
-              input.disabled = false;
-              setLoading(confirmBtn, false);
-              setOverlayOpts(modal, { escDismiss: true });
-              err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-              err.hidden = false;
-              input.focus();                                     // inline, on the field — never an alert
-            };
-            try {
-              onBackup({ password }, backupCtrl(
-                () => {
-                  dismissOverlay(modal);
-                  setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-                  live.textContent = strings.backupDone || 'Backed up';
-                },
-                fail,
-              ));
-            } catch (ex) {
-              fail();
-            }
-            return false;                                        // closes on ctrl.done only
-          },
+          onClick: () => { submit(); return false; },            // closes on ctrl.done only
         },
       ],
       strings,
@@ -12244,7 +12246,7 @@ function createSettingsBackup({
         if (exporting) return;
         exporting = true;
         setLoading(exportBtn, true);
-        onExportWallet(backupCtrl(
+        const ctrl = backupCtrl(
           () => {
             exporting = false;
             setLoading(exportBtn, false);
@@ -12255,7 +12257,12 @@ function createSettingsBackup({
             setLoading(exportBtn, false);
             live.textContent = msg || strings.backupExportFailed || 'Couldn’t export the wallet file.';
           },
-        ));
+        );
+        try {
+          onExportWallet(ctrl);
+        } catch (ex) {
+          ctrl.fail();                       // sync throw → unlatch + clear spinner (#141-m4)
+        }
       },
     });
     advBox.append(advNote, exportBtn);
@@ -12297,8 +12304,11 @@ function backupCtrl(onDone, onFail) {
  * the premium round): Chat appearance · Privacy · Notifications · Security level.
  *
  * Bridge honesty: NOTHING here has a legacy command. Chat appearance is
- * FE-ONLY (root css vars; persistence = WebView localStorage until the §9
- * pref-sync ask). Privacy / Notifications / Security level are §9-GATED —
+ * FE-ONLY (root css vars). Persistence is the HOST's job (onPattern/onTextScale)
+ * — WebView localStorage until the §9 pref-sync ask, and the host MUST try/catch
+ * it (DomStorageEnabled=false is possible; ARCHITECTURE). This screen never
+ * touches storage, so its live preview works regardless. Privacy / Notifications
+ * / Security level are §9-GATED —
  * capability-flagged designs (the 1:1-mute pattern): the shell hides them
  * until their commands land; the demo enables the caps to show the design.
  *
@@ -12413,14 +12423,19 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
     inFlight = true;
     const next = toggle.getAttribute('aria-checked') !== 'true';
     toggle.setAttribute('aria-checked', String(next));       // optimistic
-    onToggle(next, screensCtrl(
+    const ctrl = screensCtrl(
       () => { inFlight = false; },
       (msg) => {
         toggle.setAttribute('aria-checked', String(!next));  // revert
         if (live) live.textContent = msg || failText;
         inFlight = false;
       },
-    ));
+    );
+    try {
+      onToggle(next, ctrl);
+    } catch (ex) {
+      ctrl.fail();                                           // sync throw → revert (#141-m4; one-shot safe)
+    }
   });
   row.append(lab, toggle);
   section.append(row);
@@ -12643,7 +12658,7 @@ function createSecurityLevel({
       spinner.className = 'c-button__spinner';
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
-      onSecurityTier(t.id, screensCtrl(
+      const ctrl = screensCtrl(
         () => {
           inFlight = false;
           delete card.dataset.loading;
@@ -12660,7 +12675,12 @@ function createSecurityLevel({
           spinner.remove();
           live.textContent = msg || strings.securityFailed || 'Couldn’t change the security level.';
         },
-      ));
+      );
+      try {
+        onSecurityTier(t.id, ctrl);
+      } catch (ex) {
+        ctrl.fail();                                         // sync throw → clean up spinner/latch (#141-m4)
+      }
     });
     cards.set(t.id, card);
     group.append(card);

@@ -305,7 +305,6 @@
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
 }
-.c-chat-info__row-label > svg { color: var(--icon-neutral-02); }   /* #148: > — the disc owns its own ink */
 .c-chat-info__switch {
   flex: none;
   position: relative;
@@ -431,6 +430,9 @@
    margins cancel the card padding; the rows' own inline padding re-aligns
    their content with the card. */
 .c-chat-info__txs-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
   margin-inline: calc(-1 * var(--spacing-12));
   margin-block-end: calc(-1 * var(--spacing-12));
 }
@@ -451,7 +453,6 @@
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-.c-chat-info__txs-toggle > svg:first-child { color: var(--icon-neutral-02); }
 .c-chat-info__txs-chevron {
   margin-inline-start: auto;
   transition: transform var(--duration-200) var(--easing-standard);
@@ -459,7 +460,6 @@
 .c-chat-info__txs-toggle[aria-expanded='true'] > .c-chat-info__txs-chevron {
   transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
 }
-.c-chat-info__txs-list { display: flex; flex-direction: column; gap: var(--spacing-4); }
 .c-chat-info__txs-all {
   min-height: 44px;
   padding: 0 var(--spacing-4);

@@ -3,8 +3,11 @@
  * the premium round): Chat appearance · Privacy · Notifications · Security level.
  *
  * Bridge honesty: NOTHING here has a legacy command. Chat appearance is
- * FE-ONLY (root css vars; persistence = WebView localStorage until the §9
- * pref-sync ask). Privacy / Notifications / Security level are §9-GATED —
+ * FE-ONLY (root css vars). Persistence is the HOST's job (onPattern/onTextScale)
+ * — WebView localStorage until the §9 pref-sync ask, and the host MUST try/catch
+ * it (DomStorageEnabled=false is possible; ARCHITECTURE). This screen never
+ * touches storage, so its live preview works regardless. Privacy / Notifications
+ * / Security level are §9-GATED —
  * capability-flagged designs (the 1:1-mute pattern): the shell hides them
  * until their commands land; the demo enables the caps to show the design.
  *
@@ -119,14 +122,19 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
     inFlight = true;
     const next = toggle.getAttribute('aria-checked') !== 'true';
     toggle.setAttribute('aria-checked', String(next));       // optimistic
-    onToggle(next, screensCtrl(
+    const ctrl = screensCtrl(
       () => { inFlight = false; },
       (msg) => {
         toggle.setAttribute('aria-checked', String(!next));  // revert
         if (live) live.textContent = msg || failText;
         inFlight = false;
       },
-    ));
+    );
+    try {
+      onToggle(next, ctrl);
+    } catch (ex) {
+      ctrl.fail();                                           // sync throw → revert (#141-m4; one-shot safe)
+    }
   });
   row.append(lab, toggle);
   section.append(row);
@@ -349,7 +357,7 @@ export function createSecurityLevel({
       spinner.className = 'c-button__spinner';
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
-      onSecurityTier(t.id, screensCtrl(
+      const ctrl = screensCtrl(
         () => {
           inFlight = false;
           delete card.dataset.loading;
@@ -366,7 +374,12 @@ export function createSecurityLevel({
           spinner.remove();
           live.textContent = msg || strings.securityFailed || 'Couldn’t change the security level.';
         },
-      ));
+      );
+      try {
+        onSecurityTier(t.id, ctrl);
+      } catch (ex) {
+        ctrl.fail();                                         // sync throw → clean up spinner/latch (#141-m4)
+      }
     });
     cards.set(t.id, card);
     group.append(card);

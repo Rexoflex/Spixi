@@ -1341,11 +1341,21 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   const rows = [...picker.querySelectorAll('.c-contacts__row')];
   ok(rows.length === 10, 'roster renders 10 rows');
   ok(rows[0].querySelector('.c-contacts__name').textContent === 'Baracuda'
-    && rows[rows.length - 1].querySelector('.c-contacts__name').textContent === '335Hxq21abcd5OP32',
+    && rows[rows.length - 1].querySelector('.c-contacts__name').textContent === '335Hxq21abcd5OP32KpR8mWzD2cF6JuEwA1vBq',
     'named contacts A–Z first, address-only after (spec §3a)');
   const pendingRow = rows.find((r) => r.dataset.pending !== undefined);
   ok(!!pendingRow && !!pendingRow.querySelector('.c-badge') && !pendingRow.disabled,
     'pending contact: badge, still tappable in browse (Damir pick)');
+
+  // spec §7① (Damir "address now, nick later"): a NAMED row's subline is the
+  // Ixian address, middle-truncated so it reads as an identity token (both ends
+  // visible) — not the full address, not a name-looking stub.
+  const HAN_ADDR = 'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z';
+  const hanSub = rows.find((r) => r.querySelector('.c-contacts__name').textContent === 'Han Solo')
+    .querySelector('.c-contacts__sub').textContent;
+  ok(hanSub.includes('…') && hanSub.length < HAN_ADDR.length
+    && HAN_ADDR.startsWith(hanSub.split('…')[0]) && HAN_ADDR.endsWith(hanSub.split('…')[1]),
+    'named row subline = middle-truncated Ixian address (spec §7①)');
 
   // —— search narrows on name+address substring ——
   const search = picker.querySelector('.c-search-field__input');

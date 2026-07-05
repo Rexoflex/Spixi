@@ -210,17 +210,21 @@
 
   // mock roster (bridge: clearContacts/addContact — type 0 normal · 2 bot/no-group;
   // `pending` = request-sent flag, §9 ask — roster addContact lacks it today)
+  // Realistic Ixian-length addresses (~38 base58 chars) so the list subline reads
+  // as an identity token, not a handle (spec §7①) — the old short word-like stubs
+  // are why the second line looked like a username. Recognizable substrings kept
+  // mid-string for the search/dup/tx demos.
   const ROSTER = [
-    { name: 'Han Solo', address: '4fj2solo', online: true, type: 0 },
-    { name: 'Sarah Jo', address: '8k2sarahjo55', online: true, type: 0 },
-    { name: 'John Connor', address: '77jconnor1984', type: 0 },
-    { name: 'Martins Obademo', address: '2momartins88', type: 0 },
-    { name: 'QWERTZ', address: '5qwertz9900aa', online: true, type: 0 },
-    { name: 'Baracuda', address: '3baracuda777', type: 0 },
-    { name: 'Gaucho boy', address: '6gauchoboy44', type: 0 },
-    { name: 'Ixian News', address: '419ixnews0001', type: 2 },              // bot — gated out of multi-select
-    { name: 'Ben Kenobi', address: '0bkenobi78900', pending: true, type: 0 },   // OUR request sent, awaiting accept (Lando is the INCOMING request above)
-    { name: '', address: '335Hxq21abcd5OP32', type: 0 },                    // address-only contact
+    { name: 'Han Solo', address: 'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z', online: true, type: 0 },
+    { name: 'Sarah Jo', address: '9KdT2rN8mZ5sarahjo55LpQ7vBqH3xY6bT4nR1', online: true, type: 0 },
+    { name: 'John Connor', address: '3nQ8kRpW2mZ7jconnor1984D2cF6JuEwK9xY5b', type: 0 },
+    { name: 'Martins Obademo', address: '7pLdN3vBqH2momartins88K8sZtYcF6JuEwA1W', type: 0 },
+    { name: 'QWERTZ', address: 'Xy7bT3nQ5qwertz9900aaKpR8mWzD2cF6JuEwA', online: true, type: 0 },
+    { name: 'Baracuda', address: '8vBqH7pLdN3baracuda777bT2cF6JuEwK9xY4m', type: 0 },
+    { name: 'Gaucho boy', address: '6JuEwK9xY5gauchoboy44R8mWzD2cF3vBqH7pL', type: 0 },
+    { name: 'Ixian News', address: '4rN8mWzD2ixnews0001cF6JuEwA1vBqH7pLdN3', type: 2 },              // bot — gated out of multi-select
+    { name: 'Ben Kenobi', address: '0bKR8mWzDkenobi78900cF6JuEwA1vBqH7pLdN', pending: true, type: 0 },   // OUR request sent, awaiting accept (Lando is the INCOMING request above)
+    { name: '', address: '335Hxq21abcd5OP32KpR8mWzD2cF6JuEwA1vBq', type: 0 },                    // address-only contact
   ];
 
   const openPanel = (build) => {
@@ -258,7 +262,7 @@
       onCheckAddress: (a, ctrl) => setTimeout(() => ctrl.done(), 450),
       // mock ixian:request:<address> — known dupe fails like C# (self/existing reject)
       onSendRequest: (a, ctrl) => setTimeout(() => {
-        if (a === '4fj2solo') ctrl.fail('Already in your contacts.');
+        if (a === 'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z') ctrl.fail('Already in your contacts.');
         else ctrl.done();
       }, 900),
       onOpened: (a) => {
@@ -314,13 +318,13 @@
 
   // demo payment activity (addPaymentActivity mock — Han has history, others are empty)
   const DEMO_TXS = {
-    '4fj2solo': [
+    'SxK7q9RmW2p4fj2soloD3vBnH8tYcF6JuEwQ2z': [
       { direction: 'out', status: 'pending', name: 'Han Solo', timestamp: Date.now() - 36e5, amount: '4.00' },
       { direction: 'out', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 864e5, amount: '-25.00', fiat: '$30.87' },
       { direction: 'in', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 2 * 864e5, amount: '+120.00', fiat: '$148.20' },
       { direction: 'out', status: 'failed', name: 'Han Solo', timestamp: Date.now() - 8 * 864e5, amount: '1.00' },
     ],
-    '8k2sarahjo55': [
+    '9KdT2rN8mZ5sarahjo55LpQ7vBqH3xY6bT4nR1': [
       { direction: 'in', status: 'confirmed', name: 'Sarah Jo', timestamp: Date.now() - 3 * 864e5, amount: '+10.00', fiat: '$12.35' },
     ],
   };

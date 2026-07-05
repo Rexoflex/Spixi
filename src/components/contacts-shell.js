@@ -61,6 +61,17 @@ const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, 
 
 function displayName(c) { return c.name || c.address || ''; }
 
+// List-row identity subline (spec §7①: no usernames in Spixi — a named row shows
+// the Ixian address beneath the nickname). Middle-truncate so it reads as an
+// identity token, not a name, and both ends stay visible (CSS end-ellipsis would
+// hide the tail). Full address lives in the profile. §9: to show the contact's
+// ORIGINAL nick under a user-set custom name, the roster must send both names —
+// today addContact() carries one resolved nickname only (bridge-audit-A.md:540).
+function shortAddress(a) {
+  const s = String(a || '');
+  return s.length > 17 ? s.slice(0, 9) + '…' + s.slice(-6) : s;
+}
+
 function sortedContacts(contacts) {
   // named A–Z first, address-only (no name) after, by address (spec §3a)
   const named = contacts.filter((c) => c.name);
@@ -99,18 +110,18 @@ function pickerRow(c, st) {
   sub.className = 'c-contacts__sub';
   sub.textContent = blocked && c.type === 2
     ? (strings.noGroupCapability || 'Can’t be added to groups')
-    : (c.name ? (c.address || '') : (strings.addressOnly || 'Address-only contact'));
+    : (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
   if (c.pending) {
-    const badge = createBadge({ label: strings.pending || 'Pending', type: 'warning', weight: 'tonal' });
+    const badge = createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' });
     badge.classList.add('c-contacts__badge');
     row.append(badge);
     // F16: the badge's plain text would otherwise fold into the row's flattened
     // accessible name in visual order (ambiguous) — an explicit label states the
     // pending state distinctly without repeating it twice.
-    const pendingSuffix = strings.contactPendingLabel || 'request pending';
+    const pendingSuffix = strings.contactPendingLabel || 'request sent';
     row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix);
   }
 
@@ -694,7 +705,7 @@ export function createPendingContact({
     addrEl.textContent = address;
     hero.append(addrEl);
   }
-  hero.append(createBadge({ label: strings.pending || 'Pending', type: 'warning', weight: 'tonal' }));
+  hero.append(createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' }));
   const note = document.createElement('p');
   note.className = 'c-contacts-pending__note';
   note.textContent = strings.pendingNote || 'Waiting for them to accept your contact request.';

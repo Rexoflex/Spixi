@@ -65,6 +65,12 @@ after trim and must not contain `:|`; inline error, never sent.
   infer from chat model if the consolidated shell owns both.
 - §8 (carried): nickname/handle lookup for add-contact (address-only today).
 - §9: BE should ALSO sanitize `:|` server-side (FE gate is not a boundary).
+- §9 (spec §7①, Damir "address now, nick later"): roster `addContact` sends ONE
+  resolved nickname (override if set, else the contact's own), so the list can't
+  show a contact's ORIGINAL nick beneath a user-set custom name. To enable that
+  (Option B), the roster must carry BOTH — e.g. `addContact(address, nickname,
+  avatar, online, type, originalNick)`. Until then the row subline = middle-
+  truncated Ixian address (`shortAddress`); layout already supports the swap.
 
 ## 3. Views (all in `src/components/contacts-shell.js` + `src/styles/components/contacts-shell.css` — NEW files)
 
@@ -181,9 +187,14 @@ Static: new CSS linked in chats.html · FILES order (contacts-shell after
 chat-info, before settings-shell) · switch uses `--switch-track-off`/`--switch-knob`
 · one error-hue disc max (reservation #147②) · `min-width:0` on row name.
 
-## 7. Open flags for Damir (demo pass)
+## 7. Open flags for Damir (demo pass) — RESOLVED 2026-07-05
 
-① Pending rows in the picker — badge copy "Pending" vs "Request sent".
-② Group setup back-gesture: selection preserved (spec'd) — confirm feel.
-③ Blind-group explainer copy (one line, above) — wording check.
-④ Add-contact ✓ affordance placement (trailing in-field vs helper line).
+① Pending-row badge copy → **"Request sent"** (Damir). Done: `strings.pending`
+   default flipped `Pending`→`Request sent` in the picker row + pending-profile
+   hero badge; F16 aria suffix aligned `request pending`→`request sent`.
+② Group-setup back-gesture (selection preserved) → **confirmed OK** (Damir). No change.
+③ Blind-group explainer copy → **good for now** (Damir). No change.
+④ Add-contact ✓ affordance → **helper-line live check** (Damir: addresses vary
+   in length, so keep the live-validated confirm line below the field rather
+   than a trailing in-field ✓ that a long address could collide with). This is
+   the shipped behavior — no change.

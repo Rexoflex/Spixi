@@ -1,0 +1,394 @@
+/* c-contacts — FAB picker · add-contact · group setup (docs/contacts-spec.md).
+   Reuses the settings card/row grammar (settings-shell.css precedent) with
+   LOCAL class names — merge-safety: settings files are untouched (PC batch). */
+
+.c-contacts,
+.c-contacts-add,
+.c-contacts-group,
+.c-contacts-pending {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-contacts__body,
+.c-contacts-add__body,
+.c-contacts-group__body,
+.c-contacts-pending__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* scrolling flex column: children never shrink (#148③/#150① class) */
+.c-contacts__body > *,
+.c-contacts-add__body > *,
+.c-contacts-group__body > *,
+.c-contacts-pending__body > * { flex: none; }
+
+/* —— card group (settings §180 grammar) —— */
+.c-contacts__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③ */
+}
+
+/* —— picker: top action rows —— */
+.c-contacts__action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts__action:hover { background: var(--surface-interactive-hover); } }
+.c-contacts__action:active { background: var(--surface-interactive-pressed); }
+.c-contacts__action + .c-contacts__action {
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-contacts__action-label { min-width: 0; }
+
+/* —— picker: contact rows —— */
+.c-contacts__list { display: flex; flex-direction: column; }
+.c-contacts__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+.c-contacts__row:not(:disabled):active { background: var(--surface-interactive-pressed); }
+/* F7: dim only the avatar + name — the Pending badge and the reason sub-text
+   ("Can't be added to groups") must stay legible, they're the whole point of
+   a disabled row (explaining WHY it's blocked). */
+.c-contacts__row:disabled { cursor: default; }
+.c-contacts__row:disabled > .c-avatar,
+.c-contacts__row:disabled .c-contacts__name { opacity: var(--opacity-disabled); }
+.c-contacts__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contacts__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__badge { flex: none; }
+
+/* multi-select check circle (trailing) */
+.c-contacts__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--outline-neutral-02);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+.c-contacts__row[aria-checked='true'] .c-contacts__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+
+/* —— empty states —— */
+.c-contacts__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-32) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts__empty-art {
+  width: 64px;                      /* sanctioned: empty-state disc */
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--disc-primary-bg);
+  color: var(--disc-primary-ink);
+}
+.c-contacts__empty[data-kind='search'] .c-contacts__empty-art { display: none; }
+.c-contacts__empty-text {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+
+/* —— footer CTA (outside the scroll body — always visible) —— */
+.c-contacts__footer {
+  flex: none;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: var(--surface-screen);
+}
+
+/* —— add-contact —— */
+.c-contacts-add__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-inline: var(--spacing-4);
+}
+.c-contacts-add__group { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-add__field { display: flex; gap: var(--spacing-8); }
+.c-contacts-add__input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-contacts-add__input:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;              /* #51 text-field focus grammar */
+  border-color: var(--outline-action-default);
+}
+.c-contacts-add__input:disabled { opacity: var(--opacity-disabled); }
+.c-contacts-add__scan {
+  flex: none;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+.c-contacts-add__scan:not(:disabled):active { background: var(--surface-interactive-pressed); }
+.c-contacts-add__scan:disabled { opacity: var(--opacity-disabled); cursor: default; }
+.c-contacts-add__valid {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-add__valid-glyph { color: var(--icon-success); flex: none; }   /* #145③ pair */
+.c-contacts-add__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+
+/* —— group setup —— */
+.c-contacts-group__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-16);
+}
+.c-contacts-group__avatar {
+  flex: none;
+  width: 80px;                      /* sanctioned: group-avatar dim (avatar-80, settings hero parity) */
+  height: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--disc-primary-bg);
+  color: var(--disc-primary-ink);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.c-contacts-group__avatar-hint {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-group__name {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  text-align: center;
+}
+.c-contacts-group__name:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-contacts-group__members { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-group__members-head {
+  margin: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-contacts-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+/* —— pending contact profile (minimal + cancel, Damir pick) —— */
+.c-contacts-pending__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-24) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts-pending__name {
+  margin: 0;
+  min-width: 0;                     /* #140③ class */
+  max-width: 100%;
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts-pending__addr {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  word-break: break-all;            /* addresses have no natural wrap points */
+}
+.c-contacts-pending__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* blind-group row + switch (settings switch grammar, LOCAL copy — merge-safety.
+   ⚠ knob travel shares the #151 RTL caveat: translateX is not direction-aware;
+   fold into the whole-app RTL pass alongside .c-settings__switch-knob). */
+.c-contacts-group__blind {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-8);
+}
+.c-contacts-group__blind-sub { white-space: normal; }   /* explainer wraps — never ellipsized */
+.c-contacts-group__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-full);
+  background: var(--switch-track-off);   /* #148① shared pair */
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__switch::after {       /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-contacts-group__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
+.c-contacts-group__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--switch-knob);        /* #148① shared pair */
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-contacts-group__switch[aria-checked='true'] .c-contacts-group__switch-knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-contacts__check,
+  .c-contacts-group__switch,
+  .c-contacts-group__switch-knob { transition: none; }
+}
+
+/* F19: shared keyboard-focus ring — these rows/controls otherwise rely on the
+   UA default outline while the inputs above get an explicit token outline.
+   Same outline grammar as .c-contacts-add__input:focus-visible. */
+.c-contacts__row:focus-visible,
+.c-contacts__action:focus-visible,
+.c-contacts-group__switch:focus-visible,
+.c-contacts-group__avatar:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}

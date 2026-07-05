@@ -71,6 +71,7 @@ const FILES = [
   'src/components/wallet-receive.js',
   'src/components/tip-sheet.js',
   'src/components/chat-select.js',
+  'src/components/chat-info.js',
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

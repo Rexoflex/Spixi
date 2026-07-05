@@ -1,0 +1,424 @@
+/* c-chat-info — chat info takeover (docs/chat-info-spec.md, #141).
+   One surface for 1:1/group/bot; sections render by kind + capabilities. */
+
+.c-chat-info {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-chat-info__body {
+  flex: 1;
+  min-height: 0;                    /* the flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* #142: section dividers — the screen read as one undivided blur (Damir).
+   Every top-level section after the hero draws its own separator. */
+.c-chat-info__body > * + * {
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  padding-top: var(--spacing-16);
+}
+
+/* clip-hidden live region (wallet-receive __live pattern) */
+.c-chat-info__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
+}
+
+.c-chat-info__label {
+  margin: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— hero —— */
+.c-chat-info__hero {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+}
+.c-chat-info__id {
+  min-width: 0;                     /* long names ellipsize, never blow out (③ lesson) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-chat-info__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+.c-chat-info__name {
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-chat-info__sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-chat-info__nick-input {
+  font: inherit;
+  font-size: var(--font-size-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  background: var(--surface-input);
+  border: var(--outline-width-1) solid var(--outline-action-default);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-2) var(--spacing-8);
+  min-width: 0;
+  width: 100%;
+}
+.c-chat-info__nick-error {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-error);
+}
+
+/* —— address card —— */
+.c-chat-info__address {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-01);
+}
+.c-chat-info__address-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+.c-chat-info__address-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;            /* FULL address, wraps — truth stays whole (#99) */
+}
+.c-chat-info__copy { flex: none; }
+
+.c-chat-info__qr-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__qr-chevron {
+  margin-inline-start: auto;
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-chat-info__qr-toggle[aria-expanded='true'] > .c-chat-info__qr-chevron {
+  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
+}
+.c-chat-info__qr {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-16);
+  border-radius: var(--radius-12);
+  background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
+}
+.c-chat-info__qr svg { width: 180px; height: 180px; }
+
+/* —— money row —— */
+.c-chat-info__money {
+  display: flex;
+  gap: var(--spacing-8);
+}
+.c-chat-info__money > .c-button { flex: 1; }
+
+/* —— generic row + switch —— */
+.c-chat-info__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: 44px;
+}
+/* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
+.c-chat-info__setting {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 var(--spacing-4);
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__setting:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__setting-value {
+  margin-inline-start: auto;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  flex: none;
+}
+.c-chat-info__setting > svg:last-child { color: var(--icon-neutral-02); flex: none; }
+
+/* disappearing-messages option sheet */
+.c-chat-info__sd { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__sd-hint {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-chat-info__sd-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-chat-info__sd-option:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__sd-option:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__sd-check { color: var(--icon-action-default); visibility: hidden; }
+.c-chat-info__sd-option[aria-checked='true'] { font-weight: var(--font-weight-semibold); }
+.c-chat-info__sd-option[aria-checked='true'] .c-chat-info__sd-check { visibility: visible; }
+.c-chat-info__row-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+}
+.c-chat-info__row-label svg { color: var(--icon-neutral-02); }
+.c-chat-info__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-03);
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__switch::after {      /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-chat-info__switch[aria-checked='true'] { background: var(--surface-action-default); }
+.c-chat-info__switch-knob {
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--text-neutral-on-action);   /* the fill-button ink pair */
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-chat-info__switch[aria-checked='true'] .c-chat-info__switch-knob {
+  transform: translateX(20px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-chat-info__switch, .c-chat-info__switch-knob, .c-chat-info__qr-chevron,
+  .c-chat-info__txs-chevron { transition: none; }
+}
+
+/* —— shared media (flagged) —— */
+.c-chat-info__media { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-chat-info__media-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.c-chat-info__media-strip {
+  display: flex;
+  gap: var(--spacing-8);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-4);
+}
+.c-chat-info__media-thumb {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-01);
+  color: var(--icon-neutral-02);
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* —— members —— */
+.c-chat-info__members { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-chat-info__member-list { display: flex; flex-direction: column; }
+.c-chat-info__member {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 56px;
+  padding: var(--spacing-4) var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-chat-info__member:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__member:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__member-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-chat-info__member-badge { flex: none; }
+.c-chat-info__member > svg:last-child { color: var(--icon-neutral-02); flex: none; }
+.c-chat-info__member-note {
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+}
+
+/* —— payments (#142: collapsed accordion — reveal grammar shared with Show QR) —— */
+.c-chat-info__txs { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__txs-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__txs-toggle > svg:first-child { color: var(--icon-neutral-02); }
+.c-chat-info__txs-chevron {
+  margin-inline-start: auto;
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-chat-info__txs-toggle[aria-expanded='true'] > .c-chat-info__txs-chevron {
+  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
+}
+.c-chat-info__txs-list { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__txs-all {
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* —— destructive zone (#142: separated, bordered rows — flush rows invited
+   mistaps between "Delete chat history" and "Remove contact") —— */
+.c-chat-info__danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+.c-chat-info__danger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-error);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-chat-info__danger-row:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__danger-row svg { color: currentColor; }
+
+.c-chat-info__confirm-error {
+  margin: var(--spacing-8) 0 0;
+  color: var(--text-error);
+  font-size: var(--font-size-body-sm);
+}
+
+/* member-sheet injected actions (#141) — lives here: the opt only exists for
+   chat-info's admin path today */
+.c-member__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+.c-member__actions > .c-button { flex: 1; }

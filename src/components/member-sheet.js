@@ -37,6 +37,9 @@ export function openMemberSheet({
   onPay,
   onRequestPayment,
   onViewContact,
+  actions = [],     // #141 chat-info: capability-injected rows (admin kick/ban) —
+                    // [{ label, glyph, destructive, onClick }]; the CALLER owns
+                    // any confirm flow, the sheet just closes itself first
   strings = {},
 } = {}) {
   const content = document.createElement('div');
@@ -169,6 +172,31 @@ export function openMemberSheet({
       req.classList.add('c-member__request');
       content.append(req);
     }
+  }
+
+  // capability-injected actions (#141) — rendered LAST in both branches
+  // (an admin can still act on a blind-group member; the model has the
+  // address even when the UI hides it). Sheet closes BEFORE the callback so
+  // a caller's confirm modal never stacks under the sheet scrim.
+  if (actions.length) {
+    const actRow = document.createElement('div');
+    actRow.className = 'c-member__actions';
+    let acted = false;   // one latch across the row (#141 audit m8): a double-
+                         // click must not fire two actions once the sheet closes
+    for (const a of actions) {
+      actRow.append(createButton({
+        label: a.label, type: 'outline', size: 44,
+        intent: a.destructive ? 'destructive' : 'default',
+        icon: a.glyph ? icon(a.glyph, { size: 18 }) : null,
+        onClick: () => {
+          if (acted) return;
+          acted = true;
+          closeSheet(sheet);
+          if (a.onClick) a.onClick(member);
+        },
+      }));
+    }
+    content.append(actRow);
   }
 
   const sheet = createSheet({

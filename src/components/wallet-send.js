@@ -175,11 +175,13 @@ export function createWalletSend({
     rows.textContent = '';
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
-      || (c.address || '').toLocaleLowerCase().includes(needle));
-    // 100s-of-contacts scaling (Damir #136): a short browsable window, search narrows —
-    // no giant scrolling list competing with the amount section
-    const cap = needle ? 8 : 5;
-    for (const c of list.slice(0, cap)) {
+      || (c.address || '').toLocaleLowerCase().includes(needle))
+      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
+    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
+    // the name; the full A–Z list scrolls and search narrows. The amount
+    // section never competes: picking COLLAPSES the picker to the picked row,
+    // and until a recipient exists the amount can't be submitted anyway.
+    for (const c of list) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-wallet-send__contact';
@@ -190,14 +192,6 @@ export function createWalletSend({
       b.append(t);
       b.addEventListener('click', () => pick({ ...c, contact: true }));
       rows.append(b);
-    }
-    if (list.length > cap) {
-      const more = document.createElement('p');
-      more.className = 'c-wallet-send__none';
-      more.setAttribute('role', 'note');
-      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
-        .split('{n}').join(String(list.length - cap));
-      rows.append(more);
     }
     if (!list.length && needle) {
       const none = document.createElement('p');

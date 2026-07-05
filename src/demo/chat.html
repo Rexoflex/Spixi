@@ -36,6 +36,8 @@
 <link rel="stylesheet" href="../styles/components/system-notice.css">
 <link rel="stylesheet" href="../styles/components/lazy-history.css">
 <link rel="stylesheet" href="../styles/components/attach-sheet.css">
+<link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- #142: chat-info payments — rows rendered as NAKED native buttons without it (Damir screenshot) -->
+<link rel="stylesheet" href="../styles/components/chat-info.css">
 <link rel="stylesheet" href="../styles/components/member-sheet.css">
 <link rel="stylesheet" href="../styles/components/media-viewer.css">
 <link rel="stylesheet" href="../styles/components/call-overlay.css">
@@ -132,7 +134,7 @@
         </div>
         <div id="composer-direct"></div>
       </div>
-      <div class="demo-caption">1:1 chat (C17 fix: no sender labels/avatars) · typed cards · live download · unread divider · live composer · batch 3: overlap reactions · typing pill (hugs composer) · scroll-to-latest · long-press/right-click menu · GIF tap-to-load · link → confirm modal</div>
+      <div class="demo-caption">1:1 chat (C17 fix: no sender labels/avatars) · typed cards · live download · unread divider · live composer · batch 3: overlap reactions · typing pill (hugs composer) · scroll-to-latest · long-press/right-click menu · GIF tap-to-load · link → confirm modal · #141: TAP THE HEADER → chat info (nickname edit · QR · Pay/Request · media strip · payments accordion · disappearing messages · destructive zone) · #142: sectioned layout, txlist rows styled, full member scroll</div>
     </div>
     <div>
       <div class="demo-phone" id="phone-group">
@@ -143,7 +145,7 @@
         </div>
         <div id="composer-group"></div>
       </div>
-      <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · overlap reactions + tip (#65) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button · #99: TAP A SENDER NAME/AVATAR → member sheet (address + copy + contact request)</div>
+      <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · overlap reactions + tip (#65) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button · #99: TAP A SENDER NAME/AVATAR → member sheet (address + copy + contact request) · #141: TAP THE HEADER → group info (members w/ search + admin kick/ban · notifications · leave) · #142: FULL A–Z member scroll (no caps) · tap Han Solo's identity in the member sheet → CONTACT INFO page (Message leads · no delete-history)</div>
     </div>
   </div>
 
@@ -178,7 +180,7 @@
     createUnreadDivider, setFileProgress,
     addReactions, createTypingIndicator, createScrollToLatest,
     setScrollLatestCount, attachMessageMenu, openTipSheet, openRequestSheet,
-    createWalletSend, enterChatSelect, attachSplitPaste,
+    createWalletSend, enterChatSelect, attachSplitPaste, createChatInfo,
     setComposerContext, getComposerContext,
     createMediaBubble, createModal, openModal,
     setMessageStatus, setPaymentStatus, removeMessage,
@@ -398,6 +400,7 @@
   document.getElementById('topbar-direct').append(createTopbar({
     variant: 'chat',
     identity: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true },
+    onIdentity: () => openChatInfo(phoneDirect, directInfo),   // #141: header → chat info
     onBack: () => {},
     actions: [
       // start call mid-chat (#86): ongoing-call UI = existing c-callbar
@@ -570,7 +573,8 @@
 
   document.getElementById('topbar-group').append(createTopbar({
     variant: 'chat',
-    identity: { name: 'Falcon Crew', sub: '6 members', address: 'falconcrew77' },
+    identity: { name: 'Falcon Crew', sub: '9 members', address: 'falconcrew77' },
+    onIdentity: () => openChatInfo(phoneGroup, groupInfo),     // #141: header → group info
     onBack: () => {},
     actions: [
       { icon: 'phone', label: 'Call', onClick: () => toastG('Calling') },
@@ -709,6 +713,78 @@
     panel.append(body);
     phone.append(panel);
   };
+  /* —— #141: chat info (docs/chat-info-spec.md) — header identity tap opens
+     the takeover; Pay/Request route back into the #139 machinery —— */
+  const openChatInfo = (phone, build) => {
+    const panel = document.createElement('div');
+    panel.className = 'demo-sendpanel';                  // same takeover chrome as Pay
+    const close = () => panel.remove();
+    panel.append(createChatInfo({ onBack: close, ...build(close) }));
+    phone.append(panel);
+  };
+  const hanTxs = [
+    { direction: 'out', status: 'pending', name: 'Han Solo', timestamp: Date.now() - 36e5, amount: '4.00' },
+    { direction: 'out', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 864e5, amount: '-25.00', fiat: '$30.87' },
+    { direction: 'in', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 2 * 864e5, amount: '+120.00', fiat: '$148.20' },
+    { direction: 'out', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 4 * 864e5, amount: '-2.50', fiat: '$3.09' },
+    { direction: 'in', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 6 * 864e5, amount: '+15.00', fiat: '$18.53' },
+    { direction: 'out', status: 'failed', name: 'Han Solo', timestamp: Date.now() - 8 * 864e5, amount: '1.00' },
+    { direction: 'in', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 11 * 864e5, amount: '+8.00', fiat: '$9.88' },
+  ];
+  const directInfo = (close) => ({
+    kind: 'contact', name: 'Han Solo', address: '4fj2hansolo',
+    txs: hanTxs,                                         // #142: >5 → accordion preview + View all
+    media: [{ id: 'm1', kind: 'photo' }, { id: 'm2', kind: 'photo' }, { id: 'm3', kind: 'file' }, { id: 'm4', kind: 'photo' }],
+    selfDestruct: 0,                                     // #142: disappearing messages — §9-flagged, demo-fed
+    capabilities: { media: true, selfDestruct: true },   // §9-flagged sections; demo-fed
+    onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),   // ixian:userdefinednick — mock
+    onPay: () => { close(); openSendTakeover(phoneDirect, boxD, peerByPhone.get(phoneDirect)); },
+    onRequest: () => { close(); handleAttach('request', phoneDirect, boxD); },
+    onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),   // §9 command — mock
+    onMediaOpen: () => toastD('Media viewer — lands with the media pass'),
+    onMediaAll: () => toastD('Full media grid — lands with the media pass'),
+    onTx: () => toastD('Would open the wallet tx sheet'),
+    onTxAll: () => toastD('Full payment history — wallet activity, filtered to Han'),
+    onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); close(); toastD('History deleted — ixian:removehistory'); }, 1100),
+    onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); close(); toastD('Contact removed — ixian:remove'); }, 1100),
+  });
+  /* #142: the contact PAGE — same component, context 'contact' (opened from a
+     group member sheet's identity block; the contacts shell will use it too) */
+  const contactPage = (m) => openChatInfo(phoneGroup, (close) => ({
+    context: 'contact', kind: 'contact', name: m.name, address: m.address,
+    txs: m.name === 'Han Solo' ? hanTxs : [],
+    onMessage: () => { close(); toastG('Would open the 1:1 chat with ' + m.name); },
+    onPay: () => { close(); toastG('Would open Send IXI locked to ' + m.name); },
+    onRequest: () => { close(); toastG('Would open the request sheet for ' + m.name); },
+    onTx: () => toastG('Would open the wallet tx sheet'),
+    onTxAll: () => toastG('Full payment history — wallet activity'),
+    onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+    onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); close(); toastG('Contact removed — ixian:remove'); }, 1100),
+  }));
+  const groupInfo = (close) => ({
+    kind: 'group', name: 'Falcon Crew', address: 'falconcrew77', memberCount: 9,
+    members: [
+      { name: 'Alex', address: '77aleXaddr', admin: true },
+      { name: 'Han Solo', address: '4fj2hansolo', relation: 'contact' },
+      { name: 'Lando', address: 'lando88cloud' },
+      { name: 'Chewbacca', address: 'chwbcc001' },
+      { name: 'Leia', address: 'leia0rgana' },
+      { name: 'Luke', address: 'lukesky77' },
+      { name: 'Obi-Wan', address: 'oldben99' },
+      { name: 'Rey', address: 'rey2solo' },
+      { name: 'Poe', address: 'poedmrn' },
+    ],
+    notifications: true,
+    capabilities: { notifications: true, admin: true },  // demo runs as an admin
+    onNotifications: (next, ctrl) => setTimeout(ctrl.done, 600),   // ixian:en/disableNotifications
+    onContactRequest: (m) => toastG('Contact request sent to ' + m.name),
+    onViewContact: contactPage,                          // #142: member sheet identity → contact page
+    onMemberAction: (act, m, ctrl) => setTimeout(() => {
+      ctrl.done();
+      toastG((act === 'kick' ? 'Kicked ' : 'Banned ') + m.name + ' — ixian:' + act);
+    }, 1100),
+    onLeave: (ctrl) => setTimeout(() => { ctrl.done(); close(); toastG('Left the group — ixian:leave'); }, 1100),
+  });
   const handleAttach = (id, phone, box) => {
     const peer = peerByPhone.get(phone) || {};
     if (id === 'pay') { openSendTakeover(phone, box, peer); return; }

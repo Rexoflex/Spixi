@@ -397,6 +397,224 @@ console.log('wallet.html');
   fakeList.remove(); comp.remove();
 }
 
+console.log('chat.html — chat info (#141)');
+{
+  const dom = await load('chat.html');
+  const d = dom.window.document, W3 = dom.window;
+  const S = W3.Spixi;
+  const key = (t, k) => t.dispatchEvent(new W3.KeyboardEvent('keydown', { key: k, bubbles: true }));
+
+  /* —— contact surface: sections render by capability —— */
+  let nickCalls = 0, nickCtrl = null, delCtrl = null;
+  const host = d.createElement('div');
+  d.body.append(host);
+  const info = S.createChatInfo({
+    kind: 'contact', name: 'Han Solo', address: '4fj2addr',
+    txs: [{ direction: 'out', status: 'confirmed', amount: '-1' }],
+    media: [{ id: 'm1', kind: 'photo' }],
+    capabilities: {},                        // media + notifications gated OFF
+    onBack() {}, onPay() {}, onRequest() {},
+    onNickname: (nick, ctrl) => { nickCalls++; nickCtrl = ctrl; },
+    onNotifications() {},
+    onDeleteHistory: (ctrl) => { delCtrl = ctrl; },
+  });
+  host.append(info);
+  ok(!!info.querySelector('.c-chat-info__hero') && !!info.querySelector('.c-chat-info__address')
+    && !!info.querySelector('.c-chat-info__money') && !!info.querySelector('.c-chat-info__txs'),
+    'contact info renders hero + address + money + payments');
+  ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__media'),
+    'notifications + media stay hidden without their capabilities (1:1 bridge honesty)');
+
+  const qrT = info.querySelector('.c-chat-info__qr-toggle');
+  qrT.click();
+  ok(qrT.getAttribute('aria-expanded') === 'true' && !!info.querySelector('.c-chat-info__qr svg path'),
+    'Show QR reveals a real QR svg (lazy-built, address:ixi)');
+
+  /* #142: payments = collapsed accordion (no tx wall on entry) */
+  const txT = info.querySelector('.c-chat-info__txs-toggle');
+  ok(txT.getAttribute('aria-expanded') === 'false'
+    && info.querySelector('.c-chat-info__txs-list').hidden
+    && txT.textContent.includes('(1)'),
+    'payments arrive COLLAPSED with a count (#142)');
+  txT.click();
+  ok(!info.querySelector('.c-chat-info__txs-list').hidden
+    && info.querySelectorAll('.c-chat-info__txs-list .c-txlist-item').length === 1,
+    'expanding renders txlist-item rows (reusable component, #142)');
+  ok(!info.querySelector('.c-chat-info__setting'),
+    'disappearing messages stays hidden without its capability (§9 honesty)');
+
+  /* nickname: Enter disables the input → the blur that follows must NOT
+     re-commit (audit #141-M1: two ctrls for one edit) */
+  info.querySelector('.c-chat-info__nick-edit').click();
+  const nin = info.querySelector('.c-chat-info__nick-input');
+  nin.value = 'Scoundrel';
+  key(nin, 'Enter');
+  nin.dispatchEvent(new W3.Event('blur'));
+  ok(nickCalls === 1, 'Enter+blur double-commit latched: ONE onNickname call (audit M1)');
+  nickCtrl.done();
+  ok(info.querySelector('.c-chat-info__name').textContent === 'Scoundrel'
+    && info.querySelector('.c-chat-info__sub').textContent === 'Han Solo'
+    && !info.querySelector('.c-chat-info__sub').hidden,
+    'nickname lands; the WIRE name stays visible underneath (e2e catch)');
+
+  /* destructive confirm: locked mid-flight (#135-C1 via the #138 live-opts fix) */
+  info.querySelector('.c-chat-info__danger-row').click();
+  const modal = d.querySelector('.c-modal');
+  ok(!!modal && modal.getAttribute('role') === 'alertdialog', 'delete-history confirm is an alertdialog');
+  const btns = modal.querySelectorAll('.c-modal__actions .c-button');
+  btns[btns.length - 1].click();             // confirm → in flight
+  key(d, 'Escape');
+  ok(!!d.querySelector('.c-modal') && !!delCtrl, 'Esc mid-flight does NOT dismiss the confirm (lock holds)');
+  btns[0].click();
+  ok(!!d.querySelector('.c-modal'), 'Cancel is dead while the bridge round-trips');
+  delCtrl.fail('nope');
+  ok(!modal.querySelector('.c-chat-info__confirm-error').hidden, 'ctrl.fail surfaces the inline error and unlatches');
+  delCtrl = null;
+  btns[btns.length - 1].click();             // fresh attempt, fresh ctrl (#138 m1)
+  delCtrl.done();
+  await sleep(450);                          // overlay teardown is animation-async
+  ok(!d.querySelector('.c-modal'), 'retry → ctrl.done closes the confirm');
+  host.remove();
+
+  /* —— #142: contact CONTEXT (the contact page) + accordion View-all —— */
+  let txAllCalls = 0, msgCalls = 0;
+  const chost = d.createElement('div');
+  d.body.append(chost);
+  const many = Array.from({ length: 7 }, (_, i) => ({ direction: 'out', status: 'confirmed', amount: '-' + (i + 1) }));
+  const cinfo = S.createChatInfo({
+    context: 'contact', kind: 'contact', name: 'Han Solo', address: '4fj2addr',
+    txs: many, selfDestruct: 0,
+    capabilities: { selfDestruct: true },      // chat-side policy — must NOT render here
+    onBack() {}, onMessage: () => { msgCalls++; }, onPay() {}, onRequest() {},
+    onSelfDestruct() {},
+    onTxAll: () => { txAllCalls++; },
+    onDeleteHistory() {}, onRemoveContact() {},
+  });
+  chost.append(cinfo);
+  ok(cinfo.querySelector('.c-topbar__title').textContent === 'Contact info'
+    && cinfo.dataset.context === 'contact',
+    'contact context retitles the surface (one component, two feels — #142)');
+  const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-button')];
+  ok(moneyBtns[0].classList.contains('c-chat-info__message') && moneyBtns[0].dataset.type === 'fill'
+    && moneyBtns[1].dataset.type === 'outline',
+    'contact page: Message LEADS (fill), Pay demotes to outline');
+  const dRows = [...cinfo.querySelectorAll('.c-chat-info__danger-row')];
+  ok(dRows.length === 1 && dRows[0].textContent.includes('Remove'),
+    'contact page drops delete-history (chat action) but keeps remove-contact');
+  ok(!cinfo.querySelector('.c-chat-info__setting'),
+    'disappearing messages is chat-side — hidden on the contact page');
+  cinfo.querySelector('.c-chat-info__txs-toggle').click();
+  ok(cinfo.querySelectorAll('.c-chat-info__txs-list .c-txlist-item').length === 5
+    && !!cinfo.querySelector('.c-chat-info__txs-all'),
+    '7 txs: expanded preview caps at 5 + View all (#142)');
+  cinfo.querySelector('.c-chat-info__txs-all').click();
+  ok(txAllCalls === 1, 'View all routes to the shell (onTxAll)');
+  moneyBtns[0].click();
+  ok(msgCalls === 1, 'Message fires onMessage (shell opens the 1:1)');
+  chost.remove();
+
+  /* —— #142: disappearing messages (chat context, capability-gated) —— */
+  let sdSecs = null, sdCtrl = null;
+  const shost = d.createElement('div');
+  d.body.append(shost);
+  const sinfo = S.createChatInfo({
+    kind: 'contact', name: 'Han', address: 'xaddr', selfDestruct: 0,
+    capabilities: { selfDestruct: true },
+    onBack() {}, onSelfDestruct: (secs, ctrl) => { sdSecs = secs; sdCtrl = ctrl; },
+  });
+  shost.append(sinfo);
+  const sdRow = sinfo.querySelector('.c-chat-info__setting');
+  ok(!!sdRow && sdRow.querySelector('.c-chat-info__setting-value').textContent === 'Off',
+    'disappearing-messages row renders with the current value (Off)');
+  sdRow.click();
+  const sdOpts = [...d.querySelectorAll('.c-chat-info__sd-option')];
+  ok(sdOpts.length === 4 && sdOpts[0].getAttribute('aria-checked') === 'true',
+    'option sheet: 4 radios, current one checked');
+  sdOpts[1].click();                           // 1 hour
+  sdOpts[2].click();                           // in-flight latch: second pick must not fire
+  ok(sdSecs === 3600, 'picking 1 hour commits 3600s ONCE (latched while in flight)');
+  sdCtrl.done();
+  await sleep(450);
+  ok(!d.querySelector('.c-chat-info__sd')
+    && sdRow.querySelector('.c-chat-info__setting-value').textContent === '1 hour',
+    'ctrl.done closes the sheet and the row shows the new window');
+  shost.remove();
+
+  /* —— #142: send picker — FULL A–Z list, caps dead (Damir: scanning beat search) —— */
+  const wsHost = d.createElement('div');
+  d.body.append(wsHost);
+  const ws = S.createWalletSend({
+    contacts: Array.from({ length: 12 }, (_, i) => ({ name: 'C' + String.fromCharCode(90 - i), address: 'w' + i })),
+    balance: 100000000, fee: 0.00001, onSend() {}, strings: {},
+  });
+  wsHost.append(ws);
+  const wsNames = [...ws.querySelectorAll('.c-wallet-send__contacts .c-wallet-send__contactname')].map((e) => e.textContent);
+  ok(wsNames.length === 12 && wsNames[0] === 'CO' && wsNames[11] === 'CZ'
+    && !ws.querySelector('.c-wallet-send__contacts .c-wallet-send__none'),
+    'send picker renders ALL 12 contacts A–Z — no cap, no keep-typing note (#142)');
+  wsHost.remove();
+
+  /* —— group surface: full list + search filter (#142) + kick flow (audit M2) —— */
+  let kickCtrl = null;
+  const ghost = d.createElement('div');
+  d.body.append(ghost);
+  const mems = ['Alex', 'Han', 'Lando', 'Chewie', 'Leia', 'Luke'].map((n, i) => ({ name: n, address: 'a' + i }));
+  const ginfo = S.createChatInfo({
+    kind: 'group', name: 'Crew', address: 'crewaddr', members: mems, memberCount: 6,
+    notifications: true, capabilities: { notifications: true, admin: true },
+    onBack() {},
+    onNotifications: (next, ctrl) => ctrl.done(),
+    onMemberAction: (act, m, ctrl) => { kickCtrl = ctrl; },
+    onLeave() {},
+  });
+  ghost.append(ginfo);
+  ok(!ginfo.querySelector('.c-chat-info__money'), 'groups hide the money row (§9 room-request ask)');
+  const rowNames = [...ginfo.querySelectorAll('.c-chat-info__member-name')].map((e) => e.textContent);
+  ok(rowNames.length === 6 && !ginfo.querySelector('.c-search-field'),
+    '6 members: ALL 6 rows, no search below 8 — the list is scannable (#142)');
+  ok(rowNames[0] === 'Alex' && rowNames[1] === 'Chewie',
+    'member rows sort A–Z (#142 — scanning needs an order)');
+  const sw = ginfo.querySelector('.c-chat-info__switch');
+  sw.click();
+  ok(sw.getAttribute('aria-checked') === 'false', 'notifications toggle flips optimistically');
+
+  ginfo.querySelectorAll('.c-chat-info__member')[2].click();     // Han (A–Z: Alex, Chewie, Han…)
+  const kickBtn = [...d.querySelectorAll('.c-sheet .c-button')].find((b) => b.textContent.trim() === 'Kick');
+  ok(!!kickBtn, 'admin capability injects Kick into the member sheet');
+  kickBtn.click();
+  const km = [...d.querySelectorAll('.c-modal')].pop();   // LAST — a prior modal may still be tearing down
+  const kb = km.querySelectorAll('.c-modal__actions .c-button');
+  kb[kb.length - 1].click();
+  kickCtrl.done();
+  await sleep(450);
+  ok(ginfo.querySelectorAll('.c-chat-info__member').length === 5
+    && !ginfo.querySelector('.c-chat-info__member-note')
+    && ginfo.querySelector('.c-chat-info__members .c-chat-info__label').textContent.includes('(5)')
+    && ginfo.querySelector('.c-chat-info__sub').textContent === '5 members',
+    'kick ctrl.done removes the row and fixes BOTH counts (audit M2)');
+  ghost.remove();
+
+  /* —— #142: 8+ members — search appears as a FILTER over the full list —— */
+  const bigHost = d.createElement('div');
+  d.body.append(bigHost);
+  const bigMems = ['Alex', 'Han', 'Lando', 'Chewie', 'Leia', 'Luke', 'Obi-Wan', 'Rey', 'Poe']
+    .map((n, i) => ({ name: n, address: 'b' + i }));
+  const big = S.createChatInfo({
+    kind: 'group', name: 'Crew', address: 'crewaddr', members: bigMems, memberCount: 9,
+    onBack() {}, onLeave() {},
+  });
+  bigHost.append(big);
+  ok(big.querySelectorAll('.c-chat-info__member').length === 9
+    && !!big.querySelector('.c-search-field'),
+    '9 members: ALL rows render + search appears from 8 (#142 — filter, not gate)');
+  const bin = big.querySelector('.c-search-field__input');
+  bin.value = 'le';
+  bin.dispatchEvent(new W3.Event('input', { bubbles: true }));
+  const filtered = [...big.querySelectorAll('.c-chat-info__member-name')].map((e) => e.textContent);
+  ok(filtered.join('+') === 'Leia', 'search filters the full list (no hidden remainder)');
+  bigHost.remove();
+}
+
 {
   /* static guards: demos must link every component stylesheet they render —
      jsdom is style-blind; the tip sheet shipped once with native-looking chips
@@ -404,6 +622,10 @@ console.log('wallet.html');
   const chat = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
   ok(chat.includes('components/chip.css') && chat.includes('components/tip-sheet.css'),
     'chat demo links chip.css + tip-sheet.css (tip sheet renders on-brand)');
+  ok(chat.includes('components/chat-info.css'),
+    'chat demo links chat-info.css (#141)');
+  ok(chat.includes('components/txlist-item.css'),
+    'chat demo links txlist-item.css (#142 — payment rows rendered as naked native buttons without it, Damir screenshot)');
 }
 
 {

@@ -5,6 +5,71 @@
   var icon = window.SpixiIcons.icon;
   var ICONS = window.SpixiIcons.ICONS;
 
+/* ---- src/components/money.js ---- */
+/**
+ * money.js — shared IXI amount helpers. One home for the amount math + display
+ * rules that used to be split across three components, with the chat/tip paths
+ * reaching CROSS-FEATURE into the wallet path (sanitizeAmount/toUnits from
+ * wallet-send, canonicalAmount from wallet-receive — the 🟡 shared-money-module
+ * flag on tip-sheet, #138). DECISIONS #143 (opus-review-brief) named this the
+ * dedupe target; consumers now import from here regardless of feature.
+ *
+ * Rules baked in (audit history — do not "simplify" away):
+ *  - sanitizeAmount: with a '.' present, commas are THOUSANDS grouping and are
+ *    stripped ('1,000.5' → '1000.5'); with no '.', a comma is the decimal
+ *    separator ('12,5' → '12.5') — never a silent magnitude change (#135-M2).
+ *    Result is clamped to ≤8 decimals (chain precision).
+ *  - toUnits: exact integer 1e-8 units via BigInt (ES2020 floor, #45). Number×1e8
+ *    overflows 2^53 at Ixian-scale balances and re-imports the float bug that
+ *    falsely rejected exactly-fitting amounts (#135-M1, #138-M2). Callers compare
+ *    balances in these units.
+ *  - canonicalAmount: the PAYLOAD form of a sanitized amount — no trailing dot,
+ *    no bare leading dot, no redundant leading zeros ('12.'→'12', '.5'→'0.5',
+ *    '007'→'7'). Guards the QR/bridge payloads against magnitude bugs (#137-C1/M1).
+ *  - formatIxiAmount: DISPLAY only — chain carries 8 decimals, the UI shows AT
+ *    MOST 2, string-TRUNCATED never rounded (display must not overstate, #76/#77),
+ *    trailing zeros trimmed, round numbers show none; grouping from the bridge is
+ *    preserved; non-numeric input passes through. C# composes the real strings —
+ *    this is the reference; mirror there.
+ */
+
+/** Sanitize a decimal string: digits + one separator, ≤8 decimals. */
+function sanitizeAmount(raw) {
+  let s = String(raw || '');
+  s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
+  s = s.replace(/[^0-9.]/g, '');
+  const i = s.indexOf('.');
+  if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');
+  const [int, dec] = s.split('.');
+  return dec != null ? int + '.' + dec.slice(0, 8) : s;
+}
+
+/** Exact money math in integer 1e-8 units via BigInt (signed). */
+function toUnits(v) {
+  const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
+  const neg = s.startsWith('-');
+  const [i = '0', d = ''] = (neg ? s.slice(1) : s).split('.');
+  const u = BigInt(i || '0') * 100000000n + BigInt((d + '00000000').slice(0, 8));
+  return neg ? -u : u;
+}
+
+/** Canonical payload form of a sanitized amount. */
+function canonicalAmount(amount) {
+  let s = String(amount || '');
+  if (s.endsWith('.')) s = s.slice(0, -1);
+  if (s.startsWith('.')) s = '0' + s;
+  s = s.replace(/^0+(?=\d)/, '');
+  return s;
+}
+
+/** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded). */
+function formatIxiAmount(value) {
+  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return String(value);
+  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
+  return m[1] + m[2] + (frac ? '.' + frac : '');
+}
+
 /* ---- src/components/timestamp.js ---- */
 /**
  * Chat-list timestamp formatting (docs/chat-list-spec.md §3).
@@ -2207,6 +2272,7 @@ function setComposerCost(el, costText, strings = {}) {
 
 
 
+
 function cardTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
@@ -2218,19 +2284,6 @@ let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C1
    updatePaymentRequestStatus get surgical updates, and the re-render releases
    the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
 const paymentOpts = new WeakMap();
-
-/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): the chain
- * carries 8 decimals; the UI shows AT MOST 2 — string-truncated (never
- * rounded: display must not overstate) with trailing zeros trimmed; round
- * numbers show NO decimals. Grouping arrives from the bridge and is
- * preserved. Non-numeric input passes through untouched. This is the
- * REFERENCE implementation — C# composes the real strings, mirror there. */
-function formatIxiAmount(value) {
-  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
-  if (!m) return String(value);
-  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
-  return m[1] + m[2] + (frac ? '.' + frac : '');
-}
 
 /** Card scaffold: row (direction-aligned) → card → header(title+time) + body
  *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
@@ -6716,33 +6769,9 @@ function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
 
 
 
-/** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
- *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
- *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
- *  ('12,5' → '12.5') — never a silent magnitude change.
- *  Exported (slice 3): wallet-receive's request amount follows the SAME rules. */
-function sanitizeAmount(raw) {
-  let s = String(raw || '');
-  s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
-  s = s.replace(/[^0-9.]/g, '');
-  const i = s.indexOf('.');
-  if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');
-  const [int, dec] = s.split('.');
-  return dec != null ? int + '.' + dec.slice(0, 8) : s;
-}
 
-/* —— exact money math in integer 1e-8 units via BigInt (ES2020 floor, #45; audit M1:
-      binary floats falsely rejected exactly-fitting amounts and Max could overshoot;
-      Number×1e8 overflows 2^53 at Ixian-scale balances) —— */
-/** Exported (#138): the tip sheet's balance guard compares in the same units —
- *  Number comparison re-imports the audit-M1 float bug at ≥1e8 IXI balances. */
-function toUnits(v) {
-  const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
-  const neg = s.startsWith('-');
-  const [i = '0', d = ''] = (neg ? s.slice(1) : s).split('.');
-  const u = BigInt(i || '0') * 100000000n + BigInt((d + '00000000').slice(0, 8));
-  return neg ? -u : u;
-}
+/* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
+   sanitize/canonical helpers now live in money.js (#143 dedupe). */
 function fromUnits(u) {
   const neg = u < 0n;
   const a = neg ? -u : u;
@@ -9547,17 +9576,6 @@ function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
 }
 
-/** Canonical payload form of a sanitized amount (audit M1): no trailing dot, no bare
- *  leading dot, no redundant leading zeros — '12.'→'12', '.5'→'0.5', '007'→'7'.
- *  Exported (#138): the tip sheet sends the same canonical form to the bridge. */
-function canonicalAmount(amount) {
-  let s = String(amount || '');
-  if (s.endsWith('.')) s = s.slice(0, -1);
-  if (s.startsWith('.')) s = '0' + s;
-  s = s.replace(/^0+(?=\d)/, '');
-  return s;
-}
-
 let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
 
 function createWalletReceive({
@@ -9872,7 +9890,6 @@ function setRequestAmount(el, amount) {
  * Bridge: tip → legacy `ixian:contextAction:tip:MSGID:AMOUNT`; request → the
  * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
  */
-
 
 
 
@@ -10976,5 +10993,5 @@ function createChatInfo({
   return el;
 }
 
-  window.Spixi = { docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, formatIxiAmount: formatIxiAmount, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, sanitizeAmount: sanitizeAmount, toUnits: toUnits, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, canonicalAmount: canonicalAmount, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo };
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo };
 })();

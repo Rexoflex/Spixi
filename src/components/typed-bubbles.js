@@ -17,6 +17,7 @@ import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { docLocale } from './timestamp.js';
+import { formatIxiAmount } from './money.js';   // #143: shared money module (was defined here)
 
 function cardTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
@@ -29,19 +30,6 @@ let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C1
    updatePaymentRequestStatus get surgical updates, and the re-render releases
    the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
 const paymentOpts = new WeakMap();
-
-/** Display rule for IXI amounts (Damir 2026-07-03, DECISIONS #76): the chain
- * carries 8 decimals; the UI shows AT MOST 2 — string-truncated (never
- * rounded: display must not overstate) with trailing zeros trimmed; round
- * numbers show NO decimals. Grouping arrives from the bridge and is
- * preserved. Non-numeric input passes through untouched. This is the
- * REFERENCE implementation — C# composes the real strings, mirror there. */
-export function formatIxiAmount(value) {
-  const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
-  if (!m) return String(value);
-  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
-  return m[1] + m[2] + (frac ? '.' + frac : '');
-}
 
 /** Card scaffold: row (direction-aligned) → card → header(title+time) + body
  *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by

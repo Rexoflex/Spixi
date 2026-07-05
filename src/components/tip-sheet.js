@@ -29,8 +29,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { setOverlayOpts } from './overlay.js';
-import { sanitizeAmount, toUnits } from './wallet-send.js';
-import { canonicalAmount } from './wallet-receive.js';   // 🟡 shared-money-module candidate
+import { sanitizeAmount, toUnits, canonicalAmount } from './money.js';   // #143: shared money module (was the cross-feature 🟡)
 
 function amountSheetCopy(kind, strings) {
   return kind === 'request' ? {

@@ -37,23 +37,12 @@ import { createButton } from './button.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createQrSvg, setQrValue } from './qr.js';
-import { sanitizeAmount } from './wallet-send.js';
+import { sanitizeAmount, canonicalAmount } from './money.js';   // #143: shared money module
 import { icon } from './icons.js';
 
 /** '0', '0.', '' → not a requestable amount (plain receive stays). */
 function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
-}
-
-/** Canonical payload form of a sanitized amount (audit M1): no trailing dot, no bare
- *  leading dot, no redundant leading zeros — '12.'→'12', '.5'→'0.5', '007'→'7'.
- *  Exported (#138): the tip sheet sends the same canonical form to the bridge. */
-export function canonicalAmount(amount) {
-  let s = String(amount || '');
-  if (s.endsWith('.')) s = s.slice(0, -1);
-  if (s.startsWith('.')) s = '0' + s;
-  s = s.replace(/^0+(?=\d)/, '');
-  return s;
 }
 
 let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)

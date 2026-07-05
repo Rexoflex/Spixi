@@ -611,8 +611,21 @@ console.log('chat.html — chat info (#141)');
   bin.value = 'le';
   bin.dispatchEvent(new W3.Event('input', { bubbles: true }));
   const filtered = [...big.querySelectorAll('.c-chat-info__member-name')].map((e) => e.textContent);
-  ok(filtered.join('+') === 'Leia', 'search filters the full list (no hidden remainder)');
+  // substring match (#144 Damir): 'le' is inside both aLEx and LEia — the filter
+  // must surface ALL matches A–Z, none hidden (that IS the "no hidden remainder")
+  ok(filtered.join('+') === 'Alex+Leia', 'search filters to every substring match, A–Z, no hidden remainder');
   bigHost.remove();
+
+  /* —— #143: shared money module — the helpers still behave after the move out
+     of wallet-send/receive/typed-bubbles into money.js —— */
+  ok(S.sanitizeAmount('1,000.5') === '1000.5' && S.sanitizeAmount('12,5') === '12.5',
+    'money.sanitizeAmount: comma = grouping with a dot, else decimal (#135-M2)');
+  ok(S.canonicalAmount('.5') === '0.5' && S.canonicalAmount('12.') === '12' && S.canonicalAmount('007') === '7',
+    'money.canonicalAmount: canonical payload form (#137-C1/M1)');
+  ok(S.formatIxiAmount('1.239') === '1.23' && S.formatIxiAmount('5.00') === '5' && S.formatIxiAmount('1,234.5') === '1,234.5',
+    'money.formatIxiAmount: ≤2 decimals truncated-not-rounded, grouping kept (#76/#77)');
+  ok(S.toUnits('1') === 100000000n && S.toUnits(1) === 100000000n && S.toUnits('-0.00000001') === -1n,
+    'money.toUnits: exact integer 1e-8 units via BigInt (#135-M1/#138-M2)');
 }
 
 {
@@ -646,6 +659,31 @@ console.log('chat.html — chat info (#141)');
   const compCss = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
   ok(/c-composer__ctx \{[^}]*min-width: 0/.test(compCss),
     'ctx strip has min-width:0 — cancel ✕ stays on-screen (2026-07-05c ③)');
+}
+
+{
+  /* static guards — #143 Opus round. ① the chat-info hero NAME is a flex item in
+     a row (name-row) with white-space:nowrap; without min-width:0 its min-width
+     resolves to the nowrap content width, so a long name/nickname (or RTL string)
+     overflows the hero and shoves the edit pencil off-screen (the #140③ / #136①
+     class — jsdom is layout-blind, guard the CSS text). ② the money helpers live
+     in ONE module now (money.js); the chat/tip path must NOT reach cross-feature
+     back into wallet-send/wallet-receive for them. */
+  const infoCss = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
+  ok(/\.c-chat-info__name \{[^}]*min-width: 0/.test(infoCss),
+    'chat-info hero name has min-width:0 — long names/RTL ellipsize, no overflow (#143 ①, #140③ class)');
+  ok(/\.c-chat-info__money \{[^}]*flex-wrap: wrap/.test(infoCss)
+    && /\.c-chat-info__message \{ flex-basis: 100%/.test(infoCss),
+    'contact money row: Message leads full-width, Pay+Request wrap to a 2-col row below (#144 Damir demo)');
+  const tip = readFileSync(join(root, 'src/components/tip-sheet.js'), 'utf8');
+  const recv = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8');
+  const tb = readFileSync(join(root, 'src/components/typed-bubbles.js'), 'utf8');
+  ok(/from '\.\/money\.js'/.test(tip) && !/from '\.\/wallet-(send|receive)\.js'/.test(tip),
+    'tip-sheet imports money helpers from the shared module, not cross-feature (#143 ②)');
+  ok(/import \{ sanitizeAmount, canonicalAmount \} from '\.\/money\.js'/.test(recv),
+    'wallet-receive imports sanitize/canonical from money.js (#143 ②)');
+  ok(/from '\.\/money\.js'/.test(tb) && !/export function formatIxiAmount/.test(tb),
+    'typed-bubbles imports formatIxiAmount from money.js (no local copy — #143 ②)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

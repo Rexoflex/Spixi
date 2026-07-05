@@ -30,34 +30,10 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
 import { setOverlayOpts } from './overlay.js';
 import { icon } from './icons.js';
+import { sanitizeAmount, toUnits } from './money.js';   // #143: shared money module
 
-/** Sanitize a decimal string: digits + one separator, ≤8 decimals (chain precision).
- *  Comma handling (audit M2): with a '.' present commas are THOUSANDS grouping and are
- *  stripped ('1,000.5' → '1000.5'); with no '.' the comma is a decimal separator
- *  ('12,5' → '12.5') — never a silent magnitude change.
- *  Exported (slice 3): wallet-receive's request amount follows the SAME rules. */
-export function sanitizeAmount(raw) {
-  let s = String(raw || '');
-  s = s.includes('.') ? s.replace(/,/g, '') : s.replace(/,/g, '.');
-  s = s.replace(/[^0-9.]/g, '');
-  const i = s.indexOf('.');
-  if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');
-  const [int, dec] = s.split('.');
-  return dec != null ? int + '.' + dec.slice(0, 8) : s;
-}
-
-/* —— exact money math in integer 1e-8 units via BigInt (ES2020 floor, #45; audit M1:
-      binary floats falsely rejected exactly-fitting amounts and Max could overshoot;
-      Number×1e8 overflows 2^53 at Ixian-scale balances) —— */
-/** Exported (#138): the tip sheet's balance guard compares in the same units —
- *  Number comparison re-imports the audit-M1 float bug at ≥1e8 IXI balances. */
-export function toUnits(v) {
-  const s = typeof v === 'number' ? v.toFixed(8) : String(v || '0');
-  const neg = s.startsWith('-');
-  const [i = '0', d = ''] = (neg ? s.slice(1) : s).split('.');
-  const u = BigInt(i || '0') * 100000000n + BigInt((d + '00000000').slice(0, 8));
-  return neg ? -u : u;
-}
+/* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
+   sanitize/canonical helpers now live in money.js (#143 dedupe). */
 function fromUnits(u) {
   const neg = u < 0n;
   const a = neg ? -u : u;

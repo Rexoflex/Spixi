@@ -7,10 +7,11 @@ ARCHITECTURE §5 row 1. Folds in `illustrations-plan.md` (P1 assets 1–6) and
 the backup onboarding tail (`backup-ux-spec.md` §3.3).
 
 **Damir interview 2026-07-06 (this spec's #0 decisions):**
-① welcome = **3-slide carousel** (illustration slots 1–3) ② the #160 lock
-brand treatment (fixed-dark pin + `--gradient-lock` + bare glowing logo)
-extends to the **welcome view only** — create/restore/retry/tail are normal
-themed form surfaces ③ tail = **backup nudge + joinbot step** (full legacy
+① welcome = carousel (shipped as the **4-slide legacy tour**, §2.1) ② **SUPERSEDED by the premium round (DECISIONS #165)** — the #160 brand
+treatment (fixed-dark pin + bare glowing logo) now covers the **whole
+shell**: ONE continuous `--gradient-launch` surface across welcome → create
+→ restore → retry → tail, glass inputs, transparent topbar (originally
+welcome-only) ③ tail = **backup nudge + joinbot step** (full legacy
 `onboarding.html` command coverage) ④ audit backlog **[L2] approved**: the
 window-`pagehide` scrub extends to `createLockScreen` (lands in this batch).
 
@@ -54,13 +55,16 @@ Free fns (C#→JS mirrors, #44 grammar): `setLaunchVersion(el, v)` ←
 `setLaunchAvatar(el, src)` ← `loadAvatar` · `setLaunchFile(el, name)` ←
 `setUploadedFileName`.
 
-### 2.1 Welcome (brand view — the only fixed-dark one) — PREMIUM ROUND (Damir 2026-07-06)
+### 2.1 Welcome (brand view — the shell-wide fixed-dark pin) — PREMIUM ROUND (Damir 2026-07-06)
 
 Subtree-pinned `data-theme="dark"` over the **new `--gradient-launch`**
 (aurora recipe — violet crown halo, magenta glint, sapphire + teal corners
-over violet-ink; 5 dial layers in tokens.css. Damir "more premium colors";
-`--gradient-lock` stays on the lock until he converges them). Bare glowing
-logo (#160 grammar), full-bleed under the statusbar (#160b⑧).
+over violet-ink; 5 dial layers in tokens.css. Damir "more premium colors").
+The pin is set ONCE at the shell root and covers ALL views (§0②
+superseded): form views inherit it — no per-view re-pin, glass inputs,
+transparent topbar. `--gradient-lock` (lock-spec §6⑤) is CONVERGED onto this aurora recipe
+at ~8–10% quieter colour layers (§6⑧ RESOLVED). Bare glowing logo (#160
+grammar), full-bleed under the statusbar (#160b⑧).
 
 Single full-screen composition, top→bottom: floating controls · logo ·
 carousel · dots · pinned CTAs · fine print · version.
@@ -81,24 +85,35 @@ carousel · dots · pinned CTAs · fine print · version.
   `prefers-reduced-motion`, and self-stops when the shell leaves the DOM.
 - **CTAs always enabled** (fill + outline 56, pinned): internal view switches
   (the shell absorbs the legacy pages).
-- **Terms = fine print** (premium consent — no checkbox): "By continuing,
-  you agree to the Terms of Use" under the CTAs; the link opens the full
-  legal text in a scrollable sheet (`strings.termsBody`, paragraphs split on
-  blank lines, textContent-safe); the FIRST Create/Restore tap emits
-  `onAcceptTerms()` → `ixian:accept` (one-shot, armed by `termsRequired` /
-  `setLaunchTerms`; legacy accept was in-memory one-way anyway).
+- **Consent is NOT on welcome** (premium round — welcome stays a clean
+  brand choice, no consent line or checkbox). The consent line ("By
+  creating an account / By restoring your account, you agree to the [Terms
+  of Use] and acknowledge the [Privacy Policy]") sits on the **create and
+  restore forms, directly above the commit button**. Both links open
+  **in-app** in the shared `openDocSheet` renderer (mini-markup: `# `
+  heading · `- ` list item · blank line = separator · `[label](https://…)`
+  link · ✕ close; textContent + https-only anchors — NEVER `innerHTML`).
+  `onAcceptTerms()` → `ixian:accept` fires at the BINDING action — the
+  create/restore commit (`emitAccept`, one-shot latch, armed by
+  `termsRequired` / `setLaunchTerms`) — NOT on a welcome tap. The terms
+  encryption clause reflects the real hybrid PQ crypto (RSA-4096 + ECDH
+  secp521r1 + ML-KEM-1024/CRYSTALS-Kyber = FIPS 203 handshake;
+  AES-256-GCM + ChaCha20-Poly1305 messages), per docs.ixian.io.
 - Version line (`setLaunchVersion`) quiet in the footer.
 
-### 2.2 Create (themed form view)
+### 2.2 Create (form view — inherits the shell dark pin, glass inputs)
 
 Topbar back (→ welcome + `onBack('create')`). Avatar picker: 96px c-avatar
 placeholder + "Add a photo" chip → `onPickAvatar()` (`ixian:avatar`);
 `setLaunchAvatar` swaps the preview. Fields: nickname (text, required) ·
 password + repeat (lock `passwordField` grammar — shell-owned reveal eye,
 `autocomplete="new-password"`). Inline gates in submit order: nick empty ·
-nick contains `:` · password < ENC_MIN (8, flag ①) · repeat mismatch ·
-password contains `<nick>:` (hazard §1). Legacy `ixian:error` (empty-nick
-native alert) is superseded by the inline gate.
+nick contains `:` · password < ENC_MIN (10, §6① RESOLVED — the BE minimum;
+the password-length hint is shown proactively, not only as an error) ·
+repeat mismatch · password contains `<nick>:` (hazard §1). Legacy
+`ixian:error` (empty-nick native alert) is superseded by the inline gate.
+The form is two labelled groups (profile · password); the consent line
+(§2.1) sits above the commit button; CTA = "Create my account".
 
 Submit → `onCreateAccount(nick, pass, ctrl)`. **Indefinite loading** — wallet
 generation takes seconds and legacy shows a spinner until the page is
@@ -108,9 +123,11 @@ navigating to Home; in the shell, `done()` also advances to the **tail**
 view). `ctrl.fail(msg)` → restore + inline error (mock/future path). Flag ②:
 wedge stance if C# ever fails silently.
 
-### 2.3 Restore (themed form view)
+### 2.3 Restore (form view — inherits the shell dark pin, premium hero)
 
-Topbar back. File row: outline button "Choose backup file…" (`file-isr` glyph)
+Topbar back. Premium hero illustration
+(`src/demo/images/onboarding/restore.svg`, shipped legacy art) above the
+form; the consent line (§2.1) sits above the commit button. File row: outline button "Choose backup file…" (`file-isr` glyph)
 → `onSelectFile()` (`ixian:selectfile`); `setLaunchFile(el, name)` renders the
 picked name + check. Password field (`autocomplete="off"` — existing secret).
 Gates: file picked · password non-empty. Submit → `onRestore(pass, ctrl)`;
@@ -120,7 +137,7 @@ error on the field; `ctrl.done()` → success morph + scrub (C# navigates).
 Restore honesty line (backup-ux-spec §3.5 copy): "Restoring needs this file
 and your password. Spixi can't recover either for you."
 
-### 2.4 Retry (themed form view)
+### 2.4 Retry (form view — inherits the shell dark pin)
 
 Shown when the stored wallet password fails at boot. Topbar back
 (`ixian:back`). Copy: "Your wallet couldn't be unlocked with the saved
@@ -130,7 +147,7 @@ Wrong password = NATIVE alert + `removeLoadingOverlay` → host calls
 unlock-screen grammar). `ctrl.done()` → success morph + scrub. C#-side
 attempt counter replaces the page with LaunchPage after N failures — not FE.
 
-### 2.5 Onboarding tail (themed, two steps)
+### 2.5 Onboarding tail (two steps — inherits the shell dark pin)
 
 Entered from create success (`ctrl.done()`), or directly (`view:'tail'` — the
 HomePage-modal repoint). NO back (legacy `ixian:back` exists but the modal is
@@ -140,7 +157,9 @@ a forward flow; flag ③).
    the §7 hero copy, **Back up now** (fill 56) → `onBackupNow()` ·
    **Later** (text, quiet) → step 2. Integration note (§9): "Back up now"
    routes via onboarding-complete + the settings Backup screen — no new verb.
-2. **Join the community**: `heart-handshake` glyph, copy for the official
+2. **Join the community**: illustration
+   `src/demo/images/onboarding/join-community.svg` (shipped legacy art,
+   dark set — §6⑨ RESOLVED by the shell-wide pin), copy for the official
    Spixi bot group, **Join** (fill) → `onJoinBot()` (`ixian:joinbot`) ·
    **Not now** (text) → both then `onFinish()` (`ixian:finish` /
    `onboardingComplete` at integration).
@@ -155,13 +174,16 @@ error), `fail(msg)` = inline error + focus.
 
 ## 4. Illustration slots
 
-`.c-launch__illo` with `data-illo="onboarding-welcome|onboarding-p2p|
-onboarding-apps|create|backup"` — inline placeholder SVGs drawn to the
-illustrations-plan §2 palette/geometry (rounded shapes on a blue-100 blob,
-theme-stable) so Damir art-directs proportions NOW and nano-banana art drops
-in later (same viewBox: 360×240 for 3:2 slots, 240×240 square). Placeholders
-are marked `data-placeholder="true"` (smoke-guarded so a real-asset swap is
-deliberate).
+Shipped legacy art is wired as `<img>` (with `onerror` hide fallbacks,
+decorative `alt=""`): carousel slides 1–4 →
+`src/demo/images/onboarding/step1–4.svg` · restore hero → `restore.svg` ·
+tail join step → `join-community.svg`. Final art drops in by replacing the
+files under the SAME names (prompts:
+`docs/onboarding-illustration-prompts.md`; PNG must stay transparent to
+composit on the gradient). The ONE remaining inline placeholder is the
+backup nudge (`ILLOS.backup` in launch-shell.js), marked
+`data-placeholder="true"` — the smoke guard asserts EXACTLY ONE such slot,
+so a real-asset swap is deliberate (update the guard when it lands).
 
 ## 5. SECURITY.md checklist (password-adjacent shell — mandatory pass)
 
@@ -179,16 +201,21 @@ deliberate).
 
 ## 6. Flags for Damir's demo pass
 
-① ENC_MIN=8 shared with encpass (legacy launch minimum unknown) ② create
-wedge stance — indefinite spinner if C# dies silently (add a §9 failure verb?)
+① **RESOLVED: ENC_MIN=10** (the BE minimum; lock-shell's export raised
+8→10 — the ONLY lock-shell change of the premium round) ② create wedge
+stance — indefinite spinner if C# dies silently (add a §9 failure verb?)
 ③ tail has no back — OK? ④ carousel/tail copy (all strings overridable; slide
 copy defaults = the legacy en-us tour text) ⑤ backup-nudge placeholder
 proportions (the only placeholder left) ⑥ ThemeAppearance int mapping assumed
-0/1/2 (System/Light/Dark) ⑦ terms body is condensed v1 (full legacy legal
-text rides `strings.termsBody` at i18n) ⑧ `--gradient-launch` dials (5 layers
-in tokens.css) — converge the lock onto it? ⑨ join step: legacy
-`join-community-img.svg` exists (light+dark) but the tail is THEMED — wire a
-theme-swapped image or keep the glyph? ⑩ autoplay cadence (5s wrap).
+0/1/2 (System/Light/Dark) ⑦ i18n: Terms/Privacy/consent copy currently lives
+as demo strings in `src/demo/launch.html` + component defaults — ship via the
+SL channel (launch-spec §6⑦ = finalize task 2); the `openDocSheet`
+mini-markup markers (`# ` · `- ` · blank line · `[label](https://…)`) must
+survive translation ⑧ **RESOLVED: `--gradient-lock` converged onto the
+launch aurora** (same recipe, ~8–10% quieter colour layers) ⑨ **RESOLVED
+by the shell-wide dark pin**: tail is pinned dark; the legacy art is wired
+as `src/demo/images/onboarding/join-community.svg` (dark set) ⑩ autoplay
+cadence (5s wrap).
 
 ## 7. Non-goals
 
@@ -200,8 +227,11 @@ avatar cropping (native picker does 960×960) · joinbot address knowledge
 
 ## 8. Smoke assertions (scripts/smoke-test.mjs, launch block)
 
-Carousel: 3 slides + dot nav + keyboard arrows · terms gate disables CTAs
-until checked, `onAcceptTerms` fired once · create gates (empty nick · nick
+Carousel: 4 slides (shipped legacy step1–4 art) + dot nav + keyboard
+arrows · welcome carries NO consent line or checkbox · consent line on the
+create/restore forms directly above the commit button (Terms + Privacy
+links open the in-app `openDocSheet` sheet) · `ixian:accept` fires ONCE at
+the create/restore commit (latched) · create gates (empty nick · nick
 with `:` · short password · mismatch · `<nick>:` hazard) block submit with
 inline error · create `done()` → tail view + fields scrubbed · functional
 window-`pagehide` dispatch scrubs + re-masks create fields · leak guard: the
@@ -209,7 +239,9 @@ shell's window listener SELF-CLEANS on the first `pagehide` after the element
 leaves the DOM (no ghost scrubbing) · restore: submit disabled until file + password;
 `fail(msg)` → inline error · retry: `fail('')` restores silently (no error
 text) · tail: Later → join step; Join fires `onJoinBot` then `onFinish` ·
-welcome pinned dark + `--gradient-lock`; create/restore/retry NOT pinned ·
+the WHOLE shell pinned dark on ONE continuous `--gradient-launch` (form
+views inherit the pin, none re-pin) · exactly ONE
+`data-placeholder="true"` illo slot (the backup nudge) ·
 no-logging guard on launch-shell.js · [L2] lock: window `pagehide` scrubs the
 unlock field · bundle export count grows accordingly.
 

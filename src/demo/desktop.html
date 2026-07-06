@@ -314,11 +314,13 @@
      the unread badge hugs the icon corner again (Damir: indicator closer to
      the icon); icon↔label keeps the component's tight gap */
   .dt-rail .c-bottomnav { gap: var(--spacing-32); }
-  /* NO icon crossfade on the rail (Damir: pill and icon moved in opposite
-     directions — the -filled twin anchors to the unpadded wrap corner).
-     Desktop state = ink + pill; nothing translates. */
-  .dt-rail .c-bottomnav__icon--filled { display: none; }
-  .dt-rail .c-bottomnav__item[aria-current] [data-dual] .c-bottomnav__icon { opacity: 1; }
+  /* rail crossfade RE-ENABLED (Damir 2026-07-06: the selected tab shows its
+     FILLED glyph). Fade IN PLACE — transform:none on the twin in BOTH states —
+     so it can't slide against the pill (the 06d concern that first turned it
+     off); the outline fades out via the base crossfade. Every nav icon now has
+     its -filled twin (apps/messages/wallet + user-circle-filled shipped). */
+  .dt-rail .c-bottomnav__icon--filled,
+  .dt-rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
 
   /* d④ incoming call PRESENTS as a centered dialog card on desktop — the
      mobile full-bleed ring stage reads wrong in a frame (#56 grammar intact) */
@@ -381,6 +383,19 @@
     width: auto; min-width: 240px; margin-inline: auto;
   }
   .dt-frame .c-app-details__actions, .dt-frame .c-app-details__danger { display: flex; justify-content: center; }
+
+  /* ═══════════ top-row full-width fix (Damir: Account + Wallet detail screens) ═══════════
+     The detail-pane top row should span the WHOLE pane; only the content caps.
+     Two header sources: (1) router-rendered headers (theme/language/tx/send/receive/
+     add/discover) now sit ABOVE the cap as .dt-detailhead — full width for free.
+     (2) Account component screens (backup/downloads/dev/contributors/encpass/…) ship
+     their OWN topbar as the FIRST child of a root that also holds .c-*__body: free
+     that root to full width and cap the non-header children instead. Wallet/Apps have
+     no component-topbar screens (all their detail views are router-rendered). Placed
+     last so it wins the source-order tie against #detail-account .dt-cap { 640px }. */
+  .dt-detail .dt-detailhead { flex: none; }
+  #detail-account .dt-cap--fill { max-width: none; }
+  #detail-account .dt-cap--fill > * > :not(.c-topbar) { max-width: 640px; margin-inline: auto; width: 100%; }
 </style>
 </head>
 <body>
@@ -1093,11 +1108,17 @@
      pane's empty state + aria-current in the list pane. Components stay frozen —
      anything that would need a component change is a FLAG, not an edit. */
 
-  /* helper: detail-pane view = optional topbar + capped scroll region (spec §1) */
+  /* helper: detail-pane view = optional FULL-WIDTH top row + capped content (spec §1;
+     Damir top-row fix: the header spans the whole pane, only the content caps below it) */
   const dtDetailView = (host, { title, onBack, content, scroll = true, backOnly = false } = {}) => {
+    const parts = [];
+    if (onBack) {
+      const head = createTopbar({ variant: 'view', title: backOnly ? '' : title, onBack });
+      head.classList.add('dt-detailhead');   // spans the pane, sits ABOVE the cap (not inside it)
+      parts.push(head);
+    }
     const cap = document.createElement('div');
     cap.className = 'dt-cap' + (scroll ? '' : ' dt-cap--fill');
-    if (onBack) cap.append(createTopbar({ variant: 'view', title: backOnly ? '' : title, onBack }));
     if (scroll) {
       const sc = document.createElement('div');
       sc.className = 'dt-cap__scroll u-scroll';
@@ -1106,7 +1127,8 @@
     } else {
       cap.append(content);
     }
-    host.replaceChildren(cap);
+    parts.push(cap);
+    host.replaceChildren(...parts);
     return cap;
   };
 

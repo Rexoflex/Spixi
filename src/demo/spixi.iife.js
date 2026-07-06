@@ -11292,8 +11292,8 @@ function createContactsPicker({
     if (cb) b.addEventListener('click', cb);
     return b;
   };
-  // icon gap: user-plus not in the registry (spec §3a) — user-circle stands in
-  actions.append(actionRow('accent', 'user-circle', strings.addContact || 'Add contact', onAddContact));
+  // #146/spec §3a icon gap resolved — 'user-plus' exported
+  actions.append(actionRow('accent', 'user-plus', strings.addContact || 'Add contact', onAddContact));
   if (purpose === 'start') {                            // directory: no Create group (start affordance = FAB)
     actions.append(actionRow('primary', 'users', strings.createGroup || 'Create group', () => {
       setPickerMode(el, 'multi');
@@ -13119,7 +13119,7 @@ function createSettingsHub({
   if (onLanguage && languages.length) {
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
-      glyph: 'at', hue: 'info',                // stand-in — 'world' pending export (#146)
+      glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language',
       value: langLabelFor(language),
       onClick: () => settingsOptionSheet({
@@ -13157,7 +13157,7 @@ function createSettingsHub({
 
   /* app lock — switch row (#146⑦). ON optimistic, OFF pending-auth. */
   if (onLock) sec.card.append(authSwitchRow({
-    glyph: 'square-asterisk', hue: 'success',   // stand-in — 'lock' pending export (#146)
+    glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
     checked: lockEnabled,
     failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',

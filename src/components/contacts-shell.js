@@ -245,8 +245,8 @@ export function createContactsPicker({
     if (cb) b.addEventListener('click', cb);
     return b;
   };
-  // icon gap: user-plus not in the registry (spec §3a) — user-circle stands in
-  actions.append(actionRow('accent', 'user-circle', strings.addContact || 'Add contact', onAddContact));
+  // #146/spec §3a icon gap resolved — 'user-plus' exported
+  actions.append(actionRow('accent', 'user-plus', strings.addContact || 'Add contact', onAddContact));
   if (purpose === 'start') {                            // directory: no Create group (start affordance = FAB)
     actions.append(actionRow('primary', 'users', strings.createGroup || 'Create group', () => {
       setPickerMode(el, 'multi');

@@ -658,7 +658,7 @@ export function createSettingsHub({
   if (onLanguage && languages.length) {
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
-      glyph: 'at', hue: 'info',                // stand-in — 'world' pending export (#146)
+      glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language',
       value: langLabelFor(language),
       onClick: () => settingsOptionSheet({
@@ -696,7 +696,7 @@ export function createSettingsHub({
 
   /* app lock — switch row (#146⑦). ON optimistic, OFF pending-auth. */
   if (onLock) sec.card.append(authSwitchRow({
-    glyph: 'square-asterisk', hue: 'success',   // stand-in — 'lock' pending export (#146)
+    glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
     checked: lockEnabled,
     failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',

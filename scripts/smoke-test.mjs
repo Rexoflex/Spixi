@@ -2852,6 +2852,14 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   ok(/\.dt-frame \.c-callin__name \{ color: var\(--text-neutral-01\)/.test(dt)
     && /\.dt-frame \.c-callin__circle\[data-kind="ignore"\] \{\n\s*background: var\(--surface-neutral-02\)/.test(dt),
     'call dialog re-inked for the menu surface — on-scrim tokens stay mobile-only (06d ⑬, light-mode fix)');
+
+  /* ⑧ top-row full-width fix (Damir): detail-pane header spans the pane, content caps */
+  ok(/head\.classList\.add\('dt-detailhead'\)/.test(dt) && /host\.replaceChildren\(\.\.\.parts\)/.test(dt)
+    && /\.dt-detail \.dt-detailhead \{ flex: none/.test(dt),
+    'router-rendered detail headers span the full pane (sit ABOVE the cap, not inside it)');
+  ok(/#detail-account \.dt-cap--fill \{ max-width: none/.test(dt)
+    && /#detail-account \.dt-cap--fill > \* > :not\(\.c-topbar\) \{ max-width: 640px/.test(dt),
+    'Account component screens free their own topbar to full width, body stays capped (top-row fix)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

@@ -95,6 +95,38 @@ or detail-pane swap? (parked: they're security surfaces, propose at their
 Phase-3 integration) ④ does Discover default to grid or list in the detail
 pane? ⑤ wallet safe-area #22 is a DEVICE item — not covered by this pass.
 
+## 6a. Contact-request mapping on desktop (RECOMMENDED — resolves flag #86; lands in the contacts-on-desktop batch, not this pass)
+
+Not built in this batch: the desktop chats list is hand-built (regular chats
+only), so incoming contact requests are not wired here. Recommended mapping for
+the contacts-on-desktop batch so #86 ("minimal-pane vs list-only") isn't
+re-litigated. The accept→handshake state machine is FROZEN in
+`chats-shell-spec.md §7` — desktop reuses it verbatim, only the PLACEMENT changes:
+
+- **Request lives in the LEFT (list) pane**, not the detail pane: the shipped
+  `c-contact-request` row, interleaved by arrival time (chats-shell §5), Decline
+  (c-modal confirm) + Accept. A pending request is **NOT selectable into the
+  right pane** — there is no chat to open yet. Clicking it does nothing / could
+  surface the request affordances; it never routes `onOpen`.
+- **Accept does NOT open a chat window.** Per chats-shell §7: Accept →
+  "Accepting…" latch → `acceptContactRequest` swaps the request for a
+  **handshaking** chat row (left pane, `aria-busy`, "Establishing a quantum-secure
+  handshake…", un-openable → `onHandshakeBlocked`). The **right pane stays on the
+  empty/"Select a chat" state** through the handshake — we do NOT mount a
+  conversation for an unsecured contact.
+- **Only `completeHandshake` unblocks entry.** When the bridge handshake-complete
+  signal lands, the row clears to a normal openable chat (bumped to top); *now*
+  selecting it mounts the conversation in the right pane like any other chat.
+  Decline, or handshake fail/timeout/cancel, removes the row (`failHandshake`).
+- **Non-contact composer-off (#86)** rides along: if a not-yet-contact
+  conversation is ever shown in the right pane, the composer is disabled
+  downstream (shell responsibility, same as mobile).
+
+Net: **you can never select a stranger's chat window until you've accepted AND
+the secure handshake completes** — identical guarantee to mobile, the split view
+only relocates the request row to the list pane and keeps the detail pane empty
+until the chat is real.
+
 ## 6b. Damir orders, 2026-07-06 build session (live, mid-build)
 
 ① **Chat info = RIGHT PANEL** in the chats detail pane (⋮ toggles it; closes on

@@ -2580,12 +2580,17 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
   ok(!infoPanel.hidden && !!infoPanel.querySelector('.c-chat-info[data-kind="bot"]'),
     '⋮ opens chat info in the RIGHT PANEL (bot kind for Ixian News, Damir ①)');
+  ok(d.querySelector('#chat-topbar [aria-label="Chat info"]').getAttribute('aria-expanded') === 'true'
+    && d.querySelector('#chat-topbar [aria-label="Chat info"]').getAttribute('aria-controls') === infoPanel.id,
+    '[A1] the ⓘ toggle exposes aria-expanded=true + aria-controls when the panel is open');
   ok(!!infoPanel.querySelector('.c-chat-info__members'),
     'bot info lists MEMBERS — legacy channel-bar people-icon parity (06d, flagged chat-info gate)');
   ok(infoPanel.querySelector('.c-chat-info__members').textContent.includes('12400'),
     'bot members header carries the true channel count, not the page size');
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
   ok(infoPanel.hidden, '⋮ toggles the panel closed');
+  ok(d.querySelector('#chat-topbar [aria-label="Chat info"]').getAttribute('aria-expanded') === 'false',
+    '[A1] the ⓘ toggle reflects aria-expanded=false when the panel is closed');
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
   openRow('Han Solo');
   ok(infoPanel.hidden, 'switching chats closes the info panel (it follows the conversation)');
@@ -2762,6 +2767,33 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   await sleep(500);
   ok(frameSheets().length === 0, 'nudge "Not now" closes it (C# owns the re-prompt cadence)');
 
+  // —— §6a: incoming contact request in the LIST pane → staged handshake ——
+  // (desktop-split-spec §6a; reuses the frozen c-contact-request + #109 handshake)
+  rail('Chats');
+  const reqRow = d.querySelector('#rows .c-contact-request');
+  ok(!!reqRow, '§6a: incoming contact request renders in the LIST pane');
+  ok(!!reqRow && !!reqRow.querySelector('[data-accept]') && !!reqRow.querySelector('[data-decline]'),
+    '§6a: request row carries Accept + Decline (frozen c-contact-request)');
+  ok(!!reqRow && !reqRow.classList.contains('c-chatlist-item'),
+    '§6a: a pending request is NOT a chat row — unselectable into the detail pane');
+  const reqTopbar = d.querySelector('#chat-topbar').textContent;
+  reqRow.querySelector('[data-accept]').click();
+  await sleep(1100);
+  const hsRow = d.querySelector('#rows .c-chatlist-item[data-handshaking]');
+  ok(!!hsRow && hsRow.getAttribute('aria-busy') === 'true',
+    '§6a: Accept → handshaking chat row (aria-busy, #109 staged handshake)');
+  ok(!d.querySelector('#rows .c-contact-request'), '§6a: Accept consumes the request row');
+  if (hsRow) hsRow.click();
+  ok(d.querySelector('#chat-topbar').textContent === reqTopbar,
+    '§6a GUARANTEE: clicking a handshaking row opens NO conversation (no stranger chat pre-handshake)');
+  await sleep(2800);
+  const secured = [...d.querySelectorAll('#rows .c-chatlist-item')].find((r) => r.textContent.includes('Leia'));
+  ok(!!secured && !secured.hasAttribute('data-handshaking') && secured.getAttribute('aria-busy') !== 'true',
+    '§6a: handshake-complete clears the row to a normal openable chat');
+  if (secured) secured.click();
+  ok(d.querySelector('#chat-topbar').textContent.includes('Leia'),
+    '§6a: the secured contact NOW opens in the detail pane');
+
   // —— divider drag + dblclick reset still work with EVERY shell mounted ——
   const divider = d.getElementById('divider');
   const paneList = d.getElementById('pane-list');
@@ -2801,7 +2833,7 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   for (const css of ['settings-shell.css', 'settings-backup.css', 'settings-screens.css', 'settings-app.css',
     'lock-shell.css', 'txlist-item.css', 'wallet-hero.css', 'wallet-shell.css', 'wallet-send.css',
     'wallet-receive.css', 'apps-item.css', 'apps-shell.css', 'apps-header.css', 'apps-add.css',
-    'apps-details.css', 'apps-discover.css', 'backup-nudge.css', 'chat-info.css']) {
+    'apps-details.css', 'apps-discover.css', 'backup-nudge.css', 'chat-info.css', 'contact-request.css']) {
     ok(dt.includes('components/' + css), 'desktop demo links ' + css);
   }
 

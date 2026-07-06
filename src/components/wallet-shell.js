@@ -361,8 +361,9 @@ export function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
     const addrLabel = document.createElement('div');
     addrLabel.className = 'c-txsheet__addrlabel';
     addrLabel.textContent = tx.direction === 'in'
-      ? (strings.senderAddress || "Sender's address")
-      : (strings.recipientAddress || "Recipient's address");
+      // #171: curly apostrophe — matches the dictionary-wide typographic ’ (was ASCII ')
+      ? (strings.senderAddress || 'Sender’s address')
+      : (strings.recipientAddress || 'Recipient’s address');
     const addrRow = document.createElement('div');
     addrRow.className = 'c-txsheet__addr';
     const addr = document.createElement('span');

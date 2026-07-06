@@ -55,6 +55,7 @@
 <link rel="stylesheet" href="../styles/components/apps-discover.css">
 <link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- §4: same nudge, frame host -->
 <link rel="stylesheet" href="../styles/components/chat-info.css"><!-- Damir ①: right info panel -->
+<link rel="stylesheet" href="../styles/components/contact-request.css"><!-- §6a: contact-request rows in the list pane -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- GENERATED: theme-ink pattern mask -->
 <style>
   /* ============ desktop split view (#19 pitch, demo wiring only) ============
@@ -475,6 +476,7 @@
     openAttachSheet, openChannelSheet, setComposerCost, setTopbarSub,
     openMemberSheet, showIncomingCall, showCallBar, hideCallBar,
     createChatInfo,   // Damir ①: right info panel
+    createContactRequest, setRequestAccepting,  // §6a: contact requests in the LIST pane
     attachChatRowMenu,       // 2026-07-06c ⑰: chat-row right-click menu
     settingsThemeSheet,      // 2026-07-06c ⑪: theme tiles lifted into the pane
     settingsOptionSheet,     // 2026-07-06d: language options lifted the same way
@@ -697,6 +699,64 @@
     rowsHost.append(el);
   }
 
+  /* —— §6a: incoming contact requests live in the LIST pane (desktop-split-spec
+     §6a). Reuses the shipped c-contact-request row + the #109 staged handshake
+     from chats-shell §7 verbatim in SEMANTICS — only PLACEMENT moves: the
+     request sits in the left pane, and the DETAIL pane stays on "Select a chat"
+     right through the handshake. A pending/handshaking row is NEVER put into
+     rowEls, so openChat can't select it — the guarantee holds: you can't open a
+     stranger's chat window until Accept AND handshake-complete. (Desktop's list
+     is hand-built, so we drive the same transitions the frozen
+     acceptContactRequest/completeHandshake produce rather than the state model.) —— */
+  const REQUESTS = [
+    { id: 'leia', name: 'Leia Organa', address: '6leiaorg99', timestamp: at(30 * 60000) },
+  ];
+  for (const req of REQUESTS) {
+    const reqRow = createContactRequest({
+      ...req, strings, host: frame,
+      onAccept: (row) => {
+        setRequestAccepting(row, strings);            // "Accepting…" latch (Decline disabled)
+        setTimeout(() => {                            // bridge handshake-start → HANDSHAKING chat row
+          const hs = createChatItem({
+            name: req.name, address: req.address, timestamp: Date.now(), strings,
+            excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
+            onClick: () => toast('Securing the connection — you can chat once the handshake completes'),
+          });
+          hs.dataset.handshaking = '';
+          hs.setAttribute('aria-busy', 'true');       // un-openable; NOT added to rowEls
+          attachChatRowMenu(hs, {                      // cancel so a stalled handshake is recoverable (§7)
+            chat: { name: req.name, address: req.address }, host: frame, strings, handshaking: true,
+            onAction: (action) => { if (action === 'cancelHandshake') { hs.remove(); toast('Handshake canceled'); } },
+          });
+          row.replaceWith(hs);
+          setTimeout(() => {                           // bridge handshake-complete → real, openable chat
+            const chat = createChatItem({
+              name: req.name, address: req.address, timestamp: Date.now(), online: true, strings,
+              excerpt: { type: 'text', text: strings.handshakeReady || '' },
+              onClick: () => openChat(req.id),
+            });
+            attachChatRowMenu(chat, {
+              chat: { name: req.name, address: req.address }, host: frame, strings,
+              capabilities: { pin: true, mute: true },
+              onAction: (action) => {
+                if (action === 'info') { openChat(req.id); toggleChatInfo(); return; }
+                if (action === 'delete') { if (currentChat === req.id) closeChat(); chat.remove(); rowEls.delete(req.id); toast('Chat deleted'); return; }
+                if (action === 'pin') { toast('Pinned'); return; }
+                if (action === 'mute') { toast('Muted'); return; }
+                toast('Marked as read');
+              },
+            });
+            hs.replaceWith(chat);
+            rowEls.set(req.id, chat);                  // NOW selectable into the right pane
+            toast('Secure connection established — say hi');
+          }, 2600);
+        }, 900);
+      },
+      onDecline: () => { reqRow.remove(); toast('Request declined'); },   // confirm modal is built into the row
+    });
+    rowsHost.prepend(reqRow);                          // requests sit at the top (most recent)
+  }
+
   document.getElementById('search-slot').append(createSearchField({
     placeholder: 'Search chats', onInput: () => {},
   }));
@@ -902,12 +962,31 @@
         },
       };
     },
+    // §6a: a freshly-secured contact (post-handshake) opens a brand-new 1:1 —
+    // just the secure notice; the caller (accept flow) registers this key.
+    leia(box) {
+      box.append(secureNotice('you and Leia Organa'));
+      return { title: { name: 'Leia Organa', sub: 'Online', address: '6leiaorg99', online: true } };
+    },
   };
 
   /* —— Damir ①: chat-info right panel (⋮ toggles; back/✕ inside closes) ——
      Same createChatInfo the mobile takeover composes — here it fills the
      .dt-info column beside the conversation. Demo-fed, trimmed data. */
   const CONVOS_INFO = {
+    // §6a: a freshly-secured contact — chat-info parity with the other 1:1s (no
+    // tx history yet). Keeps the ⓘ toggle from toasting "not wired" on Leia.
+    leia: () => ({
+      kind: 'contact', name: 'Leia Organa', address: '6leiaorg99',
+      txs: [],
+      capabilities: { selfDestruct: true },
+      onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+      onPay: () => toast('Would open Send IXI locked to Leia'),
+      onRequest: () => toast('Would open the request sheet'),
+      onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); toast('Contact removed — ixian:remove'); }, 1100),
+    }),
     han: () => ({
       kind: 'contact', name: 'Han Solo', address: '4fj2hansolo',
       txs: [
@@ -974,7 +1053,11 @@
   };
   const infoPanel = document.getElementById('chat-info-panel');
   let infoFor = null;
-  const closeChatInfo = () => { infoPanel.hidden = true; infoPanel.textContent = ''; infoFor = null; };
+  let infoBtn = null;                       // [A1] topbar ⓘ toggle for the open chat
+  const syncInfoExpanded = () => {
+    if (infoBtn) infoBtn.setAttribute('aria-expanded', String(!infoPanel.hidden));
+  };
+  const closeChatInfo = () => { infoPanel.hidden = true; infoPanel.textContent = ''; infoFor = null; syncInfoExpanded(); };
   const toggleChatInfo = () => {
     if (!currentChat) return;
     if (!infoPanel.hidden && infoFor === currentChat) { closeChatInfo(); return; }
@@ -984,6 +1067,7 @@
     infoPanel.append(createChatInfo({ host: frame, onBack: closeChatInfo, strings, ...build() }));
     infoPanel.hidden = false;
     infoFor = currentChat;
+    syncInfoExpanded();
   };
 
   /* —— 2026-07-06c ⑩/⑰: right-click menus PRESENT as anchored dropdowns at the
@@ -1068,6 +1152,13 @@
       ],
     });
     topbarSlot.append(tb);
+    // [A1] a11y: the ⓘ action toggles the right info panel — expose expanded/controls
+    // state (info-circle is always the LAST topbar action; see actions[] above)
+    infoBtn = tb.querySelector('.c-topbar__actions .c-button:last-child');
+    if (infoBtn) {
+      infoBtn.setAttribute('aria-controls', infoPanel.id);
+      infoBtn.setAttribute('aria-expanded', String(!infoPanel.hidden && infoFor === id));
+    }
 
     if (composer) composer.remove();
     let lastSent = null;

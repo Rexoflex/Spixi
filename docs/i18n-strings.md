@@ -868,9 +868,9 @@ Summary: **607** keys · **116** map to a legacy id · **491** new · legacy dic
 | `missingTx` | Missing a transaction? | label/aria/title | medium |  | — |
 | `missingTxBody` | Spixi reads your history directly from the Ixian blockchain — recent transactions can take a moment to appear, and very old ones may not be listed here. | text | long |  | — |
 | `receivedFrom` | Received from {name} | text | short | {name} | — |
-| `recipientAddress` | Recipient's address | text | short |  | `wallet-request-address` |
+| `recipientAddress` | Recipient’s address | text | short |  | `wallet-request-address` |
 | `searchTx` | Search transactions | placeholder | short |  | — |
-| `senderAddress` | Sender's address | label | short |  | — |
+| `senderAddress` | Sender’s address | text | short |  | — |
 | `sentTo` | Sent to {name} | text | short | {name} | — |
 | `txConfirmed` | Confirmed | label | short |  | `chat-payment-status-confirmed` |
 | `txDetails` | Transaction details | aria | short |  | — |

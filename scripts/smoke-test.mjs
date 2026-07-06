@@ -2597,9 +2597,8 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   // —— 06c ⑧: group info = full member list + admin controls + notifications ——
   openRow('Falcon Crew');
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
-  ok(infoPanel.querySelectorAll('.c-chat-info__members .c-avatar, .c-chat-info__members [class*="member"]').length >= 4
-    || infoPanel.querySelector('.c-chat-info__members') !== null,
-    'group info renders the members section (admin kick/ban rides capabilities.admin)');
+  ok(infoPanel.querySelectorAll('.c-chat-info__member-list .c-chat-info__member').length >= 4,
+    'group info renders the member ROWS (6-member crew; admin kick/ban rides capabilities.admin)');
   ok(!!infoPanel.querySelector('[role="switch"]'), 'group info carries the notifications toggle (capabilities-gated)');
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
 

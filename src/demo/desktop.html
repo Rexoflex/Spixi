@@ -643,7 +643,7 @@
       capabilities: { pin: true, mute: true },
       onAction: (action) => {
         if (action === 'info') { openChat(c.id); toggleChatInfo(); return; }
-        if (action === 'delete') { el.remove(); rowEls.delete(c.id); toast('Chat deleted'); return; }
+        if (action === 'delete') { if (currentChat === c.id) closeChat(); el.remove(); rowEls.delete(c.id); toast('Chat deleted'); return; }
         if (action === 'pin') { c.pinned = !c.pinned; toast(c.pinned ? 'Pinned' : 'Unpinned'); return; }
         if (action === 'mute') { c.muted = !c.muted; toast(c.muted ? 'Muted' : 'Unmuted'); return; }
         toast('Marked as read');

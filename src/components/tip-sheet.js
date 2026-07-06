@@ -37,7 +37,7 @@ function amountSheetCopy(kind, strings) {
     confirm: strings.requestConfirm || 'Request {a} IXI',
     idle: strings.request || 'Request',
     success: strings.requested || 'Requested',
-    fail: strings.requestFailed || 'The request could not be sent. Please try again.',
+    fail: strings.requestFailed || 'Couldn’t send the request. Check the address and try again.',
   } : {
     title: strings.tipName || 'Tip {name}',
     confirm: strings.tipConfirm || 'Tip {a} IXI',

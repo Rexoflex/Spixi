@@ -115,6 +115,10 @@ img, svg { display: block; max-width: 100%; }
 /* Tinted icon disc (DECISIONS #147/#148) — the row-icon atom shared by the
    settings family AND chat-info/contact (Damir: one consistent treatment).
    Hue rides the --disc-* token pairs; error is RESERVED for destructive rows. */
+/* #170: vivid GRADIENT fill + white glyph. The white icon reads on every gradient
+   in BOTH light and dark, so one palette serves both modes. Per-glyph gradient via
+   data-grad (discGrad) so discs don't repeat; data-hue survives as the reserved
+   destructive-red recipe + a fallback for discs that set no data-grad. */
 .c-disc {
   flex: none;
   width: 32px;
@@ -123,12 +127,31 @@ img, svg { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--disc-neutral-bg);
-  color: var(--disc-neutral-ink);
+  background: var(--disc-grad, var(--disc-grad-1));
+  color: #fff;                                   /* white glyph — sanctioned, mode-agnostic */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
-.c-disc[data-hue='primary'] { background: var(--disc-primary-bg); color: var(--disc-primary-ink); }
-.c-disc[data-hue='accent'] { background: var(--disc-accent-bg); color: var(--disc-accent-ink); }
-.c-disc[data-hue='info'] { background: var(--disc-info-bg); color: var(--disc-info-ink); }
-.c-disc[data-hue='success'] { background: var(--disc-success-bg); color: var(--disc-success-ink); }
-.c-disc[data-hue='warning'] { background: var(--disc-warning-bg); color: var(--disc-warning-ink); }
-.c-disc[data-hue='error'] { background: var(--disc-error-bg); color: var(--disc-error-ink); }
+/* hue -> default gradient (for discs that set only data-hue, e.g. the scan card) */
+.c-disc[data-hue='primary'] { --disc-grad: var(--disc-grad-1); }
+.c-disc[data-hue='accent']  { --disc-grad: var(--disc-grad-3); }
+.c-disc[data-hue='info']    { --disc-grad: var(--disc-grad-2); }
+.c-disc[data-hue='success'] { --disc-grad: var(--disc-grad-4); }
+.c-disc[data-hue='warning'] { --disc-grad: var(--disc-grad-5); }
+.c-disc[data-hue='neutral'] { --disc-grad: var(--disc-grad-12); }
+/* per-glyph gradient (discGrad) — later in source, so it wins over the hue default */
+.c-disc[data-grad='1']  { --disc-grad: var(--disc-grad-1); }
+.c-disc[data-grad='2']  { --disc-grad: var(--disc-grad-2); }
+.c-disc[data-grad='3']  { --disc-grad: var(--disc-grad-3); }
+.c-disc[data-grad='4']  { --disc-grad: var(--disc-grad-4); }
+.c-disc[data-grad='5']  { --disc-grad: var(--disc-grad-5); }
+.c-disc[data-grad='6']  { --disc-grad: var(--disc-grad-6); }
+.c-disc[data-grad='7']  { --disc-grad: var(--disc-grad-7); }
+.c-disc[data-grad='8']  { --disc-grad: var(--disc-grad-8); }
+.c-disc[data-grad='9']  { --disc-grad: var(--disc-grad-9); }
+.c-disc[data-grad='10'] { --disc-grad: var(--disc-grad-10); }
+.c-disc[data-grad='11'] { --disc-grad: var(--disc-grad-11); }
+.c-disc[data-grad='12'] { --disc-grad: var(--disc-grad-12); }
+.c-disc[data-grad='13'] { --disc-grad: var(--disc-grad-13); }
+.c-disc[data-grad='14'] { --disc-grad: var(--disc-grad-14); }
+/* destructive stays RED regardless of the per-glyph gradient (safety) — LAST wins */
+.c-disc[data-hue='error'] { --disc-grad: var(--disc-grad-error); }

@@ -310,7 +310,7 @@ export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUn
       copyBtn.append(icon('copy', { size: 18 }));
       copyBtn.addEventListener('click', () => {
         if (onCopyUrl) onCopyUrl(app.url);
-        showToast({ text: strings.copied || 'Link copied', tone: 'success', host });
+        showToast({ text: strings.copied || 'Copied', tone: 'success', host });
       });
       urlRow.append(u, copyBtn);
       adv.append(urlRow);

@@ -758,6 +758,25 @@
      Figma mirror. Replaces primary-100→50; recheck canvas-tuned inks
      (scroll thumb -03, datesep) at UX review. */
   --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--surface-screen);
+  /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
+     white glyph, so the same fills read in light AND dark). Assigned per-glyph by
+     discGrad() so discs don't repeat; error = reserved destructive red. Raw hex
+     sanctioned like the other --gradient-* code-only tokens. */
+  --disc-grad-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --disc-grad-2: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  --disc-grad-3: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  --disc-grad-4: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+  --disc-grad-5: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  --disc-grad-6: linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);
+  --disc-grad-7: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
+  --disc-grad-8: linear-gradient(135deg, #84cc16 0%, #22c55e 100%);
+  --disc-grad-9: linear-gradient(135deg, #d946ef 0%, #a855f7 100%);
+  --disc-grad-10: linear-gradient(135deg, #fb923c 0%, #ef4444 100%);
+  --disc-grad-11: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+  --disc-grad-12: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  --disc-grad-13: linear-gradient(135deg, #14b8a6 0%, #22d3ee 100%);
+  --disc-grad-14: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+  --disc-grad-error: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
 
   /* state washes over strong surfaces (hero gradient, success call bar) —
      mirrored in Figma as colors/surface/region/wash-* (alpha primitives);

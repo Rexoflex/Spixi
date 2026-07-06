@@ -21,6 +21,7 @@
  * timestamp/completion asks; mocks stamp the date on done.
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createModal, openModal } from './modal.js';
@@ -86,7 +87,7 @@ export function createSettingsBackup({
   /* ——— primary CTA → password confirm → latched backup ———
      lives ON the hero panel (#148③): promise → status → action, one moment */
   const cta = createButton({
-    label: strings.backupCta || 'Back up Spixi', type: 'fill', size: 56, width: 'full',
+    label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
     onClick: openPasswordConfirm,
   });
   cta.classList.add('c-settings-backup__cta');
@@ -163,7 +164,7 @@ export function createSettingsBackup({
         { label: strings.cancel || 'Cancel', type: 'text',
           onClick: () => (inFlight ? false : undefined) },       // dead in flight
         {
-          label: strings.backupCta || 'Back up Spixi', type: 'fill',
+          label: strings.backupCta || 'Back up now', type: 'fill',
           onClick: () => { submit(); return false; },            // closes on ctrl.done only
         },
       ],
@@ -194,6 +195,7 @@ export function createSettingsBackup({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = hue;
+    disc.dataset.grad = String(discGrad(glyph));
     disc.append(icon(glyph, { size: 16 }));
     const tt = document.createElement('span');
     tt.className = 'c-settings-backup__inside-title';

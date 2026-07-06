@@ -40,6 +40,7 @@
  * from the bridge; each ctrl is one-shot per attempt (#138 m1).
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
@@ -82,6 +83,7 @@ function infoDisc(glyph, hue) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
 }

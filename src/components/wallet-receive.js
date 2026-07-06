@@ -267,7 +267,7 @@ export function createWalletReceive({
       const none = document.createElement('p');
       none.className = 'c-wallet-receive__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
   }

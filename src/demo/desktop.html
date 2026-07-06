@@ -460,6 +460,7 @@
   </div>
 
 <script src="../components/icons.iife.js"></script>
+<script src="strings.iife.js"></script>
 <script src="spixi.iife.js"></script>
 <script>
   const {
@@ -534,7 +535,35 @@
 
   const frame = document.getElementById('frame');
   const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: frame });
-  const strings = {};
+  // i18n batch §B④: shells boot from the canonical dictionary, not empty English
+  // fallbacks. `?pseudo` swaps in the marker locale — any plain-English text still
+  // on screen is then a hardcoded (un-i18n'd) string. window.SpixiStrings ships in
+  // strings.iife.js; guarded so the demo still runs if that script is absent.
+  // Pick the locale from the URL: ?lang=de-de (or es-co/fr-fr/sr-sp/sl-si/ru-ru/pt-br)
+  // or ?pseudo for the marker locale. Default en-us. window.SpixiStrings ships in
+  // strings.iife.js (en-us + all locales + pseudo); guarded if that script is absent.
+  const S = window.SpixiStrings || { enUS: {}, locales: {}, pseudo: () => ({}), get: () => ({}) };
+  const _p = new URLSearchParams(location.search);
+  const _lang = _p.has('pseudo') ? 'pseudo' : (_p.get('lang') || 'en-us');
+  const strings = S.get ? S.get(_lang) : S.enUS;
+
+  // demo-only language switcher (top-right) — reloads with the chosen locale
+  (function () {
+    const codes = ['en-us'].concat(Object.keys(S.locales || {})).concat(['pseudo']);
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Demo language');
+    sel.style.cssText = 'position:fixed;z-index:99999;top:8px;right:8px;padding:4px 8px;border-radius:8px;font:13px system-ui;background:#fff;color:#111;border:1px solid #bbb;box-shadow:0 1px 4px rgba(0,0,0,.2)';
+    codes.forEach((c) => { const o = document.createElement('option'); o.value = c; o.textContent = c; o.selected = (c === _lang); sel.append(o); });
+    sel.addEventListener('change', () => {
+      const u = new URL(location.href);
+      u.searchParams.delete('pseudo'); u.searchParams.delete('lang');
+      if (sel.value === 'pseudo') u.searchParams.set('pseudo', '1');
+      else if (sel.value !== 'en-us') u.searchParams.set('lang', sel.value);
+      location.href = u.toString();
+    });
+    document.addEventListener('DOMContentLoaded', () => document.body.append(sel));
+    if (document.readyState !== 'loading') document.body.append(sel);
+  })();
 
   /* §4: the periodic backup nudge mounts on the FRAME host on desktop too —
      same showBackupNudge, no desktop variant (backup-ux-spec §4.1). */
@@ -1379,14 +1408,16 @@
       if (!row) return;
       settingsRowPick = row;
       // 06c ⑪: the Theme row routes the PANE instead of the component's sheet —
-      // stopPropagation keeps the frozen row handler from opening it
-      const label = row.querySelector('.c-settings__row-label');
-      const labelText = label ? label.textContent.trim() : '';
-      if (labelText === (strings.theme || 'Theme')) {
+      // stopPropagation keeps the frozen row handler from opening it.
+      // i18n batch §B④: match the STRUCTURAL data-setting-key, not the label text
+      // (settings-shell settingRow sets it) — the old textContent === 'Theme'
+      // compare broke the moment the UI wasn't English / under the pseudo-locale.
+      const rowKey = row.dataset.settingKey;
+      if (rowKey === 'theme') {
         e.stopPropagation();
         themeRowEl = row;
         dtOpenSettings('theme');
-      } else if (labelText === (strings.language || 'Language')) {
+      } else if (rowKey === 'language') {
         // 06d ③: language rides the pane too (beautifully checked, per order)
         e.stopPropagation();
         langRowEl = row;

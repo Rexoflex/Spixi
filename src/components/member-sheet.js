@@ -100,7 +100,7 @@ export function openMemberSheet({
         if (navigator.clipboard) navigator.clipboard.writeText(member.address).catch(() => {});
         copy.textContent = '';
         copy.append(icon('check', { size: 18 })); // brief confirmation morph
-        copy.setAttribute('aria-label', strings.copied || 'Address copied'); // SRs hear the confirm too (freeze audit)
+        copy.setAttribute('aria-label', strings.copied || 'Copied'); // SRs hear the confirm too (freeze audit)
         setTimeout(() => {
           copy.textContent = '';
           copy.append(icon('copy', { size: 18 }));
@@ -150,7 +150,7 @@ export function openMemberSheet({
     } else if (relation === 'pending') {
       const badge = createBadge({
         type: 'info', weight: 'tonal',
-        label: strings.requestSent || 'Contact request sent', icon: 'clock-hour-10',
+        label: strings.requestSent || 'Request sent', icon: 'clock-hour-10',
       });
       badge.classList.add('c-member__relation');
       content.append(badge);

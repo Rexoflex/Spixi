@@ -352,7 +352,7 @@ export function createEncPassScreen({
   card.className = 'c-encpass__card';
   const curF = passwordField({ label: strings.currentPassword || 'Current password', current: true, strings });
   const nextF = passwordField({ label: strings.newPassword || 'New password', strings });
-  const repF = passwordField({ label: strings.repeatPassword || 'Repeat new password', strings });
+  const repF = passwordField({ label: strings.encpassRepeat || 'Repeat new password', strings });
   const cur = curF.input, next = nextF.input, repeat = repF.input;
   card.append(curF.wrap, nextF.wrap, repF.wrap);
 
@@ -383,9 +383,9 @@ export function createEncPassScreen({
     if (!o) return setError(strings.currentEmpty || 'Enter your current password.', cur);
     if (!n) return setError(strings.newEmpty || 'Enter a new password.', next);
     if (n.length < ENC_MIN) {                    // ⚠ spec §6 flag ①
-      return setError((strings.newTooShort || 'The new password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), next);
+      return setError((strings.encpassTooShort || 'The new password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), next);
     }
-    if (n !== r) return setError(strings.repeatMismatch || 'The new passwords don’t match.', repeat);
+    if (n !== r) return setError(strings.encpassMismatch || 'The new passwords don’t match.', repeat);
     if (n === o) return setError(strings.sameAsOld || 'The new password matches the current one.', next);
     if (o.includes(ENC_DELIM) || n.includes(ENC_DELIM)) {
       // C# Split hazard (spec §2) — never sent; §9 ask logged for a C#-side guard

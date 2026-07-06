@@ -70,6 +70,18 @@ function formatIxiAmount(value) {
   return m[1] + m[2] + (frac ? '.' + frac : '');
 }
 
+/* ---- src/components/disc.js ---- */
+/* Deterministic gradient index (1..DISC_GRADS) for a tinted disc, derived from
+ * its glyph name — so each icon gets a stable, non-repeating gradient that maps
+ * to --disc-grad-<n> in CSS (base.css). DECISIONS #170. */
+const DISC_GRADS = 14;
+function discGrad(glyph) {
+  let h = 2166136261;
+  const s = String(glyph || '');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % DISC_GRADS) + 1;
+}
+
 /* ---- src/components/timestamp.js ---- */
 /**
  * Chat-list timestamp formatting (docs/chat-list-spec.md §3).
@@ -1697,7 +1709,7 @@ const REPLY_KIND_GLYPHS = {
 function REPLY_KIND_LABELS(kind, strings = {}) {
   return {
     gif: 'GIF',
-    image: strings.image || 'Photo',
+    image: strings.image || 'Image',
     file: strings.file || 'File',
     payment: strings.payment || 'Payment',
     call: strings.call || 'Voice call',
@@ -1920,7 +1932,7 @@ function createMessageBubble({
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
+    retry.setAttribute('aria-label', strings.retry || 'Retry');
     retry.append(icon('rotate-clockwise-2', { size: 16 }));
     // audit r2: double-activation re-emitted the resend before the shell could
     // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
@@ -2447,7 +2459,7 @@ function createPaymentBubble({
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
       // r2 backlog C15: the disabled Pay must point AT the reason for AT users
       note.id = 'c-tcard-note-' + (++tcardNoteUid);
       pay.setAttribute('aria-describedby', note.id);
@@ -3669,7 +3681,7 @@ function openMemberSheet({
         if (navigator.clipboard) navigator.clipboard.writeText(member.address).catch(() => {});
         copy.textContent = '';
         copy.append(icon('check', { size: 18 })); // brief confirmation morph
-        copy.setAttribute('aria-label', strings.copied || 'Address copied'); // SRs hear the confirm too (freeze audit)
+        copy.setAttribute('aria-label', strings.copied || 'Copied'); // SRs hear the confirm too (freeze audit)
         setTimeout(() => {
           copy.textContent = '';
           copy.append(icon('copy', { size: 18 }));
@@ -3719,7 +3731,7 @@ function openMemberSheet({
     } else if (relation === 'pending') {
       const badge = createBadge({
         type: 'info', weight: 'tonal',
-        label: strings.requestSent || 'Contact request sent', icon: 'clock-hour-10',
+        label: strings.requestSent || 'Request sent', icon: 'clock-hour-10',
       });
       badge.classList.add('c-member__relation');
       content.append(badge);
@@ -3937,7 +3949,7 @@ function showIncomingCall({
   name.textContent = caller.name || caller.address || '';
   const subEl = document.createElement('span');
   subEl.className = 'c-callin__sub';
-  subEl.textContent = sub || strings.incomingCall || 'Incoming voice call…';
+  subEl.textContent = sub || strings.incomingCall || 'Incoming voice call';
   id.append(avatarWrap, name, subEl);
   el.append(id);
 
@@ -5712,7 +5724,7 @@ function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall
       copyBtn.append(icon('copy', { size: 18 }));
       copyBtn.addEventListener('click', () => {
         if (onCopyUrl) onCopyUrl(app.url);
-        showToast({ text: strings.copied || 'Link copied', tone: 'success', host });
+        showToast({ text: strings.copied || 'Copied', tone: 'success', host });
       });
       urlRow.append(u, copyBtn);
       adv.append(urlRow);
@@ -9806,7 +9818,7 @@ function createWalletReceive({
       const none = document.createElement('p');
       none.className = 'c-wallet-receive__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
   }
@@ -9911,7 +9923,7 @@ function amountSheetCopy(kind, strings) {
     confirm: strings.requestConfirm || 'Request {a} IXI',
     idle: strings.request || 'Request',
     success: strings.requested || 'Requested',
-    fail: strings.requestFailed || 'The request could not be sent. Please try again.',
+    fail: strings.requestFailed || 'Couldn’t send the request. Check the address and try again.',
   } : {
     title: strings.tipName || 'Tip {name}',
     confirm: strings.tipConfirm || 'Tip {a} IXI',
@@ -10333,6 +10345,7 @@ function attachSplitPaste(composerEl, { onSendEach, strings = {} } = {}) {
 
 
 
+
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
@@ -10363,6 +10376,7 @@ function infoDisc(glyph, hue) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
 }
@@ -11086,6 +11100,7 @@ function createChatInfo({
 
 
 
+
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
   return {
@@ -11098,6 +11113,7 @@ function disc(hue, glyph) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 20 }));
   return d;
 }
@@ -11162,7 +11178,7 @@ function pickerRow(c, st) {
   row.append(col);
 
   if (c.pending) {
-    const badge = createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' });
+    const badge = createBadge({ label: strings.requestSent || 'Request sent', type: 'warning', weight: 'tonal' });
     badge.classList.add('c-contacts__badge');
     row.append(badge);
     // F16: the badge's plain text would otherwise fold into the row's flattened
@@ -11425,7 +11441,7 @@ function createAddContact({
   const scanBtn = document.createElement('button');
   scanBtn.type = 'button';
   scanBtn.className = 'c-contacts-add__scan';
-  scanBtn.setAttribute('aria-label', strings.scan || 'Scan QR code');
+  scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
   scanBtn.append(icon('scan', { size: 20 }));
   if (onScan) scanBtn.addEventListener('click', onScan);  // → ixian:quickscan; result via setAddContactAddress
   field.append(input, scanBtn);
@@ -11663,7 +11679,7 @@ function createGroupSetup({
   const setNameError = (msg) => { nameErr.textContent = msg; nameErr.hidden = !msg; };
 
   const renderMembers = () => {
-    membersHead.textContent = (strings.members || 'Members') + ' · ' + list.length;
+    membersHead.textContent = (strings.members || 'members') + ' · ' + list.length;
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object
@@ -11752,7 +11768,7 @@ function createPendingContact({
     addrEl.textContent = address;
     hero.append(addrEl);
   }
-  hero.append(createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' }));
+  hero.append(createBadge({ label: strings.requestSent || 'Request sent', type: 'warning', weight: 'tonal' }));
   const note = document.createElement('p');
   note.className = 'c-contacts-pending__note';
   note.textContent = strings.pendingNote || 'Waiting for them to accept your contact request.';
@@ -12385,7 +12401,7 @@ function createEncPassScreen({
   card.className = 'c-encpass__card';
   const curF = passwordField({ label: strings.currentPassword || 'Current password', current: true, strings });
   const nextF = passwordField({ label: strings.newPassword || 'New password', strings });
-  const repF = passwordField({ label: strings.repeatPassword || 'Repeat new password', strings });
+  const repF = passwordField({ label: strings.encpassRepeat || 'Repeat new password', strings });
   const cur = curF.input, next = nextF.input, repeat = repF.input;
   card.append(curF.wrap, nextF.wrap, repF.wrap);
 
@@ -12416,9 +12432,9 @@ function createEncPassScreen({
     if (!o) return setError(strings.currentEmpty || 'Enter your current password.', cur);
     if (!n) return setError(strings.newEmpty || 'Enter a new password.', next);
     if (n.length < ENC_MIN) {                    // ⚠ spec §6 flag ①
-      return setError((strings.newTooShort || 'The new password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), next);
+      return setError((strings.encpassTooShort || 'The new password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), next);
     }
-    if (n !== r) return setError(strings.repeatMismatch || 'The new passwords don’t match.', repeat);
+    if (n !== r) return setError(strings.encpassMismatch || 'The new passwords don’t match.', repeat);
     if (n === o) return setError(strings.sameAsOld || 'The new password matches the current one.', next);
     if (o.includes(ENC_DELIM) || n.includes(ENC_DELIM)) {
       // C# Split hazard (spec §2) — never sent; §9 ask logged for a C#-side guard
@@ -12495,6 +12511,7 @@ function createEncPassScreen({
 
 
 
+
 const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
   { value: 0, key: 'themeSystem', label: 'System' },
   { value: 1, key: 'themeLight', label: 'Light' },
@@ -12522,6 +12539,7 @@ function settingsDisc(glyph, hue) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
 }
@@ -12969,12 +12987,13 @@ function createSettingsHub({
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
-  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls }) => {
+  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls, key }) => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement(onClick ? 'button' : 'div');
     if (onClick) row.type = 'button';
     row.className = 'c-settings__row' + (onClick ? '' : ' c-settings__row--static') + (cls ? ' ' + cls : '');
+    if (key) row.dataset.settingKey = key;
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {
@@ -13100,7 +13119,7 @@ function createSettingsHub({
       return strings[o.key] || o.label;
     };
     const t = settingRow({
-      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme',
+      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
       onClick: () => settingsThemeSheet({
         current: theme, host: hostFor(), strings,
@@ -13120,7 +13139,7 @@ function createSettingsHub({
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
       glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
-      label: strings.language || 'Language',
+      label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
       onClick: () => settingsOptionSheet({
         title: strings.language || 'Language',
@@ -13341,7 +13360,7 @@ function createSettingsDanger({
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-danger';
-  el.append(createTopbar({ variant: 'view', title: strings.deleteData || 'Delete data', onBack }));
+  el.append(createTopbar({ variant: 'view', title: strings.deleteData || 'Delete data…', onBack }));
 
   const body = document.createElement('div');
   body.className = 'c-settings-danger__body u-scroll';
@@ -13371,6 +13390,7 @@ function createSettingsDanger({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'neutral';
+    disc.dataset.grad = String(discGrad('trash'));
     disc.append(icon('trash', { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');
@@ -13384,11 +13404,11 @@ function createSettingsDanger({
   };
 
   if (onDeleteHistory) quietRow(
-    strings.deleteHistory || 'Delete all chat history',
+    strings.deleteAllHistory || 'Delete all chat history',
     strings.deleteHistorySub || 'Messages go from this device. Contacts keep theirs.',
     () => ({
-      title: strings.deleteHistoryTitle || 'Delete all chat history?',
-      bodyText: strings.deleteHistoryBody || 'Every conversation is removed from this device.',
+      title: strings.deleteAllHistoryTitle || 'Delete all chat history?',
+      bodyText: strings.deleteAllHistoryBody || 'Every conversation is removed from this device.',
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
     }),
@@ -13482,6 +13502,7 @@ function createSettingsDanger({
 
 
 
+
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
@@ -13541,7 +13562,7 @@ function createSettingsBackup({
   /* ——— primary CTA → password confirm → latched backup ———
      lives ON the hero panel (#148③): promise → status → action, one moment */
   const cta = createButton({
-    label: strings.backupCta || 'Back up Spixi', type: 'fill', size: 56, width: 'full',
+    label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
     onClick: openPasswordConfirm,
   });
   cta.classList.add('c-settings-backup__cta');
@@ -13618,7 +13639,7 @@ function createSettingsBackup({
         { label: strings.cancel || 'Cancel', type: 'text',
           onClick: () => (inFlight ? false : undefined) },       // dead in flight
         {
-          label: strings.backupCta || 'Back up Spixi', type: 'fill',
+          label: strings.backupCta || 'Back up now', type: 'fill',
           onClick: () => { submit(); return false; },            // closes on ctrl.done only
         },
       ],
@@ -13649,6 +13670,7 @@ function createSettingsBackup({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = hue;
+    disc.dataset.grad = String(discGrad(glyph));
     disc.append(icon(glyph, { size: 16 }));
     const tt = document.createElement('span');
     tt.className = 'c-settings-backup__inside-title';
@@ -13773,6 +13795,7 @@ function backupCtrl(onDone, onFail) {
 
 
 
+
 const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
   { value: 0, key: 'patternOff', label: 'Off' },
   { value: 0.3, key: 'patternSubtle', label: 'Subtle' },
@@ -13846,6 +13869,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   const disc = document.createElement('span');
   disc.className = 'c-disc';
   disc.dataset.hue = hue;
+  disc.dataset.grad = String(discGrad(glyph));
   disc.append(icon(glyph, { size: 16 }));
   if (sub) {
     const top = document.createElement('span');
@@ -14171,6 +14195,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -14249,6 +14274,7 @@ function createSettingsDownloads({
   const emptyDisc = document.createElement('span');
   emptyDisc.className = 'c-disc';
   emptyDisc.dataset.hue = 'info';
+  emptyDisc.dataset.grad = String(discGrad('download'));
   emptyDisc.append(icon('download', { size: 16 }));
   const emptyText = document.createElement('p');
   emptyText.className = 'c-settings__note';
@@ -14280,6 +14306,7 @@ function createSettingsDownloads({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'error';
+    disc.dataset.grad = String(discGrad('trash'));
     disc.append(icon('trash', { size: 16 }));
     lab.append(disc, document.createTextNode(strings.clearDownloads || 'Delete all downloads'));
     row.append(lab, icon('chevron-right', { size: 18 }));
@@ -14309,6 +14336,7 @@ function createSettingsDownloads({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'info';
+    disc.dataset.grad = String(discGrad('file-isr'));
     disc.append(icon('file-isr', { size: 16 }));
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
@@ -14516,6 +14544,7 @@ function createSettingsContributors({
   const disc = document.createElement('span');
   disc.className = 'c-disc c-settings-contrib__art-disc';
   disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('heart-handshake'));
   disc.append(icon('heart-handshake', { size: 32 }));
   art.append(disc);
   body.append(art);
@@ -14920,8 +14949,13 @@ function buildWelcome(st) {
    commit), not on the welcome nav tap. Terms + Privacy open IN-APP in one
    sheet renderer; ixian:accept fires once, on the first commit. */
 
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document ships with localization (spec §6⑦).';
-const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy ships with localization (spec §6⑦).';
+// LEGAL COPY — ENGLISH ONLY (Damir decision, DECISIONS #169). The Terms of Use and
+// Privacy Policy are intentionally NOT localized: they have no `strings.*` dictionary
+// entry, so every locale renders this English text by design. Localizing legal copy
+// requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
+// TITLES (termsTitle / privacyTitle) ARE translated.
+const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
+const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;
@@ -15433,7 +15467,7 @@ function buildTail(st) {
   backupStep.append(illoSlot('backup'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
-  bTitle.textContent = strings.backupTitle || 'One file protects everything';
+  bTitle.textContent = strings.backupHeadline || 'One file protects everything';
   const bCopy = document.createElement('p');
   bCopy.className = 'c-launch__slide-copy';
   bCopy.textContent = strings.backupCopy
@@ -15726,5 +15760,5 @@ function showRatingNudge({ host, onRate, onDismiss, strings = {} } = {}) {
   return sheet;
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge };
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge };
 })();

@@ -25,6 +25,7 @@
  * 'square-asterisk' (lock pending).
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
@@ -61,6 +62,7 @@ function settingsDisc(glyph, hue) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
 }
@@ -508,12 +510,13 @@ export function createSettingsHub({
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
-  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls }) => {
+  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls, key }) => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement(onClick ? 'button' : 'div');
     if (onClick) row.type = 'button';
     row.className = 'c-settings__row' + (onClick ? '' : ' c-settings__row--static') + (cls ? ' ' + cls : '');
+    if (key) row.dataset.settingKey = key;
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {
@@ -639,7 +642,7 @@ export function createSettingsHub({
       return strings[o.key] || o.label;
     };
     const t = settingRow({
-      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme',
+      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
       onClick: () => settingsThemeSheet({
         current: theme, host: hostFor(), strings,
@@ -659,7 +662,7 @@ export function createSettingsHub({
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
       glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
-      label: strings.language || 'Language',
+      label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
       onClick: () => settingsOptionSheet({
         title: strings.language || 'Language',
@@ -880,7 +883,7 @@ export function createSettingsDanger({
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-danger';
-  el.append(createTopbar({ variant: 'view', title: strings.deleteData || 'Delete data', onBack }));
+  el.append(createTopbar({ variant: 'view', title: strings.deleteData || 'Delete data…', onBack }));
 
   const body = document.createElement('div');
   body.className = 'c-settings-danger__body u-scroll';
@@ -910,6 +913,7 @@ export function createSettingsDanger({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'neutral';
+    disc.dataset.grad = String(discGrad('trash'));
     disc.append(icon('trash', { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');
@@ -923,11 +927,11 @@ export function createSettingsDanger({
   };
 
   if (onDeleteHistory) quietRow(
-    strings.deleteHistory || 'Delete all chat history',
+    strings.deleteAllHistory || 'Delete all chat history',
     strings.deleteHistorySub || 'Messages go from this device. Contacts keep theirs.',
     () => ({
-      title: strings.deleteHistoryTitle || 'Delete all chat history?',
-      bodyText: strings.deleteHistoryBody || 'Every conversation is removed from this device.',
+      title: strings.deleteAllHistoryTitle || 'Delete all chat history?',
+      bodyText: strings.deleteAllHistoryBody || 'Every conversation is removed from this device.',
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
     }),

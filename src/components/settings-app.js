@@ -24,6 +24,7 @@
  * shell callback is try/catch-guarded to the fail path (#141-m4).
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
@@ -107,6 +108,7 @@ export function createSettingsDownloads({
   const emptyDisc = document.createElement('span');
   emptyDisc.className = 'c-disc';
   emptyDisc.dataset.hue = 'info';
+  emptyDisc.dataset.grad = String(discGrad('download'));
   emptyDisc.append(icon('download', { size: 16 }));
   const emptyText = document.createElement('p');
   emptyText.className = 'c-settings__note';
@@ -138,6 +140,7 @@ export function createSettingsDownloads({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'error';
+    disc.dataset.grad = String(discGrad('trash'));
     disc.append(icon('trash', { size: 16 }));
     lab.append(disc, document.createTextNode(strings.clearDownloads || 'Delete all downloads'));
     row.append(lab, icon('chevron-right', { size: 18 }));
@@ -167,6 +170,7 @@ export function createSettingsDownloads({
     const disc = document.createElement('span');
     disc.className = 'c-disc';
     disc.dataset.hue = 'info';
+    disc.dataset.grad = String(discGrad('file-isr'));
     disc.append(icon('file-isr', { size: 16 }));
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
@@ -374,6 +378,7 @@ export function createSettingsContributors({
   const disc = document.createElement('span');
   disc.className = 'c-disc c-settings-contrib__art-disc';
   disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('heart-handshake'));
   disc.append(icon('heart-handshake', { size: 32 }));
   art.append(disc);
   body.append(art);

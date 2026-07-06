@@ -31,6 +31,7 @@
  * throw routes to the fail path — no wedged latches).
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -51,6 +52,7 @@ function disc(hue, glyph) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
+  d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 20 }));
   return d;
 }
@@ -115,7 +117,7 @@ function pickerRow(c, st) {
   row.append(col);
 
   if (c.pending) {
-    const badge = createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' });
+    const badge = createBadge({ label: strings.requestSent || 'Request sent', type: 'warning', weight: 'tonal' });
     badge.classList.add('c-contacts__badge');
     row.append(badge);
     // F16: the badge's plain text would otherwise fold into the row's flattened
@@ -378,7 +380,7 @@ export function createAddContact({
   const scanBtn = document.createElement('button');
   scanBtn.type = 'button';
   scanBtn.className = 'c-contacts-add__scan';
-  scanBtn.setAttribute('aria-label', strings.scan || 'Scan QR code');
+  scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
   scanBtn.append(icon('scan', { size: 20 }));
   if (onScan) scanBtn.addEventListener('click', onScan);  // → ixian:quickscan; result via setAddContactAddress
   field.append(input, scanBtn);
@@ -616,7 +618,7 @@ export function createGroupSetup({
   const setNameError = (msg) => { nameErr.textContent = msg; nameErr.hidden = !msg; };
 
   const renderMembers = () => {
-    membersHead.textContent = (strings.members || 'Members') + ' · ' + list.length;
+    membersHead.textContent = (strings.members || 'members') + ' · ' + list.length;
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object
@@ -705,7 +707,7 @@ export function createPendingContact({
     addrEl.textContent = address;
     hero.append(addrEl);
   }
-  hero.append(createBadge({ label: strings.pending || 'Request sent', type: 'warning', weight: 'tonal' }));
+  hero.append(createBadge({ label: strings.requestSent || 'Request sent', type: 'warning', weight: 'tonal' }));
   const note = document.createElement('p');
   note.className = 'c-contacts-pending__note';
   note.textContent = strings.pendingNote || 'Waiting for them to accept your contact request.';

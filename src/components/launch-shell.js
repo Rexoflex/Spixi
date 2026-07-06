@@ -372,8 +372,13 @@ function buildWelcome(st) {
    commit), not on the welcome nav tap. Terms + Privacy open IN-APP in one
    sheet renderer; ixian:accept fires once, on the first commit. */
 
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document ships with localization (spec §6⑦).';
-const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy ships with localization (spec §6⑦).';
+// LEGAL COPY — ENGLISH ONLY (Damir decision, DECISIONS #169). The Terms of Use and
+// Privacy Policy are intentionally NOT localized: they have no `strings.*` dictionary
+// entry, so every locale renders this English text by design. Localizing legal copy
+// requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
+// TITLES (termsTitle / privacyTitle) ARE translated.
+const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
+const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;
@@ -885,7 +890,7 @@ function buildTail(st) {
   backupStep.append(illoSlot('backup'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
-  bTitle.textContent = strings.backupTitle || 'One file protects everything';
+  bTitle.textContent = strings.backupHeadline || 'One file protects everything';
   const bCopy = document.createElement('p');
   bCopy.className = 'c-launch__slide-copy';
   bCopy.textContent = strings.backupCopy

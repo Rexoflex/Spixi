@@ -20,6 +20,7 @@
  * Async callbacks use the house (payload, ctrl) contract, one-shot (#138 m1).
  */
 import { icon } from './icons.js';
+import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
 
 export const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
@@ -95,6 +96,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   const disc = document.createElement('span');
   disc.className = 'c-disc';
   disc.dataset.hue = hue;
+  disc.dataset.grad = String(discGrad(glyph));
   disc.append(icon(glyph, { size: 16 }));
   if (sub) {
     const top = document.createElement('span');

@@ -193,7 +193,7 @@ export function createPaymentBubble({
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Insufficient balance to pay.';
+      note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
       // r2 backlog C15: the disabled Pay must point AT the reason for AT users
       note.id = 'c-tcard-note-' + (++tcardNoteUid);
       pay.setAttribute('aria-describedby', note.id);

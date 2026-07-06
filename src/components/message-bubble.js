@@ -54,7 +54,7 @@ const REPLY_KIND_GLYPHS = {
 function REPLY_KIND_LABELS(kind, strings = {}) {
   return {
     gif: 'GIF',
-    image: strings.image || 'Photo',
+    image: strings.image || 'Image',
     file: strings.file || 'File',
     payment: strings.payment || 'Payment',
     call: strings.call || 'Voice call',
@@ -277,7 +277,7 @@ export function createMessageBubble({
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry sending');
+    retry.setAttribute('aria-label', strings.retry || 'Retry');
     retry.append(icon('rotate-clockwise-2', { size: 16 }));
     // audit r2: double-activation re-emitted the resend before the shell could
     // swap the row — resend stays repeatable, so guard re-entry (no hard latch);

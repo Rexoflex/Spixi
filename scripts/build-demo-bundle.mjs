@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = [
   'src/components/money.js',        // #143: shared money helpers — before every consumer
+  'src/components/disc.js',         // #170: per-glyph disc gradient index (pure fn)
   'src/components/timestamp.js',
   'src/components/avatar.js',
   'src/components/chatlist-item.js',

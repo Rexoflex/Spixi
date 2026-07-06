@@ -45,7 +45,7 @@ export function showIncomingCall({
   name.textContent = caller.name || caller.address || '';
   const subEl = document.createElement('span');
   subEl.className = 'c-callin__sub';
-  subEl.textContent = sub || strings.incomingCall || 'Incoming voice call…';
+  subEl.textContent = sub || strings.incomingCall || 'Incoming voice call';
   id.append(avatarWrap, name, subEl);
   el.append(id);
 

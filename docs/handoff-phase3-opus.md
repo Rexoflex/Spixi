@@ -68,7 +68,11 @@ changes; "PIN or biometrics" deferred until tiers land).
 
 Parked/flags to carry: native-bridge-spec §9 ①–③ · §9.5 BE review scheduling ·
 [L1]/[L2 done]/[S1 closed] ledger in #162/#173 · desktop launch composition
-(desktop-split-spec ⑮) · illustrations parked (#132).
+(desktop-split-spec ⑮) · **illustrations UNPARKED (#174): 3D glossy set adopted
+(supersedes #130 flat-2D); backup.svg approved; step1–4/restore/join-community
+exports were TRUNCATED — Damir re-exports, hardened smoke guard verifies; then
+flip the launch backup slot off `data-placeholder` + update the one-placeholder
+assertion; light-theme pass on non-dark-pinned assets.**
 
 ## Workflow constraints (hard-won — respect them)
 

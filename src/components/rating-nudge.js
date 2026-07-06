@@ -19,11 +19,12 @@
  * Copy defaults = the legacy en-us lang block (rating-request-*), overridable
  * via strings.rating* (SL channel at i18n).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
-export function showRatingNudge({ host, onRate, onDismiss, strings = {} } = {}) {
+export function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-rating-nudge';
 

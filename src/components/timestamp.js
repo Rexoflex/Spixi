@@ -5,6 +5,7 @@
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
+import { getStrings } from './strings-runtime.js';
 /** Locale for every Intl call in the components — document lang, validated.
  *  (audit r2: an invalid BCP-47 lang attr, e.g. "en_US", made every toLocale*
  *  call throw and killed whole-component rendering.) */
@@ -16,7 +17,7 @@ export function docLocale() {
 
 /** Shared day-bucket ladder (chat list + conversation separators — single source,
  *  audit DRY finding). `todayLabel` null → caller handles today itself. */
-export function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
+export function dayBucketLabel(ts, strings = getStrings(), now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
   if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
   const n = new Date(now);
@@ -32,7 +33,7 @@ export function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = 
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+export function formatChatTimestamp(ts, strings = getStrings(), now = Date.now()) {
   const bucket = dayBucketLabel(ts, strings, now, null);
   if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
   return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });

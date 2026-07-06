@@ -15,11 +15,12 @@
  *                 setAddDiscoverFeed(el, feed, opts) — shell fetched the directory (#131):
  *                 flips the embedded Discover live (parsed via apps-feed.js).
  */
+import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
 import { createAppsDiscover, setDiscoverFeed } from './apps-discover.js';
 import { icon } from './icons.js';
 
-export function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+export function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 

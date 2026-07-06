@@ -9,11 +9,12 @@
  *   strings.sheet — aria-label fallback when there is no title ('Menu')
  * openSheet(el) / closeSheet(el) free fns (#44).
  */
+import { getStrings } from './strings-runtime.js';
 import { openOverlay, dismissOverlay, setOverlayOpts, overlayId } from './overlay.js';
 
 export function createSheet({
   title = '', content = null, host, lightDismiss = true, escDismiss = true,
-  onDismiss, strings = {},
+  onDismiss, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-sheet';

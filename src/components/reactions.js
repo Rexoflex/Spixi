@@ -26,6 +26,7 @@
  * openReactionsSheet({ host, reactions, tip, strings }) — full inspect list
  * (every type + count + senders), c-sheet presentation.
  */
+import { getStrings } from './strings-runtime.js';
 import { createBadge } from './badge.js';
 import { createSheet, openSheet } from './sheet.js';
 
@@ -38,7 +39,7 @@ export function addReactions(row, {
   host,
   onInspect,
   onToggle,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden would clip
   // the overlap overhang — audit r3)
@@ -112,7 +113,7 @@ export function addReactions(row, {
 
 /** Inspect sheet: every reaction type with count + who reacted (Damir
  *  2026-07-03). Sender names arrive from the bridge aggregation. */
-export function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {}) {
+export function openReactionsSheet({ host, reactions = [], tip = '', strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-reactmenu';
   content.setAttribute('role', 'list'); // audit r3: SRs get structure + count

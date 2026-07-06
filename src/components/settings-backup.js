@@ -20,6 +20,7 @@
  * true as the share-sheet ambiguity allows — the real state needs the §9
  * timestamp/completion asks; mocks stamp the date on done.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -34,7 +35,7 @@ export function createSettingsBackup({
   onBack,
   onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-backup';

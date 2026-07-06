@@ -17,6 +17,7 @@
  *   onAction(action, arg) — 'react' (arg=emoji) | 'reply' | 'copy' | 'tip' |
  *   'delete' | 'report'. Default copy falls back to the Clipboard API.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
@@ -30,7 +31,7 @@ export function openMessageMenu({
   text = '',
   capabilities = {},
   onAction,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';

@@ -19,6 +19,7 @@
  *
  * Async callbacks use the house (payload, ctrl) contract, one-shot (#138 m1).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
@@ -168,7 +169,7 @@ export function createChatAppearance({
   onBack,
   onPattern,                     // (opacity) — shell sets --chat-pattern-opacity + persists
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
 
@@ -230,7 +231,7 @@ export function createPrivacy({
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
@@ -270,7 +271,7 @@ export function createNotificationsScreen({
   capabilities = {},             // { globalNotifications }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
   const failText = strings.notifFailed || 'Couldn’t update notifications.';
@@ -306,7 +307,7 @@ export function createSecurityLevel({
   capabilities = {},             // { securityTiers }
   onBack,
   onSecurityTier,                // (tierId, ctrl) — §9/ARCHITECTURE proposal
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-security', strings.securityLevel || 'Security level', onBack);
   if (!capabilities.securityTiers || !onSecurityTier) return el;

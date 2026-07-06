@@ -12,8 +12,9 @@
  *   stays put (scrollTop += height delta).
  * Returns { setDone() } — shell can end pagination early (e.g. chat cleared).
  */
+import { getStrings } from './strings-runtime.js';
 
-export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = {}) {
+export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings() } = {}) {
   let loading = false;
   let done = false;
 

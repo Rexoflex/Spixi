@@ -9,11 +9,12 @@
  * openChannelSheet({ host, channels: [{ id, name, status, unread, selected }],
  *                    onSelect, strings }) → sheet
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createIndicator } from './chatlist-item.js';
 
-export function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) {
+export function openChannelSheet({ host, channels = [], onSelect, strings = getStrings() } = {}) {
   const list = document.createElement('div');
   list.className = 'c-channels';
   // freeze audit: NO list/listitem roles — role=listitem on a <button>

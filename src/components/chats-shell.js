@@ -29,6 +29,7 @@
  * (#67/§8): pin/mute swipe + menu items render only when their flag is truthy.
  * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
  */
+import { getStrings } from './strings-runtime.js';
 import { createChatItem } from './chatlist-item.js';
 import { createContactRequest } from './contact-request.js';
 import { attachChatRowMenu } from './chats-row-menu.js';
@@ -143,7 +144,7 @@ function chatsEmptyState(state, strings) {
 /** (Re)render the whole list from the model. Full re-render for the scaffold
  *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
 export function renderChatsList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const caps = opts.capabilities || {};
   closeChatRowSwipe();                                   // close any open swipe drawer before detaching rows (#1: single-open + GC)
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
@@ -226,7 +227,7 @@ export function applyChatRowAction(listEl, state, chat, action, opts = {}) {
  *  handshaking chat is blocked (onHandshakeBlocked) until it completes. */
 export function acceptContactRequest(listEl, state, req, opts = {}) {
   if (!req || (state.requests || []).indexOf(req) === -1) return null;
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   state.requests = (state.requests || []).filter((r) => r !== req);
   const chat = {
     name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
@@ -245,7 +246,7 @@ export function acceptContactRequest(listEl, state, req, opts = {}) {
  *  No-op if the chat was deleted/never-handshaking meanwhile (guards a late signal). */
 export function completeHandshake(listEl, state, chat, opts = {}) {
   if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   chat.handshaking = false;
   chat.excerpt = { type: 'text', text: strings.handshakeReady || '' };   // empty until a real message arrives
   chat.timestamp = Date.now();

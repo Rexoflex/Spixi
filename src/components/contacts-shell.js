@@ -30,6 +30,7 @@
  * All async callbacks ride a one-shot ctrl and are #141-m4 guarded (a sync
  * throw routes to the fail path — no wedged latches).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
@@ -212,7 +213,7 @@ function renderPickerChrome(st) {
 
 export function createContactsPicker({
   contacts = [], purpose = 'start', onAddContact, onCreateGroup, onOpenChat,
-  onViewContact, onNext, onBack, strings = {},
+  onViewContact, onNext, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts';
@@ -351,7 +352,7 @@ const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
 
 export function createAddContact({
-  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = {},
+  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-add';
@@ -515,7 +516,7 @@ export function setAddContactAddress(el, address) {
 const groupState = new WeakMap(); // el → { avatarBtn }
 
 export function createGroupSetup({
-  members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = {},
+  members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-group';
@@ -685,7 +686,7 @@ export function createGroupSetup({
  * a separate Remove row would duplicate it.
  */
 export function createPendingContact({
-  name = '', address = '', avatar = null, onCancelRequest, onBack, strings = {},
+  name = '', address = '', avatar = null, onCancelRequest, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-pending';

@@ -23,6 +23,7 @@
  * Async callbacks use the house (payload, ctrl) contract, one-shot; every
  * shell callback is try/catch-guarded to the fail path (#141-m4).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
@@ -75,7 +76,7 @@ export function createSettingsDownloads({
   onOpenFile,                    // (name) — ixian:open:<name>, fire-and-forget
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
   onClearAll,                    // (ctrl) — ixian:deleted; C# re-pushes (empty)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
@@ -259,7 +260,7 @@ export function createSettingsDev({
   log = '',
   onBack,
   onSendLog,                     // (ctrl) — §9: OS email/share with the log attached
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dev', strings.developer || 'Developer', onBack);
@@ -366,7 +367,7 @@ export function setDevLog(el, text) {
 export function createSettingsContributors({
   contributors = CONTRIBUTORS,
   onBack,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-contrib', strings.contributors || 'Contributors', onBack);

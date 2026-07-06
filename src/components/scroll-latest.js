@@ -9,12 +9,13 @@
  * createScrollToLatest({ target, strings }) → button
  * setScrollLatestCount(el, count, strings) — 0/null clears the badge
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { formatCount } from './chatlist-item.js';
 
 const SHOW_THRESHOLD = 200; // px from bottom before the button appears (sanctioned)
 
-export function createScrollToLatest({ target, strings = {} } = {}) {
+export function createScrollToLatest({ target, strings = getStrings() } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-scroll-latest';
@@ -39,7 +40,7 @@ export function createScrollToLatest({ target, strings = {} } = {}) {
 }
 
 /** Unread-count badge on the button (99+ cap shared with nav/list). */
-export function setScrollLatestCount(el, count, strings = {}) {
+export function setScrollLatestCount(el, count, strings = getStrings()) {
   let badge = el.querySelector('.c-scroll-latest__badge');
   if (!count) {
     if (badge) badge.remove();

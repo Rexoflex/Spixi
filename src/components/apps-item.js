@@ -10,10 +10,11 @@
  *
  * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAppIcon } from './apps-icon.js';
 
-export function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = {}, onOpen, onMenu } = {}) {
+export function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';

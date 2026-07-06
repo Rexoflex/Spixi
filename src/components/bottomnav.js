@@ -10,6 +10,7 @@
  * Updates via free functions (button-style API):
  *   setNavActive(nav, id) · setNavBadge(nav, id, count)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
 import { formatCount } from './chatlist-item.js';
 
@@ -80,7 +81,7 @@ export function setNavActive(nav, id) {
 }
 
 /** Set item `id`'s badge count (0 hides it). strings.unread overrides the a11y label suffix. */
-export function setNavBadge(nav, id, count, strings = {}) {
+export function setNavBadge(nav, id, count, strings = getStrings()) {
   const btn = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
   const badge = btn && btn.querySelector('.c-bottomnav__badge');
   if (!badge) return;

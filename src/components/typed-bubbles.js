@@ -13,6 +13,7 @@
  * Group-chat sender identity on payment cards (nick/avatar args) is a flagged
  * gap (#66) — cards render identity-less pending a design.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
@@ -131,7 +132,7 @@ export function createPaymentBubble({
   timestamp = null,
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
   onPay, onDecline, onCancel, onRetry, onDetails,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // peer-initiated events sit on the received side (audit MAJOR: 'received' was right-aligned)
   const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
@@ -237,7 +238,7 @@ export function createAppBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
   // header follows the session lifecycle (audit: "App invite" was stale post-join)
@@ -310,7 +311,7 @@ export function createCallBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onCallBack,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { row, el } = card(direction,
     declined ? (strings.callDeclined || 'Call declined')
@@ -374,7 +375,7 @@ export function createFileBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -473,7 +474,7 @@ export function setFileProgress(rowEl, progress, opts = {}) {
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   if (bubble && finalState && bubble.dataset.state !== finalState) {
-    const strings = opts.strings || {};
+    const strings = opts.strings || getStrings();
     bubble.dataset.state = finalState;
     bubble.disabled = false;
     delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
@@ -492,7 +493,7 @@ export function setFileProgress(rowEl, progress, opts = {}) {
 }
 
 /** Full-width "Unread messages" divider (Damir 2026-07-03; frontend-only). */
-export function createUnreadDivider(strings = {}) {
+export function createUnreadDivider(strings = getStrings()) {
   const el = document.createElement('div');
   el.className = 'c-unread-divider';
   el.setAttribute('role', 'separator');

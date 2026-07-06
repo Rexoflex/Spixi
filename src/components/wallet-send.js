@@ -23,6 +23,7 @@
  *                    onQuickScan, onSend, onDone }) → view
  * Free fn (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
  */
+import { getStrings } from './strings-runtime.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
@@ -45,7 +46,7 @@ function fromUnits(u) {
 let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
 
 export function createWalletSend({
-  contacts = [], balance = 0, fee = 0, strings = {}, host,
+  contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   onQuickScan, onSend, onDone,
 } = {}) {

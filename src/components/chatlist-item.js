@@ -4,6 +4,7 @@
  * All factories accept an optional `strings` dict (per-shell window.SL,
  * ARCHITECTURE.md §7); English defaults inline.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { formatChatTimestamp } from './timestamp.js';
@@ -33,7 +34,7 @@ export function createStatusIcon(status) {
 /* —— indicator (§4, #108): count · count-muted · muted (bell-off) · mention
    (plain `at` GLYPH, action ink, NO circle — a distinct shape from numeric
    count circles, Damir 2026-07-03; can coexist with a count) —— */
-export function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+export function createIndicator({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
@@ -55,7 +56,7 @@ export function createIndicator({ count = 0, mention = false, muted = false, str
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
  *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
  *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
-export function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+export function createIndicators({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
   const out = [];
   if (mention) out.push(createIndicator({ mention: true, strings }));
   if (count > 0) out.push(createIndicator({ count, muted, strings }));
@@ -68,7 +69,7 @@ const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
-export function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
+export function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
@@ -112,7 +113,7 @@ export function createChatItem({
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
-  selected = false, onClick, strings = {},
+  selected = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
@@ -161,7 +162,7 @@ export function createChatItem({
 
 /** Refresh all rendered timestamps (call from startTimestampTicker);
  *  pass the same `strings` the rows were built with. */
-export function refreshTimestamps(rootEl, strings = {}) {
+export function refreshTimestamps(rootEl, strings = getStrings()) {
   for (const t of rootEl.querySelectorAll('.c-chatlist-item__time[data-ts]')) {
     t.textContent = formatChatTimestamp(Number(t.dataset.ts), strings);
   }

@@ -12,6 +12,7 @@
  *   Esc / scrim tap route to onIgnore too (safe dismiss = quietest action).
  * hideIncomingCall(el) — bridge hook (peer hung up before an answer).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { openOverlay, dismissOverlay, setOverlayOpts } from './overlay.js';
@@ -23,7 +24,7 @@ export function showIncomingCall({
   onAccept,
   onDecline,
   onIgnore,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-callin';

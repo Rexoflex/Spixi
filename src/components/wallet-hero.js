@@ -21,6 +21,7 @@
  * Free fns (#44): setWalletBalance(el, { balance, fiat }) — bridge balance tick;
  *                 setBalanceHidden(el, hidden) — eye state (shell owns persistence, §7).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 const MASK = '••••••';
@@ -60,7 +61,7 @@ function quickAction({ glyph, label, onClick }) {
 
 export function createWalletHero({
   title = 'Wallet', balance = '', unit = 'IXI', fiat = '', hidden = false,
-  strings = {}, onSend, onReceive, onScan, onToggleHidden,
+  strings = getStrings(), onSend, onReceive, onScan, onToggleHidden,
 } = {}) {
   const el = document.createElement('header');
   el.className = 'c-wallet-hero';

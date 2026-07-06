@@ -49,6 +49,7 @@
  *   showTerms · setLaunchAvatar(el, src) ← loadAvatar ·
  *   setLaunchFile(el, name) ← setUploadedFileName.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -941,7 +942,7 @@ function buildTail(st) {
 /* —— shell ————————————————————————————————————————————————— */
 
 export function createLaunchShell(opts = {}) {
-  const { view = 'welcome', termsRequired = false, version = '', strings = {} } = opts;
+  const { view = 'welcome', termsRequired = false, version = '', strings = getStrings() } = opts;
   const el = document.createElement('section');
   el.className = 'c-launch';
   el.dataset.theme = 'dark';                       // premium round 2: the WHOLE launch is

@@ -31,6 +31,7 @@
  *   strings
  * })
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar, hashHue } from './avatar.js';
 import { createStatusIcon } from './chatlist-item.js';
@@ -51,7 +52,7 @@ const REPLY_KIND_GLYPHS = {
   gif: 'photo', image: 'photo', file: 'file-isr',
   payment: 'wallet', call: 'phone', voice: 'microphone', app: 'rocket',
 };
-function REPLY_KIND_LABELS(kind, strings = {}) {
+function REPLY_KIND_LABELS(kind, strings = getStrings()) {
   return {
     gif: 'GIF',
     image: strings.image || 'Image',
@@ -106,7 +107,7 @@ export function createMessageBubble({
   edited = false,
   onLinkClick = null,
   linkPreview = null,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
   const row = document.createElement('div');
@@ -317,7 +318,7 @@ export function createMessageBubble({
 /** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
  *  row. 'failed' restructures the row (retry circle + caption) — the shell
  *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
-export function setMessageStatus(row, status, strings = {}) {
+export function setMessageStatus(row, status, strings = getStrings()) {
   if (status === 'failed') {
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
     return;
@@ -371,7 +372,7 @@ export function removeMessage(row) {
 
 /** Day separator (design: centered pill). Shares the day-bucket ladder with
  *  the chat list (timestamp.js) — today → strings.today. */
-export function createDateSeparator(ts, strings = {}, now = Date.now()) {
+export function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
   const el = document.createElement('div');
   el.className = 'c-datesep';
   el.setAttribute('role', 'separator');

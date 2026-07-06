@@ -2515,9 +2515,10 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(/settingsOptionSheet/.test(ljs) && /settingsThemeSheet/.test(ljs)
     && /from '\.\/settings-shell\.js'/.test(ljs),
     'language/theme pickers REUSE the settings sheets — one picker grammar app-wide');
-  for (const n of [1, 2, 3, 4]) {
-    ok(readFileSync(join(root, 'src/demo/images/onboarding/step' + n + '.svg'), 'utf8').includes('<svg'),
-      'legacy tour art step' + n + '.svg lives in the demo pipeline');
+  for (const n of ['step1', 'step2', 'step3', 'step4', 'restore', 'join-community', 'backup']) {
+    const svg = readFileSync(join(root, 'src/demo/images/onboarding/' + n + '.svg'), 'utf8');
+    ok(svg.includes('<svg') && svg.trimEnd().endsWith('</svg>'),
+      'onboarding art ' + n + '.svg is present AND complete (truncated Figma exports pass a bare <svg check)');
   }
   ok(/touch-action: pan-y/.test(lcss), 'carousel owns horizontal swipe only — vertical scroll stays native');
   ok(/isConnected/.test(ljs) && /isConnected/.test(lockjs2),

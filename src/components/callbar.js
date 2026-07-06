@@ -8,6 +8,7 @@
  *               host = document.body, strings }) → el
  * hideCallBar(host) (#44 free fns)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 const callBars = new WeakMap(); // host → { el, timer }
@@ -24,7 +25,7 @@ function formatCallDuration(ms) {
 
 export function showCallBar({
   text = '', startedAt = Date.now(), onReturn, onHangUp,
-  host = document.body, strings = {},
+  host = document.body, strings = getStrings(),
 } = {}) {
   // singleton: a bridge re-call (displayCallBar fires on updates) mutates the
   // live bar in place — no teardown/replay flash (review finding)

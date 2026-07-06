@@ -26,6 +26,7 @@
  * 'ixian:qrresult:' (C# Splits on it — a hostile QR could truncate itself
  * into a different payload; spec §1 + §9 ask for a C#-side guard).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading } from './button.js';
@@ -79,7 +80,7 @@ function sync(st) {
 }
 
 export function createScanView({
-  state = 'prompt', onRequestPermission, onDecode, onTorch, onCancel, strings = {},
+  state = 'prompt', onRequestPermission, onDecode, onTorch, onCancel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-scan';

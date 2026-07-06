@@ -21,6 +21,7 @@
  * "Request sent" badge (no button) · contact → "In your contacts" badge +
  * Message + Pay|Request row + tappable identity.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { createButton } from './button.js';
@@ -40,7 +41,7 @@ export function openMemberSheet({
   actions = [],     // #141 chat-info: capability-injected rows (admin kick/ban) —
                     // [{ label, glyph, destructive, onClick }]; the CALLER owns
                     // any confirm flow, the sheet just closes itself first
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const content = document.createElement('div');
   content.className = 'c-member';

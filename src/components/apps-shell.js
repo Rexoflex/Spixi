@@ -11,6 +11,7 @@
  *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
  *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
  */
+import { getStrings } from './strings-runtime.js';
 import { createAppItem } from './apps-item.js';
 import { openAppMenu } from './apps-menu.js';
 
@@ -69,7 +70,7 @@ function appsEmptyState(state, strings) {
 /** (Re)render the whole list from the model. `state.layout` picks row vs card and
  *  sets `listEl[data-layout]` so the CSS switches between a column and a 2-up grid. */
 export function renderAppsList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const layout = state.layout === 'grid' ? 'grid' : 'list';
   listEl.dataset.layout = layout;
   listEl.textContent = '';                             // clear (detaches old rows + listeners for GC)

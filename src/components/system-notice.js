@@ -8,6 +8,7 @@
  * createSystemNotice({ glyph = 'square-asterisk', title, text, linkLabel,
  *                      onLink, strings }) → element (role=note)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 export function createSystemNotice({
@@ -16,7 +17,7 @@ export function createSystemNotice({
   text = '',
   linkLabel = '',
   onLink,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-sysnotice';

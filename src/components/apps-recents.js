@@ -7,11 +7,12 @@
  * createAppsRecents(state, opts) → section
  * renderAppsRecents(el, state, opts) — free-fn updater (#44): rebuilds the strip.
  */
+import { getStrings } from './strings-runtime.js';
 import { createAppIcon } from './apps-icon.js';
 import { orderedRecents } from './apps-shell.js';
 
 export function renderAppsRecents(el, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   el.textContent = '';
   const recents = orderedRecents(state, 8);
   if (!recents.length) { el.hidden = true; return el; }   // graceful — nothing launched yet

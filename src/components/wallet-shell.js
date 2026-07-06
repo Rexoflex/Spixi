@@ -24,6 +24,7 @@
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
  */
+import { getStrings } from './strings-runtime.js';
 import { createTxItem } from './txlist-item.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createButton } from './button.js';
@@ -81,7 +82,7 @@ function walletEmpty(state, strings) {
 }
 
 export function renderWalletTxList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   listEl.textContent = '';
   const txs = orderedTxs(state);
   for (const tx of txs) {
@@ -136,7 +137,7 @@ const FILTERS = [
 ];
 
 export function createWalletFilters(state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const row = document.createElement('div');
   row.className = 'c-wallet-filters';
   row.setAttribute('role', 'group');
@@ -177,7 +178,7 @@ export function createWalletFilters(state, opts = {}) {
 /** Sticky tools: c-search-field (FE search: names/addresses/txids) above the filter
  *  row. Sits at the top of the scroll container; attachWalletScroll hides/reveals it. */
 export function createWalletTools(state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const el = document.createElement('div');
   el.className = 'c-wallet-tools';
   const search = createSearchField({
@@ -252,7 +253,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, re
 /* ————————————————————————— shared bits ————————————————————————— */
 
 /** Copy button with the member-sheet clipboard + check-morph pattern (audit #134①). */
-function copyButton(value, label, strings = {}) {
+function copyButton(value, label, strings = getStrings()) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'c-txsheet__copy';
@@ -308,7 +309,7 @@ function sheetRow(label, value) {
   return r;
 }
 
-export function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
+export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -430,7 +431,7 @@ export function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
 
 /* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
 
-export function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
+export function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
   const content = document.createElement('div');
   content.className = 'c-misstx';
   const body = document.createElement('p');

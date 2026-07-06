@@ -24,6 +24,7 @@
  * Icon stand-ins (#146 gaps): language 'at' (world pending), lock
  * 'square-asterisk' (lock pending).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
@@ -69,7 +70,7 @@ function settingsDisc(glyph, hue) {
 
 /* backup row/screen share one status vocabulary (backup-ux-spec §3.1/§4):
    { last: string|null (pre-formatted date label), dirtyCount: number } */
-export function backupStatusParts(status = {}, strings = {}) {
+export function backupStatusParts(status = {}, strings = getStrings()) {
   const { last = null, dirtyCount = 0 } = status;
   if (!last) {
     return {
@@ -94,7 +95,7 @@ export function backupStatusParts(status = {}, strings = {}) {
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-export function settingsOptionSheet({ title, hint, options, current, host, strings = {}, commit, onPicked }) {
+export function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -170,7 +171,7 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-export function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
+export function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');
@@ -280,7 +281,7 @@ export function createSettingsHub({
   onBackup,                      // nav → backup screen
   onDownloads, onContributors, onDev,   // nav (screens = next slice)
   onDanger,                      // nav → danger screen
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings';
@@ -820,7 +821,7 @@ export function setBackupStatus(hub, status = {}) {
  * (#141-m4), standing cannot-undo warning strip. Used by the danger screen
  * AND the downloads screen (slice 2) — exported so the contract lives once.
  */
-export function settingsConfirm({ title, bodyText, confirmLabel, host, strings = {}, run }) {
+export function settingsConfirm({ title, bodyText, confirmLabel, host, strings = getStrings(), run }) {
   let inFlight = false;
   const extra = document.createElement('div');
   // #150⑥ (Damir): EVERY account-shell delete confirm carries the standing
@@ -879,7 +880,7 @@ export function createSettingsDanger({
   onDeleteDownloads,             // (ctrl) — ixian:deleted
   onDeleteAccount,               // (ctrl) — ixian:deletea (C# LockPage gate)
   onDeleteWallet,                // (ctrl) — ixian:delete (C# LockPage gate → Launch)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-danger';

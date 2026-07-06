@@ -6,10 +6,11 @@
  *
  * createAppsHeader({ layout, strings, discover, onQuery, onToggleLayout, onExplore }) → div
  */
+import { getStrings } from './strings-runtime.js';
 import { createSearchField } from './search-field.js';
 import { icon } from './icons.js';
 
-export function createAppsHeader({ layout = 'list', strings = {}, discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
+export function createAppsHeader({ layout = 'list', strings = getStrings(), discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-header';
 

@@ -17,6 +17,7 @@
  * otherwise springs back. Only one row open at a time. Tapping an open row (or
  * touching another row) closes the drawer.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 const SWIPE_OPEN_PX = 76;         // settle offset that holds the action button open (== CSS min-width)
@@ -29,7 +30,7 @@ function closeCurrent() { if (currentClose) { const c = currentClose; currentClo
 /** Close any open drawer — call before a list re-render (detaches would orphan it). */
 export function closeChatRowSwipe() { closeCurrent(); }
 
-export function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, onAction, rtl } = {}) {
+export function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getStrings(), onAction, rtl } = {}) {
   const dir = rtl != null ? rtl
     : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
   // physical sides ↔ logical actions (RTL mirrors leading/trailing)

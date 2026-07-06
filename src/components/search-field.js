@@ -7,10 +7,11 @@
  *                     ariaLabel, strings })
  * Free fns (#44): setSearchValue(el, v) · getSearchValue(el)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 export function createSearchField({
-  placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = {},
+  placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-search-field';

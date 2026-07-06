@@ -15,12 +15,13 @@
  *   strings.modal — aria-label fallback when there is no title ('Dialog')
  * openModal(el) / closeModal(el) free fns (#44).
  */
+import { getStrings } from './strings-runtime.js';
 import { openOverlay, dismissOverlay, setOverlayOpts, overlayId } from './overlay.js';
 import { createButton } from './button.js';
 
 export function createModal({
   title = '', body = '', content = null, actions = [], role = 'dialog', host,
-  lightDismiss = false, escDismiss = true, onDismiss, strings = {},
+  lightDismiss = false, escDismiss = true, onDismiss, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-modal';

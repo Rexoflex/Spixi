@@ -39,6 +39,7 @@
  * Async callbacks use the house (payload, ctrl) contract — ctrl.done()/fail(msg)
  * from the bridge; each ctrl is one-shot per attempt (#138 m1).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createAvatar } from './avatar.js';
@@ -117,7 +118,7 @@ export function createChatInfo({
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
   onTx,
   onTxAll,                       // "View all" → full payment history (shell nav)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-chat-info';

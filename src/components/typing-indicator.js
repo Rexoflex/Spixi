@@ -7,7 +7,8 @@
  * createTypingIndicator({ name, strings }) → row element
  *   name — group chats: whose keyboard is busy (1:1 omits it)
  */
-export function createTypingIndicator({ name = '', strings = {} } = {}) {
+import { getStrings } from './strings-runtime.js';
+export function createTypingIndicator({ name = '', strings = getStrings() } = {}) {
   const row = document.createElement('div');
   // --typing: hugs the composer (Damir 2026-07-03 — spacing-4 bottom gap,
   // see typing-indicator.css; the list's bottom padding must match)

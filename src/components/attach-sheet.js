@@ -9,6 +9,7 @@
  *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
  *   (shell routes: sendfile / sendmedia / payment intent / app invite)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
@@ -21,7 +22,7 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite' },
 ];
 
-export function openAttachSheet({ host, media = false, onAction, strings = {} } = {}) {
+export function openAttachSheet({ host, media = false, onAction, strings = getStrings() } = {}) {
   const grid = document.createElement('div');
   grid.className = 'c-attach';
 

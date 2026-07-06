@@ -21,11 +21,12 @@
  * Copy defaults = the legacy en-us lang block (index-backup-prompt-*),
  * overridable via strings.backupNudge* (ships via the SL channel at i18n).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
-export function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = {} } = {}) {
+export function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-backup-nudge';
 

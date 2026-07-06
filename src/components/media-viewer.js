@@ -10,6 +10,7 @@
  *   onSave — shell hook (P2P: saving = local file op via bridge); omitted =
  *   no Save button.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { openOverlay, dismissOverlay, setOverlayOpts } from './overlay.js';
 
@@ -19,7 +20,7 @@ export function openMediaViewer({
   alt = '',
   kind = 'image',
   onSave,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-mviewer';

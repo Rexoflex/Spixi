@@ -25,6 +25,7 @@
  * attachSplitPaste(composerEl, { onSendEach, strings }) → detach()
  * getChatCopyBuffer() → { joined, items: [{ sender, text }] } | null
  */
+import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
 import { icon } from './icons.js';
 
@@ -36,7 +37,7 @@ export function enterChatSelect(listEl, {
   initialRow = null, host, rowSelector = '.c-bubble-row',
   textOf = (row) => row.dataset.copytext || '',
   senderOf = (row) => row.dataset.sender || '',
-  strings = {}, onCopy, onExit,
+  strings = getStrings(), onCopy, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
   listEl.dataset.selecting = '';
@@ -122,7 +123,7 @@ export function enterChatSelect(listEl, {
 
 /** Watch a composer for a paste of the multi-copy buffer → offer to split.
  *  Value-match (not paste-event-only) covers every paste path incl. mobile menus. */
-export function attachSplitPaste(composerEl, { onSendEach, strings = {} } = {}) {
+export function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {}) {
   const input = composerEl && composerEl.querySelector('.c-composer__input');
   if (!input) return () => {};
   let offer = null;

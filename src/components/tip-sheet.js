@@ -24,6 +24,7 @@
  * Bridge: tip → legacy `ixian:contextAction:tip:MSGID:AMOUNT`; request → the
  * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
  */
+import { getStrings } from './strings-runtime.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
@@ -49,7 +50,7 @@ function amountSheetCopy(kind, strings) {
 
 function openAmountSheet({
   message = {}, recipient = {}, balance = null,
-  presets = ['1', '5', '10'], strings = {}, host, onSubmit,
+  presets = ['1', '5', '10'], strings = getStrings(), host, onSubmit,
 } = {}, kind) {
   const copy = amountSheetCopy(kind, strings);
   const content = document.createElement('div');

@@ -9,6 +9,7 @@
  *   createChatsHeader(opts) → header element (search + chips)
  *   attachChatsCollapse(headerEl, scrollEl, opts) → detach()  [scroll behavior]
  */
+import { getStrings } from './strings-runtime.js';
 import { createSearchField } from './search-field.js';
 import { createChip, setChipSelected } from './chip.js';
 
@@ -21,7 +22,7 @@ const CHATS_FILTERS = [
 ];
 
 /** Build the header: search field + exclusive filter-chip group. */
-export function createChatsHeader({ activeFilter = 'all', strings = {}, favorites = false, onFilter, onQuery } = {}) {
+export function createChatsHeader({ activeFilter = 'all', strings = getStrings(), favorites = false, onFilter, onQuery } = {}) {
   const el = document.createElement('div');
   el.className = 'c-chats-header';
 

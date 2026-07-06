@@ -14,6 +14,7 @@
  *                    onReport, onInstalled, onCopyUrl }) → view
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
  */
+import { getStrings } from './strings-runtime.js';
 import { createAppIcon } from './apps-icon.js';
 import { hashHue } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -168,7 +169,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-export function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+export function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -414,7 +415,7 @@ function openUninstallConfirm({ app, host, strings, onUninstall }) {
 }
 
 /* —— bridge-driven progress states (kept for the C# showInstalling/…Failed hooks) —— */
-export function showAppInstalling({ host, strings = {}, name = '' } = {}) {
+export function showAppInstalling({ host, strings = getStrings(), name = '' } = {}) {
   const m = createModal({
     title: strings.installing || 'Installing…',
     body: (strings.installingBody || 'Installing {name}…').split('{name}').join(name || 'the app'),
@@ -423,19 +424,19 @@ export function showAppInstalling({ host, strings = {}, name = '' } = {}) {
   openModal(m);
   return m;
 }
-export function showAppInstalled({ host, strings = {}, onView } = {}) {
+export function showAppInstalled({ host, strings = getStrings(), onView } = {}) {
   openModal(createModal({
     title: strings.installedTitle || 'Installed', body: strings.installedBody || 'The mini app is ready to use.',
     host, actions: [{ label: strings.viewApp || 'View app', type: 'fill', autofocus: true, onClick: () => { if (onView) onView(); } }],
   }));
 }
-export function showAppInstallFailed({ host, strings = {} } = {}) {
+export function showAppInstallFailed({ host, strings = getStrings() } = {}) {
   openModal(createModal({
     title: strings.failedTitle || 'Install failed', body: strings.failedBody || 'Something went wrong installing this app. Please try again.',
     role: 'alertdialog', host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
   }));
 }
-export function showAppRemoved({ host, strings = {} } = {}) {
+export function showAppRemoved({ host, strings = getStrings() } = {}) {
   openModal(createModal({
     title: strings.removedTitle || 'App removed', body: strings.removedBody || 'The mini app was uninstalled.',
     host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],

@@ -6,9 +6,10 @@
  * createWarningBanner({ strings }) → el (mount once, directly under the top bar)
  * setWarning(el, text) — non-empty opens/updates, empty/null collapses (#44 free fn)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
-export function createWarningBanner({ strings = {} } = {}) {
+export function createWarningBanner({ strings = getStrings() } = {}) {
   const el = document.createElement('div');
   el.className = 'c-banner';
   el.setAttribute('role', 'status');

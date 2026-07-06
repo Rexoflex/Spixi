@@ -9,6 +9,7 @@
  *                  onTyping, onRecord, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 const MAX_LINES = 5;
@@ -20,7 +21,7 @@ export function createComposer({
   onAttach,
   onTyping,
   onRecord,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-composer';
@@ -158,7 +159,7 @@ export function setComposerContext(el, ctx) {
   }
   if (!ctx) { composerCtx.delete(el); return; }
   composerCtx.set(el, ctx);
-  const strings = ctx.strings || {};
+  const strings = ctx.strings || getStrings();
 
   const strip = document.createElement('div');
   strip.className = 'c-composer__ctx';
@@ -210,7 +211,7 @@ export function getComposerContext(el) { return composerCtx.get(el) || null; }
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.
  *  Falsy costText removes it. #44 free fn. */
-export function setComposerCost(el, costText, strings = {}) {
+export function setComposerCost(el, costText, strings = getStrings()) {
   const prev = el.querySelector('.c-composer__cost');
   if (prev) prev.remove();
   if (!costText) return;

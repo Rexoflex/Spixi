@@ -16,6 +16,7 @@
  *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake'
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
@@ -24,7 +25,7 @@ import { closeChatRowSwipe } from './chats-swipe.js';
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-export function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities = {}, handshaking = false } = {}) {
+export function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling

@@ -10,6 +10,7 @@
  *   <span>, no toggle/pressed/hover, no hit-area expansion. Variant of the same chip.
  * Updates via free function (#44): setChipSelected(el, selected)
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 const CHIP_ICON_SIZE = { large: 18, small: 14 };   // leading (Figma)
@@ -17,7 +18,7 @@ const CHIP_DISMISS_SIZE = { large: 16, small: 14 }; // trailing (Figma)
 
 export function createChip({
   label = '', size = 'large', selected = false, icon: leading = null,
-  dismissible = false, disabled = false, readonly = false, onClick, strings = {},
+  dismissible = false, disabled = false, readonly = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement(readonly ? 'span' : 'button');
   if (!readonly) el.type = 'button';

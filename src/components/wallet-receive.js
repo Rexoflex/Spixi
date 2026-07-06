@@ -33,6 +33,7 @@
  *   Numbers are expanded to plain decimals first (audit C1: String(1e-7) → '1e-7'
  *   would sanitize into '17' — a silent magnitude change).
  */
+import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
@@ -48,7 +49,7 @@ function requestable(amount) {
 let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
 
 export function createWalletReceive({
-  address = '', contacts = [], strings = {}, host,
+  address = '', contacts = [], strings = getStrings(), host,
   onShare, onSendRequest,
 } = {}) {
   const el = document.createElement('div');

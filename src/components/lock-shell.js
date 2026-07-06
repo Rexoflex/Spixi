@@ -30,6 +30,7 @@
  *     field (legacy invalid-current path) · ctrl.done() → success morph →
  *     scrub → onBack(). Inline gates in submit() — see ENC_DELIM hazard.
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -60,7 +61,7 @@ function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl gramm
  * mask() re-masks (scrub paths — never leave a revealed field behind).
  * EXPORTED: launch-shell reuses the exact grammar (launch-spec §2.2–2.4).
  */
-export function passwordField({ label, current = false, strings = {} }) {
+export function passwordField({ label, current = false, strings = getStrings() }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-lock__field';
   const input = document.createElement('input');
@@ -124,7 +125,7 @@ function lockSync(st) {
 
 export function createLockScreen({
   mode = 'unlock', biometrics = false, onUnlock, onBiometricRetry,
-  onUseAnotherWallet, onCancel, strings = {},
+  onUseAnotherWallet, onCancel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-lock';                       // NO topbar — there is no back from lock
@@ -316,7 +317,7 @@ export function setLockMode(el, mode) {
 /* ————————————————— change encryption password ————————————————— */
 
 export function createEncPassScreen({
-  onChangePassword, onBack, strings = {}, host,
+  onChangePassword, onBack, strings = getStrings(), host,
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-encpass';

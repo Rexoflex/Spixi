@@ -18,6 +18,7 @@
  * retries). Tap on loaded → onOpen (shell viewer). Inline aspect-ratio from
  * sender dims = sanctioned runtime geometry (like #29 morphWidth).
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { docLocale } from './timestamp.js';
 
@@ -43,7 +44,7 @@ export function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';

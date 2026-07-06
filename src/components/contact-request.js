@@ -12,6 +12,7 @@
  *                        onAccept, onDecline }) → row element
  * setRequestAccepting(row, strings) — latch Accept to "Accepting…" (loading).
  */
+import { getStrings } from './strings-runtime.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createModal, openModal } from './modal.js';
@@ -24,7 +25,7 @@ function crDisplayAddress(addr) {
   return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
 }
 
-export function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = {}, host, onAccept, onDecline } = {}) {
+export function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = getStrings(), host, onAccept, onDecline } = {}) {
   const display = nick || name || crDisplayAddress(address);
 
   const row = document.createElement('div');
@@ -83,7 +84,7 @@ export function createContactRequest({ name = '', nick = '', address = '', avata
 /** Latch the Accept button into "Accepting…" loading (staged handshake, #109);
  *  Decline is disabled while accepting. The row is then transitioned into a
  *  handshaking chat by the shell (acceptContactRequest). */
-export function setRequestAccepting(row, strings = {}) {
+export function setRequestAccepting(row, strings = getStrings()) {
   const btn = row && row.querySelector('[data-accept]');
   if (!btn) return;
   const accepting = strings.accepting || 'Accepting…';

@@ -9,11 +9,12 @@
  *
  * openAppMenu({ app, host, onAction, strings }) → sheet
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
 
-export function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
+export function openAppMenu({ app = {}, host, onAction, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');

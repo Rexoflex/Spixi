@@ -8,6 +8,7 @@
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
  *                'failed', name, timestamp, amount, fiat, onClick, strings })
  */
+import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createBadge } from './badge.js';
 import { formatTxTimestamp } from './timestamp.js';
@@ -19,7 +20,7 @@ const BADGES = {
 
 export function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
-  name = '', timestamp, amount = '', fiat = '', onClick, strings = {},
+  name = '', timestamp, amount = '', fiat = '', onClick, strings = getStrings(),
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');

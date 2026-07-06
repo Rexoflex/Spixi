@@ -2158,6 +2158,17 @@ console.log('settings.html — lock shell (Phase 1 #4)');
   enc2.querySelector('.c-topbar .c-button').click();
   ok(enc2in.value === '' && !d.querySelector('.c-encpass'), 'back scrubs the fields before leaving (SECURITY §5)');
 
+  // pagehide scrub must ACTUALLY fire (audit: was a dead element-level listener —
+  // pagehide is a WINDOW event). Dispatch it on the window and confirm the field clears.
+  const encPH = W.Spixi.createEncPassScreen({ onBack: () => {} });
+  d.body.append(encPH);
+  const encPHin = encPH.querySelector('.c-lock__input');
+  encPHin.value = 'sekrit';
+  W.dispatchEvent(new W.Event('pagehide'));
+  ok(encPHin.value === '',
+    'window pagehide scrubs the fields (backgrounded WebView — SECURITY §5; real hook, not dead element listener)');
+  encPH.remove();
+
   // #141-m4 on encpass
   const encThrow = W.Spixi.createEncPassScreen({ onChangePassword: () => { throw new Error('boom'); } });
   d.body.append(encThrow);
@@ -2182,7 +2193,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     'bundle FILES: lock-shell after scan-shell, before settings-shell');
   ok(!/console\./.test(ljs), 'lock-shell.js never logs (passwords in scope — SECURITY §5)');
   ok(/--1ec4ce59e0535704d4--/.test(ljs), 'the magic changepass delimiter gate is present (bridge-audit-B.md:128)');
-  ok(/pagehide/.test(ljs), 'encpass scrubs on pagehide (backgrounded WebView — SECURITY §5)');
+  ok(/window\.addEventListener\('pagehide'/.test(ljs),
+    'encpass scrubs on pagehide via the WINDOW (element-level pagehide never fires — audit fix; functionally asserted below)');
   ok(/c-lock__reveal/.test(ljs) && /::-ms-reveal[^}]*display: none/.test(lcss.replace(/\n/g, ' ')),
     '#160b⑦: shell-owned show-password eye + native WebView2 eye suppressed (no double eye)');
   ok(/onChangePassword/.test(shellJs) && /Change wallet password/.test(shellJs),

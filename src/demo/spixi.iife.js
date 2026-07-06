@@ -12341,10 +12341,17 @@ function createEncPassScreen({
     curF.mask(); nextF.mask(); repF.mask();
   };
 
+  // SECURITY 5: scrub on a backgrounded WebView. pagehide is a WINDOW event, so
+  // an element-level listener never fires; bind the window and tear it down on
+  // either leave path so abandoned screens do not accumulate listeners.
+  const onPageHide = () => scrub();
+  window.addEventListener('pagehide', onPageHide);
+  const teardown = () => window.removeEventListener('pagehide', onPageHide);
+
   el.append(createTopbar({
     variant: 'view',
     title: strings.changePassword || 'Change wallet password',
-    onBack: () => { scrub(); if (onBack) onBack(); },  // SECURITY §5: scrub on back
+    onBack: () => { scrub(); teardown(); if (onBack) onBack(); },
     backLabel: strings.back || 'Back',
   }));
 
@@ -12378,9 +12385,6 @@ function createEncPassScreen({
   const saveBtn = createButton({ label: strings.changeCta || 'Change password', size: 56, width: 'full' });
   footer.append(saveBtn);
   el.append(footer);
-
-  // SECURITY §5: never leave plaintext in a hidden WebView (app backgrounded/closed)
-  el.addEventListener('pagehide', scrub);
 
   const setError = (msg, focusEl) => {
     err.textContent = msg;
@@ -12417,7 +12421,7 @@ function createEncPassScreen({
         restore();
         scrub();                                 // SECURITY §5: scrub on success
         setSuccess(saveBtn, { label: strings.passwordChanged || 'Password changed' });
-        setTimeout(() => { if (onBack) onBack(); }, 900); // legacy pops after its success alert
+        setTimeout(() => { teardown(); if (onBack) onBack(); }, 900); // legacy pops after its success alert
       },
       (msg) => {
         restore();

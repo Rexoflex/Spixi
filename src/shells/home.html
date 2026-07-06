@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/bottomnav.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chatlist-item.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/search-field.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/contact-request.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/chats-shell.css">
+<link rel="stylesheet" href="../styles/components/chats-header.css">
+<link rel="stylesheet" href="../styles/components/chats-swipe.css">
+<style>
+  /* Production shell: fill the WebView (no demo phone frame). topbar + header
+     pin, the chats list scrolls, the bottom nav pins to the bottom. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #chat-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* FAB — overlays the scroll region, sits above the bottom nav */
+  .fab {
+    position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+    width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
+    background: var(--surface-action-default); color: var(--text-neutral-on-action);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--elevation-2); z-index: var(--z-10);
+  }
+  @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
+  .fab:active { background: var(--surface-action-pressed); }
+</style>
+</head>
+<body>
+  <div id="chats-topbar"></div>
+  <div id="chats-header"></div>
+  <div class="u-scroll" id="chat-scroll"></div>
+  <button class="fab" id="fab" aria-label="New chat"></button>
+  <div id="chats-nav"></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production chats shell — the redesigned Chats surface wired to the REAL C#
+   * MAUI bridge (native.js in the bundle). HomePage.xaml.cs pushes account data
+   * via executeUiCommand(fnRef, b64…) against the page globals registered below;
+   * taps go back to C# as legacy `ixian:` commands via bridge.send.
+   *
+   * Contract source of truth: Spixi/Pages/Home/HomePage.xaml.cs +
+   * Resources/Raw/html/js/home.js (legacy). Chats commands are wired fully;
+   * the rest are safe no-op stubs so C#'s dispatch never console.errors.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createTopbar, createBottomNav, setNavBadge, setNavActive,
+    createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    createChatsHeader, attachChatsCollapse,
+    startTimestampTicker, refreshTimestamps,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const icon = window.SpixiIcons.icon;
+  const strings = {};
+
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  /* —— nav ↔ legacy tab id mapping ————————————————————————————————————————
+   * The redesigned bottom nav uses semantic ids; the legacy C# home surface
+   * (HomePage.xaml.cs, home.js) speaks tab1..tab4. We translate in both
+   * directions so `ixian:tab:<tabX>` matches what C# expects and incoming
+   * selectTab('tabX') lights the right nav item. */
+  const NAV_TO_TAB = { chats: 'tab1', wallet: 'tab2', apps: 'tab3', account: 'tab4' };
+  const TAB_TO_NAV = { tab1: 'chats', tab2: 'wallet', tab3: 'apps', tab4: 'account' };
+
+  /* —— topbar ——————————————————————————————————————————————————————————————— */
+  document.getElementById('chats-topbar').append(createTopbar({
+    variant: 'root', title: 'Spixi', logo: true,
+    // Contacts action → legacy directory. `ixian:newcontact` is the closest
+    // real HomePage verb (opens ContactNewPage); v1 focus is the chats list,
+    // so this is a thin bridge send (no in-page directory takeover yet).
+    actions: [{ icon: 'users', label: 'Contacts', onClick: () => bridge.send('ixian:newcontact') }],
+  }));
+
+  /* —— FAB → new chat (legacy WalletRecipientPage picker) ————————————————————— */
+  document.getElementById('fab').append(icon('message-plus'));
+  document.getElementById('fab').addEventListener('click', () => bridge.send('ixian:newchat'));
+
+  /* —— bottom nav —————————————————————————————————————————————————————————— */
+  const NAV_ITEMS = [
+    { id: 'chats', label: 'Chats', icon: 'messages' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+    { id: 'account', label: 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({
+    items: NAV_ITEMS, active: 'chats',
+    onChange: (id) => bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id)),  // legacy home.js:500
+  });
+  document.getElementById('chats-nav').append(nav);
+
+  /* —— chats model + list ——————————————————————————————————————————————————
+   * Starts empty; C# flushes clearChats → addChat* → clearChatsDone after
+   * ixian:onload. Requests are not fed by the current HomePage contract
+   * (loadChats only), so requests stays []. */
+  const state = { chats: [], requests: [], filter: 'all', query: '' };
+  const opts = {
+    strings,
+    host: document.body,
+    // Opening a chat → legacy verb ixian:chat:<address> (home.js:438 → C# onChat)
+    onOpen: (c) => { if (c.address) bridge.send('ixian:chat:' + c.address); },
+    // Row menu / swipe intents (pin/mute/markRead/delete) have no BE persistence
+    // path in today's HomePage contract → keep the local model change, no bridge
+    // send. When BE ships the §8 command it slots in here.
+    onPersist: () => {},
+    onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
+  };
+
+  const scroller = document.getElementById('chat-scroll');
+  const list = createChatsList(state, opts);
+  scroller.append(list);
+
+  /* —— chats header (search + filter chips — CLIENT-SIDE) ————————————————————
+   * Search and filter operate on the local model only (setChatsQuery /
+   * setChatsFilter). No bridge round-trip — the full roster already lives
+   * in-page once C# has flushed it. */
+  const header = createChatsHeader({
+    activeFilter: 'all', strings, favorites: false,
+    onFilter: (f) => setChatsFilter(list, state, f, opts),
+    onQuery: (q) => setChatsQuery(list, state, q, opts),
+  });
+  document.getElementById('chats-header').append(header);
+  attachChatsCollapse(header, scroller);
+
+  setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS command handlers. Every one is a page global (registered via
+   * bridge.exposeAll) because executeUiCommand(fnRef, …) resolves fnRef as a
+   * bare page-global reference. Chats commands are wired; the rest are safe
+   * no-op stubs so C#'s dispatch never throws / console.errors.
+   * ————————————————————————————————————————————————————————————————————————— */
+
+  const dbg = (...a) => { try { console.debug('[home-shell stub]', ...a); } catch (_) {} };
+
+  /* map legacy addChat `type` → redesigned chat status badge.
+   * legacy: read | confirmed | pending | default | typing | ''  (home.js:405) */
+  function statusFromType(type) {
+    switch (type) {
+      case 'read': return 'read';
+      case 'confirmed': return 'delivered';
+      case 'pending': return 'sent';
+      case 'default': return 'sending';
+      default: return undefined;   // '' / typing → no outgoing tick
+    }
+  }
+
+  /* selectChat highlight — the chats-shell exposes no selection API, and the
+   * rendered row carries no address attribute (createChatItem only sets
+   * aria-current from a `selected` field). So we drive selection through the
+   * MODEL: flag the matching chat `selected:true` (clear the rest) and re-render.
+   * createChatItem maps selected → aria-current='true' (chatlist-item.js), and
+   * the .c-chatlist-item[aria-current='true'] selector is already styled. This
+   * is the robust path — it survives clearChatsDone re-renders for free.
+   * NOTE (verify on-device): confirm the aria-current='true' row is visually
+   * distinct in the two-pane (tablet/desktop) layout; if a dedicated selected
+   * treatment is wanted, add a rule for .c-chatlist-item[aria-current='true']. */
+  function highlightSelected(addr) {
+    let changed = false;
+    for (const c of state.chats) {
+      const want = !!addr && c.address === addr;
+      if (!!c.selected !== want) { c.selected = want; changed = true; }
+    }
+    if (changed) renderChatsList(list, state, opts);
+  }
+  let selectedAddress = '';   // remembered so a re-render (clearChatsDone) can re-apply
+
+  const handlers = {
+    /* ——— chats (wired) ——————————————————————————————————————————————————— */
+
+    // Batch start: reset the model. Do NOT re-render — clearChatsDone renders.
+    clearChats() {
+      state.chats = [];
+    },
+
+    // One row of the flush. Maps the legacy addChat args → a redesigned chat.
+    // Order (home.js:397 / HomePage.updateChat:1030):
+    //   wallet, from, timestamp, avatar, online, excerpt_msg, type, unread
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread) {
+      let t = Number(timestamp);
+      if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
+      const n = Number(unread) || 0;
+      const chat = {
+        address: wallet,
+        name: from || '',
+        // avatar arg (legacy path like img/spixiavatar.png) is intentionally
+        // IGNORED for v1 — those paths don't resolve in this shell. The avatar
+        // component falls back to a deterministic gradient from name/address.
+        online: online === 'true',
+        timestamp: t,
+        excerpt: { type: (type === 'typing' ? 'typing' : 'text'), text: excerpt_msg || '' },
+        unread: n,
+      };
+      // legacy hides the outgoing tick when there are unread messages
+      if (n === 0) {
+        const st = statusFromType(type);
+        if (st) chat.status = st;
+      }
+      state.chats.push(chat);
+    },
+
+    // Batch complete: render once, re-apply any active selection.
+    clearChatsDone() {
+      renderChatsList(list, state, opts);
+      if (opts.onModelChange) opts.onModelChange(state);
+      if (selectedAddress) highlightSelected(selectedAddress);
+    },
+
+    // Two-pane (tablet/desktop) selection sync from C#.
+    selectChat(wallet) {
+      selectedAddress = wallet || '';
+      highlightSelected(selectedAddress);
+    },
+
+    // Chats nav badge — C# already computes the unread total (#42 semantics).
+    setUnreadIndicator(n) {
+      setNavBadge(nav, 'chats', Number(n) || 0);
+    },
+
+    // C# lights the active tab (onLoaded sends selectTab(currentTab='tab1')).
+    selectTab(tab) {
+      setNavActive(nav, TAB_TO_NAV[tab] || tab);
+    },
+
+    /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
+    loadAvatar() { dbg('loadAvatar'); },
+    setAddress() { dbg('setAddress'); },
+    setVersion() { dbg('setVersion'); },
+    setHideBalance() { dbg('setHideBalance'); },
+    setBalance() { dbg('setBalance'); },
+    addContact() { dbg('addContact'); },
+    clearContacts() { dbg('clearContacts'); },
+    setContactStatus() { dbg('setContactStatus'); },
+    clearApps() { dbg('clearApps'); },
+    addApp() { dbg('addApp'); },
+    addPaymentActivity() { dbg('addPaymentActivity'); },
+    clearPaymentActivity() { dbg('clearPaymentActivity'); },
+    selectTx() { dbg('selectTx'); },
+    showWarning() { dbg('showWarning'); },
+    showRatingPrompt() { dbg('showRatingPrompt'); },
+    toggleAnimatedSlider() { dbg('toggleAnimatedSlider'); },
+    updateDebugInfo() { dbg('updateDebugInfo'); },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— live relative timestamps ("2h", "yesterday", …) ————————————————————— */
+  startTimestampTicker(() => refreshTimestamps(list));
+
+  /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
+   *    the legacy onload() timing (spixi.js:88 → window load). Firing it
+   *    synchronously during parse raced C#'s initial data push: the first load
+   *    could arrive empty and only a manual refresh fixed it. Deferring to the
+   *    window 'load' event makes C# receive the ready signal at the right time,
+   *    so real chats populate on first entry. ———————————————————————————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/message-bubble.css">
+<link rel="stylesheet" href="../styles/components/composer.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/typed-bubbles.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/reactions.css">
+<link rel="stylesheet" href="../styles/components/typing-indicator.css">
+<link rel="stylesheet" href="../styles/components/scroll-latest.css">
+<link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/system-notice.css">
+<link rel="stylesheet" href="../styles/components/lazy-history.css">
+<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
+<style>
+  /* Production chat shell: fill the WebView (no demo phone frame). The chat
+     topbar pins, the message log (c-chat-canvas → .messages) scrolls, the
+     composer pins to the bottom. Element ids/classes MATCH the demo so the
+     component CSS applies unchanged. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #chat-topbar { flex: none; }
+  .c-chat-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); }
+  #chat-composer { flex: none; }
+</style>
+</head>
+<body>
+  <div id="chat-topbar"></div>
+  <div class="c-chat-canvas">
+    <!-- tabindex: keyboard users must be able to scroll text-only history -->
+    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
+  </div>
+  <div id="chat-composer"></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production chat shell — the redesigned single-chat surface wired to the REAL
+   * C# MAUI bridge (native.js in the bundle). SingleChatPage.xaml.cs pushes the
+   * conversation via executeUiCommand(fnRef, b64…) against the page globals
+   * registered below; the composer + back button emit legacy `ixian:` commands
+   * via bridge.send.
+   *
+   * Contract source of truth: Spixi/Pages/Chat/SingleChatPage.xaml.cs +
+   * Resources/Raw/html/js/chat.js (legacy). The 1:1 text conversation is wired
+   * fully (create + status upsert + delete + typing + clear). Everything else is
+   * a safe no-op stub so C#'s dispatch never console.errors.
+   *
+   * CONTRACT NOTES (verified against SingleChatPage.xaml.cs, line refs):
+   *  · Text CREATE arrives via addMe / addThem (chat.js insertMessage → prefix,
+   *    xaml.cs:1460), 12 args:
+   *      addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending)
+   *      addThem(id, address, nick, avatar, text, time)
+   *    (legacy addMe/addThem share the addText 7-arg shape; addThem is called
+   *    with only 6 by C#, so args 7-11 are undefined for incoming rows.)
+   *  · Text STATUS UPDATE arrives via updateMessage (chat.js:1035, xaml.cs:1624):
+   *      updateMessage(id, message, sent, confirmed, read, paid, errorSending)
+   *    Legacy updateMessage ONLY mutates an existing msg_<id> row (returns early
+   *    if unknown). To be robust here it is an UPSERT: create if the id is
+   *    unknown (using `message` as the text + `sent` for direction), else update
+   *    the existing row's status + text.
+   *  · timestamps are UNIX SECONDS (legacy addText does `new Date(time*1000)`);
+   *    the redesigned bubbles want ms → multiply.
+   *  · All bool args are the .NET "True"/"False" strings.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createTopbar, createMessageBubble, createDateSeparator,
+    createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
+    setMessageStatus, removeMessage,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  const dbg = (...a) => { try { console.debug('[chat-shell stub]', ...a); } catch (_) {} };
+  const asBool = (v) => v === 'True' || v === 'true' || v === true;
+  /* legacy sends Unix SECONDS; redesigned bubbles compare against Date.now() (ms) */
+  const toMs = (t) => { let n = Number(t) || 0; if (n && n < 1e12) n *= 1000; return n; };
+
+  /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
+   *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
+   *    header + grouping know whether to show sender labels/avatars. ————————— */
+  const mode = { type: 0, isGroup: false, isBot: false, admin: false };
+
+  /* —— header identity model. setNickname / setOnlineStatus mutate this; the
+   *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
+  const identity = { name: '', sub: '', address: '', online: false };
+
+  const topbarHost = document.getElementById('chat-topbar');
+  function renderTopbar() {
+    topbarHost.textContent = '';
+    topbarHost.append(createTopbar({
+      variant: 'chat',
+      identity: {
+        name: identity.name || identity.address || '',
+        sub: identity.sub || '',
+        address: identity.address || identity.name || '',
+        online: identity.online,
+      },
+      // Header tap → chat info. No dedicated redesigned takeover is wired in v1;
+      // ixian:details is the legacy verb SingleChatPage understands.
+      onIdentity: () => bridge.send('ixian:details'),
+      onBack: () => bridge.send('ixian:back'),
+    }));
+  }
+  renderTopbar();
+
+  /* —— message log —————————————————————————————————————————————————————————— */
+  const box = document.getElementById('messages');
+
+  /* model: id → { id, direction, text, ts(ms), status } in insertion order.
+   * order[] holds ids in timestamp order so inserts find their slot (the legacy
+   * findOlderChat behaviour). row: id → DOM row element. */
+  const model = new Map();   // id → record
+  const rows = new Map();    // id → row element
+  let order = [];            // ids, kept timestamp-ascending
+
+  /* typing pill — appended while typing is on, removed on timeout / new message,
+   * and always kept LAST (shell duty mirrored from the demo). */
+  let typingRow = null;
+  let typingTimer = null;
+  function keepTypingLast() {
+    if (typingRow && typingRow.parentNode === box) box.append(typingRow);
+  }
+  function showTyping() {
+    if (!typingRow) {
+      typingRow = createTypingIndicator(mode.isGroup && identity.name ? { name: identity.name } : {});
+    }
+    box.append(typingRow);
+    box.scrollTop = box.scrollHeight;
+    if (typingTimer) clearTimeout(typingTimer);
+    typingTimer = setTimeout(hideTyping, 5000);  // legacy showUserTyping auto-hides after 5s
+  }
+  function hideTyping() {
+    if (typingTimer) { clearTimeout(typingTimer); typingTimer = null; }
+    if (typingRow && typingRow.parentNode) typingRow.remove();
+  }
+
+  const nearBottom = () => box.scrollTop + box.clientHeight * 1.5 >= box.scrollHeight;
+
+  /* status derivation from the legacy bool flags (chat.js updateMessage / addMe):
+   *   errorSending → failed   (highest priority)
+   *   read         → read
+   *   confirmed    → delivered (peer received; "double check" in legacy)
+   *   sent         → sent      (relayed; single check)
+   *   else         → sending   (the legacy "default"/clock state) */
+  function statusFrom({ sent, confirmed, read, errorSending }) {
+    if (asBool(errorSending)) return 'failed';
+    if (asBool(read)) return 'read';
+    if (asBool(confirmed)) return 'delivered';
+    if (asBool(sent)) return 'sent';
+    return 'sending';
+  }
+
+  /* #63 grouping: consecutive same-direction rows within 90s form a run.
+   * Recomputes position (single/first/middle/last) for the whole log — simplest
+   * correct approach for an upsert model with out-of-order inserts + deletes. */
+  const GROUP_WINDOW = 90000;
+  function positionsFor(ids) {
+    const pos = {};
+    for (let i = 0; i < ids.length; i++) {
+      const r = model.get(ids[i]);
+      const prev = i > 0 ? model.get(ids[i - 1]) : null;
+      const next = i < ids.length - 1 ? model.get(ids[i + 1]) : null;
+      const cont = (a, b) => a && b && a.direction === b.direction && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
+      const withPrev = cont(prev, r);
+      const withNext = cont(r, next);
+      pos[ids[i]] = !withPrev && !withNext ? 'single'
+        : !withPrev && withNext ? 'first'
+        : withPrev && withNext ? 'middle'
+        : 'last';
+    }
+    return pos;
+  }
+
+  function buildRow(rec, position) {
+    const isSent = rec.direction === 'sent';
+    return createMessageBubble({
+      direction: isSent ? 'sent' : 'received',
+      position,
+      text: rec.text || '',
+      timestamp: rec.ts,
+      status: isSent ? rec.status : null,
+      // group chats: show sender label + avatar for incoming rows
+      sender: (!isSent && mode.isGroup && rec.senderNick) ? rec.senderNick : null,
+      showAvatar: (!isSent && mode.isGroup),
+      name: rec.senderNick || '',
+      address: rec.senderAddress || '',
+      onRetry: (isSent && rec.status === 'failed')
+        ? () => bridge.send('ixian:contextAction:resend:' + rec.id) : null,
+    });
+  }
+
+  /* full re-render of the log from the model — used after any insert/delete so
+   * grouping + timestamp order stay correct. Rebuilds date separators too. */
+  function renderLog() {
+    const scrollWasAtBottom = nearBottom();
+    box.textContent = '';
+    rows.clear();
+    const pos = positionsFor(order);
+    let lastDay = null;
+    for (const id of order) {
+      const rec = model.get(id);
+      const day = new Date(rec.ts).toDateString();
+      if (day !== lastDay) { box.append(createDateSeparator(rec.ts)); lastDay = day; }
+      const row = buildRow(rec, pos[id]);
+      row.dataset.msgid = id;
+      rows.set(id, row);
+      box.append(row);
+    }
+    keepTypingLast();
+    if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  /* insert (or move) an id into `order` keeping timestamp-ascending; stable for
+   * equal timestamps (append after equals → matches arrival order). */
+  function orderInsert(id) {
+    order = order.filter((x) => x !== id);
+    const ts = model.get(id).ts;
+    let i = order.length;
+    while (i > 0 && model.get(order[i - 1]).ts > ts) i--;
+    order.splice(i, 0, id);
+  }
+
+  /* UPSERT a text row. flags = { sent, confirmed, read, paid, errorSending }. */
+  function upsertText(id, text, direction, ts, flags, extra) {
+    id = String(id);
+    const existing = model.get(id);
+    const rec = existing || { id, direction, senderNick: '', senderAddress: '' };
+    if (text !== undefined && text !== null) rec.text = String(text);
+    if (direction) rec.direction = direction;
+    if (ts) rec.ts = ts;
+    if (extra) {
+      if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
+      if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+    }
+    rec.status = statusFrom(flags || {});
+    model.set(id, rec);
+    orderInsert(id);
+    hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping)
+
+    if (!existing) {
+      renderLog();  // new row → re-render so grouping + date separators are correct
+      return;
+    }
+    // status-only update on an existing SENT row → surgical tick (no flicker).
+    // failed restructures the row, so re-render instead.
+    if (rec.direction === 'sent' && rec.status !== 'failed') {
+      const row = rows.get(id);
+      if (row) { setMessageStatus(row, rec.status); return; }
+    }
+    renderLog();
+  }
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS command handlers — every one a page global (via bridge.exposeAll),
+   * because executeUiCommand(fnRef, …) resolves fnRef as a bare page-global.
+   * The 1:1 text path is wired; the rest are safe no-op stubs.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const handlers = {
+    /* ——— header + mode (wired) ——————————————————————————————————————————— */
+
+    // setChatMode(type, cost, costText, admin, botDescription, notificationsString)
+    // type: 0 = 1:1, 1 = private group, 2 = blind group, 3 = bot (chat.js:152).
+    // v1 focus is 1:1 text; we record the mode so grouping shows sender
+    // labels/avatars for groups. cost/bot/notifications surfaces are later passes.
+    setChatMode(type, cost, costText, admin, botDescription, notificationsString) {
+      const t = Number(type) || 0;
+      mode.type = t;
+      mode.isGroup = (t === 1 || t === 2);
+      mode.isBot = (t === 3);
+      mode.admin = asBool(admin);
+      dbg('setChatMode', { type: t, cost, admin: mode.admin, notificationsString });
+    },
+
+    setNickname(nick) {
+      identity.name = nick || '';
+      renderTopbar();
+    },
+
+    // setOnlineStatus receives a fully-localised string from C# (chat-online /
+    // chat-offline / member count / waiting-for-response) — render it verbatim
+    // as the presence sub-line. We flag the avatar dot online only for the
+    // 1:1 "online" wording heuristically; presence text is the source of truth.
+    setOnlineStatus(status) {
+      identity.sub = status || '';
+      const s = (status || '').toLowerCase();
+      identity.online = !mode.isGroup && /online/.test(s);
+      renderTopbar();
+    },
+
+    /* ——— messages (wired) ———————————————————————————————————————————————— */
+
+    // Batch reset. showMore ("true"/"false") = whether a "load older" affordance
+    // belongs at the top; v1 just resets the model (loadmore is a stub verb).
+    clearMessages(showMore) {
+      model.clear();
+      rows.clear();
+      order = [];
+      hideTyping();
+      typingRow = null;
+      box.textContent = '';
+      dbg('clearMessages', { showMore });
+    },
+
+    // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
+    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending) {
+      upsertText(id, text, 'sent', toMs(time),
+        { sent, confirmed, read, paid, errorSending });
+    },
+
+    // TEXT create — incoming message. Legacy addThem is called with 6 args
+    // (xaml.cs:1460 for !localSender); status flags are irrelevant for received
+    // rows (no ticks rendered). nick/address feed the group sender label/avatar.
+    addThem(id, address, nick, avatar, text, time) {
+      upsertText(id, text, 'received', toMs(time), {},
+        { senderNick: nick || '', senderAddress: address || '' });
+    },
+
+    // TEXT status UPSERT (chat.js:1035, xaml.cs:1624). Update the row's status
+    // (and text) if it exists; create it if not (robustness — the legacy handler
+    // only updated, but C# may updateMessage a row this shell hasn't seen yet).
+    updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
+      const dir = asBool(sent) ? 'sent' : 'received';
+      const existing = model.get(String(id));
+      upsertText(id, message, dir, existing ? existing.ts : Date.now(),
+        { sent, confirmed, read, paid, errorSending });
+    },
+
+    // Remove a row and re-render so #63 grouping repairs around the gap.
+    deleteMessage(id) {
+      id = String(id);
+      if (!model.has(id)) { dbg('deleteMessage: unknown', id); return; }
+      model.delete(id);
+      order = order.filter((x) => x !== id);
+      renderLog();
+    },
+
+    // Peer is typing — show the pill briefly (auto-hides after 5s).
+    showUserTyping() { showTyping(); },
+
+    // Clear the composer input (C# echoes this after a successful send).
+    clearInput() { if (composerEl) clearComposer(composerEl); },
+
+    /* ——— lifecycle acks (minimal) ———————————————————————————————————————— */
+
+    // C#→JS acks. onChatScreenReady carries the peer address; store it so the
+    // avatar hue is identity-stable even before setNickname lands.
+    onChatScreenReady(address) {
+      identity.address = address || '';
+      if (!identity.name) renderTopbar();
+      dbg('onChatScreenReady', address);
+    },
+    onChatScreenLoaded() { box.scrollTop = box.scrollHeight; dbg('onChatScreenLoaded'); },
+
+    hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
+    setUnreadIndicator(n) { dbg('setUnreadIndicator', n); },
+
+    /* ——— safe no-op stubs (not in the v1 text path) ————————————————————————
+     * Each is a console.debug so C#'s executeUiCommand dispatch never throws. */
+    addPaymentRequest() { dbg('addPaymentRequest'); },
+    updatePaymentRequestStatus() { dbg('updatePaymentRequestStatus'); },
+    updateTransactionStatus() { dbg('updateTransactionStatus'); },
+    addFile() { dbg('addFile'); },
+    updateFile() { dbg('updateFile'); },
+    addCall() { dbg('addCall'); },
+    addReactions() { dbg('addReactions'); },
+    addContact() { dbg('addContact'); },
+    showContactRequest() { dbg('showContactRequest'); },
+    showCallButton() { dbg('showCallButton'); },
+    addApp() { dbg('addApp'); },
+    addAppRequest() { dbg('addAppRequest'); },
+    clearApps() { dbg('clearApps'); },
+    addChannelToSelector() { dbg('addChannelToSelector'); },
+    setSelectedChannel() { dbg('setSelectedChannel'); },
+    setChannelSelectorStatus() { dbg('setChannelSelectorStatus'); },
+    updateGroupChatNicks() { dbg('updateGroupChatNicks'); },
+    showRequestSentModal() { dbg('showRequestSentModal'); },
+    showWarning() { dbg('showWarning'); },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
+  const stl = createScrollToLatest({ target: box });
+  box.closest('.c-chat-canvas').append(stl);
+
+  /* —— composer (JS→C# emits) ——————————————————————————————————————————————
+   * send  → ixian:chat:<encodeURIComponent(text)>  (legacy chat.js:409 — chat
+   *         text is the ONE ixian verb that is URI-encoded; native.js otherwise
+   *         composes raw, so we encode here and hand bridge.send the whole cmd).
+   * typing → ixian:typing, throttled to >1s like legacy (chat.js:423). Legacy
+   *         suppresses typing in group chats; mirror that.
+   * After send we clear locally for snappiness; C# also echoes clearInput. */
+  let composerEl = null;
+  let lastTypingSent = 0;
+  composerEl = createComposer({
+    placeholder: (window.SL && window.SL.chatPlaceholder) || 'Message',
+    voice: false,
+    onSend: (text) => {
+      if (!text) return;
+      bridge.send('ixian:chat:' + encodeURIComponent(text));
+      // composer already clears its own field on send; this is belt-and-braces.
+    },
+    onTyping: () => {
+      if (mode.isGroup) return;                       // legacy: no typing in groups
+      const now = Date.now();
+      if (now - lastTypingSent > 1000) {              // >1s throttle (chat.js:423)
+        lastTypingSent = now;
+        bridge.send('ixian:typing');
+      }
+    },
+    // ⊕ attach: legacy attach bar verbs. v1 wires the plumbing straight to the
+    // real verbs (no in-page attach sheet takeover yet — that is a later pass).
+    onAttach: () => bridge.send('ixian:send'),
+  });
+  document.getElementById('chat-composer').append(composerEl);
+
+  /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
+   *    the legacy onload() timing (spixi.js:88 → window load). Firing it
+   *    synchronously during parse raced C#'s conversation push: the first entry
+   *    could arrive empty and only a manual refresh fixed it. Deferring to the
+   *    window 'load' event makes C# push setChatMode/setNickname/addMe/addThem at
+   *    the right time, so the conversation populates on first open. ———————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

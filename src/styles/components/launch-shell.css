@@ -4,12 +4,22 @@
    interview #0②). Password fields reuse the c-lock__field grammar, so
    lock-shell.css must be linked wherever this shell mounts. */
 
+/* premium round 2 (Damir 2026-07-06): the WHOLE launch is ONE continuous
+   fixed-dark brand surface — the shell rides --gradient-launch and the JS pins
+   data-theme="dark" on the section (welcome→create→restore→retry→tail feel like
+   one experience). The lock screen is the precedent: forms live on the gradient
+   with GLASS fields. Sheets mount on the host OUTSIDE the pin (themed pickers). */
 .c-launch {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--surface-screen);
+  background: var(--gradient-launch);
+}
+/* form chrome dissolves into the gradient: transparent topbar, no hairline */
+.c-launch .c-topbar[data-variant="view"] {
+  background: transparent;
+  border-bottom: 0;
 }
 
 /* —— welcome: the brand view (premium round — full-bleed single screen:
@@ -20,7 +30,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--gradient-launch);   /* Damir premium round (tokens.css dials) */
+  /* gradient inherited from .c-launch now (one continuous surface) */
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-16);
   /* #160b⑧ precedent: the gradient bleeds under the OS statusbar (LaunchPage
      owns the whole screen) — content stays clear of the inset, paint doesn't */
@@ -172,6 +182,21 @@
   font-size: var(--font-size-body-sm);
 }
 .c-launch__terms-body p { margin: 0 0 var(--spacing-12); }
+.c-launch__terms-h {
+  margin: var(--spacing-16) 0 var(--spacing-8);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__terms-h:first-child { margin-top: 0; }
+.c-launch__terms-list {
+  margin: 0 0 var(--spacing-12);
+  padding-left: var(--spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
 .c-launch__link {
   padding: 0;
   border: 0;
@@ -185,6 +210,30 @@
 .c-launch__link:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;
+}
+/* explicit close on the terms sheet — obvious tap target in the corner (scrim +
+   Esc still dismiss too). The sheet is position:absolute, so this anchors to it */
+.c-launch__sheet-close {
+  position: absolute;
+  top: var(--spacing-12);
+  right: var(--spacing-12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-03);
+  color: var(--text-neutral-01);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-launch__sheet-close:hover { background: var(--surface-neutral-04); } }
+.c-launch__sheet-close:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 2px;
 }
 
 .c-launch__ctas {
@@ -222,25 +271,47 @@
 }
 .c-launch__footer {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
 }
+/* consent line sits directly above the commit button (create/restore) */
+.c-launch__footer .c-launch__fineprint { padding-top: 0; }
 .c-launch__card {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-12);
 }
+/* labelled form sections (create: profile · wallet password) — hierarchy over
+   a flat stack of anonymous inputs (Damir 2026-07-06 UX) */
+.c-launch__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+.c-launch__group-label {
+  margin: 0 0 calc(-1 * var(--spacing-4));
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
 .c-launch__input {
   width: 100%;
   min-height: 48px;                 /* the c-lock__input rhythm beside 56 buttons */
   padding: var(--spacing-8) var(--spacing-12);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border: var(--outline-width-1) solid rgba(255, 255, 255, 0.14); /* sanctioned: glass on the fixed gradient */
   border-radius: var(--radius-12);
-  background: var(--surface-input);
+  background: rgba(255, 255, 255, 0.07);                          /* sanctioned: glass (lock field precedent) */
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
 }
 .c-launch__input::placeholder { color: var(--text-neutral-02); }
+/* the shared password field (c-lock__field) goes glass on the launch gradient
+   too — exactly the lock screen's `.c-lock .c-lock__input` treatment */
+.c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
 .c-launch__input:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;              /* #51 text-field focus grammar */
@@ -251,6 +322,79 @@
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
+}
+/* proactive password-condition hint (BE minimum shown up front) */
+.c-launch__hint {
+  margin: calc(-1 * var(--spacing-4)) 0 0;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+}
+/* prominent recovery callout — the "no backdoor" truth, impossible to miss
+   (Damir 2026-07-06). A tinted glass panel on the gradient, centered. */
+.c-launch__callout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-16) var(--spacing-20);
+  border-radius: var(--radius-16);
+  background: rgba(95, 110, 235, 0.22);   /* sanctioned: periwinkle tint — borderless panel on the gradient */
+  text-align: center;
+}
+.c-launch__callout-title {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__callout-body {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+/* restore hero (premium round 2026-07-06): a shielded-key glyph + welcome-back
+   line at the top; the form group drops to the lower third above the CTA */
+.c-launch__hero {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-24) var(--spacing-8) 0;
+  text-align: center;
+}
+/* legacy restore art (164×164 shipped SVG) — sits on the gradient, dark set */
+.c-launch__hero-illo {
+  display: block;
+  width: min(46vw, 176px);          /* sanctioned: art measure on the 419px frame */
+  max-height: 28vh;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.c-launch__hero-title {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);   /* #58: titles ride heading-sm */
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__hero-copy {
+  margin: 0;
+  max-width: 320px;                 /* sanctioned: readable measure (lock kinship) */
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+}
+/* pushes the form group toward the CTA — "move the input+button lower" */
+.c-launch__lower {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
 }
 .c-launch__avatar {
   display: flex;
@@ -288,10 +432,13 @@
 }
 .c-launch__tail-step .c-launch__illo { max-width: 220px; }
 .c-launch__tail-step .c-button { max-width: 320px; }  /* sanctioned: form measure */
-.c-launch__join-glyph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--icon-accent);
-  padding-bottom: var(--spacing-4);
+/* legacy join-community art (264×264 shipped SVG) on the gradient (dark set) */
+.c-launch__tail-illo {
+  display: block;
+  width: min(58vw, 232px);          /* sanctioned: art measure, carousel parity */
+  max-height: 34vh;
+  height: auto;
+  margin-bottom: var(--spacing-8);
+  user-select: none;
+  -webkit-user-drag: none;
 }

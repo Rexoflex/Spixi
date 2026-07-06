@@ -2115,7 +2115,7 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     '#160b⑦: every encpass field carries its own show-password eye');
   cur.value = 'hunter2'; next.value = 'short'; repeat.value = 'short';
   saveBtn.click();
-  ok(!encErr.hidden && encErr.textContent.includes('8'), 'new password under the 8-char floor blocked inline (spec flag ①)');
+  ok(!encErr.hidden && encErr.textContent.includes('10'), 'new password under the 10-char floor blocked inline (§6① resolved — BE minimum)');
   next.value = 'longenough1'; repeat.value = 'longenough2';
   saveBtn.click();
   ok(!encErr.hidden && encErr.textContent.includes('match'), 'repeat mismatch blocked inline');
@@ -2226,11 +2226,13 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   const shell = d.querySelector('.c-launch');
   ok(!!shell && shell.dataset.view === 'welcome', 'shell mounts on the welcome view');
 
-  // —— brand inheritance is WELCOME-ONLY (launch-spec #0②, premium round) ——
+  // —— premium round 2 (Damir 2026-07-06): the WHOLE launch is ONE continuous
+  //    fixed-dark brand surface on --gradient-launch (supersedes #0② welcome-only) ——
   ok(d.querySelector('.c-launch__welcome').dataset.theme === 'dark',
     'brand: welcome subtree pinned dark over --gradient-launch');
-  ok([...d.querySelectorAll('.c-launch__view, .c-launch__tail')].every((v) => !v.dataset.theme),
-    'create/restore/retry/tail are NOT pinned — normal themed form surfaces');
+  ok(shell.dataset.theme === 'dark'
+    && [...d.querySelectorAll('.c-launch__view, .c-launch__tail')].every((v) => !v.dataset.theme),
+    'the WHOLE shell is pinned dark on ONE continuous --gradient-launch — form views inherit the pin, none re-pin (welcome→create→restore→retry→tail)');
 
   // —— welcome carousel: 4 legacy-tour slides · shipped art · dots · keys ——
   const dots = [...d.querySelectorAll('.c-launch__dot')];
@@ -2265,16 +2267,13 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   W.Spixi.dismissTopOverlay();
   await sleep(400);
 
-  // —— fine-print consent (premium — no checkbox): CTAs live from the start ——
+  // —— welcome is a clean brand CHOICE; consent moved to the commit forms
+  //    (Damir 2026-07-06) ——
   const ctas = [...d.querySelectorAll('.c-launch__ctas .c-button')];
   ok(ctas.length === 2 && ctas.every((b) => !b.disabled),
-    'CTAs enabled immediately (fine-print consent — continuing = agreeing)');
-  ok(!d.querySelector('.c-launch__terms-box') && !!d.querySelector('.c-launch__fineprint'),
-    'no checkbox — “By continuing…” fine print under the CTAs');
-  d.querySelector('.c-launch__fineprint .c-launch__link').click();
-  ok(!!d.querySelector('.c-launch__terms-body'), 'fine-print link opens the full-text terms sheet');
-  W.Spixi.dismissTopOverlay();
-  await sleep(400);
+    'welcome shows two enabled path choices (Create new / Restore existing)');
+  ok(!d.querySelector('.c-launch__welcome .c-launch__fineprint') && !d.querySelector('.c-launch__terms-box'),
+    'welcome carries NO consent line or checkbox — consent lives on the create/restore forms');
 
   // —— create: inline gates (launch-spec §2.2 — incl. BOTH C# parse hazards) ——
   ctas[0].click();
@@ -2284,6 +2283,17 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   const [cpw, crp] = [...create.querySelectorAll('.c-lock__input')];
   const cerr = create.querySelector('.c-lock__error');
   const cbtn = create.querySelector('.c-launch__footer .c-button');
+  // consent moved onto the commit form, above the button (Damir 2026-07-06)
+  const cconsent = create.querySelector('.c-launch__footer .c-launch__fineprint');
+  ok(!!cconsent && /Terms of Use/.test(cconsent.textContent) && /Privacy Policy/.test(cconsent.textContent)
+    && /creating an account/i.test(cconsent.textContent),
+    'create form carries the consent line (Terms + Privacy) directly above the commit button');
+  ok(cbtn.textContent.includes('Create my account'),
+    'commit CTA reads "Create my account" — distinct from the welcome "Create new account"');
+  cconsent.querySelector('.c-launch__link').click();
+  ok(!!d.querySelector('.c-launch__terms-body'), 'the consent Terms link opens the in-app terms sheet');
+  W.Spixi.dismissTopOverlay();
+  await sleep(400);
   cbtn.click();
   ok(!cerr.hidden, 'empty nickname blocks create');
   nick.value = 'Da:mir'; cbtn.click();
@@ -2370,6 +2380,23 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   W.dispatchEvent(new W.Event('pagehide'));
   ok(apiPw.value === 'ghost',
     'the pagehide listener self-cleans once the shell leaves the DOM (no ghost scrubbing — leak guard)');
+
+  // —— consent fires at the BINDING action (create commit), not the welcome tap,
+  //    and is latched to ONE ixian:accept (Damir 2026-07-06) ——
+  let accepts = 0;
+  const cShell = W.Spixi.createLaunchShell({
+    view: 'create', termsRequired: true,
+    onAcceptTerms: () => { accepts += 1; },
+    onCreateAccount: (n, p, ctrl) => ctrl.done(),
+  });
+  d.body.append(cShell);
+  const cf = cShell.querySelector('[data-launch-view="create"]');
+  cf.querySelector('.c-launch__input').value = 'Zed';
+  [...cf.querySelectorAll('.c-lock__input')].forEach((i) => { i.value = 'longenough1'; });
+  const cfBtn = cf.querySelector('.c-launch__footer .c-button');
+  cfBtn.click(); cfBtn.click();
+  ok(accepts === 1, 'ixian:accept fires ONCE on the create commit (consent at the binding action, latched)');
+  cShell.remove();
 
   // —— [L2, Damir 2026-07-06]: the UNLOCK screen scrubs on pagehide too ——
   const lockEl = W.Spixi.createLockScreen({ onUnlock: () => {} });

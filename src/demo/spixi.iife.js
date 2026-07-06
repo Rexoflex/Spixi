@@ -12070,7 +12070,7 @@ const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
 // password CONTAINING it would shift the split slots. Gated here; §9 ask: C#
 // must guard too.
 const ENC_DELIM = '--1ec4ce59e0535704d4--';
-const ENC_MIN = 8;          // ⚠ spec §6 flag ①. SHARED with launch-shell (one truth)
+const ENC_MIN = 10;         // §6① resolved (Damir 2026-07-06): matches the BE wallet-password minimum. SHARED with launch-shell (one truth)
 const UNLOCK_RELEASE_MS = 1600;    // spec §3 auto-release window (flag ③)
 
 function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl grammar)
@@ -14786,23 +14786,23 @@ function buildWelcome(st) {
   const defs = [
     {
       img: base + 'step1.svg',
-      title: strings.slide1Title || 'Your chat, your device, your rules.',
-      copy: strings.slide1Copy || 'Spixi doesn’t use servers. Messages stay on your device and are only sent when encrypted, directly to your contact.',
+      title: strings.slide1Title || 'Built for you. Owned by you.',
+      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device — delivered straight to your contact, and to no one else.',
     },
     {
       img: base + 'step2.svg',
-      title: strings.slide2Title || 'Your address is your only ID.',
-      copy: strings.slide2Copy || 'Spixi doesn’t need your phone number or email. Your unique Spixi address is all you need to connect.',
+      title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
+      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal — the account is yours alone.',
     },
     {
       img: base + 'step3.svg',
-      title: strings.slide3Title || 'Send and receive IXI payments.',
-      copy: strings.slide3Copy || 'Use the built-in wallet to send or receive IXI coins directly inside your chats. It’s as simple as sending a message.',
+      title: strings.slide3Title || 'Send money like you send a message.',
+      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap — as simple and instant as saying hello.',
     },
     {
       img: base + 'step4.svg',
-      title: strings.slide4Title || 'Discover Mini Apps inside your chats.',
-      copy: strings.slide4Copy || 'Spixi Mini Apps let you play games, use tools, or unlock new features, all directly inside your conversations.',
+      title: strings.slide4Title || 'Mini Apps, right inside your chats.',
+      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world — all without ever leaving the conversation.',
     },
   ];
   const slides = defs.map((s, i) => {
@@ -14889,53 +14889,17 @@ function buildWelcome(st) {
   v.append(car, dots);
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
-  //   legacy pages — the old ixian:create/restore page-pushes die with them).
-  //   Fine-print consent: the FIRST continue emits ixian:accept (premium
-  //   rework — no checkbox; legacy accept was in-memory one-way anyway) —
-  const acceptOnce = () => {
-    if (!st.termsRequired || st.acceptSent) return;
-    st.acceptSent = true;
-    try { if (opts.onAcceptTerms) opts.onAcceptTerms(); } catch { /* pref */ }
-  };
+  //   legacy pages). CONSENT moved to the create/restore forms (Damir
+  //   2026-07-06): the welcome is a clean brand choice, and ixian:accept now
+  //   fires at the BINDING action (the actual create/restore commit), not here —
   const ctas = document.createElement('div');
   ctas.className = 'c-launch__ctas';
   const createBtn = createButton({ label: strings.createCta || 'Create new account', size: 56, width: 'full' });
   const restoreBtn = createButton({ label: strings.restoreCta || 'Restore existing account', type: 'outline', size: 56, width: 'full' });
-  createBtn.addEventListener('click', () => { stopAuto(); acceptOnce(); show(st, 'create'); });
-  restoreBtn.addEventListener('click', () => { stopAuto(); acceptOnce(); show(st, 'restore'); });
+  createBtn.addEventListener('click', () => { stopAuto(); show(st, 'create'); });
+  restoreBtn.addEventListener('click', () => { stopAuto(); show(st, 'restore'); });
   ctas.append(createBtn, restoreBtn);
   v.append(ctas);
-
-  // — fine print + full-text terms sheet (the legacy legal text rides via
-  //   strings.termsBody at i18n; paragraphs split on blank lines, textContent
-  //   only — XSS-safe) —
-  const fine = document.createElement('p');
-  fine.className = 'c-launch__fineprint';
-  fine.append((strings.finePrint || 'By continuing, you agree to the') + ' ');
-  const termsLink = document.createElement('button');
-  termsLink.type = 'button';
-  termsLink.className = 'c-launch__link';
-  termsLink.textContent = strings.termsLink || 'Terms of Use';
-  termsLink.addEventListener('click', () => {
-    const bodyEl = document.createElement('div');
-    bodyEl.className = 'c-launch__terms-body u-scroll';
-    const text = strings.termsBody
-      || 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data.\n\nFull terms ship with localization (spec §6⑦).';
-    for (const para of String(text).split(/\n{2,}/)) {
-      const p = document.createElement('p');
-      p.textContent = para;
-      bodyEl.append(p);
-    }
-    const sheet = createSheet({
-      content: bodyEl,
-      host: hostEl(st),
-      title: strings.termsTitle || 'Terms of Use',
-      strings,
-    });
-    openSheet(sheet);
-  });
-  fine.append(termsLink);
-  v.append(fine);
 
   const version = document.createElement('p');
   version.className = 'c-launch__version';
@@ -14947,6 +14911,102 @@ function buildWelcome(st) {
   return v;
 }
 
+/* —— legal docs + consent (shared by create/restore) ———————————————————
+   Damir 2026-07-06: consent lives at the BINDING action (the create/restore
+   commit), not on the welcome nav tap. Terms + Privacy open IN-APP in one
+   sheet renderer; ixian:accept fires once, on the first commit. */
+
+const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data.\n\nThe full document ships with localization (spec §6⑦).';
+const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy ships with localization (spec §6⑦).';
+
+function openDocSheet(st, title, text) {
+  const strings = st.strings;
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'c-launch__terms-body u-scroll';
+  // inline [label](https://…) → anchors (validated https only); the rest is
+  // plain text nodes. Content is app-controlled (strings), never user input.
+  const appendRich = (el, s) => {
+    const re = /\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g;
+    let last = 0, m;
+    while ((m = re.exec(s))) {
+      if (m.index > last) el.append(s.slice(last, m.index));
+      const a = document.createElement('a');
+      a.className = 'c-launch__link';
+      a.href = m[2];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = m[1];
+      el.append(a);
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) el.append(s.slice(last));
+  };
+  // "# " = heading, "- " = list item, else a paragraph. Markers are stripped —
+  // the TEXT stays verbatim (text nodes + validated links only, XSS-safe).
+  let list = null;
+  for (const raw of String(text).split('\n')) {
+    const line = raw.replace(/\r$/, '');       // CRLF safety only — deliberately not trimmed (passwords are never trimmed; guard-counted)
+    if (!line) { list = null; continue; }
+    if (line.startsWith('# ')) {
+      list = null;
+      const h = document.createElement('h4');
+      h.className = 'c-launch__terms-h';
+      h.textContent = line.slice(2);
+      bodyEl.append(h);
+    } else if (line.startsWith('- ')) {
+      if (!list) { list = document.createElement('ul'); list.className = 'c-launch__terms-list'; bodyEl.append(list); }
+      const li = document.createElement('li');
+      appendRich(li, line.slice(2));
+      list.append(li);
+    } else {
+      list = null;
+      const p = document.createElement('p');
+      appendRich(p, line);
+      bodyEl.append(p);
+    }
+  }
+  const sheet = createSheet({ content: bodyEl, host: hostEl(st), title, strings });
+  // explicit close affordance (scrim tap + Esc still work) — obvious corner tap
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'c-launch__sheet-close';
+  closeBtn.setAttribute('aria-label', strings.close || 'Close');
+  closeBtn.append(icon('x', { size: 20 }));
+  closeBtn.addEventListener('click', () => closeSheet(sheet));
+  sheet.append(closeBtn);
+  openSheet(sheet);
+}
+
+// one-shot ixian:accept — emitted at the binding action (create/restore commit)
+function emitAccept(st) {
+  if (!st.termsRequired || st.acceptSent) return;
+  st.acceptSent = true;
+  try { if (st.opts.onAcceptTerms) st.opts.onAcceptTerms(); } catch { /* pref */ }
+}
+
+// consent line for the commit screens: "{lead} [Terms of Use] and acknowledge
+// the [Privacy Policy]." — both open IN-APP (openDocSheet)
+function consentLine(st, lead) {
+  const strings = st.strings;
+  const fine = document.createElement('p');
+  fine.className = 'c-launch__fineprint';
+  fine.append((lead || 'By continuing, you agree to the') + ' ');
+  const termsLink = document.createElement('button');
+  termsLink.type = 'button';
+  termsLink.className = 'c-launch__link';
+  termsLink.textContent = strings.termsLink || 'Terms of Use';
+  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT));
+  fine.append(termsLink);
+  fine.append(' ' + (strings.finePrintAck || 'and acknowledge the') + ' ');
+  const privacyLink = document.createElement('button');
+  privacyLink.type = 'button';
+  privacyLink.className = 'c-launch__link';
+  privacyLink.textContent = strings.privacyLink || 'Privacy Policy';
+  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT));
+  fine.append(privacyLink, '.');
+  return fine;
+}
+
 /* —— create (themed form view) ————————————————————————————————— */
 
 function buildCreate(st) {
@@ -14956,8 +15016,8 @@ function buildCreate(st) {
   v.className = 'c-launch__view';
   v.dataset.launchView = 'create';
 
-  const pw = passwordField({ label: strings.password || 'Wallet password', strings });       // new-password
-  const rp = passwordField({ label: strings.repeatPassword || 'Repeat password', strings }); // new-password
+  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (group label carries "Wallet")
+  const rp = passwordField({ label: strings.repeatPassword || 'Confirm password', strings });  // new-password
   const scrub = () => { pw.input.value = ''; rp.input.value = ''; pw.mask(); rp.mask(); };
   st.scrubs.push(scrub);
 
@@ -14974,6 +15034,15 @@ function buildCreate(st) {
 
   const body = document.createElement('div');
   body.className = 'c-launch__body u-scroll';
+
+  // — Profile group (Damir 2026-07-06 UX: two LABELLED sections read better than
+  //   three anonymous stacked inputs). Avatar + nickname belong together —
+  const gProfile = document.createElement('div');
+  gProfile.className = 'c-launch__group';
+  const lProfile = document.createElement('p');
+  lProfile.className = 'c-launch__group-label';
+  lProfile.textContent = strings.createProfileLabel || 'Your profile';
+  gProfile.append(lProfile);
 
   // avatar preview: identity forms as the nick is typed (deterministic hue —
   // the avatar system IS the identity imagery, illustrations-plan §2)
@@ -14994,28 +15063,51 @@ function buildCreate(st) {
     try { if (opts.onPickAvatar) opts.onPickAvatar(); } catch { /* picker */ }
   });
   avRow.append(avSlot, avBtn);
-  body.append(avRow);
-
-  const card = document.createElement('div');
-  card.className = 'c-launch__card';
   const nick = textInput({ label: strings.nickname || 'Nickname', name: 'nick' });
   nick.addEventListener('input', () => { if (!st.avatarSrc) renderAvatar(); setError(''); });
-  card.append(nick, pw.wrap, rp.wrap);
-  const err = errLine();
-  card.append(err);
-  body.append(card);
+  gProfile.append(avRow, nick);
+  body.append(gProfile);
 
-  const note = document.createElement('p');
-  note.className = 'c-launch__note';
-  note.textContent = strings.createNote
-    || 'This password encrypts your wallet on this device. Spixi can’t recover it for you.';
-  body.append(note);
+  // — Wallet-password group: the two secrets + the length hint, under one label —
+  const gSec = document.createElement('div');
+  gSec.className = 'c-launch__group';
+  const lSec = document.createElement('p');
+  lSec.className = 'c-launch__group-label';
+  lSec.textContent = strings.createPasswordLabel || 'Wallet password';
+  gSec.append(lSec, pw.wrap, rp.wrap);
+  // proactive password condition (BE requires ENC_MIN) — shown UP FRONT, not
+  // only as a post-submit error (Damir 2026-07-06)
+  const hint = document.createElement('p');
+  hint.className = 'c-launch__hint';
+  hint.textContent = (strings.passwordHint || 'Use at least {n} characters.').replace('{n}', String(ENC_MIN));
+  gSec.append(hint);
+  body.append(gSec);
+
+  const err = errLine();
+  body.append(err);
+
+  // prominent recovery callout (Damir 2026-07-06: "make it impossible to miss")
+  // — self-custody has no backdoor. A tinted panel, not a quiet footnote.
+  const warn = document.createElement('div');
+  warn.className = 'c-launch__callout';
+  warn.setAttribute('role', 'note');
+  const warnTitle = document.createElement('p');
+  warnTitle.className = 'c-launch__callout-title';
+  warnTitle.textContent = strings.createWarnTitle || 'Spixi doesn’t store your password.';
+  const warnBody = document.createElement('p');
+  warnBody.className = 'c-launch__callout-body';
+  warnBody.textContent = strings.createWarnBody
+    || 'Without it and your backup file, your account and wallet can’t be recovered — not even by us.';
+  warn.append(warnTitle, warnBody);
+  body.append(warn);
   v.append(body);
 
   const footer = document.createElement('div');
   footer.className = 'c-launch__footer';
-  const cta = createButton({ label: strings.createSubmit || 'Create account', size: 56, width: 'full' });
-  footer.append(cta);
+  // consent at the binding action, right above the commit button (Damir 2026-07-06)
+  const consent = consentLine(st, strings.createConsent || 'By creating an account, you agree to the');
+  const cta = createButton({ label: strings.createSubmit || 'Create my account', size: 56, width: 'full' });
+  footer.append(consent, cta);
   v.append(footer);
 
   const setError = (msg, focusEl) => {
@@ -15069,6 +15161,7 @@ function buildCreate(st) {
         if (msg) setError(msg, pw.input);
       },
     );
+    emitAccept(st);                              // consent at the binding action (spec §5)
     try {
       if (opts.onCreateAccount) opts.onCreateAccount(name, p, ctrl); else ctrl.done();
     } catch { ctrl.fail(strings.createFailed || 'Something went wrong creating the account.'); } // #141-m4
@@ -15108,6 +15201,33 @@ function buildRestore(st) {
   const body = document.createElement('div');
   body.className = 'c-launch__body u-scroll';
 
+  // — premium hero (Damir 2026-07-06: "more premium; move the input+button
+  //   lower"; premium round 2: the SHIPPED legacy restore illustration + a warm
+  //   welcome-back line anchor the top, the form group drops toward the CTA
+  //   (c-launch__lower margin-top:auto) —
+  const base = opts.illustrationBase || 'images/onboarding/';
+  const hero = document.createElement('div');
+  hero.className = 'c-launch__hero';
+  const heroIllo = document.createElement('img');
+  heroIllo.className = 'c-launch__hero-illo';
+  heroIllo.src = base + 'restore.svg';           // legacy restore art (dark set — launch is pinned dark)
+  heroIllo.alt = '';                             // decorative — the copy carries meaning
+  heroIllo.draggable = false;
+  heroIllo.addEventListener('error', () => { heroIllo.hidden = true; }, { once: true });
+  const heroTitle = document.createElement('h1');   // the view's primary heading (topbar title is a nav label div)
+  heroTitle.className = 'c-launch__hero-title';
+  heroTitle.textContent = strings.restoreHeroTitle || 'Welcome back';
+  const heroCopy = document.createElement('p');
+  heroCopy.className = 'c-launch__hero-copy';
+  heroCopy.textContent = strings.restoreHeroCopy
+    || 'Choose your backup file and enter your wallet password to bring your account back to this device.';
+  hero.append(heroIllo, heroTitle, heroCopy);
+  body.append(hero);
+
+  // — form group, pinned to the lower third above the CTA —
+  const lower = document.createElement('div');
+  lower.className = 'c-launch__lower';
+
   const card = document.createElement('div');
   card.className = 'c-launch__card';
   const fileBtn = createButton({
@@ -15130,19 +15250,23 @@ function buildRestore(st) {
   card.append(fileBtn, fileRow, pw.wrap);
   const err = errLine();
   card.append(err);
-  body.append(card);
+  lower.append(card);
 
+  // honesty line kept (spec §2.3): self-custody has no recovery path
   const note = document.createElement('p');
   note.className = 'c-launch__note';
   note.textContent = strings.restoreNote
     || 'Restoring needs this file and your password. Spixi can’t recover either for you.';
-  body.append(note);
+  lower.append(note);
+  body.append(lower);
   v.append(body);
 
   const footer = document.createElement('div');
   footer.className = 'c-launch__footer';
+  // consent at the binding action, right above the commit button (Damir 2026-07-06)
+  const consent = consentLine(st, strings.restoreConsent || 'By restoring your account, you agree to the');
   const cta = createButton({ label: strings.restoreSubmit || 'Restore account', size: 56, width: 'full' });
-  footer.append(cta);
+  footer.append(consent, cta);
   v.append(footer);
 
   const setError = (msg, focusEl) => {
@@ -15179,6 +15303,7 @@ function buildRestore(st) {
         setError(msg || strings.restoreFailed || 'That password didn’t open the backup.', pw.input);
       },
     );
+    emitAccept(st);                              // consent at the binding action (spec §5)
     try {
       if (opts.onRestore) opts.onRestore(p, ctrl); else ctrl.done();
     } catch { ctrl.fail(); }                     // #141-m4
@@ -15321,13 +15446,16 @@ function buildTail(st) {
   backupStep.append(bTitle, bCopy, backupBtn, laterBtn);
 
   // step 2 — join the official bot (legacy onboarding.html joinbot/finish)
+  const base = opts.illustrationBase || 'images/onboarding/';
   const joinStep = document.createElement('div');
   joinStep.className = 'c-launch__tail-step';
   joinStep.hidden = true;
-  const jGlyph = document.createElement('span');
-  jGlyph.className = 'c-launch__join-glyph';
-  jGlyph.setAttribute('aria-hidden', 'true');
-  jGlyph.append(icon('heart-handshake', { size: 48 }));
+  const jIllo = document.createElement('img');    // the SHIPPED legacy join-community art
+  jIllo.className = 'c-launch__tail-illo';
+  jIllo.src = base + 'join-community.svg';
+  jIllo.alt = '';                                 // decorative — the copy carries meaning
+  jIllo.draggable = false;
+  jIllo.addEventListener('error', () => { jIllo.hidden = true; }, { once: true });
   const jTitle = document.createElement('h1');
   jTitle.className = 'c-launch__slide-title';
   jTitle.textContent = strings.joinTitle || 'Join the Spixi community';
@@ -15343,7 +15471,7 @@ function buildTail(st) {
   });
   const skipBtn = createButton({ label: strings.joinSkip || 'Not now', type: 'text', size: 56, width: 'full' });
   skipBtn.addEventListener('click', finish);
-  joinStep.append(jGlyph, jTitle, jCopy, joinBtn, skipBtn);
+  joinStep.append(jIllo, jTitle, jCopy, joinBtn, skipBtn);
 
   v.append(backupStep, joinStep);
   return v;
@@ -15355,6 +15483,10 @@ function createLaunchShell(opts = {}) {
   const { view = 'welcome', termsRequired = false, version = '', strings = {} } = opts;
   const el = document.createElement('section');
   el.className = 'c-launch';
+  el.dataset.theme = 'dark';                       // premium round 2: the WHOLE launch is
+  // one continuous fixed-dark brand surface on --gradient-launch (welcome→create→
+  // restore→retry→tail). The lock screen precedent: forms live on the gradient with
+  // glass fields. Sheets still mount on the host OUTSIDE this pin (themed pickers).
 
   const st = {
     opts, strings,

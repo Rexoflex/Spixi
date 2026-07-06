@@ -41,7 +41,7 @@ const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
 // password CONTAINING it would shift the split slots. Gated here; §9 ask: C#
 // must guard too.
 const ENC_DELIM = '--1ec4ce59e0535704d4--';
-export const ENC_MIN = 8;          // ⚠ spec §6 flag ①. SHARED with launch-shell (one truth)
+export const ENC_MIN = 10;         // §6① resolved (Damir 2026-07-06): matches the BE wallet-password minimum. SHARED with launch-shell (one truth)
 const UNLOCK_RELEASE_MS = 1600;    // spec §3 auto-release window (flag ③)
 
 function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl grammar)

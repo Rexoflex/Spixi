@@ -715,10 +715,11 @@
      family) over a 215° near-black base. Raw rgba sanctioned like
      --gradient-hero-overlay (gradients = code-only tokens). */
   --gradient-lock:
-    radial-gradient(90% 60% at 12% 8%, rgba(123, 92, 255, 0.38) 0%, rgba(123, 92, 255, 0) 62%),
-    radial-gradient(85% 55% at 88% 94%, rgba(46, 99, 255, 0.32) 0%, rgba(46, 99, 255, 0) 58%),
-    radial-gradient(55% 40% at 82% 12%, rgba(46, 197, 255, 0.14) 0%, rgba(46, 197, 255, 0) 60%),
-    linear-gradient(215deg, #171130 0%, #0d1026 42%, #070912 100%);
+    radial-gradient(120% 85% at 50% -25%, rgba(124, 88, 255, 0.45) 0%, rgba(124, 88, 255, 0) 60%),
+    radial-gradient(70% 50% at 90% 16%, rgba(233, 78, 168, 0.135) 0%, rgba(233, 78, 168, 0) 62%),
+    radial-gradient(85% 60% at 6% 84%, rgba(43, 118, 255, 0.25) 0%, rgba(43, 118, 255, 0) 58%),
+    radial-gradient(60% 42% at 86% 98%, rgba(56, 224, 211, 0.11) 0%, rgba(56, 224, 211, 0) 55%),
+    linear-gradient(200deg, #1a1240 0%, #10102e 45%, #05060f 100%);
 
   /* launch/welcome brand gradient (Damir premium round 2026-07-06: "more
      premium colors" than --gradient-lock). Aurora build, FIXED-DARK like the

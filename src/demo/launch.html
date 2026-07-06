@@ -40,6 +40,10 @@
      demo-only inset (env(safe-area-inset-top) does this on device) */
   .demo-launch { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; }
   .demo-launch .c-launch__view, .demo-launch .c-launch__tail { margin-top: 44px; }
+  /* device supplies env(safe-area-inset-top); the demo has none, so feed the
+     welcome the 44px statusbar height as its inset — the pills clear the clock
+     while the gradient still bleeds behind the bar (Damir 2026-07-06) */
+  .demo-launch .c-launch__welcome { padding-top: calc(44px + var(--spacing-16)); }
 </style>
 </head>
 <body>
@@ -95,13 +99,120 @@
     language: 'en-us',
     host: phone,
     strings: {
-      // condensed from the shipped intro.html legal text; the full document
-      // rides the SL channel at i18n (launch-spec §6⑦)
-      termsBody: 'Spixi is a decentralised chat app powered by the Ixian Platform, which utilises the Ixian S2 network and Ixian DLT to facilitate peer-to-peer communication, data streaming and digital asset transactions. By using Spixi, you acknowledge that you have read, understood, and agree to be bound by these Terms.\n\n'
-        + 'You agree to use Spixi for lawful and legitimate purposes only. You must not use Spixi to transmit or distribute any content that is unlawful, abusive, harassing, harmful, hateful, defamatory, obscene, or otherwise objectionable.\n\n'
-        + 'The digital asset wallet integrated into Spixi is self-custodial: you are solely responsible for securing and accessing your IXI funds and contacts list. You agree to create a backup file and associated password to recover your Spixi account — no other method of accessing the wallet exists.\n\n'
-        + 'When using Ixian DLT for transactions, a micro-fee is charged for confirming and relaying the transaction. Due to the decentralised nature of the platform, IXI Labs does not guarantee the operation of the platform.\n\n'
-        + 'Spixi uses state-of-the-art encryption (RSA key exchange with AES and ChaCha20 message encryption) to secure all messages. IXI Labs does not collect any personal data from users.',
+      // EXACT Terms of Use from the shipped intro.html (Spixi/Resources/Raw/html/
+      // intro.html) — verbatim. "# " = heading, "- " = list item (the renderer
+      // strips the markers). Ships via the SL channel at i18n (launch-spec §6⑦).
+      termsBody: [
+        '# 1. Introduction',
+        'Spixi is a decentralised chat app powered by the Ixian Platform (the "Platform"), which utilises the Ixian S2 network and Ixian DLT (blockchain component) to facilitate peer-to-peer communication, data streaming, and digital asset transactions.',
+        'By using Spixi, you acknowledge that you have read, understood, and agree to be bound by these Terms. If you do not agree, you may not use the app.',
+        '',
+        '# 2. Definitions',
+        '- "Ixian Platform" refers to the decentralised platform for payments of digital assets and data streaming.',
+        '- "Ixian S2 Network" refers to the network handling data transfer and relaying messages between peers.',
+        '- "Ixian DLT" refers to the blockchain component of the Ixian Platform, responsible for transactions and presence lists.',
+        '- "Digital Asset" refers to IXI, the native digital asset of the Ixian Platform.',
+        '- "Spixi Address" refers to a unique identifier assigned to each Spixi account.',
+        '- "IXI Labs" refers to the publisher of the Spixi App.',
+        '',
+        '# 3. Use of Spixi',
+        '3.1 You agree to use Spixi for lawful and legitimate purposes only.',
+        '3.2 You must not use Spixi to transmit or distribute any content that is unlawful, abusive, harassing, harmful, hateful, defamatory, obscene, or otherwise objectionable. This includes, but is not limited to, threats of violence, hate speech, impersonation, or the promotion of illegal activities.',
+        '',
+        '# 4. Transaction Fees',
+        '4.1 When using Ixian DLT for transactions, you acknowledge that a micro-fee will be charged for confirming and relaying the transaction.',
+        '',
+        '# 5. Node Operation',
+        '5.1 IXI Labs is not responsible for node operation. Due to the decentralised nature of the Ixian Platform and the fact that anybody can participate by running a node, IXI Labs in no way guarantees the operation of the platform and Spixi is merely utilising the Ixian Platform to facilitate the use of the application itself.',
+        '',
+        '# 6. Digital Asset Wallet',
+        '6.1 The digital asset wallet integrated into Spixi is self-custodial, meaning you are solely responsible for securing and accessing your IXI funds and contacts list.',
+        '6.2 You agree to create a backup file and associated password to recover your Spixi account. No other method of accessing the wallet exists.',
+        '',
+        '# 7. Encryption',
+        'Spixi secures all messages exchanged between users with modern, authenticated end-to-end encryption. Shared secrets are established through a hybrid key exchange combining RSA-4096, elliptic-curve Diffie-Hellman (ECDH), and ML-KEM (CRYSTALS-Kyber) — a post-quantum algorithm standardised by NIST as FIPS 203 — protecting the handshake against both classical and future quantum attacks. Messages are then encrypted using the AES-256-GCM and ChaCha20-Poly1305 ciphers.',
+        '',
+        '# 8. Responsibility for Content and Transactions',
+        '8.1 You acknowledge that you are responsible for any content (messages, files, etc.) transmitted through Spixi, including but not limited to its accuracy, completeness, and legality.',
+        '8.2 You understand that the publisher has no liability or responsibility for user-generated content, transactions, or messages exchanged between users.',
+        '8.3 Spixi maintains a zero-tolerance policy for objectionable content, including but not limited to hate speech, harassment, threats, or any unlawful, abusive, or offensive behavior. Users may report such content, and in response, offending content may be removed from group chats, and offending users may be excluded from those groups.',
+        '',
+        '# 9. External Services',
+        'Spixi may integrate with external services (third-party apps, services, etc.). In such cases, you agree to refer to the terms of use and privacy policies of those services as needed.',
+        '',
+        '# 10. No Personal Data Collection',
+        'IXI Labs does not collect any personal data from users. For full details on how your information is handled, see the Spixi Privacy Policy.',
+        '',
+        '# 11. Compliance with Laws and Regulations',
+        'The publisher complies with the laws and regulations of Slovenia and is subject to applicable jurisdiction.',
+        '',
+        '# 12. Disclaimer of Liability',
+        'The publisher disclaims all liability for:',
+        '- Any losses or damages resulting from the use of Spixi, including but not limited to loss of IXI funds or any other data.',
+        '- Any unauthorised access to user accounts or content.',
+        '- Any claims related to the accuracy, completeness, or legality of user-generated content.',
+        '- Service availability',
+        '',
+        '# 13. Indemnification',
+        'You agree to indemnify and hold harmless the publisher from any claims, damages, losses, or expenses arising out of your use of Spixi, including but not limited to:',
+        '- Unauthorised access to user accounts or content.',
+        '- Claims related to the accuracy, completeness, or legality of user-generated content.',
+        '',
+        '# 14. Governing Law',
+        'These Terms shall be governed by and construed in accordance with the laws of Slovenia.',
+        '',
+        '# 15. Amendments',
+        'The publisher reserves the right to modify or update these Terms at any time without notice. Your continued use of Spixi constitutes acceptance of any changes made to these Terms.',
+        '',
+        '# 16. Entire Agreement',
+        'These Terms constitute the entire agreement between you and the publisher regarding your use of Spixi, superseding all prior agreements or understandings.',
+        'By using Spixi, you acknowledge that you have read, understood, and agree to be bound by these Terms.',
+      ].join('\n'),
+      // App-focused Privacy Policy — faithful to the store-published policy at
+      // spixi.io/privacy-policy.html, trimmed to what applies inside the app
+      // (the full version, incl. website cookies/analytics/region rights, is
+      // linked at the end). Ships via the SL channel at i18n (launch-spec §6⑦).
+      privacyTitle: 'Privacy Policy',
+      privacyBody: [
+        '# Privacy Policy',
+        'Last updated 7 December 2025. IXI Labs d.o.o. ("IXI Labs", "we") explains how information is handled when you use the Spixi app. By using Spixi you agree to this Policy and to the Terms of Use.',
+        '',
+        '# 1. Who we are',
+        'Spixi is operated by IXI Labs d.o.o., a company registered in Slovenia. You can reach us at support@spixi.io.',
+        '',
+        '# 2. Privacy by design',
+        'Spixi is built to need as little of your information as possible:',
+        '- No phone number or email is required to create an account.',
+        '- Your message history is stored only on your device. IXI Labs cannot access or read your messages.',
+        '- IXI Labs does not have access to your wallet keys.',
+        'You are not required to give us any personal information to use the app.',
+        '',
+        '# 3. Your Spixi address and the blockchain',
+        'Spixi runs on the Ixian platform, which uses a distributed ledger (blockchain). When you use the app:',
+        '- You generate one or more Spixi / IXI addresses — pseudonymous cryptographic identifiers, not your real-world identity.',
+        '- Your transactions, and certain related metadata, may be recorded on the Ixian blockchain and are visible to anyone on the network.',
+        '- Blockchain records are public and often immutable, so they may be difficult or impossible to change or delete.',
+        'You can use Spixi without providing real-world identity data to IXI Labs.',
+        '',
+        '# 4. How we use information',
+        'Where we do process information — for example when you contact support or subscribe to updates — we use it to operate and secure the Services, respond to you, and improve Spixi. We do not sell your personal information.',
+        '',
+        '# 5. Sharing',
+        'We may share limited information with service providers who process it on our behalf, with our affiliates where needed to run the Services, where required by law or to protect rights and safety, or as part of a business transfer — always subject to protection consistent with this Policy.',
+        '',
+        '# 6. Security',
+        'We use reasonable technical and organisational measures to protect the information we control, but no service is perfectly secure. Because Spixi is self-custodial, the security of your device, password and backup file is critical — IXI Labs cannot recover them for you. If you believe your device or wallet has been compromised, secure it and contact us.',
+        '',
+        '# 7. Your rights',
+        'Depending on where you live, you may have rights to access, correct, delete, restrict, port or object to the processing of your personal data, and to withdraw consent. To exercise them, email support@spixi.io. These rights cannot alter or delete information permanently recorded on the Ixian blockchain.',
+        '',
+        '# 8. Children',
+        'Spixi is not directed to children under 16 (or a higher age where your local law requires), and we do not knowingly collect their personal information.',
+        '',
+        '# 9. Changes and contact',
+        'We may update this Policy from time to time; the "Last updated" date will change and material changes may be announced. Questions about this Policy or your information? Email support@spixi.io.',
+        'The full Privacy Policy, including website cookies, analytics and region-specific rights, is available at [spixi.io/privacy-policy](https://www.spixi.io/privacy-policy.html).',
+      ].join('\n'),
     },
     // intro.html verbs
     onLanguage: (code) => toast('ixian:language:' + code + ' — legacy persists + reloads; live swap at Phase 3'),

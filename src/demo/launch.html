@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Launch/onboarding shell — demo</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/overlay.css">
+<link rel="stylesheet" href="../styles/components/toast.css">
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- c-lock__field grammar (launch-spec §5) -->
+<link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- language/theme sheets (one picker grammar) -->
+<link rel="stylesheet" href="../styles/components/settings-screens.css">
+<link rel="stylesheet" href="../styles/components/launch-shell.css">
+<style>
+  body { padding: var(--spacing-24); }
+  .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); flex-wrap: wrap; }
+  .demo-frames { display: flex; gap: var(--spacing-32); flex-wrap: wrap; justify-content: center; }
+  .demo-phone {
+    width: 419px; height: 860px; display: flex; flex-direction: column;
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-32);
+    overflow: hidden; background: var(--surface-screen);
+    box-shadow: var(--elevation-2); position: relative;
+  }
+  .demo-caption { text-align: center; margin-top: var(--spacing-12); color: var(--text-neutral-02); font-size: var(--font-size-body-sm); max-width: 419px; }
+  .statusbar {
+    height: 44px; flex: none; display: flex; align-items: end; justify-content: space-between;
+    padding: 0 var(--spacing-24) var(--spacing-4);
+    font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
+    color: var(--text-neutral-01);
+    position: relative; z-index: 26;
+  }
+  /* LaunchPage owns the WHOLE screen (#160b⑧ lock precedent): the welcome
+     gradient bleeds under the statusbar; themed views clear it via a
+     demo-only inset (env(safe-area-inset-top) does this on device) */
+  .demo-launch { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; }
+  .demo-launch .c-launch__view, .demo-launch .c-launch__tail { margin-top: 44px; }
+</style>
+</head>
+<body>
+  <div class="demo-toolbar">
+    <h1 class="t-heading-md" style="margin-right:auto">Launch/onboarding shell — Phase 1 #5</h1>
+    <span id="view-slot"></span>
+    <span id="fail-slot"></span>
+    <span id="theme-slot"></span>
+  </div>
+
+  <div class="demo-frames">
+    <div>
+      <div class="demo-phone">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
+        <div class="demo-launch" id="launch-host"></div>
+      </div>
+      <div class="demo-caption">Welcome (premium round): 4-slide autoplay carousel with the SHIPPED legacy tour art · language pill + appearance → the settings sheets (#148⑥ flags / #147 preview tiles) · fine-print terms (first CTA tap = ixian:accept) · <code>--gradient-launch</code> (new premium recipe — 5 dials in tokens.css) · create (nick-forms-the-avatar, <code>:</code> hazard gates) · restore (file + password, wrong = inline; password <code>hunter2</code>) · retry (wrong = native-alert contract, silent restore) · tail: backup nudge → join step.</div>
+    </div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="spixi.iife.js"></script>
+<script>
+  const {
+    createLaunchShell, setLaunchView, setLaunchVersion, setLaunchTerms,
+    setLaunchAvatar, setLaunchFile, createButton, showToast,
+  } = window.Spixi;
+
+  const phone = document.querySelector('.demo-phone');
+  const toast = (text) => showToast({ text, host: phone });
+
+  /* —— theme toggle (demo chrome; welcome stays pinned dark — the proof) —— */
+  const themeBtn = createButton({ label: 'Toggle light', size: 32, type: 'outline', onClick: () => {
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+  } });
+  document.getElementById('theme-slot').append(themeBtn);
+  document.documentElement.dataset.theme = 'dark';
+
+  /* —— failure toggle: create/restore round-trips fail (ctrl.fail paths) —— */
+  let bridgeFails = false;
+  const failBtn = createButton({ label: 'Bridge: OK', size: 32, type: 'outline', onClick: () => {
+    bridgeFails = !bridgeFails;
+    failBtn.querySelector('.c-button__label').textContent = bridgeFails ? 'Bridge: FAIL' : 'Bridge: OK';
+  } });
+  document.getElementById('fail-slot').append(failBtn);
+
+  const shell = createLaunchShell({
+    termsRequired: true,                          // showTerms mirror (fresh install)
+    version: 'Spixi 2.0.0 · demo',
+    language: 'en-us',
+    host: phone,
+    strings: {
+      // condensed from the shipped intro.html legal text; the full document
+      // rides the SL channel at i18n (launch-spec §6⑦)
+      termsBody: 'Spixi is a decentralised chat app powered by the Ixian Platform, which utilises the Ixian S2 network and Ixian DLT to facilitate peer-to-peer communication, data streaming and digital asset transactions. By using Spixi, you acknowledge that you have read, understood, and agree to be bound by these Terms.\n\n'
+        + 'You agree to use Spixi for lawful and legitimate purposes only. You must not use Spixi to transmit or distribute any content that is unlawful, abusive, harassing, harmful, hateful, defamatory, obscene, or otherwise objectionable.\n\n'
+        + 'The digital asset wallet integrated into Spixi is self-custodial: you are solely responsible for securing and accessing your IXI funds and contacts list. You agree to create a backup file and associated password to recover your Spixi account — no other method of accessing the wallet exists.\n\n'
+        + 'When using Ixian DLT for transactions, a micro-fee is charged for confirming and relaying the transaction. Due to the decentralised nature of the platform, IXI Labs does not guarantee the operation of the platform.\n\n'
+        + 'Spixi uses state-of-the-art encryption (RSA key exchange with AES and ChaCha20 message encryption) to secure all messages. IXI Labs does not collect any personal data from users.',
+    },
+    // intro.html verbs
+    onLanguage: (code) => toast('ixian:language:' + code + ' — legacy persists + reloads; live swap at Phase 3'),
+    onAppearance: (i) => {
+      // ThemeAppearance ints 0/1/2 — the demo REALLY swaps tokens (settings precedent)
+      if (i) document.documentElement.dataset.theme = i === 2 ? 'dark' : 'light';
+      toast('ixian:appearance:' + i + (i ? '' : ' — automatic (OS decides)'));
+    },
+    onAcceptTerms: () => toast('ixian:accept — terms accepted (in-memory, legacy parity)'),
+    // intro_new.html verbs — the password NEVER appears in any toast/log
+    onCreateAccount: (nick, pass, ctrl) => {
+      toast('ixian:create:' + nick + ':•••• — generateWallet runs (bg thread, wake locks)');
+      setTimeout(() => (bridgeFails
+        ? ctrl.fail('Mock: account creation failed (Bridge: FAIL).')
+        : ctrl.done()), 1600);
+    },
+    onPickAvatar: () => {
+      // ixian:avatar → native picker → resize → loadAvatar(path)
+      setTimeout(() => {
+        setLaunchAvatar(shell, 'data:image/svg+xml,' + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
+          + '<rect width="96" height="96" fill="#515ee6"/>'
+          + '<circle cx="48" cy="38" r="18" fill="#cbcffe"/>'
+          + '<ellipse cx="48" cy="82" rx="30" ry="22" fill="#cbcffe"/></svg>'));
+        toast('loadAvatar(tmp) — picked + resized 960×960 by C#');
+      }, 500);
+    },
+    // intro_restore.html verbs
+    onSelectFile: () => {
+      setTimeout(() => {
+        setLaunchFile(shell, 'spixi-backup-2026-07-06.ixi');
+        toast('setUploadedFileName — C# copied the pick to <wallet>.tmp');
+      }, 400);
+    },
+    onRestore: (pass, ctrl) => {
+      // wrong password: C# sends showPasswordError + removeLoadingOverlay →
+      // host maps to ONE ctrl.fail(msg) (the one-shot latch absorbs the pair)
+      setTimeout(() => ((pass === 'hunter2' && !bridgeFails)
+        ? ctrl.done()
+        : ctrl.fail('That password didn’t open the backup.')), 900);
+    },
+    // intro_retry.html verbs
+    onRetry: (pass, ctrl) => {
+      setTimeout(() => {
+        if (pass === 'hunter2' && !bridgeFails) { ctrl.done(); return; }
+        toast('NATIVE alert: wrong password (C#) → removeLoadingOverlay');
+        ctrl.fail('');                            // silent restore — the alert spoke
+      }, 900);
+    },
+    // onboarding tail
+    onBackupNow: () => toast('→ onboardingComplete + Backup screen (launch-spec §9② routing — no new verb)'),
+    onJoinBot: () => toast('ixian:joinbot — “Spixi Group Chat” contact request (C#-side address)'),
+    onFinish: () => toast('ixian:finish — onboarding done; C# pops the modal'),
+    onBack: (view) => toast('ixian:back (' + view + ')'),
+  });
+  document.getElementById('launch-host').append(shell);
+
+  /* —— toolbar view jumps (setLaunchView = the C# entry-point mirror) —— */
+  const views = [['Welcome', 'welcome'], ['Create', 'create'], ['Restore', 'restore'], ['Retry', 'retry'], ['Tail', 'tail']];
+  const viewSlot = document.getElementById('view-slot');
+  for (const [label, view] of views) {
+    viewSlot.append(createButton({ label, size: 32, type: 'outline', onClick: () => setLaunchView(shell, view) }));
+  }
+  viewSlot.style.display = 'inline-flex';
+  viewSlot.style.gap = 'var(--spacing-8)';
+</script>
+</body>
+</html>

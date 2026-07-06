@@ -89,8 +89,10 @@ export function backupStatusParts(status = {}, strings = {}) {
 }
 
 /* shared radio option sheet (language & friends) — sd-sheet grammar (#142):
-   commit-per-pick, latched; spinner in the fixed status slot (#145③) */
-function settingsOptionSheet({ title, hint, options, current, host, strings = {}, commit, onPicked }) {
+   commit-per-pick, latched; spinner in the fixed status slot (#145③).
+   EXPORTED: the launch welcome reuses it for its language pill (one picker
+   grammar app-wide — launch premium rework, Damir 2026-07-06). */
+export function settingsOptionSheet({ title, hint, options, current, host, strings = {}, commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -162,8 +164,11 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = {}
 /* theme sheet (#147): VISUAL PREVIEW TILES — light/dark painted with the FIXED
    --preview-* pairs (a preview must show its own mode regardless of the active
    theme; the --surface-qr precedent), System = diagonal split. Same latch +
-   commit-per-pick contract as the option sheet. */
-function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
+   commit-per-pick contract as the option sheet.
+   EXPORTED: the launch welcome reuses it for its appearance control (preview
+   tiles keep the pick visible on the pinned-dark welcome — launch premium
+   rework, Damir 2026-07-06). */
+export function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');

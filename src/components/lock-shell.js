@@ -41,7 +41,7 @@ const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
 // password CONTAINING it would shift the split slots. Gated here; §9 ask: C#
 // must guard too.
 const ENC_DELIM = '--1ec4ce59e0535704d4--';
-const ENC_MIN = 8;                 // ⚠ spec §6 flag ①: legacy minimum unknown
+export const ENC_MIN = 8;          // ⚠ spec §6 flag ①. SHARED with launch-shell (one truth)
 const UNLOCK_RELEASE_MS = 1600;    // spec §3 auto-release window (flag ③)
 
 function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl grammar)
@@ -57,8 +57,9 @@ function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl gramm
  * `::-ms-reveal` is WebView2-only — Android/iOS WebKit have none, so the
  * shell owns the toggle (native eye suppressed in CSS to avoid a double eye).
  * mask() re-masks (scrub paths — never leave a revealed field behind).
+ * EXPORTED: launch-shell reuses the exact grammar (launch-spec §2.2–2.4).
  */
-function passwordField({ label, current = false, strings = {} }) {
+export function passwordField({ label, current = false, strings = {} }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-lock__field';
   const input = document.createElement('input');
@@ -156,6 +157,18 @@ export function createLockScreen({
   const pwField = passwordField({ label: strings.walletPassword || 'Wallet password', current: true, strings });
   const input = pwField.input;
   form.append(pwField.wrap);
+
+  // SECURITY §5 widened per Damir 2026-07-06 (#162 backlog [L2], launch-spec
+  // #0④): a backgrounded unlock screen scrubs too — window-level pagehide
+  // (element-level never fires, the #162 audit class). The lock screen has no
+  // unmount hook (it IS the page), so the listener self-cleans on the first
+  // pagehide after the element leaves the DOM (demo/jsdom re-creation guard).
+  const onPageHide = () => {
+    if (!el.isConnected) { window.removeEventListener('pagehide', onPageHide); return; }
+    input.value = '';
+    pwField.mask();
+  };
+  window.addEventListener('pagehide', onPageHide);
 
   const err = document.createElement('p');
   err.className = 'c-lock__error';

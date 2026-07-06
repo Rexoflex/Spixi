@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spixi desktop — split view demo (#19 pitch)</title>
+<title>Spixi desktop — split view demo (#19 pitch · Phase 2 shells)</title>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -34,12 +34,35 @@
 <link rel="stylesheet" href="../styles/components/media-viewer.css">
 <link rel="stylesheet" href="../styles/components/call-overlay.css">
 <link rel="stylesheet" href="../styles/components/callbar.css">
+<!-- Phase 2 desktop batch (docs/desktop-split-spec.md): the three remaining shells -->
+<link rel="stylesheet" href="../styles/components/settings-shell.css">
+<link rel="stylesheet" href="../styles/components/settings-backup.css">
+<link rel="stylesheet" href="../styles/components/settings-screens.css">
+<link rel="stylesheet" href="../styles/components/settings-app.css">
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- encpass screen -->
+<link rel="stylesheet" href="../styles/components/txlist-item.css">
+<link rel="stylesheet" href="../styles/components/wallet-hero.css">
+<link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<link rel="stylesheet" href="../styles/components/wallet-send.css">
+<link rel="stylesheet" href="../styles/components/wallet-receive.css">
+<link rel="stylesheet" href="../styles/components/apps-icon.css">
+<link rel="stylesheet" href="../styles/components/apps-item.css">
+<link rel="stylesheet" href="../styles/components/apps-shell.css">
+<link rel="stylesheet" href="../styles/components/apps-recents.css">
+<link rel="stylesheet" href="../styles/components/apps-header.css">
+<link rel="stylesheet" href="../styles/components/apps-add.css">
+<link rel="stylesheet" href="../styles/components/apps-details.css">
+<link rel="stylesheet" href="../styles/components/apps-discover.css">
+<link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- §4: same nudge, frame host -->
+<link rel="stylesheet" href="../styles/components/chat-info.css"><!-- Damir ①: right info panel -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- GENERATED: theme-ink pattern mask -->
 <style>
   /* ============ desktop split view (#19 pitch, demo wiring only) ============
      Anatomy: LEFT RAIL (bottomnav, vertical CSS — the parked #19/#67 idea)
-     · chat-list pane (search + chips + rows) · DRAGGABLE divider
-     · conversation pane (empty state until a chat is picked). */
+     · list pane · DRAGGABLE divider · detail pane (empty state until picked).
+     Phase 2 (docs/desktop-split-spec.md): the SAME frame now hosts all four
+     shells — rail tabs swap which shell owns the two panes. Composition ONLY:
+     everything below is demo CSS/JS; audited component files stay untouched. */
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 1400px; margin: 0 auto var(--spacing-16); }
   .dt-frame {
@@ -83,7 +106,11 @@
     box-shadow: none;
   }
 
-  /* —— chat-list pane —— */
+  /* —— per-shell pane containers (spec §1: rail tabs swap BOTH panes) —— */
+  .dt-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .dt-shell[hidden] { display: none; }
+
+  /* —— list pane —— */
   .dt-list {
     width: 360px;
     min-width: 280px;
@@ -103,6 +130,23 @@
   .dt-list__search { padding: 0 var(--spacing-16) var(--spacing-8); }
   .dt-list__chips { display: flex; gap: var(--spacing-8); padding: 0 var(--spacing-16) var(--spacing-12); flex-wrap: wrap; }
   .dt-list__rows { flex: 1; min-height: 0; }
+  .dt-list__scroll { flex: 1; min-height: 0; }
+
+  /* selected row tint — reserved for desktop per #33; the token pair channel-sheet
+     already uses for its selected row. aria-current is set by the pane routers. */
+  .dt-list .c-settings__row[aria-current] { background: var(--surface-interactive-selected); }
+  .dt-list .c-txlist-item[aria-current] { background: var(--surface-interactive-selected); }
+  .dt-list .c-app-item[aria-current] .c-app-item__open { background: var(--surface-interactive-selected); }
+
+  /* wallet: compact hero in the 280–520 pane (spec §2.2 — DEMO wrapper class,
+     component CSS untouched; flag ①: proportions are art-directable live) */
+  .dt-wallet-hero { flex: none; }
+  .dt-wallet-hero .c-wallet-hero { padding-block-start: var(--spacing-8); padding-block-end: var(--spacing-12); }
+  .dt-wallet-hero .c-wallet-hero__actions { padding-block-start: var(--spacing-12); }
+
+  /* apps: the list⇄grid toggle is a Discover/detail affordance on desktop (spec §2.3 —
+     the PANE list is forced layout:'list'; hiding the toggle here beats a component flag) */
+  #list-apps .c-apps-header__toggle { display: none; }
 
   /* —— draggable divider (#19: pure-frontend resizable panes) —— */
   .dt-divider {
@@ -121,9 +165,59 @@
     }
   }
 
-  /* —— conversation pane —— */
-  .dt-chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  /* —— detail pane —— */
+  .dt-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .dt-chat__messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); }
+
+  /* chats detail = conversation column + chat-info RIGHT PANEL (Damir 2026-07-06 ①:
+     desktop needs the right panel for chat info — ⋮ toggles it) */
+  #detail-chats { flex-direction: row; }
+  .dt-chatcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .dt-info {
+    width: 340px; flex: none; min-height: 0;
+    display: flex; flex-direction: column;
+    border-inline-start: var(--outline-width-1) solid var(--outline-neutral-01);
+    background: var(--surface-screen);
+    animation: dt-info-in var(--duration-200) var(--easing-decelerate);
+  }
+  .dt-info[hidden] { display: none; }
+  .dt-info .c-chat-info { flex: 1; min-height: 0; }
+  @keyframes dt-info-in { from { translate: 24px 0; opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .dt-info { animation: none; } }
+
+  /* Damir 2026-07-06 ③: bottom sheets read poorly on desktop — inside the frame
+     they PRESENT as centered dialogs. Presentation-only demo CSS: the #56 stack,
+     host and dismissal grammar are untouched, component CSS untouched. */
+  .dt-frame .c-sheet {
+    left: 50%; right: auto; top: 50%; bottom: auto;
+    width: min(480px, 92%);
+    max-height: 76%;
+    overflow-y: auto;
+    border-radius: var(--radius-24);
+    /* the top 8px was the drag-handle's seat — a dialog title needs real air
+       (Damir 2026-07-06d: translated sheets sat flush to the top edge) */
+    padding: var(--spacing-24);
+    transform: translate(-50%, calc(-50% + var(--spacing-16)));
+    opacity: 0;
+    transition: transform var(--duration-200) var(--easing-accelerate),
+                opacity var(--duration-200) var(--easing-accelerate);
+  }
+  .dt-frame .c-sheet[data-open] { transform: translate(-50%, -50%); opacity: 1; transition-timing-function: var(--easing-decelerate); }
+  .dt-frame .c-sheet .c-sheet__handle { display: none; }
+  /* Damir 2026-07-06 ④: the bot CHANNEL selector is the exception — it slides
+     in BELOW the topbar (left/top/width set inline at open, anchored to the
+     topbar rect; the scrim still carries light-dismiss) */
+  .dt-frame .c-sheet[data-dt-anchor] {
+    right: auto; bottom: auto; margin: 0;
+    min-width: 320px;
+    border-radius: 0 0 var(--radius-16) var(--radius-16);
+    padding: var(--spacing-12) var(--spacing-16) var(--spacing-16);  /* dropdowns stay tighter than dialogs */
+    /* Damir 06d: dropdowns FADE IN PLACE — no transform at any point, so
+       nothing can visually "arrive from" anywhere (kills the top-left jump) */
+    transform: none;
+    transition: opacity var(--duration-200) var(--easing-decelerate);
+  }
+  .dt-frame .c-sheet[data-dt-anchor][data-open] { transform: none; }
   .dt-empty {
     flex: 1;
     display: flex;
@@ -138,11 +232,161 @@
   .dt-empty svg { color: var(--icon-neutral-02); opacity: var(--opacity-disabled, 0.4); }
   .dt-empty h2 { color: var(--text-neutral-01); margin: 0; }
   .dt-empty p { margin: 0; font-size: var(--font-size-body-sm); max-width: 320px; }
+
+  /* detail-pane content cap (spec §1: --layout-content-max, centered) */
+  .dt-cap {
+    flex: 1; min-height: 0;
+    width: 100%; max-width: var(--layout-content-max);
+    margin-inline: auto;
+    display: flex; flex-direction: column;
+  }
+  .dt-cap > .dt-cap__scroll { flex: 1; min-height: 0; }
+  /* full-height views (settings screens own their topbar + internal scroll) */
+  .dt-cap--fill > * { flex: 1; min-height: 0; }
+  /* inline tx detail (spec §2.2: openTxSheet's builder, PANE host — not a sheet) */
+  .dt-cap .c-txsheet { padding: var(--spacing-16) var(--spacing-24) var(--spacing-32); max-width: 520px; margin-inline: auto; width: 100%; }
+
+  /* ═══════════ 2026-07-06c desktop polish round (Damir demo pass, spec §6c) ═══════════ */
+
+  /* ① rail: more air, quieter resting ink, and the tonal pill hugs the ICON —
+     the full-item blob read cramped. All dials, art-direct live. */
+  .dt-rail { width: 84px; padding-block: var(--spacing-24); gap: var(--spacing-24); }
+  .dt-rail .c-bottomnav { gap: var(--spacing-16); }
+  .dt-rail .c-bottomnav__item { padding-block: var(--spacing-8); color: var(--icon-neutral-02); }
+  .dt-rail .c-bottomnav__icon, .dt-rail .c-bottomnav__icon--filled { width: 22px; height: 22px; }
+  .dt-rail .c-bottomnav__label { color: var(--text-neutral-02); }
+  /* selected pill = the WHOLE item (icon + label sit inside comfortably, round 4);
+     rounded rect, gentle scale-in — no per-part offsets to fight */
+  .dt-rail .c-bottomnav__item::before {
+    border-radius: var(--radius-12);
+    transform: scale(0.9);
+  }
+  .dt-rail .c-bottomnav__item[aria-current]::before { transform: scale(1); }
+  @media (hover: hover) {
+    .dt-rail .c-bottomnav__item:hover { background: transparent; }
+    .dt-rail .c-bottomnav__item:not([aria-current]):hover::before {
+      opacity: 1; transform: scale(1);
+      background: var(--surface-interactive-hover);
+    }
+  }
+
+  /* ② wallet hero scales with the PANE (--dt-list-w tracks the divider — set by
+     JS, no container queries per #4); the misstx pill wraps below the chips */
+  .dt-wallet-hero .c-wallet-hero__amount { font-size: clamp(22px, calc(var(--dt-list-w, 360) * 1px / 11), 38px); white-space: nowrap; }
+  .dt-list .c-wallet-filters { flex-wrap: wrap; row-gap: var(--spacing-8); }
+
+  /* ③ pane topbars: screen titles ride label-lg — heading sizes read shouty in a pane */
+  .dt-frame .c-topbar__title { font-size: var(--font-size-label-lg); line-height: var(--line-height-label-lg); letter-spacing: var(--tracking-label-lg); }
+
+  /* ⑤ the conversation grows UPWARD from the composer (first child pushes down) */
+  .dt-chat__messages { display: flex; flex-direction: column; }
+  .dt-chat__messages > :first-child { margin-block-start: auto; }
+
+  /* ⑩/⑰ right-click context menus = anchored dropdowns; the source row
+     highlights while its menu is open (tag + position set by the observer) */
+  .dt-frame .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+  .dt-frame [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+
+  /* ⑬⑭ settings detail: narrower cap; CTAs hug their content instead of
+     detaching to a full-width bottom bar */
+  #detail-account .dt-cap { max-width: 640px; }
+  .dt-frame .c-encpass__body { flex: none; }  /* footer follows the card, not the pane bottom */
+  .dt-frame .c-encpass__footer .c-button { width: auto; min-width: 220px; }
+  .dt-frame .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
+  .dt-frame .c-settings-backup__adv-box .c-button { width: auto; }
+
+  /* ⑪ lifted theme tiles keep their sheet spacing in the pane */
+  .dt-cap .c-settings__themes { padding: var(--spacing-16); }
+
+  /* ═══════════ 2026-07-06d refinement (Damir round 2, spec §6d) ═══════════ */
+
+  /* d① the attach/share grid = POPOVER rising above the composer ⊕ (inline
+     left/bottom set at open; width too) — not a centered dialog */
+  .dt-frame .c-sheet[data-dt-anchor="up"] {
+    right: auto; top: auto; margin: 0;
+    border-radius: var(--radius-16);
+    /* fade in place, like every anchored surface (06d) */
+    transform: none;
+  }
+  .dt-frame .c-sheet[data-dt-anchor="up"][data-open] { transform: none; }
+
+  /* d③ rail (round 4 consolidated): item↔item gap 32; iconwrap UNPADDED so
+     the unread badge hugs the icon corner again (Damir: indicator closer to
+     the icon); icon↔label keeps the component's tight gap */
+  .dt-rail .c-bottomnav { gap: var(--spacing-32); }
+  /* NO icon crossfade on the rail (Damir: pill and icon moved in opposite
+     directions — the -filled twin anchors to the unpadded wrap corner).
+     Desktop state = ink + pill; nothing translates. */
+  .dt-rail .c-bottomnav__icon--filled { display: none; }
+  .dt-rail .c-bottomnav__item[aria-current] [data-dual] .c-bottomnav__icon { opacity: 1; }
+
+  /* d④ incoming call PRESENTS as a centered dialog card on desktop — the
+     mobile full-bleed ring stage reads wrong in a frame (#56 grammar intact) */
+  .dt-frame .c-callin {
+    inset: auto; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(400px, 92%);
+    height: auto;
+    justify-content: center;
+    gap: var(--spacing-24);
+    padding: var(--spacing-32) var(--spacing-24);
+    border-radius: var(--radius-24);
+    background: var(--surface-menu);
+    box-shadow: var(--elevation-3);
+  }
+  /* the mobile halves-composition (flex:1 each) collapses in an auto-height
+     card; identity drops the on-scrim muting — it sits on a menu surface here */
+  .dt-frame .c-callin__identity, .dt-frame .c-callin__actions { flex: none; }
+  .dt-frame .c-callin__identity { opacity: 1; }
+  /* on-scrim inks → NEUTRAL inks on the menu-surface card (light mode made
+     name/sub/labels and the Ignore circle white-on-white — Damir screenshot) */
+  .dt-frame .c-callin__name { color: var(--text-neutral-01); }
+  .dt-frame .c-callin__sub, .dt-frame .c-callin__label { color: var(--text-neutral-02); }
+  .dt-frame .c-callin__circle[data-kind="ignore"] {
+    background: var(--surface-neutral-02);
+    color: var(--icon-neutral-01);
+  }
+  .dt-frame .c-callin__circle:focus-visible { outline-color: var(--outline-action-default); }
+
+  /* d⑥ payment screens: the pane cap comes down and the money forms stop
+     shouting — inputs one step down (heading-sm), CTAs hug (encpass grammar) */
+  #detail-wallet .dt-cap { max-width: 560px; }
+  .dt-frame .c-wallet-send__amount, .dt-frame .c-wallet-receive__amount {
+    font-size: var(--font-size-heading-sm);
+    line-height: var(--line-height-heading-sm);
+    padding: var(--spacing-8) var(--spacing-12);
+  }
+  .dt-frame .c-wallet-send__actions .c-button,
+  .dt-frame .c-wallet-receive > .c-button[data-width="full"],
+  .dt-frame .c-wallet-receive__reqbox .c-button[data-width="full"] {
+    width: auto; min-width: 220px; align-self: flex-start;
+  }
+
+  /* d⑦ downloads read as CARDS: row padding + separation on --surface-card */
+  .dt-frame .c-settings-dl__row {
+    background: var(--surface-card);
+    border-radius: var(--radius-12);
+    padding: var(--spacing-8) var(--spacing-8);
+    margin-block-end: var(--spacing-8);
+  }
+  .dt-frame .c-settings-dl__open { min-height: 60px; }
+
+  /* d⑧ lifted language options keep their sheet spacing in the pane */
+  .dt-cap .c-settings__opts { padding: var(--spacing-16); }
+
+  /* d⑨ app-details CTAs: Install / Uninstall hug + center (mobile keeps the
+     full-width conversion bar) — the encpass/backup CTA grammar */
+  .dt-frame .c-app-details__actions .c-button,
+  .dt-frame .c-app-details__danger .c-button {
+    width: auto; min-width: 240px; margin-inline: auto;
+  }
+  .dt-frame .c-app-details__actions, .dt-frame .c-app-details__danger { display: flex; justify-content: center; }
 </style>
 </head>
 <body>
   <div class="demo-toolbar">
-    <h1 class="t-heading-md" style="margin-inline-end:auto">Spixi desktop — split view (#19 pitch)</h1>
+    <h1 class="t-heading-md" style="margin-inline-end:auto">Spixi desktop — split view (#19 pitch · Phase 2 shells)</h1>
+    <span id="nudge-slot"></span>
     <span id="theme-slot"></span>
   </div>
 
@@ -153,35 +397,51 @@
     </nav>
 
     <aside class="dt-list" id="pane-list" aria-label="Chats">
-      <div class="dt-list__head">
-        <h2 class="t-heading-sm" style="margin:0">Chats</h2>
-        <span id="list-actions"></span>
+      <div class="dt-shell" data-shell="chats" id="list-chats">
+        <div class="dt-list__head">
+          <h2 class="t-heading-sm" style="margin:0">Chats</h2>
+          <span id="list-actions"></span>
+        </div>
+        <div class="dt-list__search" id="search-slot"></div>
+        <div class="dt-list__chips" id="chips-slot"></div>
+        <div class="dt-list__rows u-scroll" id="rows"></div>
       </div>
-      <div class="dt-list__search" id="search-slot"></div>
-      <div class="dt-list__chips" id="chips-slot"></div>
-      <div class="dt-list__rows u-scroll" id="rows"></div>
+      <div class="dt-shell" data-shell="apps" id="list-apps" hidden></div>
+      <div class="dt-shell" data-shell="wallet" id="list-wallet" hidden></div>
+      <div class="dt-shell" data-shell="account" id="list-account" hidden></div>
     </aside>
 
-    <div class="dt-divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize chat list"></div>
+    <div class="dt-divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize list"></div>
 
-    <main class="dt-chat" id="pane-chat">
-      <div class="dt-empty" id="empty">
-        <span id="empty-logo"></span>
-        <h2 class="t-heading-sm">Select a chat</h2>
-        <p>Pick a conversation from the list. Payments, files, calls and apps all live in the same thread.</p>
+    <main class="dt-detail" id="pane-detail">
+      <div class="dt-shell" data-shell="chats" id="detail-chats">
+        <div class="dt-chatcol">
+          <div class="dt-empty" id="empty">
+            <span id="empty-logo"></span>
+            <h2 class="t-heading-sm">Select a chat</h2>
+            <p>Pick a conversation from the list. Payments, files, calls and apps all live in the same thread.</p>
+          </div>
+          <div id="chat-topbar" hidden></div>
+          <div class="c-chat-canvas" id="chat-canvas" hidden>
+            <div class="dt-chat__messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
+          </div>
+          <div id="composer-slot" hidden></div>
+        </div>
+        <aside class="dt-info" id="chat-info-panel" aria-label="Chat info" hidden></aside>
       </div>
-      <div id="chat-topbar" hidden></div>
-      <div class="c-chat-canvas" id="chat-canvas" hidden>
-        <div class="dt-chat__messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
-      </div>
-      <div id="composer-slot" hidden></div>
+      <div class="dt-shell" data-shell="apps" id="detail-apps" hidden></div>
+      <div class="dt-shell" data-shell="wallet" id="detail-wallet" hidden></div>
+      <div class="dt-shell" data-shell="account" id="detail-account" hidden></div>
     </main>
   </div>
   <div class="demo-caption">
-    left rail = c-bottomnav VERTICAL (CSS only, parked #19/#67 idea) · draggable divider (double-click resets) ·
-    empty-state right pane · same components as mobile: canvas + pattern · cards · reactions · typing ·
-    scroll-to-latest · right-click context menu · live composer with #86 in-place status ticks ·
-    ⊕ attach tile sheet · BOT CHAT (Ixian News): tap the topbar identity → channel sheet · per-message cost line
+    left rail = c-bottomnav VERTICAL (icon-pill selected state, avatar lands in Account) · rail tabs swap BOTH
+    panes per shell · draggable divider (dblclick resets; wallet hero type tracks the pane) · Chats: ⓘ chat-info
+    RIGHT PANEL · call = 1:1 only · right-click bubbles AND chat rows = anchored dropdowns w/ source highlight ·
+    bot: chevron/identity → channel dropdown under the topbar · sheets PRESENT as centered dialogs (demo CSS;
+    #56 stack unchanged) · Settings: master-detail + theme PREVIEW TILES in the pane · app lock hidden (no
+    C#-less PIN) · Wallet: tx detail/send/receive INLINE right · Apps: ⓘ opens details (⋮ retired on desktop) ·
+    Backup nudge = backup-ux-spec §4.1 on the frame host
   </div>
 
 <script src="../components/icons.iife.js"></script>
@@ -198,6 +458,29 @@
     showToast, setLoading, createSystemNotice, attachLazyHistory,
     openAttachSheet, openChannelSheet, setComposerCost, setTopbarSub,
     openMemberSheet, showIncomingCall, showCallBar, hideCallBar,
+    createChatInfo,   // Damir ①: right info panel
+    attachChatRowMenu,       // 2026-07-06c ⑰: chat-row right-click menu
+    settingsThemeSheet,      // 2026-07-06c ⑪: theme tiles lifted into the pane
+    settingsOptionSheet,     // 2026-07-06d: language options lifted the same way
+    // Phase 2 batch — settings shell
+    createSettingsHub, createSettingsDanger, setBackupStatus,
+    createSettingsBackup, setBackupScreenStatus,
+    createChatAppearance, createPrivacy, createNotificationsScreen, createSecurityLevel,
+    createSettingsDownloads, setDownloads, createSettingsDev, setDevLog,
+    createSettingsContributors, createEncPassScreen,
+    // Phase 2 batch — wallet shell
+    createWalletHero, setWalletBalance,
+    createWalletTxList, renderWalletTxList, createWalletTools, flashWalletTx,
+    createWalletSend, setSendAddress, createWalletReceive,
+    openTxSheet, closeSheet,
+    // Phase 2 batch — apps shell
+    createAppsList, renderAppsList, setAppsQuery, recordRecent, orderedApps,
+    createAppsRecents, renderAppsRecents,
+    createAppsHeader, createAppsAdd, setAddUrl, setAddError, createAppDetails,
+    setAddDiscoverFeed, parseAppsFeed, APPS_FEED_URL,
+    createAppsDiscover, setDiscoverFeed, showAppRemoved,
+    // §4: periodic backup nudge rides the frame host (backup-ux-spec §4.1)
+    showBackupNudge,
   } = window.Spixi;
 
   // #99: normal-group member identity (blind groups omit onSenderClick)
@@ -236,8 +519,48 @@
 
   const frame = document.getElementById('frame');
   const toast = (text, tone = 'info') => showToast({ text: text + ' — demo only', tone, host: frame });
+  const strings = {};
 
-  /* —— rail: bottomnav vertical —— */
+  /* §4: the periodic backup nudge mounts on the FRAME host on desktop too —
+     same showBackupNudge, no desktop variant (backup-ux-spec §4.1). */
+  document.getElementById('nudge-slot').append(createButton({
+    label: 'Backup nudge', type: 'outline', size: 32,
+    onClick: () => showBackupNudge({
+      host: frame,
+      // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
+      // (img error → tonal shield-disc fallback, launch-shell grammar)
+      illustration: 'images/onboarding/backup.svg',
+      onBackup: () => toast('ixian:backup → Backup screen (C#)'),
+    }),
+  }));
+  /* 06d ④: incoming call rings as a centered dialog card on desktop */
+  document.getElementById('nudge-slot').append(createButton({
+    label: 'Incoming call', type: 'outline', size: 32,
+    onClick: () => showIncomingCall({
+      host: frame,
+      caller: { name: 'Han Solo', address: '4fj2hansolo' },
+      onAccept: () => showCallBar({ text: 'Han Solo', host: frame, onHangUp: () => hideCallBar(frame) }),
+      onDecline: () => toast('Call declined'),
+      onIgnore: () => toast('Call ignored (quiet outcome)'),
+    }),
+  }));
+
+  /* —— shared empty-state builder (each detail pane defaults to one, spec §3) —— */
+  const dtEmpty = (glyph, title, text) => {
+    const el = document.createElement('div');
+    el.className = 'dt-empty';
+    const logo = document.createElement('span');
+    logo.append(icon(glyph, { size: 64 }));
+    const h = document.createElement('h2');
+    h.className = 't-heading-sm';
+    h.textContent = title;
+    const p = document.createElement('p');
+    p.textContent = text;
+    el.append(logo, h, p);
+    return el;
+  };
+
+  /* —— rail: bottomnav vertical — tabs swap BOTH panes per shell (spec §1) —— */
   document.getElementById('rail-logo').append(icon('logo', { size: 30 }));
   const rail = createBottomNav({
     items: [
@@ -247,9 +570,41 @@
       { id: 'account', label: 'Account', icon: 'user-circle' },
     ],
     active: 'chats',
-    onChange: (id) => { if (id !== 'chats') toast(id + ' shell'); },
+    onChange: (id) => switchShell(id),
   });
   document.getElementById('rail-nav').append(rail);
+
+  /* 2026-07-06c ⑯: a set avatar replaces the Account glyph in the rail —
+     c-bottomnav supports item.avatar natively; this mirrors it post-create
+     (free-fn ask flagged for the component: setNavAvatar) */
+  const setRailAvatar = (src) => {
+    const wrap = rail.querySelector('.c-bottomnav__item[data-id="account"] .c-bottomnav__iconwrap');
+    if (!wrap) return;
+    const badge = wrap.querySelector('.c-bottomnav__badge');
+    wrap.textContent = '';
+    delete wrap.dataset.dual;
+    if (src) {
+      const img = document.createElement('img');
+      img.className = 'c-bottomnav__avatar';
+      img.src = src;
+      img.alt = '';
+      wrap.append(img);
+    } else {
+      const outline = icon('user-circle');
+      outline.classList.add('c-bottomnav__icon');
+      wrap.append(outline);
+    }
+    if (badge) wrap.append(badge);
+  };
+
+  const PANE_LABELS = { chats: 'Chats', apps: 'Apps', wallet: 'Wallet', account: 'Account' };
+  const shellReady = { chats: true, apps: false, wallet: false, account: false };
+  function switchShell(id) {
+    if (!shellReady[id]) { SHELL_INIT[id](); shellReady[id] = true; }
+    for (const el of document.querySelectorAll('#pane-list > .dt-shell')) el.hidden = el.dataset.shell !== id;
+    for (const el of document.querySelectorAll('#pane-detail > .dt-shell')) el.hidden = el.dataset.shell !== id;
+    document.getElementById('pane-list').setAttribute('aria-label', PANE_LABELS[id]);
+  }
 
   /* —— chat list pane —— */
   document.getElementById('list-actions').append(createButton({
@@ -281,6 +636,19 @@
   const rowEls = new Map();
   for (const c of CHATS) {
     const el = createChatItem({ ...c, onClick: () => openChat(c.id) });
+    // 2026-07-06c ⑰: right-click (or long-press) on a chat row → the row menu
+    // (pin/mute/mark-read/info/delete) — anchored-dropdown presentation below
+    attachChatRowMenu(el, {
+      chat: c, host: frame, strings,
+      capabilities: { pin: true, mute: true },
+      onAction: (action) => {
+        if (action === 'info') { openChat(c.id); toggleChatInfo(); return; }
+        if (action === 'delete') { el.remove(); rowEls.delete(c.id); toast('Chat deleted'); return; }
+        if (action === 'pin') { c.pinned = !c.pinned; toast(c.pinned ? 'Pinned' : 'Unpinned'); return; }
+        if (action === 'mute') { c.muted = !c.muted; toast(c.muted ? 'Muted' : 'Unmuted'); return; }
+        toast('Marked as read');
+      },
+    });
     rowEls.set(c.id, el);
     rowsHost.append(el);
   }
@@ -312,11 +680,16 @@
     if (!divider.hasAttribute('data-dragging')) return;
     const w = Math.max(280, Math.min(520, dragW + (e.clientX - dragX)));
     paneList.style.width = w + 'px'; // runtime layout — sanctioned (demo wiring)
+    frame.style.setProperty('--dt-list-w', String(w)); // 06c ②: hero type tracks the pane
   });
   const endDrag = () => divider.removeAttribute('data-dragging');
   divider.addEventListener('pointerup', endDrag);
   divider.addEventListener('pointercancel', endDrag);
-  divider.addEventListener('dblclick', () => { paneList.style.width = '360px'; });
+  divider.addEventListener('dblclick', () => {
+    paneList.style.width = '360px';
+    frame.style.setProperty('--dt-list-w', '360');
+  });
+  frame.style.setProperty('--dt-list-w', '360');
 
   /* —— conversation pane —— */
   document.getElementById('empty-logo').append(icon('logo', { size: 64 }));
@@ -366,7 +739,8 @@
     title: 'Encrypted. Peer-to-peer. Yours alone.',
     text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with ' + who + ', nowhere else.',
     linkLabel: 'How it works',
-    onLink: () => toast('Security info'),
+    // 2026-07-06c ⑥ — the real shell routes this through the external-link confirm
+    onLink: () => window.open('https://www.spixi.io/help-center.html', '_blank', 'noopener'),
   });
 
   const CONVOS = {
@@ -414,7 +788,8 @@
       box.append(napkin, createMessageBubble({ direction: 'sent', position: 'single', text: 'A napkin is legally binding in at least two systems.', timestamp: now - H, status: 'delivered' }));
       rowRx.set(napkin, { reactions: [{ emoji: '😂', count: 3, own: true }] });
       addReactions(napkin, { ...rowRx.get(napkin), onToggle: (e) => demoReact(napkin, e) });
-      return { title: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true }, lazy };
+      // Damir 2026-07-06 ②: calls are a 1:1 surface at this stage — only han carries the phone action
+      return { title: { name: 'Han Solo', sub: 'Online', address: '4fj2hansolo', online: true }, lazy, call: true };
     },
     crew(box) {
       const alex = groupMember('Alex', '77aleXaddr', 'contact');
@@ -459,19 +834,150 @@
       return {
         title: { name: 'Ixian News', sub: '# announcements · 12,4k members', address: 'ixianewsbot' },
         cost: '0.1 IXI', // bridge setChatMode costText
-        onIdentity: (topbarEl) => openChannelSheet({
-          host: frame,
-          channels,
-          onSelect: (id) => {
-            channels.forEach((c) => { c.selected = c.id === id; });
-            const ch = channels.find((c) => c.id === id);
-            setTopbarSub(topbarEl, '# ' + ch.name + (ch.status ? ' · ' + ch.status : ''));
-            toast('Channel switched — shell re-renders history');
-          },
-        }),
+        onIdentity: (topbarEl) => {
+          const sheet = openChannelSheet({
+            host: frame,
+            channels,
+            onSelect: (id) => {
+              channels.forEach((c) => { c.selected = c.id === id; });
+              const ch = channels.find((c) => c.id === id);
+              setTopbarSub(topbarEl, '# ' + ch.name + (ch.status ? ' · ' + ch.status : ''));
+              toast('Channel switched — shell re-renders history');
+            },
+          });
+          // Damir 2026-07-06 ④ (+ 06c ⑦): on desktop the selector drops STRAIGHT
+          // DOWN from the identity/chevron trigger (presentation only; host/
+          // stack/#56 dismissal unchanged, the scrim still light-dismisses)
+          sheet.dataset.dtAnchor = 'top';
+          const fr = frame.getBoundingClientRect();
+          const trigger = topbarEl.querySelector('.c-topbar__identity-wrap') || topbarEl;
+          const r = trigger.getBoundingClientRect();
+          sheet.style.left = Math.max(8, r.left - fr.left) + 'px';
+          sheet.style.top = (r.bottom - fr.top + 4) + 'px';
+          sheet.style.width = '360px';
+        },
       };
     },
   };
+
+  /* —— Damir ①: chat-info right panel (⋮ toggles; back/✕ inside closes) ——
+     Same createChatInfo the mobile takeover composes — here it fills the
+     .dt-info column beside the conversation. Demo-fed, trimmed data. */
+  const CONVOS_INFO = {
+    han: () => ({
+      kind: 'contact', name: 'Han Solo', address: '4fj2hansolo',
+      txs: [
+        { direction: 'out', status: 'pending', name: 'Han Solo', timestamp: Date.now() - 36e5, amount: '4.00' },
+        { direction: 'out', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 864e5, amount: '-25.00', fiat: '$30.87' },
+        { direction: 'in', status: 'confirmed', name: 'Han Solo', timestamp: Date.now() - 2 * 864e5, amount: '+120.00', fiat: '$148.20' },
+      ],
+      capabilities: { selfDestruct: true },
+      onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+      onPay: () => toast('Would open Send IXI locked to Han'),
+      onRequest: () => toast('Would open the request sheet'),
+      onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),
+      onTx: () => toast('Would open the wallet tx detail'),
+      onTxAll: () => toast('Full payment history — wallet activity, filtered to Han'),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); toast('Contact removed — ixian:remove'); }, 1100),
+    }),
+    // 06c ⑧: FULL member list + admin controls (kick/ban behind alertdialogs) +
+    // the notifications toggle (capabilities-gated). ADD-member affordance and
+    // a bot member list are component gaps — flagged in spec §6c, not forked here.
+    // 06c ⑨: group rename = component + BE gap (onNickname is 1:1-only; no
+    // legacy rename verb known) — §9 ask logged, not mocked.
+    crew: () => ({
+      kind: 'group', name: 'Falcon Crew', address: 'falconcrew77', memberCount: 6,
+      members: [
+        { name: 'Alex', address: '77aleXaddr', admin: true, relation: 'contact' },
+        { name: 'Lando', address: 'lando88cloud' },
+        { name: 'Chewbacca', address: '3RrGhJ6kLz8xCvB1nMq5wEt9', relation: 'contact' },
+        { name: 'Leia O', address: '6TyUiO1pAs3dFgH9jKl2zXc7' },
+        { name: 'Sarah Jo', address: '7NmQw3RtY6uIkLp0oJhG5fDs', relation: 'contact' },
+        { name: 'QWERTZ', address: '8PoIuY5tRe2wQa7sDf4gHj0k' },
+      ],
+      notifications: true,
+      capabilities: { notifications: true, admin: true, presence: true },   // demo: viewer IS an admin
+      onNotifications: (next, ctrl) => setTimeout(ctrl.done, 500),
+      onMemberAction: (action, m, ctrl) => setTimeout(() => { ctrl.done(); toast('ixian:' + action + ' → ' + m.name); }, 900),
+      onContactRequest: (m) => toast('Contact request → ' + m.name),
+      onViewContact: (m) => toast('Contact page: ' + m.name),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onLeave: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); closeChat(); toast('Left the group'); }, 1100),
+    }),
+    bot: () => ({
+      kind: 'bot', name: 'Ixian News', address: 'ixianewsbot', memberCount: 12400,
+      // 06d: bot member list = LEGACY PARITY (the channel bar's people icon) —
+      // flagged chat-info gate change; demo feeds a page, real roster = §9 ask
+      members: [
+        { name: 'Nikki Blinks', address: '9NikkiBlinks001' },
+        { name: 'Joelson', address: '5JoelsonAddr002' },
+        { name: 'Elon musk', address: '4ElonAddr003' },
+        { name: 'Maryina', address: '7MaryinaAddr004' },
+        { name: 'Axynos', address: '2AxynosAddr005' },
+        { name: 'Tatiana', address: '8TatianaAddr006' },
+        { name: 'Kevin Terry', address: '3KevinAddr007' },
+        { name: 'Alexander Stewart', address: '6AlexStAddr008' },
+      ],
+      notifications: true,
+      capabilities: { notifications: true },
+      onContactRequest: (m) => toast('Contact request → ' + m.name),
+      onViewContact: (m) => toast('Contact page: ' + m.name),
+      onNotifications: (next, ctrl) => setTimeout(ctrl.done, 500),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onLeave: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); closeChat(); toast('Left the channel'); }, 1100),
+    }),
+  };
+  const infoPanel = document.getElementById('chat-info-panel');
+  let infoFor = null;
+  const closeChatInfo = () => { infoPanel.hidden = true; infoPanel.textContent = ''; infoFor = null; };
+  const toggleChatInfo = () => {
+    if (!currentChat) return;
+    if (!infoPanel.hidden && infoFor === currentChat) { closeChatInfo(); return; }
+    const build = CONVOS_INFO[currentChat];
+    if (!build) { toast('Chat info not wired for this chat'); return; }
+    infoPanel.textContent = '';
+    infoPanel.append(createChatInfo({ host: frame, onBack: closeChatInfo, strings, ...build() }));
+    infoPanel.hidden = false;
+    infoFor = currentChat;
+  };
+
+  /* —— 2026-07-06c ⑩/⑰: right-click menus PRESENT as anchored dropdowns at the
+     pointer, and the source row highlights while its menu is open. Presentation
+     only: the components open their normal sheet on the frame host; we tag +
+     position it the moment it mounts (#56 stack/dismissal grammar untouched). */
+  let dtCtx = null;       // { x, y, row, at } — recorded at contextmenu time (capture)
+  let dtCtxOpen = null;   // { sheet, row } — the open dropdown + its source row
+  frame.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.c-bubble-row, .c-chatlist-item');
+    if (row) dtCtx = { x: e.clientX, y: e.clientY, row, at: Date.now() };
+  }, true);
+  new MutationObserver((muts) => {
+    for (const m of muts) {
+      for (const n of m.removedNodes) {
+        if (dtCtxOpen && n === dtCtxOpen.sheet) {
+          delete dtCtxOpen.row.dataset.dtCtxSource;
+          dtCtxOpen = null;
+        }
+      }
+      for (const n of m.addedNodes) {
+        if (!n.classList || !n.classList.contains('c-sheet') || !n.querySelector('.c-msgmenu')) continue;
+        if (!dtCtx || Date.now() - dtCtx.at > 600) continue;   // opened by other means → stays a dialog
+        n.dataset.dtAnchor = 'menu';
+        const fr = frame.getBoundingClientRect();
+        const w = 300;
+        // 06d ②: adjacent to the SOURCE — pointer x, dropping from the row's
+        // bottom edge (clear pairing with the highlighted bubble/row)
+        const rr = dtCtx.row.getBoundingClientRect();
+        n.style.width = w + 'px';
+        n.style.left = Math.round(Math.max(8, Math.min(dtCtx.x - fr.left, (fr.width || 1e4) - w - 8))) + 'px';
+        n.style.top = Math.round(Math.max(8, Math.min((rr.bottom || dtCtx.y) - fr.top + 4, (fr.height || 1e4) - 420))) + 'px';
+        dtCtx.row.dataset.dtCtxSource = '';
+        dtCtxOpen = { sheet: n, row: dtCtx.row };
+        dtCtx = null;
+      }
+    }
+  }).observe(frame, { childList: true });
 
   let composer = null;
   let currentChat = null;
@@ -488,9 +994,10 @@
     canvas.hidden = false;
     composerSlot.hidden = false;
 
+    closeChatInfo();                       // panel follows the conversation (Damir ①)
     if (currentLazy) { currentLazy.setDone(); currentLazy = null; }
     box.textContent = '';
-    const { title, lazy, onIdentity, cost } = CONVOS[id](box);
+    const { title, lazy, onIdentity, cost, call } = CONVOS[id](box);
     currentLazy = lazy || null;
     box.querySelectorAll('.c-bubble-row').forEach((row) => {
       if (row.querySelector('.c-typing')) return;
@@ -505,12 +1012,15 @@
       onIdentity: onIdentity ? () => onIdentity(tb) : null,
       onBack: () => { /* desktop: back collapses to the empty state */ closeChat(); },
       actions: [
-        // start call mid-chat (#86) → ongoing c-callbar over the frame
-        { icon: 'phone', label: 'Call', onClick: () => showCallBar({
+        // Damir ②: calls = 1:1 only at this stage — group/bot topbars omit the icon
+        ...(call ? [{ icon: 'phone', label: 'Call', onClick: () => showCallBar({
           text: title.name, host: frame,
           onHangUp: () => hideCallBar(frame),
-        }) },
-        { icon: 'dots-vertical', label: 'More', onClick: () => {} },
+        }) }] : []),
+        // 2026-07-06c ⑦: bot chats get an explicit channels trigger next to info
+        ...(onIdentity ? [{ icon: 'chevron-down', label: 'Channels', onClick: () => onIdentity(tb) }] : []),
+        // Damir ① (+ 06c ④): INFO icon toggles the chat-info RIGHT PANEL (⋮ retired)
+        { icon: 'info-circle', label: 'Chat info', onClick: () => toggleChatInfo() },
       ],
     });
     topbarSlot.append(tb);
@@ -542,10 +1052,22 @@
         setTimeout(() => setMessageStatus(row, 'delivered'), 900);   // #86 in-place ticks
         setTimeout(() => setMessageStatus(row, 'read'), 2200);
       },
-      onAttach: () => openAttachSheet({
-        host: frame, media: true,
-        onAction: (aid) => toast('Attach: ' + aid),
-      }),
+      onAttach: () => {
+        const sheet = openAttachSheet({
+          host: frame, media: true,
+          onAction: (aid) => toast('Attach: ' + aid),
+        });
+        // 06d ①: desktop presents the share grid as a POPOVER rising from the
+        // composer ⊕, left-aligned with it (presentation only, #56 intact)
+        sheet.dataset.dtAnchor = 'up';
+        const fr = frame.getBoundingClientRect();
+        const btn = composer.querySelector('.c-composer__attach') || composer;
+        const r = btn.getBoundingClientRect();
+        sheet.style.left = Math.max(8, r.left - fr.left) + 'px';
+        sheet.style.top = 'auto';
+        sheet.style.bottom = Math.max(8, (fr.bottom || 0) - r.top + 8) + 'px';
+        sheet.style.width = '380px';
+      },
     });
     composerSlot.append(composer);
     setComposerCost(composer, cost || null); // bot chats: standing money fact (#86)
@@ -556,12 +1078,639 @@
     box.scrollTop = box.scrollHeight;
   };
   const closeChat = () => {
+    closeChatInfo();
     currentChat = null;
     for (const el of rowEls.values()) el.removeAttribute('aria-current');
     empty.hidden = false;
     topbarSlot.hidden = true;
     canvas.hidden = true;
     composerSlot.hidden = true;
+  };
+
+  /* ══════════════════ Phase 2 batch (docs/desktop-split-spec.md) ══════════════════
+     Pane routers per spec §3 — dtOpenSettings / dtOpenWalletDetail / dtOpenAppDetail:
+     thin DEMO-layer routers over existing component exports. They own the detail
+     pane's empty state + aria-current in the list pane. Components stay frozen —
+     anything that would need a component change is a FLAG, not an edit. */
+
+  /* helper: detail-pane view = optional topbar + capped scroll region (spec §1) */
+  const dtDetailView = (host, { title, onBack, content, scroll = true, backOnly = false } = {}) => {
+    const cap = document.createElement('div');
+    cap.className = 'dt-cap' + (scroll ? '' : ' dt-cap--fill');
+    if (onBack) cap.append(createTopbar({ variant: 'view', title: backOnly ? '' : title, onBack }));
+    if (scroll) {
+      const sc = document.createElement('div');
+      sc.className = 'dt-cap__scroll u-scroll';
+      sc.append(content);
+      cap.append(sc);
+    } else {
+      cap.append(content);
+    }
+    host.replaceChildren(cap);
+    return cap;
+  };
+
+  /* ———————————————————————— Settings (Account tab, spec §2.1) ————————————————————————
+     Master-detail (#0 ①): hub rows left, the picked screen right. Mobile
+     view-takeovers become right-pane swaps; topbar back in the pane returns to
+     the EMPTY state, not ixian:back. Default = empty (flag ②: cheap to flip). */
+  const settingsDetail = document.getElementById('detail-account');
+  const settingsListHost = document.getElementById('list-account');
+  const stgs = {
+    nick: 'Damir',
+    address: '425HqzWpMkV3dTgJnS85CQen',
+    theme: 0, language: 'en-us', lockEnabled: false,
+    backup: { last: null, dirtyCount: 0 },      // never backed up → warning nudge
+    patternOpacity: 0.5, textScale: 1,
+    files: [
+      { name: 'ixian-whitepaper.pdf', time: '05/07/2026 10:12:44' },
+      { name: 'holiday-group-photo.jpg', time: '04/07/2026 21:03:11' },
+      { name: 'invoice-2026-118.pdf', time: '03/07/2026 14:40:02' },
+      { name: 'voice-note.m4a', time: '02/07/2026 09:15:37' },
+    ],
+  };
+  const CAPS = { dev: true, globalNotifications: true, securityTiers: true, readReceipts: true, typing: true, paymentAuth: true };
+  const LANGS = [
+    { code: 'en-us', label: 'English', flag: '🇺🇸' },
+    { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
+    { code: 'es-es', label: 'Español', flag: '🇪🇸' },
+    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
+    { code: 'sr-latn', label: 'Srpski', flag: '🇷🇸' },
+  ];
+  const fmtToday = () => new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const mockCtrl = (ctrl, ms = 700) => setTimeout(() => ctrl.done(), ms);   // demo bridge: always lands
+
+  let settingsHub = null;
+  let settingsRowPick = null;   // capture-recorded hub row → aria-current (see below)
+  let themeRowEl = null;        // 06c ⑪: the hub Theme row — its value follows pane picks
+  let langRowEl = null;         // 06d: same for the Language row
+  // ixian:appearance:<int> — one commit path for the hub row AND the pane tiles
+  const applyTheme = (index, ctrl) => setTimeout(() => {
+    stgs.theme = index;
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.dataset.theme = index === 1 ? 'light' : 'dark';
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+    ctrl.done();
+  }, 500);
+  const settingsEmpty = () => dtEmpty('user-circle', 'Account settings',
+    'Pick a section from the list — it opens in this pane.');
+  const dtSettingsBack = () => dtOpenSettings(null);
+
+  // right-pane screen builders — the SAME exports the mobile demo composes
+  const SETTINGS_SCREENS = {
+    backup() {
+      const el = createSettingsBackup({
+        status: stgs.backup, host: frame, strings,
+        onBack: dtSettingsBack,
+        onBackup: ({ password }, ctrl) => setTimeout(() => {
+          if (password !== 'hunter2') { ctrl.fail(); return; }
+          stgs.backup = { last: fmtToday(), dirtyCount: 0 };
+          setBackupStatus(settingsHub, stgs.backup);
+          setBackupScreenStatus(el, stgs.backup);
+          ctrl.done();
+          toast('OS share sheet would open with spixi.account.backup.ixi');
+        }, 900),
+        onExportWallet: (ctrl) => setTimeout(() => { ctrl.done(); toast('OS share sheet would open with wallet.ixi'); }, 700),
+      });
+      return el;
+    },
+    danger: () => createSettingsDanger({
+      host: frame, strings,
+      onBack: dtSettingsBack,
+      onDeleteHistory: (ctrl) => mockCtrl(ctrl, 900),
+      onDeleteDownloads: (ctrl) => mockCtrl(ctrl, 700),
+      onDeleteAccount: (ctrl) => setTimeout(() => { ctrl.done(); toast('C# would auth via LockPage, then delete account data'); }, 1100),
+      onDeleteWallet: (ctrl) => setTimeout(() => { ctrl.done(); toast('C# would auth, delete the wallet, restart to Launch'); }, 1100),
+    }),
+    chatAppearance: () => createChatAppearance({
+      patternOpacity: stgs.patternOpacity, textScale: stgs.textScale, strings,
+      onBack: dtSettingsBack,
+      onPattern: (v) => { stgs.patternOpacity = v; document.documentElement.style.setProperty('--chat-pattern-opacity', String(v)); },
+      onTextScale: (v) => { stgs.textScale = v; document.documentElement.style.setProperty('--chat-text-scale', String(v)); },
+    }),
+    privacy: () => createPrivacy({
+      readReceipts: true, typingIndicators: true, capabilities: CAPS, strings,
+      onBack: dtSettingsBack,
+      onReadReceipts: (next, ctrl) => mockCtrl(ctrl),
+      onTyping: (next, ctrl) => mockCtrl(ctrl),
+    }),
+    notifications: () => createNotificationsScreen({
+      enabled: true, previews: true, sounds: true, capabilities: CAPS, strings,
+      onBack: dtSettingsBack,
+      onEnabled: (next, ctrl) => mockCtrl(ctrl),
+      onPreviews: (next, ctrl) => mockCtrl(ctrl),
+      onSounds: (next, ctrl) => mockCtrl(ctrl),
+    }),
+    security: () => createSecurityLevel({
+      tier: 'basic', capabilities: CAPS, strings,
+      onBack: dtSettingsBack,
+      onSecurityTier: (tier, ctrl) => setTimeout(() => { ctrl.done(); toast('Tier "' + tier + '" would cascade policy (§9 table)'); }, 800),
+    }),
+    downloads() {
+      const el = createSettingsDownloads({
+        files: stgs.files, host: frame, strings,
+        onBack: dtSettingsBack,
+        onOpenFile: (name) => toast('ixian:open:' + name + ' — OS would open the file'),
+        onDeleteFile: (name, ctrl) => setTimeout(() => {
+          stgs.files = stgs.files.filter((f) => f.name !== name);
+          ctrl.done();
+          setDownloads(el, stgs.files);
+        }, 700),
+        onClearAll: (ctrl) => setTimeout(() => {
+          stgs.files = [];
+          ctrl.done();
+          setDownloads(el, stgs.files);
+          toast('ixian:deleted — C# alerts with the deleted count');
+        }, 900),
+      });
+      return el;
+    },
+    dev() {
+      const el = createSettingsDev({
+        strings, onBack: dtSettingsBack,
+        onSendLog: (ctrl) => setTimeout(() => { ctrl.done(); toast('C# would open the OS email sheet → info@ixian.io'); }, 900),
+      });
+      setTimeout(() => setDevLog(el, [
+        '2026-07-05 10:12:01 [INFO] IXIAN Spixi 2.1.4',
+        '2026-07-05 10:12:03 [INFO] PresenceList: 412 entries loaded',
+        '2026-07-05 10:21:40 [ERROR] Wallet: balance refresh timed out — retrying',
+        '2026-07-05 10:21:44 [INFO] Wallet: balance refreshed (block 3,412,882)',
+      ].join('\n')), 400);
+      return el;
+    },
+    contributors: () => createSettingsContributors({ strings, onBack: dtSettingsBack }),
+    encpass: () => createEncPassScreen({
+      strings, host: frame,
+      onBack: dtSettingsBack,
+      onChangePassword: (oldPass, newPass, ctrl) => setTimeout(() => {
+        if (oldPass !== 'hunter2') { ctrl.fail(); return; }
+        ctrl.done();
+        toast('ixian:changepass → writeWallet(new) — C# alerts + pops (mock)');
+      }, 900),
+    }),
+  };
+
+  function dtOpenSettings(screen) {
+    // aria-current bookkeeping — the tinted selected state is desktop-reserved (#33)
+    for (const r of settingsListHost.querySelectorAll('.c-settings__row[aria-current]')) r.removeAttribute('aria-current');
+    if (screen && settingsRowPick) settingsRowPick.setAttribute('aria-current', 'page');
+    settingsRowPick = null;
+    if (screen === 'theme') {
+      // 06c ⑪: the theme PREVIEW TILES render in the pane — settingsThemeSheet's
+      // builder lifted from a detached host (the #148② stays-open contract makes
+      // it pane-friendly: picks commit live, no auto-close to fight)
+      const ghost = document.createElement('div');
+      const sheet = settingsThemeSheet({
+        current: stgs.theme, host: ghost, strings,
+        commit: applyTheme,
+        onPicked: (o, msg) => {
+          if (!o) { toast(msg || 'Couldn’t change the theme.'); return; }
+          if (themeRowEl) themeRowEl.querySelector('.c-settings__row-value').textContent = strings[o.key] || o.label;
+        },
+      });
+      const tiles = sheet.querySelector('.c-settings__themes');
+      closeSheet(sheet);
+      dtDetailView(settingsDetail, { title: strings.theme || 'Theme', onBack: dtSettingsBack, content: tiles });
+      return;
+    }
+    if (screen === 'language') {
+      // 06d ③: language options render in the pane — settingsOptionSheet's
+      // builder lifted like the theme tiles. Its pick path is ONE-SHOT (it
+      // normally closes the sheet), so a successful pick REBUILDS the pane
+      // with the new current — check mark moves, picker re-arms.
+      const ghost = document.createElement('div');
+      const sheet = settingsOptionSheet({
+        title: strings.language || 'Language',
+        options: LANGS.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
+        current: stgs.language, host: ghost, strings,
+        commit: (code, ctrl) => setTimeout(() => { stgs.language = code; ctrl.done(); toast('ixian:language:' + code); }, 600),
+        onPicked: (o, msg) => {
+          if (!o) { toast(msg || 'Couldn’t change the language.'); return; }
+          if (langRowEl) langRowEl.querySelector('.c-settings__row-value').textContent = o.label;
+          settingsRowPick = langRowEl;       // keep the row tint through the rebuild
+          dtOpenSettings('language');
+        },
+      });
+      const opts = sheet.querySelector('.c-settings__opts');
+      closeSheet(sheet);
+      dtDetailView(settingsDetail, { title: strings.language || 'Language', onBack: dtSettingsBack, content: opts });
+      return;
+    }
+    if (!screen || !SETTINGS_SCREENS[screen]) {
+      settingsDetail.replaceChildren(settingsEmpty());
+      return;
+    }
+    // screens ship their own view topbar (back → empty state, spec §2.1)
+    dtDetailView(settingsDetail, { content: SETTINGS_SCREENS[screen](), scroll: false });
+  }
+
+  function initAccountShell() {
+    settingsHub = createSettingsHub({
+      name: stgs.nick, address: stgs.address,
+      avatarSrc: null, hasCustomAvatar: false,
+      theme: stgs.theme, languages: LANGS, language: stgs.language,
+      lockEnabled: stgs.lockEnabled, paymentAuth: true,
+      backup: stgs.backup, version: 'Spixi 2.1.4 (demo)',
+      capabilities: CAPS, host: frame, strings,
+      onShare: () => toast('Would share your address via the system share sheet'),
+      onNickname: (nick, ctrl) => setTimeout(() => { stgs.nick = nick; ctrl.done(); toast('ixian:save:' + nick); }, 700),
+      // 06c ⑯: picked avatar ALSO lands in the rail Account item (SVG data URI —
+      // canvas-free so jsdom demos it too)
+      onAvatarChange: (ctrl) => setTimeout(() => {
+        const src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">'
+          + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+          + '<stop offset="0" stop-color="#7b5cff"/><stop offset="1" stop-color="#2ec5ff"/>'
+          + '</linearGradient></defs><rect width="80" height="80" fill="url(#g)"/></svg>');
+        ctrl.done({ src });
+        setRailAvatar(src);
+        toast('ixian:avatar → picked; ixian:save promotes avatar-tmp.jpg');
+      }, 700),
+      onAvatarRemove: (ctrl) => setTimeout(() => {
+        ctrl.done();
+        setRailAvatar(null);
+        toast('ixian:remove — default avatar restored');
+      }, 500),
+      onTheme: applyTheme,
+      onLanguage: (code, ctrl) => setTimeout(() => { stgs.language = code; ctrl.done(); toast('ixian:language:' + code); }, 600),
+      // 06c ⑫: App lock HIDDEN on desktop (no onLock → the row never renders).
+      // A frontend-only PIN would live in WebView storage — not a real lock for
+      // a wallet app; returns at Phase 3 with the C# LockPage/secure storage.
+      onPaymentAuth: (next, ctrl) => setTimeout(() => ctrl.done(), next ? 400 : 900),
+      // nav rows → right-pane swaps (spec §2.1) via the dtOpenSettings router
+      onChangePassword: () => dtOpenSettings('encpass'),
+      onChatAppearance: () => dtOpenSettings('chatAppearance'),
+      onNotifications: () => dtOpenSettings('notifications'),
+      onSecurity: () => dtOpenSettings('security'),
+      onPrivacy: () => dtOpenSettings('privacy'),
+      onBackup: () => dtOpenSettings('backup'),
+      onDownloads: () => dtOpenSettings('downloads'),
+      onContributors: () => dtOpenSettings('contributors'),
+      onDev: () => dtOpenSettings('dev'),
+      onDanger: () => dtOpenSettings('danger'),
+    });
+    // capture-record the clicked hub row so the router (which only gets the
+    // screen name) can move aria-current — no component change needed (spec §3)
+    settingsListHost.addEventListener('click', (e) => {
+      const row = e.target.closest('.c-settings__row');
+      if (!row) return;
+      settingsRowPick = row;
+      // 06c ⑪: the Theme row routes the PANE instead of the component's sheet —
+      // stopPropagation keeps the frozen row handler from opening it
+      const label = row.querySelector('.c-settings__row-label');
+      const labelText = label ? label.textContent.trim() : '';
+      if (labelText === (strings.theme || 'Theme')) {
+        e.stopPropagation();
+        themeRowEl = row;
+        dtOpenSettings('theme');
+      } else if (labelText === (strings.language || 'Language')) {
+        // 06d ③: language rides the pane too (beautifully checked, per order)
+        e.stopPropagation();
+        langRowEl = row;
+        dtOpenSettings('language');
+      }
+    }, true);
+    settingsListHost.append(settingsHub);
+    settingsDetail.replaceChildren(settingsEmpty());
+  }
+
+  /* ————————————————————————————— Wallet (spec §2.2) —————————————————————————————
+     Hero+list left (#0 ②): compact hero above the tx list; tx detail / send /
+     receive render in the DETAIL pane (the `selectTx` mirror — Phase 3 wires
+     the C# side). Tx detail = openTxSheet's builder on a PANE host, NOT a
+     sheet: built in a detached host, lifted out, stack entry dismissed — the
+     frame's overlay stack never sees it (#56: one stack, overlays only). */
+  const walletDetail = document.getElementById('detail-wallet');
+  const walletListHost = document.getElementById('list-wallet');
+  const wnow = Date.now();
+  const wst = { filter: 'all', txs: [
+    { txid: 'a3f9d27b81c21e', direction: 'out', status: 'confirmed', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: wnow - 20 * H, amount: '-18,000.00', fiat: '-$30.87', fee: '0.00001 IXI' },
+    { txid: 'b7d1e0aa3288aa', direction: 'in', status: 'confirmed', name: '425H…5CQen',
+      address: '425HqzWpMkV3dTgJnS85CQen', timestamp: wnow - 2 * D, amount: '+65,000.00', fiat: '+$100.87' },
+    { txid: 'c9e2f14bb941bb', direction: 'out', status: 'pending', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: wnow - 2 * D - 3 * H, amount: '-18,000.00', fiat: '-$30.87', fee: '0.00001 IXI' },
+    { txid: 'd0013c7cae7c7c', direction: 'out', status: 'failed', name: 'Han Solo', contact: true,
+      address: '4kdJ2fN8w1qLxCvB7tRz9fQz', timestamp: wnow - 3 * D, amount: '18,000.00', fiat: '$30.87', fee: '0.00001 IXI' },
+    { txid: 'e5aa719d0f19d0', direction: 'in', status: 'unknown', name: 'Baracuda', contact: true,
+      address: '8xPa1kQq7ZrYwNvJmm2W', timestamp: wnow - 4 * D, amount: '+25.00', fiat: '+$0.04' },
+  ] };
+  const WNAMES = [['Han Solo', '4kdJ2fN8w1qLxCvB7tRz9fQz', true], ['Baracuda', '8xPa1kQq7ZrYwNvJmm2W', true],
+    ['425H…5CQen', '425HqzWpMkV3dTgJnS85CQen', false], ['Sarah Jo', '7NmQw3RtY6uIkLp0oJhG5fDs', true]];
+  for (let i = 0; i < 12; i++) {
+    const [name, address, contact] = WNAMES[i % WNAMES.length];
+    const dirIn = i % 3 === 0;
+    wst.txs.push({
+      txid: 'f' + i.toString(16).padStart(3, '0') + 'aa00bb11cc22', direction: dirIn ? 'in' : 'out',
+      status: 'confirmed', name, contact, address, timestamp: wnow - (5 + i) * D,
+      amount: (dirIn ? '+' : '-') + (120 + i * 7) + '.00', fiat: (dirIn ? '+$' : '-$') + (0.2 + i * 0.01).toFixed(2),
+      fee: dirIn ? undefined : '0.00001 IXI',
+    });
+  }
+  const WCONTACTS = [
+    { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+    { name: 'Baracuda', address: '8xPa1kQq7ZrYwNvJmm2W' },
+    { name: 'Sarah Jo', address: '7NmQw3RtY6uIkLp0oJhG5fDs' },
+    { name: 'John Connor', address: '2AbCw9XyZ7rQpLm4kJhV3nTe' },
+    { name: 'Chewbacca', address: '3RrGhJ6kLz8xCvB1nMq5wEt9' },
+  ];
+  const onExplorer = (tx) => toast(tx
+    ? 'Would open explorer.ixian.io — transaction ' + tx.txid + ' (external-link confirm)'
+    : 'Would open explorer.ixian.io — this address (external-link confirm)');
+  const wopts = { strings, host: frame, onExplorer };   // frame host: filter/missing sheets stay overlays (§4)
+  let wlist = null;
+  const walletEmpty = () => dtEmpty('wallet', 'Wallet',
+    'Pick a transaction from the list, or start a send or receive from the hero.');
+
+  /* the spec §2.2 tx-detail lift: same builder, pane host. openTxSheet mounts a
+     sheet in a DETACHED host; we lift the .c-txsheet content into the pane and
+     dismiss the (never-visible) stack entry synchronously. Explorer inside the
+     lifted detail keeps its one-shot latch — sheet-parity, re-render re-arms. */
+  const buildInlineTxDetail = (tx) => {
+    const ghost = document.createElement('div');
+    const sheet = openTxSheet({ tx, host: ghost, strings, onExplorer });
+    const detail = sheet.querySelector('.c-txsheet');
+    closeSheet(sheet);                            // pops the ghost entry — frame stack untouched
+    return detail;
+  };
+
+  function dtOpenWalletDetail(kind, payload) {
+    if (kind !== 'tx') {
+      for (const r of walletListHost.querySelectorAll('.c-txlist-item[aria-current]')) r.removeAttribute('aria-current');
+    }
+    if (!kind) { walletDetail.replaceChildren(walletEmpty()); return; }
+    if (kind === 'tx') {
+      dtDetailView(walletDetail, {
+        title: strings.txDetails || 'Transaction details',
+        onBack: () => dtOpenWalletDetail(null),
+        content: buildInlineTxDetail(payload),
+      });
+      return;
+    }
+    if (kind === 'send') {
+      const send = createWalletSend({
+        contacts: WCONTACTS, balance: 923852, fee: 0.00001, strings, host: frame,
+        onQuickScan: () => { setSendAddress(send, '425HqzWpMkV3dTgJnS85CQen:send:120'); toast('Scanned — address filled in'); },
+        onSend: (payload2, ctrl) => setTimeout(ctrl.done, 1400),
+        onDone: (payload2) => {
+          const r = payload2.recipients[0];
+          const txid = 'pending' + Date.now().toString(16);
+          wst.txs.unshift({
+            txid, direction: 'out', status: 'pending',
+            name: r.name || r.address, contact: !!r.name, address: r.address,
+            timestamp: Date.now(), amount: '-' + payload2.amount, fee: payload2.fee + ' IXI',
+          });
+          renderWalletTxList(wlist, wst, wopts);
+          dtOpenWalletDetail(null);               // desktop: done collapses to the empty state
+          flashWalletTx(wlist, txid);             // eye lands on the fresh row (#136)
+          toast('Payment sent — confirming on the chain');
+        },
+      });
+      dtDetailView(walletDetail, { title: strings.sendIxi || 'Send IXI', onBack: () => dtOpenWalletDetail(null), content: send });
+      return;
+    }
+    if (kind === 'receive') {
+      const receive = createWalletReceive({
+        address: '425HqzWpMkV3dTgJnS85CQen', contacts: WCONTACTS, strings, host: frame,
+        onShare: ({ address, amount }) => toast(amount
+          ? 'Would share a request for ' + amount + ' IXI (system share sheet)'
+          : 'Would share your address (system share sheet)'),
+        onSendRequest: ({ contact, amount }) => toast('Request for ' + amount + ' IXI sent to ' + contact.name + ' (chat bubble)'),
+      });
+      dtDetailView(walletDetail, { title: strings.receiveIxi || 'Receive IXI', onBack: () => dtOpenWalletDetail(null), content: receive });
+    }
+  }
+
+  function initWalletShell() {
+    // compact hero (spec §2.2) — demo wrapper class trims paddings; watch-item:
+    // wallet-shell.css:60 misstx query is viewport-based, pane min 280 (flag)
+    const heroWrap = document.createElement('div');
+    heroWrap.className = 'dt-wallet-hero';
+    const hero = createWalletHero({
+      balance: '923,852.00', fiat: '$1,845.62', strings,
+      onSend: () => dtOpenWalletDetail('send'),        // hero actions route the DETAIL pane
+      onReceive: () => dtOpenWalletDetail('receive'),
+      onScan: () => toast('Would open the QR scanner (ixian:quickscan)'),
+    });
+    heroWrap.append(hero);
+    wlist = createWalletTxList(wst, wopts);
+    wopts.listEl = wlist;
+    const wtools = createWalletTools(wst, wopts);
+    const wscroll = document.createElement('div');
+    wscroll.className = 'dt-list__scroll u-scroll';
+    wscroll.append(wtools, wlist);
+    walletListHost.append(heroWrap, wscroll);
+
+    // tx rows: CAPTURE-intercept the tap — the component's own handler opens the
+    // sheet (frozen behavior); on desktop the detail renders INLINE instead (§2.2).
+    // stopPropagation in capture keeps the row's sheet handler from ever firing.
+    wscroll.addEventListener('click', (e) => {
+      const row = e.target.closest('.c-txlist-item');
+      if (!row || !row.dataset.txid) return;
+      e.stopPropagation();
+      const tx = wst.txs.find((t) => t.txid === row.dataset.txid);
+      if (!tx) return;
+      for (const r of walletListHost.querySelectorAll('.c-txlist-item[aria-current]')) r.removeAttribute('aria-current');
+      row.setAttribute('aria-current', 'true');
+      dtOpenWalletDetail('tx', tx);
+    }, true);
+
+    walletDetail.replaceChildren(walletEmpty());
+    setTimeout(() => setWalletBalance(hero, { balance: '923,877.00', fiat: '$1,845.67' }), 4000);
+  }
+
+  /* —————————————————————————————— Apps (spec §2.3) ——————————————————————————————
+     List left (#0 ③): installed list FORCED layout:'list' (the grid toggle is
+     hidden in the pane — grid stays a Discover/detail affordance, flag ④ asks
+     which one Discover defaults to). Details / add-app / Discover render right. */
+  const appsDetail = document.getElementById('detail-apps');
+  const appsListHost = document.getElementById('list-apps');
+  const APPS = [
+    { id: 'com.ixilabs.spixi.tictactoe', name: 'TicTacToe', creator: 'IXI Labs', installed: true, verified: true,
+      description: 'Play and win a game of Tic-Tac-Toe with a friend, right inside your chat. Take turns, track your score across rounds, and challenge anyone in your contacts to a quick match — no sign-up, no downloads, it just runs inside Spixi.',
+      version: '1.2.0', size: '240 KB', url: 'https://apps.spixi.io/tictactoe/appinfo.spixi', capabilities: ['MultiUser'],
+      related: [{ id: 'starwind', name: 'Starwind Arena' }, { id: 'sushi', name: 'Sushi Master' }] },
+    { id: 'starwind', name: 'Ixian Starwind Arena', creator: 'IXI Labs', installed: true, verified: true,
+      description: 'A fast-paced multiplayer space arena. Team up and battle across the galaxy.',
+      version: '0.9.1', size: '1.4 MB', url: 'https://apps.spixi.io/starwind/appinfo.spixi', capabilities: ['MultiUser', 'Storage'] },
+    { id: 'mistral', name: 'Mistral Roads', creator: 'Jean Pierre B', installed: true,
+      description: 'Plan road trips across Europe with friends.',
+      version: '2.0', size: '820 KB', url: 'https://apps.spixi.io/mistral/appinfo.spixi', capabilities: ['Storage'] },
+    { id: 'sushi', name: 'Sushi Master', creator: 'Hiro Nakamura', installed: true,
+      description: 'Learn to roll the perfect sushi, step by step.',
+      version: '1.0', size: '640 KB', url: 'https://apps.spixi.io/sushi/appinfo.spixi', capabilities: [] },
+    { id: 'sunny', name: 'Is it sunny — Weather app', creator: 'Spoony', installed: true,
+      description: 'A tiny, friendly weather companion.',
+      version: '3.1', size: '180 KB', url: 'https://apps.spixi.io/sunny/appinfo.spixi', capabilities: ['Storage'] },
+  ];
+  const ast = { apps: APPS.slice(), query: '', layout: 'list', recents: ['com.ixilabs.spixi.tictactoe', 'sunny'] };
+  let alist = null, arecents = null;
+  const appsEmpty = () => dtEmpty('apps', 'Mini apps',
+    'Pick an app for details, or add and discover new ones — they open in this pane.');
+
+  const markAppRow = (app) => {
+    for (const r of appsListHost.querySelectorAll('.c-app-item[aria-current]')) r.removeAttribute('aria-current');
+    if (!app) return;
+    const idx = orderedApps(ast).findIndex((a) => a.id === app.id);
+    const rows = appsListHost.querySelectorAll('.c-app-item');
+    if (idx >= 0 && rows[idx]) rows[idx].setAttribute('aria-current', 'true');
+  };
+
+  function launchApp(app) {
+    recordRecent(ast, app);
+    renderAppsRecents(arecents, ast, aopts);
+    toast('Launch ' + app.name);
+  }
+  const aopts = {
+    strings, host: frame,
+    onLaunch: (app) => launchApp(app),                 // tap → LAUNCH (mobile parity)
+    onOpen: (app) => dtOpenAppDetail('details', app),
+    onUninstall: (app) => toast(app.name + ' uninstalled'),
+    onModelChange: () => {},
+  };
+
+  /* 06c ④: desktop swaps the per-row ⋮ overflow for an INFO button that opens
+     details directly (uninstall lives inside details). Demo decoration after
+     every render — the component (and the mobile ⋮ menu) stay untouched. */
+  const decorateAppRows = () => {
+    const apps = orderedApps(ast);
+    appsListHost.querySelectorAll('.c-app-item').forEach((row, i) => {
+      const menu = row.querySelector('.c-app-item__menu');
+      if (!menu || menu.dataset.dtInfo !== undefined) return;
+      const info = menu.cloneNode(false);                 // keeps class/type, drops listeners
+      info.dataset.dtInfo = '';
+      info.textContent = '';
+      info.setAttribute('aria-label', strings.appDetails || 'App details');
+      info.append(icon('info-circle', { size: 20 }));
+      const app = apps[i];
+      info.addEventListener('click', () => { if (app) dtOpenAppDetail('details', app); });
+      menu.replaceWith(info);
+    });
+  };
+  const rerenderApps = () => { renderAppsList(alist, ast, aopts); decorateAppRows(); };
+
+  // live Discover (#131): the apps.html snapshot fallback, shared by add + Discover
+  const FEED_SNAPSHOT = { categories: ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'], apps: [
+    { id: 'com.ixilabs.spixi.auth', name: 'Spixi Authenticator', publisher: 'IXI Labs', description: 'QR code authentication utility for secure Spixi identity verification.', category: 'Tools', featured: false, version: '1.0.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.auth.spixi', singleUser: true, multiUser: false },
+    { id: 'com.ixilabs.spixi.starwind-arena', name: 'StarWind Arena', publisher: 'IXI Labs', description: 'Classic multi-player tanks game. Play with friends through Spixi.', category: 'Games', featured: true, version: '1.0.0', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.starwind-arena.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.tictactoe', name: 'Tic-Tac-Toe', publisher: 'IXI Labs', description: 'Classic multi-player Tic-Tac-Toe game. Play with friends through Spixi.', category: 'Games', featured: true, version: '1.0.7', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.tictactoe.spixi', multiUser: true },
+    { id: 'com.ixilabs.spixi.whiteboard', name: 'Whiteboard', publisher: 'IXI Labs', description: 'Collaborative drawing whiteboard for real-time visual collaboration with friends.', category: 'Tools', featured: true, version: '1.0.2', spixiUrl: 'https://apps.spixi.io/apps/com.ixilabs.spixi.whiteboard.spixi', multiUser: true },
+  ] };
+  async function loadFeed(apply) {
+    try {
+      const res = await fetch(APPS_FEED_URL, { cache: 'default' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      apply(await res.json());
+    } catch (e) {
+      apply(FEED_SNAPSHOT);                             // file:// / offline → snapshot
+    }
+  }
+
+  function runUninstall(app) {
+    ast.apps = ast.apps.filter((a) => a.id !== app.id);
+    rerenderApps();
+    dtOpenAppDetail(null);
+    showAppRemoved({ host: frame, strings });
+  }
+
+  function dtOpenAppDetail(kind, payload) {
+    if (kind !== 'details') markAppRow(null);
+    if (!kind) { appsDetail.replaceChildren(appsEmpty()); return; }
+    if (kind === 'details') {
+      const app = ast.apps.find((x) => x.id === payload.id) || payload;
+      markAppRow(app);
+      // back-only bar — the details hero carries the name right below (Damir)
+      dtDetailView(appsDetail, {
+        backOnly: true, onBack: () => dtOpenAppDetail(null),
+        content: createAppDetails({
+          app, strings, host: frame,
+          onLaunch: (a) => launchApp(a),
+          onOpen: (a) => dtOpenAppDetail('details', a),
+          onCopyUrl: () => {},
+          onInstall: (a, ctrl) => setTimeout(() => {
+            a.installed = true;
+            if (!ast.apps.some((x) => x.id === a.id)) ast.apps = [a, ...ast.apps];
+            rerenderApps();
+            ctrl.done();
+          }, 1400),
+          onInstalled: (a) => dtOpenAppDetail('details', a),
+          onUninstall: (a) => runUninstall(a),
+        }),
+      });
+      return;
+    }
+    if (kind === 'add') {
+      const addEl = createAppsAdd({
+        strings,
+        onCategory: (c) => toast(c),
+        onFetchUrl: (url) => {
+          if (!url) { setAddError(addEl); return; }
+          dtOpenAppDetail('details', { id: 'fetched', name: 'Fetched Mini App', creator: 'Unknown publisher', installed: false,
+            description: 'A mini app fetched from a link. Review its permissions before installing.',
+            version: '1.0', size: '—', url, capabilities: ['Storage'] });
+        },
+        onScan: () => { setAddUrl(addEl, 'https://apps.spixi.io/tictactoe/appinfo.spixi'); toast('Scanned — link filled in'); },
+        onPickFile: () => dtOpenAppDetail('details', { id: 'filed', name: 'Local Mini App', creator: 'From file', installed: false,
+          description: 'A mini app loaded from a file. Review its permissions before installing.',
+          version: '1.0', size: '512 KB', capabilities: ['MultiUser', 'Storage'] }),
+        onBrowseWeb: () => toast('Would open apps.spixi.io (external-link confirm)'),
+        onLearnBuild: () => toast('Would open the mini-app resources page (external-link confirm)'),
+        onOpenApp: (a) => dtOpenAppDetail('details', a),
+      });
+      dtDetailView(appsDetail, { title: strings.addMiniApp || 'Add mini app', onBack: () => dtOpenAppDetail(null), content: addEl });
+      loadFeed((json) => setAddDiscoverFeed(addEl, parseAppsFeed(json, ast), { strings, onOpen: (a) => dtOpenAppDetail('details', a) }));
+      return;
+    }
+    if (kind === 'discover') {
+      // Discover in the DETAIL pane — grid allowed here (spec §2.3; flag ④:
+      // grid-vs-list default is Damir's demo-pass call)
+      const disc = createAppsDiscover({
+        strings, ready: false,
+        onCategory: (c) => toast(c),
+        onBrowseWeb: () => toast('Would open apps.spixi.io (external-link confirm)'),
+        onOpen: (a) => dtOpenAppDetail('details', a),
+      });
+      dtDetailView(appsDetail, { title: strings.discover || 'Discover', onBack: () => dtOpenAppDetail(null), content: disc });
+      loadFeed((json) => setDiscoverFeed(disc, parseAppsFeed(json, ast), { strings, onOpen: (a) => dtOpenAppDetail('details', a) }));
+    }
+  }
+
+  function initAppsShell() {
+    const head = document.createElement('div');
+    head.className = 'dt-list__head';
+    const ht = document.createElement('h2');
+    ht.className = 't-heading-sm';
+    ht.style.margin = '0';
+    ht.textContent = 'Apps';
+    const addBtn = createButton({
+      icon: icon('circle-plus', { size: 20 }), type: 'text', size: 32,
+      ariaLabel: 'Add mini app', onClick: () => dtOpenAppDetail('add'),
+    });
+    head.append(ht, addBtn);
+
+    alist = createAppsList(ast, aopts);            // state.layout stays 'list' — forced (§2.3)
+    arecents = createAppsRecents(ast, aopts);
+    const aheader = createAppsHeader({
+      layout: 'list', strings, discover: false,
+      exploreImage: '../assets/images/discover-apps.svg',
+      onQuery: (q) => { setAppsQuery(alist, ast, q, aopts); decorateAppRows(); },
+      onToggleLayout: () => {},                    // toggle is display:none in the pane
+      onExplore: () => dtOpenAppDetail('discover'),
+    });
+    const ascroll = document.createElement('div');
+    ascroll.className = 'dt-list__scroll u-scroll';
+    ascroll.append(aheader, arecents, alist);
+    appsListHost.append(head, ascroll);
+    decorateAppRows();                             // 06c ④: ⋮ → info button
+    appsDetail.replaceChildren(appsEmpty());
+  }
+
+  /* rail dispatch — lazy per-shell init (chats built above, mobile-parity) */
+  const SHELL_INIT = {
+    apps: initAppsShell,
+    wallet: initWalletShell,
+    account: initAccountShell,
   };
 </script>
 </body>

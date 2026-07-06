@@ -7,7 +7,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const root = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM, VirtualConsole;
@@ -2038,12 +2038,51 @@ console.log('chats.html — periodic backup nudge (legacy #backup-prompt parity)
   await sleep(500);
   ok(b2 === 0, 'Not now dismisses without firing onBackup (quiet skip — legacy parity)');
 
+  // illustration slot: art leads, decorative; img error → disc fallback
+  // (file-drop upgrade path — illustrations-plan #6, shared with the launch tail)
+  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/onboarding/backup.svg' });
+  const art3 = sheet3.querySelector('.c-backup-nudge__illo');
+  const disc3 = sheet3.querySelector('.c-backup-nudge__disc');
+  ok(!!art3 && art3.getAttribute('alt') === '' && disc3.hidden,
+    'illustration opt renders a decorative img and hides the disc (art leads)');
+  art3.dispatchEvent(new W.Event('error'));
+  ok(!sheet3.querySelector('.c-backup-nudge__illo') && !disc3.hidden,
+    'img error removes the art and reveals the tonal shield disc (never a broken sheet)');
+  // no-illustration default keeps the disc (component works art-less)
+  const sheet4 = W.Spixi.showBackupNudge({ host: phone });
+  ok(!sheet4.querySelector('.c-backup-nudge__illo') && !sheet4.querySelector('.c-backup-nudge__disc').hidden,
+    'without illustration the disc leads (default state)');
+
+  // —— rating nudge (legacy #ratingModal → sheet; showRatingPrompt mirror) ——
+  const answers = [];
+  const rs = W.Spixi.showRatingNudge({ host: phone, onRate: (a) => answers.push(a) });
+  ok(!!rs && rs.classList.contains('c-sheet') && phone.contains(rs),
+    'rating nudge opens as a host-mounted c-sheet (nudge family)');
+  ok(/enjoying Spixi/.test(rs.querySelector('.c-rating-nudge__title').textContent)
+    && /feedback/.test(rs.querySelector('.c-rating-nudge__body').textContent),
+    'rating carries the legacy en-us copy (rating-request-*)');
+  const rbtns = [...rs.querySelectorAll('.c-button')];
+  ok(rbtns.length === 2 && /loving it/.test(rbtns[0].textContent) && /Not so much/.test(rbtns[1].textContent),
+    'two answers: Yes (fill) leads, Not so much (outline) follows');
+  rbtns[0].click();
+  rbtns[1].click();                              // ONE latch across both answers
+  ok(answers.length === 1 && answers[0] === 'yes',
+    'answers share one latch — first tap wins, ixian:rating:<a> emitted once');
+  const rs2 = W.Spixi.showRatingNudge({ host: phone, onRate: (a) => answers.push(a) });
+  [...rs2.querySelectorAll('.c-button')][1].click();
+  ok(answers.length === 2 && answers[1] === 'no',
+    'the negative path emits no (host routes it to support email, not the store — legacy deflection kept)');
+
   // static guards
   const chatsHtml2 = readFileSync(join(root, 'src/demo/chats.html'), 'utf8');
   const bnjs = readFileSync(join(root, 'src/components/backup-nudge.js'), 'utf8');
-  ok(/backup-nudge\.css/.test(chatsHtml2), 'chats demo links backup-nudge.css');
+  const rnjs = readFileSync(join(root, 'src/components/rating-nudge.js'), 'utf8');
+  ok(/backup-nudge\.css/.test(chatsHtml2) && /rating-nudge\.css/.test(chatsHtml2),
+    'chats demo links both nudge stylesheets');
   ok(!/console\.|localStorage|sessionStorage|setInterval|setTimeout/.test(bnjs),
     'nudge component owns NO timer and no storage — the 30-day cadence stays C#-side (Preferences), no logging');
+  ok(!/console\.|localStorage|sessionStorage|setInterval|setTimeout/.test(rnjs),
+    'rating nudge owns NO timer/storage either — re-prompt gating stays C#-side (rating_action pref)');
 }
 
 console.log('settings.html — lock shell (Phase 1 #4)');
@@ -2487,6 +2526,333 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'the ONLY trims are the nickname (display name) — passwords are NEVER trimmed');
   ok(/data-placeholder/.test(ljs) && /aria-hidden/.test(ljs),
     'illustration slots: placeholder-marked + decorative (copy carries the meaning)');
+}
+
+console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-split-spec.md)');
+{
+  const dom = await load('desktop.html');
+  const d = dom.window.document, W = dom.window;
+  const frame = d.getElementById('frame');
+  const esc = () => d.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  const shell = (pane, id) => d.querySelector('#' + pane + ' > .dt-shell[data-shell="' + id + '"]');
+  const bothVisible = (id) => !shell('pane-list', id).hidden && !shell('pane-detail', id).hidden;
+  const railBtns = [...d.querySelectorAll('.dt-rail .c-bottomnav__item')];
+  const rail = (label) => railBtns.find((b) => b.textContent.includes(label)).click();
+  // overlays mount on the FRAME host — scrim + overlay land as DIRECT frame children (#56)
+  const frameScrims = () => [...frame.children].filter((c) => c.classList.contains('c-scrim'));
+  const frameSheets = () => [...frame.children].filter((c) => c.classList.contains('c-sheet'));
+
+  // —— boot: chats owns both panes, the other three are parked ——
+  ok(bothVisible('chats') && !bothVisible('apps') && !bothVisible('wallet') && !bothVisible('account'),
+    'boot: chats shell owns both panes; apps/wallet/account parked');
+  for (const id of ['apps', 'wallet', 'account']) {
+    ok(!shell('pane-detail', id).querySelector('.dt-empty'),
+      id + ' detail pane builds LAZILY (no empty state before first rail visit)');
+  }
+
+  // —— Damir 2026-07-06 ②: call icon is a 1:1 surface — group/bot omit it ——
+  const chatRows = [...d.querySelectorAll('#rows .c-chatlist-item')];
+  const openRow = (name) => chatRows.find((r) => r.textContent.includes(name)).click();
+  openRow('Han Solo');
+  ok(!!d.querySelector('#chat-topbar [aria-label="Call"]'), '1:1 chat topbar carries the Call action');
+  ok(!d.querySelector('#chat-topbar [aria-label="Channels"]'), '1:1 chat has no channels trigger');
+  openRow('Falcon Crew');
+  ok(!d.querySelector('#chat-topbar [aria-label="Call"]'), 'group chat topbar OMITS the Call action (Damir ②)');
+  openRow('Ixian News');
+  ok(!d.querySelector('#chat-topbar [aria-label="Call"]'), 'bot chat topbar OMITS the Call action (Damir ②)');
+  ok(!!d.querySelector('#chat-topbar [aria-label="Channels"]'), 'bot topbar carries the chevron channels trigger (06c ⑦)');
+
+  // —— Damir 2026-07-06 ④: bot channel selector anchors BELOW the topbar ——
+  d.querySelector('#chat-topbar .c-topbar__identity-wrap').click();
+  await sleep(50);
+  const chSheet = frameSheets()[0];
+  ok(!!chSheet && chSheet.querySelector('.c-channels') !== null, 'topbar identity opens the channel selector');
+  ok(chSheet.dataset.dtAnchor !== undefined && chSheet.style.top !== '' && chSheet.style.left !== '',
+    'channel selector is topbar-ANCHORED on desktop (data-dt-anchor + inline rect), not a bottom sheet (Damir ④)');
+  ok(frameScrims().length === 1, 'channel selector scrim mounts on the frame (one stack)');
+  esc();
+  await sleep(500);
+  ok(frameSheets().length === 0, 'Esc dismisses the channel selector');
+
+  // —— Damir 2026-07-06 ①: ⋮ toggles the chat-info RIGHT PANEL ——
+  const infoPanel = d.getElementById('chat-info-panel');
+  ok(infoPanel.hidden, 'chat-info panel starts closed');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+  ok(!infoPanel.hidden && !!infoPanel.querySelector('.c-chat-info[data-kind="bot"]'),
+    '⋮ opens chat info in the RIGHT PANEL (bot kind for Ixian News, Damir ①)');
+  ok(!!infoPanel.querySelector('.c-chat-info__members'),
+    'bot info lists MEMBERS — legacy channel-bar people-icon parity (06d, flagged chat-info gate)');
+  ok(infoPanel.querySelector('.c-chat-info__members').textContent.includes('12400'),
+    'bot members header carries the true channel count, not the page size');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+  ok(infoPanel.hidden, '⋮ toggles the panel closed');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+  openRow('Han Solo');
+  ok(infoPanel.hidden, 'switching chats closes the info panel (it follows the conversation)');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+  ok(!!infoPanel.querySelector('.c-chat-info[data-kind="contact"]'), '1:1 info renders contact kind');
+  infoPanel.querySelector('[aria-label="Back"]').click();
+  ok(infoPanel.hidden, 'the panel topbar back closes it');
+
+  // —— 06c ⑧: group info = full member list + admin controls + notifications ——
+  openRow('Falcon Crew');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+  ok(infoPanel.querySelectorAll('.c-chat-info__members .c-avatar, .c-chat-info__members [class*="member"]').length >= 4
+    || infoPanel.querySelector('.c-chat-info__members') !== null,
+    'group info renders the members section (admin kick/ban rides capabilities.admin)');
+  ok(!!infoPanel.querySelector('[role="switch"]'), 'group info carries the notifications toggle (capabilities-gated)');
+  d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
+
+  // —— 06c ⑩/⑰: right-click = ANCHORED dropdown + source-row highlight ——
+  const crewRow = chatRows.find((r) => r.textContent.includes('Falcon Crew'));
+  crewRow.dispatchEvent(new W.MouseEvent('contextmenu', { clientX: 200, clientY: 300, bubbles: true, cancelable: true }));
+  await sleep(80);
+  const rowMenu = frameSheets()[0];
+  ok(!!rowMenu && !!rowMenu.querySelector('.c-msgmenu') && rowMenu.dataset.dtAnchor === 'menu',
+    'right-click on a chat ROW opens the anchored row menu (⑰)');
+  ok(crewRow.dataset.dtCtxSource !== undefined, 'the source row highlights while its menu is open');
+  ok([...rowMenu.querySelectorAll('.c-msgmenu__item')].some((b) => b.textContent.includes('Pin'))
+    && [...rowMenu.querySelectorAll('.c-msgmenu__item')].some((b) => b.textContent.includes('Delete chat')),
+    'row menu carries the pin/delete set');
+  esc();
+  await sleep(500);
+  ok(crewRow.dataset.dtCtxSource === undefined, 'dismissing the menu clears the highlight');
+  openRow('Han Solo');
+  const bubbleRow = d.querySelector('#messages .c-bubble-row');
+  // the component listens on the INNER bubble (attachMessageMenu target) — a
+  // real pointer hits it; dispatching on the row wrapper missed the listener
+  const bubbleEl = bubbleRow.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || bubbleRow;
+  bubbleEl.dispatchEvent(new W.MouseEvent('contextmenu', { clientX: 500, clientY: 300, bubbles: true, cancelable: true }));
+  await sleep(80);
+  const bubbleMenu = frameSheets()[0];
+  ok(!!bubbleMenu && bubbleMenu.dataset.dtAnchor === 'menu' && bubbleRow.dataset.dtCtxSource !== undefined,
+    'right-click on a BUBBLE opens the anchored message menu + highlights the bubble (⑩)');
+  esc();
+  await sleep(500);
+  ok(bubbleRow.dataset.dtCtxSource === undefined, 'bubble highlight clears on dismiss');
+
+  // —— 06d ①: the attach/share grid rises as a POPOVER from the composer ⊕ ——
+  d.querySelector('#composer-slot .c-composer__attach').click();
+  await sleep(80);
+  const attachPop = frameSheets()[0];
+  ok(!!attachPop && !!attachPop.querySelector('.c-attach') && attachPop.dataset.dtAnchor === 'up'
+    && attachPop.style.bottom !== '' && attachPop.style.top === 'auto',
+    'attach grid opens as a composer-anchored popover, not a dialog (06d ①)');
+  esc();
+  await sleep(500);
+
+  // —— 06d ④: incoming call rings as a centered dialog card ——
+  [...d.querySelectorAll('.demo-toolbar .c-button')].find((b) => b.textContent.includes('Incoming call')).click();
+  await sleep(80);
+  const callin = d.querySelector('.c-callin');
+  ok(!!callin && callin.parentElement === frame, 'incoming call mounts on the frame (dialog presentation is CSS)');
+  callin.querySelector('[data-kind="decline"]').click();
+  await sleep(500);
+  ok(!d.querySelector('.c-callin'), 'Decline settles the ring');
+
+  // —— settings: master-detail (#0 ① / spec §2.1) ——
+  rail('Account');
+  ok(bothVisible('account') && !bothVisible('chats'), 'rail → Account swaps BOTH panes');
+  ok(!!shell('pane-list', 'account').querySelector('.c-settings'), 'hub renders in the list pane');
+  ok(!!shell('pane-detail', 'account').querySelector('.dt-empty'), 'settings detail defaults to the EMPTY state (flag ②)');
+  const hubRow = (label) => [...shell('pane-list', 'account').querySelectorAll('.c-settings__row')]
+    .find((r) => r.textContent.includes(label));
+  hubRow('Backup').click();
+  ok(!!shell('pane-detail', 'account').querySelector('.c-settings-backup'),
+    'hub Backup row renders the backup screen in the DETAIL pane');
+  ok(hubRow('Backup').getAttribute('aria-current') === 'page', 'picked hub row carries aria-current (tint #33)');
+  hubRow('Downloads').click();
+  ok(!!shell('pane-detail', 'account').querySelector('.c-settings-dl'), 'hub Downloads row swaps the detail pane');
+  ok(hubRow('Downloads').getAttribute('aria-current') === 'page' && !hubRow('Backup').getAttribute('aria-current'),
+    'aria-current MOVES with the pick');
+  shell('pane-detail', 'account').querySelector('[aria-label="Back"]').click();
+  ok(!!shell('pane-detail', 'account').querySelector('.dt-empty'),
+    'screen topbar back returns to the EMPTY state, not ixian:back (spec §2.1)');
+  ok(!shell('pane-list', 'account').querySelector('.c-settings__row[aria-current]'),
+    'back also clears the selected-row tint');
+
+  // —— 06c ⑫: App lock hidden on desktop (a C#-less PIN is not a real lock) ——
+  ok(![...shell('pane-list', 'account').querySelectorAll('.c-settings__row')].some((r) => r.textContent.includes('App lock')),
+    'App lock row is HIDDEN on desktop until the C# LockPage lands (06c ⑫)');
+
+  // —— 06c ⑪: theme = PREVIEW TILES in the detail pane, commit live ——
+  hubRow('Theme').click();
+  ok(!!shell('pane-detail', 'account').querySelector('.c-settings__themes'),
+    'Theme row renders the preview tiles in the DETAIL pane, not a sheet (06c ⑪)');
+  ok(frameSheets().length === 0, 'no theme sheet ever hits the frame stack');
+  [...shell('pane-detail', 'account').querySelectorAll('.c-settings__theme')]
+    .find((t) => t.dataset.mode === 'light').click();
+  await sleep(700);
+  ok(d.documentElement.dataset.theme === 'light', 'picking Light commits live (tiles stay — #148②)');
+  ok(hubRow('Theme').querySelector('.c-settings__row-value').textContent === 'Light',
+    'the hub row value follows the pane pick');
+  shell('pane-detail', 'account').querySelector('[aria-label="Back"]').click();
+
+  // —— 06d ③: language = checked options in the pane, pick re-arms ——
+  hubRow('Language').click();
+  ok(!!shell('pane-detail', 'account').querySelector('.c-settings__opts'),
+    'Language renders as CHECKED OPTIONS in the detail pane, not a sheet (06d ③)');
+  [...shell('pane-detail', 'account').querySelectorAll('.c-settings__opt')]
+    .find((o) => o.textContent.includes('Español')).click();
+  await sleep(900);
+  ok(hubRow('Language').querySelector('.c-settings__row-value').textContent === 'Español',
+    'the hub row value follows the language pick');
+  ok([...shell('pane-detail', 'account').querySelectorAll('.c-settings__opt')]
+    .find((o) => o.textContent.includes('Español')).getAttribute('aria-checked') === 'true',
+    'the check mark moves — the pane rebuilds with the new current');
+  shell('pane-detail', 'account').querySelector('[aria-label="Back"]').click();
+
+  // —— 06c ⑯: a picked avatar lands in the rail Account item ——
+  shell('pane-list', 'account').querySelector('.c-settings__avatar').click();
+  await sleep(80);
+  [...frameSheets()[0].querySelectorAll('.c-settings__avatar-option')][0].click();
+  await sleep(1400);
+  ok(!!d.querySelector('.dt-rail .c-bottomnav__item[data-id="account"] .c-bottomnav__avatar'),
+    'a set avatar replaces the Account rail glyph (06c ⑯)');
+
+  // —— wallet: hero+list left, detail INLINE right (#0 ② / spec §2.2) ——
+  rail('Wallet');
+  ok(bothVisible('wallet'), 'rail → Wallet swaps both panes');
+  ok(!!shell('pane-list', 'wallet').querySelector('.dt-wallet-hero .c-wallet-hero'),
+    'compact hero sits atop the list pane (demo wrapper class — component CSS untouched)');
+  ok(!!shell('pane-detail', 'wallet').querySelector('.dt-empty'), 'wallet detail defaults to the empty state');
+  const txRow = shell('pane-list', 'wallet').querySelector('.c-txlist-item[data-txid]');
+  txRow.click();
+  await sleep(600); // the lifted builder dismisses its ghost stack entry (400ms fallback)
+  ok(!!shell('pane-detail', 'wallet').querySelector('.c-txsheet'),
+    'tx row click renders the detail INLINE in the pane (openTxSheet builder, pane host)');
+  ok(frameSheets().length === 0 && frameScrims().length === 0,
+    'NO sheet/scrim on the frame overlay stack for the inline tx detail (spec §5)');
+  ok(txRow.getAttribute('aria-current') === 'true', 'picked tx row carries aria-current');
+  const heroQa = [...shell('pane-list', 'wallet').querySelectorAll('.c-wallet-hero__qa')];
+  heroQa.find((b) => b.textContent.includes('Send')).click();
+  ok(!!shell('pane-detail', 'wallet').querySelector('.c-wallet-send'), 'hero Send routes the DETAIL pane');
+  heroQa.find((b) => b.textContent.includes('Receive')).click();
+  ok(!!shell('pane-detail', 'wallet').querySelector('.c-wallet-receive'), 'hero Receive routes the DETAIL pane');
+  shell('pane-detail', 'wallet').querySelector('[aria-label="Back"]').click();
+  ok(!!shell('pane-detail', 'wallet').querySelector('.dt-empty'), 'wallet detail back → empty state');
+
+  // —— apps: list left (forced list layout), details/add/Discover right (#0 ③ / §2.3) ——
+  rail('Apps');
+  ok(bothVisible('apps'), 'rail → Apps swaps both panes');
+  const appsList = shell('pane-list', 'apps').querySelector('.c-apps-list');
+  ok(appsList.dataset.layout === 'list', 'pane list is FORCED layout:list');
+  ok(!!shell('pane-detail', 'apps').querySelector('.dt-empty'), 'apps detail defaults to the empty state');
+  // 06c ④: desktop rows carry an INFO button (⋮ retired) → details directly
+  const infoBtn = shell('pane-list', 'apps').querySelector('.c-app-item__menu[data-dt-info]');
+  ok(!!infoBtn && !shell('pane-list', 'apps').querySelector('.c-app-item__menu:not([data-dt-info])'),
+    'EVERY app row swaps the ⋮ overflow for the info button (06c ④)');
+  infoBtn.click();
+  ok(!!shell('pane-detail', 'apps').querySelector('.c-app-details') && frameSheets().length === 0,
+    'info button opens details in the DETAIL pane — no menu sheet');
+  ok(!!shell('pane-list', 'apps').querySelector('.c-app-item[aria-current]'),
+    'detailed app row carries aria-current');
+  shell('pane-list', 'apps').querySelector('[aria-label="Add mini app"]').click();
+  ok(!!shell('pane-detail', 'apps').querySelector('.c-apps-add'), 'pane ＋ routes add-app to the detail pane');
+  shell('pane-list', 'apps').querySelector('.c-apps-explore').click();
+  ok(!!shell('pane-detail', 'apps').querySelector('.c-apps-discover'),
+    'Explore banner routes Discover to the detail pane (grid allowed there — flag ④)');
+
+  // —— §4: the periodic backup nudge mounts on the FRAME host on desktop too ——
+  [...d.querySelectorAll('.demo-toolbar .c-button')].find((b) => b.textContent.includes('Backup nudge')).click();
+  await sleep(50);
+  ok(frameSheets().length === 1 && !!frameSheets()[0].querySelector('.c-backup-nudge')
+    && frameScrims().length === 1,
+    'backup nudge = same showBackupNudge on the frame host (backup-ux-spec §4.1)');
+  [...frameSheets()[0].querySelectorAll('.c-button')][1].click();   // Not now — quiet skip
+  await sleep(500);
+  ok(frameSheets().length === 0, 'nudge "Not now" closes it (C# owns the re-prompt cadence)');
+
+  // —— divider drag + dblclick reset still work with EVERY shell mounted ——
+  const divider = d.getElementById('divider');
+  const paneList = d.getElementById('pane-list');
+  divider.setPointerCapture = () => {};   // jsdom shim — capture is a browser affordance
+  divider.dispatchEvent(new W.MouseEvent('pointerdown', { clientX: 360, bubbles: true }));
+  divider.dispatchEvent(new W.MouseEvent('pointermove', { clientX: 460, bubbles: true }));
+  divider.dispatchEvent(new W.MouseEvent('pointerup', { bubbles: true }));
+  ok(/px$/.test(paneList.style.width) && paneList.style.width !== '360px',
+    'divider drag resizes the list pane with all four shells mounted');
+  divider.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true }));
+  ok(paneList.style.width === '360px', 'divider double-click resets to 360px');
+
+  // —— chats survive the round trip ——
+  rail('Chats');
+  ok(bothVisible('chats') && !bothVisible('apps'), 'rail → Chats restores the original shell');
+}
+
+{
+  /* static guards — desktop batch (jsdom is layout/style-blind; read the source).
+     ① conservative baseline #4: component CSS gains NO container queries and NO
+     ≥700px viewport rules — desktop is COMPOSITION in the demo layer only. */
+  const cssDir = join(root, 'src/styles/components');
+  let containers = 0, wide = 0;
+  for (const f of readdirSync(cssDir)) {
+    if (!f.endsWith('.css')) continue;
+    const css = readFileSync(join(cssDir, f), 'utf8');
+    if (/@container/.test(css)) { containers += 1; failures.push('component CSS gained @container: ' + f); }
+    for (const m of css.matchAll(/@media[^{]*?\b(?:min|max)-width:\s*(\d+)px/g)) {
+      if (+m[1] >= 700) { wide += 1; failures.push('component CSS gained a ≥700px query: ' + f + ' (' + m[0] + ')'); }
+    }
+  }
+  ok(containers === 0, 'no component CSS uses container queries (#4 conservative baseline)');
+  ok(wide === 0, 'no component CSS gained ≥700px viewport rules (desktop = demo composition only)');
+
+  /* ② the desktop demo links every stylesheet it renders (the chat.html chip.css lesson) */
+  const dt = readFileSync(join(root, 'src/demo/desktop.html'), 'utf8');
+  for (const css of ['settings-shell.css', 'settings-backup.css', 'settings-screens.css', 'settings-app.css',
+    'lock-shell.css', 'txlist-item.css', 'wallet-hero.css', 'wallet-shell.css', 'wallet-send.css',
+    'wallet-receive.css', 'apps-item.css', 'apps-shell.css', 'apps-header.css', 'apps-add.css',
+    'apps-details.css', 'apps-discover.css', 'backup-nudge.css', 'chat-info.css']) {
+    ok(dt.includes('components/' + css), 'desktop demo links ' + css);
+  }
+
+  /* ③ Damir ③: sheets PRESENT as centered dialogs inside the frame — demo CSS,
+     scoped to .dt-frame, component overlay.css untouched */
+  ok(/\.dt-frame \.c-sheet \{[^}]*left: 50%/.test(dt) && /\.dt-frame \.c-sheet \.c-sheet__handle \{ display: none/.test(dt),
+    'desktop presents sheets as centered dialogs (scoped demo CSS; #56 grammar untouched)');
+  const overlayCss = readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8');
+  ok(!/dt-frame/.test(overlayCss), 'overlay.css carries NO desktop rules (presentation stayed in the demo layer)');
+
+  /* ④ the tx-detail lift keeps the sheet builder as the ONE source (no forked markup) */
+  ok(/openTxSheet\(\{ tx, host: ghost/.test(dt) && /closeSheet\(sheet\)/.test(dt),
+    'inline tx detail lifts the openTxSheet builder (ghost host + immediate dismiss), no duplicated tx markup');
+
+  /* ⑤ 06c polish round (jsdom is layout-blind — source-text guards) */
+  ok(/help-center\.html/.test(dt),
+    'the encrypted-notice "How it works" opens the help center (06c ⑥)');
+  ok(/\.dt-chat__messages \{ display: flex; flex-direction: column; \}/.test(dt)
+    && /\.dt-chat__messages > :first-child \{ margin-block-start: auto; \}/.test(dt),
+    'the conversation grows UPWARD from the composer (06c ⑤)');
+  ok(/font-size-label-lg/.test(dt), 'pane topbar titles ride label-lg (06c ③)');
+  ok(/--dt-list-w/.test(dt) && /clamp\(22px/.test(dt),
+    'wallet hero type tracks the pane width via the --dt-list-w var — no container queries (06c ②)');
+  ok(/\.dt-list \.c-wallet-filters \{ flex-wrap: wrap/.test(dt),
+    'the misstx pill wraps below the chips in a narrow pane (06c ②)');
+  const chatMobile = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
+  ok(!/dots-vertical/.test(chatMobile),
+    'mobile chat topbars dropped the ⋮ — identity tap owns chat info (06c ④)');
+  ok(!/'phone', label: 'Call', onClick: \(\) => toastG/.test(chatMobile),
+    'mobile GROUP topbar dropped the Call action too (calls = 1:1 only, ②)');
+
+  /* ⑥ 06d refinement guards */
+  ok(/\.dt-frame \.c-callin \{[^}]*translate\(-50%, -50%\)/.test(dt),
+    'incoming call presents as a centered dialog card on desktop (06d ④)');
+  ok(/data-dt-anchor="up"/.test(dt), 'the attach popover variant exists (06d ①)');
+  const cij = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
+  ok(/kind === 'group' \|\| kind === 'bot'/.test(cij) && /LEGACY PARITY/.test(cij),
+    'chat-info members gate widened to bots — FLAGGED change with the legacy-parity rationale inline');
+
+  /* ⑦ 06d round 2 (payment sizing · downloads cards) */
+  ok(/#detail-wallet \.dt-cap \{ max-width: 560px/.test(dt)
+    && /c-wallet-send__amount, \.dt-frame \.c-wallet-receive__amount \{\n\s*font-size: var\(--font-size-heading-sm\)/.test(dt),
+    'payment forms: pane capped at 560 + money inputs one step down (06d)');
+  ok(/\.dt-frame \.c-settings-dl__row \{[^}]*var\(--surface-card\)/.test(dt),
+    'downloads rows read as cards on desktop (06d)');
+  ok(/c-app-details__actions \.c-button,\n\s*\.dt-frame \.c-app-details__danger \.c-button \{\n\s*width: auto; min-width: 240px; margin-inline: auto;/.test(dt),
+    'app-details Install/Uninstall CTAs hug + center on desktop (06d ⑫)');
+  ok(/\.dt-frame \.c-callin__name \{ color: var\(--text-neutral-01\)/.test(dt)
+    && /\.dt-frame \.c-callin__circle\[data-kind="ignore"\] \{\n\s*background: var\(--surface-neutral-02\)/.test(dt),
+    'call dialog re-inked for the menu surface — on-scrim tokens stay mobile-only (06d ⑬, light-mode fix)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

@@ -95,6 +95,111 @@ or detail-pane swap? (parked: they're security surfaces, propose at their
 Phase-3 integration) ④ does Discover default to grid or list in the detail
 pane? ⑤ wallet safe-area #22 is a DEVICE item — not covered by this pass.
 
+## 6b. Damir orders, 2026-07-06 build session (live, mid-build)
+
+① **Chat info = RIGHT PANEL** in the chats detail pane (⋮ toggles it; closes on
+chat switch / back inside the panel). Same `createChatInfo`, demo-fed data —
+the panel column is demo CSS (`.dt-info`). ② **Call icon is 1:1-only** at this
+stage — group/bot topbars omit it. ③ **Sheets PRESENT as centered dialogs**
+inside the frame ("bottom sheet sucks on desktop") — demo CSS scoped to
+`.dt-frame .c-sheet`; the #56 stack/host/dismissal grammar and component
+overlay.css are untouched. ④ **Bot channel selector slides in BELOW the
+topbar** — anchored to the topbar rect at open (inline left/top/width +
+`data-dt-anchor`), the exception to ③; scrim keeps light-dismiss.
+
+## 6c. Damir demo pass, 2026-07-06c (screenshots round — 17 items, all landed
+unless flagged)
+
+**Landed (demo layer only):** ① rail polish — wider, quieter resting ink,
+tonal pill hugs the ICON (dials live) ② wallet hero type tracks the pane via a
+JS-set `--dt-list-w` var (clamp 22–38px, no container queries) + the misstx
+pill wraps under the chips ③ pane topbar titles = label-lg ④ apps rows swap ⋮
+for an ⓘ that opens details (uninstall lives there); DESKTOP chat topbar = ⓘ
+opens the info panel; MOBILE chat topbars drop ⋮ (identity tap owns info) and
+the group Call action ⑤ conversations grow UPWARD from the composer
+(first-child margin-auto) ⑥ "How it works" → spixi.io/help-center.html (real
+shell routes it through the external-link confirm) ⑦ channel selector drops
+STRAIGHT DOWN from the identity + an explicit chevron-down trigger next to ⓘ
+⑧ group info: full member list, admin kick/ban, notifications toggle
+(capability-fed) ⑩⑰ right-click on bubbles AND chat rows = anchored dropdown
+at the pointer + the source row highlights while open (MutationObserver tags
+the sheet; #56 grammar untouched); drag-select over bubbles stays native (no
+user-select lockout) ⑪ theme picker = PREVIEW TILES lifted into the right
+pane (settingsThemeSheet builder, #148② stays-open contract; hub row value
+follows) ⑫ App lock HIDDEN on desktop — a C#-less PIN is WebView-storage
+security theater for a wallet; returns at Phase 3 with C# LockPage ⑬ encpass
+CTA hugs content below the inputs (body no longer pushes it to the pane
+bottom) ⑭ settings detail cap 640px; backup CTA centered/narrower, wallet-only
+export hugs ⑯ picked avatar replaces the Account rail glyph (c-bottomnav has a
+native avatar slot; free-fn `setNavAvatar` flagged as a component ask).
+
+**Flagged / not landed:** ⑧ bot member list (component gates members to
+kind='group'; a 12,4k list needs paging anyway) and an ADD-member affordance —
+component + BE asks ⑨ group rename for creators/admins — `onNickname` is
+1:1-only in chat-info AND no legacy rename verb is known → §9 BE ask before FE
+work ⑮ launch/create/restore on desktop — the launch demo is phone-framed;
+the desktop launch composition is its own small pass (flag) ⑩ the anchored
+menu is the §5b "anchored panel" decided — mobile keeps the sheet presentation.
+
+## 6d. Damir refinement, 2026-07-06d (round 2 + smoke result + follow-ups)
+
+**Smoke failure explained:** the ⑩ bubble assertion dispatched contextmenu on
+the ROW wrapper; `attachMessageMenu` listens on the INNER bubble — test-side
+bug, fixed. The anchored presentation itself only landed in 06c — re-verify
+in the browser before re-flagging.
+
+**Landed:** ① attach/share grid = POPOVER rising from the composer ⊕
+(`data-dt-anchor="up"`) ② context dropdowns drop from the SOURCE ROW's bottom
+edge at the pointer's x (clear pairing with the highlight) ③ rail: item↔item
+24, icon↔label tight, pill = 52×38 radius-12 ④ incoming call = centered
+dialog card (+ "Incoming call" toolbar button) ⑤ **bot member list — LEGACY
+PARITY confirmed** (channel-bar people icon, screenshots on file): chat-info
+members gate widened to `kind === 'bot'` — FLAGGED component change,
+rationale inline; real roster feed + paging stays a §9 BE ask. ⚠ chat-info.js
+changed ⇒ REBUILD the bundle before smoke. ⑥ payment screens: wallet detail
+cap 560, amount inputs step down to heading-sm, Review/Share/Send-request CTAs
+hug left (encpass grammar) ⑦ downloads rows = cards (surface-card, air,
+timestamp already present) ⑧ language picker = checked options lifted into
+the pane (one-shot picker → a successful pick REBUILDS with the new current,
+so the check mark moves) ⑨ translated dialogs get real top air — the sheet's
+8px top padding was the drag-handle's seat; dialogs now pad 24 all around,
+anchored dropdowns stay tighter (12/16) ⑩ rail round 3: item gap 32; the
+icon CROSSFADE is off on the rail (the -filled twin anchors to the unpadded
+wrap corner and slid against the pill — desktop state = ink + pill, nothing
+translates) ⑪ every anchored surface (dropdowns, channels, attach popover)
+now FADES IN PLACE — transform: none in both states, so nothing can visually
+arrive from top-left regardless of what the first-frame transform resolves to
+⑫ app-details Install/Uninstall CTAs hug + center on desktop (min 240px;
+mobile keeps its full-width conversion bar) ⑬ call dialog re-inked: the
+component's on-scrim tokens (name/sub/labels, Ignore circle, focus ring)
+vanish on the light menu-surface card — desktop overrides swap them to the
+neutral ink family; the mobile scrim stage keeps its own recipe. This is the
+Phase-2 dark/light verification doing its job (spec §4) — token-pair misses
+on translated surfaces get logged here, fixed in the demo layer. ⑭ rail round
+4: the pill is the WHOLE item again (icon + label inside comfortably, radius-12,
+scale 0.9→1) and the iconwrap is unpadded so the unread badge hugs the icon
+corner — the icon-zone pill kept fighting component-internal anchors (badge,
+filled twin); containing everything beats offset surgery.
+
+**Flagged / asks:** downloads MULTISELECT + bulk actions — not cheap:
+selection state + bulk bar are component work, and bulk *download/export* has
+no bridge verb (per-file ixian:open only) → component + §9 BE ask. Count
+formatting on the bot members header (12400 → 12,4k) — formatCount wiring, a
+polish dial.
+
+**Reactions vs replies (answer on record):** reactions are DONE frontend-side
+(render/merge on bubbles, quick-react row in the menu) and the legacy verb
+exists (`ixian:contextAction:*`) — shippable FIRST. Replies are menu-gated
+(#25) but have no compose/quote surface and no bridge payload — §8 BE work,
+later version. Phase exactly as proposed.
+
+**Markdown in bubbles (answer on record):** NOT in the rework yet —
+message-bubble renders `textContent` (XSS-safe, zero parsing). Legacy PR #50
+needs a mirrored FE batch: sanitized markdown-lite renderer inside
+message-bubble (escape-before-parse, bold/italic/strike/code/blocks/headers/
+quotes/lists/rules/autolink) + dark/light code styles. Logged as its own
+batch — no parity today.
+
 ## 7. Non-goals
 
 Real window-resize reflow between mobile/desktop compositions (the demo IS

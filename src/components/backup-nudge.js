@@ -9,10 +9,15 @@
  * integration, the legacy C#→JS command toggleAnimatedSlider('backup-prompt')
  * maps to showBackupNudge() (#56 grammar: sliders → c-sheet on the host).
  *
- * showBackupNudge({ host, onBackup, onDismiss, strings }) → the sheet element
- *   (already opened). "Back up now" → onBackup() + close — the host emits
- *   ixian:backup (audited legacy Home verb; bridge stays frozen). "Not now" /
- *   scrim / Esc → plain dismiss (onDismiss). CTA is one-shot latched.
+ * showBackupNudge({ host, illustration, onBackup, onDismiss, strings }) →
+ *   the sheet element (already opened). "Back up now" → onBackup() + close —
+ *   the host emits ixian:backup (audited legacy Home verb; bridge stays
+ *   frozen). "Not now" / scrim / Esc → plain dismiss (onDismiss). CTA is
+ *   one-shot latched.
+ * illustration = optional img src (launch-shell grammar: decorative alt="",
+ *   error → falls back to the tonal shield disc). Point it at the shared
+ *   backup art (illustrations-plan #6, the SAME file the launch tail uses) —
+ *   the nudge upgrades by FILE DROP, no component edit.
  * Copy defaults = the legacy en-us lang block (index-backup-prompt-*),
  * overridable via strings.backupNudge* (ships via the SL channel at i18n).
  */
@@ -20,7 +25,7 @@ import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
-export function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}) {
+export function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = {} } = {}) {
   const content = document.createElement('div');
   content.className = 'c-backup-nudge';
 
@@ -28,6 +33,17 @@ export function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}
   disc.className = 'c-backup-nudge__disc';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('shield-lock'));
+
+  let art = null;
+  if (illustration) {
+    art = document.createElement('img');
+    art.className = 'c-backup-nudge__illo';
+    art.src = illustration;
+    art.alt = '';                                // decorative — the copy carries meaning
+    art.draggable = false;
+    disc.hidden = true;                          // art leads; disc is the fallback
+    art.addEventListener('error', () => { art.remove(); disc.hidden = false; }, { once: true });
+  }
 
   const title = document.createElement('h3');
   title.className = 'c-backup-nudge__title t-heading-xs';
@@ -56,6 +72,7 @@ export function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}
   note.textContent = strings.backupNudgeNote
     || 'It’s recommended to back up every time you add a new contact.';
 
+  if (art) content.append(art);
   content.append(disc, title, body, cta, skip, note);
 
   const sheet = createSheet({ content, host, onDismiss, strings });

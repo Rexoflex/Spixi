@@ -10780,8 +10780,12 @@ function createChatInfo({
     body.append(sec);
   }
 
-  /* ——— members (group) — #136③ caps; row → member sheet; admin: kick/ban ——— */
-  if (kind === 'group' && members.length) {
+  /* ——— members (group + bot) — #136③ caps; row → member sheet; admin: kick/ban.
+     Bots list members too — LEGACY PARITY (Damir 2026-07-06d: the legacy channel
+     bar's people icon opens exactly this list; screenshots on file). FLAGGED
+     component change (desktop-split-spec §6d), not a silent edit; the full bot
+     roster feed + paging stays a §9 BE ask — shells feed what the bridge gives. */
+  if ((kind === 'group' || kind === 'bot') && members.length) {
     const sec = document.createElement('div');
     sec.className = 'c-chat-info__members';
     let count = memberCount || members.length;
@@ -15581,10 +15585,15 @@ function setLaunchFile(el, name) {
  * integration, the legacy C#→JS command toggleAnimatedSlider('backup-prompt')
  * maps to showBackupNudge() (#56 grammar: sliders → c-sheet on the host).
  *
- * showBackupNudge({ host, onBackup, onDismiss, strings }) → the sheet element
- *   (already opened). "Back up now" → onBackup() + close — the host emits
- *   ixian:backup (audited legacy Home verb; bridge stays frozen). "Not now" /
- *   scrim / Esc → plain dismiss (onDismiss). CTA is one-shot latched.
+ * showBackupNudge({ host, illustration, onBackup, onDismiss, strings }) →
+ *   the sheet element (already opened). "Back up now" → onBackup() + close —
+ *   the host emits ixian:backup (audited legacy Home verb; bridge stays
+ *   frozen). "Not now" / scrim / Esc → plain dismiss (onDismiss). CTA is
+ *   one-shot latched.
+ * illustration = optional img src (launch-shell grammar: decorative alt="",
+ *   error → falls back to the tonal shield disc). Point it at the shared
+ *   backup art (illustrations-plan #6, the SAME file the launch tail uses) —
+ *   the nudge upgrades by FILE DROP, no component edit.
  * Copy defaults = the legacy en-us lang block (index-backup-prompt-*),
  * overridable via strings.backupNudge* (ships via the SL channel at i18n).
  */
@@ -15592,7 +15601,7 @@ function setLaunchFile(el, name) {
 
 
 
-function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}) {
+function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = {} } = {}) {
   const content = document.createElement('div');
   content.className = 'c-backup-nudge';
 
@@ -15600,6 +15609,17 @@ function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}) {
   disc.className = 'c-backup-nudge__disc';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('shield-lock'));
+
+  let art = null;
+  if (illustration) {
+    art = document.createElement('img');
+    art.className = 'c-backup-nudge__illo';
+    art.src = illustration;
+    art.alt = '';                                // decorative — the copy carries meaning
+    art.draggable = false;
+    disc.hidden = true;                          // art leads; disc is the fallback
+    art.addEventListener('error', () => { art.remove(); disc.hidden = false; }, { once: true });
+  }
 
   const title = document.createElement('h3');
   title.className = 'c-backup-nudge__title t-heading-xs';
@@ -15628,6 +15648,7 @@ function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}) {
   note.textContent = strings.backupNudgeNote
     || 'It’s recommended to back up every time you add a new contact.';
 
+  if (art) content.append(art);
   content.append(disc, title, body, cta, skip, note);
 
   const sheet = createSheet({ content, host, onDismiss, strings });
@@ -15638,5 +15659,72 @@ function showBackupNudge({ host, onBackup, onDismiss, strings = {} } = {}) {
   return sheet;
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge };
+/* ---- src/components/rating-nudge.js ---- */
+/**
+ * c-rating-nudge — the "are you enjoying Spixi?" prompt (backup-nudge sibling).
+ *
+ * Legacy grounding (HomePage.xaml.cs:1438 checkForRating + index.html
+ * #ratingModal): C# fires the `showRatingPrompt` command while
+ * Preferences("rating_action") == "show" — i.e. it RE-PROMPTS until answered;
+ * answering either way marks it "done" (HomePage.xaml.cs:348). Yes → store
+ * review URL (per-platform, Config.cs:50–51) · No → support email — the
+ * negative path deflects into support instead of a store review. Verbs
+ * `ixian:rating:yes` / `ixian:rating:no` are EXISTING audited Home verbs
+ * (HomePage.xaml.cs:325) — bridge stays frozen. All of that C# logic is
+ * UNCHANGED; at integration `showRatingPrompt` maps to showRatingNudge().
+ *
+ * showRatingNudge({ host, onRate, onDismiss, strings }) → the sheet element
+ *   (already opened). "Yes, I am loving it" (fill) → onRate('yes') + close ·
+ *   "Not so much…" (outline) → onRate('no') + close — ONE latch across both.
+ *   Scrim/Esc → plain dismiss, NO verb (C# re-prompts later — legacy parity;
+ *   a sheet's light-dismiss IS the "not now" the legacy modal never had).
+ * Copy defaults = the legacy en-us lang block (rating-request-*), overridable
+ * via strings.rating* (SL channel at i18n).
+ */
+
+
+
+
+function showRatingNudge({ host, onRate, onDismiss, strings = {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-rating-nudge';
+
+  const disc = document.createElement('div');
+  disc.className = 'c-rating-nudge__disc';
+  disc.setAttribute('aria-hidden', 'true');
+  disc.append(icon('logo'));                     // the brand mark asks (legacy spixirounded.svg)
+
+  const title = document.createElement('h3');
+  title.className = 'c-rating-nudge__title t-heading-xs';
+  title.textContent = strings.ratingTitle || 'Are you enjoying Spixi?';
+
+  const body = document.createElement('p');
+  body.className = 'c-rating-nudge__body t-body-sm';
+  body.textContent = strings.ratingBody || 'Your feedback helps us make it better.';
+
+  let used = false;                              // ONE latch across both answers
+  const answer = (a) => {
+    if (used) return;
+    used = true;
+    closeSheet(sheet);
+    try { if (onRate) onRate(a); } catch { /* host emits ixian:rating:<a> */ }
+  };
+
+  const yes = createButton({ label: strings.ratingYes || 'Yes, I am loving it', size: 56, width: 'full' });
+  yes.addEventListener('click', () => answer('yes'));
+
+  const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'outline', size: 56, width: 'full' });
+  no.addEventListener('click', () => answer('no'));
+
+  content.append(disc, title, body, yes, no);
+
+  const sheet = createSheet({ content, host, onDismiss, strings });
+  sheet.classList.add('c-rating-nudge__sheet');
+  // self-labelling content (no c-sheet title row — nudge-family look)
+  sheet.setAttribute('aria-label', strings.ratingTitle || 'Are you enjoying Spixi?');
+  openSheet(sheet);
+  return sheet;
+}
+
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge };
 })();

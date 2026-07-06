@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="../styles/components/chat-info.css"><!-- directory → accepted-contact profile -->
 <link rel="stylesheet" href="../styles/components/scan-shell.css"><!-- add-contact scan entry (Phase 1 #3) -->
 <link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- periodic backup prompt (legacy parity) -->
+<link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- rate-app prompt (showRatingPrompt mirror) -->
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -96,7 +97,7 @@
     createAddContact, setAddContactAddress, createGroupSetup, createPendingContact,
     createChatInfo,
     createScanView, deliverScanResult,
-    showBackupNudge,
+    showBackupNudge, showRatingNudge,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
@@ -122,10 +123,27 @@
     label: 'Backup nudge', type: 'outline', size: 32,
     onClick: () => showBackupNudge({
       host: phone,
+      // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
+      // (img error → tonal shield-disc fallback, launch-shell grammar)
+      illustration: 'images/onboarding/backup.svg',
       onBackup: () => showToast({ text: 'ixian:backup → Backup screen (C#)', tone: 'info', host: phone }),
     }),
   });
   document.getElementById('theme-slot').append(nudgeBtn);
+
+  // rate-app prompt (legacy checkForRating → showRatingPrompt; re-prompts
+  // until answered — answering marks rating_action=done C#-side)
+  const rateBtn = createButton({
+    label: 'Rating nudge', type: 'outline', size: 32,
+    onClick: () => showRatingNudge({
+      host: phone,
+      onRate: (a) => showToast({
+        text: 'ixian:rating:' + a + ' → ' + (a === 'yes' ? 'store review' : 'support email') + ' (C#)',
+        tone: 'info', host: phone,
+      }),
+    }),
+  });
+  document.getElementById('theme-slot').append(rateBtn);
 
   const phone = document.querySelector('.demo-phone');
   document.getElementById('chats-topbar').append(createTopbar({

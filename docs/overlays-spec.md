@@ -55,6 +55,20 @@ These three are NOT modal overlays: no scrim, no focus trap, never steal focus. 
 Toast discipline = #29: one confirmation per action — never toast what a button morph, navigation, or alert already confirms.
 State washes on success/hero surfaces are interim rgba values — token candidates at next Figma sync (with the #48/#49 batch).
 
+## Batch D: nudges — c-backup-nudge · c-rating-nudge (built 2026-07-06, Damir order — legacy parity)
+
+Shared grammar: host-mounted c-sheet, centered stack (64px tonal disc · title
+`t-heading-xs` · body `t-body-sm` · 56 full-width button family), light-dismiss
+= quiet "not now". FE owns NO timers/storage (smoke-guarded) — all cadence
+lives C#-side; at integration the legacy Home commands map 1:1.
+
+| | trigger (C#, unchanged) | actions → verbs (existing, bridge frozen) | notes |
+|---|---|---|---|
+| **backup** | `displayBackupReminder` — once per 30 days (`Config.backupReminder`, Preferences timestamp = last SHOWN); legacy `toggleAnimatedSlider('backup-prompt')` → `showBackupNudge` | Back up now (fill, one-shot) → `ixian:backup` · Not now (text) → dismiss | shield-lock disc; `illustration` opt = file-drop art slot (illustrations-plan #6, shared with the launch tail) → disc fallback on img error. Full spec: backup-ux-spec §4.1 |
+| **rating** | `checkForRating` — re-prompts while `rating_action`="show"; answering marks "done"; legacy `showRatingPrompt` → `showRatingNudge` | Yes, I am loving it (fill) → `ixian:rating:yes` (store review) · Not so much… (outline) → `ixian:rating:no` (support email — negative-path deflection KEPT) · ONE latch across both | logo disc (legacy spixirounded.svg echo); sheet light-dismiss = the "not now" the legacy modal lacked — C# re-prompts later |
+
+Strings: `backupNudge*` / `rating*` keys, legacy en-us copy as defaults, SL channel at i18n. Demo: chats.html toolbar "Backup nudge" / "Rating nudge" buttons simulate the C# commands.
+
 ## Flags for Damir
 
-① sheet grab handle: keep (drag affordance without drag yet) or drop until swipe lands? ② ~~modal action layout~~ RESOLVED (#60): side-by-side for two short labels; stack when labels wrap / 3+ actions. ③ ~~toast/banner/callbar = batches B/C~~ BUILT, see above — review in demo (Banner/Call toolbar toggles; toasts fire from sheet actions and hang-up). ④ call bar covers the (simulated) status-bar area — verify acceptable on device; else offset below safe-area. ⑤ NOTE (#59): connectivity messages will move from banner → topbar title-state once the §8 `showWarning(text, kind)` arg is approved; banner remains for actionable/critical notices.
+① sheet grab handle: keep (drag affordance without drag yet) or drop until swipe lands? ② ~~modal action layout~~ RESOLVED (#60): side-by-side for two short labels; stack when labels wrap / 3+ actions. ③ ~~toast/banner/callbar = batches B/C~~ BUILT, see above — review in demo (Banner/Call toolbar toggles; toasts fire from sheet actions and hang-up). ④ call bar covers the (simulated) status-bar area — verify acceptable on device; else offset below safe-area. ⑤ NOTE (#59): connectivity messages will move from banner → topbar title-state once the §8 `showWarning(text, kind)` arg is approved; banner remains for actionable/critical notices. ⑥ rating "Not so much…" opens the support email (legacy) but the label doesn't say so — add a hint line or rely on the C#-side mailto surprise being acceptable? ⑦ rating disc = logo mark at 36px in the tonal disc — premium enough, or should it get illustration treatment like backup?

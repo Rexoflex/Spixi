@@ -95,6 +95,10 @@ New implementation — `src/components/backup-nudge.js`:
   `toggleAnimatedSlider('backup-prompt')` command maps to `showBackupNudge`
   on the chats/home shell.
 - Strings: `backupNudgeTitle/Body/Cta/Skip/Note`, SL channel at i18n.
+- **Illustration slot**: `illustration` opt (launch grammar — decorative
+  `alt=""`, img error → tonal shield-disc fallback). Demo points at
+  `images/onboarding/backup.svg` (illustrations-plan #6, SHARED with the
+  launch tail) — the nudge upgrades by file drop, no component edit.
 - Demo: chats.html toolbar "Backup nudge" button simulates the C# command.
 
 ## 5. BE asks (add to ARCHITECTURE §9.5 at Account-shell build)

@@ -10,6 +10,15 @@
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
+/* illustration slot (illustrations-plan #6, 3:2) — leads when present;
+   the tonal disc below is the automatic fallback (img error → disc) */
+.c-backup-nudge__illo {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .c-backup-nudge__disc {
   width: 64px;
   height: 64px;

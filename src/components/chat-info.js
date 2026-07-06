@@ -499,8 +499,12 @@ export function createChatInfo({
     body.append(sec);
   }
 
-  /* ——— members (group) — #136③ caps; row → member sheet; admin: kick/ban ——— */
-  if (kind === 'group' && members.length) {
+  /* ——— members (group + bot) — #136③ caps; row → member sheet; admin: kick/ban.
+     Bots list members too — LEGACY PARITY (Damir 2026-07-06d: the legacy channel
+     bar's people icon opens exactly this list; screenshots on file). FLAGGED
+     component change (desktop-split-spec §6d), not a silent edit; the full bot
+     roster feed + paging stays a §9 BE ask — shells feed what the bridge gives. */
+  if ((kind === 'group' || kind === 'bot') && members.length) {
     const sec = document.createElement('div');
     sec.className = 'c-chat-info__members';
     let count = memberCount || members.length;

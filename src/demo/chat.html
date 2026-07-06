@@ -404,11 +404,11 @@
     onBack: () => {},
     actions: [
       // start call mid-chat (#86): ongoing-call UI = existing c-callbar
+      // ⋮ retired (Damir 2026-07-06c ④): the identity tap owns chat info
       { icon: 'phone', label: 'Call', onClick: () => showCallBar({
         text: 'Han Solo', host: phoneDirect,
         onHangUp: () => hideCallBar(phoneDirect),
       }) },
-      { icon: 'dots-vertical', label: 'More', onClick: () => {} },
     ],
   }));
 
@@ -576,10 +576,9 @@
     identity: { name: 'Falcon Crew', sub: '9 members', address: 'falconcrew77' },
     onIdentity: () => openChatInfo(phoneGroup, groupInfo),     // #141: header → group info
     onBack: () => {},
-    actions: [
-      { icon: 'phone', label: 'Call', onClick: () => toastG('Calling') },
-      { icon: 'dots-vertical', label: 'More', onClick: () => {} },
-    ],
+    // calls = 1:1-only at this stage + ⋮ retired (Damir 2026-07-06c ②④):
+    // group topbars carry no actions — the identity tap owns group info
+    actions: [],
   }));
 
   const boxG = document.getElementById('messages-group');

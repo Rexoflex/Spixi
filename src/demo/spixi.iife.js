@@ -5,6 +5,28 @@
   var icon = window.SpixiIcons.icon;
   var ICONS = window.SpixiIcons.ICONS;
 
+/* ---- src/components/strings-runtime.js ---- */
+/* i18n runtime — the active per-shell string dictionary lives on `window.SL`
+ * (ARCHITECTURE §7). Every component's `strings` parameter defaults to
+ * getStrings(), so markup localizes from window.SL with no per-call threading;
+ * an explicit `strings` argument still overrides (parents thread their own dict
+ * down unchanged). window.SL absent → {} → the English `|| 'fallback'` literals
+ * render, so this is fully backward-compatible.
+ *
+ * setStrings() swaps the active locale at runtime (demos + the future §8-gated
+ * `getStrings` bridge command; mirrors ARCHITECTURE §7's "instant switch").
+ * In the file:// demo bundle these two names live in the shared IIFE scope
+ * (build-demo-bundle.mjs strips the imports); under Vite they resolve as ESM.
+ */
+function getStrings() {
+  return (typeof window !== 'undefined' && window.SL) || {};
+}
+
+function setStrings(dict) {
+  if (typeof window !== 'undefined') window.SL = dict || {};
+  return getStrings();
+}
+
 /* ---- src/components/money.js ---- */
 /**
  * money.js — shared IXI amount helpers. One home for the amount math + display
@@ -90,6 +112,7 @@ function discGrad(glyph) {
  * Locale from document/browser; localized strings arrive via window.SL
  * (i18n plan, ARCHITECTURE.md §7).
  */
+
 /** Locale for every Intl call in the components — document lang, validated.
  *  (audit r2: an invalid BCP-47 lang attr, e.g. "en_US", made every toLocale*
  *  call throw and killed whole-component rendering.) */
@@ -101,7 +124,7 @@ function docLocale() {
 
 /** Shared day-bucket ladder (chat list + conversation separators — single source,
  *  audit DRY finding). `todayLabel` null → caller handles today itself. */
-function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
+function dayBucketLabel(ts, strings = getStrings(), now = Date.now(), todayLabel = null) {
   const d = new Date(ts);
   if (isNaN(d)) return ''; // audit r2: invalid ts rendered literal "Invalid Date"
   const n = new Date(now);
@@ -117,7 +140,7 @@ function dayBucketLabel(ts, strings = {}, now = Date.now(), todayLabel = null) {
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatChatTimestamp(ts, strings = {}, now = Date.now()) {
+function formatChatTimestamp(ts, strings = getStrings(), now = Date.now()) {
   const bucket = dayBucketLabel(ts, strings, now, null);
   if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
   return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
@@ -266,6 +289,7 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
 
 
 
+
 /** Cap counts for compact badges/indicators (shared with c-bottomnav). */
 function formatCount(n) {
   return n > 99 ? '99+' : String(n);
@@ -291,7 +315,7 @@ function createStatusIcon(status) {
 /* —— indicator (§4, #108): count · count-muted · muted (bell-off) · mention
    (plain `at` GLYPH, action ink, NO circle — a distinct shape from numeric
    count circles, Damir 2026-07-03; can coexist with a count) —— */
-function createIndicator({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+function createIndicator({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
   if (mention) {
@@ -313,7 +337,7 @@ function createIndicator({ count = 0, mention = false, muted = false, strings = 
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
  *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
  *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
-function createIndicators({ count = 0, mention = false, muted = false, strings = {} } = {}) {
+function createIndicators({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
   const out = [];
   if (mention) out.push(createIndicator({ mention: true, strings }));
   if (count > 0) out.push(createIndicator({ count, muted, strings }));
@@ -326,7 +350,7 @@ const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
 };
-function createExcerpt({ type = 'text', text = '', sender = null, strings = {} } = {}) {
+function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
@@ -370,7 +394,7 @@ function createChatItem({
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
-  selected = false, onClick, strings = {},
+  selected = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
@@ -419,7 +443,7 @@ function createChatItem({
 
 /** Refresh all rendered timestamps (call from startTimestampTicker);
  *  pass the same `strings` the rows were built with. */
-function refreshTimestamps(rootEl, strings = {}) {
+function refreshTimestamps(rootEl, strings = getStrings()) {
   for (const t of rootEl.querySelectorAll('.c-chatlist-item__time[data-ts]')) {
     t.textContent = formatChatTimestamp(Number(t.dataset.ts), strings);
   }
@@ -736,6 +760,7 @@ function setTopbarSub(el, text) {
 
 
 
+
 function createBottomNav({ items = [], active, ariaLabel = 'Main', onChange } = {}) {
   const el = document.createElement('nav');
   el.className = 'c-bottomnav';
@@ -803,7 +828,7 @@ function setNavActive(nav, id) {
 }
 
 /** Set item `id`'s badge count (0 hides it). strings.unread overrides the a11y label suffix. */
-function setNavBadge(nav, id, count, strings = {}) {
+function setNavBadge(nav, id, count, strings = getStrings()) {
   const btn = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
   const badge = btn && btn.querySelector('.c-bottomnav__badge');
   if (!badge) return;
@@ -832,12 +857,13 @@ function setNavBadge(nav, id, count, strings = {}) {
  */
 
 
+
 const CHIP_ICON_SIZE = { large: 18, small: 14 };   // leading (Figma)
 const CHIP_DISMISS_SIZE = { large: 16, small: 14 }; // trailing (Figma)
 
 function createChip({
   label = '', size = 'large', selected = false, icon: leading = null,
-  dismissible = false, disabled = false, readonly = false, onClick, strings = {},
+  dismissible = false, disabled = false, readonly = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement(readonly ? 'span' : 'button');
   if (!readonly) el.type = 'button';
@@ -893,8 +919,9 @@ function setChipSelected(el, selected) {
  */
 
 
+
 function createSearchField({
-  placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = {},
+  placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-search-field';
@@ -1045,6 +1072,7 @@ function createBadge({
 
 
 
+
 const BADGES = {
   pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
   failed: { type: 'error', glyph: 'alert-square-rounded', label: 'Failed', key: 'txFailed' },
@@ -1052,7 +1080,7 @@ const BADGES = {
 
 function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
-  name = '', timestamp, amount = '', fiat = '', onClick, strings = {},
+  name = '', timestamp, amount = '', fiat = '', onClick, strings = getStrings(),
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -1313,9 +1341,10 @@ function dismissTopOverlay() {
  */
 
 
+
 function createSheet({
   title = '', content = null, host, lightDismiss = true, escDismiss = true,
-  onDismiss, strings = {},
+  onDismiss, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-sheet';
@@ -1372,9 +1401,10 @@ function closeSheet(el) { dismissOverlay(el); }
 
 
 
+
 function createModal({
   title = '', body = '', content = null, actions = [], role = 'dialog', host,
-  lightDismiss = false, escDismiss = true, onDismiss, strings = {},
+  lightDismiss = false, escDismiss = true, onDismiss, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-modal';
@@ -1442,7 +1472,8 @@ function closeModal(el) { dismissOverlay(el); }
  */
 
 
-function createWarningBanner({ strings = {} } = {}) {
+
+function createWarningBanner({ strings = getStrings() } = {}) {
   const el = document.createElement('div');
   el.className = 'c-banner';
   el.setAttribute('role', 'status');
@@ -1567,6 +1598,7 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
  */
 
 
+
 const callBars = new WeakMap(); // host → { el, timer }
 
 function formatCallDuration(ms) {
@@ -1581,7 +1613,7 @@ function formatCallDuration(ms) {
 
 function showCallBar({
   text = '', startedAt = Date.now(), onReturn, onHangUp,
-  host = document.body, strings = {},
+  host = document.body, strings = getStrings(),
 } = {}) {
   // singleton: a bridge re-call (displayCallBar fires on updates) mutates the
   // live bar in place — no teardown/replay flash (review finding)
@@ -1691,6 +1723,7 @@ function hideCallBar(host = document.body) {
 
 
 
+
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
@@ -1706,7 +1739,7 @@ const REPLY_KIND_GLYPHS = {
   gif: 'photo', image: 'photo', file: 'file-isr',
   payment: 'wallet', call: 'phone', voice: 'microphone', app: 'rocket',
 };
-function REPLY_KIND_LABELS(kind, strings = {}) {
+function REPLY_KIND_LABELS(kind, strings = getStrings()) {
   return {
     gif: 'GIF',
     image: strings.image || 'Image',
@@ -1761,7 +1794,7 @@ function createMessageBubble({
   edited = false,
   onLinkClick = null,
   linkPreview = null,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
   const row = document.createElement('div');
@@ -1972,7 +2005,7 @@ function createMessageBubble({
 /** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
  *  row. 'failed' restructures the row (retry circle + caption) — the shell
  *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
-function setMessageStatus(row, status, strings = {}) {
+function setMessageStatus(row, status, strings = getStrings()) {
   if (status === 'failed') {
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
     return;
@@ -2026,7 +2059,7 @@ function removeMessage(row) {
 
 /** Day separator (design: centered pill). Shares the day-bucket ladder with
  *  the chat list (timestamp.js) — today → strings.today. */
-function createDateSeparator(ts, strings = {}, now = Date.now()) {
+function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
   const el = document.createElement('div');
   el.className = 'c-datesep';
   el.setAttribute('role', 'separator');
@@ -2051,6 +2084,7 @@ function createDateSeparator(ts, strings = {}, now = Date.now()) {
  */
 
 
+
 const MAX_LINES = 5;
 
 function createComposer({
@@ -2060,7 +2094,7 @@ function createComposer({
   onAttach,
   onTyping,
   onRecord,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-composer';
@@ -2198,7 +2232,7 @@ function setComposerContext(el, ctx) {
   }
   if (!ctx) { composerCtx.delete(el); return; }
   composerCtx.set(el, ctx);
-  const strings = ctx.strings || {};
+  const strings = ctx.strings || getStrings();
 
   const strip = document.createElement('div');
   strip.className = 'c-composer__ctx';
@@ -2250,7 +2284,7 @@ function getComposerContext(el) { return composerCtx.get(el) || null; }
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.
  *  Falsy costText removes it. #44 free fn. */
-function setComposerCost(el, costText, strings = {}) {
+function setComposerCost(el, costText, strings = getStrings()) {
   const prev = el.querySelector('.c-composer__cost');
   if (prev) prev.remove();
   if (!costText) return;
@@ -2279,6 +2313,7 @@ function setComposerCost(el, costText, strings = {}) {
  * Group-chat sender identity on payment cards (nick/avatar args) is a flagged
  * gap (#66) — cards render identity-less pending a design.
  */
+
 
 
 
@@ -2397,7 +2432,7 @@ function createPaymentBubble({
   timestamp = null,
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
   onPay, onDecline, onCancel, onRetry, onDetails,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // peer-initiated events sit on the received side (audit MAJOR: 'received' was right-aligned)
   const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
@@ -2503,7 +2538,7 @@ function createAppBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
   // header follows the session lifecycle (audit: "App invite" was stale post-join)
@@ -2576,7 +2611,7 @@ function createCallBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onCallBack,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { row, el } = card(direction,
     declined ? (strings.callDeclined || 'Call declined')
@@ -2640,7 +2675,7 @@ function createFileBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -2739,7 +2774,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   if (bubble && finalState && bubble.dataset.state !== finalState) {
-    const strings = opts.strings || {};
+    const strings = opts.strings || getStrings();
     bubble.dataset.state = finalState;
     bubble.disabled = false;
     delete bubble.dataset.acted; // re-arm after an accept latch (audit r2)
@@ -2758,7 +2793,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
 }
 
 /** Full-width "Unread messages" divider (Damir 2026-07-03; frontend-only). */
-function createUnreadDivider(strings = {}) {
+function createUnreadDivider(strings = getStrings()) {
   const el = document.createElement('div');
   el.className = 'c-unread-divider';
   el.setAttribute('role', 'separator');
@@ -2800,6 +2835,7 @@ function createUnreadDivider(strings = {}) {
 
 
 
+
 function addReactions(row, {
   reactions = [],
   tip = '',
@@ -2809,7 +2845,7 @@ function addReactions(row, {
   host,
   onInspect,
   onToggle,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden would clip
   // the overlap overhang — audit r3)
@@ -2883,7 +2919,7 @@ function addReactions(row, {
 
 /** Inspect sheet: every reaction type with count + who reacted (Damir
  *  2026-07-03). Sender names arrive from the bridge aggregation. */
-function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {}) {
+function openReactionsSheet({ host, reactions = [], tip = '', strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-reactmenu';
   content.setAttribute('role', 'list'); // audit r3: SRs get structure + count
@@ -2931,7 +2967,8 @@ function openReactionsSheet({ host, reactions = [], tip = '', strings = {} } = {
  * createTypingIndicator({ name, strings }) → row element
  *   name — group chats: whose keyboard is busy (1:1 omits it)
  */
-function createTypingIndicator({ name = '', strings = {} } = {}) {
+
+function createTypingIndicator({ name = '', strings = getStrings() } = {}) {
   const row = document.createElement('div');
   // --typing: hugs the composer (Damir 2026-07-03 — spacing-4 bottom gap,
   // see typing-indicator.css; the list's bottom padding must match)
@@ -2983,9 +3020,10 @@ function createTypingIndicator({ name = '', strings = {} } = {}) {
 
 
 
+
 const SHOW_THRESHOLD = 200; // px from bottom before the button appears (sanctioned)
 
-function createScrollToLatest({ target, strings = {} } = {}) {
+function createScrollToLatest({ target, strings = getStrings() } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-scroll-latest';
@@ -3010,7 +3048,7 @@ function createScrollToLatest({ target, strings = {} } = {}) {
 }
 
 /** Unread-count badge on the button (99+ cap shared with nav/list). */
-function setScrollLatestCount(el, count, strings = {}) {
+function setScrollLatestCount(el, count, strings = getStrings()) {
   let badge = el.querySelector('.c-scroll-latest__badge');
   if (!count) {
     if (badge) badge.remove();
@@ -3052,6 +3090,7 @@ function setScrollLatestCount(el, count, strings = {}) {
 
 
 
+
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 const LONG_PRESS_MS = 500;   // §5b
 const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
@@ -3062,7 +3101,7 @@ function openMessageMenu({
   text = '',
   capabilities = {},
   onAction,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
@@ -3201,6 +3240,7 @@ function attachMessageMenu(row, opts = {}) {
 
 
 
+
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
 
 function mediaAria(state, kind, alt, strings) {
@@ -3223,7 +3263,7 @@ function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -3345,13 +3385,14 @@ function setMediaSrc(row, src) {
  */
 
 
+
 function createSystemNotice({
   glyph = 'shield-lock', // Damir export landed — shield+lock reads "protected" universally
   title = '',
   text = '',
   linkLabel = '',
   onLink,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-sysnotice';
@@ -3408,7 +3449,8 @@ function createSystemNotice({
  * Returns { setDone() } — shell can end pagination early (e.g. chat cleared).
  */
 
-function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = {}) {
+
+function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings() } = {}) {
   let loading = false;
   let done = false;
 
@@ -3472,6 +3514,7 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = {} } = 
 
 
 
+
 const ATTACH_ACTIONS = [
   { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
   { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flagged: true },
@@ -3481,7 +3524,7 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite' },
 ];
 
-function openAttachSheet({ host, media = false, onAction, strings = {} } = {}) {
+function openAttachSheet({ host, media = false, onAction, strings = getStrings() } = {}) {
   const grid = document.createElement('div');
   grid.className = 'c-attach';
 
@@ -3526,7 +3569,8 @@ function openAttachSheet({ host, media = false, onAction, strings = {} } = {}) {
 
 
 
-function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) {
+
+function openChannelSheet({ host, channels = [], onSelect, strings = getStrings() } = {}) {
   const list = document.createElement('div');
   list.className = 'c-channels';
   // freeze audit: NO list/listitem roles — role=listitem on a <button>
@@ -3608,6 +3652,7 @@ function openChannelSheet({ host, channels = [], onSelect, strings = {} } = {}) 
 
 
 
+
 function openMemberSheet({
   host,
   member = {},
@@ -3621,7 +3666,7 @@ function openMemberSheet({
   actions = [],     // #141 chat-info: capability-injected rows (admin kick/ban) —
                     // [{ label, glyph, destructive, onClick }]; the CALLER owns
                     // any confirm flow, the sheet just closes itself first
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const content = document.createElement('div');
   content.className = 'c-member';
@@ -3805,13 +3850,14 @@ function openMemberSheet({
 
 
 
+
 function openMediaViewer({
   host,
   src = '',
   alt = '',
   kind = 'image',
   onSave,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-mviewer';
@@ -3920,6 +3966,7 @@ function openMediaViewer({
 
 
 
+
 function showIncomingCall({
   host,
   caller = {},
@@ -3927,7 +3974,7 @@ function showIncomingCall({
   onAccept,
   onDecline,
   onIgnore,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-callin';
@@ -4029,13 +4076,14 @@ function hideIncomingCall(el) {
 
 
 
+
 /** Middle-truncate a long address for display (keeps head + tail). */
 function crDisplayAddress(addr) {
   const s = String(addr || '');
   return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
 }
 
-function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = {}, host, onAccept, onDecline } = {}) {
+function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = getStrings(), host, onAccept, onDecline } = {}) {
   const display = nick || name || crDisplayAddress(address);
 
   const row = document.createElement('div');
@@ -4094,7 +4142,7 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
 /** Latch the Accept button into "Accepting…" loading (staged handshake, #109);
  *  Decline is disabled while accepting. The row is then transitioned into a
  *  handshaking chat by the shell (acceptContactRequest). */
-function setRequestAccepting(row, strings = {}) {
+function setRequestAccepting(row, strings = getStrings()) {
   const btn = row && row.querySelector('[data-accept]');
   if (!btn) return;
   const accepting = strings.accepting || 'Accepting…';
@@ -4130,10 +4178,11 @@ function setRequestAccepting(row, strings = {}) {
 
 
 
+
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-function openChatRowMenu({ chat = {}, host, onAction, strings = {}, capabilities = {}, handshaking = false } = {}) {
+function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
@@ -4279,6 +4328,7 @@ function attachChatRowMenu(row, opts = {}) {
  */
 
 
+
 const SWIPE_OPEN_PX = 76;         // settle offset that holds the action button open (== CSS min-width)
 const SWIPE_COMMIT_RATIO = 0.4;   // drag past this fraction of the row width → fire
 const SWIPE_DIRLOCK_PX = 8;       // travel before we decide horizontal vs vertical
@@ -4289,7 +4339,7 @@ function closeCurrent() { if (currentClose) { const c = currentClose; currentClo
 /** Close any open drawer — call before a list re-render (detaches would orphan it). */
 function closeChatRowSwipe() { closeCurrent(); }
 
-function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, onAction, rtl } = {}) {
+function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getStrings(), onAction, rtl } = {}) {
   const dir = rtl != null ? rtl
     : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
   // physical sides ↔ logical actions (RTL mirrors leading/trailing)
@@ -4438,6 +4488,7 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = {}, o
 
 
 
+
 /* —————————————————————— model (pure, DOM-free, testable) —————————————————————— */
 
 /** Does a chat pass the active filter chip? Requests are handled separately. */
@@ -4547,7 +4598,7 @@ function chatsEmptyState(state, strings) {
 /** (Re)render the whole list from the model. Full re-render for the scaffold
  *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
 function renderChatsList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const caps = opts.capabilities || {};
   closeChatRowSwipe();                                   // close any open swipe drawer before detaching rows (#1: single-open + GC)
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
@@ -4630,7 +4681,7 @@ function applyChatRowAction(listEl, state, chat, action, opts = {}) {
  *  handshaking chat is blocked (onHandshakeBlocked) until it completes. */
 function acceptContactRequest(listEl, state, req, opts = {}) {
   if (!req || (state.requests || []).indexOf(req) === -1) return null;
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   state.requests = (state.requests || []).filter((r) => r !== req);
   const chat = {
     name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
@@ -4649,7 +4700,7 @@ function acceptContactRequest(listEl, state, req, opts = {}) {
  *  No-op if the chat was deleted/never-handshaking meanwhile (guards a late signal). */
 function completeHandshake(listEl, state, chat, opts = {}) {
   if (!chat || (state.chats || []).indexOf(chat) === -1 || !chat.handshaking) return;
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   chat.handshaking = false;
   chat.excerpt = { type: 'text', text: strings.handshakeReady || '' };   // empty until a real message arrives
   chat.timestamp = Date.now();
@@ -4702,6 +4753,7 @@ function setChatsQuery(listEl, state, query, opts) {
 
 
 
+
 const CHATS_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'unread', label: 'Unread' },
@@ -4711,7 +4763,7 @@ const CHATS_FILTERS = [
 ];
 
 /** Build the header: search field + exclusive filter-chip group. */
-function createChatsHeader({ activeFilter = 'all', strings = {}, favorites = false, onFilter, onQuery } = {}) {
+function createChatsHeader({ activeFilter = 'all', strings = getStrings(), favorites = false, onFilter, onQuery } = {}) {
   const el = document.createElement('div');
   el.className = 'c-chats-header';
 
@@ -4908,7 +4960,8 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
 
 
 
-function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = {}, onOpen, onMenu } = {}) {
+
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -4963,7 +5016,8 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
 
 
 
-function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
+
+function openAppMenu({ app = {}, host, onAction, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');
@@ -5015,6 +5069,7 @@ function openAppMenu({ app = {}, host, onAction, strings = {} } = {}) {
  *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
  *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
  */
+
 
 
 
@@ -5073,7 +5128,7 @@ function appsEmptyState(state, strings) {
 /** (Re)render the whole list from the model. `state.layout` picks row vs card and
  *  sets `listEl[data-layout]` so the CSS switches between a column and a 2-up grid. */
 function renderAppsList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const layout = state.layout === 'grid' ? 'grid' : 'list';
   listEl.dataset.layout = layout;
   listEl.textContent = '';                             // clear (detaches old rows + listeners for GC)
@@ -5141,8 +5196,9 @@ function setAppsQuery(listEl, state, query, opts) {
 
 
 
+
 function renderAppsRecents(el, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   el.textContent = '';
   const recents = orderedRecents(state, 8);
   if (!recents.length) { el.hidden = true; return el; }   // graceful — nothing launched yet
@@ -5192,7 +5248,8 @@ function createAppsRecents(state, opts = {}) {
 
 
 
-function createAppsHeader({ layout = 'list', strings = {}, discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
+
+function createAppsHeader({ layout = 'list', strings = getStrings(), discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-header';
 
@@ -5279,7 +5336,8 @@ function createAppsHeader({ layout = 'list', strings = {}, discover = false, exp
 
 
 
-function createAppsAdd({ strings = {}, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+
+function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -5437,6 +5495,7 @@ function setAddError(el, msg) {
 
 
 
+
 const APP_CAP_LABELS = {
   MultiUser: 'Multi-user',
   Authentication: 'Sign in as you',
@@ -5582,7 +5641,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-function createAppDetails({ app = {}, strings = {}, host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -5828,7 +5887,7 @@ function openUninstallConfirm({ app, host, strings, onUninstall }) {
 }
 
 /* —— bridge-driven progress states (kept for the C# showInstalling/…Failed hooks) —— */
-function showAppInstalling({ host, strings = {}, name = '' } = {}) {
+function showAppInstalling({ host, strings = getStrings(), name = '' } = {}) {
   const m = createModal({
     title: strings.installing || 'Installing…',
     body: (strings.installingBody || 'Installing {name}…').split('{name}').join(name || 'the app'),
@@ -5837,19 +5896,19 @@ function showAppInstalling({ host, strings = {}, name = '' } = {}) {
   openModal(m);
   return m;
 }
-function showAppInstalled({ host, strings = {}, onView } = {}) {
+function showAppInstalled({ host, strings = getStrings(), onView } = {}) {
   openModal(createModal({
     title: strings.installedTitle || 'Installed', body: strings.installedBody || 'The mini app is ready to use.',
     host, actions: [{ label: strings.viewApp || 'View app', type: 'fill', autofocus: true, onClick: () => { if (onView) onView(); } }],
   }));
 }
-function showAppInstallFailed({ host, strings = {} } = {}) {
+function showAppInstallFailed({ host, strings = getStrings() } = {}) {
   openModal(createModal({
     title: strings.failedTitle || 'Install failed', body: strings.failedBody || 'Something went wrong installing this app. Please try again.',
     role: 'alertdialog', host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
   }));
 }
-function showAppRemoved({ host, strings = {} } = {}) {
+function showAppRemoved({ host, strings = getStrings() } = {}) {
   openModal(createModal({
     title: strings.removedTitle || 'App removed', body: strings.removedBody || 'The mini app was uninstalled.',
     host, actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
@@ -5874,6 +5933,7 @@ function showAppRemoved({ host, strings = {} } = {}) {
  * createAppsDiscover({ strings, categories, ready, onCategory, onBrowseWeb, onOpen }) → view
  * setDiscoverFeed(el, feed, { strings, onCategory, onOpen }) — free fn (#44)
  */
+
 
 
 
@@ -5925,7 +5985,7 @@ function discoverCard(app, strings, onOpen) {
 }
 
 /** Render/refresh the live sections (featured + grid) for a category. */
-function renderLive(el, feed, category, { strings = {}, onOpen } = {}) {
+function renderLive(el, feed, category, { strings = getStrings(), onOpen } = {}) {
   const host = el.querySelector('.c-apps-discover__live');
   if (!host) return;
   host.textContent = '';
@@ -5972,7 +6032,7 @@ function renderLive(el, feed, category, { strings = {}, onOpen } = {}) {
   }
 }
 
-function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready = false, onCategory, onBrowseWeb, onOpen } = {}) {
+function createAppsDiscover({ strings = getStrings(), categories = APP_CATEGORIES, ready = false, onCategory, onBrowseWeb, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-discover';
   if (!ready) el.dataset.parked = '';
@@ -6012,7 +6072,7 @@ function createAppsDiscover({ strings = {}, categories = APP_CATEGORIES, ready =
 /** Free fn (#44): feed arrived — flip a parked view live (or refresh a live one) and
  *  render. `feed` = parseAppsFeed output; its categories rebuild the chip row when they
  *  differ from what's shown. Keeps the current category selection when still present. */
-function setDiscoverFeed(el, feed, { strings = {}, onCategory, onOpen } = {}) {
+function setDiscoverFeed(el, feed, { strings = getStrings(), onCategory, onOpen } = {}) {
   if (!el || !feed) return el;
   el._feed = feed;
   el._onOpen = onOpen;
@@ -6125,6 +6185,7 @@ function parseAppsFeed(json, state) {
  */
 
 
+
 const MASK = '••••••';
 const store = new WeakMap();   // el → { balance, fiat, hidden, strings }
 
@@ -6162,7 +6223,7 @@ function quickAction({ glyph, label, onClick }) {
 
 function createWalletHero({
   title = 'Wallet', balance = '', unit = 'IXI', fiat = '', hidden = false,
-  strings = {}, onSend, onReceive, onScan, onToggleHidden,
+  strings = getStrings(), onSend, onReceive, onScan, onToggleHidden,
 } = {}) {
   const el = document.createElement('header');
   el.className = 'c-wallet-hero';
@@ -6322,6 +6383,7 @@ function setWalletHeroCompact(el, compact) {
 
 
 
+
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
 /** Sent = everything outgoing incl. pending/failed — the status badge carries the
@@ -6368,7 +6430,7 @@ function walletEmpty(state, strings) {
 }
 
 function renderWalletTxList(listEl, state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   listEl.textContent = '';
   const txs = orderedTxs(state);
   for (const tx of txs) {
@@ -6423,7 +6485,7 @@ const FILTERS = [
 ];
 
 function createWalletFilters(state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const row = document.createElement('div');
   row.className = 'c-wallet-filters';
   row.setAttribute('role', 'group');
@@ -6464,7 +6526,7 @@ function createWalletFilters(state, opts = {}) {
 /** Sticky tools: c-search-field (FE search: names/addresses/txids) above the filter
  *  row. Sits at the top of the scroll container; attachWalletScroll hides/reveals it. */
 function createWalletTools(state, opts = {}) {
-  const strings = opts.strings || {};
+  const strings = opts.strings || getStrings();
   const el = document.createElement('div');
   el.className = 'c-wallet-tools';
   const search = createSearchField({
@@ -6539,7 +6601,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 
 /* ————————————————————————— shared bits ————————————————————————— */
 
 /** Copy button with the member-sheet clipboard + check-morph pattern (audit #134①). */
-function copyButton(value, label, strings = {}) {
+function copyButton(value, label, strings = getStrings()) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'c-txsheet__copy';
@@ -6595,7 +6657,7 @@ function sheetRow(label, value) {
   return r;
 }
 
-function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
+function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -6717,7 +6779,7 @@ function openTxSheet({ tx = {}, host, strings = {}, onExplorer } = {}) {
 
 /* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
 
-function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
+function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
   const content = document.createElement('div');
   content.className = 'c-misstx';
   const body = document.createElement('p');
@@ -6783,6 +6845,7 @@ function openMissingTxSheet({ host, strings = {}, onExplorer } = {}) {
 
 
 
+
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
    sanitize/canonical helpers now live in money.js (#143 dedupe). */
 function fromUnits(u) {
@@ -6796,7 +6859,7 @@ function fromUnits(u) {
 let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
 
 function createWalletSend({
-  contacts = [], balance = 0, fee = 0, strings = {}, host,
+  contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   onQuickScan, onSend, onDone,
 } = {}) {
@@ -9592,6 +9655,7 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
 
 
 
+
 /** '0', '0.', '' → not a requestable amount (plain receive stays). */
 function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
@@ -9600,7 +9664,7 @@ function requestable(amount) {
 let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
 
 function createWalletReceive({
-  address = '', contacts = [], strings = {}, host,
+  address = '', contacts = [], strings = getStrings(), host,
   onShare, onSendRequest,
 } = {}) {
   const el = document.createElement('div');
@@ -9918,6 +9982,7 @@ function setRequestAmount(el, amount) {
 
 
 
+
 function amountSheetCopy(kind, strings) {
   return kind === 'request' ? {
     title: strings.requestName || 'Request from {name}',
@@ -9936,7 +10001,7 @@ function amountSheetCopy(kind, strings) {
 
 function openAmountSheet({
   message = {}, recipient = {}, balance = null,
-  presets = ['1', '5', '10'], strings = {}, host, onSubmit,
+  presets = ['1', '5', '10'], strings = getStrings(), host, onSubmit,
 } = {}, kind) {
   const copy = amountSheetCopy(kind, strings);
   const content = document.createElement('div');
@@ -10154,6 +10219,7 @@ function openRequestSheet({ onRequest, ...opts } = {}) {
 
 
 
+
 let copyBuffer = null;
 
 function getChatCopyBuffer() { return copyBuffer; }
@@ -10162,7 +10228,7 @@ function enterChatSelect(listEl, {
   initialRow = null, host, rowSelector = '.c-bubble-row',
   textOf = (row) => row.dataset.copytext || '',
   senderOf = (row) => row.dataset.sender || '',
-  strings = {}, onCopy, onExit,
+  strings = getStrings(), onCopy, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
   listEl.dataset.selecting = '';
@@ -10248,7 +10314,7 @@ function enterChatSelect(listEl, {
 
 /** Watch a composer for a paste of the multi-copy buffer → offer to split.
  *  Value-match (not paste-event-only) covers every paste path incl. mobile menus. */
-function attachSplitPaste(composerEl, { onSendEach, strings = {} } = {}) {
+function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {}) {
   const input = composerEl && composerEl.querySelector('.c-composer__input');
   if (!input) return () => {};
   let offer = null;
@@ -10347,6 +10413,7 @@ function attachSplitPaste(composerEl, { onSendEach, strings = {} } = {}) {
 
 
 
+
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
@@ -10411,7 +10478,7 @@ function createChatInfo({
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
   onTx,
   onTxAll,                       // "View all" → full payment history (shell nav)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-chat-info';
@@ -11102,6 +11169,7 @@ function createChatInfo({
 
 
 
+
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
   return {
@@ -11274,7 +11342,7 @@ function renderPickerChrome(st) {
 
 function createContactsPicker({
   contacts = [], purpose = 'start', onAddContact, onCreateGroup, onOpenChat,
-  onViewContact, onNext, onBack, strings = {},
+  onViewContact, onNext, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts';
@@ -11413,7 +11481,7 @@ const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
 
 function createAddContact({
-  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = {},
+  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-add';
@@ -11577,7 +11645,7 @@ function setAddContactAddress(el, address) {
 const groupState = new WeakMap(); // el → { avatarBtn }
 
 function createGroupSetup({
-  members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = {},
+  members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-group';
@@ -11747,7 +11815,7 @@ function createGroupSetup({
  * a separate Remove row would duplicate it.
  */
 function createPendingContact({
-  name = '', address = '', avatar = null, onCancelRequest, onBack, strings = {},
+  name = '', address = '', avatar = null, onCancelRequest, onBack, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-pending';
@@ -11861,6 +11929,7 @@ function setGroupAvatar(el, src) {
 
 
 
+
 const scanState = new WeakMap(); // el → { state, delivered, requesting, opts, els }
 
 function scanCtrl(onDone, onFail) {              // one-shot (contactsCtrl grammar)
@@ -11910,7 +11979,7 @@ function sync(st) {
 }
 
 function createScanView({
-  state = 'prompt', onRequestPermission, onDecode, onTorch, onCancel, strings = {},
+  state = 'prompt', onRequestPermission, onDecode, onTorch, onCancel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-scan';
@@ -12085,6 +12154,7 @@ function deliverScanResult(el, text) {
 
 
 
+
 const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
 
 // C# splits the changepass URL on this literal (bridge-audit-B.md:128) — a
@@ -12110,7 +12180,7 @@ function lockCtrl(onDone, onFail) {              // one-shot (settingsCtrl gramm
  * mask() re-masks (scrub paths — never leave a revealed field behind).
  * EXPORTED: launch-shell reuses the exact grammar (launch-spec §2.2–2.4).
  */
-function passwordField({ label, current = false, strings = {} }) {
+function passwordField({ label, current = false, strings = getStrings() }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-lock__field';
   const input = document.createElement('input');
@@ -12174,7 +12244,7 @@ function lockSync(st) {
 
 function createLockScreen({
   mode = 'unlock', biometrics = false, onUnlock, onBiometricRetry,
-  onUseAnotherWallet, onCancel, strings = {},
+  onUseAnotherWallet, onCancel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-lock';                       // NO topbar — there is no back from lock
@@ -12366,7 +12436,7 @@ function setLockMode(el, mode) {
 /* ————————————————— change encryption password ————————————————— */
 
 function createEncPassScreen({
-  onChangePassword, onBack, strings = {}, host,
+  onChangePassword, onBack, strings = getStrings(), host,
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-encpass';
@@ -12514,6 +12584,7 @@ function createEncPassScreen({
 
 
 
+
 const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
   { value: 0, key: 'themeSystem', label: 'System' },
   { value: 1, key: 'themeLight', label: 'Light' },
@@ -12548,7 +12619,7 @@ function settingsDisc(glyph, hue) {
 
 /* backup row/screen share one status vocabulary (backup-ux-spec §3.1/§4):
    { last: string|null (pre-formatted date label), dirtyCount: number } */
-function backupStatusParts(status = {}, strings = {}) {
+function backupStatusParts(status = {}, strings = getStrings()) {
   const { last = null, dirtyCount = 0 } = status;
   if (!last) {
     return {
@@ -12573,7 +12644,7 @@ function backupStatusParts(status = {}, strings = {}) {
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-function settingsOptionSheet({ title, hint, options, current, host, strings = {}, commit, onPicked }) {
+function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -12649,7 +12720,7 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = {}
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-function settingsThemeSheet({ current, host, strings = {}, commit, onPicked }) {
+function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');
@@ -12759,7 +12830,7 @@ function createSettingsHub({
   onBackup,                      // nav → backup screen
   onDownloads, onContributors, onDev,   // nav (screens = next slice)
   onDanger,                      // nav → danger screen
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings';
@@ -13299,7 +13370,7 @@ function setBackupStatus(hub, status = {}) {
  * (#141-m4), standing cannot-undo warning strip. Used by the danger screen
  * AND the downloads screen (slice 2) — exported so the contract lives once.
  */
-function settingsConfirm({ title, bodyText, confirmLabel, host, strings = {}, run }) {
+function settingsConfirm({ title, bodyText, confirmLabel, host, strings = getStrings(), run }) {
   let inFlight = false;
   const extra = document.createElement('div');
   // #150⑥ (Damir): EVERY account-shell delete confirm carries the standing
@@ -13358,7 +13429,7 @@ function createSettingsDanger({
   onDeleteDownloads,             // (ctrl) — ixian:deleted
   onDeleteAccount,               // (ctrl) — ixian:deletea (C# LockPage gate)
   onDeleteWallet,                // (ctrl) — ixian:delete (C# LockPage gate → Launch)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-danger';
@@ -13505,13 +13576,14 @@ function createSettingsDanger({
 
 
 
+
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
   onBack,
   onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings-backup';
@@ -13798,6 +13870,7 @@ function backupCtrl(onDone, onFail) {
 
 
 
+
 const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
   { value: 0, key: 'patternOff', label: 'Off' },
   { value: 0.3, key: 'patternSubtle', label: 'Subtle' },
@@ -13943,7 +14016,7 @@ function createChatAppearance({
   onBack,
   onPattern,                     // (opacity) — shell sets --chat-pattern-opacity + persists
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
 
@@ -14005,7 +14078,7 @@ function createPrivacy({
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
@@ -14045,7 +14118,7 @@ function createNotificationsScreen({
   capabilities = {},             // { globalNotifications }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
   const failText = strings.notifFailed || 'Couldn’t update notifications.';
@@ -14081,7 +14154,7 @@ function createSecurityLevel({
   capabilities = {},             // { securityTiers }
   onBack,
   onSecurityTier,                // (tierId, ctrl) — §9/ARCHITECTURE proposal
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-security', strings.securityLevel || 'Security level', onBack);
   if (!capabilities.securityTiers || !onSecurityTier) return el;
@@ -14198,6 +14271,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -14243,7 +14317,7 @@ function createSettingsDownloads({
   onOpenFile,                    // (name) — ixian:open:<name>, fire-and-forget
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
   onClearAll,                    // (ctrl) — ixian:deleted; C# re-pushes (empty)
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
@@ -14427,7 +14501,7 @@ function createSettingsDev({
   log = '',
   onBack,
   onSendLog,                     // (ctrl) — §9: OS email/share with the log attached
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dev', strings.developer || 'Developer', onBack);
@@ -14534,7 +14608,7 @@ function setDevLog(el, text) {
 function createSettingsContributors({
   contributors = CONTRIBUTORS,
   onBack,
-  strings = {},
+  strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-contrib', strings.contributors || 'Contributors', onBack);
@@ -14628,6 +14702,7 @@ function createSettingsContributors({
  *   showTerms · setLaunchAvatar(el, src) ← loadAvatar ·
  *   setLaunchFile(el, name) ← setUploadedFileName.
  */
+
 
 
 
@@ -15520,7 +15595,7 @@ function buildTail(st) {
 /* —— shell ————————————————————————————————————————————————— */
 
 function createLaunchShell(opts = {}) {
-  const { view = 'welcome', termsRequired = false, version = '', strings = {} } = opts;
+  const { view = 'welcome', termsRequired = false, version = '', strings = getStrings() } = opts;
   const el = document.createElement('section');
   el.className = 'c-launch';
   el.dataset.theme = 'dark';                       // premium round 2: the WHOLE launch is
@@ -15637,7 +15712,8 @@ function setLaunchFile(el, name) {
 
 
 
-function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = {} } = {}) {
+
+function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-backup-nudge';
 
@@ -15721,7 +15797,8 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
 
 
 
-function showRatingNudge({ host, onRate, onDismiss, strings = {} } = {}) {
+
+function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-rating-nudge';
 
@@ -16054,5 +16131,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

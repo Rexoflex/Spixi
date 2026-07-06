@@ -84,6 +84,9 @@ const FILES = [
   'src/components/launch-shell.js',     // Phase 1 #5: welcome/create/restore/retry/tail (imports passwordField + ENC_MIN from lock-shell — must follow it)
   'src/components/backup-nudge.js',     // periodic backup prompt (legacy #backup-prompt parity, Damir 2026-07-06)
   'src/components/rating-nudge.js',     // rate-app prompt (legacy #ratingModal replacement — showRatingPrompt mirror)
+  'src/bridge/native.js',               // Phase 3 #173: real-bridge transport core (in the bundle so smoke can drive it; demos stay mock-wired)
+  'src/bridge/scan-page.js',            // Phase 3 #173: scan real-bridge adapter (first repoint target) — after scan-shell + native
+  'src/bridge/lock-page.js',            // Phase 3 #173: lock/encpass real-bridge adapters — after lock-shell + native
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

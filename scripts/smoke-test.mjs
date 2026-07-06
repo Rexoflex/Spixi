@@ -2894,6 +2894,154 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
     'Account component screens free their own topbar to full width, body stays capped (top-row fix)');
 }
 
+console.log('native bridge adapters (Phase 3 #173, docs/native-bridge-spec.md — src/bridge over the components.html bundle)');
+{
+  const dom = await load('components.html');
+  const d = dom.window.document, W = dom.window;
+  W.TextDecoder = TextDecoder;                   // jsdom exposes atob but not TextDecoder; every real WebView has both
+  const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
+  const S = W.Spixi;
+
+  // —— core transport ——
+  const sent = [];
+  const mkBridge = () => S.createNativeBridge({ emit: (c) => sent.push(c), win: W });
+  const br = mkBridge();
+  let threw = false;
+  try { br.send('foo:bar'); } catch { threw = true; }
+  ok(threw, 'send() fails LOUD on a non-ixian command (adapter bug, not a user path)');
+  br.send('ixian:unlock:pa:ss ✓đ');
+  ok(sent[sent.length - 1] === 'ixian:unlock:pa:ss ✓đ',
+    'send() emits the RAW legacy composition — colons/spaces/unicode pass through unencoded (C# UrlDecodes once)');
+  br.ready(); br.ready();
+  ok(sent.filter((c) => c === 'ixian:onload').length === 1, 'ready() emits ixian:onload exactly ONCE (latched)');
+  ok(!br.cap('selfDestruct'), 'capabilities default OFF without SPIXI_ENV (#115 graceful default)');
+  W.SPIXI_ENV = { capabilities: { selfDestruct: true } };
+  ok(S.createNativeBridge({ emit: () => {}, win: W }).cap('selfDestruct')
+    && !S.createNativeBridge({ emit: () => {}, win: W }).cap('voice'),
+    'SPIXI_ENV.capabilities drives cap() — present key ON, absent key OFF');
+
+  // —— executeUiCommand dispatcher (legacy divergences 1+2) ——
+  S.installExecuteUiCommand(W);
+  let got = null;
+  W.executeUiCommand((a, b) => { got = [a, b]; }, b64('Đamir ✓ 你好'), b64('<b>&"\'x'));
+  ok(got && got[0] === 'Đamir ✓ 你好', 'executeUiCommand decodes Base64 → UTF-8 (unicode-safe)');
+  ok(got && got[1] === '<b>&"\'x',
+    'args arrive RAW — no legacy escapeParameter (textContent shells; escaping would render &amp; to users)');
+  let survived = true;
+  try { W.executeUiCommand(() => { throw new Error('boom'); }, b64('x')); } catch { survived = false; }
+  ok(survived, 'a throwing handler is swallowed (console.error, never alert/rethrow)');
+
+  // —— scan adapter (first repoint target) ——
+  const camCalls = { start: 0, stop: 0, torch: [] };
+  const stubCam = (grant = true) => ({
+    start(feedEl, onText, ctrl) { camCalls.start += 1; camCalls.onText = onText; grant ? ctrl.done() : ctrl.fail(); },
+    stop() { camCalls.stop += 1; },
+    setTorch(on, ctrl) { camCalls.torch.push(on); ctrl.done(); },
+  });
+  sent.length = 0;
+  const scan = S.mountScanPage({ host: d.body, bridge: mkBridge(), camera: stubCam() });
+  ok(scan.el.dataset.state === 'prompt' && sent.includes('ixian:onload'),
+    'mountScanPage renders the prompt state and signals ixian:onload');
+  scan.el.querySelector('.c-scan__card .c-button').click();
+  ok(scan.el.dataset.state === 'scanning' && camCalls.start === 1,
+    'Allow camera starts the provider; grant → scanning');
+  const torchBtn = scan.el.querySelector('.c-scan__torch');
+  ok(!!torchBtn, 'torch affordance renders because the provider can drive it (capability-gated UI)');
+  torchBtn.click();
+  ok(torchBtn.getAttribute('aria-pressed') === 'true' && camCalls.torch.join() === 'true',
+    'torch click drives provider.setTorch (optimistic flip held on done)');
+  S.deliverScanResult(scan.el, 'abcixian:qrresult:evil');
+  await sleep(450);
+  ok(!sent.some((c) => c.startsWith('ixian:qrresult:')), 'hostile self-prefixed QR payload is NEVER emitted');
+  S.deliverScanResult(scan.el, 'MEET-4Zq…addr');
+  S.deliverScanResult(scan.el, 'SECOND');
+  await sleep(450);
+  ok(sent.filter((c) => c.startsWith('ixian:qrresult:')).join() === 'ixian:qrresult:MEET-4Zq…addr',
+    'decode emits ixian:qrresult:<raw text> exactly once (allowScanning one-shot mirror)');
+  ok(camCalls.stop >= 1, 'the camera stops on decode (page is about to pop)');
+  scan.el.querySelector('[aria-label="Back"]').click();
+  ok(!sent.includes('ixian:back'),
+    'back AFTER decode emits nothing — C# already popped; a second command would pop the PARENT page');
+  scan.el.remove();
+  // cancel wins inside the 350ms flash window ([S1] closed in the real adapter)
+  sent.length = 0; camCalls.stop = 0;
+  const scan2 = S.mountScanPage({ host: d.body, bridge: mkBridge(), camera: stubCam() });
+  scan2.el.querySelector('.c-scan__card .c-button').click();
+  S.deliverScanResult(scan2.el, 'RACE');
+  scan2.el.querySelector('[aria-label="Back"]').click();
+  await sleep(450);
+  ok(sent.filter((c) => c !== 'ixian:onload').join() === 'ixian:back',
+    'Back inside the decode-flash window: ONLY ixian:back — the pending qrresult is dropped ([S1])');
+  scan2.el.remove();
+  // no camera library at all → visible denied state, nothing silent
+  const scan3 = S.mountScanPage({ host: d.body, bridge: mkBridge(), camera: null });
+  scan3.el.querySelector('.c-scan__card .c-button').click();
+  ok(scan3.el.dataset.state === 'denied', 'missing camera library lands on the honest denied card, never a dead CTA');
+  scan3.el.remove();
+
+  // —— lock adapter ——
+  sent.length = 0;
+  const lock = S.mountLockPage({ host: d.body, bridge: mkBridge(), biometrics: true });
+  ok(lock.el.dataset.mode === 'unlock' && sent.includes('ixian:onload'), 'mountLockPage boots unlock mode + onload');
+  const lockInput = lock.el.querySelector('.c-lock__input');
+  lockInput.value = 'hu:nter%2';
+  [...lock.el.querySelectorAll('.c-button')].find((b) => b.textContent.includes('Unlock')).click();
+  ok(sent[sent.length - 1] === 'ixian:unlock:hu:nter%2',
+    'unlock emits the password RAW after the prefix (colons/% pass through — C# Splits on the prefix)');
+  ok(lockInput.disabled, 'unlock latches while C# decides (no-callback contract)');
+  W.executeUiCommand(W.unlockFailed, b64('nope'));
+  ok(!lock.el.querySelector('.c-lock__error').hidden && !lockInput.disabled,
+    '§9 pre-wire: an unlockFailed push lands as the inline error + restore (inert until BE ships it)');
+  W.executeUiCommand(W.setJustConfirm, b64('True'));
+  ok(lock.el.dataset.mode === 'confirm', 'setJustConfirm("True") flips to confirm mode over the REAL b64 pipeline');
+  [...lock.el.querySelectorAll('.c-button')].find((b) => b.textContent.trim() === 'Cancel').click();
+  ok(sent[sent.length - 1] === 'ixian:change', 'confirm-mode Cancel emits ixian:change (authSucceeded(false))');
+  [...lock.el.querySelectorAll('.c-button')].find((b) => b.textContent.includes('fingerprint')).click();
+  ok(sent[sent.length - 1] === 'ixian:onload',
+    'biometric retry re-emits ixian:onload (LockPage.onLoad relaunches Plugin.Fingerprint — §9 flag stands)');
+  lock.el.remove();
+
+  // —— encpass adapter ——
+  sent.length = 0;
+  const enc = S.mountEncPassPage({ host: d.body, bridge: mkBridge() });
+  const [cur2, next2, rep2] = [...enc.el.querySelectorAll('.c-lock__input')];
+  cur2.value = 'oldpass-01'; next2.value = 'newpass-0123'; rep2.value = 'newpass-0123';
+  enc.el.querySelector('.c-encpass__footer .c-button').click();
+  ok(sent[sent.length - 1] === 'ixian:changepass:--1ec4ce59e0535704d4--oldpass-01--1ec4ce59e0535704d4--newpass-0123',
+    'changepass composes the LEADING-delimiter format (split[1]=old, split[2]=new — settings_encryption.html:110)');
+  ok(cur2.disabled, 'changepass latches while C# decides');
+  await sleep(1700);
+  ok(!cur2.disabled && !enc.el.querySelector('.c-lock__error').hidden,
+    'encpass no-callback mirror: 1600ms release restores the form with the inline wrong-current copy');
+  enc.el.querySelector('[aria-label="Back"]').click();
+  ok(sent[sent.length - 1] === 'ixian:back', 'encpass back emits ixian:back');
+  enc.el.remove();
+}
+
+{
+  /* static guards — native bridge batch. The #153① lesson applies HARD here:
+     native.js's docblock DOCUMENTS the banned words (alert(), innerHTML,
+     escapeParameter, ixian:ready:<shellId> — they ARE the divergence spec), so
+     the guards must test CODE, not comments — strip them first. */
+  const nat = readFileSync(join(root, 'src/bridge/native.js'), 'utf8');
+  const scanP = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const lockP = readFileSync(join(root, 'src/bridge/lock-page.js'), 'utf8');
+  const bl = readFileSync(join(root, 'scripts/build-demo-bundle.mjs'), 'utf8');
+  // strip /* */ blocks + // line/trailing comments (no bridge string contains "//")
+  const codeOf = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  const code = codeOf(nat) + codeOf(scanP) + codeOf(lockP);
+  ok(!/\.innerHTML/.test(code) && !/\balert\(/.test(code) && !/console\.log\(/.test(code),
+    'bridge layer CODE: no innerHTML, no alert, no console.log (passwords transit this layer — SECURITY §5; comments exempt, #153①)');
+  ok(!/escapeParameter/.test(code), 'legacy escapeParameter stays OUT of the new dispatcher (divergence 1 is deliberate)');
+  ok(!/ixian:ready:/.test(code), 'no ixian:ready dual-emit until BE approves the §8 proposal (Contains-matcher hazard)');
+  ok(/ENC_DELIM[^;]*from '\.\.\/components\/lock-shell\.js'/.test(lockP),
+    'lock-page imports ENC_DELIM from lock-shell (one delimiter truth, no drift)');
+  ok(bl.indexOf('src/bridge/native.js') > bl.indexOf('rating-nudge.js')
+    && bl.indexOf('src/bridge/scan-page.js') > bl.indexOf('src/bridge/native.js')
+    && bl.indexOf('src/bridge/lock-page.js') > bl.indexOf('src/bridge/scan-page.js'),
+    'bundle order: shells → native core → page adapters (shared-scope resolution)');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

@@ -12089,7 +12089,8 @@ const lockState = new WeakMap(); // el → { mode, inFlight, els, opts }
 
 // C# splits the changepass URL on this literal (bridge-audit-B.md:128) — a
 // password CONTAINING it would shift the split slots. Gated here; §9 ask: C#
-// must guard too.
+// must guard too. EXPORTED (#173): src/bridge/lock-page.js composes the real
+// ixian:changepass URL from the same literal (one truth, no drift).
 const ENC_DELIM = '--1ec4ce59e0535704d4--';
 const ENC_MIN = 10;         // §6① resolved (Damir 2026-07-06): matches the BE wallet-password minimum. SHARED with launch-shell (one truth)
 const UNLOCK_RELEASE_MS = 1600;    // spec §3 auto-release window (flag ③)
@@ -15761,5 +15762,297 @@ function showRatingNudge({ host, onRate, onDismiss, strings = {} } = {}) {
   return sheet;
 }
 
-  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge };
+/* ---- src/bridge/native.js ---- */
+/**
+ * native.js — the REAL-bridge transport core (Phase 3 item 2,
+ * docs/native-bridge-spec.md). The demos' inline mocks are the behavioral
+ * contract; this file is the thin adapter that carries the same shell
+ * callbacks over the frozen MAUI bridge (ARCHITECTURE §2, bridge-audit-A/B).
+ *
+ * JS→C#: `location.href = "ixian:<command>[:<params>]"` — RAW legacy
+ *   composition, no encoding (C# HttpUtility.UrlDecodes the whole URL; a
+ *   pre-encode here would double-decode on some WebViews — mirror legacy,
+ *   hazards stay §9 asks, the real fix is the §8 `ixian:secure` proposal).
+ * C#→JS: C# injects `executeUiCommand(fnRef, 'b64', ...)` — bare page-global
+ *   function references, every arg a Base64-encoded UTF-8 string.
+ *
+ * DELIBERATE divergences from legacy spixi.js (spec §2):
+ *   1. NO escapeParameter() on decoded args — legacy HTML-escaped every arg
+ *      because handlers concatenated innerHTML; our shells are textContent-
+ *      only, so escaping would render literal `&amp;` to users.
+ *   2. NO alert() on dispatch errors — fail soft to console.error (legacy
+ *      alerted the stack trace at the user).
+ *   3. ready() emits `ixian:onload` ONCE (latched). `ixian:ready:<shellId>`
+ *      dual-emit is NOT sent until BE approves the §8 proposal — several C#
+ *      handlers match with Contains, so unknown commands aren't provably inert.
+ *
+ * Capability handshake (#115 convention): C# injects generation-time config as
+ * `window.SPIXI_ENV` (ARCHITECTURE §7); `SPIXI_ENV.capabilities` gates every
+ * §8/§9 feature. Absent env / absent key = OFF — shells degrade gracefully,
+ * so this file works against TODAY'S C# with zero changes.
+ *
+ * No component imports — pure transport. Page adapters (scan-page.js,
+ * lock-page.js) compose shells with a bridge instance.
+ */
+
+/** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string. */
+function b64ToUtf8(b64) {
+  const bin = atob(b64);
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.codePointAt(0)));
+}
+
+/**
+ * createNativeBridge({ emit, win })
+ *   emit(command) — transport sink; default sets location.href (the real
+ *     bridge). Injectable for tests and for the demos' mock layer.
+ *   win — window to expose C#-callable globals on (default: window).
+ * Returns { send, expose, exposeAll, ready, cap, capabilities }.
+ */
+function createNativeBridge({ emit, win } = {}) {
+  const w = win || window;
+  const sink = emit || ((command) => { w.location.href = command; });
+  let readySent = false;
+
+  const capabilities = (w.SPIXI_ENV && w.SPIXI_ENV.capabilities) || {};
+
+  const bridge = {
+    /** Emit a full raw command. Must carry the ixian: scheme — fail loud in dev. */
+    send(command) {
+      if (typeof command !== 'string' || !command.startsWith('ixian:')) {
+        throw new TypeError('bridge.send expects a full "ixian:…" command, got: ' + command);
+      }
+      sink(command);
+    },
+    /** Define a C#-callable page global. fn receives DECODED (raw) strings. */
+    expose(name, fn) {
+      w[name] = fn;
+      return fn;
+    },
+    exposeAll(map) {
+      for (const name of Object.keys(map)) bridge.expose(name, map[name]);
+    },
+    /** Page-ready signal — ixian:onload, once (C# queues pushes until then). */
+    ready() {
+      if (readySent) return;
+      readySent = true;
+      bridge.send('ixian:onload');
+    },
+    cap(name) { return !!capabilities[name]; },
+    capabilities,
+  };
+  return bridge;
+}
+
+/**
+ * Define the executeUiCommand dispatcher C# injects calls against.
+ * Divergences 1 + 2 (docblock) live here.
+ */
+function installExecuteUiCommand(win) {
+  const w = win || window;
+  w.executeUiCommand = function executeUiCommand(cmd) {
+    const args = [];
+    try {
+      for (let i = 1; i < arguments.length; i++) args.push(b64ToUtf8(arguments[i]));
+      if (typeof cmd !== 'function') {
+        // eslint-disable-next-line no-console
+        console.error('executeUiCommand: not a function', cmd);
+        return;
+      }
+      cmd.apply(null, args);
+    } catch (e) {
+      // fail soft — never alert, never rethrow into EvaluateJavaScriptAsync
+      // eslint-disable-next-line no-console
+      console.error('executeUiCommand dispatch failed', e);
+    }
+  };
+  return w.executeUiCommand;
+}
+
+/* ---- src/bridge/scan-page.js ---- */
+/**
+ * scan-page.js — real-bridge adapter for the Scan shell (Phase 3 item 2;
+ * FIRST C# repoint target, Damir 2026-07-06). Mirrors legacy scan.html
+ * (bridge-audit-B.md §5): decode happens IN the WebView (html5-qrcode,
+ * vendored at Resources/Raw/html/js/html5-qrcode.min.js), success emits
+ * `ixian:qrresult:<text>` (C# allowScanning one-shot → pops the page → raises
+ * scanSucceeded to the parent), cancel emits `ixian:back` (pop + GC.Collect).
+ *
+ * mountScanPage({ host, bridge, strings, camera })
+ *   host    — mount target (default document.body)
+ *   bridge  — createNativeBridge() instance (injectable for tests/demos)
+ *   strings — SL dictionary (default window.SL — ARCHITECTURE §7)
+ *   camera  — provider { start(feedEl, onText, ctrl), stop(), setTorch? } —
+ *             default wraps the vendored Html5Qrcode global; null/absent
+ *             library → permission CTA lands on 'denied' with honest copy
+ *             (integration gap is visible, never silent — spec §4).
+ * Returns { el, bridge } (tests introspect both).
+ */
+
+
+
+/** Default camera provider over the vendored html5-qrcode library. */
+function html5QrcodeCamera(win) {
+  const w = win || window;
+  if (!w.Html5Qrcode) return null;
+  let instance = null;
+  return {
+    start(feedEl, onText, ctrl) {
+      if (!feedEl.id) feedEl.id = 'spixi-scan-feed'; // Html5Qrcode mounts by element id
+      instance = new w.Html5Qrcode(feedEl.id, { formatsToSupport: [0] }); // 0 = QR_CODE
+      instance
+        .start({ facingMode: 'environment' }, { fps: 10 }, (decodedText) => onText(decodedText))
+        .then(() => ctrl.done())
+        .catch(() => ctrl.fail());               // permission denied / no camera
+    },
+    stop() {
+      const inst = instance;
+      instance = null;
+      if (inst) { try { inst.stop().catch(() => {}); } catch { /* already stopped */ } }
+    },
+    setTorch(on, ctrl) {
+      if (!instance) { ctrl.fail(); return; }
+      instance.applyVideoConstraints({ advanced: [{ torch: on }] })
+        .then(() => ctrl.done())
+        .catch(() => ctrl.fail());               // unsupported track → button reverts
+    },
+  };
+}
+
+function mountScanPage({ host, bridge, strings, camera } = {}) {
+  const br = bridge || createNativeBridge();
+  const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
+  const cam = camera !== undefined ? camera : html5QrcodeCamera();
+  let el = null;
+  let finished = false;                          // decode/cancel are terminal (C# pops the page)
+
+  const stopCamera = () => { if (cam) { try { cam.stop(); } catch { /* fail soft */ } } };
+
+  el = createScanView({
+    state: 'prompt',
+    strings: sl,
+    onRequestPermission(ctrl) {
+      if (!cam) { ctrl.fail(); return; }         // library missing — visible, honest (spec §4)
+      const feed = el.querySelector('.c-scan__feed');
+      cam.start(feed, (text) => deliverScanResult(el, text), ctrl);
+    },
+    onDecode(text) {                             // one-shot upstream (scan-shell gate)
+      if (finished) return;
+      finished = true;
+      stopCamera();
+      br.send('ixian:qrresult:' + text);         // raw legacy composition — C# splits on the literal
+    },
+    onCancel() {
+      if (finished) return;
+      finished = true;
+      stopCamera();
+      br.send('ixian:back');                     // C# pops + GC.Collect()
+    },
+    // torch affordance only when the provider can drive it (capability-gated UI)
+    onTorch: cam && cam.setTorch ? (on, ctrl) => cam.setTorch(on, ctrl) : undefined,
+  });
+
+  (host || document.body).append(el);
+  br.ready();                                    // ixian:onload — C# flushes queued pushes
+  return { el, bridge: br };
+}
+
+/* ---- src/bridge/lock-page.js ---- */
+/**
+ * lock-page.js — real-bridge adapters for the Lock shell (Phase 3 item 2).
+ * Grammar (bridge-audit-A.md §11, bridge-audit-B.md §3 — FROZEN):
+ *   lock.html      → ixian:unlock:<password> (raw, colons pass through — C#
+ *                    Splits on the prefix) · ixian:change (confirm mode =
+ *                    cancel/authSucceeded(false); lock mode = push LaunchPage)
+ *                    · ixian:onload re-emit = biometric retry (LockPage.onLoad
+ *                    relaunches Plugin.Fingerprint — §9 flag stands).
+ *                    C#→JS: setJustConfirm("True") only.
+ *   settings_encryption.html → ixian:changepass:<DELIM><old><DELIM><new> —
+ *                    LEADING delimiter (settings_encryption.html:110; C# takes
+ *                    split[1]/split[2], EncryptionPassword.xaml.cs:55). The
+ *                    condensed ARCHITECTURE §3 line omits the leading DELIM —
+ *                    audit-B + legacy source are the truth.
+ *
+ * No-callback mirrors (spec §5): C# answers wrong passwords with NATIVE alerts
+ * only. The lock shell auto-releases itself (spec §3, 1600 ms). The encpass
+ * screen has no component-side release, so THIS adapter supplies one: after
+ * 1600 ms with no page-pop, ctrl.fail() restores the form with the inline
+ * wrong-current copy — matching the alert C# just showed; on success C# popped
+ * the page and nothing here matters. Future §9 `unlockFailed`/`changePassFailed`
+ * pushes are pre-wired as exposed globals (inert until BE ships them).
+ *
+ * SPIXI_ENV.biometrics — generation-time env flag (one addCustomString in the
+ * repoint PR); absent = false = button hidden (#115 graceful default).
+ */
+
+
+
+const RELEASE_MS = 1600;                         // lock-spec §3 window, mirrored for encpass
+
+function mountLockPage({ host, bridge, strings, mode, biometrics } = {}) {
+  const br = bridge || createNativeBridge();
+  const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
+  const bio = biometrics !== undefined
+    ? !!biometrics
+    : !!(typeof window !== 'undefined' && window.SPIXI_ENV && window.SPIXI_ENV.biometrics);
+  let unlockCtrl = null;                         // latest in-flight ctrl (§9 unlockFailed pre-wire)
+
+  const el = createLockScreen({
+    mode: mode || 'unlock',
+    biometrics: bio,
+    strings: sl,
+    onUnlock(password, ctrl) {
+      unlockCtrl = ctrl;
+      br.send('ixian:unlock:' + password);       // raw — C# Splits on the prefix, verifyWallet decides
+      // no ctrl.done(): wrong password = native alert only; the shell's own
+      // 1600 ms auto-release restores the form (value kept). Success = C#
+      // replaces the page mid-latch — exactly the legacy feel.
+    },
+    onBiometricRetry() {
+      br.send('ixian:onload');                   // deliberate re-emit (bypasses ready-latch by design)
+    },
+    onUseAnotherWallet() { br.send('ixian:change'); },  // lock mode → LaunchPage
+    onCancel() { br.send('ixian:change'); },            // confirm mode → authSucceeded(false)
+  });
+
+  br.exposeAll({
+    // C# onload push (confirm mode): setJustConfirm("True")
+    setJustConfirm(v) { setLockMode(el, String(v).toLowerCase() === 'true' ? 'confirm' : 'unlock'); },
+    // §9 pre-wire — inert until BE ships an explicit wrong-password push
+    unlockFailed(msg) { if (unlockCtrl) unlockCtrl.fail(msg); },
+  });
+
+  (host || document.body).append(el);
+  br.ready();
+  return { el, bridge: br };
+}
+
+function mountEncPassPage({ host, bridge, strings } = {}) {
+  const br = bridge || createNativeBridge();
+  const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
+  let passCtrl = null;
+
+  const el = createEncPassScreen({
+    strings: sl,
+    onChangePassword(oldPass, newPass, ctrl) {
+      passCtrl = ctrl;
+      // LEADING delimiter — split[1]=old, split[2]=new (see docblock)
+      br.send('ixian:changepass:' + ENC_DELIM + oldPass + ENC_DELIM + newPass);
+      // encpass no-callback mirror: C# alerts + pops on success, alerts and
+      // stays on a wrong current password — release the form to match.
+      setTimeout(() => { if (passCtrl === ctrl) { passCtrl = null; ctrl.fail(); } }, RELEASE_MS);
+    },
+    onBack() { br.send('ixian:back'); },         // C# popPageAsync()
+  });
+
+  br.exposeAll({
+    // §9 pre-wire — explicit failure push would beat the timer when it lands
+    changePassFailed(msg) { if (passCtrl) { const c = passCtrl; passCtrl = null; c.fail(msg); } },
+  });
+
+  (host || document.body).append(el);
+  br.ready();
+  return { el, bridge: br };
+}
+
+  window.Spixi = { sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

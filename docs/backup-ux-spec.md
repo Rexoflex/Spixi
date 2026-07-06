@@ -23,6 +23,9 @@ that's the confusion Damir flagged.
    (identity + wallet + contacts + avatar, one file). **Wallet-only export demoted to an
    Advanced disclosure** ("Export wallet file only" — cold storage / other Ixian tools).
 2. **Nudge = status-driven, quiet but standing** — not one-time, not periodic.
+   **AMENDED (Damir 2026-07-06): the legacy PERIODIC prompt returns on top of
+   the standing badge** — see §4.1. Both coexist: the badge is the always-true
+   status, the periodic sheet is the active reminder.
 3. **Placement** — first-class row in the **Account shell** with live status, plus an
    **onboarding-tail prompt**; Wallet shell gets a small cross-link.
 
@@ -73,6 +76,26 @@ Small row/link "Back up wallet" in wallet settings → routes to the SAME Backup
 
 Principles: never modal, never repeat-toast; the state is always visible in one place;
 copy says what changed ("3 new contacts since last backup") so acting feels rational.
+
+### 4.1 Periodic nudge sheet (Damir 2026-07-06 — legacy parity, BUILT)
+
+Legacy grounding: `HomePage.updateScreen` → `displayBackupReminder()` shows the
+`index.html` `#backup-prompt` slide-up at most once per `Config.backupReminder`
+(30 days), timestamp in C# `Preferences("backupReminderTimestamp")` — the
+timestamp tracks last SHOWN, not last backed up.
+
+New implementation — `src/components/backup-nudge.js`:
+- `showBackupNudge({ host, onBackup, onDismiss, strings })` → host-mounted
+  c-sheet (#56: sliders → sheets): tonal `shield-lock` disc · legacy en-us
+  copy (title/desc/note = `index-backup-prompt-*`) · **Back up now** (fill 56,
+  one-shot latch) → `onBackup()` + close — host emits `ixian:backup` (audited
+  legacy Home verb, bridge frozen) · **Not now** (text) → plain dismiss.
+- **Cadence + storage stay C#-side, unchanged** — the FE owns no timer and no
+  storage (smoke-guarded). At integration the legacy C#→JS
+  `toggleAnimatedSlider('backup-prompt')` command maps to `showBackupNudge`
+  on the chats/home shell.
+- Strings: `backupNudgeTitle/Body/Cta/Skip/Note`, SL channel at i18n.
+- Demo: chats.html toolbar "Backup nudge" button simulates the C# command.
 
 ## 5. BE asks (add to ARCHITECTURE §9.5 at Account-shell build)
 

@@ -1,0 +1,44 @@
+/* c-backup-nudge — periodic backup prompt sheet (legacy #backup-prompt parity,
+   Damir 2026-07-06). Content rides a standard c-sheet; centered stack:
+   tonal shield disc · title · body · fill CTA · text skip · muted note. */
+
+.c-backup-nudge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
+  text-align: center;
+}
+.c-backup-nudge__disc {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-backup-nudge__disc svg {
+  width: 32px;
+  height: 32px;
+}
+.c-backup-nudge__title {
+  margin: 0;
+  color: var(--text-neutral-01);
+}
+.c-backup-nudge__body {
+  margin: 0;
+  max-width: 300px;
+  color: var(--text-neutral-02);
+}
+.c-backup-nudge__note {
+  margin: 0;
+  max-width: 240px;
+  color: var(--text-neutral-02);
+}
+/* the two buttons sit flush as a family (lock/launch 56 stack precedent) */
+.c-backup-nudge .c-button + .c-button {
+  margin-top: calc(-1 * var(--spacing-4));
+}

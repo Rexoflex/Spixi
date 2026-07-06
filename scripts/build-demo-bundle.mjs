@@ -81,6 +81,7 @@ const FILES = [
   'src/components/settings-screens.js', // #147: chat appearance · privacy · notifications · security tiers
   'src/components/settings-app.js',     // §9b: downloads · dev log · contributors (imports settingsConfirm from settings-shell)
   'src/components/launch-shell.js',     // Phase 1 #5: welcome/create/restore/retry/tail (imports passwordField + ENC_MIN from lock-shell — must follow it)
+  'src/components/backup-nudge.js',     // periodic backup prompt (legacy #backup-prompt parity, Damir 2026-07-06)
 ];
 // Only these icons.js names are aliased in the wrapper below.
 const ICON_ALIASES = ['icon', 'ICONS'];

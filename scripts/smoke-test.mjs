@@ -1999,6 +1999,53 @@ console.log('chats.html — scan shell (Phase 1 #3)');
     'torch uses aria-pressed; the scanning hint is role=status');
 }
 
+console.log('chats.html — periodic backup nudge (legacy #backup-prompt parity)');
+{
+  const dom = await load('chats.html');
+  const d = dom.window.document, W = dom.window;
+  const phone = d.querySelector('.demo-phone');
+
+  // C#-fired sheet (toggleAnimatedSlider('backup-prompt') → showBackupNudge)
+  let backups = 0, dismissed = 0;
+  const sheet = W.Spixi.showBackupNudge({
+    host: phone,
+    onBackup: () => { backups += 1; },
+    onDismiss: () => { dismissed += 1; },
+  });
+  ok(!!sheet && sheet.classList.contains('c-sheet') && phone.contains(sheet),
+    'backup nudge opens as a host-mounted c-sheet (#56: legacy slide-up → sheet grammar)');
+  const nTitle = sheet.querySelector('.c-backup-nudge__title');
+  ok(!!nTitle && /back up/i.test(nTitle.textContent)
+    && /decentralized/.test(sheet.querySelector('.c-backup-nudge__body').textContent)
+    && /new contact/.test(sheet.querySelector('.c-backup-nudge__note').textContent),
+    'nudge carries the legacy en-us copy set (title/desc/note — index-backup-prompt-*)');
+  ok(sheet.getAttribute('aria-label') === nTitle.textContent,
+    'title-less sheet is aria-labelled by the nudge title');
+
+  const btns = [...sheet.querySelectorAll('.c-button')];
+  ok(btns.length === 2, 'exactly two actions: Back up now (fill) + Not now (text)');
+  btns[0].click();
+  btns[0].click();                               // latch: second tap swallowed
+  ok(backups === 1, 'Back up now fires onBackup ONCE (one-shot latch) — host emits ixian:backup, no new verb');
+  await sleep(500);                              // overlay removal: transitionend + 400ms fallback
+  ok(!phone.contains(sheet), 'CTA also closes the sheet');
+
+  // Not-now path: dismiss only, no onBackup
+  let b2 = 0;
+  const sheet2 = W.Spixi.showBackupNudge({ host: phone, onBackup: () => { b2 += 1; } });
+  const skip2 = [...sheet2.querySelectorAll('.c-button')][1];
+  skip2.click();
+  await sleep(500);
+  ok(b2 === 0, 'Not now dismisses without firing onBackup (quiet skip — legacy parity)');
+
+  // static guards
+  const chatsHtml2 = readFileSync(join(root, 'src/demo/chats.html'), 'utf8');
+  const bnjs = readFileSync(join(root, 'src/components/backup-nudge.js'), 'utf8');
+  ok(/backup-nudge\.css/.test(chatsHtml2), 'chats demo links backup-nudge.css');
+  ok(!/console\.|localStorage|sessionStorage|setInterval|setTimeout/.test(bnjs),
+    'nudge component owns NO timer and no storage — the 30-day cadence stays C#-side (Preferences), no logging');
+}
+
 console.log('settings.html — lock shell (Phase 1 #4)');
 {
   const dom = await load('settings.html');

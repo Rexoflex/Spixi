@@ -98,7 +98,10 @@ carousel · dots · pinned CTAs · fine print · version.
   `termsRequired` / `setLaunchTerms`) — NOT on a welcome tap. The terms
   encryption clause reflects the real hybrid PQ crypto (RSA-4096 + ECDH
   secp521r1 + ML-KEM-1024/CRYSTALS-Kyber = FIPS 203 handshake;
-  AES-256-GCM + ChaCha20-Poly1305 messages), per docs.ixian.io.
+  AES-256-GCM + ChaCha20-Poly1305 messages), per docs.ixian.io. Terms §3.3
+  = minimum-age clause (16, or the higher local minimum — added 2026-07-06,
+  aligned to the Privacy Policy's under-16 clause; counsel confirms final
+  wording and mirrors it into the canonical legal doc).
 - Version line (`setLaunchVersion`) quiet in the footer.
 
 ### 2.2 Create (form view — inherits the shell dark pin, glass inputs)

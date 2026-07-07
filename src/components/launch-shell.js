@@ -35,9 +35,14 @@
  * a password containing '<nick>:' would be silently corrupted. Never sent.
  *
  * createLaunchShell({ view, termsRequired, version, onLanguage(code),
- *   onAppearance(int), onAcceptTerms, onCreateAccount(nick, pass, ctrl),
- *   onPickAvatar, onSelectFile, onRestore(pass, ctrl), onRetry(pass, ctrl),
- *   onBackupNow, onJoinBot, onFinish, onBack(view), strings, host })
+ *   onAppearance(int), onAcceptTerms, onGoCreate, onGoRestore,
+ *   onCreateAccount(nick, pass, ctrl), onPickAvatar, onSelectFile,
+ *   onRestore(pass, ctrl), onRetry(pass, ctrl), onBackupNow, onJoinBot,
+ *   onFinish, onBack(view), strings, host })
+ *   onGoCreate/onGoRestore (optional): override the welcome CTAs' INTERNAL
+ *   view switch — the native shell emits ixian:create / ixian:restore so C#
+ *   navigates to the real LaunchCreatePage / LaunchRestorePage (each a separate
+ *   WebView). Absent = internal show() (demo default).
  *   Ctrl contract (spec §3): one-shot done/fail; NO auto-release anywhere —
  *   create has no covering alert (indefinite loading, flag §6②); restore
  *   fails via showPasswordError → ctrl.fail(msg); retry's host maps
@@ -323,7 +328,10 @@ function buildWelcome(st) {
   const stopAuto = () => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } };
   const reduced = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) {
+  // only run autoplay when this shell actually BOOTS at welcome — on the native
+  // form/tail pages every view is built (welcome hidden), and a ticking timer on
+  // a hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
+  if (!reduced && (st.opts.view || 'welcome') === 'welcome') {
     autoTimer = setInterval(() => {
       if (!v.isConnected) { stopAuto(); return; }
       if (st.view === 'welcome') go((st.slide + 1) % defs.length);
@@ -353,8 +361,23 @@ function buildWelcome(st) {
   ctas.className = 'c-launch__ctas';
   const createBtn = createButton({ label: strings.createCta || 'Create new account', size: 56, width: 'full' });
   const restoreBtn = createButton({ label: strings.restoreCta || 'Restore existing account', type: 'outline', size: 56, width: 'full' });
-  createBtn.addEventListener('click', () => { stopAuto(); show(st, 'create'); });
-  restoreBtn.addEventListener('click', () => { stopAuto(); show(st, 'restore'); });
+  // The welcome CTAs route INTERNALLY by default (the shell absorbs the legacy
+  // pages — demo/SPA behavior). On the REAL bridge the five legacy launch pages
+  // still exist as separate C# WebViews, so the native shell passes onGoCreate/
+  // onGoRestore to emit the NAVIGATION verbs (ixian:create / ixian:restore) and
+  // let C# push LaunchCreatePage / LaunchRestorePage instead of switching in
+  // place (a bare LaunchPage can't process create:<nick>:<password>). Additive,
+  // backward-compatible: absent hook = the internal show() (unchanged demo).
+  createBtn.addEventListener('click', () => {
+    stopAuto();
+    if (opts.onGoCreate) { try { opts.onGoCreate(); } catch { /* nav */ } }
+    else show(st, 'create');
+  });
+  restoreBtn.addEventListener('click', () => {
+    stopAuto();
+    if (opts.onGoRestore) { try { opts.onGoRestore(); } catch { /* nav */ } }
+    else show(st, 'restore');
+  });
   ctas.append(createBtn, restoreBtn);
   v.append(ctas);
 

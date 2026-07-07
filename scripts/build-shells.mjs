@@ -24,20 +24,36 @@ const OUT_DIR = join(root, 'Spixi', 'Resources', 'Raw', 'html');
 
 // key → { in: demo source, out: legacy Resources/Raw/html filename (drop-in), page: C# class }
 // (ARCHITECTURE §5 mapping; `out` is the Stage-4a drop-in target = the file that C# page loads today)
+//
+// LAUNCH is special: the legacy launch flow is FIVE separate C# pages, each loading
+// its own HTML file. The ONE production shell (src/shells/launch.html) holds all five
+// views and boots at whichever `bootView` we inject per output filename (the shell
+// reads window.__LAUNCH_VIEW__). So one source → five drop-in files. ZERO C# change.
 const SHELLS = {
   chat:     { in: 'src/shells/chat.html',   out: 'chat.html',        page: 'SingleChatPage' },
   home:     { in: 'src/shells/home.html',   out: 'index.html',       page: 'HomePage (chats tab)' },
   apps:     { in: 'src/demo/apps.html',     out: 'apps.html',        page: 'AppsPage' },
   settings: { in: 'src/shells/settings.html', out: 'settings.html',   page: 'SettingsPage' },
-  launch:   { in: 'src/demo/launch.html',   out: 'intro.html',       page: 'LaunchPage (welcome)' },
+  // launch — the five legacy filenames, one bridge-wired shell, per-file boot view:
+  launch:          { in: 'src/shells/launch.html', out: 'intro.html',         page: 'LaunchPage (welcome)',        bootView: 'welcome' },
+  'launch-create': { in: 'src/shells/launch.html', out: 'intro_new.html',     page: 'LaunchCreatePage (create)',   bootView: 'create'  },
+  'launch-restore':{ in: 'src/shells/launch.html', out: 'intro_restore.html', page: 'LaunchRestorePage (restore)', bootView: 'restore' },
+  'launch-retry':  { in: 'src/shells/launch.html', out: 'intro_retry.html',   page: 'LaunchRetryPage (retry)',     bootView: 'retry'   },
+  'launch-tail':   { in: 'src/shells/launch.html', out: 'onboarding.html',    page: 'OnboardPage (tail)',          bootView: 'tail'    },
   payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
   // scan / contacts / lock live INSIDE other demos (takeover pattern) — they need
   // dedicated src/shells/ entries at Stage 4b (native.js + setRoute), not a demo drop-in.
 };
 
+// `launch` shorthand expands to all five launch filenames (build them as a set).
+const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
+
 const DEFAULT = ['chat', 'home', 'settings'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
-const keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
+let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
+// `launch` alone means the whole launch set (all five drop-in files)
+keys = keys.flatMap((k) => (k === 'launch' && arg.length && !arg.includes('all')) ? LAUNCH_KEYS : [k]);
+keys = [...new Set(keys)];
 
 mkdirSync(OUT_DIR, { recursive: true });
 
@@ -55,7 +71,12 @@ let n = 0;
 for (const key of keys) {
   const s = SHELLS[key];
   if (!s) { console.warn(`  ? unknown shell "${key}" — known: ${Object.keys(SHELLS).join(', ')}`); continue; }
-  const html = inlineHtml(join(root, s.in), { device: true, strict: true }); // strict: throws on unresolved refs
+  let html = inlineHtml(join(root, s.in), { device: true, strict: true }); // strict: throws on unresolved refs
+  // launch: inject the per-file boot view BEFORE any script runs (the shell reads
+  // window.__LAUNCH_VIEW__ to pick welcome/create/restore/retry/tail).
+  if (s.bootView) {
+    html = html.replace(/<body[^>]*>/i, (m) => `${m}\n<script>window.__LAUNCH_VIEW__=${JSON.stringify(s.bootView)};</script>`);
+  }
   const outPath = join(OUT_DIR, s.out);
   writeFileSync(outPath, html);
   n++;

@@ -2862,7 +2862,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   body { display: flex; flex-direction: column; overflow: hidden; }
   #chat-topbar { flex: none; }
   .c-chat-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); }
+  /* Messages sit at the BOTTOM (adjacent to the composer) and grow upward — the
+     natural chat flow. The secure notice floats CENTERED in the free space above
+     them: its own two auto-margins split that space equally above + below it, so
+     on a new/empty chat it lands dead-center, and as messages fill in below it
+     the notice rises like a normal bubble. When the log overflows the auto-
+     margins collapse to 0 → notice pins to the top of history, log scrolls,
+     newest at the bottom (Damir 2026-07-07). */
+  #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
+  #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   #chat-composer { flex: none; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
@@ -19182,6 +19190,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createTopbar, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
     setMessageStatus, removeMessage,
+    createFileBubble, setFileProgress,
+    createAppBubble, createSystemNotice,
+    addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
 
@@ -19227,12 +19238,24 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   /* —— message log —————————————————————————————————————————————————————————— */
   const box = document.getElementById('messages');
 
-  /* model: id → { id, direction, text, ts(ms), status } in insertion order.
+  /* model: id → record, in insertion order. A record is one of:
+   *   kind 'text' → { id, kind, direction, text, ts(ms), status, senderNick, senderAddress }
+   *   kind 'file' → { id, kind, direction, ts(ms), fileid, name, meta, fstate,
+   *                   progress, senderNick, senderAddress }
    * order[] holds ids in timestamp order so inserts find their slot (the legacy
-   * findOlderChat behaviour). row: id → DOM row element. */
+   * findOlderChat behaviour). row: id → DOM row element. fileIndex maps a
+   * transfer's fileid → the owning message id, because updateFile(fileid,…)
+   * references the transfer, not the message row (chat.js:1009). */
   const model = new Map();   // id → record
   const rows = new Map();    // id → row element
   let order = [];            // ids, kept timestamp-ascending
+  const fileIndex = new Map(); // fileid → message id
+  const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
+
+  // Best-known display nick for a group sender: an explicit nick on the row wins,
+  // else the last name resolved via updateGroupChatNicks for that address.
+  const resolveNick = (address, nick) =>
+    nick || (address && groupNicks.get(String(address))) || '';
 
   /* typing pill — appended while typing is on, removed on timeout / new message,
    * and always kept LAST (shell duty mirrored from the demo). */
@@ -19273,7 +19296,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
   /* #63 grouping: consecutive same-direction rows within 90s form a run.
    * Recomputes position (single/first/middle/last) for the whole log — simplest
-   * correct approach for an upsert model with out-of-order inserts + deletes. */
+   * correct approach for an upsert model with out-of-order inserts + deletes.
+   * Only TEXT rows group: a typed card (file/…) is always standalone and breaks
+   * the run. In group chats a run also breaks when the sender changes, so every
+   * participant keeps their own label + avatar. */
   const GROUP_WINDOW = 90000;
   function positionsFor(ids) {
     const pos = {};
@@ -19281,7 +19307,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const r = model.get(ids[i]);
       const prev = i > 0 ? model.get(ids[i - 1]) : null;
       const next = i < ids.length - 1 ? model.get(ids[i + 1]) : null;
-      const cont = (a, b) => a && b && a.direction === b.direction && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
+      const cont = (a, b) => a && b
+        && (a.kind || 'text') === 'text' && (b.kind || 'text') === 'text'
+        && a.direction === b.direction
+        && (a.senderAddress || '') === (b.senderAddress || '')
+        && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
       const withPrev = cont(prev, r);
       const withNext = cont(r, next);
       pos[ids[i]] = !withPrev && !withNext ? 'single'
@@ -19293,6 +19323,8 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   }
 
   function buildRow(rec, position) {
+    if (rec.kind === 'file') return buildFileRow(rec);
+    if (rec.kind === 'app') return buildAppRow(rec);
     const isSent = rec.direction === 'sent';
     return createMessageBubble({
       direction: isSent ? 'sent' : 'received',
@@ -19310,12 +19342,114 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     });
   }
 
+  /* file transfer row (chat.js addFile:904 / updateFile:1009).
+   *   received + not started → 'offer'    → tap = ixian:acceptfile:<fileid>
+   *   in transfer (0<p<100)  → 'progress' → no tap (disabled while downloading)
+   *   complete OR own file   → 'complete' → tap = ixian:openfile:<fileid>
+   * Own outgoing files are openable immediately (legacy always wires openfile
+   * for me==True). meta is left empty — the legacy bridge sends no size/type. */
+  function buildFileRow(rec) {
+    return createFileBubble({
+      direction: rec.direction,
+      name: rec.name || '',
+      meta: rec.meta || '',
+      state: rec.fstate,
+      progress: rec.progress || 0,
+      timestamp: rec.ts,
+      gutter: mode.isGroup && rec.direction === 'received',
+      onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
+      onOpen: () => bridge.send('ixian:openfile:' + rec.fileid),
+    });
+  }
+
+  /* derive the file bubble state from the legacy addFile flags. */
+  function fileStateFrom(me, progress, complete) {
+    const p = Number(progress) || 0;
+    if (asBool(complete) || p >= 100) return 'complete';
+    if (asBool(me)) return 'complete';   // own file — openable immediately (legacy)
+    return p > 0 ? 'progress' : 'offer'; // incoming: accepted+downloading vs offer
+  }
+
+  /* app invite/session card (chat.js addAppRequest:1174). state derives from the
+   * stable localSender + appStatus signals; actions reuse the EXISTING verbs
+   * (installApp / joinApp) so no new bridge command is needed. Decline-invite has
+   * no legacy verb → intentionally omitted in v1 (legacy had none either). */
+  function buildAppRow(rec) {
+    return createAppBubble({
+      name: rec.name || '',
+      iconUrl: rec.iconUrl || null,
+      state: rec.astate,
+      direction: rec.direction,
+      timestamp: rec.ts,
+      gutter: mode.isGroup && rec.direction === 'received',
+      onGet: () => bridge.send('ixian:installApp:' + encodeURIComponent(rec.appInstallURL || '')),
+      onLaunch: () => bridge.send('ixian:joinApp:' + rec.appid),
+      onJoin: () => bridge.send('ixian:joinApp:' + rec.appid),
+    });
+  }
+
+  /* map the legacy addAppRequest flags → createAppBubble state.
+   *   own invite (localSender)     → 'invited' (Launch)
+   *   incoming, app not installed  → 'missing' (Get)
+   *   incoming, installed/minimized→ 'invite'  (Join) */
+  function appStateFrom(localSender, appStatus) {
+    if (asBool(localSender)) return 'invited';
+    return appStatus === 'Missing' ? 'missing' : 'invite';
+  }
+
+  /* reactions (chat.js addReactions:549). The bridge sends a ;-joined "key:count"
+   * string. v1 renders LIKE reactions (heart + count), toggled via the existing
+   * `like` contextAction (xaml.cs:1045). Tips carry a txid, not a display amount
+   * (xaml.cs:979/1607), so they're omitted until the format is confirmed (BE
+   * brief). No per-user flag in the bridge → own:false (can't show "you reacted"). */
+  function parseReactions(str) {
+    const reactions = [];
+    let hadTip = false;
+    for (const tok of String(str || '').split(';')) {
+      if (!tok) continue;
+      const parts = tok.split(':');
+      const count = parseInt(parts[parts.length - 1], 10) || 0;
+      if (count <= 0) continue;
+      if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: false });
+      else if (tok.startsWith('tip')) hadTip = true;
+    }
+    return { reactions, hadTip };
+  }
+
+  /* apply a record's stored reactions to its live row — called from renderLog so
+   * pills survive re-renders, and from the addReactions handler for a live pop. */
+  function applyRowReactions(rec, row, animate) {
+    if (!rec.reactions || rec.reactions.length === 0) return;
+    applyReactions(row, {
+      reactions: rec.reactions,
+      animate: !!animate,
+      host: box,
+      onToggle: () => bridge.send('ixian:contextAction:like:' + rec.id),
+    });
+  }
+
+  /* secure-chat / privacy notice — ALWAYS the first item in the log, mirroring
+   * the legacy `private-messages-note` (chat.js clearMessages:1404). Marks the
+   * conversation as end-to-end encrypted + P2P. Copy is i18n-overridable via
+   * window.SL; "How it works" opens the security page through the legacy verb. */
+  const SECURE_LINK = 'https://www.spixi.io/help-center.html';
+  function createSecureNotice() {
+    const s = window.SL || {};
+    return createSystemNotice({
+      title: s.secureNoticeTitle || 'Encrypted. Peer-to-peer. Yours alone.',
+      text: s.secureNoticeText || 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with you two, nowhere else.',
+      linkLabel: s.secureNoticeLink || 'How it works',
+      onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
+    });
+  }
+
   /* full re-render of the log from the model — used after any insert/delete so
    * grouping + timestamp order stay correct. Rebuilds date separators too. */
   function renderLog() {
     const scrollWasAtBottom = nearBottom();
     box.textContent = '';
     rows.clear();
+    box.append(createSecureNotice());   // privacy note pinned at the top of history
     const pos = positionsFor(order);
     let lastDay = null;
     for (const id of order) {
@@ -19326,6 +19460,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       row.dataset.msgid = id;
       rows.set(id, row);
       box.append(row);
+      applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
     }
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
@@ -19345,7 +19480,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   function upsertText(id, text, direction, ts, flags, extra) {
     id = String(id);
     const existing = model.get(id);
-    const rec = existing || { id, direction, senderNick: '', senderAddress: '' };
+    const rec = existing || { id, kind: 'text', direction, senderNick: '', senderAddress: '' };
     if (text !== undefined && text !== null) rec.text = String(text);
     if (direction) rec.direction = direction;
     if (ts) rec.ts = ts;
@@ -19368,6 +19503,53 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const row = rows.get(id);
       if (row) { setMessageStatus(row, rec.status); return; }
     }
+    renderLog();
+  }
+
+  /* CREATE a file transfer row (legacy addFile). Keyed by message id like text
+   * rows; fileIndex maps the transfer's fileid → this id so updateFile finds it. */
+  function upsertFile(id, ts, dir, fileid, name, fstate, progress, extra) {
+    id = String(id);
+    const existing = model.get(id);
+    const rec = existing || { id, kind: 'file', direction: dir, senderNick: '', senderAddress: '' };
+    rec.kind = 'file';
+    if (dir) rec.direction = dir;
+    if (ts) rec.ts = ts;
+    if (fileid != null) { rec.fileid = String(fileid); fileIndex.set(String(fileid), id); }
+    if (name != null) rec.name = String(name);
+    rec.fstate = fstate;
+    rec.progress = Number(progress) || 0;
+    if (extra) {
+      if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
+      if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+    }
+    model.set(id, rec);
+    orderInsert(id);
+    hideTyping();
+    renderLog();
+  }
+
+  /* CREATE an app invite/session row (legacy addAppRequest). Static once added
+   * (no updateApp verb). appid drives joinApp; appInstallURL drives installApp. */
+  function upsertApp(id, ts, dir, extra) {
+    id = String(id);
+    const existing = model.get(id);
+    const rec = existing || { id, kind: 'app', direction: dir, senderNick: '', senderAddress: '' };
+    rec.kind = 'app';
+    if (dir) rec.direction = dir;
+    if (ts) rec.ts = ts;
+    if (extra) {
+      if (extra.appid !== undefined) rec.appid = extra.appid;
+      if (extra.name !== undefined) rec.name = extra.name || '';
+      if (extra.iconUrl !== undefined) rec.iconUrl = extra.iconUrl || null;
+      if (extra.astate !== undefined) rec.astate = extra.astate;
+      if (extra.appInstallURL !== undefined) rec.appInstallURL = extra.appInstallURL || '';
+      if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
+      if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+    }
+    model.set(id, rec);
+    orderInsert(id);
+    hideTyping();
     renderLog();
   }
 
@@ -19415,10 +19597,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     clearMessages(showMore) {
       model.clear();
       rows.clear();
+      fileIndex.clear();
       order = [];
       hideTyping();
       typingRow = null;
-      box.textContent = '';
+      renderLog();   // empties the log AND re-pins the secure notice (empty chat still shows it)
       dbg('clearMessages', { showMore });
     },
 
@@ -19433,7 +19616,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // rows (no ticks rendered). nick/address feed the group sender label/avatar.
     addThem(id, address, nick, avatar, text, time) {
       upsertText(id, text, 'received', toMs(time), {},
-        { senderNick: nick || '', senderAddress: address || '' });
+        { senderNick: resolveNick(address, nick), senderAddress: address || '' });
     },
 
     // TEXT status UPSERT (chat.js:1035, xaml.cs:1624). Update the row's status
@@ -19449,7 +19632,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // Remove a row and re-render so #63 grouping repairs around the gap.
     deleteMessage(id) {
       id = String(id);
-      if (!model.has(id)) { dbg('deleteMessage: unknown', id); return; }
+      const rec = model.get(id);
+      if (!rec) { dbg('deleteMessage: unknown', id); return; }
+      if (rec.kind === 'file' && rec.fileid) fileIndex.delete(rec.fileid);
       model.delete(id);
       order = order.filter((x) => x !== id);
       renderLog();
@@ -19480,25 +19665,93 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     addPaymentRequest() { dbg('addPaymentRequest'); },
     updatePaymentRequestStatus() { dbg('updatePaymentRequestStatus'); },
     updateTransactionStatus() { dbg('updateTransactionStatus'); },
-    addFile() { dbg('addFile'); },
-    updateFile() { dbg('updateFile'); },
+
+    /* FILE transfer create (chat.js addFile:904, 13-arg). me/sent/read/paid are
+     * the .NET bool strings; nick/address feed the group sender label/avatar. */
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid) {
+      upsertFile(id, toMs(time), asBool(me) ? 'sent' : 'received', fileid, name,
+        fileStateFrom(me, progress, complete), progress,
+        { senderNick: resolveNick(address, nick), senderAddress: address || '' });
+    },
+
+    /* FILE transfer progress/complete (chat.js updateFile:1009, keyed by fileid).
+     * Update the record + the live row in place (setFileProgress handles the
+     * bar AND the progress→complete flip, re-arming the open action). */
+    updateFile(fileid, progress, complete) {
+      const id = fileIndex.get(String(fileid));
+      const rec = id && model.get(id);
+      if (!rec) { dbg('updateFile: unknown fileid', fileid); return; }
+      const prev = rec.fstate;
+      const done = asBool(complete) || (Number(progress) || 0) >= 100;
+      rec.progress = Number(progress) || 0;
+      // own files stay 'complete'; incoming flips progress → complete when done.
+      rec.fstate = done ? 'complete' : (rec.direction === 'sent' ? 'complete' : 'progress');
+      const row = rows.get(id);
+      // setFileProgress mutates a row that is ALREADY in 'progress' (bar tick +
+      // the progress→complete flip). A structural change (offer→progress etc.)
+      // has no track to grow, so rebuild the row from the model instead.
+      if (row && prev === 'progress') setFileProgress(row, rec.progress, { state: rec.fstate });
+      else renderLog();
+    },
+
     addCall() { dbg('addCall'); },
-    addReactions() { dbg('addReactions'); },
+
+    // REACTIONS (chat.js addReactions:549) — ;-joined "key:count". Store on the
+    // record (so re-renders keep them) + apply to the live row with a pop. The
+    // bridge re-emits the FULL list each time, so parse-replace is correct.
+    addReactions(id, reactions) {
+      const rec = model.get(String(id));
+      if (!rec) { dbg('addReactions: unknown', id); return; }
+      rec.reactions = parseReactions(reactions).reactions;
+      const row = rows.get(String(id));
+      if (row) {
+        if (rec.reactions.length) applyRowReactions(rec, row, true);
+        else applyReactions(row, { reactions: [] });   // cleared → remove pills
+      }
+    },
     addContact() { dbg('addContact'); },
     showContactRequest() { dbg('showContactRequest'); },
     showCallButton() { dbg('showCallButton'); },
-    addApp() { dbg('addApp'); },
-    addAppRequest() { dbg('addAppRequest'); },
+    // APP invite/session card (chat.js addAppRequest:1174). appStatus ∈
+    // {Missing, Minimized, else} — already enum-shaped. Reuses installApp/joinApp.
+    addAppRequest(id, appid, appname, appimage, address, nick, avatar, time, localSender, sent, read, appStatus, appInstallURL) {
+      upsertApp(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
+        appid: appid, name: appname, iconUrl: appimage || null,
+        astate: appStateFrom(localSender, appStatus),
+        appInstallURL: appInstallURL || '',
+        senderNick: resolveNick(address, nick), senderAddress: address || '',
+      });
+    },
+    addApp() { dbg('addApp'); },            // apps MENU population, not a chat bubble
     clearApps() { dbg('clearApps'); },
     addChannelToSelector() { dbg('addChannelToSelector'); },
     setSelectedChannel() { dbg('setSelectedChannel'); },
     setChannelSelectorStatus() { dbg('setChannelSelectorStatus'); },
-    updateGroupChatNicks() { dbg('updateGroupChatNicks'); },
+    // A participant's nick resolved/changed (chat.js:1233). Update every row from
+    // that sender address + re-render so their label refreshes. Also store it so
+    // later rows from an as-yet-unseen address get the right name on arrival.
+    updateGroupChatNicks(address, nick) {
+      const addr = String(address || '');
+      if (!addr) return;
+      groupNicks.set(addr, nick || '');
+      let touched = false;
+      for (const rec of model.values()) {
+        if (rec.senderAddress === addr && rec.senderNick !== (nick || '')) {
+          rec.senderNick = nick || '';
+          touched = true;
+        }
+      }
+      if (touched) renderLog();
+    },
     showRequestSentModal() { dbg('showRequestSentModal'); },
     showWarning() { dbg('showWarning'); },
   };
 
   bridge.exposeAll(handlers);
+
+  // Render the empty log immediately so the secure notice is visible from first
+  // paint (before C# pushes the conversation, and for brand-new empty chats).
+  renderLog();
 
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });

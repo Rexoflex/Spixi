@@ -16,14 +16,17 @@
   /* 100ms intentional: micro-interaction duration for row hover (token comment "100ms micro: hover") */
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-.c-chatlist-item[aria-current] { background: var(--surface-interactive-selected); }
+/* dual-pane ACTIVE chat — the neutral interactive-selected (primary-900 in dark)
+   was barely visible on the near-black canvas; use the action-tonal surface so the
+   open conversation reads clearly (Damir 2026-07-07). */
+.c-chatlist-item[aria-current] { background: var(--surface-action-tonal-default); }
 @media (hover: hover) {
   .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
-  .c-chatlist-item[aria-current]:hover { background: var(--surface-interactive-selected); }
+  .c-chatlist-item[aria-current]:hover { background: var(--surface-action-tonal-hover); }
 }
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
-.c-chatlist-item:active,
-.c-chatlist-item[aria-current]:active { background: var(--surface-interactive-pressed); }
+.c-chatlist-item:active { background: var(--surface-interactive-pressed); }
+.c-chatlist-item[aria-current]:active { background: var(--surface-action-tonal-pressed); }
 
 .c-chatlist-item__content {
   display: flex;

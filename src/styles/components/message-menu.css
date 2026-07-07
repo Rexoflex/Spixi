@@ -60,3 +60,51 @@
 /* destructive group last, error ink (§5b) */
 .c-msgmenu__item[data-destructive] { color: var(--text-error); }
 .c-msgmenu__item[data-destructive] svg { color: var(--icon-error); }
+
+/* —— delete-chat modal content (row-menu openDeleteFlow, redesigned after F5):
+   peer avatar + name header (no mistake WHO) + the delete-option checkboxes.
+   Rendered inside c-modal (overlay.css owns the dialog chrome). —— */
+.c-delete-chat { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-delete-chat__peer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-delete-chat__name {
+  min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-delete-chat__body {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-delete-chat__opts { display: flex; flex-direction: column; }
+.c-delete-chat__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-target-min);   /* ≥44px touch target */
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  cursor: pointer;
+}
+.c-delete-chat__opt input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  accent-color: var(--surface-action-default);
+  cursor: pointer;
+}
+.c-delete-chat__opt input:disabled { cursor: default; }

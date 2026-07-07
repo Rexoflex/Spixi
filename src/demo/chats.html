@@ -191,7 +191,10 @@
   // capability flags — parkable BE-gated features (#67/§8). Demo defaults pin/mute
   // ON so the swipe is testable; the toolbar "Park pin/mute" button flips them OFF
   // to prove the feature parks (swipe + menu items vanish) until BE ships.
-  const caps = { pin: true, mute: true, favorites: false };
+  // delete ON in the demo: the mock removes the row in-memory (not broken), so the
+  // two-step delete flow (CH3) is testable here; the REAL home shell gates it OFF
+  // until the BE wipe verbs land.
+  const caps = { pin: true, mute: true, favorites: false, delete: true };
   const opts = {
     strings, host: phone, capabilities: caps,
     onOpen: (c) => showToast({ text: 'Open ' + (c.name || c.address) + ' — demo only', tone: 'info', host: phone }),

@@ -78,7 +78,9 @@
   box-shadow: var(--elevation-1); /* audit: lifts white bubbles off the pale canvas bottom */
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {
-  background: var(--surface-bubble-sent);
+  /* premium saturated gradient (Damir 2026-07-07); solid --surface-bubble-sent is
+     the fallback if the gradient token is ever unset. */
+  background: var(--gradient-bubble-sent, var(--surface-bubble-sent));
   color: var(--text-bubble-sent);
 }
 
@@ -118,6 +120,12 @@ button.c-bubble__sender {
 }
 @media (hover: hover) {
   button.c-bubble__sender:hover { text-decoration: underline; }
+}
+/* nameless sender = a raw wallet address (middle-truncated): monospace reads it as
+   an address; the button hover-underline signals it's copy-pastable (Damir 2026-07-07). */
+.c-bubble__sender[data-address] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
 }
 .c-bubble-row__avatar-btn {
   display: block;

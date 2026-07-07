@@ -5,7 +5,7 @@
  * ARCHITECTURE.md §7); English defaults inline.
  */
 import { getStrings } from './strings-runtime.js';
-import { icon } from './icons.js';
+import { icon, ICONS } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { formatChatTimestamp } from './timestamp.js';
 
@@ -67,15 +67,18 @@ export function createIndicators({ count = 0, mention = false, muted = false, st
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
-  payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
+  payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
 };
 export function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
+  // Guard on registry membership: a glyph not yet exported (e.g. `heart` awaiting
+  // Damir's Tabler export) degrades to clean text — no empty 16px box, no per-render
+  // console.warn from icon(). Appears automatically once the icon is registered.
   const glyph = EXCERPT_GLYPHS[type];
-  if (glyph) el.append(icon(glyph, { size: 16 }));
+  if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
   if (sender) {
     const s = document.createElement('span');
     s.className = 'c-excerpt__sender';

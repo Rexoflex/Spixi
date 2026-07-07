@@ -687,10 +687,10 @@
     // (pin/mute/mark-read/info/delete) — anchored-dropdown presentation below
     attachChatRowMenu(el, {
       chat: c, host: frame, strings,
-      capabilities: { pin: true, mute: true },
+      capabilities: { pin: true, mute: true, delete: true },
       onAction: (action) => {
         if (action === 'info') { openChat(c.id); toggleChatInfo(); return; }
-        if (action === 'delete') { if (currentChat === c.id) closeChat(); el.remove(); rowEls.delete(c.id); toast('Chat deleted'); return; }
+        if (action === 'delete' || action === 'deleteContact') { if (currentChat === c.id) closeChat(); el.remove(); rowEls.delete(c.id); toast(action === 'deleteContact' ? 'Chat & contact deleted' : 'Chat deleted'); return; }
         if (action === 'pin') { c.pinned = !c.pinned; toast(c.pinned ? 'Pinned' : 'Unpinned'); return; }
         if (action === 'mute') { c.muted = !c.muted; toast(c.muted ? 'Muted' : 'Unmuted'); return; }
         toast('Marked as read');
@@ -738,10 +738,10 @@
             });
             attachChatRowMenu(chat, {
               chat: { name: req.name, address: req.address }, host: frame, strings,
-              capabilities: { pin: true, mute: true },
+              capabilities: { pin: true, mute: true, delete: true },
               onAction: (action) => {
                 if (action === 'info') { openChat(req.id); toggleChatInfo(); return; }
-                if (action === 'delete') { if (currentChat === req.id) closeChat(); chat.remove(); rowEls.delete(req.id); toast('Chat deleted'); return; }
+                if (action === 'delete' || action === 'deleteContact') { if (currentChat === req.id) closeChat(); chat.remove(); rowEls.delete(req.id); toast(action === 'deleteContact' ? 'Chat & contact deleted' : 'Chat deleted'); return; }
                 if (action === 'pin') { toast('Pinned'); return; }
                 if (action === 'mute') { toast('Muted'); return; }
                 toast('Marked as read');

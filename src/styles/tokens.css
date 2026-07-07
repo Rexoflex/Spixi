@@ -547,7 +547,7 @@
   --surface-composer: var(--neutral-900);
   --surface-card: var(--neutral-800);
   --surface-card-raised: var(--neutral-700);
-  --surface-bubble-sent: var(--primary-400);
+  --surface-bubble-sent: var(--primary-600); /* saturated solid fallback for --gradient-bubble-sent (was primary-400, too pale for white text) */
   --surface-bubble-received: var(--neutral-700);
   --surface-input: var(--neutral-800);
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
@@ -591,13 +591,15 @@
   --text-error-inverse: var(--error-800);
 
   /* text/region */
-  --text-bubble-sent: var(--neutral-950);
-  --text-bubble-sent-meta: var(--primary-800);
+  --text-bubble-sent: var(--neutral-10);          /* WHITE on the saturated outgoing bubble (Damir 2026-07-07 — was neutral-950/black) */
+  --text-bubble-sent-meta: var(--neutral-300);    /* dimmed white meta (was primary-800/dark, invisible on a deep bubble) */
   --text-bubble-received: var(--neutral-100);
   --text-bubble-received-meta: var(--neutral-400);
-  --icon-bubble-read: var(--success-800);   /* audit r2: 600 was 2.3:1 on primary-400 — 800 clears 3:1 non-text */
-  --icon-bubble-delivered: var(--success-700); /* muted vs read (~50% contrast target on primary-400) */
-  --icon-bubble-failed: var(--error-700);   /* deep red reads on the light-blue dark bubble */
+  /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
+     old 700/800 values were tuned for the pale primary-400 bubble). */
+  --icon-bubble-read: var(--success-300);
+  --icon-bubble-delivered: var(--success-400);
+  --icon-bubble-failed: var(--error-200);
 
   /* icon */
   --icon-neutral-01: var(--neutral-100);
@@ -758,6 +760,11 @@
      Figma mirror. Replaces primary-100→50; recheck canvas-tuned inks
      (scroll thumb -03, datesep) at UX review. */
   --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--surface-screen);
+  /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
+     (Damir 2026-07-07). White text (--text-bubble-sent) rides on top. This is the
+     ONE line to tune the sent-bubble look (Damir owns the final palette); the solid
+     --surface-bubble-sent is the fallback. TOKEN-CANDIDATE at next Figma mirror. */
+  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-600) 100%);
   /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
      white glyph, so the same fills read in light AND dark). Assigned per-glyph by
      discGrad() so discs don't repeat; error = reserved destructive red. Raw hex
@@ -854,11 +861,17 @@
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
-  /* chat canvas — theme-ink pattern on dark, gradient deep navy → screen.
-     ✅ "Primary soft" locked (Damir 2026-07-03 — see light-mode note) */
+  /* chat canvas — near-darkest base (neutral-950 = "surface-01", Damir 2026-07-07)
+     with a subtle premium glow so it reads gradient-like (Telegram), not flat; the
+     theme-ink line pattern (chat-pattern.css) overlays on top. ✅ "Primary soft"
+     pattern ink locked (2026-07-03). Tune the glow alpha/position here. */
   --chat-pattern-ink: var(--primary-800);
   --chat-pattern-opacity: 0.5;
-  --gradient-chat: linear-gradient(180deg, var(--primary-900) 0%, var(--surface-screen) 60%);
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--neutral-950);
+  /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
+     (Damir 2026-07-07); white text rides on top. THE line to tune for dark.
+     Deeper end than light so white pops. Damir owns the final palette. */
+  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

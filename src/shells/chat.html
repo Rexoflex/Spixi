@@ -139,7 +139,7 @@
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice,
     attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
-    createModal, openModal,
+    createModal, openModal, showToast,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
@@ -344,8 +344,10 @@
       text: rec.text || '',
       timestamp: rec.ts,
       status: isSent ? rec.status : null,
-      // group chats: show sender label + avatar for incoming rows
-      sender: (!isSent && mode.isMulti && rec.senderNick) ? rec.senderNick : null,
+      // group/bot chats: show the sender nick, or the raw ADDRESS (middle-truncated
+      // + click-to-copy in the component) when there's no nick yet (Damir 2026-07-07).
+      sender: (!isSent && mode.isMulti) ? (rec.senderNick || rec.senderAddress || null) : null,
+      senderIsAddress: (!isSent && mode.isMulti && !rec.senderNick && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
       name: rec.senderNick || '',
       address: rec.senderAddress || '',
@@ -429,9 +431,12 @@
   /* file transfer row (chat.js addFile:904 / updateFile:1009).
    *   received + not started → 'offer'    → tap = ixian:acceptfile:<fileid>
    *   in transfer (0<p<100)  → 'progress' → no tap (disabled while downloading)
-   *   complete OR own file   → 'complete' → tap = ixian:openfile:<fileid>
-   * Own outgoing files are openable immediately (legacy always wires openfile
-   * for me==True). meta is left empty — the legacy bridge sends no size/type. */
+   *   complete               → 'complete' → tap = ixian:openfile:<fileid>
+   * OUTGOING transfers now show progress too (Damir F5): the SENDER gets real
+   * per-packet ticks (TransferManager.sendFileData → updateFile, 0→100+complete),
+   * so a sent file shows the bar + "keep Spixi open" hint while transferring and
+   * flips to complete (open button + success toast) when done — instead of the
+   * legacy "own file = instantly complete". meta is empty (bridge sends no size). */
   function buildFileRow(rec) {
     return createFileBubble({
       direction: rec.direction,
@@ -450,8 +455,10 @@
   function fileStateFrom(me, progress, complete) {
     const p = Number(progress) || 0;
     if (asBool(complete) || p >= 100) return 'complete';
-    if (asBool(me)) return 'complete';   // own file — openable immediately (legacy)
-    return p > 0 ? 'progress' : 'offer'; // incoming: accepted+downloading vs offer
+    // in-flight: OUTGOING shows send progress (bar + keep-open) — never 'offer'
+    // (own files have no accept step); INCOMING = downloading vs a pending offer.
+    if (asBool(me)) return 'progress';
+    return p > 0 ? 'progress' : 'offer';
   }
 
   /* app invite/session card (chat.js addAppRequest:1174). state derives from the
@@ -1090,6 +1097,7 @@
     onChatScreenReady(address) {
       identity.address = address || '';
       if (!identity.name) renderTopbar();
+      maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -1103,6 +1111,7 @@
       clearTimeout(burstSafety);
       renderLogNow();
       box.scrollTop = box.scrollHeight;
+      maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
       focusComposer();
       dbg('onChatScreenLoaded');
     },
@@ -1168,14 +1177,21 @@
       const prev = rec.fstate;
       const done = asBool(complete) || (Number(progress) || 0) >= 100;
       rec.progress = Number(progress) || 0;
-      // own files stay 'complete'; incoming flips progress → complete when done.
-      rec.fstate = done ? 'complete' : (rec.direction === 'sent' ? 'complete' : 'progress');
+      // BOTH directions tick then flip to complete (Damir F5: outgoing shows
+      // progress too — the sender gets per-packet ticks, TransferManager:410).
+      rec.fstate = done ? 'complete' : 'progress';
       const row = rows.get(id);
       // setFileProgress mutates a row that is ALREADY in 'progress' (bar tick +
       // the progress→complete flip). A structural change (offer→progress etc.)
       // has no track to grow, so rebuild the row from the model instead.
       if (row && prev === 'progress') setFileProgress(row, rec.progress, { state: rec.fstate });
       else renderLog();
+      // slick completion cue for OUTGOING transfers (Damir F5): a one-shot success
+      // toast the moment a sent file finishes (the bar + open button carry the rest).
+      if (done && prev !== 'complete' && rec.direction === 'sent' && !rec.sentToastShown) {
+        rec.sentToastShown = true;
+        showToast({ text: (window.SL && window.SL.fileSent) || 'File sent', tone: 'success', host: overlayHost, strings: window.SL || {} });
+      }
     },
 
     // CALL event (chat.js addCall:1496): (id, text, declined, time). VIEW-ONLY
@@ -1269,6 +1285,47 @@
    * typing → ixian:typing, throttled to >1s like legacy (chat.js:423). Legacy
    *         suppresses typing in group chats; mirror that.
    * After send we clear locally for snappiness; C# also echoes clearInput. */
+  /* —— composer drafts (CH7). Persist the UNSENT composer text to localStorage
+   * keyed by peer address so it survives leaving/returning to the chat, and the
+   * chats list (home.html, same Resources/Raw/html origin) can show a "Draft: …"
+   * excerpt. A draft is the user's own unsent text (not message history) →
+   * SECURITY.md-OK to cache; cleared on a successful send. Fail-soft if
+   * localStorage is unavailable. Keyed on identity.address, which lands via
+   * onChatScreenReady BEFORE the composer can be typed into. */
+  const DRAFT_PREFIX = 'spixi.draft.';
+  let draftRestored = false;
+  let draftSaveTimer = 0;
+  function draftKey() { return identity.address ? DRAFT_PREFIX + identity.address : ''; }
+  function saveDraft(text) {
+    const k = draftKey();
+    if (!k) return;
+    try {
+      if (text && text.trim()) localStorage.setItem(k, text);
+      else localStorage.removeItem(k);
+    } catch (_) {}
+  }
+  function clearDraft() {
+    clearTimeout(draftSaveTimer);          // cancel any in-flight debounced save so it can't
+    const k = draftKey();                  // resurrect the just-sent text after removeItem (audit race)
+    if (!k) return;
+    try { localStorage.removeItem(k); } catch (_) {}
+  }
+  /** Restore a saved draft once the peer address is known — but never clobber
+   *  text the user already started typing, and only once per page life. */
+  function maybeRestoreDraft() {
+    if (draftRestored) return;
+    const k = draftKey();
+    if (!k) return;                              // address not known yet — try again later
+    draftRestored = true;
+    let saved = '';
+    try { saved = localStorage.getItem(k) || ''; } catch (_) {}
+    if (!saved) return;
+    const input = composerEl && composerEl.querySelector('.c-composer__input');
+    if (!input || input.value) return;          // don't overwrite in-progress typing
+    input.value = saved;
+    input.dispatchEvent(new Event('input'));    // grow + action sync; isTrusted=false → no spurious ixian:typing
+  }
+
   let composerEl = null;
   let lastTypingSent = 0;
   composerEl = createComposer({
@@ -1277,6 +1334,7 @@
     onSend: (text) => {
       if (!text) return;
       bridge.send('ixian:chat:' + encodeURIComponent(text));
+      clearDraft();                                   // sent → drop the saved draft (CH7)
       // composer already clears its own field on send; this is belt-and-braces.
     },
     onTyping: () => {
@@ -1292,6 +1350,27 @@
     onAttach: () => openAttach(),
   });
   document.getElementById('chat-composer').append(composerEl);
+
+  /* Save the draft as the user types (debounced ~400ms). Only genuine typing
+   * (isTrusted) persists — a synthetic restore/clear event must not re-write.
+   * flushDraft() writes immediately on blur / page-hide so leaving the chat
+   * within the debounce window never drops the last keystrokes (audit). */
+  {
+    const input = composerEl.querySelector('.c-composer__input');
+    if (input) {
+      const flushDraft = () => { clearTimeout(draftSaveTimer); saveDraft(input.value); };
+      input.addEventListener('input', (e) => {
+        if (!e.isTrusted) return;
+        clearTimeout(draftSaveTimer);
+        const v = input.value;
+        draftSaveTimer = setTimeout(() => saveDraft(v), 400);
+      });
+      input.addEventListener('blur', flushDraft);
+      // WebView back/navigation away → persist the in-progress draft now.
+      window.addEventListener('pagehide', flushDraft);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft(); });
+    }
+  }
 
   /* Put the caret in the composer so the user can type on entry without tapping
    * (Damir). Called from onChatScreenLoaded; guarded so a missing input or a

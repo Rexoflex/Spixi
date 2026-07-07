@@ -89,6 +89,26 @@ function linkifyInto(parent, text, onLinkClick) {
   parent.append(text.slice(last));
 }
 
+/* Middle-truncate a wallet address for a nameless group/bot sender label
+   (Damir 2026-07-07): 6…6 keeps both ends recognisable. */
+function truncateAddressMiddle(s, head = 6, tail = 6) {
+  s = String(s == null ? '' : s);
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
+}
+/* Copy the FULL address to the clipboard + brief inline "Copied" feedback. */
+function copySenderAddress(btn, address, strings) {
+  const revert = truncateAddressMiddle(address);
+  const flash = () => {
+    btn.textContent = strings.copied || 'Copied';
+    setTimeout(() => { if (btn.isConnected) btn.textContent = revert; }, 1200);
+  };
+  // flash "Copied" ONLY on a real success — never claim a copy that didn't happen
+  // (honest-failure parity with wallet-receive). No clipboard API → do nothing.
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(address).then(flash, () => {});
+  } catch (_) {}
+}
+
 export function createMessageBubble({
   direction = 'received',
   position = 'single',
@@ -96,6 +116,7 @@ export function createMessageBubble({
   timestamp = null,
   status = null,
   sender = null,
+  senderIsAddress = false,     // nameless group/bot sender → sender IS a raw address
   showAvatar = false,
   name = '',
   address = '',
@@ -144,15 +165,26 @@ export function createMessageBubble({
   // sender label: group chats, first bubble of a group, identity-hued (premium).
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
-    // #99: tappable when onSenderClick is wired (member sheet); blind groups
-    // don't pass the callback → plain span
-    const s = document.createElement(onSenderClick ? 'button' : 'span');
+    // A nameless sender (no nick — bots / some group members) shows its ADDRESS
+    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
+    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
+    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
+    const copyable = senderIsAddress && !!address;
+    const interactive = copyable || !!onSenderClick;
+    const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
-    if (onSenderClick) {
+    if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
+    if (interactive) {
       s.type = 'button';
-      s.addEventListener('click', onSenderClick);
+      if (copyable) {
+        s.title = address;                                       // full address on hover
+        s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
+        s.addEventListener('click', () => copySenderAddress(s, address, strings));
+      } else {
+        s.addEventListener('click', onSenderClick);
+      }
     }
-    s.textContent = sender;
+    s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
     el.append(s);
   }

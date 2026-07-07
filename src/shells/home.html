@@ -202,15 +202,40 @@
    * ixian:onload. Requests are not fed by the current HomePage contract
    * (loadChats only), so requests stays []. */
   const state = { chats: [], requests: [], filter: 'all', query: '' };
+  /* Session tombstone for deleted chats (CH3 interim, Damir F5). HomePage has no
+   * delete verb, so a delete can't persist to C#; without this a deleted row would
+   * reappear on the very next loadChats re-flush. We remember deleted addresses for
+   * the session and filter them out of a STRUCTURAL flush — so a delete actually
+   * sticks — while a LONE addChat (a real new-message event, updateChat xaml:1020)
+   * RESURRECTS the chat (they messaged you again → it should come back). Cleared on
+   * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
+   * contact) still needs the BE verbs — this only removes the row. */
+  const deletedChats = new Set();
   const opts = {
     strings,
     host: document.body,
     // Opening a chat → legacy verb ixian:chat:<address> (home.js:438 → C# onChat)
     onOpen: (c) => { if (c.address) bridge.send('ixian:chat:' + c.address); },
-    // Row menu / swipe intents (pin/mute/markRead/delete) have no BE persistence
-    // path in today's HomePage contract → keep the local model change, no bridge
-    // send. When BE ships the §8 command it slots in here.
-    onPersist: () => {},
+    // Row-menu/swipe intents. delete/deleteAll → tombstone the address (the row is
+    // already removed from the model by applyChatRowAction). pin/mute/markRead have
+    // no BE persistence path yet → local model change only. When BE ships the §8
+    // verbs (CH1/CH3/CH4) the real ixian: sends slot in here, keyed on `action`:
+    //   markRead → ixian:markread:<addr> · delete → ixian:removehistory (soft)
+    //   deleteAll → history+downloads purge + ixian:remove (contact)
+    // delete/deleteContact → tombstone the address (row already removed by
+    // applyChatRowAction). `detail.media` + the deeper wipe (history/files) and
+    // contact removal are the BE intent (CH3); recorded here for when the verbs land:
+    //   delete {media:false} → row only (→ ixian:removehistory soft)
+    //   delete {media:true}  → + on-device media/files purge
+    //   deleteContact        → also remove the contact (→ ixian:remove)
+    onPersist: (action, chat, detail) => {
+      if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
+        deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
+      }
+    },
+    // Delete ON: the tombstone makes the two-step delete actually stick this session
+    // (CH3 interim). pin/mute/favorites (CH4) stay parked until their persist verbs.
+    capabilities: { pin: false, mute: false, favorites: false, delete: true },
     onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
   };
 
@@ -303,6 +328,81 @@
     const i = state.chats.findIndex((c) => c && c.address === chat.address);
     if (i === -1) state.chats.push(chat);
     else state.chats[i] = { ...state.chats[i], ...chat };
+  }
+
+  /* —— excerpt canon (CH6, best-effort en-us). C# composes the last-message
+   * excerpt as a LOCALIZED string (getFriendMessageHelper, HomePage.xaml.cs:907-970):
+   * for a typed message it's the message text; for a typed EVENT (file / payment /
+   * app invite / voice call) it's a fixed `_SL` phrase. We can't get the structured
+   * KIND over the frozen bridge (that's the BE end-state, CH6), so we reverse-match
+   * the known ENGLISH phrases back to a chatlist-item excerpt kind → the canon glyph
+   * (📄 File · phone · wallet · apps). A localSender message is prefixed with
+   * `index-excerpt-self` + " " — that key is EMPTY in en-us (a bare leading space,
+   * en-us.txt:305), so we trim before matching. Unknown / non-en-us → plain text
+   * (graceful degrade). missed-vs-answered call can't be split — C# collapses both
+   * to `index-excerpt-voice-call`. Coincidental exact matches (a user literally
+   * types "File") are an accepted best-effort false-positive. */
+  const EXCERPT_CANON = {
+    'File': 'file',                          // index-excerpt-file
+    'Voice Call': 'call',                    // index-excerpt-voice-call (missed+answered collapsed)
+    'Payment Request Sent': 'payment',       // index-excerpt-payment-request-sent
+    'Payment Request Received': 'payment',   // index-excerpt-payment-request-received
+    'Payment Sent': 'payment',               // index-excerpt-payment-sent
+    'Payment Received': 'payment',           // index-excerpt-payment-received
+    'Invite Sent': 'app-invite',             // chat-app-invite-sent
+    'Invite Received': 'app-invite',         // chat-app-invite-received
+  };
+  // Lone GIF URL → "GIF" chip (keeps a raw tenor/giphy link out of the list).
+  // GIF-ONLY: chatlist-item has no image glyph, so a .png/.jpg link would be
+  // mislabelled "GIF" — leave those as plain text. Whole-excerpt-is-a-URL only.
+  function isGifExcerptUrl(t) {
+    if (!/^https?:\/\/\S+$/i.test(t) || /\s/.test(t)) return false;
+    let u; try { u = new URL(t); } catch (_) { return false; }
+    const host = u.hostname.toLowerCase();
+    if (/\.gif(\?|#|$)/i.test(u.pathname)) return true;
+    return /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host);
+  }
+  // A LIKE reaction surfaces in the excerpt as a lone heart (the bridge supports
+  // only `like`; C# re-pushes updateChat after a reaction, xaml UIHelpers:75). Show
+  // the heart GLYPH + "Reacted" instead of a bare ❤️ (Damir F5). Best-effort: a
+  // literal lone "❤️" text message is an accepted false-positive (like CH6's canon
+  // string matches); the clean end-state is a structured reaction signal from C#
+  // (reactor + "reacted to your message") — a BE row. Match the heart with/without
+  // the emoji variation selector.
+  // char-code based (NO literal emoji/escape in source → robust through the
+  // inline/build pipeline): a lone U+2764 heart with an optional trailing
+  // emoji variation selector U+FE0F.
+  function isHeartOnly(s) {
+    const t = (s.charCodeAt(s.length - 1) === 0xFE0F) ? s.slice(0, -1) : s;
+    return t.length === 1 && t.charCodeAt(0) === 0x2764;
+  }
+  function excerptFromRaw(raw, statusType) {
+    const decoded = decodeEntities(raw);
+    if (statusType === 'typing') return { type: 'typing', text: decoded };
+    const trimmed = (decoded || '').trim();
+    const kind = EXCERPT_CANON[trimmed];
+    if (kind) return { type: kind, text: trimmed };
+    if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
+    if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
+    return { type: 'text', text: decoded };
+  }
+
+  /* —— composer drafts (CH7). chat.html persists the unsent composer text to
+   * localStorage keyed by peer address (same Resources/Raw/html origin, shared
+   * store); we read it here so a chat with a pending draft shows the "Draft: …"
+   * excerpt (chatlist-item `draft` type), overriding the last-message excerpt —
+   * WhatsApp parity. A draft is the user's OWN unsent text, not history →
+   * SECURITY.md-OK to cache. Fail-soft if localStorage is unavailable. */
+  const DRAFT_PREFIX = 'spixi.draft.';
+  function getDraft(addr) {
+    if (!addr) return '';
+    try { return (localStorage.getItem(DRAFT_PREFIX + addr) || '').trim(); } catch (_) { return ''; }
+  }
+  /** Excerpt for a chat row: a pending draft wins, else the canon reverse-map. */
+  function excerptFor(address, raw, statusType) {
+    const draft = getDraft(address);
+    if (draft) return { type: 'draft', text: draft };
+    return excerptFromRaw(raw, statusType);
   }
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -543,6 +643,12 @@
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
     addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread) {
+      // Deleted this session (CH3 tombstone): a STRUCTURAL flush must keep it gone;
+      // a LONE addChat (a real new-message event) RESURRECTS it (they messaged you).
+      if (deletedChats.has(wallet)) {
+        if (chatsFlushing) return;              // reflush → stay deleted
+        deletedChats.delete(wallet);            // new message → bring it back
+      }
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
       const n = Number(unread) || 0;
@@ -554,7 +660,8 @@
         // fails to load falls back to the gradient (avatar.js onerror).
         avatar: resolveAvatar(avatar),
         online: online === 'true' || online === 'True',
-        excerpt: { type: (type === 'typing' ? 'typing' : 'text'), text: decodeEntities(excerpt_msg) },
+        // canon reverse-map (CH6) + draft override (CH7); a pending draft wins.
+        excerpt: excerptFor(wallet, excerpt_msg, type),
         unread: n,
         // clear any leftover outgoing tick; re-set below when unread === 0
         status: undefined,
@@ -600,7 +707,9 @@
       if (!c) return;                                   // contacts-directory-only status → ignore
       c.online = online === 'true' || online === 'True';
       c.unread = Number(unread) || 0;
-      if (excerpt) c.excerpt = { type: 'text', text: decodeEntities(excerpt) };
+      // A live status tick is normally excerpt="" (pure online/unread refresh); when
+      // it does carry text, run it through the same canon+draft path as addChat.
+      { const ex = excerptFor(address, excerpt, undefined); if (excerpt || ex.type === 'draft') c.excerpt = ex; }
       const t = Number(timestamp);
       if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
       scheduleChatsRender();

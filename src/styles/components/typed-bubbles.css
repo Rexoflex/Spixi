@@ -241,6 +241,15 @@
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
+/* "Open file" affordance — complete state only (A8b). Link-like accent text so a
+   finished download reads as actionable; the whole bubble is the button. */
+.c-fbubble__open {
+  margin-top: var(--spacing-4);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-action-default);
+}
 
 .c-fbubble__time {
   align-self: flex-end;

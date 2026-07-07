@@ -382,6 +382,15 @@ function fileAria(state, name, strings) {
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
 }
+/* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
+   whole bubble is already a tappable button, but a labelled control makes it
+   obvious the transfer finished and the file is openable. Complete state only. */
+function fileOpenLabel(strings) {
+  const s = document.createElement('span');
+  s.className = 'c-fbubble__open';
+  s.textContent = strings.openFile || 'Open file';
+  return s;
+}
 
 /** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
  *  state: 'offer' (incoming, accept) | 'progress' (0-100) | 'complete' | 'failed' */
@@ -460,6 +469,7 @@ export function createFileBubble({
     hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
     col.append(hint);
   }
+  if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
   el.append(col);
 
   if (timestamp != null) {
@@ -505,6 +515,16 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    // "Open file" affordance appears on completion, is dropped on a failed flip.
+    const existingOpen = bubble.querySelector('.c-fbubble__open');
+    if (finalState === 'complete') {
+      if (!existingOpen) {
+        const infoCol = bubble.querySelector('.c-fbubble__info');
+        if (infoCol) infoCol.append(fileOpenLabel(strings));
+      }
+    } else if (existingOpen) {
+      existingOpen.remove();
+    }
     if (finalState === 'failed' && metaEl && !opts.meta) {
       metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
     }

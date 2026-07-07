@@ -379,15 +379,18 @@ function createIndicators({ count = 0, mention = false, muted = false, strings =
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
-  payment: 'wallet', 'app-invite': 'apps', draft: 'pencil',
+  payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
+  // Guard on registry membership: a glyph not yet exported (e.g. `heart` awaiting
+  // Damir's Tabler export) degrades to clean text — no empty 16px box, no per-render
+  // console.warn from icon(). Appears automatically once the icon is registered.
   const glyph = EXCERPT_GLYPHS[type];
-  if (glyph) el.append(icon(glyph, { size: 16 }));
+  if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
   if (sender) {
     const s = document.createElement('span');
     s.className = 'c-excerpt__sender';
@@ -1819,6 +1822,26 @@ function linkifyInto(parent, text, onLinkClick) {
   parent.append(text.slice(last));
 }
 
+/* Middle-truncate a wallet address for a nameless group/bot sender label
+   (Damir 2026-07-07): 6…6 keeps both ends recognisable. */
+function truncateAddressMiddle(s, head = 6, tail = 6) {
+  s = String(s == null ? '' : s);
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
+}
+/* Copy the FULL address to the clipboard + brief inline "Copied" feedback. */
+function copySenderAddress(btn, address, strings) {
+  const revert = truncateAddressMiddle(address);
+  const flash = () => {
+    btn.textContent = strings.copied || 'Copied';
+    setTimeout(() => { if (btn.isConnected) btn.textContent = revert; }, 1200);
+  };
+  // flash "Copied" ONLY on a real success — never claim a copy that didn't happen
+  // (honest-failure parity with wallet-receive). No clipboard API → do nothing.
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(address).then(flash, () => {});
+  } catch (_) {}
+}
+
 function createMessageBubble({
   direction = 'received',
   position = 'single',
@@ -1826,6 +1849,7 @@ function createMessageBubble({
   timestamp = null,
   status = null,
   sender = null,
+  senderIsAddress = false,     // nameless group/bot sender → sender IS a raw address
   showAvatar = false,
   name = '',
   address = '',
@@ -1874,15 +1898,26 @@ function createMessageBubble({
   // sender label: group chats, first bubble of a group, identity-hued (premium).
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
-    // #99: tappable when onSenderClick is wired (member sheet); blind groups
-    // don't pass the callback → plain span
-    const s = document.createElement(onSenderClick ? 'button' : 'span');
+    // A nameless sender (no nick — bots / some group members) shows its ADDRESS
+    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
+    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
+    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
+    const copyable = senderIsAddress && !!address;
+    const interactive = copyable || !!onSenderClick;
+    const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
-    if (onSenderClick) {
+    if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
+    if (interactive) {
       s.type = 'button';
-      s.addEventListener('click', onSenderClick);
+      if (copyable) {
+        s.title = address;                                       // full address on hover
+        s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
+        s.addEventListener('click', () => copySenderAddress(s, address, strings));
+      } else {
+        s.addEventListener('click', onSenderClick);
+      }
     }
-    s.textContent = sender;
+    s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
     el.append(s);
   }
@@ -2731,6 +2766,15 @@ function fileAria(state, name, strings) {
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
 }
+/* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
+   whole bubble is already a tappable button, but a labelled control makes it
+   obvious the transfer finished and the file is openable. Complete state only. */
+function fileOpenLabel(strings) {
+  const s = document.createElement('span');
+  s.className = 'c-fbubble__open';
+  s.textContent = strings.openFile || 'Open file';
+  return s;
+}
 
 /** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
  *  state: 'offer' (incoming, accept) | 'progress' (0-100) | 'complete' | 'failed' */
@@ -2809,6 +2853,7 @@ function createFileBubble({
     hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
     col.append(hint);
   }
+  if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
   el.append(col);
 
   if (timestamp != null) {
@@ -2854,6 +2899,16 @@ function setFileProgress(rowEl, progress, opts = {}) {
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    // "Open file" affordance appears on completion, is dropped on a failed flip.
+    const existingOpen = bubble.querySelector('.c-fbubble__open');
+    if (finalState === 'complete') {
+      if (!existingOpen) {
+        const infoCol = bubble.querySelector('.c-fbubble__info');
+        if (infoCol) infoCol.append(fileOpenLabel(strings));
+      }
+    } else if (existingOpen) {
+      existingOpen.remove();
+    }
     if (finalState === 'failed' && metaEl && !opts.meta) {
       metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
     }
@@ -4265,6 +4320,7 @@ function setRequestAccepting(row, strings = getStrings()) {
 
 
 
+
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
@@ -4320,24 +4376,105 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), ca
   }
   item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
-  // destructive last (§5b) — confirm via c-modal
-  item('trash', strings.deleteChat || 'Delete chat', () => {
-    closeSheet(sheet);
-    openModal(createModal({
-      title: strings.deleteChatTitle || 'Delete chat?',
-      body: strings.deleteChatBody || 'This removes the conversation from your device.',
-      role: 'alertdialog', host,
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
-        { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('delete'); } },
-      ],
-    }));
-  }, true);
+  // Delete — destructive last (§5b), CAPABILITY-GATED (CH3). Removing a chat or
+  // wiping history needs BE verbs (`removehistory`/`remove` live on
+  // SingleChatPage/ContactDetails, NOT on HomePage's dispatch), so a delete from
+  // the chats list would drop the row visually but reappear on the next
+  // loadChats re-flush. Parked behind capabilities.delete (built + ready) so it's
+  // never shown broken (decided model) — flip on when the §8 verbs land. The
+  // confirm is the TWO-STEP flow (Damir 2026-07-07): step 1 removes the row,
+  // step 2 opts into wiping history + files + the contact.
+  if (capabilities.delete) {
+    item('trash', strings.deleteChat || 'Delete chat', () => {
+      closeSheet(sheet);
+      openDeleteFlow({ chat, host, onAction, strings });
+    }, true);
+  }
 
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
   return sheet;
+}
+
+/** Peer identity header (avatar + name) for the delete modals — "no mistake what
+ *  will happen" (Damir 2026-07-07). Shared by both steps. */
+function deletePeerHeader(chat, strings) {
+  const h = document.createElement('div');
+  h.className = 'c-delete-chat__peer';
+  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, strings }));
+  const nm = document.createElement('span');
+  nm.className = 'c-delete-chat__name';
+  nm.textContent = chat.name || chat.address || '';
+  h.append(nm);
+  return h;
+}
+
+/** One labelled checkbox row → { row, input }. */
+function deleteCheckbox(label, { checked = false, disabled = false } = {}) {
+  const row = document.createElement('label');
+  row.className = 'c-delete-chat__opt';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  if (disabled) input.disabled = true;
+  const txt = document.createElement('span');
+  txt.textContent = label;
+  row.append(input, txt);
+  return { row, input };
+}
+
+/** Two-step delete confirm (CH3, Damir 2026-07-07, redesigned after F5). Step 1
+ *  "Delete chat" leads with the peer avatar + name and CHECKBOXES so it's clear
+ *  exactly what goes: the chat (fixed — that's the action) + optionally downloaded
+ *  media & files. Confirming removes the row and opens step 2, an explicit "Delete
+ *  contact?" escalation (the most destructive — the counterpart keeps their copy).
+ *  Each terminal fires onAction(action, { media }) so the shell records the intent
+ *  (row removal now via the session tombstone; the on-device wipe + contact removal
+ *  land at the BE cutover, CH3). Overlay layer is a stack → opening step 2 from
+ *  step 1's action is safe (step 2 takes focus; step 1 auto-dismisses). */
+function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-delete-chat';
+  content.append(deletePeerHeader(chat, strings));
+  const optsWrap = document.createElement('div');
+  optsWrap.className = 'c-delete-chat__opts';
+  // "Delete chat" is fixed-on (you're in the delete-chat flow) — a checked+disabled
+  // box states the outcome plainly; "media & files" is the real toggle.
+  const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
+  const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
+  optsWrap.append(cbChat.row, cbMedia.row);
+  content.append(optsWrap);
+
+  openModal(createModal({
+    title: strings.deleteChatTitle || 'Delete chat?',
+    content, role: 'alertdialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
+      { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive',
+        onClick: () => {
+          const media = cbMedia.input.checked;
+          if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
+          const step2 = document.createElement('div');
+          step2.className = 'c-delete-chat';
+          step2.append(deletePeerHeader(chat, strings));         // avatar + name on top
+          const body2 = document.createElement('p');
+          body2.className = 'c-delete-chat__body';
+          body2.textContent = strings.deleteContactBody || 'Also remove this contact from your device? They keep their copy of the chat.';
+          step2.append(body2);
+          openModal(createModal({
+            title: strings.deleteContactTitle || 'Delete contact too?',
+            content: step2,
+            role: 'alertdialog', host,
+            actions: [
+              { label: strings.keepContact || 'Keep contact', type: 'text', autofocus: true },
+              { label: strings.deleteContact || 'Delete contact', type: 'fill', intent: 'destructive',
+                onClick: () => { if (onAction) onAction('deleteContact', { media }); } },
+            ],
+          }));
+        } },
+    ],
+  }));
 }
 
 /** Long-press (touch) + right-click (desktop) wiring for one chat row. */
@@ -4718,13 +4855,13 @@ function renderChatsList(listEl, state, opts = {}) {
     if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
       attachChatRowMenu(el, {
         chat: c, host: opts.host, strings, capabilities: caps,
-        onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+        onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
       });
     }
     // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
     const node = wrapChatRowSwipe(el, {
       chat: c, capabilities: caps, strings,
-      onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });
     listEl.append(node);
   };
@@ -4738,20 +4875,25 @@ function renderChatsList(listEl, state, opts = {}) {
 }
 
 /** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin/
- *  mute toggle, mark-read clears unread+mention, delete removes the chat; info is
- *  a stub (no model change) → opts.onChatInfo. On a model change: fire
- *  opts.onPersist(action, chat) — the bridge intent (mock no-op now; a real
- *  `ixian:` command when BE ships, §8) — then re-render + opts.onModelChange. */
-function applyChatRowAction(listEl, state, chat, action, opts = {}) {
+ *  mute toggle, mark-read clears unread+mention, delete/deleteContact remove the
+ *  chat row (deleteContact = the CH3 step-2 escalation, which ALSO intends contact
+ *  removal — distinguished only by the onPersist intent); info is a stub (no model
+ *  change) → opts.onChatInfo. `detail` carries the delete options ({ media }). On a
+ *  model change: fire opts.onPersist(action, chat, detail) — the bridge intent (mock
+ *  no-op now; a real `ixian:` command when BE ships, §8) — then re-render + onModelChange. */
+function applyChatRowAction(listEl, state, chat, action, opts = {}, detail = {}) {
   switch (action) {
     case 'pin': chat.pinned = !chat.pinned; break;
     case 'mute': chat.muted = !chat.muted; break;
     case 'markRead': chat.unread = 0; chat.mention = false; break;
-    case 'delete': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    // delete + deleteContact both remove the row; the wipe granularity (media,
+    // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
+    case 'delete':
+    case 'deleteContact': state.chats = (state.chats || []).filter((c) => c !== chat); break;
     case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;   // stub — no model change
     default: return;
   }
-  if (opts.onPersist) opts.onPersist(action, chat);      // bridge intent → C# persists (mock no-op)
+  if (opts.onPersist) opts.onPersist(action, chat, detail);      // bridge intent → C# persists (mock no-op)
   renderChatsList(listEl, state, opts);
   if (opts.onModelChange) opts.onModelChange(state);
 }
@@ -16256,5 +16398,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

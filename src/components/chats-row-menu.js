@@ -18,6 +18,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { createAvatar } from './avatar.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
 import { closeChatRowSwipe } from './chats-swipe.js';
@@ -77,24 +78,105 @@ export function openChatRowMenu({ chat = {}, host, onAction, strings = getString
   }
   item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
-  // destructive last (§5b) — confirm via c-modal
-  item('trash', strings.deleteChat || 'Delete chat', () => {
-    closeSheet(sheet);
-    openModal(createModal({
-      title: strings.deleteChatTitle || 'Delete chat?',
-      body: strings.deleteChatBody || 'This removes the conversation from your device.',
-      role: 'alertdialog', host,
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
-        { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { if (onAction) onAction('delete'); } },
-      ],
-    }));
-  }, true);
+  // Delete — destructive last (§5b), CAPABILITY-GATED (CH3). Removing a chat or
+  // wiping history needs BE verbs (`removehistory`/`remove` live on
+  // SingleChatPage/ContactDetails, NOT on HomePage's dispatch), so a delete from
+  // the chats list would drop the row visually but reappear on the next
+  // loadChats re-flush. Parked behind capabilities.delete (built + ready) so it's
+  // never shown broken (decided model) — flip on when the §8 verbs land. The
+  // confirm is the TWO-STEP flow (Damir 2026-07-07): step 1 removes the row,
+  // step 2 opts into wiping history + files + the contact.
+  if (capabilities.delete) {
+    item('trash', strings.deleteChat || 'Delete chat', () => {
+      closeSheet(sheet);
+      openDeleteFlow({ chat, host, onAction, strings });
+    }, true);
+  }
 
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
   return sheet;
+}
+
+/** Peer identity header (avatar + name) for the delete modals — "no mistake what
+ *  will happen" (Damir 2026-07-07). Shared by both steps. */
+function deletePeerHeader(chat, strings) {
+  const h = document.createElement('div');
+  h.className = 'c-delete-chat__peer';
+  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, strings }));
+  const nm = document.createElement('span');
+  nm.className = 'c-delete-chat__name';
+  nm.textContent = chat.name || chat.address || '';
+  h.append(nm);
+  return h;
+}
+
+/** One labelled checkbox row → { row, input }. */
+function deleteCheckbox(label, { checked = false, disabled = false } = {}) {
+  const row = document.createElement('label');
+  row.className = 'c-delete-chat__opt';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  if (disabled) input.disabled = true;
+  const txt = document.createElement('span');
+  txt.textContent = label;
+  row.append(input, txt);
+  return { row, input };
+}
+
+/** Two-step delete confirm (CH3, Damir 2026-07-07, redesigned after F5). Step 1
+ *  "Delete chat" leads with the peer avatar + name and CHECKBOXES so it's clear
+ *  exactly what goes: the chat (fixed — that's the action) + optionally downloaded
+ *  media & files. Confirming removes the row and opens step 2, an explicit "Delete
+ *  contact?" escalation (the most destructive — the counterpart keeps their copy).
+ *  Each terminal fires onAction(action, { media }) so the shell records the intent
+ *  (row removal now via the session tombstone; the on-device wipe + contact removal
+ *  land at the BE cutover, CH3). Overlay layer is a stack → opening step 2 from
+ *  step 1's action is safe (step 2 takes focus; step 1 auto-dismisses). */
+export function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-delete-chat';
+  content.append(deletePeerHeader(chat, strings));
+  const optsWrap = document.createElement('div');
+  optsWrap.className = 'c-delete-chat__opts';
+  // "Delete chat" is fixed-on (you're in the delete-chat flow) — a checked+disabled
+  // box states the outcome plainly; "media & files" is the real toggle.
+  const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
+  const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
+  optsWrap.append(cbChat.row, cbMedia.row);
+  content.append(optsWrap);
+
+  openModal(createModal({
+    title: strings.deleteChatTitle || 'Delete chat?',
+    content, role: 'alertdialog', host,
+    actions: [
+      { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
+      { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive',
+        onClick: () => {
+          const media = cbMedia.input.checked;
+          if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
+          const step2 = document.createElement('div');
+          step2.className = 'c-delete-chat';
+          step2.append(deletePeerHeader(chat, strings));         // avatar + name on top
+          const body2 = document.createElement('p');
+          body2.className = 'c-delete-chat__body';
+          body2.textContent = strings.deleteContactBody || 'Also remove this contact from your device? They keep their copy of the chat.';
+          step2.append(body2);
+          openModal(createModal({
+            title: strings.deleteContactTitle || 'Delete contact too?',
+            content: step2,
+            role: 'alertdialog', host,
+            actions: [
+              { label: strings.keepContact || 'Keep contact', type: 'text', autofocus: true },
+              { label: strings.deleteContact || 'Delete contact', type: 'fill', intent: 'destructive',
+                onClick: () => { if (onAction) onAction('deleteContact', { media }); } },
+            ],
+          }));
+        } },
+    ],
+  }));
 }
 
 /** Long-press (touch) + right-click (desktop) wiring for one chat row. */

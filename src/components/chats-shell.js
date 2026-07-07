@@ -178,13 +178,13 @@ export function renderChatsList(listEl, state, opts = {}) {
     if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
       attachChatRowMenu(el, {
         chat: c, host: opts.host, strings, capabilities: caps,
-        onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+        onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
       });
     }
     // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
     const node = wrapChatRowSwipe(el, {
       chat: c, capabilities: caps, strings,
-      onAction: (action) => applyChatRowAction(listEl, state, c, action, opts),
+      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });
     listEl.append(node);
   };
@@ -198,20 +198,25 @@ export function renderChatsList(listEl, state, opts = {}) {
 }
 
 /** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin/
- *  mute toggle, mark-read clears unread+mention, delete removes the chat; info is
- *  a stub (no model change) → opts.onChatInfo. On a model change: fire
- *  opts.onPersist(action, chat) — the bridge intent (mock no-op now; a real
- *  `ixian:` command when BE ships, §8) — then re-render + opts.onModelChange. */
-export function applyChatRowAction(listEl, state, chat, action, opts = {}) {
+ *  mute toggle, mark-read clears unread+mention, delete/deleteContact remove the
+ *  chat row (deleteContact = the CH3 step-2 escalation, which ALSO intends contact
+ *  removal — distinguished only by the onPersist intent); info is a stub (no model
+ *  change) → opts.onChatInfo. `detail` carries the delete options ({ media }). On a
+ *  model change: fire opts.onPersist(action, chat, detail) — the bridge intent (mock
+ *  no-op now; a real `ixian:` command when BE ships, §8) — then re-render + onModelChange. */
+export function applyChatRowAction(listEl, state, chat, action, opts = {}, detail = {}) {
   switch (action) {
     case 'pin': chat.pinned = !chat.pinned; break;
     case 'mute': chat.muted = !chat.muted; break;
     case 'markRead': chat.unread = 0; chat.mention = false; break;
-    case 'delete': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    // delete + deleteContact both remove the row; the wipe granularity (media,
+    // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
+    case 'delete':
+    case 'deleteContact': state.chats = (state.chats || []).filter((c) => c !== chat); break;
     case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;   // stub — no model change
     default: return;
   }
-  if (opts.onPersist) opts.onPersist(action, chat);      // bridge intent → C# persists (mock no-op)
+  if (opts.onPersist) opts.onPersist(action, chat, detail);      // bridge intent → C# persists (mock no-op)
   renderChatsList(listEl, state, opts);
   if (opts.onModelChange) opts.onModelChange(state);
 }

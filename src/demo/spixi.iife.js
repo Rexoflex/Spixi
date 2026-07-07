@@ -51,8 +51,11 @@ function setStrings(dict) {
  *  - formatIxiAmount: DISPLAY only — chain carries 8 decimals, the UI shows AT
  *    MOST 2, string-TRUNCATED never rounded (display must not overstate, #76/#77),
  *    trailing zeros trimmed, round numbers show none; grouping from the bridge is
- *    preserved; non-numeric input passes through. C# composes the real strings —
- *    this is the reference; mirror there.
+ *    preserved; non-numeric input passes through. EXCEPTION (#76/#77 amended,
+ *    Damir 2026-07-07): a NONZERO amount is never shown as "0" — a sub-0.01
+ *    value (0-integer, fraction dropped by the 2-dp cap) keeps its full
+ *    fractional precision so it stays visible. C# composes the real strings —
+ *    this is the reference; mirror the exception there too.
  */
 
 /** Sanitize a decimal string: digits + one separator, ≤8 decimals. */
@@ -84,12 +87,24 @@ function canonicalAmount(amount) {
   return s;
 }
 
-/** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded). */
+/** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded), EXCEPT
+ *  a nonzero amount is never shown as "0" — a sub-0.01 transfer keeps enough
+ *  precision to read (#76/#77 amended, Damir 2026-07-07: "show the real amount"
+ *  after a payment card rendered a small receipt as "0 IXI"). */
 function formatIxiAmount(value) {
   const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
   if (!m) return String(value);
-  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
-  return m[1] + m[2] + (frac ? '.' + frac : '');
+  const sign = m[1], int = m[2], rawFrac = m[3] || '';
+  let frac = rawFrac.slice(0, 2).replace(/0+$/, '');
+  // rescue the "nonzero rounds to 0" case: integer part is 0 AND the 2-dp cap
+  // dropped the whole fraction, but there are significant digits deeper — show
+  // the full fractional part (trailing zeros trimmed) so the value is visible.
+  // Amounts ≥ 0.01 (or with a nonzero integer part) keep the 2-dp display.
+  if (!frac && int.replace(/,/g, '') === '0') {
+    const full = rawFrac.replace(/0+$/, '');
+    if (full) frac = full;
+  }
+  return sign + int + (frac ? '.' + frac : '');
 }
 
 /* ---- src/components/disc.js ---- */
@@ -1974,32 +1989,38 @@ function createMessageBubble({
   // data-failed drives the width rule in css.
   if (direction === 'sent' && status === 'failed') {
     row.dataset.failed = '';
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry');
-    retry.append(icon('rotate-clockwise-2', { size: 16 }));
-    // audit r2: double-activation re-emitted the resend before the shell could
-    // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
-    // circle + caption share one guard so tapping both can't double-fire either
-    let lastRetry = 0;
-    const retryGuarded = onRetry ? ((e) => {
-      const t = Date.now();
-      if (t - lastRetry < 500) return;
-      lastRetry = t;
-      onRetry(e);
-    }) : null;
-    if (retryGuarded) retry.addEventListener('click', retryGuarded);
-    const line = document.createElement('div');
-    line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
-    line.append(retry, el);
     const stack = document.createElement('div');
     stack.className = 'c-bubble-stack';
-    stack.append(line);
     const note = document.createElement('span');
     note.className = 'c-bubble-failnote';
-    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
-    if (retryGuarded) note.addEventListener('click', retryGuarded);
+    if (onRetry) {
+      // audit r2: double-activation re-emitted the resend before the shell could
+      // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
+      // circle + caption share one guard so tapping both can't double-fire either
+      let lastRetry = 0;
+      const retryGuarded = (e) => {
+        const t = Date.now();
+        if (t - lastRetry < 500) return;
+        lastRetry = t;
+        onRetry(e);
+      };
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'c-bubble-retry';
+      retry.setAttribute('aria-label', strings.retry || 'Retry');
+      retry.append(icon('rotate-clockwise-2', { size: 16 }));
+      retry.addEventListener('click', retryGuarded);
+      const line = document.createElement('div');
+      line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
+      line.append(retry, el);
+      stack.append(line);
+      note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
+      note.addEventListener('click', retryGuarded);
+    } else {
+      // no resend path (BE-gated) — clean bubble + honest caption, no dead affordance
+      stack.append(el);
+      note.textContent = strings.notDeliveredNoRetry || 'Not delivered';
+    }
     stack.append(note);
     row.append(stack);
     return row;
@@ -2437,6 +2458,10 @@ function reentryGuard(fn) {
  */
 function createPaymentBubble({
   role = 'request-in',
+  title = '',             // optional verbatim override — the native bridge already
+                          // sends a correctly-worded, LOCALIZED title (request vs
+                          // sent vs received) that the shell can't reconstruct from
+                          // role alone; when present it wins over the role-derived one
   amount = '',            // pre-formatted (bridge sends strings)
   fiat = '',
   status = 'actionable',
@@ -2454,7 +2479,7 @@ function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
-  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
+  const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
   const amountEl = document.createElement('div');
@@ -2516,11 +2541,13 @@ function createPaymentBubble({
     el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
   } else if (role === 'sent' && status === 'failed') {
     el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
+  } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {
+    // details link only when the caller supplies a target — a payment the bridge
+    // can't open (no txid / view disabled) must not show a dead "Details" button
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
   paymentOpts.set(row, {
-    role, amount, fiat, status, insufficient, timestamp, gutter,
+    role, title, amount, fiat, status, insufficient, timestamp, gutter,
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
   return row;
@@ -2617,6 +2644,10 @@ function createAppBubble({
 function createCallBubble({
   missed = false,
   declined = false,        // #87⑦: actively rejected
+  title = '',              // optional verbatim override — the native bridge sends a
+                           // fully-localized call label ("No answer" vs "Missed" vs
+                           // "Outgoing"/"Incoming") the shell can't reconstruct from
+                           // the missed flag alone; when present it wins
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
@@ -2626,8 +2657,8 @@ function createCallBubble({
   strings = getStrings(),
 } = {}) {
   const { row, el } = card(direction,
-    declined ? (strings.callDeclined || 'Call declined')
-      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    title || (declined ? (strings.callDeclined || 'Call declined')
+      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
     timestamp, 'call', gutter);
   if (missed && !declined) row.dataset.missed = '';
   const head = el.querySelector('.c-tcard__title');
@@ -2651,11 +2682,15 @@ function createCallBubble({
     if (cb) sub.addEventListener('click', cb);
     el.append(sub);
   } else {
-    const meta = document.createElement('div');
-    meta.className = 'c-tcard__call-meta u-tabular';
-    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
-    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
-    el.append(meta);
+    // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
+    // an answered call with neither label nor duration must not leave an empty div
+    const metaText = [directionLabel, duration].filter(Boolean).join(' · ');
+    if (metaText) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = metaText;
+      el.append(meta);
+    }
     const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
     el.append(wrap);
   }
@@ -3112,6 +3147,9 @@ function openMessageMenu({
   host,
   text = '',
   capabilities = {},
+  reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
+                                 // single "like" reaction today, so the shell passes
+                                 // just ['❤️'] rather than 6 emojis that all map to like
   onAction,
   strings = getStrings(),
 } = {}) {
@@ -3133,7 +3171,7 @@ function openMessageMenu({
   reacts.className = 'c-msgmenu__reacts';
   reacts.setAttribute('role', 'group');
   reacts.setAttribute('aria-label', strings.react || 'React');
-  for (const emoji of QUICK_REACTIONS) {
+  for (const emoji of reactions) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__react';
@@ -3519,9 +3557,14 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
  * Photo + GIF are DESIGNED-IN but FEATURE-FLAGGED (`media: false`) until the
  * BE image standard lands (#81) — the #64 voice-flag precedent.
  *
- * openAttachSheet({ host, media = false, onAction, strings }) → sheet
+ * openAttachSheet({ host, media = false, apps = true, payments = true,
+ *                   onAction, strings }) → sheet
  *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
  *   (shell routes: sendfile / sendmedia / payment intent / app invite)
+ *   media    — #81 flag: reveals Photo + GIF (BE image standard).
+ *   apps     — gate the App-invite tile: no single chat-invite verb exists on
+ *              every host (SingleChatPage has none), so the shell can hide it.
+ *   payments — gate Pay + Request: 1:1 only (C# rejects them in groups/bots).
  */
 
 
@@ -3529,19 +3572,20 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
 
 const ATTACH_ACTIONS = [
   { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
-  { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flagged: true },
-  { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flagged: true },
-  { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment' },
-  { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment' },
-  { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite' },
+  { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flag: 'media' },
+  { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flag: 'media' },
+  { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
+  { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment', flag: 'payments' },
+  { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
-function openAttachSheet({ host, media = false, onAction, strings = getStrings() } = {}) {
+function openAttachSheet({ host, media = false, apps = true, payments = true, onAction, strings = getStrings() } = {}) {
   const grid = document.createElement('div');
   grid.className = 'c-attach';
+  const enabled = { media, apps, payments };
 
   for (const a of ATTACH_ACTIONS) {
-    if (a.flagged && !media) continue; // #81 media flag (voice-flag precedent #64)
+    if (a.flag && !enabled[a.flag]) continue; // #81 media flag / apps gate (voice-flag precedent #64)
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-attach__tile';

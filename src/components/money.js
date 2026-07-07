@@ -21,8 +21,11 @@
  *  - formatIxiAmount: DISPLAY only — chain carries 8 decimals, the UI shows AT
  *    MOST 2, string-TRUNCATED never rounded (display must not overstate, #76/#77),
  *    trailing zeros trimmed, round numbers show none; grouping from the bridge is
- *    preserved; non-numeric input passes through. C# composes the real strings —
- *    this is the reference; mirror there.
+ *    preserved; non-numeric input passes through. EXCEPTION (#76/#77 amended,
+ *    Damir 2026-07-07): a NONZERO amount is never shown as "0" — a sub-0.01
+ *    value (0-integer, fraction dropped by the 2-dp cap) keeps its full
+ *    fractional precision so it stays visible. C# composes the real strings —
+ *    this is the reference; mirror the exception there too.
  */
 
 /** Sanitize a decimal string: digits + one separator, ≤8 decimals. */
@@ -54,10 +57,22 @@ export function canonicalAmount(amount) {
   return s;
 }
 
-/** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded). */
+/** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded), EXCEPT
+ *  a nonzero amount is never shown as "0" — a sub-0.01 transfer keeps enough
+ *  precision to read (#76/#77 amended, Damir 2026-07-07: "show the real amount"
+ *  after a payment card rendered a small receipt as "0 IXI"). */
 export function formatIxiAmount(value) {
   const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
   if (!m) return String(value);
-  const frac = (m[3] || '').slice(0, 2).replace(/0+$/, '');
-  return m[1] + m[2] + (frac ? '.' + frac : '');
+  const sign = m[1], int = m[2], rawFrac = m[3] || '';
+  let frac = rawFrac.slice(0, 2).replace(/0+$/, '');
+  // rescue the "nonzero rounds to 0" case: integer part is 0 AND the 2-dp cap
+  // dropped the whole fraction, but there are significant digits deeper — show
+  // the full fractional part (trailing zeros trimmed) so the value is visible.
+  // Amounts ≥ 0.01 (or with a nonzero integer part) keep the 2-dp display.
+  if (!frac && int.replace(/,/g, '') === '0') {
+    const full = rawFrac.replace(/0+$/, '');
+    if (full) frac = full;
+  }
+  return sign + int + (frac ? '.' + frac : '');
 }

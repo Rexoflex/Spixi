@@ -275,32 +275,38 @@ export function createMessageBubble({
   // data-failed drives the width rule in css.
   if (direction === 'sent' && status === 'failed') {
     row.dataset.failed = '';
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.className = 'c-bubble-retry';
-    retry.setAttribute('aria-label', strings.retry || 'Retry');
-    retry.append(icon('rotate-clockwise-2', { size: 16 }));
-    // audit r2: double-activation re-emitted the resend before the shell could
-    // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
-    // circle + caption share one guard so tapping both can't double-fire either
-    let lastRetry = 0;
-    const retryGuarded = onRetry ? ((e) => {
-      const t = Date.now();
-      if (t - lastRetry < 500) return;
-      lastRetry = t;
-      onRetry(e);
-    }) : null;
-    if (retryGuarded) retry.addEventListener('click', retryGuarded);
-    const line = document.createElement('div');
-    line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
-    line.append(retry, el);
     const stack = document.createElement('div');
     stack.className = 'c-bubble-stack';
-    stack.append(line);
     const note = document.createElement('span');
     note.className = 'c-bubble-failnote';
-    note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
-    if (retryGuarded) note.addEventListener('click', retryGuarded);
+    if (onRetry) {
+      // audit r2: double-activation re-emitted the resend before the shell could
+      // swap the row — resend stays repeatable, so guard re-entry (no hard latch);
+      // circle + caption share one guard so tapping both can't double-fire either
+      let lastRetry = 0;
+      const retryGuarded = (e) => {
+        const t = Date.now();
+        if (t - lastRetry < 500) return;
+        lastRetry = t;
+        onRetry(e);
+      };
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'c-bubble-retry';
+      retry.setAttribute('aria-label', strings.retry || 'Retry');
+      retry.append(icon('rotate-clockwise-2', { size: 16 }));
+      retry.addEventListener('click', retryGuarded);
+      const line = document.createElement('div');
+      line.className = 'c-bubble-line'; // retry hugs the bubble (Damir 2026-07-03)
+      line.append(retry, el);
+      stack.append(line);
+      note.textContent = strings.notDelivered || 'Not delivered · Tap to retry';
+      note.addEventListener('click', retryGuarded);
+    } else {
+      // no resend path (BE-gated) — clean bubble + honest caption, no dead affordance
+      stack.append(el);
+      note.textContent = strings.notDeliveredNoRetry || 'Not delivered';
+    }
     stack.append(note);
     row.append(stack);
     return row;

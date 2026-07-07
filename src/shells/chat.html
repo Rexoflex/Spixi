@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
+     before the JS bundle parses — so entering a chat doesn't flash an empty
+     "blank" pane while the shell boots (Damir F5). Values mirror --surface-screen
+     (neutral-10 / neutral-900); tokens.css takes over once loaded. */
+  html { background: #f9fafb; }
+  @media (prefers-color-scheme: dark) { html { background: #13171b; } }
+</style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -23,6 +31,15 @@
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/system-notice.css">
 <link rel="stylesheet" href="../styles/components/lazy-history.css">
+<!-- overlay surfaces wired in the chat depth batch (#188): c-sheet/c-modal live
+     in overlay.css (above); these style their CONTENT — without them the attach
+     sheet / tip sheet / member sheet / banner / request pane render unstyled. -->
+<link rel="stylesheet" href="../styles/components/attach-sheet.css">
+<link rel="stylesheet" href="../styles/components/tip-sheet.css">
+<link rel="stylesheet" href="../styles/components/chip.css">
+<link rel="stylesheet" href="../styles/components/member-sheet.css">
+<link rel="stylesheet" href="../styles/components/banner.css">
+<link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
   /* Production chat shell: fill the WebView (no demo phone frame). The chat
@@ -32,6 +49,8 @@
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #chat-topbar { flex: none; }
+  .c-banner { flex: none; }              /* connectivity strip pins under the topbar */
+  .chat-request-pane { flex: none; }     /* incoming-request pane pins above the composer */
   .c-chat-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   /* Messages sit at the BOTTOM (adjacent to the composer) and grow upward — the
      natural chat flow. The secure notice floats CENTERED in the free space above
@@ -43,13 +62,35 @@
   #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   #chat-composer { flex: none; }
+  /* boot spinner — fills the log while the JS bundle parses + C# pushes the
+     conversation; the first renderLogNow() clears #messages and removes it. */
+  .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .chat-boot__spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--border-subtle, rgba(128,128,128,0.22));
+    border-top-color: var(--icon-accent, #1892ce);
+    animation: chat-boot-spin 0.8s linear infinite;
+  }
+  @keyframes chat-boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: none; } }
+  /* attach → App-invite picker (inside a c-sheet) */
+  .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
+  .chat-app-picker__item {
+    display: flex; align-items: center; gap: var(--spacing-3, 12px);
+    padding: var(--spacing-3, 12px); border: 0; border-radius: var(--radius-md, 12px);
+    background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
+    text-align: start; cursor: pointer; width: 100%;
+  }
+  .chat-app-picker__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
+  .chat-app-picker__name { font-weight: 600; }
+  .chat-app-picker__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
 </style>
 </head>
 <body>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
-    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"></div>
+    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
   </div>
   <div id="chat-composer"></div>
 
@@ -92,7 +133,12 @@
     createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
     setMessageStatus, removeMessage,
     createFileBubble, setFileProgress,
+    createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice,
+    attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
+    createModal, openModal,
+    createWarningBanner, setWarning, createContactRequest,
+    createSheet, openSheet, closeSheet,
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
@@ -116,10 +162,12 @@
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
   const identity = { name: '', sub: '', address: '', online: false };
+  let callVisible = false;   // showCallButton reveals the topbar phone action (1:1, peer reachable)
 
   const topbarHost = document.getElementById('chat-topbar');
-  function renderTopbar() {
+  function renderTopbarNow() {
     topbarHost.textContent = '';
+    const s = window.SL || {};
     topbarHost.append(createTopbar({
       variant: 'chat',
       identity: {
@@ -132,17 +180,39 @@
       // ixian:details is the legacy verb SingleChatPage understands.
       onIdentity: () => bridge.send('ixian:details'),
       onBack: () => bridge.send('ixian:back'),
+      // start a voice call — revealed by showCallButton (C# gates availability);
+      // ixian:call toggles initiate/hang-up (xaml:136).
+      actions: callVisible
+        ? [{ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') }]
+        : [],
     }));
   }
-  renderTopbar();
+  // Coalesce topbar rebuilds too: on open C# fires setNickname + setOnlineStatus
+  // (+ onChatScreenReady) in quick succession, each tearing down + rebuilding the
+  // header — same flicker class as the log. Batch to one frame.
+  let topbarQueued = false;
+  function renderTopbar() {
+    if (topbarQueued) return;
+    topbarQueued = true;
+    requestAnimationFrame(() => { topbarQueued = false; renderTopbarNow(); });
+  }
+  renderTopbarNow();  // synchronous first paint
+
+  /* connectivity banner (#59) — mounts directly under the top bar; showWarning
+   * opens/updates it, empty text collapses it (bridge showWarning, xaml:1746). */
+  const warningBanner = createWarningBanner({ strings: window.SL || {} });
+  topbarHost.after(warningBanner);
 
   /* —— message log —————————————————————————————————————————————————————————— */
   const box = document.getElementById('messages');
 
   /* model: id → record, in insertion order. A record is one of:
-   *   kind 'text' → { id, kind, direction, text, ts(ms), status, senderNick, senderAddress }
-   *   kind 'file' → { id, kind, direction, ts(ms), fileid, name, meta, fstate,
-   *                   progress, senderNick, senderAddress }
+   *   kind 'text'    → { id, kind, direction, text, ts(ms), status, senderNick, senderAddress }
+   *   kind 'file'    → { id, kind, direction, ts(ms), fileid, name, meta, fstate,
+   *                      progress, senderNick, senderAddress }
+   *   kind 'payment' → { id, kind, direction, ts(ms), title, amount, pstatus,
+   *                      txid, enableView, senderNick, senderAddress }  (view-only)
+   *   kind 'call'    → { id, kind, ts(ms), missed, label, duration }    (view-only)
    * order[] holds ids in timestamp order so inserts find their slot (the legacy
    * findOlderChat behaviour). row: id → DOM row element. fileIndex maps a
    * transfer's fileid → the owning message id, because updateFile(fileid,…)
@@ -151,7 +221,18 @@
   const rows = new Map();    // id → row element
   let order = [];            // ids, kept timestamp-ascending
   const fileIndex = new Map(); // fileid → message id
+  const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
+  // msg-ids I've liked THIS session. The bridge's addReactions sends only
+  // key:count (no per-user flag — C5), so a fresh reaction can't tell the shell
+  // that *I* reacted; tracking my own likes locally lets the pill show the
+  // selected "you reacted" state immediately (Damir F5). Historical own-state
+  // (a like from a previous session, re-pushed on load) still needs the C5 flag.
+  const myLikes = new Set();
+  // installed multi-user apps pushed by C# loadApps (addApp) — feed the attach
+  // → "App invite" picker (legacy parity: legacy showed an app option in the
+  // attach bar, picking one emits ixian:app:<id>, chat.js:1250 / onApp xaml:832).
+  const chatApps = [];
 
   // Best-known display nick for a group sender: an explicit nick on the row wins,
   // else the last name resolved via updateGroupChatNicks for that address.
@@ -162,19 +243,25 @@
    * and always kept LAST (shell duty mirrored from the demo). */
   let typingRow = null;
   let typingTimer = null;
+  let typingActive = false;   // peer is currently typing — survives full re-renders
+  // re-append after a rebuild: renderLogNow's box.textContent='' detaches the pill,
+  // so this must re-add it whenever typing is ACTIVE (audit M3: the old
+  // parentNode===box guard could never re-append a just-cleared pill).
   function keepTypingLast() {
-    if (typingRow && typingRow.parentNode === box) box.append(typingRow);
+    if (typingActive && typingRow) box.append(typingRow);
   }
   function showTyping() {
     if (!typingRow) {
       typingRow = createTypingIndicator(mode.isGroup && identity.name ? { name: identity.name } : {});
     }
+    typingActive = true;
     box.append(typingRow);
     box.scrollTop = box.scrollHeight;
     if (typingTimer) clearTimeout(typingTimer);
     typingTimer = setTimeout(hideTyping, 5000);  // legacy showUserTyping auto-hides after 5s
   }
   function hideTyping() {
+    typingActive = false;
     if (typingTimer) { clearTimeout(typingTimer); typingTimer = null; }
     if (typingRow && typingRow.parentNode) typingRow.remove();
   }
@@ -226,6 +313,8 @@
   function buildRow(rec, position) {
     if (rec.kind === 'file') return buildFileRow(rec);
     if (rec.kind === 'app') return buildAppRow(rec);
+    if (rec.kind === 'payment') return buildPaymentRow(rec);
+    if (rec.kind === 'call') return buildCallRow(rec);
     const isSent = rec.direction === 'sent';
     return createMessageBubble({
       direction: isSent ? 'sent' : 'received',
@@ -238,9 +327,37 @@
       showAvatar: (!isSent && mode.isGroup),
       name: rec.senderNick || '',
       address: rec.senderAddress || '',
-      onRetry: (isSent && rec.status === 'failed')
+      // #99: in a NON-blind group, the sender label + avatar open the member
+      // sheet (identity verification + admin). Blind groups (type 2) hide
+      // identities, bots (3) have no member roster → no tap.
+      onSenderClick: (!isSent && mode.type === 1 && (rec.senderAddress || rec.senderNick))
+        ? () => openMember(rec) : null,
+      // resend has NO SingleChatPage case (dead verb) — gate the Retry affordance
+      // behind cap('resend') so a failed message shows an HONEST "Not delivered"
+      // (no dead button) until the BE cutover lands the resend case (audit M1).
+      onRetry: (isSent && rec.status === 'failed' && bridge.cap('resend'))
         ? () => bridge.send('ixian:contextAction:resend:' + rec.id) : null,
+      // URLs render as buttons; the shell confirms before opening externally
+      // (#82 — P2P has no server, so no auto-load of remote content). Fixes
+      // Damir F5: links were inert because no handler was wired.
+      onLinkClick: (url) => confirmOpenLink(url),
     });
+  }
+
+  /* external-link confirm (#82): tapping an in-text link asks before leaving the
+   * app / touching a remote URL, then opens via the legacy verb (dispatch 315). */
+  function confirmOpenLink(url) {
+    const s = window.SL || {};
+    openModal(createModal({
+      title: s.openLinkTitle || 'Open external link?',
+      body: url,
+      host: overlayHost,
+      actions: [
+        { label: s.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: s.openLink || 'Open', type: 'fill',
+          onClick: () => bridge.send('ixian:openLink:' + url) },
+      ],
+    }));
   }
 
   /* file transfer row (chat.js addFile:904 / updateFile:1009).
@@ -298,35 +415,273 @@
     return appStatus === 'Missing' ? 'missing' : 'invite';
   }
 
+  /* payment card (chat.js addPaymentRequest / xaml.cs:1310,1361 · updates
+   * 1648,1665). VIEW-ONLY in v1 (Damir 2026-07-07 interview-2 #5): an
+   * informational card — amount + status badge + a Details link that opens the
+   * NATIVE payment view (ixian:viewPayment). No inline Pay/Decline yet — that
+   * needs a signed §8 path (SECURITY.md), deferred to BE cutover C3. Role is
+   * sent|received by localSender, so the card renders NO action buttons; the
+   * C#-localized `title` is passed verbatim because role alone can't tell a
+   * REQUEST from a completed PAYMENT (the C1 enum gap — a best-effort interim). */
+  function buildPaymentRow(rec) {
+    const canView = rec.enableView && rec.txid;
+    return createPaymentBubble({
+      role: rec.direction === 'sent' ? 'sent' : 'received',
+      title: rec.title || '',
+      amount: rec.amount || '',
+      status: rec.pstatus,
+      timestamp: rec.ts,
+      gutter: mode.isGroup && rec.direction === 'received',
+      onDetails: canView ? () => bridge.send('ixian:viewPayment:' + rec.txid) : null,
+    });
+  }
+
+  /* map the legacy FontAwesome status_icon → the redesigned card status enum.
+   * C# emits only these three for payments (xaml.cs:1249/1265/1284/1325/1331/
+   * 1336): fa-check-circle → completed · fa-exclamation-circle → declined ·
+   * fa-clock (waiting/pending) → pending. */
+  function paymentStatusFrom(statusIcon) {
+    const s = String(statusIcon || '');
+    if (s.indexOf('check') !== -1) return 'completed';
+    if (s.indexOf('exclamation') !== -1) return 'declined';
+    return 'pending';
+  }
+
+  /* call event card (chat.js addCall:1496). VIEW-ONLY best-effort (BE cutover
+   * C4): the bridge conflates direction + no-answer/missed into one `declined`
+   * flag plus a localized text blob. declined → render as "missed" so a call-
+   * back is offered (via the existing ixian:call toggle); otherwise it was
+   * answered → the (m:ss) duration is pulled out of the text. directionLabel is
+   * left empty — it isn't recoverable from the localized string. */
+  function buildCallRow(rec) {
+    return createCallBubble({
+      missed: rec.missed,
+      // pass the C#-localized label verbatim (duration stripped — shown
+      // separately) so "No answer" (outgoing rang-out) isn't reconstructed as
+      // "Missed voice call". Direction stays default until BE sends it (C4).
+      title: rec.label || '',
+      duration: rec.duration || '',
+      timestamp: rec.ts,
+      onCallBack: () => bridge.send('ixian:call'),
+    });
+  }
+
   /* reactions (chat.js addReactions:549). The bridge sends a ;-joined "key:count"
    * string. v1 renders LIKE reactions (heart + count), toggled via the existing
    * `like` contextAction (xaml.cs:1045). Tips carry a txid, not a display amount
-   * (xaml.cs:979/1607), so they're omitted until the format is confirmed (BE
-   * brief). No per-user flag in the bridge → own:false (can't show "you reacted"). */
-  function parseReactions(str) {
+   * (xaml.cs:979/1607), so we can't show the value — but we DO render a tip pill
+   * (heart-handshake glyph + "Tipped", Damir F5) so a tip is visible on the
+   * bubble. No per-user flag in the bridge → own from myLikes (session interim). */
+  function parseReactions(str, id) {
     const reactions = [];
-    let hadTip = false;
+    let tipCount = 0;
+    const likedByMe = myLikes.has(String(id));
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
       const count = parseInt(parts[parts.length - 1], 10) || 0;
       if (count <= 0) continue;
-      if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: false });
-      else if (tok.startsWith('tip')) hadTip = true;
+      if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
+      else if (tok.startsWith('tip')) tipCount += count;   // txid, not amount → count only
     }
-    return { reactions, hadTip };
+    const sl = window.SL || {};
+    const tip = tipCount > 0
+      ? (tipCount > 1 ? (sl.tipped || 'Tipped') + ' ×' + tipCount : (sl.tipped || 'Tipped'))
+      : '';
+    return { reactions, tip };
+  }
+
+  /* React to a message with a like (the ONE reaction the bridge supports —
+   * xaml.cs:1045). Records my like locally for the own-state (C5 interim), emits
+   * the toggle, and optimistically reflects it on the row so the pill shows
+   * selected immediately (C#'s addReactions re-emit lands the authoritative
+   * count next). Shared by the context-menu React action AND tapping a pill. */
+  function reactToMessage(id) {
+    id = String(id);
+    myLikes.add(id);
+    bridge.send('ixian:contextAction:like:' + id);
+    const rec = model.get(id);
+    if (!rec) return;
+    rec.reactions = rec.reactions || [];
+    const heart = rec.reactions.find((r) => r.emoji === '❤️');
+    if (heart) heart.own = true;                       // count updates when C# responds
+    else rec.reactions.push({ emoji: '❤️', count: 1, own: true }); // optimistic first like
+    const row = rows.get(id);
+    if (row) applyRowReactions(rec, row, true);
   }
 
   /* apply a record's stored reactions to its live row — called from renderLog so
    * pills survive re-renders, and from the addReactions handler for a live pop. */
   function applyRowReactions(rec, row, animate) {
-    if (!rec.reactions || rec.reactions.length === 0) return;
+    const hasReactions = rec.reactions && rec.reactions.length;
+    if (!hasReactions && !rec.tip) return;
     applyReactions(row, {
-      reactions: rec.reactions,
+      reactions: rec.reactions || [],
+      tip: rec.tip || '',
       animate: !!animate,
       host: box,
-      onToggle: () => bridge.send('ixian:contextAction:like:' + rec.id),
+      onToggle: () => reactToMessage(rec.id),
     });
+  }
+
+  /* —— message context menu (long-press + right-click) ————————————————————————
+   * Attached to TEXT rows in renderLogNow. Actions map to existing bridge verbs;
+   * Reply/Edit are §8-gated behind a capability flag (OFF until BE), so they
+   * never render today. Non-text cards keep their own inline actions in v1. */
+  const overlayHost = document.body;
+  function wireMenu(rec, row) {
+    if (rec.kind && rec.kind !== 'text') return;
+    const isSent = rec.direction === 'sent';
+    attachMessageMenu(row, {
+      host: overlayHost,
+      text: rec.text || '',
+      reactions: ['❤️'],   // the bridge supports only "like" — offer just the heart
+      capabilities: {
+        reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
+        edit: bridge.cap('edit') && isSent && !!rec.text, // own text only
+        tip: (!isSent && !mode.isBot && mode.type !== 2), // C# blocks tip in bots + blind groups (xaml:942)
+        report: mode.isBot,                               // C# report is bots-only (xaml:1026)
+        select: false,                                    // multi-select not wired in the shell yet
+      },
+      onAction: (action, arg) => onMenuAction(action, rec),
+    });
+  }
+
+  function onMenuAction(action, rec) {
+    const id = rec.id;
+    if (action === 'react') { reactToMessage(id); return; }
+    if (action === 'copy') {
+      if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
+      return;
+    }
+    if (action === 'delete') { bridge.send('ixian:contextAction:deleteMessage:' + id); return; }
+    if (action === 'report') { bridge.send('ixian:contextAction:report:' + id); return; }
+    if (action === 'tip') { openTipForMessage(rec); return; }
+    // reply/edit are capability-gated off → never reached in v1
+    dbg('menu action (gated/unhandled)', action);
+  }
+
+  /* member identity sheet (#99) — sender tap in a non-blind group. Shows the
+   * FULL address (nick is spoofable), a contact-request path, and admin
+   * kick/ban when I'm the group admin. C# runs its own confirm for kick/ban
+   * (displaySpixiAlert). relation defaults 'none' — the chat shell has no
+   * contact roster, so it can't tell if the member is already a contact (BE
+   * gap #99/§9); the request verb is idempotent-ish on the C# side. */
+  function openMember(rec) {
+    if (!rec.senderAddress && !rec.senderNick) return;
+    const s = window.SL || {};
+    const actions = [];
+    if (mode.admin && rec.senderAddress) {
+      actions.push({ label: s.removeFromGroup || 'Remove from group', destructive: true,
+        onClick: () => bridge.send('ixian:kick:' + rec.senderAddress) });
+      actions.push({ label: s.banFromGroup || 'Ban from group', destructive: true,
+        onClick: () => bridge.send('ixian:ban:' + rec.senderAddress) });
+    }
+    openMemberSheet({
+      host: overlayHost,
+      member: { name: rec.senderNick || '', address: rec.senderAddress || '' },
+      blind: false,
+      relation: 'none',
+      onRequest: rec.senderAddress
+        ? () => bridge.send('ixian:sendContactRequest:' + rec.senderAddress) : null,
+      actions,
+      strings: s,
+    });
+  }
+
+  /* tip: open the amount sheet (no balance — C# runs the real balance check +
+   * native confirm), then emit ixian:contextAction:tip:<id>:<amount>. Recipient
+   * is DISPLAY-only (C# resolves the real payee from the msg id). */
+  function openTipForMessage(rec) {
+    openTipSheet({
+      message: { id: rec.id, excerpt: rec.text || undefined },
+      recipient: {
+        name: rec.senderNick || identity.name || identity.address || '',
+        address: rec.senderAddress || identity.address || '',
+      },
+      balance: null,
+      host: overlayHost,
+      onTip: (payload, ctrl) => {
+        bridge.send('ixian:contextAction:tip:' + rec.id + ':' + payload.amount);
+        ctrl.done();   // the tip pill / wallet tx land via the bridge (addReactions)
+      },
+    });
+  }
+
+  /* composer ⊕ → attach sheet (tile grid) replacing the legacy native attach bar.
+   *   file    → ixian:sendfile            (native picker)
+   *   photo/gif → ixian:sendmedia         (gated on the media capability, #81)
+   *   pay     → ixian:send  (onSendIxi)   1:1 only — native compose + sign
+   *   request → ixian:request (onRequestIxi) 1:1 only
+   * App-invite tile is hidden (no SingleChatPage invite verb); Pay/Request are
+   * hidden in groups/bots (C# rejects them there). */
+  function openAttach() {
+    openAttachSheet({
+      host: overlayHost,
+      media: bridge.cap('media'),   // Photo/GIF appear only when the BE image standard lands (#81)
+      apps: !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
+      payments: mode.type === 0,    // 1:1 only
+      strings: window.SL || {},
+      onAction: (id) => {
+        if (id === 'file') bridge.send('ixian:sendfile');
+        else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
+        else if (id === 'pay') bridge.send('ixian:send');
+        else if (id === 'request') bridge.send('ixian:request');
+        else if (id === 'app') openAppPicker();
+      },
+    });
+  }
+
+  /* App-invite picker (legacy parity): the attach "App invite" tile opens a
+   * sheet of installed multi-user apps (captured from loadApps/addApp); picking
+   * one emits ixian:app:<id> → onApp starts an app session with the peer
+   * (xaml:832). Empty state when none are installed. */
+  function openAppPicker() {
+    const s = window.SL || {};
+    const content = document.createElement('div');
+    content.className = 'chat-app-picker';
+    if (!chatApps.length) {
+      const empty = document.createElement('p');
+      empty.className = 'chat-app-picker__empty';
+      empty.textContent = s.noApps || 'No apps installed yet.';
+      content.append(empty);
+    } else {
+      for (const app of chatApps) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chat-app-picker__item';
+        if (window.SpixiIcons && window.SpixiIcons.icon) b.append(window.SpixiIcons.icon('rocket', { size: 20 }));
+        const nm = document.createElement('span');
+        nm.className = 'chat-app-picker__name';
+        nm.textContent = app.name;
+        b.append(nm);
+        b.addEventListener('click', () => { closeSheet(sheet); bridge.send('ixian:app:' + app.id); });
+        content.append(b);
+      }
+    }
+    const sheet = createSheet({ title: s.inviteApp || 'Invite an app', content, host: overlayHost, strings: s });
+    openSheet(sheet);
+  }
+
+  /* incoming contact-request pane (#109) — showContactRequest fires when the
+   * peer's requestAdd lands and they're not yet approved (xaml:1196). Only "1"
+   * is sent (no identity), so we populate from the header identity. Accept →
+   * ixian:accept (onAcceptFriendRequest); Decline → ixian:undorequest (the only
+   * decline path SingleChatPage offers — removes the pending friend + leaves).
+   * Sits above the composer; C#'s re-flush after accept clears it (clearMessages). */
+  let requestPane = null;
+  function removeRequestPane() { if (requestPane) { requestPane.remove(); requestPane = null; } }
+  function showRequestPane() {
+    removeRequestPane();
+    requestPane = document.createElement('div');
+    requestPane.className = 'chat-request-pane';
+    requestPane.append(createContactRequest({
+      name: identity.name || '', address: identity.address || '',
+      timestamp: Date.now(), host: overlayHost, strings: window.SL || {},
+      onAccept: () => bridge.send('ixian:accept'),
+      onDecline: () => bridge.send('ixian:undorequest'),
+    }));
+    document.getElementById('chat-composer').before(requestPane);
   }
 
   /* secure-chat / privacy notice — ALWAYS the first item in the log, mirroring
@@ -345,8 +700,10 @@
   }
 
   /* full re-render of the log from the model — used after any insert/delete so
-   * grouping + timestamp order stay correct. Rebuilds date separators too. */
-  function renderLog() {
+   * grouping + timestamp order stay correct. Rebuilds date separators too.
+   * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
+   * synchronous rebuild (also used for the first paint). */
+  function renderLogNow() {
     const scrollWasAtBottom = nearBottom();
     box.textContent = '';
     rows.clear();
@@ -362,9 +719,23 @@
       rows.set(id, row);
       box.append(row);
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
+      wireMenu(rec, row);                  // long-press / right-click context menu
     }
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  /* Coalesce renders into ONE animation frame. C# populates a conversation by
+   * pushing addMe/addThem (and file/payment/…) ONE message at a time, so a
+   * naive re-render-per-push tore down + rebuilt the whole log N times on open
+   * → violent flicker (Damir 2026-07-07). Batching collapses the whole burst
+   * into a single rebuild on the next frame. The surgical setMessageStatus path
+   * (read-receipt ticks) stays synchronous — it never calls this. */
+  let renderQueued = false;
+  function renderLog() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; renderLogNow(); });
   }
 
   /* insert (or move) an id into `order` keeping timestamp-ascending; stable for
@@ -454,6 +825,48 @@
     renderLog();
   }
 
+  /* CREATE/UPSERT a payment card (legacy addPaymentRequest). extra carries the
+   * verbatim title, amount, status enum (from status_icon), txid, enableView. */
+  function upsertPayment(id, ts, dir, extra) {
+    id = String(id);
+    const existing = model.get(id);
+    const rec = existing || { id, kind: 'payment', direction: dir, senderNick: '', senderAddress: '' };
+    rec.kind = 'payment';
+    if (dir) rec.direction = dir;
+    if (ts) rec.ts = ts;
+    if (extra) {
+      if (extra.title !== undefined) rec.title = extra.title || '';
+      if (extra.amount !== undefined) rec.amount = extra.amount;
+      if (extra.pstatus !== undefined) rec.pstatus = extra.pstatus;
+      if (extra.txid !== undefined) { rec.txid = extra.txid || ''; if (rec.txid) txIndex.set(rec.txid, id); }
+      if (extra.enableView !== undefined) rec.enableView = extra.enableView;
+      if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
+      if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+    }
+    model.set(id, rec);
+    orderInsert(id);
+    hideTyping();
+    renderLog();
+  }
+
+  /* CREATE a call event row (legacy addCall). missed = the bridge `declined`
+   * flag (rang out / no answer); label = the C#-localized wording verbatim;
+   * duration is a preformatted "m:ss" or empty. */
+  function upsertCall(id, ts, missed, label, duration) {
+    id = String(id);
+    const existing = model.get(id);
+    const rec = existing || { id, kind: 'call' };
+    rec.kind = 'call';
+    if (ts) rec.ts = ts;
+    rec.missed = !!missed;
+    rec.label = label || '';
+    rec.duration = duration || '';
+    model.set(id, rec);
+    orderInsert(id);
+    hideTyping();
+    renderLog();
+  }
+
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers — every one a page global (via bridge.exposeAll),
    * because executeUiCommand(fnRef, …) resolves fnRef as a bare page-global.
@@ -499,6 +912,9 @@
       model.clear();
       rows.clear();
       fileIndex.clear();
+      txIndex.clear();
+      myLikes.clear();
+      removeRequestPane();   // a re-flush after accept clears the request pane
       order = [];
       hideTyping();
       typingRow = null;
@@ -536,6 +952,7 @@
       const rec = model.get(id);
       if (!rec) { dbg('deleteMessage: unknown', id); return; }
       if (rec.kind === 'file' && rec.fileid) fileIndex.delete(rec.fileid);
+      if (rec.kind === 'payment' && rec.txid) txIndex.delete(rec.txid);
       model.delete(id);
       order = order.filter((x) => x !== id);
       renderLog();
@@ -561,11 +978,45 @@
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
     setUnreadIndicator(n) { dbg('setUnreadIndicator', n); },
 
-    /* ——— safe no-op stubs (not in the v1 text path) ————————————————————————
-     * Each is a console.debug so C#'s executeUiCommand dispatch never throws. */
-    addPaymentRequest() { dbg('addPaymentRequest'); },
-    updatePaymentRequestStatus() { dbg('updatePaymentRequestStatus'); },
-    updateTransactionStatus() { dbg('updateTransactionStatus'); },
+    /* ——— payments (view-only, wired) ————————————————————————————————————————
+     * addPaymentRequest is the 14-arg legacy shape (xaml.cs:1310/1361):
+     *   (id, txid, address, nick, avatar, title, amount, status, statusIcon,
+     *    time, localSender, confirmed, read, enableView)
+     * `title` + `status` are C#-LOCALIZED strings; `statusIcon` is the stable
+     * signal we map to the status enum. localSender ("True"/"") → direction. */
+    addPaymentRequest(id, txid, address, nick, avatar, title, amount, status, statusIcon, time, localSender, confirmed, read, enableView) {
+      upsertPayment(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
+        title: title || '', amount: amount,
+        pstatus: paymentStatusFrom(statusIcon),
+        txid: txid || '', enableView: asBool(enableView),
+        senderNick: resolveNick(address, nick), senderAddress: address || '',
+      });
+    },
+
+    // Request-status update (xaml.cs:1665): (msg_id, txid, status, statusIcon,
+    // enableView). Patches the card in place (re-render); ignores unknown ids.
+    updatePaymentRequestStatus(id, txid, status, statusIcon, enableView) {
+      id = String(id);
+      const rec = model.get(id);
+      if (!rec || rec.kind !== 'payment') { dbg('updatePaymentRequestStatus: unknown', id); return; }
+      rec.pstatus = paymentStatusFrom(statusIcon);
+      if (txid) {
+        if (rec.txid && rec.txid !== String(txid)) txIndex.delete(rec.txid); // drop stale key on re-key (N1)
+        rec.txid = String(txid); txIndex.set(rec.txid, id);
+      }
+      rec.enableView = asBool(enableView);
+      renderLog();
+    },
+
+    // Direct-payment status update (xaml.cs:1648): (txid, status, statusIcon) —
+    // keyed by TXID, so resolve via txIndex.
+    updateTransactionStatus(txid, status, statusIcon) {
+      const id = txIndex.get(String(txid));
+      const rec = id && model.get(id);
+      if (!rec) { dbg('updateTransactionStatus: unknown txid', txid); return; }
+      rec.pstatus = paymentStatusFrom(statusIcon);
+      renderLog();
+    },
 
     /* FILE transfer create (chat.js addFile:904, 13-arg). me/sent/read/paid are
      * the .NET bool strings; nick/address feed the group sender label/avatar. */
@@ -595,7 +1046,18 @@
       else renderLog();
     },
 
-    addCall() { dbg('addCall'); },
+    // CALL event (chat.js addCall:1496): (id, text, declined, time). VIEW-ONLY
+    // best-effort — see buildCallRow. declined ("True"/"False") = rang out /
+    // no answer; an answered call embeds a "(m:ss)" duration in the localized text.
+    addCall(id, text, declined, time) {
+      const isDeclined = asBool(declined);
+      const raw = String(text || '');
+      const dur = isDeclined ? '' : ((raw.match(/\((\d+:\d{2})\)/) || [])[1] || '');
+      // strip a trailing "(m:ss)" so the label is just the wording; the duration
+      // is rendered separately by the card
+      const label = raw.replace(/\s*\(\d+:\d{2}\)\s*$/, '').trim();
+      upsertCall(id, toMs(time), isDeclined, label, dur);
+    },
 
     // REACTIONS (chat.js addReactions:549) — ;-joined "key:count". Store on the
     // record (so re-renders keep them) + apply to the live row with a pop. The
@@ -603,16 +1065,20 @@
     addReactions(id, reactions) {
       const rec = model.get(String(id));
       if (!rec) { dbg('addReactions: unknown', id); return; }
-      rec.reactions = parseReactions(reactions).reactions;
+      const parsed = parseReactions(reactions, id);
+      rec.reactions = parsed.reactions;
+      rec.tip = parsed.tip;
       const row = rows.get(String(id));
       if (row) {
-        if (rec.reactions.length) applyRowReactions(rec, row, true);
+        if (rec.reactions.length || rec.tip) applyRowReactions(rec, row, true);
         else applyReactions(row, { reactions: [] });   // cleared → remove pills
       }
     },
     addContact() { dbg('addContact'); },
-    showContactRequest() { dbg('showContactRequest'); },
-    showCallButton() { dbg('showCallButton'); },
+    // incoming contact request (xaml:1196) → accept/decline pane above composer
+    showContactRequest() { showRequestPane(); },
+    // reveal the topbar call action (C# gates when a call is possible, xaml:583)
+    showCallButton() { callVisible = true; renderTopbar(); },
     // APP invite/session card (chat.js addAppRequest:1174). appStatus ∈
     // {Missing, Minimized, else} — already enum-shaped. Reuses installApp/joinApp.
     addAppRequest(id, appid, appname, appimage, address, nick, avatar, time, localSender, sent, read, appStatus, appInstallURL) {
@@ -623,8 +1089,10 @@
         senderNick: resolveNick(address, nick), senderAddress: address || '',
       });
     },
-    addApp() { dbg('addApp'); },            // apps MENU population, not a chat bubble
-    clearApps() { dbg('clearApps'); },
+    // installed multi-user apps (loadApps, xaml:1088 — addApp(id,name,icon,publisher))
+    // → the attach "App invite" picker. icon path doesn't resolve in-shell → omitted.
+    addApp(id, name, icon, publisher) { chatApps.push({ id: String(id), name: name || String(id), publisher: publisher || '' }); },
+    clearApps() { chatApps.length = 0; },
     addChannelToSelector() { dbg('addChannelToSelector'); },
     setSelectedChannel() { dbg('setSelectedChannel'); },
     setChannelSelectorStatus() { dbg('setChannelSelectorStatus'); },
@@ -645,14 +1113,15 @@
       if (touched) renderLog();
     },
     showRequestSentModal() { dbg('showRequestSentModal'); },
-    showWarning() { dbg('showWarning'); },
+    // connectivity strip (xaml:1746/1754/1767) — non-empty opens, "" collapses
+    showWarning(text) { setWarning(warningBanner, text || ''); },
   };
 
   bridge.exposeAll(handlers);
 
   // Render the empty log immediately so the secure notice is visible from first
   // paint (before C# pushes the conversation, and for brand-new empty chats).
-  renderLog();
+  renderLogNow();  // synchronous — don't wait a frame for the first paint
 
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });
@@ -683,9 +1152,9 @@
         bridge.send('ixian:typing');
       }
     },
-    // ⊕ attach: legacy attach bar verbs. v1 wires the plumbing straight to the
-    // real verbs (no in-page attach sheet takeover yet — that is a later pass).
-    onAttach: () => bridge.send('ixian:send'),
+    // ⊕ attach: redesigned attach sheet (tile grid) replacing the legacy native
+    // attach bar. Routes to the existing verbs — nothing invisible.
+    onAttach: () => openAttach(),
   });
   document.getElementById('chat-composer').append(composerEl);
 

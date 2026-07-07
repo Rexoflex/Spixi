@@ -30,6 +30,9 @@ export function openMessageMenu({
   host,
   text = '',
   capabilities = {},
+  reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
+                                 // single "like" reaction today, so the shell passes
+                                 // just ['❤️'] rather than 6 emojis that all map to like
   onAction,
   strings = getStrings(),
 } = {}) {
@@ -51,7 +54,7 @@ export function openMessageMenu({
   reacts.className = 'c-msgmenu__reacts';
   reacts.setAttribute('role', 'group');
   reacts.setAttribute('aria-label', strings.react || 'React');
-  for (const emoji of QUICK_REACTIONS) {
+  for (const emoji of reactions) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__react';

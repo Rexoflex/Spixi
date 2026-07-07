@@ -125,6 +125,10 @@ function reentryGuard(fn) {
  */
 export function createPaymentBubble({
   role = 'request-in',
+  title = '',             // optional verbatim override — the native bridge already
+                          // sends a correctly-worded, LOCALIZED title (request vs
+                          // sent vs received) that the shell can't reconstruct from
+                          // role alone; when present it wins over the role-derived one
   amount = '',            // pre-formatted (bridge sends strings)
   fiat = '',
   status = 'actionable',
@@ -142,7 +146,7 @@ export function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
-  const { row, el } = card(direction, titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
+  const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
   const amountEl = document.createElement('div');
@@ -204,11 +208,13 @@ export function createPaymentBubble({
     el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
   } else if (role === 'sent' && status === 'failed') {
     el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')) {
+  } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {
+    // details link only when the caller supplies a target — a payment the bridge
+    // can't open (no txid / view disabled) must not show a dead "Details" button
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
   paymentOpts.set(row, {
-    role, amount, fiat, status, insufficient, timestamp, gutter,
+    role, title, amount, fiat, status, insufficient, timestamp, gutter,
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
   return row;
@@ -305,6 +311,10 @@ export function createAppBubble({
 export function createCallBubble({
   missed = false,
   declined = false,        // #87⑦: actively rejected
+  title = '',              // optional verbatim override — the native bridge sends a
+                           // fully-localized call label ("No answer" vs "Missed" vs
+                           // "Outgoing"/"Incoming") the shell can't reconstruct from
+                           // the missed flag alone; when present it wins
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
@@ -314,8 +324,8 @@ export function createCallBubble({
   strings = getStrings(),
 } = {}) {
   const { row, el } = card(direction,
-    declined ? (strings.callDeclined || 'Call declined')
-      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call'),
+    title || (declined ? (strings.callDeclined || 'Call declined')
+      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
     timestamp, 'call', gutter);
   if (missed && !declined) row.dataset.missed = '';
   const head = el.querySelector('.c-tcard__title');
@@ -339,11 +349,15 @@ export function createCallBubble({
     if (cb) sub.addEventListener('click', cb);
     el.append(sub);
   } else {
-    const meta = document.createElement('div');
-    meta.className = 'c-tcard__call-meta u-tabular';
-    // r2 backlog A17: empty directionLabel must not leave a leading ' · '
-    meta.textContent = [directionLabel, duration].filter(Boolean).join(' · ');
-    el.append(meta);
+    // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
+    // an answered call with neither label nor duration must not leave an empty div
+    const metaText = [directionLabel, duration].filter(Boolean).join(' · ');
+    if (metaText) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = metaText;
+      el.append(meta);
+    }
     const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
     el.append(wrap);
   }

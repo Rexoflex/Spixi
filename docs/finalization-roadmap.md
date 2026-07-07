@@ -59,6 +59,38 @@ shared money module (`canonicalAmount`/`toUnits`) dedupe.
 6. **Device testing** — `maui-integration-test-plan.md` +
    `android-test-quickstart.md` already drafted; run per shell on device.
 
+## Phase 3.5 — DEPTH: finish each single-pane surface on the real bridge
+
+*Added 2026-07-07 after the `docs/gap-audit.md` sweep. Phase 3's wiring (#177–#185)
+was **breadth** — one shallow pass per surface, often "emit a verb → open the legacy
+page." This phase closes the depth to **full redesign coverage.** Rule (Damir): **no legacy
+design remains — the redesign replaces every legacy page.** Wire the redesign wherever
+the FROZEN bridge already supports it; a feature BE can't yet drive (e.g. reply/edit) is
+**omitted — hidden behind a capability flag, but fully built and ready** to switch on
+when C# lands (never left on legacy, never shown broken). **Build FE now, batch every
+C# ask** into the one BE cutover pass. **Priority = a working 1:1 app.** Ordering =
+value + dependency; the zero-C# wins come first so the app works end-to-end fast.*
+
+Per-track loop (unchanged working agreement): decide open items → build on the real
+bridge → #46 audit → Damir F5 → DECISIONS row → commit. `[0C]` = zero-C# (do now);
+`[BE]` = needs C# (flag → cutover); `[DEC]` = decision (most are pre-resolved in the
+gap-audit, 4 residuals listed there).
+
+| # | Track | Scope (do now = [0C]; flag = [BE]) | Gate |
+|---|-------|-----|------|
+| A | **Chat depth** ← **START HERE** | [0C] context menu (delete/copy/react/tip) · payment+call **view-only** cards (best-effort status map now, upgrade later — Damir) · member sheet + group admin · chat-info takeover · in-text link confirm · unread divider · lazy history · attach-sheet takeover · contact-request pane · connectivity banner · start-call button · media tiles+viewer (behind a cap flag; media-vs-file signaling = the one open BE flag). [BE] `resend` case (retry is a dead no-op) · inline Pay/Decline (C1–C3) · enriched call (C4) · reaction own-flag (C5). | biggest value; mostly [0C] |
+| B | **Chats-list depth** | [0C] wire live `setContactStatus`/`loadContacts` (today no-op'd) · fix delete/mark-read revert. [BE] contact-request feed + accept/decline/handshake verbs (built UI unfed) · pin/mute/favorites/swipe persistence · group-type flag · mention flag. | core messaging polish |
+| C | **Scan + Lock shells** | [0C near-drop-in] `src/shells/scan.html` + SHELLS entry (adapter+lib present) · `src/shells/lock.html` + encpass entry + `SPIXI_ENV.biometrics` · `settings_lock.html` → **redirect to a lock-shell set-lock view** (Damir). [BE] `unlockFailed`/`changePassFailed` · QR split guard. Icons: `shield-lock`, torch/bulb. | fast — adapters exist |
+| D | **Contacts shell** | **Embed the picker in the home shell for v1** (Damir; reuses HomePage roster + FAB), built as a self-contained `src/bridge/contacts-page.js` module so it ports to a standalone `src/shells/contacts.html` later → start-picker/add-contact/group-create takeover, replacing the FAB dead-end. [BE] group-create verb host · dual-nick · `checkAddress` invalid-state. Run the parked #155 Opus audit. | biggest new build |
+| E | **Wallet money flows** | [0C] wire redesigned **Send** (compose/review → native sign) + **Receive**/QR/request-amount (built, unwired — realizes "WebView composes, C# signs"). [BE] tx-detail address/fee/status/tx-explorer/epoch (W1–W4). | SECURITY.md: sign stays C# |
+| F | **Settings auto-save** | [BE] save-without-pop verb + immediate lock persistence + stop reload-on-change (fixes the "not saving" bugs) · QR/address (S1) · version (S4) · backup status (S2) · current-lang (S3) · notifications/privacy/security/confirm-payments (§9) · change-password route · downloads/dev/contributors (§5 repoint). [0C] auto-save UX + selective toast on the FE. | mostly [BE]-gated |
+| G | **Apps depth** | [0C] `menuBtn` creation-guard fix. [BE] Discover feed source (A2) · in-tab uninstall verb (A1) · launch single/multi + recents [0C once decided] · real icons (avatar/icon resolution, cross-cutting). | standalone apps-shell repoint |
+| H | **Cross-cutting close-out** | icons · avatar/app-icon path resolution (data-URI scheme) · empty/error/offline states + toasts · media-vs-file · run the parked Opus audits (contacts #155 / scan #158 / lock #159) + a per-track #46 loop. | before freeze |
+
+The `[BE]` items across all tracks land in **one** cutover PR — see `docs/be-cutover-brief.md`
+(existing C/W/S/A/L rows + the NEW asks flagged in the gap audit). Full source of truth
+per surface: `docs/gap-audit.md`.
+
 ## Phase 4 — final freeze
 
 Full-app #46 audit loop (adversarial agents → fix → review until CLEAN) ·

@@ -2247,12 +2247,487 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-swipe[data-open] .c-swipe__content { will-change: transform; }
 
 </style>
+<!-- wallet tab (tab2, ARCHITECTURE §5 — home shell internal view) -->
+<style data-src="../styles/components/txlist-item.css">
+/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
+   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
+
+.c-txlist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-16) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+  /* 100ms intentional: micro-interaction, matches chatlist row hover */
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-txlist-item:hover { background: var(--surface-interactive-hover); }
+}
+/* :active AFTER the hover block so pressed wins (source order at equal specificity) */
+.c-txlist-item:active { background: var(--surface-interactive-pressed); }
+
+/* direction circle: 48, centered 24 arrow */
+.c-txlist-item__direction {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-avatar-48);
+  height: var(--size-avatar-48);
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  color: var(--icon-neutral-01);
+}
+.c-txlist-item[data-type="received"] .c-txlist-item__direction {
+  border-color: var(--outline-success-inverse);
+  color: var(--text-success);
+}
+.c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
+
+.c-txlist-item__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.c-txlist-item__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  letter-spacing: var(--tracking-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+
+.c-txlist-item__time {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-02);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
+   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
+.c-txlist-item__amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  max-width: 55%;
+}
+.c-txlist-item__amount, .c-txlist-item__fiat {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__amount {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  letter-spacing: var(--tracking-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-txlist-item__fiat {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
+  color: var(--text-neutral-02);
+}
+
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-success); }
+.c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
+.c-txlist-item[data-type="failed"] .c-txlist-item__amount,
+.c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
+  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
+  color: var(--text-neutral-disabled);
+  text-decoration: line-through;
+  font-weight: var(--font-weight-regular);
+}
+
+</style>
+<style data-src="../styles/components/wallet-hero.css">
+/* c-wallet-hero — Wallet home hero (#20 hero region, #21 tnum, #58 title; spec §2).
+   Ports the app-frame demo recipe into the component (tokens verbatim). */
+
+.c-wallet-hero {
+  background: var(--gradient-hero-overlay), var(--surface-hero);
+  color: var(--text-on-hero);
+  /* the hero owns the top safe-area so the status-bar region paints hero-colored with
+     NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
+  padding-block-start: env(safe-area-inset-top, 0px);
+  padding-block-end: var(--spacing-24);
+  border-end-start-radius: var(--radius-24);
+  border-end-end-radius: var(--radius-24);
+}
+
+.c-wallet-hero__titlerow { display: flex; align-items: center; padding-inline-end: var(--spacing-16); }
+.c-wallet-hero__title {
+  margin: 0;
+  padding: var(--spacing-16);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);     /* one title scale app-wide (#58) */
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+  font-weight: var(--font-weight-semibold);   /* heading roles are semibold (t-heading-*) */
+}
+/* compact balance — appears in the title row while minimized (#134 scroll UX) */
+.c-wallet-hero__compactbal {
+  margin-inline-start: auto;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-lg);
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-wallet-hero[data-compact] .c-wallet-hero__compactbal { opacity: 1; }
+
+/* minimized hero: balance block + actions collapse (binary triggered CSS transition —
+   the #114 pattern; reduced motion zeroes the duration tokens globally) */
+.c-wallet-hero__balance,
+.c-wallet-hero__actions {
+  max-height: 160px;                          /* > natural height; enables the collapse transition */
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              padding-block var(--duration-300) var(--easing-standard);
+}
+.c-wallet-hero[data-compact] .c-wallet-hero__balance,
+.c-wallet-hero[data-compact] .c-wallet-hero__actions {
+  max-height: 0;
+  opacity: 0;
+  padding-block: 0;
+}
+.c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
+.c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
+
+.c-wallet-hero__balance { padding-inline: var(--spacing-16); }
+.c-wallet-hero__label {
+  color: var(--text-on-hero-muted);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-wallet-hero__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-hero__amount {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-lg);
+  line-height: var(--line-height-heading-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading-lg);  /* −1px — the sanctioned hero-amount tracking (#20/#36) */
+  overflow-wrap: anywhere;
+}
+.c-wallet-hero__unit {
+  font-size: 0.62em;                           /* sanctioned ratio from the app-frame recipe (unit shrinks with the amount) */
+  font-weight: var(--font-weight-bold);
+  margin-inline-start: var(--spacing-8);
+}
+.c-wallet-hero__eye {
+  margin-inline-start: auto;
+  flex: none;
+  background: none; border: 0;
+  color: var(--icon-on-hero);
+  cursor: pointer;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-full);
+  min-width: var(--size-target-min); min-height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.c-wallet-hero__fiat { color: var(--text-on-hero-muted); font-size: var(--font-size-body-md); }
+
+.c-wallet-hero__actions {
+  display: flex;
+  gap: var(--spacing-24);
+  padding: var(--spacing-24) var(--spacing-16) 0;
+}
+.c-wallet-hero__qa {
+  display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8);
+  background: none; border: 0;
+  color: var(--text-on-hero);
+  cursor: pointer;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-hero__qacircle {
+  width: 56px; height: 56px;                   /* sanctioned: matches the button/56 scale (app-frame recipe) */
+  border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--text-on-hero-muted);
+  color: var(--icon-on-hero);
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+/* (the special filled Send circle was removed — all three actions identical, Damir #135) */
+
+/* keyboard focus — the global ring color ≈ light surface-hero, invisible here (#106
+   on-scrim family): pin the ring to the on-hero ink */
+.c-wallet-hero__eye:focus-visible,
+.c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
+
+/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline) */
+@media (hover: hover) {
+  .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
+  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
+}
+.c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
+.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
+
+/* tap-to-hide affordance (Damir #135): the whole balance block + compact balance toggle.
+   The compact balance is a ghost while the hero is expanded (opacity 0) — it must not
+   be a clickable invisible region (audit m1). */
+.c-wallet-hero__balance { cursor: pointer; }
+.c-wallet-hero__compactbal { cursor: pointer; pointer-events: none; }
+.c-wallet-hero[data-compact] .c-wallet-hero__compactbal { pointer-events: auto; }
+
+</style>
+<style data-src="../styles/components/wallet-shell.css">
+/* c-wallet-shell — filters row + tx list + tx/missing-tx sheets (spec §2/§5, #133/#134). */
+
+/* —— sticky tools: search + filters (scroll UX #134) —— */
+.c-wallet-tools {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  /* flex: none is LOAD-BEARING: inside the flex-column scroll container, overflow:hidden
+     gives this box a min-height of 0 and flex-shrink collapsed it to nothing between the
+     hero and a tall list (Damir screenshot #136 — jsdom smoke can't see layout) */
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding-block-start: var(--spacing-12);
+  padding-inline: var(--spacing-16);
+  background: var(--surface-screen);
+  max-height: 160px;                          /* > natural height; enables the tuck-away transition (#114 pattern) */
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              padding-block var(--duration-300) var(--easing-standard);
+}
+.c-wallet-tools[data-hidden] {
+  max-height: 0;
+  opacity: 0;
+  padding-block: 0;
+  pointer-events: none;                       /* fallback for pre-inert WebViews (#4/#113) */
+}
+
+/* —— filters row: chips + the #98 "Missing a transaction?" pill at the row end —— */
+.c-wallet-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-8) var(--spacing-12);
+  flex: none;
+}
+.c-wallet-misstx {
+  margin-inline-start: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-action-tonal-default);
+  color: var(--text-action-default);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
+.c-wallet-misstx:active { background: var(--surface-action-tonal-pressed); }
+/* #98 ①: narrow phones — the pill collapses to the ⓘ glyph (aria-label carries the name).
+   NB viewport query only — a <360px PANE in the #89 desktop split-view won't trigger it;
+   container queries are off the conservative baseline (#4), revisit at desktop build. */
+@media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
+
+/* —— tx list + empty —— */
+.c-wallet-txlist { display: flex; flex-direction: column; }
+
+/* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
+   Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);
+   explicit reduced-motion escape per the same precedent. */
+@keyframes c-wallet-txflash {
+  0% { background-color: var(--surface-action-tonal-default); }
+  100% { background-color: transparent; }
+}
+.c-txlist-item[data-flash] { animation: c-wallet-txflash 2s var(--easing-standard) both; }
+@media (prefers-reduced-motion: reduce) { .c-txlist-item[data-flash] { animation: none; } }
+.c-wallet-empty {
+  padding: var(--spacing-32) var(--spacing-24);
+  text-align: center;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+
+/* —— tx detail sheet —— */
+.c-txsheet { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-txsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }
+/* direction circle mirrors c-txlist-item's (48, same state inks) so list → sheet reads
+   as the same object */
+.c-txsheet__dir {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  color: var(--icon-neutral-01);
+}
+.c-txsheet__dir[data-type="received"] { border-color: var(--outline-success-inverse); color: var(--text-success); }
+.c-txsheet__dir[data-type="failed"] { color: var(--text-error); }
+.c-txsheet__headtext { flex: 1; min-width: 0; }
+.c-txsheet__title {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-lg);        /* heading-xs overpowered the sheet (Damir #135) */
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-txsheet__head .c-badge { flex: none; }
+.c-txsheet__amount {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-txsheet__amount[data-type="received"] { color: var(--text-success); }
+.c-txsheet__amount[data-type="pending"] { color: var(--text-neutral-02); }          /* mirrors txlist pending muting */
+.c-txsheet__amount[data-type="failed"] { color: var(--text-neutral-disabled); text-decoration: line-through; }
+.c-txsheet__fiat {
+  margin-block-start: calc(-1 * var(--spacing-8));
+  font-size: var(--font-size-body-md);
+  color: var(--text-neutral-02);
+}
+
+/* address — member-sheet addr-chip pattern (#99): full address, wraps, copy morphs */
+.c-txsheet__addrlabel {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  margin-block-end: calc(-1 * var(--spacing-8));   /* hugs its chip (parent gap is 12) */
+}
+.c-txsheet__addr {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-txsheet__addrvalue {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;                     /* the FULL address is the verification truth (#99) */
+}
+
+.c-txsheet__meta { display: flex; flex-direction: column; }
+.c-txsheet__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-txsheet__row:last-child { border-block-end: 0; }
+.c-txsheet__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-txsheet__rowvalue {
+  flex: 1; min-width: 0;
+  text-align: end;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* fee ⓘ + one-line explanation (Damir #135) */
+.c-txsheet__row--fee { flex-wrap: wrap; }
+.c-txsheet__info {
+  display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: middle;
+  margin-inline-start: var(--spacing-4);
+  border: 0; background: transparent; padding: var(--spacing-4);
+  position: relative;
+  border-radius: var(--radius-full);
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+.c-txsheet__info::after { content: ''; position: absolute; inset: -8px; }   /* ≥44 hit area (#106 family) */
+.c-txsheet__explain {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-txsheet__explain:empty { display: none; }
+
+.c-txsheet__copy {
+  flex: none;
+  width: 32px; height: 32px;                   /* visual 32; hit area extended below to ≥44 (#106 family) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-txsheet__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) { .c-txsheet__copy:hover { background: var(--surface-interactive-hover); } }
+.c-txsheet__copy:active { background: var(--surface-interactive-pressed); }
+
+/* —— missing-tx sheet (#98; title rendered by c-sheet) —— */
+.c-misstx { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-misstx__body {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }
+
+</style>
 <style>
-  /* Production shell: fill the WebView (no demo phone frame). topbar + header
-     pin, the chats list scrolls, the bottom nav pins to the bottom. */
+  /* Production shell: fill the WebView (no demo phone frame). Two internal views
+     (chats = tab1, wallet = tab2) swap client-side; the bottom nav pins to the
+     bottom and is shared. Apps/Account (tab3/tab4) are not in the redesign yet —
+     a neutral placeholder view stands in so the screen never goes blank. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
-  #chat-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .view[hidden] { display: none; }
+  #chat-scroll, #wallet-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
+  .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
+  /* placeholder view (apps/account WIP) */
+  #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
+  .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
+  .placeholder__note { color: var(--text-neutral-02); max-width: 32ch; }
   /* FAB — overlays the scroll region, sits above the bottom nav */
   .fab {
     position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
@@ -2267,10 +2742,25 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
-  <div id="chats-topbar"></div>
-  <div id="chats-header"></div>
-  <div class="u-scroll" id="chat-scroll"></div>
-  <button class="fab" id="fab" aria-label="New chat"></button>
+  <!-- tab1: chats -->
+  <div class="view" id="chats-view">
+    <div id="chats-topbar"></div>
+    <div id="chats-header"></div>
+    <div class="u-scroll" id="chat-scroll"></div>
+    <button class="fab" id="fab" aria-label="New chat"></button>
+  </div>
+  <!-- tab2: wallet -->
+  <div class="view" id="wallet-view" hidden>
+    <div id="wallet-hero"></div>
+    <div class="u-scroll" id="wallet-scroll"></div>
+  </div>
+  <!-- tab3/tab4: not-yet-redesigned placeholder -->
+  <div class="view" id="placeholder-view" hidden>
+    <div>
+      <div class="placeholder__title t-heading-sm" id="placeholder-title"></div>
+      <div class="placeholder__note" id="placeholder-note"></div>
+    </div>
+  </div>
   <div id="chats-nav"></div>
 
 <script data-src="../components/icons.iife.js">
@@ -3477,7 +3967,12 @@ function createBadge({
  * confirmed) — amount/fiat arrive pre-formatted, component stays dumb.
  *
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
- *                'failed', name, timestamp, amount, fiat, onClick, strings })
+ *                'failed', name, timestamp, timeText, amount, fiat, onClick, strings })
+ *
+ * timestamp = epoch ms → formatted via formatTxTimestamp (relative/locale, preferred).
+ * timeText  = a PRE-FORMATTED display string shown verbatim (native-bridge path:
+ *   addPaymentActivity ships an already-humanized time string, not epoch — see
+ *   docs/be-cutover-brief "Other shells" W1). When both are present, timeText wins.
  */
 
 
@@ -3487,11 +3982,15 @@ function createBadge({
 const BADGES = {
   pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
   failed: { type: 'error', glyph: 'alert-square-rounded', label: 'Failed', key: 'txFailed' },
+  // unknown = chain read hasn't confirmed the tx state; give the row a visible
+  // status affordance (legacy showed a fa-question-circle). Mirrors the detail
+  // sheet's STATUS_META.unknown (wallet-shell.js).
+  unknown: { type: 'info', glyph: 'hourglass-empty', label: 'Unknown', key: 'txUnknown' },
 };
 
 function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
-  name = '', timestamp, amount = '', fiat = '', onClick, strings = getStrings(),
+  name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -3527,10 +4026,13 @@ function createTxItem({
       label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
     }));
   }
-  if (timestamp != null) {
+  const timeStr = (timeText != null && timeText !== '')
+    ? timeText
+    : (timestamp != null ? formatTxTimestamp(timestamp) : null);
+  if (timeStr) {
     const time = document.createElement('span');
     time.className = 'c-txlist-item__time u-tabular';
-    time.textContent = formatTxTimestamp(timestamp);
+    time.textContent = timeStr;
     row2.append(time);
   }
   content.append(row2);
@@ -9139,7 +9641,10 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
   metaBox.className = 'c-txsheet__meta';
   const rows = [
     sheetRow(strings.status || 'Status', strings[meta.key] || meta.label),
-    sheetRow(strings.date || 'Date', tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : ''),
+    // timeText = pre-formatted native-bridge time string (verbatim); timestamp = epoch (formatted)
+    sheetRow(strings.date || 'Date',
+      (tx.timeText != null && tx.timeText !== '') ? tx.timeText
+        : (tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : '')),
   ].filter(Boolean);
   if (tx.fee != null && tx.fee !== '') {
     // fee row carries an ⓘ that reveals a one-line explanation (Damir #135)
@@ -18340,7 +18845,15 @@ function installExecuteUiCommand(win) {
   w.executeUiCommand = function executeUiCommand(cmd) {
     const args = [];
     try {
-      for (let i = 1; i < arguments.length; i++) args.push(b64ToUtf8(arguments[i]));
+      // C# sendUiCommand emits a bare `null` (unquoted) for null args
+      // (Utils.cs:77) → the arg arrives as JS null, and atob(null) throws,
+      // which previously dropped the WHOLE command (e.g. setBalance's nick is
+      // null before the profile loads → the balance push vanished). Treat
+      // null/undefined as an empty string so the rest of the args still deliver.
+      for (let i = 1; i < arguments.length; i++) {
+        const a = arguments[i];
+        args.push(a == null ? '' : b64ToUtf8(a));
+      }
       if (typeof cmd !== 'function') {
         // eslint-disable-next-line no-console
         console.error('executeUiCommand: not a function', cmd);
@@ -18548,14 +19061,22 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 </script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
-   * Production chats shell — the redesigned Chats surface wired to the REAL C#
-   * MAUI bridge (native.js in the bundle). HomePage.xaml.cs pushes account data
-   * via executeUiCommand(fnRef, b64…) against the page globals registered below;
-   * taps go back to C# as legacy `ixian:` commands via bridge.send.
+   * Production home shell — the redesigned Chats + Wallet surface wired to the
+   * REAL C# MAUI bridge (native.js in the bundle). HomePage.xaml.cs pushes account
+   * data via executeUiCommand(fnRef, b64…) against the page globals registered
+   * below; taps go back to C# as legacy `ixian:` commands via bridge.send.
    *
+   * ARCHITECTURE §5: index.html/HomePage is ONE shell with internal tab views.
+   * Wallet is tab2 (NOT a separate page) — C# calls loadTransactions() on
+   * `ixian:tab:tab2` and pushes setBalance/addPaymentActivity into THIS page.
+   * Chats (tab1) + Wallet (tab2) are wired; Apps/Account (tab3/tab4) show a
+   * neutral placeholder pending later breadth work. All other commands are safe
+   * no-op stubs so C#'s dispatch never console.errors.
+   *
+   * SECURITY.md: Send/Receive delegate to the existing native signed flows
+   * (ixian:sendixi / ixian:receiveixi) — no keys/signing in the WebView.
    * Contract source of truth: Spixi/Pages/Home/HomePage.xaml.cs +
-   * Resources/Raw/html/js/home.js (legacy). Chats commands are wired fully;
-   * the rest are safe no-op stubs so C#'s dispatch never console.errors.
+   * Resources/Raw/html/js/home.js (legacy). BE gaps → docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
@@ -18563,6 +19084,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createChatsHeader, attachChatsCollapse,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
+    // wallet (tab2)
+    createWalletHero, setWalletBalance, setBalanceHidden,
+    createWalletTxList, renderWalletTxList, setWalletQuery,
+    createWalletFilters, createSearchField, attachWalletScroll,
+    setChipSelected,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   const strings = {};
@@ -18577,11 +19103,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * The redesigned bottom nav uses semantic ids; the legacy C# home surface
    * (HomePage.xaml.cs, home.js) speaks tab1..tab4. We translate in both
    * directions so `ixian:tab:<tabX>` matches what C# expects and incoming
-   * selectTab('tabX') lights the right nav item. */
+   * selectTab('tabX') lights the right nav item + swaps the right view. */
   const NAV_TO_TAB = { chats: 'tab1', wallet: 'tab2', apps: 'tab3', account: 'tab4' };
   const TAB_TO_NAV = { tab1: 'chats', tab2: 'wallet', tab3: 'apps', tab4: 'account' };
 
-  /* —— topbar ——————————————————————————————————————————————————————————————— */
+  const chatsView = document.getElementById('chats-view');
+  const walletView = document.getElementById('wallet-view');
+  const placeholderView = document.getElementById('placeholder-view');
+
+  /* —— topbar (chats) ——————————————————————————————————————————————————————— */
   document.getElementById('chats-topbar').append(createTopbar({
     variant: 'root', title: 'Spixi', logo: true,
     // Contacts action → legacy directory. `ixian:newcontact` is the closest
@@ -18603,7 +19133,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   ];
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'chats',
-    onChange: (id) => bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id)),  // legacy home.js:500
+    onChange: (id) => {
+      showView(id);                                        // swap the client-side view first…
+      bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id));  // …then tell C# (loads tab2/tab3 data). home.js:500
+    },
   });
   document.getElementById('chats-nav').append(nav);
 
@@ -18643,10 +19176,130 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));
 
   /* —————————————————————————————————————————————————————————————————————————
+   * WALLET (tab2). Balance hero + transaction list. C# drives it once the user
+   * (or selectTab) opens tab2 → HomePage.loadTransactions flushes
+   * clearPaymentActivity(filter) then addPaymentActivity(...) per row; setBalance
+   * ticks in on the 1s UI loop. Filter is a BRIDGE round-trip (C# re-flushes the
+   * server-filtered set — NOT client-side); search is client-side over the loaded
+   * set (#52 boundary). ————————————————————————————————————————————————————————— */
+  const walletState = { txs: [], filter: 'all', query: '' };
+
+  // Money formatting parity (audit M1): the C# bridge sends amounts WITHOUT
+  // thousands separators (Utils.amountToHumanFormatString only truncates
+  // decimals) — legacy home.js re-applied these in JS (spixi.js:151/436). Port
+  // them so the redesigned wallet groups + rounds identically. Balance keeps
+  // legacy precision (commas only); tx amounts round to 2 dp then group.
+  function amountWithCommas(n) {
+    const parts = String(n).split('.');
+    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
+  }
+  function limitToTwoDecimals(s) {
+    const cleaned = String(s).trim().replace(/^([+-])\s*/, '$1');
+    const num = parseFloat(cleaned);
+    if (isNaN(num)) return String(s);   // fall back to the original, never "NaN"
+    return num.toFixed(2);
+  }
+
+  // Explorer copy is address-scoped (only `ixian:explorer` exists — BE gap W3);
+  // the per-tx sheet button must not imply tx-specificity.
+  const walletStrings = { viewExplorer: 'View address in Explorer' };
+
+  const walletOpts = {
+    strings: walletStrings, host: document.body,
+    // Only address-level `ixian:explorer` exists today → the tx passed by the sheet is
+    // ignored; opens the user's address on explorer.ixian.io (C# Browser.OpenAsync).
+    // tx-level explorer = BE gap W3.
+    onExplorer: () => bridge.send('ixian:explorer'),
+  };
+
+  const hero = createWalletHero({
+    strings: walletStrings,
+    onSend: () => bridge.send('ixian:sendixi'),            // native signed send flow (SECURITY.md)
+    onReceive: () => bridge.send('ixian:receiveixi'),      // native receive flow
+    onScan: () => bridge.send('ixian:quickscan'),
+    // hero toggles its own state, then reports it → persist server-side (home.js toggleBalance)
+    onToggleHidden: (hidden) => bridge.send('ixian:balance:' + (hidden ? 'hide' : 'show')),
+  });
+  document.getElementById('wallet-hero').append(hero);
+
+  const walletScroll = document.getElementById('wallet-scroll');
+  const walletList = createWalletTxList(walletState, walletOpts);
+  walletOpts.listEl = walletList;   // used by setWalletQuery below
+
+  // Tools = search (client-side) + filter chips (bridge round-trip). Built manually
+  // so the chips do NOT filter client-side (no listEl passed to createWalletFilters):
+  // C# owns the filtered set; a client-side filter over a server-filtered subset would
+  // show a stale slice on the next 'All'.
+  const walletTools = document.createElement('div');
+  walletTools.className = 'c-wallet-tools';
+  const walletSearch = createSearchField({
+    placeholder: walletStrings.searchTx || 'Search transactions',
+    onInput: (v) => setWalletQuery(walletList, walletState, v, walletOpts),
+    strings: walletStrings,
+  });
+  const walletFilters = createWalletFilters(walletState, {
+    strings: walletStrings, host: document.body, onExplorer: walletOpts.onExplorer,
+    onFilter: (id) => bridge.send('ixian:filter:' + id),   // home.js:54 → C# filterTransactions
+  });
+  walletTools.append(walletSearch, walletFilters);
+  walletScroll.append(walletTools, walletList);
+
+  const WALLET_FILTER_ORDER = ['all', 'sent', 'received'];
+  function syncWalletFilterChips(f) {
+    const chips = walletFilters.querySelectorAll('.c-chip');   // 3 filter chips; miss-tx pill is not a .c-chip
+    const idx = WALLET_FILTER_ORDER.indexOf(f);
+    chips.forEach((c, i) => setChipSelected(c, i === idx));
+  }
+
+  // Batched render — legacy has no clearPaymentActivityDone signal; C# clears then
+  // appends rows one-by-one. Coalesce the burst into a single render next frame.
+  let walletRenderQueued = false;
+  function scheduleWalletRender() {
+    if (walletRenderQueued) return;
+    walletRenderQueued = true;
+    requestAnimationFrame(() => {
+      walletRenderQueued = false;
+      renderWalletTxList(walletList, walletState, walletOpts);
+      if (selectedTxid) applyTxSelection();
+    });
+  }
+
+  let selectedTxid = '';
+  function applyTxSelection() {
+    for (const r of walletList.querySelectorAll('.c-txlist-item')) {
+      if (selectedTxid && r.dataset.txid === selectedTxid) r.setAttribute('aria-current', 'true');
+      else r.removeAttribute('aria-current');
+    }
+  }
+
+  // wallet scroll choreography (hero minimize + tools tuck) — attached only while
+  // the wallet view is visible.
+  let detachWalletScroll = null;
+  function attachWallet() { if (!detachWalletScroll) detachWalletScroll = attachWalletScroll(walletScroll, { hero, tools: walletTools }); }
+  function detachWallet() { if (detachWalletScroll) { detachWalletScroll(); detachWalletScroll = null; } }
+
+  /* —— view switching ——————————————————————————————————————————————————————— */
+  function setPlaceholder(navId) {
+    const label = navId === 'apps' ? (strings.tabApps || 'Apps') : (strings.tabAccount || 'Account');
+    document.getElementById('placeholder-title').textContent = label;
+    document.getElementById('placeholder-note').textContent =
+      strings.tabNotReady || 'This section isn’t part of the redesign yet.';
+  }
+  function showView(navId) {
+    const isChats = navId === 'chats';
+    const isWallet = navId === 'wallet';
+    chatsView.hidden = !isChats;
+    walletView.hidden = !isWallet;
+    placeholderView.hidden = isChats || isWallet;
+    if (isWallet) attachWallet(); else detachWallet();
+    if (!placeholderView.hidden) setPlaceholder(navId);
+  }
+
+  /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers. Every one is a page global (registered via
    * bridge.exposeAll) because executeUiCommand(fnRef, …) resolves fnRef as a
-   * bare page-global reference. Chats commands are wired; the rest are safe
-   * no-op stubs so C#'s dispatch never throws / console.errors.
+   * bare page-global reference. Chats + Wallet commands are wired; the rest are
+   * safe no-op stubs so C#'s dispatch never throws / console.errors.
    * ————————————————————————————————————————————————————————————————————————— */
 
   const dbg = (...a) => { try { console.debug('[home-shell stub]', ...a); } catch (_) {} };
@@ -18666,13 +19319,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   /* selectChat highlight — the chats-shell exposes no selection API, and the
    * rendered row carries no address attribute (createChatItem only sets
    * aria-current from a `selected` field). So we drive selection through the
-   * MODEL: flag the matching chat `selected:true` (clear the rest) and re-render.
-   * createChatItem maps selected → aria-current='true' (chatlist-item.js), and
-   * the .c-chatlist-item[aria-current='true'] selector is already styled. This
-   * is the robust path — it survives clearChatsDone re-renders for free.
-   * NOTE (verify on-device): confirm the aria-current='true' row is visually
-   * distinct in the two-pane (tablet/desktop) layout; if a dedicated selected
-   * treatment is wanted, add a rule for .c-chatlist-item[aria-current='true']. */
+   * MODEL: flag the matching chat `selected:true` (clear the rest) and re-render. */
   function highlightSelected(addr) {
     let changed = false;
     for (const c of state.chats) {
@@ -18682,6 +19329,16 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     if (changed) renderChatsList(list, state, opts);
   }
   let selectedAddress = '';   // remembered so a re-render (clearChatsDone) can re-apply
+
+  /* wallet: legacy confirmed enum → redesign status.
+   * home.js addPaymentActivity(confirmed): "true"→final · "false"→pending ·
+   * "unknown"→unknown · "error"/other→failed */
+  function walletStatus(confirmed) {
+    if (confirmed === 'true') return 'confirmed';
+    if (confirmed === 'unknown') return 'unknown';
+    if (confirmed === 'error') return 'failed';
+    return 'pending';
+  }
 
   const handlers = {
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
@@ -18735,25 +19392,82 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       setNavBadge(nav, 'chats', Number(n) || 0);
     },
 
-    // C# lights the active tab (onLoaded sends selectTab(currentTab='tab1')).
+    // C# lights the active tab (onLoaded sends selectTab(currentTab='tab1')) —
+    // sync BOTH the nav highlight and the visible view.
     selectTab(tab) {
-      setNavActive(nav, TAB_TO_NAV[tab] || tab);
+      const navId = TAB_TO_NAV[tab] || tab;
+      setNavActive(nav, navId);
+      showView(navId);
+    },
+
+    /* ——— wallet (wired, tab2) —————————————————————————————————————————————— */
+
+    // setBalance(balance, fiatBalance, nick) — C# sends UN-grouped amounts
+    // (Utils.amountToHumanFormatString truncates decimals only). Group them like
+    // legacy home.js:84-87 (amountWithCommas), and prefix fiat with "$".
+    setBalance(balance, fiatBalance, _nick) {
+      setWalletBalance(hero, {
+        balance: balance ? amountWithCommas(balance) : '',
+        fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + amountWithCommas(fiatBalance) : '',
+      });
+    },
+
+    // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).
+    setHideBalance(hide) {
+      setBalanceHidden(hero, hide === 'True' || hide === 'true' || hide === true);
+    },
+
+    // Batch start: reset tx model + sync the active filter chip. Render (empty) next frame.
+    clearPaymentActivity(filter) {
+      walletState.txs = [];
+      const f = (filter === 'sent' || filter === 'received') ? filter : 'all';
+      walletState.filter = f;
+      syncWalletFilterChips(f);
+      scheduleWalletRender();
+    },
+
+    // One tx row (home.js:248 / HomePage:1219):
+    //   txid, received("1"|"0"), counterparty, time(preformatted str), amount, fiat, confirmed
+    addPaymentActivity(txid, received, counterparty, time, amount, fiat, confirmed) {
+      const dirIn = String(received) === '1';
+      const status = walletStatus(confirmed);
+      const sign = dirIn ? '+' : '-';
+      // amount/fiat arrive UNSIGNED + UN-grouped. Round the amount to 2 dp then
+      // group both (legacy home.js:298-299: amountWithCommas(limitToTwoDecimals())).
+      // Sign by direction; failed rows stay unsigned per Figma (txlist-item comment).
+      const amtN = amount ? amountWithCommas(limitToTwoDecimals(amount)) : '';
+      const ftN = fiat ? amountWithCommas(fiat) : '';
+      const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
+      const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
+      walletState.txs.push({
+        txid: txid || '',
+        direction: dirIn ? 'in' : 'out',
+        status,
+        name: counterparty || '',   // nickname OR raw address (ambiguous — BE gap W4)
+        amount: amt,
+        fiat: ft,
+        timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
+        // no address / fee in this payload → the detail sheet omits those rows (data-honest, BE gap W2)
+      });
+      scheduleWalletRender();
+    },
+
+    // Two-pane (tablet/desktop) tx selection sync from C# (home.js:364).
+    selectTx(txid) {
+      selectedTxid = txid || '';
+      applyTxSelection();
     },
 
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
-    loadAvatar() { dbg('loadAvatar'); },
+    loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
     setAddress() { dbg('setAddress'); },
     setVersion() { dbg('setVersion'); },
-    setHideBalance() { dbg('setHideBalance'); },
-    setBalance() { dbg('setBalance'); },
     addContact() { dbg('addContact'); },
     clearContacts() { dbg('clearContacts'); },
     setContactStatus() { dbg('setContactStatus'); },
     clearApps() { dbg('clearApps'); },
     addApp() { dbg('addApp'); },
-    addPaymentActivity() { dbg('addPaymentActivity'); },
-    clearPaymentActivity() { dbg('clearPaymentActivity'); },
-    selectTx() { dbg('selectTx'); },
+    selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },
     toggleAnimatedSlider() { dbg('toggleAnimatedSlider'); },

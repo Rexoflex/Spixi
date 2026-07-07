@@ -1066,7 +1066,12 @@ function createBadge({
  * confirmed) — amount/fiat arrive pre-formatted, component stays dumb.
  *
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
- *                'failed', name, timestamp, amount, fiat, onClick, strings })
+ *                'failed', name, timestamp, timeText, amount, fiat, onClick, strings })
+ *
+ * timestamp = epoch ms → formatted via formatTxTimestamp (relative/locale, preferred).
+ * timeText  = a PRE-FORMATTED display string shown verbatim (native-bridge path:
+ *   addPaymentActivity ships an already-humanized time string, not epoch — see
+ *   docs/be-cutover-brief "Other shells" W1). When both are present, timeText wins.
  */
 
 
@@ -1076,11 +1081,15 @@ function createBadge({
 const BADGES = {
   pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
   failed: { type: 'error', glyph: 'alert-square-rounded', label: 'Failed', key: 'txFailed' },
+  // unknown = chain read hasn't confirmed the tx state; give the row a visible
+  // status affordance (legacy showed a fa-question-circle). Mirrors the detail
+  // sheet's STATUS_META.unknown (wallet-shell.js).
+  unknown: { type: 'info', glyph: 'hourglass-empty', label: 'Unknown', key: 'txUnknown' },
 };
 
 function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
-  name = '', timestamp, amount = '', fiat = '', onClick, strings = getStrings(),
+  name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -1116,10 +1125,13 @@ function createTxItem({
       label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
     }));
   }
-  if (timestamp != null) {
+  const timeStr = (timeText != null && timeText !== '')
+    ? timeText
+    : (timestamp != null ? formatTxTimestamp(timestamp) : null);
+  if (timeStr) {
     const time = document.createElement('span');
     time.className = 'c-txlist-item__time u-tabular';
-    time.textContent = formatTxTimestamp(timestamp);
+    time.textContent = timeStr;
     row2.append(time);
   }
   content.append(row2);
@@ -6728,7 +6740,10 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
   metaBox.className = 'c-txsheet__meta';
   const rows = [
     sheetRow(strings.status || 'Status', strings[meta.key] || meta.label),
-    sheetRow(strings.date || 'Date', tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : ''),
+    // timeText = pre-formatted native-bridge time string (verbatim); timestamp = epoch (formatted)
+    sheetRow(strings.date || 'Date',
+      (tx.timeText != null && tx.timeText !== '') ? tx.timeText
+        : (tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : '')),
   ].filter(Boolean);
   if (tx.fee != null && tx.fee !== '') {
     // fee row carries an ⓘ that reveals a one-line explanation (Damir #135)
@@ -15929,7 +15944,15 @@ function installExecuteUiCommand(win) {
   w.executeUiCommand = function executeUiCommand(cmd) {
     const args = [];
     try {
-      for (let i = 1; i < arguments.length; i++) args.push(b64ToUtf8(arguments[i]));
+      // C# sendUiCommand emits a bare `null` (unquoted) for null args
+      // (Utils.cs:77) → the arg arrives as JS null, and atob(null) throws,
+      // which previously dropped the WHOLE command (e.g. setBalance's nick is
+      // null before the profile loads → the balance push vanished). Treat
+      // null/undefined as an empty string so the rest of the args still deliver.
+      for (let i = 1; i < arguments.length; i++) {
+        const a = arguments[i];
+        args.push(a == null ? '' : b64ToUtf8(a));
+      }
       if (typeof cmd !== 'function') {
         // eslint-disable-next-line no-console
         console.error('executeUiCommand: not a function', cmd);

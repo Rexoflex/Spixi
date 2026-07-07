@@ -380,7 +380,10 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
   metaBox.className = 'c-txsheet__meta';
   const rows = [
     sheetRow(strings.status || 'Status', strings[meta.key] || meta.label),
-    sheetRow(strings.date || 'Date', tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : ''),
+    // timeText = pre-formatted native-bridge time string (verbatim); timestamp = epoch (formatted)
+    sheetRow(strings.date || 'Date',
+      (tx.timeText != null && tx.timeText !== '') ? tx.timeText
+        : (tx.timestamp != null ? formatTxTimestamp(tx.timestamp) : '')),
   ].filter(Boolean);
   if (tx.fee != null && tx.fee !== '') {
     // fee row carries an ⓘ that reveals a one-line explanation (Damir #135)

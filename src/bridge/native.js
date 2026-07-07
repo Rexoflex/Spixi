@@ -87,7 +87,15 @@ export function installExecuteUiCommand(win) {
   w.executeUiCommand = function executeUiCommand(cmd) {
     const args = [];
     try {
-      for (let i = 1; i < arguments.length; i++) args.push(b64ToUtf8(arguments[i]));
+      // C# sendUiCommand emits a bare `null` (unquoted) for null args
+      // (Utils.cs:77) → the arg arrives as JS null, and atob(null) throws,
+      // which previously dropped the WHOLE command (e.g. setBalance's nick is
+      // null before the profile loads → the balance push vanished). Treat
+      // null/undefined as an empty string so the rest of the args still deliver.
+      for (let i = 1; i < arguments.length; i++) {
+        const a = arguments[i];
+        args.push(a == null ? '' : b64ToUtf8(a));
+      }
       if (typeof cmd !== 'function') {
         // eslint-disable-next-line no-console
         console.error('executeUiCommand: not a function', cmd);

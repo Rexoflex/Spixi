@@ -6,7 +6,12 @@
  * confirmed) — amount/fiat arrive pre-formatted, component stays dumb.
  *
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
- *                'failed', name, timestamp, amount, fiat, onClick, strings })
+ *                'failed', name, timestamp, timeText, amount, fiat, onClick, strings })
+ *
+ * timestamp = epoch ms → formatted via formatTxTimestamp (relative/locale, preferred).
+ * timeText  = a PRE-FORMATTED display string shown verbatim (native-bridge path:
+ *   addPaymentActivity ships an already-humanized time string, not epoch — see
+ *   docs/be-cutover-brief "Other shells" W1). When both are present, timeText wins.
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
@@ -16,11 +21,15 @@ import { formatTxTimestamp } from './timestamp.js';
 const BADGES = {
   pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
   failed: { type: 'error', glyph: 'alert-square-rounded', label: 'Failed', key: 'txFailed' },
+  // unknown = chain read hasn't confirmed the tx state; give the row a visible
+  // status affordance (legacy showed a fa-question-circle). Mirrors the detail
+  // sheet's STATUS_META.unknown (wallet-shell.js).
+  unknown: { type: 'info', glyph: 'hourglass-empty', label: 'Unknown', key: 'txUnknown' },
 };
 
 export function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
-  name = '', timestamp, amount = '', fiat = '', onClick, strings = getStrings(),
+  name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -56,10 +65,13 @@ export function createTxItem({
       label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
     }));
   }
-  if (timestamp != null) {
+  const timeStr = (timeText != null && timeText !== '')
+    ? timeText
+    : (timestamp != null ? formatTxTimestamp(timestamp) : null);
+  if (timeStr) {
     const time = document.createElement('span');
     time.className = 'c-txlist-item__time u-tabular';
-    time.textContent = formatTxTimestamp(timestamp);
+    time.textContent = timeStr;
     row2.append(time);
   }
   content.append(row2);

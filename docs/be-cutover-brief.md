@@ -26,7 +26,10 @@
 
 | # | Shell | Ask | Why | Effort |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| W1 | **Wallet** | Send the **raw unix timestamp** to `addPaymentActivity` instead of a pre-formatted string. | Today `time` = `Utils.unixTimeStampToHumanFormatString(...)` (HomePage:1218) — an absolute display string. The redesign shows relative/locale-aware timestamps (like `addChat`, which already sends epoch); a string forces verbatim display via a `timeText` shim. | `HomePage.xaml.cs:1218` (send `activity.timestamp` raw) | trivial |
+| W2 | **Wallet** | Add the counterparty **address** + **fee** (+ a stable **status enum**) to `addPaymentActivity`. | The redesigned tx-detail sheet has address + fee rows and a status badge; the current 7-arg payload has none, so the sheet omits them (data-honest). C# knows all three per `Transaction`/`ActivityObject`. | `HomePage.xaml.cs:1167–1219` (extend args) | ~1–2h |
+| W3 | **Wallet** | Add a **tx-level Explorer** verb, e.g. `ixian:txexplorer:<txid>` (mirror `WalletSentPage`'s `viewexplorer`). | Only address-level `ixian:explorer` exists (HomePage:413); the tx sheet's "View in Explorer" opens the user's address page, not the specific tx. | `HomePage.xaml.cs` dispatch (one `Contains` branch) | trivial |
+| W4 | **Wallet** | Add an **isContact / address** signal so `counterparty` isn't an ambiguous nickname-or-address string. | `tx_text` is a friend nickname when known, else a raw address (HomePage:1171–1192). The shell can't tell which, so it can't reliably personalize the sheet with the contact avatar. | `HomePage.xaml.cs:1167–1219` (pair nick + address, or a flag) | ~1h |
 
 ## Cross-cutting (later)
 - **Canonical §5 shell filenames + `setRoute`** (ARCHITECTURE item 5): repoint C# page classes to the redesigned shell names once all shells are wired. Currently Stage-4a drop-in over legacy filenames.

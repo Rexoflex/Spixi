@@ -2712,18 +2712,258 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }
 
 </style>
+<!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
+<style data-src="../styles/components/apps-icon.css">
+/* c-app-icon — rounded-square app-image tile (square sibling of c-avatar).
+   Same deterministic gradient placeholder recipe as the avatar (--ai-h1/h2 from
+   JS, S/L themed here so it tracks light/dark). Sizes 48/64 are component-intrinsic
+   tile dimensions (sanctioned px — apps use a distinct scale from avatars). */
+
+:root {
+  --app-icon-grad-s1: 58%; --app-icon-grad-l1: 48%;
+  --app-icon-grad-s2: 55%; --app-icon-grad-l2: 34%;
+}
+[data-theme="dark"] {
+  --app-icon-grad-s1: 52%; --app-icon-grad-l1: 62%;
+  --app-icon-grad-s2: 48%; --app-icon-grad-l2: 48%;
+}
+
+.c-app-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px; height: 48px;                 /* component-intrinsic tile size */
+  border-radius: var(--radius-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--text-neutral-inverse-01);     /* initial/glyph over the gradient */
+  overflow: hidden;
+}
+.c-app-icon[data-size="64"] { width: 64px; height: 64px; border-radius: var(--radius-16); }
+
+.c-app-icon[data-placeholder] {
+  background-image: linear-gradient(135deg,
+    hsl(var(--ai-h1, 0), var(--app-icon-grad-s1), var(--app-icon-grad-l1)),
+    hsl(var(--ai-h2, 40), var(--app-icon-grad-s2), var(--app-icon-grad-l2)));
+}
+
+.c-app-icon__img { width: 100%; height: 100%; object-fit: cover; }
+
+.c-app-icon__initial {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: 18px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.c-app-icon[data-size="56"] .c-app-icon__initial { font-size: 21px; }   /* recents/related tiles */
+.c-app-icon[data-size="64"] .c-app-icon__initial { font-size: 24px; }
+.c-app-icon[data-size="72"] .c-app-icon__initial { font-size: 28px; }   /* details hero icon */
+
+</style>
+<style data-src="../styles/components/apps-item.css">
+/* c-app-item — installed mini-app, list ROW or grid CARD (spec §2.1).
+   Two sibling buttons: __open (big tap target) + __menu (⋮ overflow). */
+
+.c-app-item { position: relative; }
+
+/* —— the tap target (icon + text) —— */
+.c-app-item__open {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  color: var(--text-neutral-01);
+}
+@media (hover: hover) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
+.c-app-item__open:active { background: var(--surface-interactive-pressed); }
+
+.c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
+.c-app-item__name {
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-app-item__creator {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* —— ⋮ overflow —— */
+.c-app-item__menu {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;                 /* touch target */
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  color: var(--icon-neutral-02);
+}
+@media (hover: hover) { .c-app-item__menu:hover { background: var(--surface-interactive-hover); } }
+.c-app-item__menu:active { background: var(--surface-interactive-pressed); }
+
+/* —— LIST (row) —— */
+.c-app-item[data-layout="list"] { display: flex; align-items: center; }
+.c-app-item[data-layout="list"] .c-app-item__open { flex: 1; min-width: 0; }
+.c-app-item[data-layout="list"] .c-app-item__menu { margin-inline-end: var(--spacing-4); }
+
+/* —— GRID (card) —— */
+.c-app-item[data-layout="grid"] {
+  min-width: 0;                              /* grid child must shrink below content so names truncate */
+  background: var(--surface-neutral-02);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+}
+.c-app-item[data-layout="grid"] .c-app-item__open {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  min-width: 0;
+}
+.c-app-item[data-layout="grid"] .c-app-item__text { width: 100%; min-width: 0; }
+.c-app-item[data-layout="grid"] .c-app-item__menu {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+}
+
+</style>
+<style data-src="../styles/components/apps-shell.css">
+/* c-apps-list — installed apps container. A column of rows (list) or a 2-up grid
+   of cards (grid), switched by [data-layout] set from state.layout (spec §2.1). */
+
+.c-apps-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-8) var(--spacing-12);
+}
+
+.c-apps-list[data-layout="grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));   /* minmax(0,…) lets tracks shrink below content → no overflow */
+  gap: var(--spacing-12);
+  align-content: start;
+}
+
+.c-apps-empty {
+  padding: var(--spacing-32) var(--spacing-24);
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-apps-list[data-layout="grid"] .c-apps-empty { grid-column: 1 / -1; }   /* empty spans both columns */
+
+</style>
+<style data-src="../styles/components/apps-header.css">
+/* c-apps-header — search + list⇄grid toggle + Explore-Discover banner (spec §2.1). */
+
+.c-apps-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-4);
+}
+
+/* —— search + toggle row —— */
+.c-apps-header__row { display: flex; align-items: center; gap: var(--spacing-8); }
+.c-apps-header__row .c-search-field { flex: 1; min-width: 0; }
+
+.c-apps-header__toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--icon-neutral-01);
+  cursor: pointer;
+}
+@media (hover: hover) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
+.c-apps-header__toggle:active { background: var(--surface-interactive-pressed); }
+
+/* —— Explore / Discover banner —— */
+.c-apps-explore {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+  padding: var(--spacing-12);                /* Figma: spacing-12 all sides */
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  /* Damir: identical in BOTH themes → pin to the theme-STABLE primitives (--primary-600
+     + --neutral-10), not the semantic action tokens which flip to a lighter blue +
+     near-black ink in dark. Same rich light-mode banner everywhere. */
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
+  color: var(--neutral-10);
+}
+.c-apps-explore__text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.c-apps-explore__title { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); opacity: 0.85; }
+.c-apps-explore__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.c-apps-explore__cta svg { flex: none; }
+.c-apps-explore__illo {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 132px;                             /* taller than the banner → overflows top/bottom, clipped */
+  width: auto;
+  max-width: 48%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+</style>
 <style>
-  /* Production shell: fill the WebView (no demo phone frame). Two internal views
-     (chats = tab1, wallet = tab2) swap client-side; the bottom nav pins to the
-     bottom and is shared. Apps/Account (tab3/tab4) are not in the redesign yet —
-     a neutral placeholder view stands in so the screen never goes blank. */
+  /* Production shell: fill the WebView (no demo phone frame). Three internal views
+     (chats = tab1, wallet = tab2, apps = tab3) swap client-side; the bottom nav
+     pins to the bottom and is shared. Account (tab4) pushes the separate
+     SettingsPage; a neutral placeholder view only backstops an unexpected tab4
+     selection so the screen never goes blank. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .view[hidden] { display: none; }
-  #chat-scroll, #wallet-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
+  /* Discover/Explore is PARKED for v1 (apps-shell-spec §2.4 — feed source TBD) →
+     hide the apps header's Explore banner until the standalone apps shell lands. */
+  #apps-view .c-apps-explore { display: none; }
+  /* No per-row ⋮ menu in v1 (its actions have no honest home-tab bridge home; tap →
+     appDetails). appMenu:false suppresses the handler but c-app-item still renders the
+     button element — hide it here so there's no dead/focusable control or tap-zone.
+     Underlying component fix (guard menuBtn creation on onMenu) tracked for the
+     standalone apps-shell repoint. */
+  #apps-view .c-app-item__menu { display: none; }
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -2754,7 +2994,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     <div id="wallet-hero"></div>
     <div class="u-scroll" id="wallet-scroll"></div>
   </div>
-  <!-- tab3/tab4: not-yet-redesigned placeholder -->
+  <!-- tab3: apps -->
+  <div class="view" id="apps-view" hidden>
+    <div id="apps-topbar"></div>
+    <div id="apps-header"></div>
+    <div class="u-scroll" id="apps-scroll"></div>
+  </div>
+  <!-- tab4: not-yet-redesigned placeholder -->
   <div class="view" id="placeholder-view" hidden>
     <div>
       <div class="placeholder__title t-heading-sm" id="placeholder-title"></div>
@@ -19074,8 +19320,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * ARCHITECTURE §5: index.html/HomePage is ONE shell with internal tab views.
    * Wallet is tab2 (NOT a separate page) — C# calls loadTransactions() on
    * `ixian:tab:tab2` and pushes setBalance/addPaymentActivity into THIS page.
-   * Chats (tab1) + Wallet (tab2) are wired; Apps/Account (tab3/tab4) show a
-   * neutral placeholder pending later breadth work. All other commands are safe
+   * Chats (tab1) + Wallet (tab2) + Apps (tab3) are wired; C# calls loadApps() on
+   * `ixian:tab:tab3` and pushes clearApps/addApp into THIS page. Account (tab4)
+   * is not an in-page tab — it PUSHES SettingsPage. All other commands are safe
    * no-op stubs so C#'s dispatch never console.errors.
    *
    * SECURITY.md: Send/Receive delegate to the existing native signed flows
@@ -19094,6 +19341,8 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
     setChipSelected,
+    // apps (tab3)
+    createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   const strings = {};
@@ -19114,6 +19363,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
   const chatsView = document.getElementById('chats-view');
   const walletView = document.getElementById('wallet-view');
+  const appsView = document.getElementById('apps-view');
   const placeholderView = document.getElementById('placeholder-view');
 
   /* —— topbar (chats) ——————————————————————————————————————————————————————— */
@@ -19293,19 +19543,74 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   function attachWallet() { if (!detachWalletScroll) detachWalletScroll = attachWalletScroll(walletScroll, { hero, tools: walletTools }); }
   function detachWallet() { if (detachWalletScroll) { detachWalletScroll(); detachWalletScroll = null; } }
 
+  /* —————————————————————————————————————————————————————————————————————————
+   * APPS (tab3). Installed mini-apps list, list⇄grid + client-side search. C# drives
+   * it once the user (or selectTab) opens tab3 → HomePage.loadApps flushes clearApps
+   * then addApp(...) per installed app (HomePage.xaml.cs:1554-1567).
+   *
+   * v1 interaction (spec §2.1 + legacy AppsPage parity): a row TAP opens the app's
+   * DETAILS page (ixian:appDetails:<id> → AppDetailsPage), which owns launch
+   * (single vs multi) + uninstall + permissions. Inside HomePage `ixian:details:`
+   * is CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
+   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the
+   * ⋮ list menu (list-scoped uninstall has no bridge verb) are deferred to the
+   * dedicated standalone apps-shell repoint — see docs/be-cutover-brief.md.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const appsState = { apps: [], query: '', layout: 'list' };
+  const appsOpts = {
+    strings, host: document.body,
+    // primary tap → the app's details page (launch/uninstall/permissions live there)
+    onLaunch: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
+    onModelChange: () => {},
+    appMenu: false,   // no ⋮ in v1 (its actions have no honest home-tab bridge home)
+  };
+
+  // Apps topbar — root style + an Add action (→ legacy AppNewPage).
+  document.getElementById('apps-topbar').append(createTopbar({
+    variant: 'root', title: strings.tabApps || 'Apps',
+    actions: [{ icon: 'circle-plus', label: strings.addApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],
+  }));
+
+  const appsScroll = document.getElementById('apps-scroll');
+  const appsList = createAppsList(appsState, appsOpts);
+
+  // Header = search (client-side) + list⇄grid toggle (in-memory). The component also
+  // renders an Explore/Discover banner; it's hidden via CSS while Discover is parked.
+  const appsHeader = createAppsHeader({
+    layout: appsState.layout, strings, discover: false,
+    onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
+    onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
+  });
+  document.getElementById('apps-header').append(appsHeader);
+  appsScroll.append(appsList);
+
+  // Batched render — loadApps clears then appends rows one-by-one with no "done"
+  // signal; coalesce the burst into a single render next frame (wallet parity).
+  let appsRenderQueued = false;
+  function scheduleAppsRender() {
+    if (appsRenderQueued) return;
+    appsRenderQueued = true;
+    requestAnimationFrame(() => {
+      appsRenderQueued = false;
+      renderAppsList(appsList, appsState, appsOpts);
+    });
+  }
+
   /* —— view switching ——————————————————————————————————————————————————————— */
-  function setPlaceholder(navId) {
-    const label = navId === 'apps' ? (strings.tabApps || 'Apps') : (strings.tabAccount || 'Account');
-    document.getElementById('placeholder-title').textContent = label;
+  // Placeholder is now reached only by tab4/account (chats/wallet/apps have real views).
+  function setPlaceholder(_navId) {
+    document.getElementById('placeholder-title').textContent = strings.tabAccount || 'Account';
     document.getElementById('placeholder-note').textContent =
       strings.tabNotReady || 'This section isn’t part of the redesign yet.';
   }
   function showView(navId) {
     const isChats = navId === 'chats';
     const isWallet = navId === 'wallet';
+    const isApps = navId === 'apps';
     chatsView.hidden = !isChats;
     walletView.hidden = !isWallet;
-    placeholderView.hidden = isChats || isWallet;
+    appsView.hidden = !isApps;
+    placeholderView.hidden = isChats || isWallet || isApps;
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
   }
@@ -19473,6 +19778,31 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       applyTxSelection();
     },
 
+    /* ——— apps (wired, tab3) ————————————————————————————————————————————————— */
+
+    // Batch start: reset the model, render (empty) next frame.
+    clearApps() {
+      appsState.apps = [];
+      scheduleAppsRender();
+    },
+
+    // One installed app (HomePage.xaml.cs:1567):
+    //   addApp(id, name, icon, publisher, isSingleUser, isMultiUser)
+    // `icon` is a local file path that does NOT resolve in the self-contained shell
+    // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
+    // to a deterministic gradient tile. `publisher` → the creator subtitle (real
+    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) are accepted for
+    // signature parity but unused in v1: tap → appDetails, where launch mode is chosen.
+    addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
+      appsState.apps.push({
+        id: id || '',
+        name: name || '',
+        creator: publisher || '',
+        // icon path ignored (won't resolve) → deterministic gradient placeholder
+      });
+      scheduleAppsRender();
+    },
+
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
     setAddress() { dbg('setAddress'); },
@@ -19480,8 +19810,6 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     addContact() { dbg('addContact'); },
     clearContacts() { dbg('clearContacts'); },
     setContactStatus() { dbg('setContactStatus'); },
-    clearApps() { dbg('clearApps'); },
-    addApp() { dbg('addApp'); },
     selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },

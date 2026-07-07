@@ -27,18 +27,33 @@
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
+<link rel="stylesheet" href="../styles/components/apps-icon.css">
+<link rel="stylesheet" href="../styles/components/apps-item.css">
+<link rel="stylesheet" href="../styles/components/apps-shell.css">
+<link rel="stylesheet" href="../styles/components/apps-header.css">
 <style>
-  /* Production shell: fill the WebView (no demo phone frame). Two internal views
-     (chats = tab1, wallet = tab2) swap client-side; the bottom nav pins to the
-     bottom and is shared. Apps/Account (tab3/tab4) are not in the redesign yet —
-     a neutral placeholder view stands in so the screen never goes blank. */
+  /* Production shell: fill the WebView (no demo phone frame). Three internal views
+     (chats = tab1, wallet = tab2, apps = tab3) swap client-side; the bottom nav
+     pins to the bottom and is shared. Account (tab4) pushes the separate
+     SettingsPage; a neutral placeholder view only backstops an unexpected tab4
+     selection so the screen never goes blank. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .view[hidden] { display: none; }
-  #chat-scroll, #wallet-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
+  /* Discover/Explore is PARKED for v1 (apps-shell-spec §2.4 — feed source TBD) →
+     hide the apps header's Explore banner until the standalone apps shell lands. */
+  #apps-view .c-apps-explore { display: none; }
+  /* No per-row ⋮ menu in v1 (its actions have no honest home-tab bridge home; tap →
+     appDetails). appMenu:false suppresses the handler but c-app-item still renders the
+     button element — hide it here so there's no dead/focusable control or tap-zone.
+     Underlying component fix (guard menuBtn creation on onMenu) tracked for the
+     standalone apps-shell repoint. */
+  #apps-view .c-app-item__menu { display: none; }
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -68,7 +83,13 @@
     <div id="wallet-hero"></div>
     <div class="u-scroll" id="wallet-scroll"></div>
   </div>
-  <!-- tab3/tab4: not-yet-redesigned placeholder -->
+  <!-- tab3: apps -->
+  <div class="view" id="apps-view" hidden>
+    <div id="apps-topbar"></div>
+    <div id="apps-header"></div>
+    <div class="u-scroll" id="apps-scroll"></div>
+  </div>
+  <!-- tab4: not-yet-redesigned placeholder -->
   <div class="view" id="placeholder-view" hidden>
     <div>
       <div class="placeholder__title t-heading-sm" id="placeholder-title"></div>
@@ -91,8 +112,9 @@
    * ARCHITECTURE §5: index.html/HomePage is ONE shell with internal tab views.
    * Wallet is tab2 (NOT a separate page) — C# calls loadTransactions() on
    * `ixian:tab:tab2` and pushes setBalance/addPaymentActivity into THIS page.
-   * Chats (tab1) + Wallet (tab2) are wired; Apps/Account (tab3/tab4) show a
-   * neutral placeholder pending later breadth work. All other commands are safe
+   * Chats (tab1) + Wallet (tab2) + Apps (tab3) are wired; C# calls loadApps() on
+   * `ixian:tab:tab3` and pushes clearApps/addApp into THIS page. Account (tab4)
+   * is not an in-page tab — it PUSHES SettingsPage. All other commands are safe
    * no-op stubs so C#'s dispatch never console.errors.
    *
    * SECURITY.md: Send/Receive delegate to the existing native signed flows
@@ -111,6 +133,8 @@
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
     setChipSelected,
+    // apps (tab3)
+    createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   const strings = {};
@@ -131,6 +155,7 @@
 
   const chatsView = document.getElementById('chats-view');
   const walletView = document.getElementById('wallet-view');
+  const appsView = document.getElementById('apps-view');
   const placeholderView = document.getElementById('placeholder-view');
 
   /* —— topbar (chats) ——————————————————————————————————————————————————————— */
@@ -310,19 +335,74 @@
   function attachWallet() { if (!detachWalletScroll) detachWalletScroll = attachWalletScroll(walletScroll, { hero, tools: walletTools }); }
   function detachWallet() { if (detachWalletScroll) { detachWalletScroll(); detachWalletScroll = null; } }
 
+  /* —————————————————————————————————————————————————————————————————————————
+   * APPS (tab3). Installed mini-apps list, list⇄grid + client-side search. C# drives
+   * it once the user (or selectTab) opens tab3 → HomePage.loadApps flushes clearApps
+   * then addApp(...) per installed app (HomePage.xaml.cs:1554-1567).
+   *
+   * v1 interaction (spec §2.1 + legacy AppsPage parity): a row TAP opens the app's
+   * DETAILS page (ixian:appDetails:<id> → AppDetailsPage), which owns launch
+   * (single vs multi) + uninstall + permissions. Inside HomePage `ixian:details:`
+   * is CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
+   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the
+   * ⋮ list menu (list-scoped uninstall has no bridge verb) are deferred to the
+   * dedicated standalone apps-shell repoint — see docs/be-cutover-brief.md.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const appsState = { apps: [], query: '', layout: 'list' };
+  const appsOpts = {
+    strings, host: document.body,
+    // primary tap → the app's details page (launch/uninstall/permissions live there)
+    onLaunch: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
+    onModelChange: () => {},
+    appMenu: false,   // no ⋮ in v1 (its actions have no honest home-tab bridge home)
+  };
+
+  // Apps topbar — root style + an Add action (→ legacy AppNewPage).
+  document.getElementById('apps-topbar').append(createTopbar({
+    variant: 'root', title: strings.tabApps || 'Apps',
+    actions: [{ icon: 'circle-plus', label: strings.addApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],
+  }));
+
+  const appsScroll = document.getElementById('apps-scroll');
+  const appsList = createAppsList(appsState, appsOpts);
+
+  // Header = search (client-side) + list⇄grid toggle (in-memory). The component also
+  // renders an Explore/Discover banner; it's hidden via CSS while Discover is parked.
+  const appsHeader = createAppsHeader({
+    layout: appsState.layout, strings, discover: false,
+    onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
+    onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
+  });
+  document.getElementById('apps-header').append(appsHeader);
+  appsScroll.append(appsList);
+
+  // Batched render — loadApps clears then appends rows one-by-one with no "done"
+  // signal; coalesce the burst into a single render next frame (wallet parity).
+  let appsRenderQueued = false;
+  function scheduleAppsRender() {
+    if (appsRenderQueued) return;
+    appsRenderQueued = true;
+    requestAnimationFrame(() => {
+      appsRenderQueued = false;
+      renderAppsList(appsList, appsState, appsOpts);
+    });
+  }
+
   /* —— view switching ——————————————————————————————————————————————————————— */
-  function setPlaceholder(navId) {
-    const label = navId === 'apps' ? (strings.tabApps || 'Apps') : (strings.tabAccount || 'Account');
-    document.getElementById('placeholder-title').textContent = label;
+  // Placeholder is now reached only by tab4/account (chats/wallet/apps have real views).
+  function setPlaceholder(_navId) {
+    document.getElementById('placeholder-title').textContent = strings.tabAccount || 'Account';
     document.getElementById('placeholder-note').textContent =
       strings.tabNotReady || 'This section isn’t part of the redesign yet.';
   }
   function showView(navId) {
     const isChats = navId === 'chats';
     const isWallet = navId === 'wallet';
+    const isApps = navId === 'apps';
     chatsView.hidden = !isChats;
     walletView.hidden = !isWallet;
-    placeholderView.hidden = isChats || isWallet;
+    appsView.hidden = !isApps;
+    placeholderView.hidden = isChats || isWallet || isApps;
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
   }
@@ -490,6 +570,31 @@
       applyTxSelection();
     },
 
+    /* ——— apps (wired, tab3) ————————————————————————————————————————————————— */
+
+    // Batch start: reset the model, render (empty) next frame.
+    clearApps() {
+      appsState.apps = [];
+      scheduleAppsRender();
+    },
+
+    // One installed app (HomePage.xaml.cs:1567):
+    //   addApp(id, name, icon, publisher, isSingleUser, isMultiUser)
+    // `icon` is a local file path that does NOT resolve in the self-contained shell
+    // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
+    // to a deterministic gradient tile. `publisher` → the creator subtitle (real
+    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) are accepted for
+    // signature parity but unused in v1: tap → appDetails, where launch mode is chosen.
+    addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
+      appsState.apps.push({
+        id: id || '',
+        name: name || '',
+        creator: publisher || '',
+        // icon path ignored (won't resolve) → deterministic gradient placeholder
+      });
+      scheduleAppsRender();
+    },
+
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
     setAddress() { dbg('setAddress'); },
@@ -497,8 +602,6 @@
     addContact() { dbg('addContact'); },
     clearContacts() { dbg('clearContacts'); },
     setContactStatus() { dbg('setContactStatus'); },
-    clearApps() { dbg('clearApps'); },
-    addApp() { dbg('addApp'); },
     selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },

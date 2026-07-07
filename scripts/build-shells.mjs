@@ -28,14 +28,14 @@ const SHELLS = {
   chat:     { in: 'src/shells/chat.html',   out: 'chat.html',        page: 'SingleChatPage' },
   home:     { in: 'src/shells/home.html',   out: 'index.html',       page: 'HomePage (chats tab)' },
   apps:     { in: 'src/demo/apps.html',     out: 'apps.html',        page: 'AppsPage' },
-  settings: { in: 'src/demo/settings.html', out: 'settings.html',    page: 'SettingsPage' },
+  settings: { in: 'src/shells/settings.html', out: 'settings.html',   page: 'SettingsPage' },
   launch:   { in: 'src/demo/launch.html',   out: 'intro.html',       page: 'LaunchPage (welcome)' },
   payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
   // scan / contacts / lock live INSIDE other demos (takeover pattern) — they need
   // dedicated src/shells/ entries at Stage 4b (native.js + setRoute), not a demo drop-in.
 };
 
-const DEFAULT = ['chat', 'home'];
+const DEFAULT = ['chat', 'home', 'settings'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 const keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
 

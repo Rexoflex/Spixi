@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Account</title>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
+<link rel="stylesheet" href="../styles/components/settings-shell.css">
+<style>
+  /* Production shell: fill the WebView. Two internal views (hub = root · danger =
+     takeover) swap client-side inside #settings-root. No bottom nav — SettingsPage
+     is a standalone PUSHED page (not the home tab bar); legacy settings.html had a
+     back button, not a nav. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #settings-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #settings-root > * { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+  <div id="settings-root"></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Account/Settings shell — the redesigned settings hub wired to the
+   * REAL C# MAUI bridge (native.js in the bundle). SettingsPage.xaml.cs pushes
+   * account data via executeUiCommand(fnRef, b64…) against the page globals
+   * registered below; taps go back to C# as legacy `ixian:` commands.
+   *
+   * ARCHITECTURE §5: settings.html is shell #8 (a SEPARATE page, loaded by
+   * SettingsPage) — NOT a home tab. The eventual shell absorbs backup/downloads/
+   * dev/contributors, but that needs the C# §5 repoint (item 5, deferred): those
+   * pages are navigated from HomePage today (HomePage.xaml.cs:312/316/436), NOT
+   * from SettingsPage, so this v1 wires ONLY what SettingsPage.onNavigating
+   * actually handles. Everything else degrades (rows hidden) — BE gaps logged in
+   * docs/be-cutover-brief.md (S-series).
+   *
+   * Contract source of truth: Spixi/Pages/Settings/SettingsPage.xaml.cs +
+   * Resources/Raw/html/settings.html (legacy inline script). Spec:
+   * docs/settings-shell-spec.md §2 (bridge grounding).
+   *
+   * SECURITY.md: no keys/passwords in the WebView. Account/wallet deletes emit
+   * INTENT only (ixian:deletea / ixian:delete) — C# runs the LockPage auth gate.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createSettingsHub, createSettingsDanger,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  const root = document.getElementById('settings-root');
+
+  /* —— account state — flushed by SettingsPage.onLoad after ixian:onload ————————
+   * SettingsPage pushes: setNickname · setAppearance · setLockEnabled ·
+   * showRemoveAvatar(conditional) · loadAvatar. It does NOT push the own address,
+   * the current language code, backup status, or a version string — those rows
+   * degrade (BE gaps S1–S4). */
+  const state = {
+    name: '', savedName: '',
+    theme: 0,                    // ThemeAppearance: 0 automatic · 1 light · 2 dark (ThemeManager.cs:9)
+    lockEnabled: false,
+    avatarSrc: null, hasCustomAvatar: false,
+    language: 'en-us',           // no current-lang push (S3) → default; the picker still commits any code
+    dirtyNick: false,            // nick edited since last save → persist on exit (ixian:save pops, §2)
+    dirtyAvatar: false,          // avatar-tmp picked → needs promotion on exit (applyAvatar)
+  };
+
+  /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
+   * .loadLanguage(), so use these exact codes, NOT the demo's variants. FE ships
+   * the list at build time (BE gap §8-4). Flags are emoji stand-ins (SVG later). */
+  const LANGS = [
+    { code: 'en-us', label: 'English', flag: '🇺🇸' },
+    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
+    { code: 'es-co', label: 'Español', flag: '🇨🇴' },
+    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
+    { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
+    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
+    { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
+    { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
+    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
+    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
+    { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
+    { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
+  ];
+
+  /* —— theme —————————————————————————————————————————————————————————————————
+   * The redesign swaps the token theme via data-theme (no page reload needed),
+   * but C# STILL reloads settings.html on ixian:appearance (SettingsPage:178) —
+   * we apply locally for instant feedback; the reload re-pushes setAppearance. */
+  function applyTheme(idx) {
+    const r = document.documentElement;
+    if (idx === 1) r.dataset.theme = 'light';
+    else if (idx === 2) r.dataset.theme = 'dark';
+    else r.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  applyTheme(0);                                 // auto until setAppearance lands
+
+  /* —— exit — the ONLY persist path is ixian:save, which persists nick + promotes
+   * avatar-tmp + broadcasts AND pops the page (SettingsPage.onSaveSettings:221).
+   * So per-row edits to nickname/avatar are held locally and committed on exit;
+   * everything else (theme/language/lock) rides its own immediate verb. Clean
+   * exit (no local edits) = ixian:back (discards any stray avatar-tmp). Mirrors
+   * legacy Save-vs-Back semantics with the frozen bridge. */
+  function exitSettings() {
+    const dirty = state.dirtyNick || state.dirtyAvatar;
+    bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
+  }
+
+  /* —— views —————————————————————————————————————————————————————————————————— */
+  let hubEl = null, currentView = 'hub';
+
+  function buildHub() {
+    return createSettingsHub({
+      name: state.name,
+      address: '',                 // S1: SettingsPage never pushes the own address → QR/address chip omitted
+      avatarSrc: state.avatarSrc,
+      hasCustomAvatar: state.hasCustomAvatar,
+      theme: state.theme,
+      languages: LANGS,
+      language: state.language,
+      lockEnabled: state.lockEnabled,
+      backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
+      version: '',                 // S4: no version push → About row omitted (spec §8-3)
+      capabilities: {},            // all §9 gates OFF (no bridge support) → notifications/privacy/security/payment rows hidden
+      host: document.body,
+      strings,
+      onBack: exitSettings,        // standalone pushed page → back button (esp. desktop, no hardware back)
+
+      // nickname — held local; empty is blocked by the component (legacy ixian:error).
+      // Persisted on exit via ixian:save (immediate save would pop the page).
+      onNickname: (nick, ctrl) => { state.name = nick; state.dirtyNick = nick !== state.savedName; ctrl.done(); },
+
+      // avatar pick — opens the native C# picker (ixian:avatar → loadAvatar(tmp) push).
+      // Close the sheet keeping the current tile; the tmp arrives via loadAvatar and
+      // is promoted on exit. NOTE: avatar file paths don't resolve in the self-contained
+      // shell yet (repo-wide flag) → the tile shows the deterministic gradient fallback.
+      onAvatarChange: (ctrl) => { bridge.send('ixian:avatar'); ctrl.done({ src: state.avatarSrc || null }); },
+      // avatar remove — immediate C#-side (deleteOwnAvatar) → pushes showRemoveAvatar('0') + default loadAvatar.
+      // Clear dirtyAvatar: a prior pick left avatar-tmp.jpg on disk; without this, exit would
+      // ixian:save → applyAvatar() promotes that leftover tmp and RESURRECTS the removed avatar.
+      onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); },
+
+      // theme — apply locally for instant feedback, then the legacy verb (C# reloads the page).
+      onTheme: (index, ctrl) => { applyTheme(index); bridge.send('ixian:appearance:' + index); ctrl.done(); },
+      // language — persists + reloads C#-side. i18n gap: the reloaded shell reads its
+      // OWN bundled dictionary (en-us here), so the settings UI won't re-render in the
+      // picked locale until the holistic i18n live-locale pass (CLAUDE.md). The choice
+      // DOES persist app-wide and translates the legacy/native surfaces. (BE gap S5)
+      onLanguage: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+
+      // app lock — ON optimistic; OFF also optimistic here (matches legacy): the frozen
+      // bridge only CONFIRMS a successful OFF (setLockEnabled('False') on auth success)
+      // and gives NO signal on auth cancel, so the spec's pending-OFF security UX would
+      // wedge the spinner. Optimistic-OFF self-heals from the setLockEnabled push / next
+      // load. Ideal pending-OFF needs a C# auth-cancel signal (BE gap S6).
+      onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); },
+
+      // backup — opens the existing legacy BackupPage (SettingsPage:121, PushAsync).
+      // The redesigned in-shell backup screen needs ixian:backupAccount/backupWallet,
+      // which SettingsPage doesn't handle → v1 hands off to the legacy page.
+      onBackup: () => bridge.send('ixian:backup'),
+
+      onDanger: showDanger,
+    });
+  }
+
+  function rebuildHub() {
+    const prevBody = hubEl && hubEl.querySelector('.c-settings__body');
+    const top = prevBody ? prevBody.scrollTop : 0;
+    hubEl = buildHub();
+    if (currentView === 'hub') {
+      root.replaceChildren(hubEl);
+      const nb = hubEl.querySelector('.c-settings__body');
+      if (nb) nb.scrollTop = top;
+    }
+  }
+
+  // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
+  // showRemoveAvatar + loadAvatar all fire synchronously) into ONE hub build.
+  let rebuildQueued = false;
+  function scheduleRebuild() {
+    if (rebuildQueued) return;
+    rebuildQueued = true;
+    requestAnimationFrame(() => { rebuildQueued = false; rebuildHub(); });
+  }
+
+  function showHub() {
+    currentView = 'hub';
+    if (!hubEl) hubEl = buildHub();
+    root.replaceChildren(hubEl);
+  }
+
+  // Danger screen — view takeover. All four deletes are fire-and-forget INTENT:
+  // ctrl.done() dismisses the FE confirm; C# takes over (native alert for
+  // history/downloads; LockPage auth for account/wallet). On a successful
+  // account delete C# re-runs onLoad → the hub rebuilds; a wallet delete tears
+  // the page down (shutdown → Launch).
+  function showDanger() {
+    currentView = 'danger';
+    root.replaceChildren(createSettingsDanger({
+      host: document.body,
+      onBack: showHub,
+      onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
+      onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
+      onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
+      onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
+      strings,
+    }));
+  }
+
+  showHub();   // render immediately; C# fills it after ixian:onload
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS command handlers — page globals (executeUiCommand resolves bare
+   * fnRefs). SettingsPage.onLoad pushes these; loadAvatar also arrives after the
+   * ixian:avatar picker. All coalesce into one hub rebuild.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const handlers = {
+    // setNickname(nick) — SettingsPage.onLoad:43
+    setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
+
+    // setAppearance(idx) — onLoad:46; idx = (int)ThemeAppearance
+    setAppearance(idx) { const n = parseInt(idx, 10); state.theme = isNaN(n) ? 0 : n; applyTheme(state.theme); scheduleRebuild(); },
+
+    // setLockEnabled(bool.ToString()) — onLoad:52 + lock-off auth resolution (HandleAuthSucceeded:241)
+    setLockEnabled(s) { state.lockEnabled = (s === 'True' || s === 'true' || s === true); scheduleRebuild(); },
+
+    // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
+    showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },
+
+    // loadAvatar(path) — onLoad:66 / after picker:374 / after remove:412. Legacy
+    // encodes '/' as '&bsol;' (settings.html:378). A tmp path means a fresh pick →
+    // mark dirty so exit promotes it. Path resolution in-shell is the known avatar
+    // flag → the tile falls back to a gradient until that's fixed.
+    loadAvatar(path) {
+      const p = (path || '').replace(/&bsol;/g, '/');
+      state.avatarSrc = p || null;
+      // A tmp path = a fresh pick pending promotion (dirty). A non-tmp path (initial
+      // load, or the default pushed after a remove) means nothing is pending → clear
+      // the flag so a stale pick can't get promoted on the next exit.
+      state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
+      scheduleRebuild();
+    },
+
+    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In the danger
+    // view, back returns to the hub; from the hub it exits (save-if-dirty else back).
+    onBack() { if (currentView === 'danger') showHub(); else exitSettings(); },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
+   *    invariant): firing during parse races C#'s first push, arriving empty until
+   *    a manual refresh. ———————————————————————————————————————————————————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

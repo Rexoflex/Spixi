@@ -15746,12 +15746,17 @@ function createSettingsHub({
   onBackup,                      // nav → backup screen
   onDownloads, onContributors, onDev,   // nav (screens = next slice)
   onDanger,                      // nav → danger screen
+  onBack,                        // OPTIONAL back affordance — the hub is a root tab in
+                                 // the home-integrated design (no back), but a STANDALONE
+                                 // pushed page (legacy SettingsPage) needs one, esp. on
+                                 // desktop where there's no hardware back. Absent = no
+                                 // back button (root-tab behavior preserved).
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account' }));
+  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account', onBack }));
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';
@@ -19131,9 +19136,19 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     { id: 'wallet', label: 'Wallet', icon: 'wallet' },
     { id: 'account', label: 'Account', icon: 'user-circle' },
   ];
+  let activeNav = 'chats';                                 // last real in-page tab (for the account revert)
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'chats',
     onChange: (id) => {
+      // Account is NOT an in-page tab — it PUSHES the separate SettingsPage
+      // (HomePage.xaml.cs:239: ixian:settings → PushAsync(new SettingsPage) → settings.html).
+      // Emit the verb and revert the nav highlight so returning lands on the prior tab.
+      if (id === 'account') {
+        bridge.send('ixian:settings');
+        setNavActive(nav, activeNav);
+        return;
+      }
+      activeNav = id;
       showView(id);                                        // swap the client-side view first…
       bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id));  // …then tell C# (loads tab2/tab3 data). home.js:500
     },

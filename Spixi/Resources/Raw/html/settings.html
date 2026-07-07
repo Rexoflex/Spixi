@@ -2466,6 +2466,28 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
+/** Render the deterministic gradient placeholder (hue from address/name hash) +
+ *  initials or the user glyph — into `el`. Extracted so it's reusable as the
+ *  fallback when a photo `src` fails to load. */
+function renderPlaceholder(el, { name, address, size }) {
+  const hue = hashHue(address || name);
+  // JS supplies ONLY the deterministic hues; saturation/lightness are themed
+  // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+  el.dataset.placeholder = '';
+  el.style.setProperty('--av-h1', hue);
+  el.style.setProperty('--av-h2', (hue + 40) % 360);
+  const ini = name ? initials(name) : null;
+  if (ini) {
+    const t = document.createElement('span');
+    t.className = 'c-avatar__initials';
+    t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
+    t.textContent = ini;
+    el.append(t);
+  } else {
+    el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
+  }
+}
+
 function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
@@ -2480,26 +2502,20 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-avatar__img';
-    img.src = src;
     img.alt = '';
+    // Graceful fallback: a C# avatar path that doesn't resolve in a
+    // self-contained shell (or a broken file) must NOT show a broken-image
+    // glyph — drop the <img> and render the deterministic gradient instead
+    // (worst case = today's behavior; best case = the real photo). Wire the
+    // handler BEFORE setting src so a synchronously-cached error still fires.
+    img.addEventListener('error', () => {
+      img.remove();
+      renderPlaceholder(el, { name, address, size });
+    }, { once: true });
+    img.src = src;
     el.append(img);
   } else {
-    const hue = hashHue(address || name);
-    // JS supplies ONLY the deterministic hues; saturation/lightness are themed
-    // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
-    el.dataset.placeholder = '';
-    el.style.setProperty('--av-h1', hue);
-    el.style.setProperty('--av-h2', (hue + 40) % 360);
-    const ini = name ? initials(name) : null;
-    if (ini) {
-      const t = document.createElement('span');
-      t.className = 'c-avatar__initials';
-      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
-      t.textContent = ini;
-      el.append(t);
-    } else {
-      el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
-    }
+    renderPlaceholder(el, { name, address, size });
   }
 
   if (online) {
@@ -4834,10 +4850,15 @@ function createAppBubble({
   el.append(id);
 
   if (state === 'invite') {
-    el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
-    ));
+    // Decline renders ONLY when a handler exists — the legacy bridge has no
+    // decline-invite verb (C7), so an ungated Decline was a dead button that
+    // "did nothing" (Damir F5). Without it, Join takes the row (full width via
+    // actionsRow). When BE adds declineApp, the caller passes onDecline → it
+    // reappears automatically.
+    const appBtns = [];
+    if (onDecline) appBtns.push(createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }));
+    appBtns.push(createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }));
+    el.append(actionsRow(...appBtns));
   } else if (state === 'invited') {
     el.append(actionsRow(
       createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),
@@ -5596,7 +5617,16 @@ function createMediaBubble({
     setState('loading');
     img.src = currentSrc;
   };
-  img.addEventListener('load', () => setState('loaded'));
+  img.addEventListener('load', () => {
+    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
+    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
+    // real image loads, size the tile to its natural aspect so the whole frame
+    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
+      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+    }
+    setState('loaded');
+  });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
 

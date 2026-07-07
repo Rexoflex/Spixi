@@ -232,6 +232,79 @@
 
   setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));
 
+  /* —— chats render pipeline ————————————————————————————————————————————————
+   * C# drives the list two ways:
+   *   (1) a FULL flush — clearChats → addChat×N → clearChatsDone (loadChats,
+   *       HomePage.xaml.cs:1064-1098) — fires on a structural change
+   *       (shouldRefreshContacts); clearChatsDone renders once.
+   *   (2) a LONE addChat with NO surrounding clear/done (updateChat,
+   *       HomePage.xaml.cs:1020-1032) — fires on every message event while
+   *       HomePage is on top (UIHelpers.updateMessage/insertMessage/…).
+   * So addChat must UPSERT by address (a lone update patches the existing row
+   * instead of appending a duplicate) and, when it lands OUTSIDE a flush,
+   * schedule a coalesced re-render. `flushing` distinguishes the two: it's set
+   * across a clear…done batch so the per-row upserts don't each trigger a
+   * render (clearChatsDone renders the batch once). */
+  let chatsFlushing = false;
+  let chatsRenderQueued = false;
+  function scheduleChatsRender() {
+    if (chatsRenderQueued) return;
+    chatsRenderQueued = true;
+    requestAnimationFrame(() => {
+      chatsRenderQueued = false;
+      // A full flush (clearChats…addChat…clearChatsDone) can begin between the
+      // schedule and this frame — clearChats emptied the model but the rows
+      // aren't back yet. clearChatsDone owns that render; skip to avoid painting
+      // an empty/partial list for one frame (audit MINOR-1).
+      if (chatsFlushing) return;
+      renderChatsNow();
+    });
+  }
+  function renderChatsNow() {
+    renderChatsList(list, state, opts);
+    if (opts.onModelChange) opts.onModelChange(state);
+    if (selectedAddress) highlightSelected(selectedAddress);
+  }
+  /** Decode HTML entities in a C#-sent string. The bridge delivers excerpts as
+   *  HTML-encoded text (legacy home.js rendered them via innerHTML) — e.g. an
+   *  emoji reaction excerpt arrives as `&#x2764;&#xFE0F;`. The redesign renders
+   *  excerpts via textContent (XSS-safe), so entities would show LITERALLY.
+   *  Decode them here: a <textarea>'s content is RCDATA (character references
+   *  decode, but any literal `<tags>` stay inert text) → `.value` is the plain
+   *  string, safe to hand to textContent. */
+  const _entityTa = document.createElement('textarea');
+  function decodeEntities(s) {
+    if (!s || s.indexOf('&') === -1) return s || '';
+    _entityTa.innerHTML = s;
+    return _entityTa.value;
+  }
+
+  /** Resolve a C# avatar arg to a usable <img> src, or null for the gradient
+   *  fallback. C# sends an absolute on-disk path for a real avatar (legacy set
+   *  it straight as an <img src> from this same Resources/Raw/html origin), OR
+   *  the relative placeholders `img/spixiavatar.png` / `img/spixi-group-avatar.png`
+   *  when there's no custom photo — we WANT the deterministic gradient for those,
+   *  so map them to null. Normalize backslashes like legacy loadAvatar did. The
+   *  avatar component has an onerror→gradient fallback, so a path that doesn't
+   *  resolve degrades cleanly (no broken-image glyph). */
+  function resolveAvatar(path) {
+    if (!path) return null;
+    const p = String(path).replace(/\\/g, '/');
+    if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') return null;
+    return p;
+  }
+
+  /** Insert-or-update a chat by address. Merges the new fields onto an existing
+   *  row (preserving client-only flags the bridge never sends — pinned/muted/
+   *  favorite/selected), else appends. The component sorts by pinned+timestamp
+   *  on render, so array position doesn't matter. */
+  function upsertChat(chat) {
+    if (!chat.address) { state.chats.push(chat); return; }
+    const i = state.chats.findIndex((c) => c && c.address === chat.address);
+    if (i === -1) state.chats.push(chat);
+    else state.chats[i] = { ...state.chats[i], ...chat };
+  }
+
   /* —————————————————————————————————————————————————————————————————————————
    * WALLET (tab2). Balance hero + transaction list. C# drives it once the user
    * (or selectTab) opens tab2 → HomePage.loadTransactions flushes
@@ -455,14 +528,20 @@
   const handlers = {
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
 
-    // Batch start: reset the model. Do NOT re-render — clearChatsDone renders.
+    // Batch start of a FULL flush: reset the model + enter flushing mode so the
+    // per-row addChat upserts don't each render (clearChatsDone renders once).
     clearChats() {
+      chatsFlushing = true;
       state.chats = [];
     },
 
-    // One row of the flush. Maps the legacy addChat args → a redesigned chat.
-    // Order (home.js:397 / HomePage.updateChat:1030):
+    // One row. Maps the legacy addChat args → a redesigned chat, then UPSERTS by
+    // address. Order (home.js:397 / HomePage.updateChat:1030):
     //   wallet, from, timestamp, avatar, online, excerpt_msg, type, unread
+    // Two callers: (1) inside a clear…done flush (loadChats) — flushing, no
+    // render here; (2) a LONE call from updateChat on a message event — upsert
+    // patches the existing row (no duplicate) + schedules a coalesced render so
+    // the new excerpt/timestamp/unread surface immediately.
     addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread) {
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
@@ -470,33 +549,61 @@
       const chat = {
         address: wallet,
         name: from || '',
-        // avatar arg (legacy path like img/spixiavatar.png) is intentionally
-        // IGNORED for v1 — those paths don't resolve in this shell. The avatar
-        // component falls back to a deterministic gradient from name/address.
-        online: online === 'true',
-        timestamp: t,
-        excerpt: { type: (type === 'typing' ? 'typing' : 'text'), text: excerpt_msg || '' },
+        // Real avatar path → <img src> (legacy parity, same origin); the C#
+        // default placeholders map to null → deterministic gradient. A path that
+        // fails to load falls back to the gradient (avatar.js onerror).
+        avatar: resolveAvatar(avatar),
+        online: online === 'true' || online === 'True',
+        excerpt: { type: (type === 'typing' ? 'typing' : 'text'), text: decodeEntities(excerpt_msg) },
         unread: n,
+        // clear any leftover outgoing tick; re-set below when unread === 0
+        status: undefined,
       };
+      // Only carry a real timestamp — a 0/NaN (malformed lone push) must not
+      // clobber an existing row's timestamp on upsert-merge (audit NIT-1). A
+      // brand-new row simply has none until the next good push.
+      if (t) chat.timestamp = t;
       // legacy hides the outgoing tick when there are unread messages
       if (n === 0) {
         const st = statusFromType(type);
         if (st) chat.status = st;
       }
-      state.chats.push(chat);
+      upsertChat(chat);
+      if (!chatsFlushing) scheduleChatsRender();   // lone updateChat → render now-ish
     },
 
-    // Batch complete: render once, re-apply any active selection.
+    // Batch complete: leave flushing mode, render once, re-apply any selection.
     clearChatsDone() {
-      renderChatsList(list, state, opts);
-      if (opts.onModelChange) opts.onModelChange(state);
-      if (selectedAddress) highlightSelected(selectedAddress);
+      chatsFlushing = false;
+      renderChatsNow();
     },
 
     // Two-pane (tablet/desktop) selection sync from C#.
     selectChat(wallet) {
       selectedAddress = wallet || '';
       highlightSelected(selectedAddress);
+    },
+
+    // LIVE per-contact status — pushed every UI tick for changed contacts
+    // (HomePage.updateContactStatus:1497 → setContactStatus, xaml:1504). In
+    // practice C# always sends excerpt="" + timestamp=0 (Node.cs:443/451,
+    // SingleChatPage:1519) → it's a pure ONLINE + UNREAD refresh. Without this
+    // the online dot / unread badge only moved on a full loadChats flush
+    // (gap-audit §2). We patch ONLY the matching chat row (a status for an
+    // address with no conversation is a contacts-directory entry — not a chat —
+    // and is ignored); excerpt/timestamp are applied only if non-empty/non-zero
+    // so a bare refresh never blanks a good excerpt.
+    //   setContactStatus(address, online, unread, excerpt, timestamp)
+    setContactStatus(address, online, unread, excerpt, timestamp) {
+      if (!address) return;
+      const c = state.chats.find((x) => x && x.address === address);
+      if (!c) return;                                   // contacts-directory-only status → ignore
+      c.online = online === 'true' || online === 'True';
+      c.unread = Number(unread) || 0;
+      if (excerpt) c.excerpt = { type: 'text', text: decodeEntities(excerpt) };
+      const t = Number(timestamp);
+      if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
+      scheduleChatsRender();
     },
 
     // Chats nav badge — C# already computes the unread total (#42 semantics).
@@ -599,9 +706,15 @@
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
     setAddress() { dbg('setAddress'); },
     setVersion() { dbg('setVersion'); },
-    addContact() { dbg('addContact'); },
-    clearContacts() { dbg('clearContacts'); },
-    setContactStatus() { dbg('setContactStatus'); },
+    // clearContacts/addContact feed the contacts DIRECTORY roster (loadContacts,
+    // xaml:829-862) — a SEPARATE surface from the chats list. The chats list is
+    // fed by clearChats/addChat/clearChatsDone (loadChats); a friend with no
+    // messages appears in the directory but NOT in chats (getFriendMessageHelper
+    // returns null, xaml:869). The redesign routes the directory to its own
+    // surface (topbar Contacts → ixian:newcontact today; Track D contacts shell
+    // later), so these are intentionally dropped here — NOT wired into tab1.
+    addContact() { dbg('addContact (directory roster — not the chats list)'); },
+    clearContacts() { dbg('clearContacts (directory roster — not the chats list)'); },
     selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },

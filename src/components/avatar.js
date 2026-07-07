@@ -27,6 +27,28 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
+/** Render the deterministic gradient placeholder (hue from address/name hash) +
+ *  initials or the user glyph — into `el`. Extracted so it's reusable as the
+ *  fallback when a photo `src` fails to load. */
+function renderPlaceholder(el, { name, address, size }) {
+  const hue = hashHue(address || name);
+  // JS supplies ONLY the deterministic hues; saturation/lightness are themed
+  // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+  el.dataset.placeholder = '';
+  el.style.setProperty('--av-h1', hue);
+  el.style.setProperty('--av-h2', (hue + 40) % 360);
+  const ini = name ? initials(name) : null;
+  if (ini) {
+    const t = document.createElement('span');
+    t.className = 'c-avatar__initials';
+    t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
+    t.textContent = ini;
+    el.append(t);
+  } else {
+    el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
+  }
+}
+
 export function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
@@ -41,26 +63,20 @@ export function createAvatar({ src = null, name = '', address = '', size = 48, o
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-avatar__img';
-    img.src = src;
     img.alt = '';
+    // Graceful fallback: a C# avatar path that doesn't resolve in a
+    // self-contained shell (or a broken file) must NOT show a broken-image
+    // glyph — drop the <img> and render the deterministic gradient instead
+    // (worst case = today's behavior; best case = the real photo). Wire the
+    // handler BEFORE setting src so a synchronously-cached error still fires.
+    img.addEventListener('error', () => {
+      img.remove();
+      renderPlaceholder(el, { name, address, size });
+    }, { once: true });
+    img.src = src;
     el.append(img);
   } else {
-    const hue = hashHue(address || name);
-    // JS supplies ONLY the deterministic hues; saturation/lightness are themed
-    // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
-    el.dataset.placeholder = '';
-    el.style.setProperty('--av-h1', hue);
-    el.style.setProperty('--av-h2', (hue + 40) % 360);
-    const ini = name ? initials(name) : null;
-    if (ini) {
-      const t = document.createElement('span');
-      t.className = 'c-avatar__initials';
-      t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
-      t.textContent = ini;
-      el.append(t);
-    } else {
-      el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
-    }
+    renderPlaceholder(el, { name, address, size });
   }
 
   if (online) {

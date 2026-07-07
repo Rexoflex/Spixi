@@ -110,7 +110,16 @@ export function createMediaBubble({
     setState('loading');
     img.src = currentSrc;
   };
-  img.addEventListener('load', () => setState('loaded'));
+  img.addEventListener('load', () => {
+    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
+    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
+    // real image loads, size the tile to its natural aspect so the whole frame
+    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
+      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+    }
+    setState('loaded');
+  });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
 

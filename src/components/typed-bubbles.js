@@ -284,10 +284,15 @@ export function createAppBubble({
   el.append(id);
 
   if (state === 'invite') {
-    el.append(actionsRow(
-      createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }),
-      createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }),
-    ));
+    // Decline renders ONLY when a handler exists — the legacy bridge has no
+    // decline-invite verb (C7), so an ungated Decline was a dead button that
+    // "did nothing" (Damir F5). Without it, Join takes the row (full width via
+    // actionsRow). When BE adds declineApp, the caller passes onDecline → it
+    // reappears automatically.
+    const appBtns = [];
+    if (onDecline) appBtns.push(createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }));
+    appBtns.push(createButton({ label: strings.join || 'Join', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onJoin) }));
+    el.append(actionsRow(...appBtns));
   } else if (state === 'invited') {
     el.append(actionsRow(
       createButton({ label: strings.cancel || 'Cancel', type: 'outline', size: 32, onClick: oneShot(onCancel) }),

@@ -40,6 +40,8 @@
 <link rel="stylesheet" href="../styles/components/member-sheet.css">
 <link rel="stylesheet" href="../styles/components/banner.css">
 <link rel="stylesheet" href="../styles/components/contact-request.css">
+<link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
+<link rel="stylesheet" href="../styles/components/media-viewer.css">
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
   /* Production chat shell: fill the WebView (no demo phone frame). The chat
@@ -133,6 +135,7 @@
     createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
     setMessageStatus, removeMessage,
     createFileBubble, setFileProgress,
+    createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice,
     attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
@@ -157,11 +160,23 @@
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
-  const mode = { type: 0, isGroup: false, isBot: false, admin: false };
+  const mode = { type: 0, isBot: false, isMulti: false, admin: false };
 
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
-  const identity = { name: '', sub: '', address: '', online: false };
+  const identity = { name: '', sub: '', address: '', online: false, avatar: null };
+
+  /** Resolve a C# avatar arg to an <img> src, or null for the gradient fallback
+   *  (same rule as the home shell): real on-disk path → src (normalize
+   *  backslashes); the C# default placeholders → null = deterministic gradient.
+   *  The avatar component has an onerror→gradient fallback, so a non-resolving
+   *  path degrades cleanly. */
+  function resolveAvatar(path) {
+    if (!path) return null;
+    const p = String(path).replace(/\\/g, '/');
+    if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') return null;
+    return p;
+  }
   let callVisible = false;   // showCallButton reveals the topbar phone action (1:1, peer reachable)
 
   const topbarHost = document.getElementById('chat-topbar');
@@ -175,6 +190,7 @@
         sub: identity.sub || '',
         address: identity.address || identity.name || '',
         online: identity.online,
+        avatar: identity.avatar || null,
       },
       // Header tap → chat info. No dedicated redesigned takeover is wired in v1;
       // ixian:details is the legacy verb SingleChatPage understands.
@@ -252,7 +268,7 @@
   }
   function showTyping() {
     if (!typingRow) {
-      typingRow = createTypingIndicator(mode.isGroup && identity.name ? { name: identity.name } : {});
+      typingRow = createTypingIndicator(mode.isMulti && identity.name ? { name: identity.name } : {});
     }
     typingActive = true;
     box.append(typingRow);
@@ -315,6 +331,12 @@
     if (rec.kind === 'app') return buildAppRow(rec);
     if (rec.kind === 'payment') return buildPaymentRow(rec);
     if (rec.kind === 'call') return buildCallRow(rec);
+    // A text message that is JUST a remote image/GIF URL → media tile (Damir
+    // 2026-07-07: legacy parity, reopens #82 for remote media). The model stays
+    // kind 'text' (menu/reactions still work — attachMessageMenu targets
+    // .c-mbubble too), we only swap the RENDER.
+    const media = mediaUrlOf(rec.text);
+    if (media) return buildMediaRow(rec, media);
     const isSent = rec.direction === 'sent';
     return createMessageBubble({
       direction: isSent ? 'sent' : 'received',
@@ -323,10 +345,12 @@
       timestamp: rec.ts,
       status: isSent ? rec.status : null,
       // group chats: show sender label + avatar for incoming rows
-      sender: (!isSent && mode.isGroup && rec.senderNick) ? rec.senderNick : null,
-      showAvatar: (!isSent && mode.isGroup),
+      sender: (!isSent && mode.isMulti && rec.senderNick) ? rec.senderNick : null,
+      showAvatar: (!isSent && mode.isMulti),
       name: rec.senderNick || '',
       address: rec.senderAddress || '',
+      avatar: rec.avatar || null,   // real per-sender photo (C# addThem avatar); gradient fallback
+
       // #99: in a NON-blind group, the sender label + avatar open the member
       // sheet (identity verification + admin). Blind groups (type 2) hide
       // identities, bots (3) have no member roster → no tap.
@@ -341,6 +365,48 @@
       // (#82 — P2P has no server, so no auto-load of remote content). Fixes
       // Damir F5: links were inert because no handler was wired.
       onLinkClick: (url) => confirmOpenLink(url),
+    });
+  }
+
+  /* —— remote media (GIF/image) tiles —————————————————————————————————————————
+   * Damir 2026-07-07 (reopens #82, legacy parity, client-fetch — accepts that
+   * loading a remote asset reveals the reader's IP to the host; flag for
+   * BE/security sign-off): a message that is EXACTLY a direct image/GIF URL
+   * renders as a tap-to-load tile (play button → fetch → full-screen viewer),
+   * instead of the plain confirm-to-open link. Detection is conservative — a
+   * direct media EXTENSION or a known direct-media host (media.tenor.com,
+   * mediaN.giphy.com) — so a random page URL stays a link (a page URL wouldn't
+   * load as an <img> anyway). Non-direct hosts fail-soft to the tile's retry
+   * state. autoload stays OFF (a future "auto-load media" setting = legacy's
+   * immediate load). NOTE: website OpenGraph meta cards are NOT wired — fetching
+   * a site's meta from the WebView is CORS-blocked; that needs a proxy or
+   * sender-composed meta (§82). */
+  const MEDIA_EXT = /\.(gif|png|jpe?g|webp|bmp|avif)(\?|#|$)/i;
+  function mediaUrlOf(text) {
+    const t = (text == null ? '' : String(text)).trim();
+    if (!/^https?:\/\/\S+$/i.test(t) || /\s/.test(t)) return null;   // must be a lone URL
+    let u;
+    try { u = new URL(t); } catch (_) { return null; }
+    const host = u.hostname.toLowerCase();
+    const directGifHost = /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host);
+    if (MEDIA_EXT.test(u.pathname)) {
+      return { url: t, kind: /\.gif(\?|#|$)/i.test(u.pathname) ? 'gif' : 'image' };
+    }
+    if (directGifHost) return { url: t, kind: 'gif' };
+    return null;
+  }
+  function buildMediaRow(rec, media) {
+    const isSent = rec.direction === 'sent';
+    const label = media.kind === 'gif' ? 'GIF' : ((window.SL && window.SL.image) || 'Image');
+    return createMediaBubble({
+      direction: isSent ? 'sent' : 'received',
+      kind: media.kind,
+      src: media.url,
+      alt: label,
+      timestamp: rec.ts,
+      gutter: mode.isMulti && !isSent,
+      strings: window.SL || {},
+      onOpen: () => openMediaViewer({ host: overlayHost, src: media.url, kind: media.kind, alt: label, strings: window.SL || {} }),
     });
   }
 
@@ -374,7 +440,7 @@
       state: rec.fstate,
       progress: rec.progress || 0,
       timestamp: rec.ts,
-      gutter: mode.isGroup && rec.direction === 'received',
+      gutter: mode.isMulti && rec.direction === 'received',
       onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
       onOpen: () => bridge.send('ixian:openfile:' + rec.fileid),
     });
@@ -399,7 +465,7 @@
       state: rec.astate,
       direction: rec.direction,
       timestamp: rec.ts,
-      gutter: mode.isGroup && rec.direction === 'received',
+      gutter: mode.isMulti && rec.direction === 'received',
       onGet: () => bridge.send('ixian:installApp:' + encodeURIComponent(rec.appInstallURL || '')),
       onLaunch: () => bridge.send('ixian:joinApp:' + rec.appid),
       onJoin: () => bridge.send('ixian:joinApp:' + rec.appid),
@@ -431,7 +497,7 @@
       amount: rec.amount || '',
       status: rec.pstatus,
       timestamp: rec.ts,
-      gutter: mode.isGroup && rec.direction === 'received',
+      gutter: mode.isMulti && rec.direction === 'received',
       onDetails: canView ? () => bridge.send('ixian:viewPayment:' + rec.txid) : null,
     });
   }
@@ -530,7 +596,15 @@
    * never render today. Non-text cards keep their own inline actions in v1. */
   const overlayHost = document.body;
   function wireMenu(rec, row) {
-    if (rec.kind && rec.kind !== 'text') return;
+    // Enable the context menu on CONTENT rows. Text gets copy/edit; file/payment/
+    // app cards get react + tip + delete too (Damir: "file/payment can't react or
+    // tip — change that"). react/tip/delete map to the same bridge verbs by msg id
+    // regardless of kind (the reaction pill anchors on .c-tcard/.c-fbubble too);
+    // the menu auto-hides Copy (no text) and Edit (not own text). Call logs are
+    // excluded — reacting/tipping a call record is nonsensical and they carry
+    // their own call-back affordance.
+    const kind = rec.kind || 'text';
+    if (kind === 'call') return;
     const isSent = rec.direction === 'sent';
     attachMessageMenu(row, {
       host: overlayHost,
@@ -705,34 +779,65 @@
    * synchronous rebuild (also used for the first paint). */
   function renderLogNow() {
     const scrollWasAtBottom = nearBottom();
-    box.textContent = '';
+    // Build the whole log into a DETACHED fragment, then swap it in with ONE
+    // replaceChildren — the live #messages box is NEVER momentarily empty, so a
+    // paint can't catch a blank log mid-rebuild (Damir 2026-07-07 flicker). Also
+    // removes the boot spinner (it's a child of box) on the first render.
+    const frag = document.createDocumentFragment();
     rows.clear();
-    box.append(createSecureNotice());   // privacy note pinned at the top of history
+    frag.append(createSecureNotice());   // privacy note pinned at the top of history
     const pos = positionsFor(order);
     let lastDay = null;
     for (const id of order) {
       const rec = model.get(id);
       const day = new Date(rec.ts).toDateString();
-      if (day !== lastDay) { box.append(createDateSeparator(rec.ts)); lastDay = day; }
+      if (day !== lastDay) { frag.append(createDateSeparator(rec.ts)); lastDay = day; }
       const row = buildRow(rec, pos[id]);
       row.dataset.msgid = id;
       rows.set(id, row);
-      box.append(row);
+      frag.append(row);
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
     }
+    box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+    firstRenderDone = true;                 // boot spinner is now gone
   }
 
-  /* Coalesce renders into ONE animation frame. C# populates a conversation by
-   * pushing addMe/addThem (and file/payment/…) ONE message at a time, so a
-   * naive re-render-per-push tore down + rebuilt the whole log N times on open
-   * → violent flicker (Damir 2026-07-07). Batching collapses the whole burst
-   * into a single rebuild on the next frame. The surgical setMessageStatus path
-   * (read-receipt ticks) stays synchronous — it never calls this. */
+  /* Render scheduling — two regimes:
+   * (1) NORMAL (post-load): coalesce into one animation frame so a burst of
+   *     small updates (status ticks, a new message) rebuilds at most once/frame.
+   * (2) LOAD BURST: on open C# streams the WHOLE history — clearMessages →
+   *     insertMessage×N → onChatScreenLoaded (SingleChatPage.xaml.cs:1110/588).
+   *     Each EvaluateJavaScriptAsync runs on a LATER frame, so even the rAF
+   *     coalescer rebuilt+swapped the growing log many times as rows streamed
+   *     in → the log visibly "filled in" / flickered (Damir 2026-07-07, chats
+   *     with history). During a burst we SUPPRESS every render (the model just
+   *     accumulates) and paint ONCE at onChatScreenLoaded — so the user sees the
+   *     boot spinner, then the finished conversation in a single paint. A
+   *     trailing safety timer force-finishes the burst if that signal never
+   *     arrives (other loadMessages call sites, robustness). */
   let renderQueued = false;
+  let bursting = false;
+  let burstSafety = 0;
+  let firstRenderDone = false;   // gates the boot spinner → first real paint
+  function beginBurst() {
+    bursting = true;
+    armBurstSafety();
+  }
+  function armBurstSafety() {
+    clearTimeout(burstSafety);
+    burstSafety = setTimeout(endBurstAndRender, 250);   // fallback if onChatScreenLoaded is missing
+  }
+  function endBurstAndRender() {
+    clearTimeout(burstSafety);
+    if (!bursting) return;
+    bursting = false;
+    renderLogNow();
+  }
   function renderLog() {
+    if (bursting) { armBurstSafety(); return; }   // suppress during the load burst
     if (renderQueued) return;
     renderQueued = true;
     requestAnimationFrame(() => { renderQueued = false; renderLogNow(); });
@@ -759,6 +864,7 @@
     if (extra) {
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+      if (extra.avatar !== undefined) rec.avatar = extra.avatar || null;
     }
     rec.status = statusFrom(flags || {});
     model.set(id, rec);
@@ -882,8 +988,12 @@
     setChatMode(type, cost, costText, admin, botDescription, notificationsString) {
       const t = Number(type) || 0;
       mode.type = t;
-      mode.isGroup = (t === 1 || t === 2);
       mode.isBot = (t === 3);
+      // isMulti = shows per-sender labels + avatars: private/blind GROUPS *and*
+      // BOT channels (Damir F5: bot-group messages showed no nick/avatar because
+      // bots are type 3). Legacy set the sender for `friend.bot || Group`
+      // (SingleChatPage:1222). Group-only logic uses mode.type===1 directly.
+      mode.isMulti = (t === 1 || t === 2 || t === 3);
       mode.admin = asBool(admin);
       dbg('setChatMode', { type: t, cost, admin: mode.admin, notificationsString });
     },
@@ -900,7 +1010,7 @@
     setOnlineStatus(status) {
       identity.sub = status || '';
       const s = (status || '').toLowerCase();
-      identity.online = !mode.isGroup && /online/.test(s);
+      identity.online = !mode.isMulti && /online/.test(s);
       renderTopbar();
     },
 
@@ -918,22 +1028,31 @@
       order = [];
       hideTyping();
       typingRow = null;
-      renderLog();   // empties the log AND re-pins the secure notice (empty chat still shows it)
+      // clearMessages marks the START of a load burst (loadMessages, xaml:1110) —
+      // suppress renders until onChatScreenLoaded so the whole history paints once
+      // (no flicker). We do NOT render here: the boot spinner (or the prior log)
+      // stays until the burst finishes, avoiding a blank/notice flash.
+      beginBurst();
       dbg('clearMessages', { showMore });
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
     addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending) {
       upsertText(id, text, 'sent', toMs(time),
-        { sent, confirmed, read, paid, errorSending });
+        { sent, confirmed, read, paid, errorSending },
+        { avatar: resolveAvatar(avatar) });
     },
 
     // TEXT create — incoming message. Legacy addThem is called with 6 args
     // (xaml.cs:1460 for !localSender); status flags are irrelevant for received
     // rows (no ticks rendered). nick/address feed the group sender label/avatar.
     addThem(id, address, nick, avatar, text, time) {
+      const av = resolveAvatar(avatar);
       upsertText(id, text, 'received', toMs(time), {},
-        { senderNick: resolveNick(address, nick), senderAddress: address || '' });
+        { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av });
+      // 1:1 topbar: C# never pushes a peer avatar for the header (only setNickname/
+      // setOnlineStatus, xaml:1694/1705) — capture it from the peer's message.
+      if (av && !mode.isMulti && !identity.avatar) { identity.avatar = av; renderTopbar(); }
     },
 
     // TEXT status UPSERT (chat.js:1035, xaml.cs:1624). Update the row's status
@@ -973,7 +1092,20 @@
       if (!identity.name) renderTopbar();
       dbg('onChatScreenReady', address);
     },
-    onChatScreenLoaded() { box.scrollTop = box.scrollHeight; dbg('onChatScreenLoaded'); },
+    // End of the initial load burst (fires after loadMessages, xaml:588) — paint
+    // the whole history in ONE render, pin to the bottom, and put the caret in the
+    // composer so the user can type immediately without tapping it (Damir).
+    onChatScreenLoaded() {
+      // End the load burst and paint the WHOLE history in ONE render (spinner →
+      // conversation, no intermediate empty-notice frame). Always renders (even
+      // for an empty chat: shows the secure notice) — not gated on `bursting`.
+      bursting = false;
+      clearTimeout(burstSafety);
+      renderLogNow();
+      box.scrollTop = box.scrollHeight;
+      focusComposer();
+      dbg('onChatScreenLoaded');
+    },
 
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
     setUnreadIndicator(n) { dbg('setUnreadIndicator', n); },
@@ -1119,9 +1251,12 @@
 
   bridge.exposeAll(handlers);
 
-  // Render the empty log immediately so the secure notice is visible from first
-  // paint (before C# pushes the conversation, and for brand-new empty chats).
-  renderLogNow();  // synchronous — don't wait a frame for the first paint
+  // Do NOT paint the empty log now — that produced a spinner → empty-notice →
+  // full-conversation sequence (the residual flicker Damir felt after the burst
+  // gate). Instead the BOOT SPINNER stays until the first real render:
+  // onChatScreenLoaded paints the whole history in ONE go. A short fallback
+  // (armed at ready) covers a brand-new empty chat or a missing signal so the
+  // spinner never sticks — but never paints mid-burst (guarded on !bursting).
 
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });
@@ -1145,7 +1280,7 @@
       // composer already clears its own field on send; this is belt-and-braces.
     },
     onTyping: () => {
-      if (mode.isGroup) return;                       // legacy: no typing in groups
+      if (mode.isMulti) return;                       // legacy: no typing in groups
       const now = Date.now();
       if (now - lastTypingSent > 1000) {              // >1s throttle (chat.js:423)
         lastTypingSent = now;
@@ -1158,13 +1293,30 @@
   });
   document.getElementById('chat-composer').append(composerEl);
 
+  /* Put the caret in the composer so the user can type on entry without tapping
+   * (Damir). Called from onChatScreenLoaded; guarded so a missing input or a
+   * non-focusable state (e.g. a modal open) never throws. */
+  function focusComposer() {
+    try {
+      const input = composerEl && composerEl.querySelector('.c-composer__input');
+      if (input) input.focus();
+    } catch (_) {}
+  }
+
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it
    *    synchronously during parse raced C#'s conversation push: the first entry
    *    could arrive empty and only a manual refresh fixed it. Deferring to the
    *    window 'load' event makes C# push setChatMode/setNickname/addMe/addThem at
    *    the right time, so the conversation populates on first open. ———————————— */
-  function signalReady() { bridge.ready(); }
+  function signalReady() {
+    bridge.ready();
+    // Fallback: if nothing has painted shortly after ready (brand-new empty chat
+    // whose C# skips clearMessages, or a missing onChatScreenLoaded), replace the
+    // boot spinner with the current model so it never sticks. Never paints during
+    // a load burst (that render is owned by onChatScreenLoaded / the burst safety).
+    setTimeout(() => { if (!firstRenderDone && !bursting) renderLogNow(); }, 500);
+  }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

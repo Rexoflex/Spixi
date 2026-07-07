@@ -566,26 +566,48 @@ namespace SPIXI
                 }
             }
 
-            try
-            {
-                webView.FadeTo(1, 150);
-                webView.Focus();
-            }
-            catch (Exception ex)
-            {
-                Logging.warn("Exception: " + ex);
-            }
+            // NOTE: the WebView is revealed (FadeTo) only AFTER the conversation is
+            // loaded + painted (below, after onChatScreenLoaded) — NOT here. Fading
+            // it in before loadMessages showed the empty/boot state first, then the
+            // messages popped in (Damir F5: "half a second of full-screen darkness"
+            // entering a chat). The Content background is already the themed surface
+            // (ctor), so during the brief load the user sees that themed color, then
+            // the finished chat fades in in one go — no empty/spinner flash.
 
             Task.Run(() =>
             {
-                if (SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0 && friend.state == FriendState.Approved)
+                try
                 {
-                    Utils.sendUiCommand(this, "showCallButton", "");
+                    if (SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0 && friend.state == FriendState.Approved)
+                    {
+                        Utils.sendUiCommand(this, "showCallButton", "");
+                    }
+
+                    loadMessages();
+
+                    Utils.sendUiCommand(this, "onChatScreenLoaded");
                 }
-
-                loadMessages();
-
-                Utils.sendUiCommand(this, "onChatScreenLoaded");
+                finally
+                {
+                    // ALWAYS reveal the WebView — even if loadMessages / a UI push
+                    // threw — so the page is never left permanently invisible with
+                    // an unrevealable dead chat (audit M1). The reveal happens after
+                    // the conversation is painted so entering a chat goes themed-load
+                    // → finished chat, no empty/spinner flash (Damir F5). Marshalled
+                    // to the UI thread (we're on a Task.Run threadpool thread).
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            webView.FadeTo(1, 150);
+                            webView.Focus();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("Exception revealing chat webView: " + ex);
+                        }
+                    });
+                }
 
                 loadApps();
 

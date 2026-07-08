@@ -1899,22 +1899,30 @@ function createMessageBubble({
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
     // A nameless sender (no nick — bots / some group members) shows its ADDRESS
-    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
-    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
-    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
-    const copyable = senderIsAddress && !!address;
+    // middle-truncated. Its TAP now opens the member sheet — the SAME pattern as a
+    // named sender (Damir F5 2026-07-08): the sheet holds the full address + copy
+    // action, so identity/copy is consistent for named and nameless alike. Direct
+    // clipboard copy stays ONLY as a fallback when no member sheet is wired (e.g.
+    // blind groups). Otherwise a plain span.
+    const copyable = senderIsAddress && !!address;             // → truncated + monospace display
     const interactive = copyable || !!onSenderClick;
     const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
     if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
     if (interactive) {
       s.type = 'button';
-      if (copyable) {
+      if (onSenderClick) {
+        // named OR nameless → member sheet (full address + copy live there)
+        if (copyable) {
+          s.title = address;                                    // full address on hover
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+        }
+        s.addEventListener('click', onSenderClick);
+      } else {
+        // no member sheet wired (e.g. blind group) → direct clipboard copy fallback
         s.title = address;                                       // full address on hover
         s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
         s.addEventListener('click', () => copySenderAddress(s, address, strings));
-      } else {
-        s.addEventListener('click', onSenderClick);
       }
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
@@ -3389,6 +3397,9 @@ function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
+  onLoad,                  // fired after the full media loads + the tile is sized
+                           // → the shell can scroll the log to the freshly-grown
+                           //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -3456,14 +3467,22 @@ function createMediaBubble({
     img.src = currentSrc;
   };
   img.addEventListener('load', () => {
-    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
-    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
-    // real image loads, size the tile to its natural aspect so the whole frame
-    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    // No sender dimensions (remote GIF/image URL) → the tile starts at the CSS
+    // default aspect (bubble-sized box). Once the real image loads, re-size the
+    // tile to its NATURAL aspect so the whole frame shows uncropped (object-fit:
+    // contain fills exactly, no crop; extreme portraits letterbox — the full
+    // frame is one tap away in the viewer). CLAMP the portrait extreme (min 3:4):
+    // an unbounded tall aspect-ratio can defeat the CSS max-height on device
+    // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
+    // under the composer (Damir F5 2026-07-08).
     if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+      const ar = img.naturalWidth / img.naturalHeight;
+      el.style.aspectRatio = String(Math.max(ar, 0.75));
     }
     setState('loaded');
+    // the tile just grew to full size — let the shell pull the log to the latest
+    // so the whole GIF comes into view (only if it was already near the bottom).
+    if (onLoad) { try { onLoad(); } catch (_) {} }
   });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
@@ -5178,18 +5197,22 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
  *   layout 'list' → a horizontal ROW (icon 48 · name+creator · ⋮)
  *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
  *
- * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
+ * Structure is a container with sibling buttons (never nested — invalid a11y):
  *   .c-app-item__open  — the big tap target → onOpen(app)  (LAUNCHES the app, #126 2B)
- *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (App details / Uninstall)
- * Creator (publisher) is a §8 field — rendered only when provided.
+ *   .c-app-item__info  — a trailing info (ⓘ) button → onInfo(app, btn) (App details page,
+ *                        which owns launch-mode + uninstall; mobile v1 — replaces the ⋮)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (kept for the standalone
+ *                        apps-shell / demos; not used by the home apps tab)
+ * onInfo and onMenu are independent; a caller passes whichever it wants. Creator
+ * (publisher) is a §8 field — rendered only when provided.
  *
- * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu }) → div
  */
 
 
 
 
-function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onMenu } = {}) {
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -5217,13 +5240,31 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   if (onOpen) open.addEventListener('click', () => onOpen({ id, name, creator }));
   el.append(open);
 
-  const menuBtn = document.createElement('button');
-  menuBtn.type = 'button';
-  menuBtn.className = 'c-app-item__menu';
-  menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
-  menuBtn.append(icon('dots', { size: 24 }));
-  if (onMenu) menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
-  el.append(menuBtn);
+  // ⓘ info — created ONLY when a handler is provided. Trailing button that opens the
+  // app's details page (launch-mode selection + uninstall + permissions live there).
+  // Mobile v1 uses this in place of the ⋮ menu (no honest list-scoped uninstall verb).
+  if (onInfo) {
+    const infoBtn = document.createElement('button');
+    infoBtn.type = 'button';
+    infoBtn.className = 'c-app-item__info';
+    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ' — ' + name : ''));
+    infoBtn.append(icon('info-circle', { size: 24 }));
+    infoBtn.addEventListener('click', (e) => { e.stopPropagation(); onInfo({ id, name, creator }, infoBtn); });
+    el.append(infoBtn);
+  }
+
+  // ⋮ overflow — created ONLY when a handler is provided. A menu-less item (e.g.
+  // HomePage's apps tab, which has no list-scoped uninstall verb) renders no button
+  // at all (previously the element was always built and hidden via shell CSS — #184).
+  if (onMenu) {
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'c-app-item__menu';
+    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+    menuBtn.append(icon('dots', { size: 24 }));
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
+    el.append(menuBtn);
+  }
 
   return el;
 }
@@ -5365,7 +5406,11 @@ function renderAppsList(listEl, state, opts = {}) {
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app
+      // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
+      // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
+      // details handler exists — so a menu-driven surface (demos) never doubles up.
+      onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
@@ -5550,8 +5595,10 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
- *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ * createAppsAdd({ strings, discover = true, onFetchUrl(url), onScan, onPickFile,
+ *                 onCategory, onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   discover — set false to OMIT the embedded Discover section (phase-1 production
+ *              add-app shell, where the directory feed isn't wired yet).
  *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
  *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
  *   onOpenApp    — a live-Discover card/tile tap → that app's details
@@ -5565,7 +5612,7 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
 
 
 
-function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -5622,7 +5669,8 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
     return b;
   };
   methods.append(
-    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    // 'world' glyph (web link) — 'link' isn't in the icon export yet (glyph-sweep list).
+    method('world', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
     method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
     method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
@@ -5638,14 +5686,17 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
   info.append(itext);
   el.append(info);
 
-  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands) */
-  const disc = document.createElement('section');
-  disc.className = 'c-apps-add__discover';
-  const dTitle = document.createElement('h2');
-  dTitle.className = 'c-apps-add__sectiontitle';
-  dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
-  el.append(disc);
+  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands). OMITTED
+   * when discover:false (phase-1 production shell — no directory feed wired yet). */
+  if (discover) {
+    const disc = document.createElement('section');
+    disc.className = 'c-apps-add__discover';
+    const dTitle = document.createElement('h2');
+    dTitle.className = 'c-apps-add__sectiontitle';
+    dTitle.textContent = strings.discover || 'Discover';
+    disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
+    el.append(disc);
+  }
 
   /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
   if (onLearnBuild) {
@@ -10030,24 +10081,33 @@ function createWalletReceive({
   amtRow.append(amtInput, unit);
   reqBox.append(amtRow);
 
-  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment bubble) */
-  const askBox = document.createElement('div');
-  askBox.className = 'c-wallet-receive__ask';
-  askBox.hidden = true;
-  const askLabel = document.createElement('h2');
-  askLabel.className = 'c-wallet-receive__asklabel';
-  askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-  askBox.append(askLabel);
-  const search = createSearchField({
-    placeholder: strings.searchContacts || 'Search contacts',
-    onInput: (v) => renderContacts(v),
-    strings,
-  });
-  askBox.append(search);
-  const rows = document.createElement('div');
-  rows.className = 'c-wallet-receive__contacts';
-  askBox.append(rows);
-  reqBox.append(askBox);
+  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
+   * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
+   * (HomePage) has NO ixian:sendrequest verb (it's a WalletReceivePage verb), so
+   * omitting the callback HIDES the strip rather than showing a dead action that
+   * would falsely confirm "sent" (audit MAJOR, Batch 6). The amount-request QR
+   * above is client-side and stays available regardless. */
+  let askBox = null;
+  let rows = null;
+  if (onSendRequest) {
+    askBox = document.createElement('div');
+    askBox.className = 'c-wallet-receive__ask';
+    askBox.hidden = true;
+    const askLabel = document.createElement('h2');
+    askLabel.className = 'c-wallet-receive__asklabel';
+    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
+    askBox.append(askLabel);
+    const search = createSearchField({
+      placeholder: strings.searchContacts || 'Search contacts',
+      onInput: (v) => renderContacts(v),
+      strings,
+    });
+    askBox.append(search);
+    rows = document.createElement('div');
+    rows.className = 'c-wallet-receive__contacts';
+    askBox.append(rows);
+    reqBox.append(askBox);
+  }
 
   /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
   function clearLatch(rerender) {
@@ -10058,6 +10118,7 @@ function createWalletReceive({
   }
 
   function renderContacts(q) {
+    if (!rows) return;                                   // contact strip omitted (no onSendRequest)
     state.contactQuery = q || '';
     const needle = state.contactQuery.trim().toLocaleLowerCase();
     rows.textContent = '';
@@ -10126,7 +10187,7 @@ function createWalletReceive({
     caption.textContent = active
       ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
       : (strings.receiveCaption || 'Scan to send IXI to this address');
-    askBox.hidden = !active;
+    if (askBox) askBox.hidden = !active;
     if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
       wasActive = active;
       live.textContent = active
@@ -11517,6 +11578,9 @@ function pickerRow(c, st) {
 function renderPickerList(st) {
   const { list, empty } = st.els;
   const { strings } = st.opts;
+  // preserve scroll across a full rebuild — the directory roster re-flushes on
+  // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
+  const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
   const matches = sortedContacts(st.contacts).filter((c) => !needle
@@ -11542,6 +11606,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
 function syncNext(st) {
@@ -11710,6 +11775,21 @@ const addState = new WeakMap(); // el → { input, validate }
 
 const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
+// Base58 alphabet (Bitcoin/Ixian — no 0 O I l). Local pre-submit sanity so obviously
+// invalid input (spaces, punctuation, wrong length) shows the INLINE error and NEVER
+// reaches ixian:request — which would otherwise trigger a C# native invalid-address
+// alert + leave Send wedged (bridge-audit-A.md:198). ExtendedAddress does the
+// authoritative check server-side; the C# self/duplicate rejection still round-trips
+// (recovered by the 6s grace in contact_new.html).
+// Length + no-whitespace only — deliberately NOT a base58/charset gate. Ixian's
+// current address encoding (and any newer payment-gateway address types) is not
+// verified here, so a strict alphabet could REJECT valid addresses. C#'s
+// ExtendedAddress is the authoritative validator; this local gate only blocks
+// OBVIOUS garbage (empty / too short / too long / contains whitespace) so a clear
+// typo shows an inline error instead of the native alert. (Damir 2026-07-08.)
+function looksLikeAddress(a) {
+  return a.length >= ADDR_MIN && a.length <= ADDR_MAX && !/\s/.test(a);
+}
 
 function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
@@ -11766,13 +11846,14 @@ function createAddContact({
   group.append(err);
 
   body.append(group);
-  el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
+  // Primary CTA directly beneath the address field + helper/error line (was pinned to
+  // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
+  // in the scroll body right under the group card (body gap = spacing-16).
   const sendBtn = createButton({ label: strings.sendRequest || 'Send request', size: 56, width: 'full' });
-  footer.append(sendBtn);
-  el.append(footer);
+  sendBtn.classList.add('c-contacts-add__submit');
+  body.append(sendBtn);
+  el.append(body);
 
   let inFlight = false;
   let checkTimer = 0;
@@ -11812,8 +11893,9 @@ function createAddContact({
     if (inFlight || latched) return;
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
-    if (a.length < ADDR_MIN || a.length > ADDR_MAX) {
+    if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
       return;
     }
     setError('');
@@ -12125,6 +12207,91 @@ function setGroupAvatar(el, src) {
   img.src = src;
   img.alt = '';
   st.avatarBtn.append(img);
+}
+
+/* ---- src/bridge/contacts-page.js ---- */
+/**
+ * contacts-page.js — the Contacts DIRECTORY / picker takeover, wired to the
+ * frozen HomePage bridge (bridge-audit-A.md §5 HomePage + §3 ContactNewPage).
+ *
+ * Clean boundary (DECISIONS #167): the home shell owns the roster model (fed by
+ * clearContacts/addContact/noContacts) and hands this module a bridge + a roster
+ * accessor. This builds the full-viewport contacts takeover — createContactsPicker
+ * — and translates its callbacks into EXISTING ixian: verbs. Nothing about
+ * home.html's internals leaks in beyond { host, bridge, strings, getRoster,
+ * onClose }, so a later standalone Contacts shell mounts the same call unchanged.
+ *
+ * Bridge mapping (HomePage — all existing verbs, ZERO C# change):
+ *   Add contact   → ixian:newcontact        (push ContactNewPage; audit :248/:529)
+ *   Create group  → ixian:newchat           (push WalletRecipientPage multi-picker;
+ *                                             audit :247). The in-shell createGroupSetup
+ *                                             multi-select is DEFERRED: its result verb
+ *                                             ixian:select is a WalletRecipientPage verb,
+ *                                             NOT a HomePage one (audit :530) — HomePage
+ *                                             can't receive it, so group assembly stays
+ *                                             with the native multi-picker for v1.
+ *   Open chat     → ixian:chat:<address>     (start; audit :259)
+ *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
+ *
+ * purpose 'start'  (FAB): Add contact + Create group actions; tap = open chat.
+ * purpose 'directory' (topbar Contacts): Add contact only; tap = contact details.
+ *
+ * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
+ * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
+ * a navigation verb for back (the .chat-info-takeover pattern from chat.html).
+ * Open chat / create group close the takeover first (opening a chat should not
+ * leave the picker behind). Add contact AND view contact (directory) leave it open
+ * UNDERNEATH the pushed C# page: back-from-ContactNewPage lands on the picker, and
+ * back-from-ContactDetails lands on the DIRECTORY — not the chats list. Closing the
+ * directory overlay before ixian:details would drop the user on tab1 on pop (the
+ * bug this fixes). A successful add-request has C# chain pickSucceeded → the
+ * conversation over the top.
+ */
+
+
+function mountContacts({
+  host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
+} = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'contacts-takeover';
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    overlay.remove();
+    if (onClose) onClose();
+  };
+
+  const picker = createContactsPicker({
+    contacts: getRoster ? getRoster() : [],
+    purpose,
+    strings,
+    onBack: close,                         // close the takeover — never an ixian: nav verb
+    // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
+    onAddContact: () => bridge.send('ixian:newcontact'),
+    // Create group → native multi-picker (in-shell group setup deferred, see docblock).
+    // createContactsPicker flips to multi-select first; we close over it in the SAME
+    // synchronous click (no paint between) so that transient mode never shows.
+    onCreateGroup: () => { close(); bridge.send('ixian:newchat'); },
+    // start: tap opens the 1:1 conversation.
+    onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
+    // directory: tap opens contact details (accepted → chat-info; pending → minimal).
+    // Do NOT close first — leave the directory overlay mounted UNDER the pushed
+    // ContactDetails page so back (C# pop → home) returns to the DIRECTORY, not the
+    // chats list. (home.js openContacts closes any prior overlay before a new open,
+    // so returning + tapping another contact can't double-stack the takeover.)
+    onViewContact: (c) => { if (c && c.address) bridge.send('ixian:details:' + c.address); },
+  });
+  overlay.append(picker);
+  host.append(overlay);
+
+  return {
+    el: overlay,
+    close,
+    /** Refresh the roster while the takeover is open (bridge clearContacts/addContact re-flush). */
+    setContacts(contacts) { setPickerContacts(picker, contacts); },
+  };
 }
 
 /* ---- src/components/scan-shell.js ---- */
@@ -13043,7 +13210,7 @@ function createSettingsHub({
   paymentAuth = false,           // #150⑤: confirm-payments preference (§9-gated)
   backup = {},                   // { last, dirtyCount } — see backupStatusParts
   version = '',                  // About row value (§9 ask: no bridge push exists)
-  capabilities = {},             // { dev, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
+  capabilities = {},             // { dev, downloads, contributors, changePassword, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
@@ -13059,8 +13226,13 @@ function createSettingsHub({
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
   onPrivacy,                     // nav → privacy screen (§9-gated)
   onBackup,                      // nav → backup screen
-  onDownloads, onContributors, onDev,   // nav (screens = next slice)
+  onDownloads, onContributors, onDev,   // nav (screens) — capability-gated: no SettingsPage open-verb exists
+  onAbout,                       // nav → About takeover (static, zero-C#, ungated)
+  onHowTo,                       // nav → How-to-use takeover (static, zero-C#, ungated)
   onDanger,                      // nav → danger screen
+  onSave,                        // OPTIONAL explicit Save affordance (Damir, legacy parity): a topbar
+                                 // check action → the shell commits everything + pops (ixian:save).
+                                 // Absent = the #146 per-row / on-exit commit only (backward-compatible).
   onBack,                        // OPTIONAL back affordance — the hub is a root tab in
                                  // the home-integrated design (no back), but a STANDALONE
                                  // pushed page (legacy SettingsPage) needs one, esp. on
@@ -13071,7 +13243,14 @@ function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account', onBack }));
+  el.append(createTopbar({
+    variant: 'view', title: strings.account || 'Account', onBack,
+    // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
+    // with NO Save button — this OPTIONAL trailing action adds an explicit commit
+    // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
+    // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
+    actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
+  }));
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';
@@ -13507,10 +13686,12 @@ function createSettingsHub({
     onToggle: onPaymentAuth,
   }));
 
-  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
-     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
-     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
-  if (onChangePassword) sec.card.append(settingRow({
+  /* change wallet password — lock-shell encpass takeover (Phase 1 #4, docs/lock-spec.md).
+     CAPABILITY-GATED (`capabilities.changePassword`): the redesigned settings_encryption.html
+     shell exists, but SettingsPage has NO verb that opens EncryptionPassword (bridge-audit-B
+     §1/§3 — it is a separate HomePage-independent page). So the row is built + ready, gated
+     OFF until BE adds a SettingsPage → EncryptionPassword nav verb (be-cutover ask). */
+  if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
     glyph: 'pencil', hue: 'primary',
     label: strings.changePassword || 'Change wallet password',
     onClick: () => onChangePassword(),
@@ -13548,11 +13729,24 @@ function createSettingsHub({
 
   /* ——— app ——— */
   const app = group(strings.app || 'App');
-  if (onDownloads) app.card.append(settingRow({
+  /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
+     always available (ungated). */
+  if (onHowTo) app.card.append(settingRow({
+    glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    onClick: () => onHowTo(),
+  }).section);
+  if (onAbout) app.card.append(settingRow({
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    onClick: () => onAbout(),
+  }).section);
+  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
+     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
+     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
     onClick: () => onDownloads(),
   }).section);
-  if (onContributors) app.card.append(settingRow({
+  if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
     onClick: () => onContributors(),
   }).section);
@@ -13791,10 +13985,12 @@ function createSettingsDanger({
  * SUPERSET of the wallet backup). Wallet-only export is demoted to an Advanced
  * reveal (ixian:backupWallet — cold storage / other Ixian tools).
  *
- * CTA → password confirm modal (validation errors render INLINE on the field,
- * never an alert — the legacy ixian:error path, restyled) → in-flight fully
- * locked (#135-C1 via live setOverlayOpts) → ctrl.done closes the modal, the
- * CTA morphs setSuccess "Backed up" (#29) and the status line refreshes.
+ * CTA → fires the backup DIRECTLY (NO password prompt — DECISIONS #199 / be-cutover
+ * S12): ixian:backupAccount ignores any entered password and encrypts with the stored
+ * `walletpass` pref (bridge-audit-B §2), and the wallet-only export never prompted —
+ * so the confirm modal was pure theater + inconsistent. Latched → loading → ctrl.done
+ * morphs setSuccess "Backed up" (#29) and refreshes the status line (mirrors the
+ * Advanced wallet export). Real password-protected backup = BE ask S12.
  *
  * Hero = token-styled PLACEHOLDER composition (#146④): shield-lock on a wash
  * disc + satellite motifs (identity/wallet/contacts). `.c-settings-backup__art`
@@ -13812,12 +14008,13 @@ function createSettingsDanger({
 
 
 
-
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
+  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
+                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
   onBack,
-  onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
+  onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
   strings = getStrings(),
 } = {}) {
@@ -13834,24 +14031,35 @@ function createSettingsBackup({
   live.setAttribute('aria-live', 'polite');
   el.append(live);
 
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* ——— hero: placeholder art + copy (illustration #6 swap slot) ——— */
   const heroSec = document.createElement('div');
   heroSec.className = 'c-settings-backup__hero';
   const art = document.createElement('div');
   art.className = 'c-settings-backup__art';
   art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-settings-backup__art-disc';
-  disc.append(icon('shield-lock', { size: 48 }));
-  art.append(disc);
-  for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
-    const sat = document.createElement('span');
-    sat.className = 'c-settings-backup__art-sat';
-    sat.dataset.pos = pos;
-    sat.append(icon(glyph, { size: 16 }));
-    art.append(sat);
+  const buildPlaceholderArt = () => {          // token-styled fallback (shield + satellites)
+    const disc = document.createElement('span');
+    disc.className = 'c-settings-backup__art-disc';
+    disc.append(icon('shield-lock', { size: 48 }));
+    art.append(disc);
+    for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
+      const sat = document.createElement('span');
+      sat.className = 'c-settings-backup__art-sat';
+      sat.dataset.pos = pos;
+      sat.append(icon(glyph, { size: 16 }));
+      art.append(sat);
+    }
+  };
+  if (illustration) {
+    // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
+    const img = document.createElement('img');
+    img.className = 'c-settings-backup__illustration';
+    img.src = illustration;
+    img.alt = '';
+    img.addEventListener('error', () => { art.replaceChildren(); buildPlaceholderArt(); }, { once: true });
+    art.append(img);
+  } else {
+    buildPlaceholderArt();
   }
   heroSec.append(art);
   const heroTitle = document.createElement('h2');
@@ -13869,94 +14077,44 @@ function createSettingsBackup({
   heroSec.append(statusLine);
   body.append(heroSec);
 
-  /* ——— primary CTA → password confirm → latched backup ———
-     lives ON the hero panel (#148③): promise → status → action, one moment */
+  /* ——— primary CTA → latched backup (NO password prompt, #199) ———
+     lives ON the hero panel (#148③): promise → status → action, one moment.
+     The password-confirm modal was REMOVED: ixian:backupAccount ignores any typed
+     password + encrypts with the stored walletpass pref, and wallet-export never
+     prompted, so the confirm step was theater + inconsistent. Fires directly here,
+     mirroring the Advanced wallet export (latched → loading → optimistic success).
+     No completion callback exists (C#→JS none) → ctrl.done is optimistic ("share
+     sheet opened"). Real password-protected backup = BE ask S12. */
+  let backingUp = false;                                 // latched (one share at a time)
   const cta = createButton({
     label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
-    onClick: openPasswordConfirm,
+    onClick: runBackup,
   });
   cta.classList.add('c-settings-backup__cta');
   heroSec.append(cta);
 
-  function openPasswordConfirm() {
-    let inFlight = false;
-    const wrap = document.createElement('div');
-    wrap.className = 'c-settings-backup__pw';
-    const label = document.createElement('label');
-    label.className = 'c-settings-backup__pw-label';
-    label.textContent = strings.backupPwLabel || 'Wallet password';
-    const input = document.createElement('input');
-    input.type = 'password';
-    input.className = 'c-settings-backup__pw-input';
-    input.id = overlayId('c-settings-backup-pw');
-    input.autocomplete = 'current-password';
-    label.setAttribute('for', input.id);
-    const err = document.createElement('p');
-    err.className = 'c-settings-backup__pw-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = true;
-    wrap.append(label, input, err);
-
-    let confirmBtn = null;
-    const fail = (msg) => {
-      inFlight = false;
-      input.disabled = false;
-      if (confirmBtn) setLoading(confirmBtn, false);
-      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
-      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-      err.hidden = false;
-      input.focus();                                     // inline, on the field — never an alert
-    };
-    const submit = () => {                               // shared by the confirm button + Enter-in-field
-      if (inFlight) return;
-      const password = input.value;
-      if (!password) {
-        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-        err.hidden = false;
-        input.focus();
-        return;
-      }
-      inFlight = true;
-      err.hidden = true;
-      input.disabled = true;
-      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-      confirmBtn = btns[btns.length - 1];
-      setLoading(confirmBtn, true);
-      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-      try {
-        onBackup({ password }, backupCtrl(
-          () => {
-            dismissOverlay(modal);
-            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-            live.textContent = strings.backupDone || 'Backed up';
-          },
-          fail,
-        ));
-      } catch (ex) {
-        fail();
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
-    });
-
-    const modal = createModal({
-      title: strings.backupConfirmTitle || 'Confirm your password',
-      body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
-      content: wrap, host: hostFor(),
-      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text',
-          onClick: () => (inFlight ? false : undefined) },       // dead in flight
-        {
-          label: strings.backupCta || 'Back up now', type: 'fill',
-          onClick: () => { submit(); return false; },            // closes on ctrl.done only
-        },
-      ],
-      strings,
-    });
-    openModal(modal);
-    input.focus();
+  function runBackup() {
+    if (backingUp) return;
+    backingUp = true;
+    setLoading(cta, true);
+    const ctrl = backupCtrl(
+      () => {
+        backingUp = false;
+        setLoading(cta, false);
+        setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+        live.textContent = strings.backupDone || 'Backed up';
+      },
+      (msg) => {
+        backingUp = false;
+        setLoading(cta, false);
+        live.textContent = msg || strings.backupFailed || 'Couldn’t back up.';
+      },
+    );
+    try {
+      onBackup({}, ctrl);                                // 2-arg (payload, ctrl) contract preserved
+    } catch (ex) {
+      ctrl.fail();                                       // sync throw → unlatch + clear spinner (#141-m4)
+    }
   }
 
   /* ——— what's inside — 2×2 disc tiles (#148③ premium pass) ——— */
@@ -14882,6 +15040,180 @@ function createSettingsContributors({
   card.append(list);
   groupWrap.append(card);
   body.append(groupWrap);
+
+  return el;
+}
+
+/* Shared link renderer for About / How-to. A link OPENS via the optional
+   onOpenLink callback (no bridge verb exists → the shells don't wire it; when
+   absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
+   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only. */
+function linkRow({ label, url, onOpenLink, strings }) {
+  if (onOpenLink) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = label;
+    b.append(lab, icon('arrow-up-right', { size: 18 }));
+    b.addEventListener('click', () => onOpenLink(url));
+    return b;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings-links__row c-settings-links__row--static';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings-links__label';
+  lab.textContent = label;
+  const u = document.createElement('span');
+  u.className = 'c-settings-links__url';
+  u.textContent = url;                       // selectable text (no WebView navigation)
+  wrap.append(lab, u);
+  return wrap;
+}
+
+/**
+ * About — createSettingsAbout({ appName, version, tagline, description, links,
+ * onOpenLink, onBack, strings }). STATIC in-hub takeover, zero-C# (no bridge).
+ * Version shows only when provided (SPIXI_ENV / §9 push — no bridge push today).
+ * Links degrade to selectable text unless onOpenLink is wired.
+ */
+function createSettingsAbout({
+  appName = 'Spixi',
+  version = '',
+  tagline,
+  description,
+  links,
+  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-about', strings.about || 'About', onBack);
+
+  /* hero — logo disc + app name + tagline (backup-hero / contributors art precedent) */
+  const hero = document.createElement('div');
+  hero.className = 'c-settings-about__hero';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc c-settings-about__logo';
+  disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('logo'));
+  disc.append(icon('logo', { size: 32 }));
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'c-settings-about__app-name';
+  nameEl.textContent = appName;
+  const tag = document.createElement('p');
+  tag.className = 'c-settings-about__tagline';
+  tag.textContent = tagline || strings.aboutTagline
+    || 'Private, decentralized messaging on the Ixian network.';
+  hero.append(disc, nameEl, tag);
+  if (version) {
+    const ver = document.createElement('p');
+    ver.className = 'c-settings-about__version';
+    ver.textContent = version;
+    hero.append(ver);
+  }
+  body.append(hero);
+
+  const desc = document.createElement('p');
+  desc.className = 'c-settings__note c-settings-about__desc';
+  desc.textContent = description || strings.aboutBody
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+  body.append(desc);
+
+  /* links card — website / network / source (degrade to text without onOpenLink) */
+  const list = links || [
+    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io' },
+    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io' },
+    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi' },
+  ];
+  if (list.length) {
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'c-settings__groupwrap';
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    for (const l of list) card.append(linkRow({ ...l, onOpenLink, strings }));
+    groupWrap.append(card);
+    body.append(groupWrap);
+  }
+
+  const legal = document.createElement('p');
+  legal.className = 'c-settings__note c-settings-about__legal';
+  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  body.append(legal);
+
+  return el;
+}
+
+/**
+ * How to use — createSettingsHowTo({ steps, links, onOpenLink, onBack, strings }).
+ * STATIC in-hub takeover, zero-C#. Brief getting-started steps + an optional docs
+ * link (degrades to text without onOpenLink).
+ */
+function createSettingsHowTo({
+  steps,
+  links,
+  onOpenLink,
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-howto', strings.howToUse || 'How to use Spixi', onBack);
+
+  const intro = document.createElement('p');
+  intro.className = 'c-settings__note c-settings-howto__intro';
+  intro.textContent = strings.howToIntro || 'A few basics to get you started.';
+  body.append(intro);
+
+  const list = steps || [
+    { title: strings.howToStep1 || 'Add a contact',
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+    { title: strings.howToStep2 || 'Start chatting',
+      body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
+    { title: strings.howToStep3 || 'Send IXI',
+      body: strings.howToStep3Body || 'Send or request IXI right inside a chat. You confirm every payment on your device.' },
+    { title: strings.howToStep4 || 'Back up your wallet',
+      body: strings.howToStep4Body || 'Save one encrypted backup file from Account → Backup. Without it and your password, nothing can be recovered.' },
+  ];
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const card = document.createElement('div');
+  card.className = 'c-settings__group c-settings-howto__steps';
+  let i = 0;
+  for (const s of list) {
+    i++;
+    const step = document.createElement('div');
+    step.className = 'c-settings-howto__step';
+    const num = document.createElement('span');
+    num.className = 'c-settings-howto__step-num';
+    num.textContent = String(i);
+    const txt = document.createElement('span');
+    txt.className = 'c-settings-howto__step-text';
+    const t = document.createElement('span');
+    t.className = 'c-settings-howto__step-title';
+    t.textContent = s.title;
+    const b = document.createElement('span');
+    b.className = 'c-settings-howto__step-body';
+    b.textContent = s.body;
+    txt.append(t, b);
+    step.append(num, txt);
+    card.append(step);
+  }
+  groupWrap.append(card);
+  body.append(groupWrap);
+
+  const linkList = links || [
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+  ];
+  if (linkList.length) {
+    const lw = document.createElement('div');
+    lw.className = 'c-settings__groupwrap';
+    const lc = document.createElement('div');
+    lc.className = 'c-settings__group c-settings-links';
+    for (const l of linkList) lc.append(linkRow({ ...l, onOpenLink, strings }));
+    lw.append(lc);
+    body.append(lw);
+  }
 
   return el;
 }
@@ -16398,5 +16730,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

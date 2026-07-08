@@ -44,6 +44,9 @@ export function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
+  onLoad,                  // fired after the full media loads + the tile is sized
+                           // → the shell can scroll the log to the freshly-grown
+                           //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -111,14 +114,22 @@ export function createMediaBubble({
     img.src = currentSrc;
   };
   img.addEventListener('load', () => {
-    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
-    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
-    // real image loads, size the tile to its natural aspect so the whole frame
-    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    // No sender dimensions (remote GIF/image URL) → the tile starts at the CSS
+    // default aspect (bubble-sized box). Once the real image loads, re-size the
+    // tile to its NATURAL aspect so the whole frame shows uncropped (object-fit:
+    // contain fills exactly, no crop; extreme portraits letterbox — the full
+    // frame is one tap away in the viewer). CLAMP the portrait extreme (min 3:4):
+    // an unbounded tall aspect-ratio can defeat the CSS max-height on device
+    // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
+    // under the composer (Damir F5 2026-07-08).
     if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+      const ar = img.naturalWidth / img.naturalHeight;
+      el.style.aspectRatio = String(Math.max(ar, 0.75));
     }
     setState('loaded');
+    // the tile just grew to full size — let the shell pull the log to the latest
+    // so the whole GIF comes into view (only if it was already near the bottom).
+    if (onLoad) { try { onLoad(); } catch (_) {} }
   });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });

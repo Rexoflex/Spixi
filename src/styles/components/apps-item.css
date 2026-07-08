@@ -35,8 +35,9 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* —— ⋮ overflow —— */
-.c-app-item__menu {
+/* —— trailing ⓘ info / ⋮ overflow (share the round icon-button treatment) —— */
+.c-app-item__menu,
+.c-app-item__info {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -47,14 +48,20 @@
   cursor: pointer;
   border-radius: var(--radius-full);
   color: var(--icon-neutral-02);
+  -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-app-item__menu:hover { background: var(--surface-interactive-hover); } }
-.c-app-item__menu:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) {
+  .c-app-item__menu:hover,
+  .c-app-item__info:hover { background: var(--surface-interactive-hover); }
+}
+.c-app-item__menu:active,
+.c-app-item__info:active { background: var(--surface-interactive-pressed); }
 
 /* —— LIST (row) —— */
 .c-app-item[data-layout="list"] { display: flex; align-items: center; }
 .c-app-item[data-layout="list"] .c-app-item__open { flex: 1; min-width: 0; }
-.c-app-item[data-layout="list"] .c-app-item__menu { margin-inline-end: var(--spacing-4); }
+.c-app-item[data-layout="list"] .c-app-item__menu,
+.c-app-item[data-layout="list"] .c-app-item__info { margin-inline-end: var(--spacing-4); }
 
 /* —— GRID (card) —— */
 .c-app-item[data-layout="grid"] {
@@ -71,7 +78,8 @@
   min-width: 0;
 }
 .c-app-item[data-layout="grid"] .c-app-item__text { width: 100%; min-width: 0; }
-.c-app-item[data-layout="grid"] .c-app-item__menu {
+.c-app-item[data-layout="grid"] .c-app-item__menu,
+.c-app-item[data-layout="grid"] .c-app-item__info {
   position: absolute;
   inset-block-start: var(--spacing-8);
   inset-inline-end: var(--spacing-8);

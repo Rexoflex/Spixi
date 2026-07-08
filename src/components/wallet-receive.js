@@ -184,24 +184,33 @@ export function createWalletReceive({
   amtRow.append(amtInput, unit);
   reqBox.append(amtRow);
 
-  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment bubble) */
-  const askBox = document.createElement('div');
-  askBox.className = 'c-wallet-receive__ask';
-  askBox.hidden = true;
-  const askLabel = document.createElement('h2');
-  askLabel.className = 'c-wallet-receive__asklabel';
-  askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-  askBox.append(askLabel);
-  const search = createSearchField({
-    placeholder: strings.searchContacts || 'Search contacts',
-    onInput: (v) => renderContacts(v),
-    strings,
-  });
-  askBox.append(search);
-  const rows = document.createElement('div');
-  rows.className = 'c-wallet-receive__contacts';
-  askBox.append(rows);
-  reqBox.append(askBox);
+  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
+   * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
+   * (HomePage) has NO ixian:sendrequest verb (it's a WalletReceivePage verb), so
+   * omitting the callback HIDES the strip rather than showing a dead action that
+   * would falsely confirm "sent" (audit MAJOR, Batch 6). The amount-request QR
+   * above is client-side and stays available regardless. */
+  let askBox = null;
+  let rows = null;
+  if (onSendRequest) {
+    askBox = document.createElement('div');
+    askBox.className = 'c-wallet-receive__ask';
+    askBox.hidden = true;
+    const askLabel = document.createElement('h2');
+    askLabel.className = 'c-wallet-receive__asklabel';
+    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
+    askBox.append(askLabel);
+    const search = createSearchField({
+      placeholder: strings.searchContacts || 'Search contacts',
+      onInput: (v) => renderContacts(v),
+      strings,
+    });
+    askBox.append(search);
+    rows = document.createElement('div');
+    rows.className = 'c-wallet-receive__contacts';
+    askBox.append(rows);
+    reqBox.append(askBox);
+  }
 
   /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
   function clearLatch(rerender) {
@@ -212,6 +221,7 @@ export function createWalletReceive({
   }
 
   function renderContacts(q) {
+    if (!rows) return;                                   // contact strip omitted (no onSendRequest)
     state.contactQuery = q || '';
     const needle = state.contactQuery.trim().toLocaleLowerCase();
     rows.textContent = '';
@@ -280,7 +290,7 @@ export function createWalletReceive({
     caption.textContent = active
       ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
       : (strings.receiveCaption || 'Scan to send IXI to this address');
-    askBox.hidden = !active;
+    if (askBox) askBox.hidden = !active;
     if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
       wasActive = active;
       live.textContent = active

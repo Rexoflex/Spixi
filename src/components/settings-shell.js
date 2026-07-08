@@ -263,7 +263,7 @@ export function createSettingsHub({
   paymentAuth = false,           // #150⑤: confirm-payments preference (§9-gated)
   backup = {},                   // { last, dirtyCount } — see backupStatusParts
   version = '',                  // About row value (§9 ask: no bridge push exists)
-  capabilities = {},             // { dev, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
+  capabilities = {},             // { dev, downloads, contributors, changePassword, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
@@ -279,8 +279,13 @@ export function createSettingsHub({
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
   onPrivacy,                     // nav → privacy screen (§9-gated)
   onBackup,                      // nav → backup screen
-  onDownloads, onContributors, onDev,   // nav (screens = next slice)
+  onDownloads, onContributors, onDev,   // nav (screens) — capability-gated: no SettingsPage open-verb exists
+  onAbout,                       // nav → About takeover (static, zero-C#, ungated)
+  onHowTo,                       // nav → How-to-use takeover (static, zero-C#, ungated)
   onDanger,                      // nav → danger screen
+  onSave,                        // OPTIONAL explicit Save affordance (Damir, legacy parity): a topbar
+                                 // check action → the shell commits everything + pops (ixian:save).
+                                 // Absent = the #146 per-row / on-exit commit only (backward-compatible).
   onBack,                        // OPTIONAL back affordance — the hub is a root tab in
                                  // the home-integrated design (no back), but a STANDALONE
                                  // pushed page (legacy SettingsPage) needs one, esp. on
@@ -291,7 +296,14 @@ export function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account', onBack }));
+  el.append(createTopbar({
+    variant: 'view', title: strings.account || 'Account', onBack,
+    // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
+    // with NO Save button — this OPTIONAL trailing action adds an explicit commit
+    // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
+    // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
+    actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
+  }));
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';
@@ -727,10 +739,12 @@ export function createSettingsHub({
     onToggle: onPaymentAuth,
   }));
 
-  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
-     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
-     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
-  if (onChangePassword) sec.card.append(settingRow({
+  /* change wallet password — lock-shell encpass takeover (Phase 1 #4, docs/lock-spec.md).
+     CAPABILITY-GATED (`capabilities.changePassword`): the redesigned settings_encryption.html
+     shell exists, but SettingsPage has NO verb that opens EncryptionPassword (bridge-audit-B
+     §1/§3 — it is a separate HomePage-independent page). So the row is built + ready, gated
+     OFF until BE adds a SettingsPage → EncryptionPassword nav verb (be-cutover ask). */
+  if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
     glyph: 'pencil', hue: 'primary',
     label: strings.changePassword || 'Change wallet password',
     onClick: () => onChangePassword(),
@@ -768,11 +782,24 @@ export function createSettingsHub({
 
   /* ——— app ——— */
   const app = group(strings.app || 'App');
-  if (onDownloads) app.card.append(settingRow({
+  /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
+     always available (ungated). */
+  if (onHowTo) app.card.append(settingRow({
+    glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    onClick: () => onHowTo(),
+  }).section);
+  if (onAbout) app.card.append(settingRow({
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    onClick: () => onAbout(),
+  }).section);
+  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
+     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
+     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
     onClick: () => onDownloads(),
   }).section);
-  if (onContributors) app.card.append(settingRow({
+  if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
     onClick: () => onContributors(),
   }).section);

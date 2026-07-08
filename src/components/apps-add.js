@@ -5,8 +5,10 @@
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
- *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ * createAppsAdd({ strings, discover = true, onFetchUrl(url), onScan, onPickFile,
+ *                 onCategory, onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   discover — set false to OMIT the embedded Discover section (phase-1 production
+ *              add-app shell, where the directory feed isn't wired yet).
  *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
  *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
  *   onOpenApp    — a live-Discover card/tile tap → that app's details
@@ -20,7 +22,7 @@ import { createButton } from './button.js';
 import { createAppsDiscover, setDiscoverFeed } from './apps-discover.js';
 import { icon } from './icons.js';
 
-export function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+export function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -77,7 +79,8 @@ export function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPi
     return b;
   };
   methods.append(
-    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    // 'world' glyph (web link) — 'link' isn't in the icon export yet (glyph-sweep list).
+    method('world', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
     method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
     method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
@@ -93,14 +96,17 @@ export function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPi
   info.append(itext);
   el.append(info);
 
-  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands) */
-  const disc = document.createElement('section');
-  disc.className = 'c-apps-add__discover';
-  const dTitle = document.createElement('h2');
-  dTitle.className = 'c-apps-add__sectiontitle';
-  dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
-  el.append(disc);
+  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands). OMITTED
+   * when discover:false (phase-1 production shell — no directory feed wired yet). */
+  if (discover) {
+    const disc = document.createElement('section');
+    disc.className = 'c-apps-add__discover';
+    const dTitle = document.createElement('h2');
+    dTitle.className = 'c-apps-add__sectiontitle';
+    dTitle.textContent = strings.discover || 'Discover';
+    disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
+    el.append(disc);
+  }
 
   /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
   if (onLearnBuild) {

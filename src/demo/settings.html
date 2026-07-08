@@ -80,7 +80,7 @@
     createSettingsBackup, setBackupScreenStatus,
     createChatAppearance, createPrivacy, createNotificationsScreen, createSecurityLevel,
     createSettingsDownloads, setDownloads, createSettingsDev, setDevLog,
-    createSettingsContributors,
+    createSettingsContributors, createSettingsAbout, createSettingsHowTo,
     createLockScreen, setLockMode, createEncPassScreen,
     showToast,
   } = window.Spixi;
@@ -136,8 +136,9 @@
     { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
     { code: 'sr-latn', label: 'Srpski', flag: '🇷🇸' },
   ];
-  const CAPS = {                                // demo: every §9 gate ON to show the designs
-    dev: true, globalNotifications: true, securityTiers: true,
+  const CAPS = {                                // demo: every gate ON to show the designs
+    dev: true, downloads: true, contributors: true, changePassword: true,
+    globalNotifications: true, securityTiers: true,
     readReceipts: true, typing: true, paymentAuth: true,
   };
   const fmtToday = () => new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -313,6 +314,22 @@
     show(createSettingsContributors({ strings, onBack: showHub }));
   }
 
+  function showAbout() {
+    // demo: wire onOpenLink to prove the interactive-link path (the production
+    // shell omits it — no bridge verb opens a URL — so links show as text there)
+    show(createSettingsAbout({
+      version: 'Spixi 2.1.4 (demo)', host: phone, strings, onBack: showHub,
+      onOpenLink: (url) => toast('Would open ' + url + ' in the OS browser'),
+    }));
+  }
+
+  function showHowTo() {
+    show(createSettingsHowTo({
+      host: phone, strings, onBack: showHub,
+      onOpenLink: (url) => toast('Would open ' + url + ' in the OS browser'),
+    }));
+  }
+
   /* —— lock shell (Phase 1 #4, docs/lock-spec.md) —— */
 
   function showEncPass() {
@@ -383,6 +400,8 @@
     host: phone,
     strings,
     // per-row commit (#146): the shell fires ixian:save:<nick> immediately
+    // Save button (Damir, legacy parity) — explicit commit + pop (topbar check action)
+    onSave: () => toast('ixian:save:' + state.nick + ' — commits nick/lang/lock/avatar + pops the page'),
     // NO legacy share command (§9, wallet-receive precedent) — shells use navigator.share
     onShare: ({ address }) => toast('Would share your address via the system share sheet'),
     onNickname: (nick, ctrl) => setTimeout(() => {
@@ -441,6 +460,8 @@
       toast(next ? 'Payments now ask for PIN/biometrics first' : 'Payment confirmation off');
     }, next ? 400 : 900),
     onChangePassword: showEncPass,
+    onAbout: showAbout,
+    onHowTo: showHowTo,
     onChatAppearance: showChatAppearance,
     onNotifications: showNotifications,
     onSecurity: showSecurity,

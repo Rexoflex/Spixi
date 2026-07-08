@@ -7,10 +7,12 @@
  * SUPERSET of the wallet backup). Wallet-only export is demoted to an Advanced
  * reveal (ixian:backupWallet — cold storage / other Ixian tools).
  *
- * CTA → password confirm modal (validation errors render INLINE on the field,
- * never an alert — the legacy ixian:error path, restyled) → in-flight fully
- * locked (#135-C1 via live setOverlayOpts) → ctrl.done closes the modal, the
- * CTA morphs setSuccess "Backed up" (#29) and the status line refreshes.
+ * CTA → fires the backup DIRECTLY (NO password prompt — DECISIONS #199 / be-cutover
+ * S12): ixian:backupAccount ignores any entered password and encrypts with the stored
+ * `walletpass` pref (bridge-audit-B §2), and the wallet-only export never prompted —
+ * so the confirm modal was pure theater + inconsistent. Latched → loading → ctrl.done
+ * morphs setSuccess "Backed up" (#29) and refreshes the status line (mirrors the
+ * Advanced wallet export). Real password-protected backup = BE ask S12.
  *
  * Hero = token-styled PLACEHOLDER composition (#146④): shield-lock on a wash
  * disc + satellite motifs (identity/wallet/contacts). `.c-settings-backup__art`
@@ -25,15 +27,16 @@ import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createTopbar } from './topbar.js';
-import { createModal, openModal } from './modal.js';
-import { overlayId, setOverlayOpts, dismissOverlay } from './overlay.js';
+import { overlayId } from './overlay.js';           // advanced-reveal aria id only (password modal removed, #199)
 import { backupStatusParts } from './settings-shell.js';
 
 export function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
+  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
+                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
   onBack,
-  onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
+  onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
   strings = getStrings(),
 } = {}) {
@@ -50,24 +53,35 @@ export function createSettingsBackup({
   live.setAttribute('aria-live', 'polite');
   el.append(live);
 
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* ——— hero: placeholder art + copy (illustration #6 swap slot) ——— */
   const heroSec = document.createElement('div');
   heroSec.className = 'c-settings-backup__hero';
   const art = document.createElement('div');
   art.className = 'c-settings-backup__art';
   art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-settings-backup__art-disc';
-  disc.append(icon('shield-lock', { size: 48 }));
-  art.append(disc);
-  for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
-    const sat = document.createElement('span');
-    sat.className = 'c-settings-backup__art-sat';
-    sat.dataset.pos = pos;
-    sat.append(icon(glyph, { size: 16 }));
-    art.append(sat);
+  const buildPlaceholderArt = () => {          // token-styled fallback (shield + satellites)
+    const disc = document.createElement('span');
+    disc.className = 'c-settings-backup__art-disc';
+    disc.append(icon('shield-lock', { size: 48 }));
+    art.append(disc);
+    for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
+      const sat = document.createElement('span');
+      sat.className = 'c-settings-backup__art-sat';
+      sat.dataset.pos = pos;
+      sat.append(icon(glyph, { size: 16 }));
+      art.append(sat);
+    }
+  };
+  if (illustration) {
+    // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
+    const img = document.createElement('img');
+    img.className = 'c-settings-backup__illustration';
+    img.src = illustration;
+    img.alt = '';
+    img.addEventListener('error', () => { art.replaceChildren(); buildPlaceholderArt(); }, { once: true });
+    art.append(img);
+  } else {
+    buildPlaceholderArt();
   }
   heroSec.append(art);
   const heroTitle = document.createElement('h2');
@@ -85,94 +99,44 @@ export function createSettingsBackup({
   heroSec.append(statusLine);
   body.append(heroSec);
 
-  /* ——— primary CTA → password confirm → latched backup ———
-     lives ON the hero panel (#148③): promise → status → action, one moment */
+  /* ——— primary CTA → latched backup (NO password prompt, #199) ———
+     lives ON the hero panel (#148③): promise → status → action, one moment.
+     The password-confirm modal was REMOVED: ixian:backupAccount ignores any typed
+     password + encrypts with the stored walletpass pref, and wallet-export never
+     prompted, so the confirm step was theater + inconsistent. Fires directly here,
+     mirroring the Advanced wallet export (latched → loading → optimistic success).
+     No completion callback exists (C#→JS none) → ctrl.done is optimistic ("share
+     sheet opened"). Real password-protected backup = BE ask S12. */
+  let backingUp = false;                                 // latched (one share at a time)
   const cta = createButton({
     label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
-    onClick: openPasswordConfirm,
+    onClick: runBackup,
   });
   cta.classList.add('c-settings-backup__cta');
   heroSec.append(cta);
 
-  function openPasswordConfirm() {
-    let inFlight = false;
-    const wrap = document.createElement('div');
-    wrap.className = 'c-settings-backup__pw';
-    const label = document.createElement('label');
-    label.className = 'c-settings-backup__pw-label';
-    label.textContent = strings.backupPwLabel || 'Wallet password';
-    const input = document.createElement('input');
-    input.type = 'password';
-    input.className = 'c-settings-backup__pw-input';
-    input.id = overlayId('c-settings-backup-pw');
-    input.autocomplete = 'current-password';
-    label.setAttribute('for', input.id);
-    const err = document.createElement('p');
-    err.className = 'c-settings-backup__pw-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = true;
-    wrap.append(label, input, err);
-
-    let confirmBtn = null;
-    const fail = (msg) => {
-      inFlight = false;
-      input.disabled = false;
-      if (confirmBtn) setLoading(confirmBtn, false);
-      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
-      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-      err.hidden = false;
-      input.focus();                                     // inline, on the field — never an alert
-    };
-    const submit = () => {                               // shared by the confirm button + Enter-in-field
-      if (inFlight) return;
-      const password = input.value;
-      if (!password) {
-        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-        err.hidden = false;
-        input.focus();
-        return;
-      }
-      inFlight = true;
-      err.hidden = true;
-      input.disabled = true;
-      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-      confirmBtn = btns[btns.length - 1];
-      setLoading(confirmBtn, true);
-      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-      try {
-        onBackup({ password }, backupCtrl(
-          () => {
-            dismissOverlay(modal);
-            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-            live.textContent = strings.backupDone || 'Backed up';
-          },
-          fail,
-        ));
-      } catch (ex) {
-        fail();
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
-    });
-
-    const modal = createModal({
-      title: strings.backupConfirmTitle || 'Confirm your password',
-      body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
-      content: wrap, host: hostFor(),
-      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text',
-          onClick: () => (inFlight ? false : undefined) },       // dead in flight
-        {
-          label: strings.backupCta || 'Back up now', type: 'fill',
-          onClick: () => { submit(); return false; },            // closes on ctrl.done only
-        },
-      ],
-      strings,
-    });
-    openModal(modal);
-    input.focus();
+  function runBackup() {
+    if (backingUp) return;
+    backingUp = true;
+    setLoading(cta, true);
+    const ctrl = backupCtrl(
+      () => {
+        backingUp = false;
+        setLoading(cta, false);
+        setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+        live.textContent = strings.backupDone || 'Backed up';
+      },
+      (msg) => {
+        backingUp = false;
+        setLoading(cta, false);
+        live.textContent = msg || strings.backupFailed || 'Couldn’t back up.';
+      },
+    );
+    try {
+      onBackup({}, ctrl);                                // 2-arg (payload, ctrl) contract preserved
+    } catch (ex) {
+      ctrl.fail();                                       // sync throw → unlatch + clear spinner (#141-m4)
+    }
   }
 
   /* ——— what's inside — 2×2 disc tiles (#148③ premium pass) ——— */

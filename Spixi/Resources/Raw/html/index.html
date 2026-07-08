@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme, so
+     there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
 
 
 <style data-src="../styles/tokens.css">
@@ -870,17 +879,22 @@
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
-  /* chat canvas — near-darkest base (neutral-950 = "surface-01", Damir 2026-07-07)
-     with a subtle premium glow so it reads gradient-like (Telegram), not flat; the
-     theme-ink line pattern (chat-pattern.css) overlays on top. ✅ "Primary soft"
-     pattern ink locked (2026-07-03). Tune the glow alpha/position here. */
-  --chat-pattern-ink: var(--primary-800);
-  --chat-pattern-opacity: 0.5;
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--neutral-950);
+  /* chat canvas — base = --surface-neutral-01 (resolves to neutral-900 in dark,
+     Damir 2026-07-07) with a subtle premium glow so it reads gradient-like
+     (Telegram), not flat; the theme-ink line pattern (chat-pattern.css) overlays
+     on top. Tune the glow alpha/position here. */
+  /* pattern ink + chat base + sent bubble — Damir exact values 2026-07-07:
+     pattern overlay = hsla(242,76%,72%), chat base = surface-neutral-01,
+     sent bubble = 180deg #353FB7→#2046A7. These are the dark-mode tuning lines. */
+  --chat-pattern-ink: hsla(242, 76%, 72%, 1);
+  /* dark pattern intensity reduced 60% then another 10% (0.5 → 0.2 → 0.18),
+     Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
+     neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
+  --chat-pattern-opacity: 0.18;
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--surface-neutral-01);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
-     (Damir 2026-07-07); white text rides on top. THE line to tune for dark.
-     Deeper end than light so white pops. Damir owns the final palette. */
-  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 100%);
+     (Damir 2026-07-07); white text rides on top. */
+  --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2311,6 +2325,403 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-swipe[data-open] .c-swipe__content { will-change: transform; }
 
 </style>
+<style data-src="../styles/components/contacts-shell.css">
+/* c-contacts — FAB picker · add-contact · group setup (docs/contacts-spec.md).
+   Reuses the settings card/row grammar (settings-shell.css precedent) with
+   LOCAL class names — merge-safety: settings files are untouched (PC batch). */
+
+.c-contacts,
+.c-contacts-add,
+.c-contacts-group,
+.c-contacts-pending {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-contacts__body,
+.c-contacts-add__body,
+.c-contacts-group__body,
+.c-contacts-pending__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* scrolling flex column: children never shrink (#148③/#150① class) */
+.c-contacts__body > *,
+.c-contacts-add__body > *,
+.c-contacts-group__body > *,
+.c-contacts-pending__body > * { flex: none; }
+
+/* —— card group (settings §180 grammar) —— */
+.c-contacts__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③ */
+}
+
+/* —— picker: top action rows —— */
+.c-contacts__action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts__action:hover { background: var(--surface-interactive-hover); } }
+.c-contacts__action:active { background: var(--surface-interactive-pressed); }
+.c-contacts__action + .c-contacts__action {
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-contacts__action-label { min-width: 0; }
+
+/* —— picker: contact rows —— */
+.c-contacts__list { display: flex; flex-direction: column; }
+.c-contacts__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+.c-contacts__row:not(:disabled):active { background: var(--surface-interactive-pressed); }
+/* F7: dim only the avatar + name — the Pending badge and the reason sub-text
+   ("Can't be added to groups") must stay legible, they're the whole point of
+   a disabled row (explaining WHY it's blocked). */
+.c-contacts__row:disabled { cursor: default; }
+.c-contacts__row:disabled > .c-avatar,
+.c-contacts__row:disabled .c-contacts__name { opacity: var(--opacity-disabled); }
+.c-contacts__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contacts__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__badge { flex: none; }
+
+/* multi-select check circle (trailing) */
+.c-contacts__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--outline-neutral-02);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+.c-contacts__row[aria-checked='true'] .c-contacts__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+
+/* —— empty states —— */
+.c-contacts__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-32) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts__empty-art {
+  width: 64px;                      /* sanctioned: empty-state disc */
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--disc-primary-bg);
+  color: var(--disc-primary-ink);
+}
+.c-contacts__empty[data-kind='search'] .c-contacts__empty-art { display: none; }
+.c-contacts__empty-text {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+
+/* —— footer CTA (outside the scroll body — always visible) —— */
+.c-contacts__footer {
+  flex: none;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: var(--surface-screen);
+}
+
+/* —— add-contact —— */
+.c-contacts-add__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-inline: var(--spacing-4);
+}
+.c-contacts-add__group { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-add__field { display: flex; gap: var(--spacing-8); }
+.c-contacts-add__input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-contacts-add__input:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;              /* #51 text-field focus grammar */
+  border-color: var(--outline-action-default);
+}
+.c-contacts-add__input:disabled { opacity: var(--opacity-disabled); }
+.c-contacts-add__scan {
+  flex: none;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+.c-contacts-add__scan:not(:disabled):active { background: var(--surface-interactive-pressed); }
+.c-contacts-add__scan:disabled { opacity: var(--opacity-disabled); cursor: default; }
+.c-contacts-add__valid {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-add__valid-glyph { color: var(--icon-success); flex: none; }   /* #145③ pair */
+.c-contacts-add__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+
+/* —— group setup —— */
+.c-contacts-group__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-16);
+}
+.c-contacts-group__avatar {
+  flex: none;
+  width: 80px;                      /* sanctioned: group-avatar dim (avatar-80, settings hero parity) */
+  height: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--disc-primary-bg);
+  color: var(--disc-primary-ink);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.c-contacts-group__avatar-hint {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-group__name {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  text-align: center;
+}
+.c-contacts-group__name:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-contacts-group__members { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-group__members-head {
+  margin: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-contacts-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+/* —— pending contact profile (minimal + cancel, Damir pick) —— */
+.c-contacts-pending__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-24) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts-pending__name {
+  margin: 0;
+  min-width: 0;                     /* #140③ class */
+  max-width: 100%;
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts-pending__addr {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  word-break: break-all;            /* addresses have no natural wrap points */
+}
+.c-contacts-pending__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* blind-group row + switch (settings switch grammar, LOCAL copy — merge-safety.
+   ⚠ knob travel shares the #151 RTL caveat: translateX is not direction-aware;
+   fold into the whole-app RTL pass alongside .c-settings__switch-knob). */
+.c-contacts-group__blind {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-8);
+}
+.c-contacts-group__blind-sub { white-space: normal; }   /* explainer wraps — never ellipsized */
+.c-contacts-group__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-full);
+  background: var(--switch-track-off);   /* #148① shared pair */
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__switch::after {       /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-contacts-group__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
+.c-contacts-group__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--switch-knob);        /* #148① shared pair */
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-contacts-group__switch[aria-checked='true'] .c-contacts-group__switch-knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-contacts__check,
+  .c-contacts-group__switch,
+  .c-contacts-group__switch-knob { transition: none; }
+}
+
+/* F19: shared keyboard-focus ring — these rows/controls otherwise rely on the
+   UA default outline while the inputs above get an explicit token outline.
+   Same outline grammar as .c-contacts-add__input:focus-visible. */
+.c-contacts__row:focus-visible,
+.c-contacts__action:focus-visible,
+.c-contacts-group__switch:focus-visible,
+.c-contacts-group__avatar:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+</style><!-- contacts picker/directory takeover (FAB + topbar Contacts) -->
 <!-- wallet tab (tab2, ARCHITECTURE §5 — home shell internal view) -->
 <style data-src="../styles/components/txlist-item.css">
 /* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
@@ -2776,6 +3187,387 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }
 
 </style>
+<style data-src="../styles/components/wallet-receive.css">
+/* c-wallet-receive — Receive/Request progressive surface (spec §4, slice 3).
+   QR card paints --surface-qr (near-white in BOTH themes — scan contrast);
+   modules ink = --on-qr. Everything else follows the send-screen grammar. */
+
+.c-wallet-receive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16);
+}
+
+/* —— QR card —— */
+.c-wallet-receive__qrcard {
+  align-self: center;
+  width: min(260px, 70vw);
+  padding: var(--spacing-16);
+  box-sizing: border-box;
+  border-radius: var(--radius-24);
+  background: var(--surface-qr);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-receive__qrcard .c-qr { display: block; width: 100%; height: auto; }   /* scoped — qr.js owns no stylesheet (audit n1) */
+.c-wallet-receive__caption {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* hidden live region (audit m3/M3): transitions + request-sent announcements */
+.c-wallet-receive__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* —— address chip (member-sheet pattern, #99 — mirrors c-txsheet__addr) —— */
+.c-wallet-receive__addrlabel {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  margin-block-end: calc(-1 * var(--spacing-8));   /* hugs its chip (parent gap is 16) */
+}
+.c-wallet-receive__addr {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-wallet-receive__addrvalue {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;                         /* the FULL address is the verification truth (#99) */
+}
+.c-wallet-receive__copy {
+  flex: none;
+  width: 32px; height: 32px;                       /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— "Request an amount" reveal row (send-screen row grammar) —— */
+.c-wallet-receive__reqrow {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  color: var(--icon-neutral-02);                   /* chevron ink */
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-wallet-receive__reqrow:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-receive__reqrow:active { background: var(--surface-interactive-pressed); }
+.c-wallet-receive__reqrow[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }   /* CHILD combinator — the glyph circle's svg must not flip (audit M4) */
+.c-wallet-receive__reqglyph {
+  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--icon-action-default);
+}
+.c-wallet-receive__reqlabel {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-lg);
+  color: var(--text-neutral-01);
+}
+.c-wallet-receive__reqbox { display: flex; flex-direction: column; gap: var(--spacing-16); }
+
+/* —— amount (mirrors the send entry: money is the hero) —— */
+.c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-receive__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-receive__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-receive__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+
+/* —— send-request-to-contact strip —— */
+.c-wallet-receive__ask { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-receive__asklabel {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-wallet-receive__contacts { display: flex; flex-direction: column; }
+.c-wallet-receive__contact {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-wallet-receive__contact:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-receive__contact:active { background: var(--surface-interactive-pressed); }
+.c-wallet-receive__contact:disabled { cursor: default; opacity: 0.6; }
+.c-wallet-receive__contact[data-acted]:disabled { opacity: 1; }   /* the acted row keeps full ink for its ✓ */
+.c-wallet-receive__contactname {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-lg);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-receive__contactgo { flex: none; display: inline-flex; color: var(--icon-action-default); }
+.c-wallet-receive__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+</style><!-- Receive/Request takeover (zero-C#) -->
+<style data-src="../styles/components/wallet-send.css">
+/* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
+
+/* Max-confirm warning strip — the #150⑥ delete-confirm recipe, adapted text
+   ("Payments cannot be undone."). Same wash/glyph grammar as
+   .c-settings-danger__confirm-warn; promote to a shared atom if a third
+   surface adopts it (the .c-disc precedent). */
+.c-wallet-send__max-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__max-warn svg { flex: none; }
+
+.c-wallet-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-16);
+}
+.c-wallet-send__section { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__label {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— recipient picker —— */
+.c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__contacts { display: flex; flex-direction: column; }
+.c-wallet-send__contact {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
+.c-wallet-send__contactname {
+  font-size: var(--font-size-body-lg);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* "Send to an address" — contact-aligned row; the avatar slot carries the qr glyph (#136) */
+.c-wallet-send__addrglyph {
+  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--icon-action-default);
+}
+.c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+.c-wallet-send__addrinput {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-wallet-send__addrinput:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;                                   /* matches the apps-add input treatment (#51 text-field focus) */
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__scan {
+  flex: none;
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__addrfield .c-button { flex-basis: 100%; }
+.c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
+
+/* selected recipient */
+.c-wallet-send__picked {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-wallet-send__pickedglyph {
+  width: 40px; height: 40px; flex: none;                /* mirrors avatar-40 slot */
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--icon-neutral-02);
+}
+.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-wallet-send__pickedname {
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-wallet-send__pickedaddr {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__clear {
+  flex: none;
+  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount —— */
+.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-send__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__meta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+
+/* —— review sheet (#26) —— */
+.c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-sendreview__who { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-sendreview__whotext { flex: 1; min-width: 0; }
+.c-sendreview__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-sendreview__addr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow-wrap: anywhere;                              /* full address at the decision moment (#99) */
+}
+.c-sendreview__rows { display: flex; flex-direction: column; }
+.c-sendreview__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-sendreview__row:last-child { border-block-end: 0; }
+.c-sendreview__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
+.c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
+.c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */
+
+</style><!-- Send compose/review takeover (BE-gated composeSend) -->
 <!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
 <style data-src="../styles/components/apps-icon.css">
 /* c-app-icon — rounded-square app-image tile (square sibling of c-avatar).
@@ -2864,8 +3656,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* —— ⋮ overflow —— */
-.c-app-item__menu {
+/* —— trailing ⓘ info / ⋮ overflow (share the round icon-button treatment) —— */
+.c-app-item__menu,
+.c-app-item__info {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -2876,14 +3669,20 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   cursor: pointer;
   border-radius: var(--radius-full);
   color: var(--icon-neutral-02);
+  -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-app-item__menu:hover { background: var(--surface-interactive-hover); } }
-.c-app-item__menu:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) {
+  .c-app-item__menu:hover,
+  .c-app-item__info:hover { background: var(--surface-interactive-hover); }
+}
+.c-app-item__menu:active,
+.c-app-item__info:active { background: var(--surface-interactive-pressed); }
 
 /* —— LIST (row) —— */
 .c-app-item[data-layout="list"] { display: flex; align-items: center; }
 .c-app-item[data-layout="list"] .c-app-item__open { flex: 1; min-width: 0; }
-.c-app-item[data-layout="list"] .c-app-item__menu { margin-inline-end: var(--spacing-4); }
+.c-app-item[data-layout="list"] .c-app-item__menu,
+.c-app-item[data-layout="list"] .c-app-item__info { margin-inline-end: var(--spacing-4); }
 
 /* —— GRID (card) —— */
 .c-app-item[data-layout="grid"] {
@@ -2900,7 +3699,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   min-width: 0;
 }
 .c-app-item[data-layout="grid"] .c-app-item__text { width: 100%; min-width: 0; }
-.c-app-item[data-layout="grid"] .c-app-item__menu {
+.c-app-item[data-layout="grid"] .c-app-item__menu,
+.c-app-item[data-layout="grid"] .c-app-item__info {
   position: absolute;
   inset-block-start: var(--spacing-8);
   inset-inline-end: var(--spacing-8);
@@ -3019,15 +3819,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
-  /* Discover/Explore is PARKED for v1 (apps-shell-spec §2.4 — feed source TBD) →
-     hide the apps header's Explore banner until the standalone apps shell lands. */
-  #apps-view .c-apps-explore { display: none; }
-  /* No per-row ⋮ menu in v1 (its actions have no honest home-tab bridge home; tap →
-     appDetails). appMenu:false suppresses the handler but c-app-item still renders the
-     button element — hide it here so there's no dead/focusable control or tap-zone.
-     Underlying component fix (guard menuBtn creation on onMenu) tracked for the
-     standalone apps-shell repoint. */
-  #apps-view .c-app-item__menu { display: none; }
+  /* Explore banner is VISIBLE (fix #7) → opens apps.spixi.io in the external browser
+     via ixian:spixiAppsLink (HomePage:278, Browser.OpenAsync — does NOT navigate this
+     WebView away). No CSS hide anymore. The per-row ⋮ menu is likewise gone: the
+     component only builds it when onMenu is passed, and the apps tab passes appMenu:false
+     + no onMenu, so no dead/focusable control renders (was CSS-hidden pre-#184). */
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -3042,6 +3838,29 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   }
   @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
   .fab:active { background: var(--surface-action-pressed); }
+  /* Contacts takeover — full-viewport cover mounted OVER the shell (FAB picker +
+     topbar directory). Mirrors chat.html .chat-info-takeover: z-30 sits above the
+     bars but below any sheet/modal it spawns; the c-contacts panel is height:100%
+     → fills this. Closed via its own back button, never an ixian: nav verb. */
+  .contacts-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .contacts-takeover > .c-contacts { flex: 1; min-height: 0; }
+  /* Wallet Receive/Send takeover — full-viewport cover mounted OVER the wallet view
+     (same z-30 boundary as the contacts takeover: above the bars, below any sheet/
+     modal the send review spawns). Own topbar back button closes it; NEVER an
+     ixian: nav verb (Receive/Send are IN this page, not separate C# pages). */
+  .wallet-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .wallet-takeover__body {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: var(--spacing-16);
+  }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -5111,22 +5930,30 @@ function createMessageBubble({
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
     // A nameless sender (no nick — bots / some group members) shows its ADDRESS
-    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
-    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
-    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
-    const copyable = senderIsAddress && !!address;
+    // middle-truncated. Its TAP now opens the member sheet — the SAME pattern as a
+    // named sender (Damir F5 2026-07-08): the sheet holds the full address + copy
+    // action, so identity/copy is consistent for named and nameless alike. Direct
+    // clipboard copy stays ONLY as a fallback when no member sheet is wired (e.g.
+    // blind groups). Otherwise a plain span.
+    const copyable = senderIsAddress && !!address;             // → truncated + monospace display
     const interactive = copyable || !!onSenderClick;
     const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
     if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
     if (interactive) {
       s.type = 'button';
-      if (copyable) {
+      if (onSenderClick) {
+        // named OR nameless → member sheet (full address + copy live there)
+        if (copyable) {
+          s.title = address;                                    // full address on hover
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+        }
+        s.addEventListener('click', onSenderClick);
+      } else {
+        // no member sheet wired (e.g. blind group) → direct clipboard copy fallback
         s.title = address;                                       // full address on hover
         s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
         s.addEventListener('click', () => copySenderAddress(s, address, strings));
-      } else {
-        s.addEventListener('click', onSenderClick);
       }
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
@@ -6601,6 +7428,9 @@ function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
+  onLoad,                  // fired after the full media loads + the tile is sized
+                           // → the shell can scroll the log to the freshly-grown
+                           //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -6668,14 +7498,22 @@ function createMediaBubble({
     img.src = currentSrc;
   };
   img.addEventListener('load', () => {
-    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
-    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
-    // real image loads, size the tile to its natural aspect so the whole frame
-    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    // No sender dimensions (remote GIF/image URL) → the tile starts at the CSS
+    // default aspect (bubble-sized box). Once the real image loads, re-size the
+    // tile to its NATURAL aspect so the whole frame shows uncropped (object-fit:
+    // contain fills exactly, no crop; extreme portraits letterbox — the full
+    // frame is one tap away in the viewer). CLAMP the portrait extreme (min 3:4):
+    // an unbounded tall aspect-ratio can defeat the CSS max-height on device
+    // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
+    // under the composer (Damir F5 2026-07-08).
     if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+      const ar = img.naturalWidth / img.naturalHeight;
+      el.style.aspectRatio = String(Math.max(ar, 0.75));
     }
     setState('loaded');
+    // the tile just grew to full size — let the shell pull the log to the latest
+    // so the whole GIF comes into view (only if it was already near the bottom).
+    if (onLoad) { try { onLoad(); } catch (_) {} }
   });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
@@ -8390,18 +9228,22 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
  *   layout 'list' → a horizontal ROW (icon 48 · name+creator · ⋮)
  *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
  *
- * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
+ * Structure is a container with sibling buttons (never nested — invalid a11y):
  *   .c-app-item__open  — the big tap target → onOpen(app)  (LAUNCHES the app, #126 2B)
- *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (App details / Uninstall)
- * Creator (publisher) is a §8 field — rendered only when provided.
+ *   .c-app-item__info  — a trailing info (ⓘ) button → onInfo(app, btn) (App details page,
+ *                        which owns launch-mode + uninstall; mobile v1 — replaces the ⋮)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (kept for the standalone
+ *                        apps-shell / demos; not used by the home apps tab)
+ * onInfo and onMenu are independent; a caller passes whichever it wants. Creator
+ * (publisher) is a §8 field — rendered only when provided.
  *
- * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu }) → div
  */
 
 
 
 
-function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onMenu } = {}) {
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -8429,13 +9271,31 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   if (onOpen) open.addEventListener('click', () => onOpen({ id, name, creator }));
   el.append(open);
 
-  const menuBtn = document.createElement('button');
-  menuBtn.type = 'button';
-  menuBtn.className = 'c-app-item__menu';
-  menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
-  menuBtn.append(icon('dots', { size: 24 }));
-  if (onMenu) menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
-  el.append(menuBtn);
+  // ⓘ info — created ONLY when a handler is provided. Trailing button that opens the
+  // app's details page (launch-mode selection + uninstall + permissions live there).
+  // Mobile v1 uses this in place of the ⋮ menu (no honest list-scoped uninstall verb).
+  if (onInfo) {
+    const infoBtn = document.createElement('button');
+    infoBtn.type = 'button';
+    infoBtn.className = 'c-app-item__info';
+    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ' — ' + name : ''));
+    infoBtn.append(icon('info-circle', { size: 24 }));
+    infoBtn.addEventListener('click', (e) => { e.stopPropagation(); onInfo({ id, name, creator }, infoBtn); });
+    el.append(infoBtn);
+  }
+
+  // ⋮ overflow — created ONLY when a handler is provided. A menu-less item (e.g.
+  // HomePage's apps tab, which has no list-scoped uninstall verb) renders no button
+  // at all (previously the element was always built and hidden via shell CSS — #184).
+  if (onMenu) {
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'c-app-item__menu';
+    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+    menuBtn.append(icon('dots', { size: 24 }));
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
+    el.append(menuBtn);
+  }
 
   return el;
 }
@@ -8577,7 +9437,11 @@ function renderAppsList(listEl, state, opts = {}) {
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app
+      // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
+      // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
+      // details handler exists — so a menu-driven surface (demos) never doubles up.
+      onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
@@ -8762,8 +9626,10 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
- *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ * createAppsAdd({ strings, discover = true, onFetchUrl(url), onScan, onPickFile,
+ *                 onCategory, onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   discover — set false to OMIT the embedded Discover section (phase-1 production
+ *              add-app shell, where the directory feed isn't wired yet).
  *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
  *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
  *   onOpenApp    — a live-Discover card/tile tap → that app's details
@@ -8777,7 +9643,7 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
 
 
 
-function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -8834,7 +9700,8 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
     return b;
   };
   methods.append(
-    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    // 'world' glyph (web link) — 'link' isn't in the icon export yet (glyph-sweep list).
+    method('world', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
     method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
     method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
@@ -8850,14 +9717,17 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
   info.append(itext);
   el.append(info);
 
-  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands) */
-  const disc = document.createElement('section');
-  disc.className = 'c-apps-add__discover';
-  const dTitle = document.createElement('h2');
-  dTitle.className = 'c-apps-add__sectiontitle';
-  dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
-  el.append(disc);
+  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands). OMITTED
+   * when discover:false (phase-1 production shell — no directory feed wired yet). */
+  if (discover) {
+    const disc = document.createElement('section');
+    disc.className = 'c-apps-add__discover';
+    const dTitle = document.createElement('h2');
+    dTitle.className = 'c-apps-add__sectiontitle';
+    dTitle.textContent = strings.discover || 'Discover';
+    disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
+    el.append(disc);
+  }
 
   /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
   if (onLearnBuild) {
@@ -13242,24 +14112,33 @@ function createWalletReceive({
   amtRow.append(amtInput, unit);
   reqBox.append(amtRow);
 
-  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment bubble) */
-  const askBox = document.createElement('div');
-  askBox.className = 'c-wallet-receive__ask';
-  askBox.hidden = true;
-  const askLabel = document.createElement('h2');
-  askLabel.className = 'c-wallet-receive__asklabel';
-  askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-  askBox.append(askLabel);
-  const search = createSearchField({
-    placeholder: strings.searchContacts || 'Search contacts',
-    onInput: (v) => renderContacts(v),
-    strings,
-  });
-  askBox.append(search);
-  const rows = document.createElement('div');
-  rows.className = 'c-wallet-receive__contacts';
-  askBox.append(rows);
-  reqBox.append(askBox);
+  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
+   * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
+   * (HomePage) has NO ixian:sendrequest verb (it's a WalletReceivePage verb), so
+   * omitting the callback HIDES the strip rather than showing a dead action that
+   * would falsely confirm "sent" (audit MAJOR, Batch 6). The amount-request QR
+   * above is client-side and stays available regardless. */
+  let askBox = null;
+  let rows = null;
+  if (onSendRequest) {
+    askBox = document.createElement('div');
+    askBox.className = 'c-wallet-receive__ask';
+    askBox.hidden = true;
+    const askLabel = document.createElement('h2');
+    askLabel.className = 'c-wallet-receive__asklabel';
+    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
+    askBox.append(askLabel);
+    const search = createSearchField({
+      placeholder: strings.searchContacts || 'Search contacts',
+      onInput: (v) => renderContacts(v),
+      strings,
+    });
+    askBox.append(search);
+    rows = document.createElement('div');
+    rows.className = 'c-wallet-receive__contacts';
+    askBox.append(rows);
+    reqBox.append(askBox);
+  }
 
   /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
   function clearLatch(rerender) {
@@ -13270,6 +14149,7 @@ function createWalletReceive({
   }
 
   function renderContacts(q) {
+    if (!rows) return;                                   // contact strip omitted (no onSendRequest)
     state.contactQuery = q || '';
     const needle = state.contactQuery.trim().toLocaleLowerCase();
     rows.textContent = '';
@@ -13338,7 +14218,7 @@ function createWalletReceive({
     caption.textContent = active
       ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
       : (strings.receiveCaption || 'Scan to send IXI to this address');
-    askBox.hidden = !active;
+    if (askBox) askBox.hidden = !active;
     if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
       wasActive = active;
       live.textContent = active
@@ -14729,6 +15609,9 @@ function pickerRow(c, st) {
 function renderPickerList(st) {
   const { list, empty } = st.els;
   const { strings } = st.opts;
+  // preserve scroll across a full rebuild — the directory roster re-flushes on
+  // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
+  const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
   const matches = sortedContacts(st.contacts).filter((c) => !needle
@@ -14754,6 +15637,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
 function syncNext(st) {
@@ -14922,6 +15806,21 @@ const addState = new WeakMap(); // el → { input, validate }
 
 const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
+// Base58 alphabet (Bitcoin/Ixian — no 0 O I l). Local pre-submit sanity so obviously
+// invalid input (spaces, punctuation, wrong length) shows the INLINE error and NEVER
+// reaches ixian:request — which would otherwise trigger a C# native invalid-address
+// alert + leave Send wedged (bridge-audit-A.md:198). ExtendedAddress does the
+// authoritative check server-side; the C# self/duplicate rejection still round-trips
+// (recovered by the 6s grace in contact_new.html).
+// Length + no-whitespace only — deliberately NOT a base58/charset gate. Ixian's
+// current address encoding (and any newer payment-gateway address types) is not
+// verified here, so a strict alphabet could REJECT valid addresses. C#'s
+// ExtendedAddress is the authoritative validator; this local gate only blocks
+// OBVIOUS garbage (empty / too short / too long / contains whitespace) so a clear
+// typo shows an inline error instead of the native alert. (Damir 2026-07-08.)
+function looksLikeAddress(a) {
+  return a.length >= ADDR_MIN && a.length <= ADDR_MAX && !/\s/.test(a);
+}
 
 function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
@@ -14978,13 +15877,14 @@ function createAddContact({
   group.append(err);
 
   body.append(group);
-  el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
+  // Primary CTA directly beneath the address field + helper/error line (was pinned to
+  // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
+  // in the scroll body right under the group card (body gap = spacing-16).
   const sendBtn = createButton({ label: strings.sendRequest || 'Send request', size: 56, width: 'full' });
-  footer.append(sendBtn);
-  el.append(footer);
+  sendBtn.classList.add('c-contacts-add__submit');
+  body.append(sendBtn);
+  el.append(body);
 
   let inFlight = false;
   let checkTimer = 0;
@@ -15024,8 +15924,9 @@ function createAddContact({
     if (inFlight || latched) return;
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
-    if (a.length < ADDR_MIN || a.length > ADDR_MAX) {
+    if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
       return;
     }
     setError('');
@@ -15337,6 +16238,91 @@ function setGroupAvatar(el, src) {
   img.src = src;
   img.alt = '';
   st.avatarBtn.append(img);
+}
+
+/* ---- src/bridge/contacts-page.js ---- */
+/**
+ * contacts-page.js — the Contacts DIRECTORY / picker takeover, wired to the
+ * frozen HomePage bridge (bridge-audit-A.md §5 HomePage + §3 ContactNewPage).
+ *
+ * Clean boundary (DECISIONS #167): the home shell owns the roster model (fed by
+ * clearContacts/addContact/noContacts) and hands this module a bridge + a roster
+ * accessor. This builds the full-viewport contacts takeover — createContactsPicker
+ * — and translates its callbacks into EXISTING ixian: verbs. Nothing about
+ * home.html's internals leaks in beyond { host, bridge, strings, getRoster,
+ * onClose }, so a later standalone Contacts shell mounts the same call unchanged.
+ *
+ * Bridge mapping (HomePage — all existing verbs, ZERO C# change):
+ *   Add contact   → ixian:newcontact        (push ContactNewPage; audit :248/:529)
+ *   Create group  → ixian:newchat           (push WalletRecipientPage multi-picker;
+ *                                             audit :247). The in-shell createGroupSetup
+ *                                             multi-select is DEFERRED: its result verb
+ *                                             ixian:select is a WalletRecipientPage verb,
+ *                                             NOT a HomePage one (audit :530) — HomePage
+ *                                             can't receive it, so group assembly stays
+ *                                             with the native multi-picker for v1.
+ *   Open chat     → ixian:chat:<address>     (start; audit :259)
+ *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
+ *
+ * purpose 'start'  (FAB): Add contact + Create group actions; tap = open chat.
+ * purpose 'directory' (topbar Contacts): Add contact only; tap = contact details.
+ *
+ * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
+ * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
+ * a navigation verb for back (the .chat-info-takeover pattern from chat.html).
+ * Open chat / create group close the takeover first (opening a chat should not
+ * leave the picker behind). Add contact AND view contact (directory) leave it open
+ * UNDERNEATH the pushed C# page: back-from-ContactNewPage lands on the picker, and
+ * back-from-ContactDetails lands on the DIRECTORY — not the chats list. Closing the
+ * directory overlay before ixian:details would drop the user on tab1 on pop (the
+ * bug this fixes). A successful add-request has C# chain pickSucceeded → the
+ * conversation over the top.
+ */
+
+
+function mountContacts({
+  host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
+} = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'contacts-takeover';
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    overlay.remove();
+    if (onClose) onClose();
+  };
+
+  const picker = createContactsPicker({
+    contacts: getRoster ? getRoster() : [],
+    purpose,
+    strings,
+    onBack: close,                         // close the takeover — never an ixian: nav verb
+    // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
+    onAddContact: () => bridge.send('ixian:newcontact'),
+    // Create group → native multi-picker (in-shell group setup deferred, see docblock).
+    // createContactsPicker flips to multi-select first; we close over it in the SAME
+    // synchronous click (no paint between) so that transient mode never shows.
+    onCreateGroup: () => { close(); bridge.send('ixian:newchat'); },
+    // start: tap opens the 1:1 conversation.
+    onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
+    // directory: tap opens contact details (accepted → chat-info; pending → minimal).
+    // Do NOT close first — leave the directory overlay mounted UNDER the pushed
+    // ContactDetails page so back (C# pop → home) returns to the DIRECTORY, not the
+    // chats list. (home.js openContacts closes any prior overlay before a new open,
+    // so returning + tapping another contact can't double-stack the takeover.)
+    onViewContact: (c) => { if (c && c.address) bridge.send('ixian:details:' + c.address); },
+  });
+  overlay.append(picker);
+  host.append(overlay);
+
+  return {
+    el: overlay,
+    close,
+    /** Refresh the roster while the takeover is open (bridge clearContacts/addContact re-flush). */
+    setContacts(contacts) { setPickerContacts(picker, contacts); },
+  };
 }
 
 /* ---- src/components/scan-shell.js ---- */
@@ -16255,7 +17241,7 @@ function createSettingsHub({
   paymentAuth = false,           // #150⑤: confirm-payments preference (§9-gated)
   backup = {},                   // { last, dirtyCount } — see backupStatusParts
   version = '',                  // About row value (§9 ask: no bridge push exists)
-  capabilities = {},             // { dev, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
+  capabilities = {},             // { dev, downloads, contributors, changePassword, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
@@ -16271,8 +17257,13 @@ function createSettingsHub({
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
   onPrivacy,                     // nav → privacy screen (§9-gated)
   onBackup,                      // nav → backup screen
-  onDownloads, onContributors, onDev,   // nav (screens = next slice)
+  onDownloads, onContributors, onDev,   // nav (screens) — capability-gated: no SettingsPage open-verb exists
+  onAbout,                       // nav → About takeover (static, zero-C#, ungated)
+  onHowTo,                       // nav → How-to-use takeover (static, zero-C#, ungated)
   onDanger,                      // nav → danger screen
+  onSave,                        // OPTIONAL explicit Save affordance (Damir, legacy parity): a topbar
+                                 // check action → the shell commits everything + pops (ixian:save).
+                                 // Absent = the #146 per-row / on-exit commit only (backward-compatible).
   onBack,                        // OPTIONAL back affordance — the hub is a root tab in
                                  // the home-integrated design (no back), but a STANDALONE
                                  // pushed page (legacy SettingsPage) needs one, esp. on
@@ -16283,7 +17274,14 @@ function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account', onBack }));
+  el.append(createTopbar({
+    variant: 'view', title: strings.account || 'Account', onBack,
+    // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
+    // with NO Save button — this OPTIONAL trailing action adds an explicit commit
+    // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
+    // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
+    actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
+  }));
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';
@@ -16719,10 +17717,12 @@ function createSettingsHub({
     onToggle: onPaymentAuth,
   }));
 
-  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
-     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
-     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
-  if (onChangePassword) sec.card.append(settingRow({
+  /* change wallet password — lock-shell encpass takeover (Phase 1 #4, docs/lock-spec.md).
+     CAPABILITY-GATED (`capabilities.changePassword`): the redesigned settings_encryption.html
+     shell exists, but SettingsPage has NO verb that opens EncryptionPassword (bridge-audit-B
+     §1/§3 — it is a separate HomePage-independent page). So the row is built + ready, gated
+     OFF until BE adds a SettingsPage → EncryptionPassword nav verb (be-cutover ask). */
+  if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
     glyph: 'pencil', hue: 'primary',
     label: strings.changePassword || 'Change wallet password',
     onClick: () => onChangePassword(),
@@ -16760,11 +17760,24 @@ function createSettingsHub({
 
   /* ——— app ——— */
   const app = group(strings.app || 'App');
-  if (onDownloads) app.card.append(settingRow({
+  /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
+     always available (ungated). */
+  if (onHowTo) app.card.append(settingRow({
+    glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    onClick: () => onHowTo(),
+  }).section);
+  if (onAbout) app.card.append(settingRow({
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    onClick: () => onAbout(),
+  }).section);
+  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
+     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
+     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
     onClick: () => onDownloads(),
   }).section);
-  if (onContributors) app.card.append(settingRow({
+  if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
     onClick: () => onContributors(),
   }).section);
@@ -17003,10 +18016,12 @@ function createSettingsDanger({
  * SUPERSET of the wallet backup). Wallet-only export is demoted to an Advanced
  * reveal (ixian:backupWallet — cold storage / other Ixian tools).
  *
- * CTA → password confirm modal (validation errors render INLINE on the field,
- * never an alert — the legacy ixian:error path, restyled) → in-flight fully
- * locked (#135-C1 via live setOverlayOpts) → ctrl.done closes the modal, the
- * CTA morphs setSuccess "Backed up" (#29) and the status line refreshes.
+ * CTA → fires the backup DIRECTLY (NO password prompt — DECISIONS #199 / be-cutover
+ * S12): ixian:backupAccount ignores any entered password and encrypts with the stored
+ * `walletpass` pref (bridge-audit-B §2), and the wallet-only export never prompted —
+ * so the confirm modal was pure theater + inconsistent. Latched → loading → ctrl.done
+ * morphs setSuccess "Backed up" (#29) and refreshes the status line (mirrors the
+ * Advanced wallet export). Real password-protected backup = BE ask S12.
  *
  * Hero = token-styled PLACEHOLDER composition (#146④): shield-lock on a wash
  * disc + satellite motifs (identity/wallet/contacts). `.c-settings-backup__art`
@@ -17024,12 +18039,13 @@ function createSettingsDanger({
 
 
 
-
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
+  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
+                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
   onBack,
-  onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
+  onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
   strings = getStrings(),
 } = {}) {
@@ -17046,24 +18062,35 @@ function createSettingsBackup({
   live.setAttribute('aria-live', 'polite');
   el.append(live);
 
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* ——— hero: placeholder art + copy (illustration #6 swap slot) ——— */
   const heroSec = document.createElement('div');
   heroSec.className = 'c-settings-backup__hero';
   const art = document.createElement('div');
   art.className = 'c-settings-backup__art';
   art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-settings-backup__art-disc';
-  disc.append(icon('shield-lock', { size: 48 }));
-  art.append(disc);
-  for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
-    const sat = document.createElement('span');
-    sat.className = 'c-settings-backup__art-sat';
-    sat.dataset.pos = pos;
-    sat.append(icon(glyph, { size: 16 }));
-    art.append(sat);
+  const buildPlaceholderArt = () => {          // token-styled fallback (shield + satellites)
+    const disc = document.createElement('span');
+    disc.className = 'c-settings-backup__art-disc';
+    disc.append(icon('shield-lock', { size: 48 }));
+    art.append(disc);
+    for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
+      const sat = document.createElement('span');
+      sat.className = 'c-settings-backup__art-sat';
+      sat.dataset.pos = pos;
+      sat.append(icon(glyph, { size: 16 }));
+      art.append(sat);
+    }
+  };
+  if (illustration) {
+    // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
+    const img = document.createElement('img');
+    img.className = 'c-settings-backup__illustration';
+    img.src = illustration;
+    img.alt = '';
+    img.addEventListener('error', () => { art.replaceChildren(); buildPlaceholderArt(); }, { once: true });
+    art.append(img);
+  } else {
+    buildPlaceholderArt();
   }
   heroSec.append(art);
   const heroTitle = document.createElement('h2');
@@ -17081,94 +18108,44 @@ function createSettingsBackup({
   heroSec.append(statusLine);
   body.append(heroSec);
 
-  /* ——— primary CTA → password confirm → latched backup ———
-     lives ON the hero panel (#148③): promise → status → action, one moment */
+  /* ——— primary CTA → latched backup (NO password prompt, #199) ———
+     lives ON the hero panel (#148③): promise → status → action, one moment.
+     The password-confirm modal was REMOVED: ixian:backupAccount ignores any typed
+     password + encrypts with the stored walletpass pref, and wallet-export never
+     prompted, so the confirm step was theater + inconsistent. Fires directly here,
+     mirroring the Advanced wallet export (latched → loading → optimistic success).
+     No completion callback exists (C#→JS none) → ctrl.done is optimistic ("share
+     sheet opened"). Real password-protected backup = BE ask S12. */
+  let backingUp = false;                                 // latched (one share at a time)
   const cta = createButton({
     label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
-    onClick: openPasswordConfirm,
+    onClick: runBackup,
   });
   cta.classList.add('c-settings-backup__cta');
   heroSec.append(cta);
 
-  function openPasswordConfirm() {
-    let inFlight = false;
-    const wrap = document.createElement('div');
-    wrap.className = 'c-settings-backup__pw';
-    const label = document.createElement('label');
-    label.className = 'c-settings-backup__pw-label';
-    label.textContent = strings.backupPwLabel || 'Wallet password';
-    const input = document.createElement('input');
-    input.type = 'password';
-    input.className = 'c-settings-backup__pw-input';
-    input.id = overlayId('c-settings-backup-pw');
-    input.autocomplete = 'current-password';
-    label.setAttribute('for', input.id);
-    const err = document.createElement('p');
-    err.className = 'c-settings-backup__pw-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = true;
-    wrap.append(label, input, err);
-
-    let confirmBtn = null;
-    const fail = (msg) => {
-      inFlight = false;
-      input.disabled = false;
-      if (confirmBtn) setLoading(confirmBtn, false);
-      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
-      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-      err.hidden = false;
-      input.focus();                                     // inline, on the field — never an alert
-    };
-    const submit = () => {                               // shared by the confirm button + Enter-in-field
-      if (inFlight) return;
-      const password = input.value;
-      if (!password) {
-        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-        err.hidden = false;
-        input.focus();
-        return;
-      }
-      inFlight = true;
-      err.hidden = true;
-      input.disabled = true;
-      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-      confirmBtn = btns[btns.length - 1];
-      setLoading(confirmBtn, true);
-      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-      try {
-        onBackup({ password }, backupCtrl(
-          () => {
-            dismissOverlay(modal);
-            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-            live.textContent = strings.backupDone || 'Backed up';
-          },
-          fail,
-        ));
-      } catch (ex) {
-        fail();
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
-    });
-
-    const modal = createModal({
-      title: strings.backupConfirmTitle || 'Confirm your password',
-      body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
-      content: wrap, host: hostFor(),
-      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text',
-          onClick: () => (inFlight ? false : undefined) },       // dead in flight
-        {
-          label: strings.backupCta || 'Back up now', type: 'fill',
-          onClick: () => { submit(); return false; },            // closes on ctrl.done only
-        },
-      ],
-      strings,
-    });
-    openModal(modal);
-    input.focus();
+  function runBackup() {
+    if (backingUp) return;
+    backingUp = true;
+    setLoading(cta, true);
+    const ctrl = backupCtrl(
+      () => {
+        backingUp = false;
+        setLoading(cta, false);
+        setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+        live.textContent = strings.backupDone || 'Backed up';
+      },
+      (msg) => {
+        backingUp = false;
+        setLoading(cta, false);
+        live.textContent = msg || strings.backupFailed || 'Couldn’t back up.';
+      },
+    );
+    try {
+      onBackup({}, ctrl);                                // 2-arg (payload, ctrl) contract preserved
+    } catch (ex) {
+      ctrl.fail();                                       // sync throw → unlatch + clear spinner (#141-m4)
+    }
   }
 
   /* ——— what's inside — 2×2 disc tiles (#148③ premium pass) ——— */
@@ -18094,6 +19071,180 @@ function createSettingsContributors({
   card.append(list);
   groupWrap.append(card);
   body.append(groupWrap);
+
+  return el;
+}
+
+/* Shared link renderer for About / How-to. A link OPENS via the optional
+   onOpenLink callback (no bridge verb exists → the shells don't wire it; when
+   absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
+   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only. */
+function linkRow({ label, url, onOpenLink, strings }) {
+  if (onOpenLink) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = label;
+    b.append(lab, icon('arrow-up-right', { size: 18 }));
+    b.addEventListener('click', () => onOpenLink(url));
+    return b;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings-links__row c-settings-links__row--static';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings-links__label';
+  lab.textContent = label;
+  const u = document.createElement('span');
+  u.className = 'c-settings-links__url';
+  u.textContent = url;                       // selectable text (no WebView navigation)
+  wrap.append(lab, u);
+  return wrap;
+}
+
+/**
+ * About — createSettingsAbout({ appName, version, tagline, description, links,
+ * onOpenLink, onBack, strings }). STATIC in-hub takeover, zero-C# (no bridge).
+ * Version shows only when provided (SPIXI_ENV / §9 push — no bridge push today).
+ * Links degrade to selectable text unless onOpenLink is wired.
+ */
+function createSettingsAbout({
+  appName = 'Spixi',
+  version = '',
+  tagline,
+  description,
+  links,
+  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-about', strings.about || 'About', onBack);
+
+  /* hero — logo disc + app name + tagline (backup-hero / contributors art precedent) */
+  const hero = document.createElement('div');
+  hero.className = 'c-settings-about__hero';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc c-settings-about__logo';
+  disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('logo'));
+  disc.append(icon('logo', { size: 32 }));
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'c-settings-about__app-name';
+  nameEl.textContent = appName;
+  const tag = document.createElement('p');
+  tag.className = 'c-settings-about__tagline';
+  tag.textContent = tagline || strings.aboutTagline
+    || 'Private, decentralized messaging on the Ixian network.';
+  hero.append(disc, nameEl, tag);
+  if (version) {
+    const ver = document.createElement('p');
+    ver.className = 'c-settings-about__version';
+    ver.textContent = version;
+    hero.append(ver);
+  }
+  body.append(hero);
+
+  const desc = document.createElement('p');
+  desc.className = 'c-settings__note c-settings-about__desc';
+  desc.textContent = description || strings.aboutBody
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+  body.append(desc);
+
+  /* links card — website / network / source (degrade to text without onOpenLink) */
+  const list = links || [
+    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io' },
+    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io' },
+    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi' },
+  ];
+  if (list.length) {
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'c-settings__groupwrap';
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    for (const l of list) card.append(linkRow({ ...l, onOpenLink, strings }));
+    groupWrap.append(card);
+    body.append(groupWrap);
+  }
+
+  const legal = document.createElement('p');
+  legal.className = 'c-settings__note c-settings-about__legal';
+  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  body.append(legal);
+
+  return el;
+}
+
+/**
+ * How to use — createSettingsHowTo({ steps, links, onOpenLink, onBack, strings }).
+ * STATIC in-hub takeover, zero-C#. Brief getting-started steps + an optional docs
+ * link (degrades to text without onOpenLink).
+ */
+function createSettingsHowTo({
+  steps,
+  links,
+  onOpenLink,
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-howto', strings.howToUse || 'How to use Spixi', onBack);
+
+  const intro = document.createElement('p');
+  intro.className = 'c-settings__note c-settings-howto__intro';
+  intro.textContent = strings.howToIntro || 'A few basics to get you started.';
+  body.append(intro);
+
+  const list = steps || [
+    { title: strings.howToStep1 || 'Add a contact',
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+    { title: strings.howToStep2 || 'Start chatting',
+      body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
+    { title: strings.howToStep3 || 'Send IXI',
+      body: strings.howToStep3Body || 'Send or request IXI right inside a chat. You confirm every payment on your device.' },
+    { title: strings.howToStep4 || 'Back up your wallet',
+      body: strings.howToStep4Body || 'Save one encrypted backup file from Account → Backup. Without it and your password, nothing can be recovered.' },
+  ];
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const card = document.createElement('div');
+  card.className = 'c-settings__group c-settings-howto__steps';
+  let i = 0;
+  for (const s of list) {
+    i++;
+    const step = document.createElement('div');
+    step.className = 'c-settings-howto__step';
+    const num = document.createElement('span');
+    num.className = 'c-settings-howto__step-num';
+    num.textContent = String(i);
+    const txt = document.createElement('span');
+    txt.className = 'c-settings-howto__step-text';
+    const t = document.createElement('span');
+    t.className = 'c-settings-howto__step-title';
+    t.textContent = s.title;
+    const b = document.createElement('span');
+    b.className = 'c-settings-howto__step-body';
+    b.textContent = s.body;
+    txt.append(t, b);
+    step.append(num, txt);
+    card.append(step);
+  }
+  groupWrap.append(card);
+  body.append(groupWrap);
+
+  const linkList = links || [
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+  ];
+  if (linkList.length) {
+    const lw = document.createElement('div');
+    lw.className = 'c-settings__groupwrap';
+    const lc = document.createElement('div');
+    lc.className = 'c-settings__group c-settings-links';
+    for (const l of linkList) lc.append(linkRow({ ...l, onOpenLink, strings }));
+    lw.append(lc);
+    body.append(lw);
+  }
 
   return el;
 }
@@ -19610,7 +20761,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>
@@ -19640,18 +20791,29 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createChatsHeader, attachChatsCollapse,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
+    mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
     createWalletHero, setWalletBalance, setBalanceHidden,
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
     setChipSelected,
+    createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   const strings = {};
 
-  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -19673,15 +20835,54 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   /* —— topbar (chats) ——————————————————————————————————————————————————————— */
   document.getElementById('chats-topbar').append(createTopbar({
     variant: 'root', title: 'Spixi', logo: true,
-    // Contacts action → legacy directory. `ixian:newcontact` is the closest
-    // real HomePage verb (opens ContactNewPage); v1 focus is the chats list,
-    // so this is a thin bridge send (no in-page directory takeover yet).
-    actions: [{ icon: 'users', label: 'Contacts', onClick: () => bridge.send('ixian:newcontact') }],
+    // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
+    // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
+    actions: [{ icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') }],
   }));
 
-  /* —— FAB → new chat (legacy WalletRecipientPage picker) ————————————————————— */
+  /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
+   * The FAB no longer emits ixian:newchat directly; it opens the picker takeover.
+   * Tap a row → open the 1:1 (ixian:chat). Add contact → ixian:newcontact. Create
+   * group → ixian:newchat (native multi-picker; in-shell group setup deferred —
+   * see contacts-page.js). */
   document.getElementById('fab').append(icon('message-plus'));
-  document.getElementById('fab').addEventListener('click', () => bridge.send('ixian:newchat'));
+  document.getElementById('fab').addEventListener('click', () => openContacts('start'));
+
+  /* —— contacts DIRECTORY roster (loadContacts flush) ————————————————————————
+   * HomePage pushes the FRIEND roster as clearContacts → addContact×N (→
+   * noContacts when empty) every tick it detects a structural change
+   * (shouldRefreshContacts; bridge-audit-A.md:294). This is the contacts
+   * DIRECTORY — distinct from the chats list (loadChats): a friend with no
+   * messages is here but not in tab1. It feeds the FAB picker + topbar Contacts
+   * takeover, NOT tab1. No clearContactsDone signal exists, so coalesce the burst
+   * into one refresh next frame (wallet/apps pattern); if a takeover is open,
+   * re-flush it live via its controller. */
+  let contactsRoster = [];
+  let contactsView = null;           // open takeover controller ({ close, setContacts }) or null
+  let contactsRenderTimer = 0;
+  // RE-ARMING debounce (not rAF): clearContacts→addContact×N arrive as separate
+  // eval frames within one C# tick, so a plain rAF can fire BETWEEN the clear and
+  // the row pushes → the open takeover flashes its "No contacts" empty state for a
+  // frame. An 80ms timer re-armed on every push only fires once the whole burst
+  // settles (there is no clearContactsDone signal for the directory roster).
+  function scheduleContactsRender() {
+    clearTimeout(contactsRenderTimer);
+    contactsRenderTimer = setTimeout(() => {
+      if (contactsView) contactsView.setContacts(contactsRoster);
+    }, 80);
+  }
+
+  /* Open the contacts takeover via the clean bridge boundary (contacts-page.js).
+   * 'start' (FAB): Add contact + Create group; tap = open chat. 'directory'
+   * (topbar): Add contact only; tap = contact details. One open at a time. */
+  function openContacts(purpose) {
+    if (contactsView) contactsView.close();       // onClose nulls the handle
+    contactsView = mountContacts({
+      host: document.body, bridge, strings, purpose,
+      getRoster: () => contactsRoster,
+      onClose: () => { contactsView = null; },
+    });
+  }
 
   /* —— bottom nav —————————————————————————————————————————————————————————— */
   const NAV_ITEMS = [
@@ -19926,6 +21127,35 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * set (#52 boundary). ————————————————————————————————————————————————————————— */
   const walletState = { txs: [], filter: 'all', query: '' };
 
+  /* Own receiving address (setAddress push, HomePage:673-674) + the RAW (un-grouped)
+   * balance (setBalance) — captured for the Receive/Send takeovers below. The hero
+   * shows the grouped string; the Send compose needs the raw numeric for money math. */
+  let walletOwnAddress = '';
+  let walletRawBalance = '';
+  /* No fee push reaches the home wallet tab (fee lives on the native WalletSendPage
+   * via setFees). The BE-gated compose review can't show a real fee zero-C# → this
+   * placeholder stands in until the fee-push BE ask lands. composeSend is OFF in
+   * production, so this never faces a user in v1. */
+  const WALLET_FEE_ESTIMATE = 0;
+
+  /* setAddress delivers `new ExtendedAddress(primary, OfflineTag, null).ToString()`
+   * (HomePage.xaml.cs:673). Empirically the legacy pages (address.html,
+   * wallet_request.html) use that string verbatim as the wallet id and append `:ixi`
+   * for the QR — i.e. ToString() is the bare base58 address; OfflineTag is a C#-side
+   * payment flag, not part of the string. Defensive extraction anyway: strip anything
+   * from the first ':' (mirrors the legacy QR parse, bridge-audit-A:200 — "if payload
+   * contains :ixi take the prefix as wallet"), so we never double-suffix the
+   * component's own `:ixi`. NEEDS BE CONFIRMATION (be-cutover W-series). */
+  function cleanReceiveAddress(raw) {
+    // Use the pushed address VERBATIM (legacy address.html/wallet_request.html do —
+    // ExtendedAddress.ToString() is a bare base58 address, no colon). An earlier
+    // split-on-`:` was riskier than legacy for zero benefit: if the string ever
+    // carried a `:` it would truncate the address in the QR = a wrong receiving
+    // address (audit MINOR, Batch 6). The component appends its own `:ixi`. (BE
+    // confirm the ExtendedAddress.ToString() format — be-cutover W7.)
+    return String(raw || '').trim();
+  }
+
   // Money formatting parity (audit M1): the C# bridge sends amounts WITHOUT
   // thousands separators (Utils.amountToHumanFormatString only truncates
   // decimals) — legacy home.js re-applied these in JS (spixi.js:151/436). Port
@@ -19954,10 +21184,96 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     onExplorer: () => bridge.send('ixian:explorer'),
   };
 
+  /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
+   * onReceive opens the redesigned c-wallet-receive OVER the wallet view instead of
+   * pushing the native WalletReceivePage. QR of the own address (`address:ixi`, the
+   * legacy wallet_request format the component builds), an honest copy morph, the
+   * request-an-amount reveal (re-encodes the QR to `address:send:amount` CLIENT-SIDE —
+   * no bridge), and Share. Own back closes it — never an ixian: nav verb.
+   * NOTE: the "send request to a contact" strip is intentionally NOT wired here —
+   * its `ixian:sendrequest` verb belongs to WalletReceivePage, NOT HomePage (dead on
+   * this tab → a false "sent"), so onSendRequest is omitted and the component hides
+   * the strip (audit MAJOR, Batch 6). Request-to-contact from the home wallet tab
+   * needs a HomePage-dispatched verb (be-cutover W8).
+   * FALLBACK: if setAddress hasn't arrived yet (address empty), delegate to the native
+   * WalletReceivePage so Receive is never broken. */
+  let walletTakeover = null;                                  // one Receive/Send takeover open at a time
+  function mountWalletReceive() {
+    if (walletTakeover) return;                               // double-open guard
+    const addr = cleanReceiveAddress(walletOwnAddress);
+    if (!addr) { bridge.send('ixian:receiveixi'); return; }   // own address not pushed yet → native
+    const over = document.createElement('div');
+    over.className = 'wallet-takeover';
+    walletTakeover = over;
+    const close = () => { over.remove(); walletTakeover = null; };
+    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    over.append(createTopbar({
+      variant: 'view', title: tkStrings.receiveTitle || 'Receive',
+      backLabel: tkStrings.back || 'Back', onBack: close,
+    }));
+    const body = document.createElement('div');
+    body.className = 'wallet-takeover__body u-scroll';
+    body.append(createWalletReceive({
+      address: addr,
+      strings: tkStrings, host: document.body,
+      // No native share bridge verb exists (§9 ask). Use the Web Share API where the
+      // WebView provides it; otherwise degrade to a clipboard copy of the payload —
+      // never invent a verb. (The component also has its own address-copy affordance.)
+      onShare: ({ value }) => {
+        if (navigator.share) { navigator.share({ text: value }).catch(() => {}); }
+        else if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(value); }
+      },
+      // onSendRequest OMITTED — see docblock (no HomePage ixian:sendrequest verb).
+    }));
+    over.append(body);
+    document.body.append(over);
+  }
+
+  /* ——— Send compose/review takeover (BE-GATED — built + wired, OFF in v1) ————————
+   * SECURITY.md: no keys/signing in the WebView — C# signs. So the redesigned compose
+   * only goes live once BE lands a signed handoff verb (proposed `ixian:signSend:<addr>:
+   * <amount>`, §8) + a fee push to this tab. Until then `bridge.cap('composeSend')` is
+   * false and onSend keeps the LIVE native signed flow (ixian:sendixi → WalletSendPage),
+   * so v1 is unchanged/working. The compose NEVER emits ixian:sendixi at the end (that
+   * would just reopen the native compose blank) — it emits the gated sign verb only. */
+  function mountWalletSend() {
+    if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // v1: native signed send
+    if (walletTakeover) return;                               // double-open guard
+    const over = document.createElement('div');
+    over.className = 'wallet-takeover';
+    walletTakeover = over;
+    const close = () => { over.remove(); walletTakeover = null; };
+    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    over.append(createTopbar({
+      variant: 'view', title: tkStrings.sendTitle || 'Send',
+      backLabel: tkStrings.back || 'Back', onBack: close,
+    }));
+    const body = document.createElement('div');
+    body.className = 'wallet-takeover__body u-scroll';
+    body.append(createWalletSend({
+      contacts: contactsRoster,
+      balance: walletRawBalance || 0,    // RAW numeric from setBalance (money math needs un-grouped)
+      fee: WALLET_FEE_ESTIMATE,          // placeholder — no home-tab fee push (BE ask)
+      strings: tkStrings, host: document.body,
+      onQuickScan: () => bridge.send('ixian:quickscan'),   // scan-result routing wired with the composeSend BE work
+      // review Confirm → the NEW §8 signed handoff verb (does NOT exist yet). C# signs
+      // the pre-composed tx and takes over the native confirm/broadcast → fire-and-forget,
+      // resolve optimistically (real done/fail on sign result lands with the verb).
+      onSend: (payload, ctrl) => {
+        const r = (payload.recipients && payload.recipients[0]) || {};
+        bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
+        ctrl.done();
+      },
+      onDone: () => close(),             // success morph finished → close the takeover
+    }));
+    over.append(body);
+    document.body.append(over);
+  }
+
   const hero = createWalletHero({
     strings: walletStrings,
-    onSend: () => bridge.send('ixian:sendixi'),            // native signed send flow (SECURITY.md)
-    onReceive: () => bridge.send('ixian:receiveixi'),      // native receive flow
+    onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
+    onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
     onScan: () => bridge.send('ixian:quickscan'),
     // hero toggles its own state, then reports it → persist server-side (home.js toggleBalance)
     onToggleHidden: (hidden) => bridge.send('ixian:balance:' + (hidden ? 'hide' : 'show')),
@@ -20025,21 +21341,31 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * it once the user (or selectTab) opens tab3 → HomePage.loadApps flushes clearApps
    * then addApp(...) per installed app (HomePage.xaml.cs:1554-1567).
    *
-   * v1 interaction (spec §2.1 + legacy AppsPage parity): a row TAP opens the app's
-   * DETAILS page (ixian:appDetails:<id> → AppDetailsPage), which owns launch
-   * (single vs multi) + uninstall + permissions. Inside HomePage `ixian:details:`
-   * is CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
-   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the
-   * ⋮ list menu (list-scoped uninstall has no bridge verb) are deferred to the
-   * dedicated standalone apps-shell repoint — see docs/be-cutover-brief.md.
+   * v1 interaction (mobile; spec §2.1 + legacy AppsPage parity): a row TAP LAUNCHES
+   * the app — single-user → ixian:startApp:<id> (MiniAppPage), multi-user →
+   * ixian:startAppMulti:<id> (WalletRecipientPage picker); "both flags" → single
+   * (bridge-audit-A.md:271-273). A trailing ⓘ info button opens the app's DETAILS
+   * page (ixian:appDetails:<id> → AppDetailsPage), which owns launch-mode + uninstall
+   * + permissions (covers uninstall for v1). Inside HomePage `ixian:details:` is
+   * CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
+   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the ⋮ list
+   * menu (list-scoped uninstall has no bridge verb — A1) are deferred to the dedicated
+   * standalone apps-shell repoint — see docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
   const appsState = { apps: [], query: '', layout: 'list' };
   const appsOpts = {
     strings, host: document.body,
-    // primary tap → the app's details page (launch/uninstall/permissions live there)
-    onLaunch: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
+    // primary tap → LAUNCH. single → ixian:startApp; multi → ixian:startAppMulti;
+    // both flags → single. C# owns launch (native picker for multi) — SECURITY.md OK.
+    onLaunch: (app) => {
+      if (!app || app.id == null || app.id === '') return;
+      const multi = !!app.isMultiUser && !app.isSingleUser;
+      bridge.send('ixian:' + (multi ? 'startAppMulti' : 'startApp') + ':' + app.id);
+    },
+    // ⓘ info → the app's details page (launch-mode + uninstall + permissions live there).
+    onOpen: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
     onModelChange: () => {},
-    appMenu: false,   // no ⋮ in v1 (its actions have no honest home-tab bridge home)
+    appMenu: false,   // no ⋮ in v1 — the ⓘ info button covers details/uninstall
   };
 
   // Apps topbar — root style + an Add action (→ legacy AppNewPage).
@@ -20051,12 +21377,16 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const appsScroll = document.getElementById('apps-scroll');
   const appsList = createAppsList(appsState, appsOpts);
 
-  // Header = search (client-side) + list⇄grid toggle (in-memory). The component also
-  // renders an Explore/Discover banner; it's hidden via CSS while Discover is parked.
+  // Header = search (client-side) + list⇄grid toggle (in-memory) + the Explore banner.
+  // Explore → apps.spixi.io in the EXTERNAL browser (ixian:spixiAppsLink, HomePage:278
+  // → Browser.OpenAsync). It does NOT navigate this WebView away, so the shell stays
+  // intact. (Phase 1: a direct web link; an in-app Discover feed is the standalone
+  // apps-shell repoint — be-cutover A2.)
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
+    onExplore: () => bridge.send('ixian:spixiAppsLink'),
   });
   document.getElementById('apps-header').append(appsHeader);
   appsScroll.append(appsList);
@@ -20246,6 +21576,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // (Utils.amountToHumanFormatString truncates decimals only). Group them like
     // legacy home.js:84-87 (amountWithCommas), and prefix fiat with "$".
     setBalance(balance, fiatBalance, _nick) {
+      walletRawBalance = balance || '';   // RAW (un-grouped) — the Send compose does money math on it
       setWalletBalance(hero, {
         balance: balance ? amountWithCommas(balance) : '',
         fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + amountWithCommas(fiatBalance) : '',
@@ -20311,13 +21642,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // `icon` is a local file path that does NOT resolve in the self-contained shell
     // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
     // to a deterministic gradient tile. `publisher` → the creator subtitle (real
-    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) are accepted for
-    // signature parity but unused in v1: tap → appDetails, where launch mode is chosen.
+    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) drive the launch
+    // verb picked by onLaunch (startApp vs startAppMulti).
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
       appsState.apps.push({
         id: id || '',
         name: name || '',
         creator: publisher || '',
+        isSingleUser: isSingleUser === 'true' || isSingleUser === 'True' || isSingleUser === true,
+        isMultiUser: isMultiUser === 'true' || isMultiUser === 'True' || isMultiUser === true,
         // icon path ignored (won't resolve) → deterministic gradient placeholder
       });
       scheduleAppsRender();
@@ -20325,17 +21658,35 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
-    setAddress() { dbg('setAddress'); },
+    // Own primary receiving address (ExtendedAddress+OfflineTag .ToString(), HomePage:673).
+    // Stored for the Receive/Send takeovers; cleaned at use (cleanReceiveAddress).
+    setAddress(extendedAddress) { walletOwnAddress = String(extendedAddress || '').trim(); },
     setVersion() { dbg('setVersion'); },
-    // clearContacts/addContact feed the contacts DIRECTORY roster (loadContacts,
-    // xaml:829-862) — a SEPARATE surface from the chats list. The chats list is
-    // fed by clearChats/addChat/clearChatsDone (loadChats); a friend with no
-    // messages appears in the directory but NOT in chats (getFriendMessageHelper
-    // returns null, xaml:869). The redesign routes the directory to its own
-    // surface (topbar Contacts → ixian:newcontact today; Track D contacts shell
-    // later), so these are intentionally dropped here — NOT wired into tab1.
-    addContact() { dbg('addContact (directory roster — not the chats list)'); },
-    clearContacts() { dbg('clearContacts (directory roster — not the chats list)'); },
+    // clearContacts/addContact/noContacts feed the contacts DIRECTORY roster
+    // (loadContacts, bridge-audit-A.md:294) — a SEPARATE surface from the chats
+    // list. The chats list is fed by clearChats/addChat/clearChatsDone (loadChats);
+    // a friend with no messages is in the directory but NOT in chats
+    // (getFriendMessageHelper returns null, xaml:869). The redesign routes the
+    // directory to the contacts takeover (FAB purpose 'start' + topbar Contacts
+    // purpose 'directory'), NOT tab1 — so these fill contactsRoster, not state.chats.
+    //   addContact(address, nickname, avatar, online, unreadCount)  (HomePage
+    //   signature — NOTE: 5th arg is unreadCount, NOT the WalletRecipientPage
+    //   `type`; so the directory carries no group/bot type and no pending flag —
+    //   §9 asks. Unread is not surfaced in the picker → ignored.)
+    clearContacts() { contactsRoster = []; scheduleContactsRender(); },
+    addContact(address, nickname, avatar, online, _unread) {
+      if (!address) return;
+      contactsRoster.push({
+        address,
+        name: nickname || '',
+        avatar: resolveAvatar(avatar),
+        online: online === 'true' || online === 'True',
+        // type/pending absent from the HomePage roster (§9) → normal row, no badge
+      });
+      scheduleContactsRender();
+    },
+    // empty friend list (loadContacts, xaml:537) → the picker's noContacts state.
+    noContacts() { contactsRoster = []; scheduleContactsRender(); },
     selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },
@@ -20354,7 +21705,18 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    *    could arrive empty and only a manual refresh fixed it. Deferring to the
    *    window 'load' event makes C# receive the ready signal at the right time,
    *    so real chats populate on first entry. ———————————————————————————————— */
-  function signalReady() { bridge.ready(); }
+  function signalReady() {
+    // Fix #8 — boot to the chats tab. HomePage keeps `currentTab` on its persistent
+    // instance and echoes selectTab(currentTab) on EVERY reload, including the
+    // regenerate-index.html reload after SettingsPage pops (HomePage.xaml.cs:667). If
+    // the user was on Apps (currentTab=tab3) that echo drops them on an EMPTY apps view
+    // after Save. Reset currentTab to tab1 BEFORE onload so the ensuing selectTab
+    // lands on chats. tab1 has no C# loader side effect (HomePage.xaml.cs:300). The
+    // rAF gap serializes the two location.href sends — a synchronous double-set would
+    // drop the first (native.js emits via location.href, no queue).
+    bridge.send('ixian:tab:tab1');
+    requestAnimationFrame(() => bridge.ready());
+  }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

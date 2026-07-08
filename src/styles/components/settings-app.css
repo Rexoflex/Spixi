@@ -5,7 +5,9 @@
 
 .c-settings-dl,
 .c-settings-dev,
-.c-settings-contrib {
+.c-settings-contrib,
+.c-settings-about,
+.c-settings-howto {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -151,4 +153,115 @@
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
   font-weight: var(--font-weight-semibold);
+}
+
+/* —— about —— */
+.c-settings-about__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  text-align: center;
+  padding-block: var(--spacing-16);
+}
+.c-settings-about__logo {
+  width: 64px;                        /* art-slot disc (backup-hero precedent) */
+  height: 64px;
+}
+.c-settings-about__app-name {
+  margin: 0;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  color: var(--text-neutral-01);
+}
+.c-settings-about__tagline {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-settings-about__version {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings-about__desc { text-align: start; }
+.c-settings-about__legal {
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+}
+
+/* —— link rows (about / how-to) —— */
+.c-settings-links__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 52px;                   /* settings-row parity (#149②) */
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  text-align: start;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+button.c-settings-links__row {
+  cursor: pointer;
+  border-radius: var(--radius-12);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  button.c-settings-links__row:hover { background: var(--surface-interactive-hover); }
+}
+button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }
+.c-settings-links__row--static { flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+.c-settings-links__label { flex: 1; font-weight: var(--font-weight-semibold); }
+.c-settings-links__url {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* —— how to use —— */
+.c-settings-howto__intro { text-align: start; }
+.c-settings-howto__steps { padding: var(--spacing-4); }
+.c-settings-howto__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+}
+.c-settings-howto__step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--text-action-default);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-label-md);
+}
+.c-settings-howto__step-text { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
+.c-settings-howto__step-title {
+  color: var(--text-neutral-01);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-settings-howto__step-body {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
 }

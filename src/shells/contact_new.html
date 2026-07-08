@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Add contact</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/contacts-shell.css">
+<style>
+  /* Production shell: fill the WebView. contact_new.html is loaded by the C#
+     ContactNewPage (PUSHED, not a home tab) — the c-contacts-add panel provides
+     its own topbar (variant 'view') with a back button, so no separate chrome. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #add-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #add-root > * { flex: 1; min-height: 0; }
+  /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
+     parse / before first render (mirrors contact_details.html); the first
+     replaceChildren render swaps it out, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="add-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Add-contact shell — the redesigned ContactNewPage, wired to the
+   * REAL C# MAUI bridge (native.js in the bundle). Reached from the home shell's
+   * contacts takeover (Add contact → ixian:newcontact → C# pushes ContactNewPage,
+   * which loads this file). ZERO C# change, frozen bridge.
+   *
+   * Contract (bridge-audit-A.md §3, ContactNewPage.xaml.cs):
+   *   JS→C#: ixian:onload · ixian:checkAddress:<addr> · ixian:request:<addr> ·
+   *          ixian:quickscan · ixian:back.
+   *   C#→JS: setAddress(address)   [constructor preset (wal_id) + QR-scan result]
+   *          onValidAddress()      [checkAddress success — SILENT on failure]
+   *
+   * TWO deliberate divergences from legacy contact_new.html (flagged in the report):
+   *   1. NO ixian:error. Legacy emitted it to trigger a native alert on a bad
+   *      address; createAddContact gates length/format locally (20–128, the QR
+   *      accept window) and shows an INLINE error before ever reaching the bridge
+   *      — honest copy, no alert (native-bridge divergence #2 precedent).
+   *   2. Send request is INDEFINITE loading, resolved by NAVIGATION, not a push.
+   *      C# onRequest validates + rejects self/existing, adds RequestSent, sends
+   *      the request, then fires pickSucceeded OR POPS (bridge-audit-A.md:198) —
+   *      success destroys this WebView, so we never call ctrl.done(). On FAILURE
+   *      (self / already-a-contact) C# shows a NATIVE ALERT and does NOT navigate
+   *      or push anything back → the button stays latched in "loading" forever.
+   *      This is the known wedge (launch create parity, #185 L1). BE ask: a
+   *      failure push (e.g. onRequestFailed(msg)) so the shell can restore the
+   *      button + show inline copy.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createAddContact, setAddContactAddress,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  const root = document.getElementById('add-root');
+
+  // Latest live-validation ctrl — checkAddress is async + debounced (the component
+  // may issue several before a reply). C# answers ONLY on success via onValidAddress()
+  // (silent on failure), so we keep the most recent ctrl and resolve it there; the
+  // component's own stale-reply guard (input value unchanged, not in-flight) decides
+  // whether the ✓ actually shows.
+  let pendingValidCtrl = null;
+
+  const addEl = createAddContact({
+    strings,
+    onBack: () => bridge.send('ixian:back'),
+
+    // live validity — ixian:checkAddress:<addr>. Success → onValidAddress() → ✓.
+    onCheckAddress: (addr, ctrl) => { pendingValidCtrl = ctrl; bridge.send('ixian:checkAddress:' + addr); },
+
+    // send request — ixian:request:<addr>. Success = C# pops this page (WebView torn
+    // down → the guard timer below never fires). A C# rejection (self / already a
+    // contact) shows a native alert with NO push back, which would otherwise leave
+    // Send latched in loading forever (the wedge). So arm a grace-period fallback
+    // that restores the button with soft copy. (A proper onRequestFailed(msg) push
+    // is the clean BE fix — be-cutover.)
+    onSendRequest: (addr, ctrl) => {
+      bridge.send('ixian:request:' + addr);
+      setTimeout(() => {
+        try { ctrl.fail(strings.requestMaybeFailed
+          || 'If nothing happened, that address may already be a contact or invalid.'); } catch (_) {}
+      }, 6000);
+    },
+
+    // scan → native ScanPage (ixian:quickscan); the result returns via setAddress.
+    onScan: () => bridge.send('ixian:quickscan'),
+
+    // onOpened never fires here (success navigates away before ctrl.done()); kept
+    // for the standalone/demo path where a request resolves in-page.
+  });
+  root.replaceChildren(addEl);   // replaces the boot spinner on first render
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const handlers = {
+    // constructor preset (ContactNewPage(wal_id)) + QR-scan result → prefill +
+    // re-run live validation (setAddContactAddress no-ops during an in-flight send).
+    setAddress(address) { setAddContactAddress(addEl, address || ''); },
+    // checkAddress success — reveal the ✓ affordance via the pending ctrl, then
+    // NULL it so a second (stale) onValidAddress can't re-resolve a consumed ctrl.
+    // Exact correlation (which address C# validated) needs a BE onValidAddress(addr)
+    // — logged; the component's own input-unchanged guard covers the common case.
+    onValidAddress() { if (pendingValidCtrl) { pendingValidCtrl.done(); pendingValidCtrl = null; } },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
+   *    invariant): firing during parse races C#'s preset setAddress push. ——————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

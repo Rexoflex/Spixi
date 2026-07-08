@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Contact</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
+<link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- payments accordion rows -->
+<link rel="stylesheet" href="../styles/components/chat-info.css">
+<style>
+  /* Production shell: fill the WebView. contact_details.html is loaded by the C#
+     ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
+     its own topbar (variant 'view') with a back button, so no separate chrome. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #contact-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #contact-root > * { flex: 1; min-height: 0; }
+  /* Boot state: shown until the FIRST coalesced commit lands, so we never paint an
+     empty panel that flashes to filled ~120ms later (the flicker fix). A lightweight
+     centered spinner — replaced wholesale by the real panel on first render. */
+  .contact-boot { display: flex; align-items: center; justify-content: center; }
+  .contact-boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: contact-boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="contact-root">
+    <div class="contact-boot"><div class="contact-boot__spinner" role="status" aria-label="Loading"></div></div>
+  </div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Contact-details / chat-info shell — the redesigned 1:1 contact
+   * surface wired to the REAL C# MAUI bridge (native.js in the bundle). Reached
+   * by tapping a 1:1 chat header (SingleChatPage emits ixian:details → C# pushes
+   * ContactDetails, which loads this file). ONE component (createChatInfo) also
+   * powers the in-chat GROUP info takeover (src/shells/chat.html).
+   *
+   * ARCHITECTURE §5 / bridge-audit-A §2 (ContactDetails.xaml.cs). ZERO C# change,
+   * frozen bridge — every action is an existing legacy `ixian:` verb.
+   *
+   * Contract (verified ContactDetails.xaml.cs):
+   *   C#→JS: setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
+   *          ["" = none] · showIndicator("true"|"false") · clearRecentActivity()
+   *          · addPaymentActivity(txid, type, time, amount, confirmed)  (5-arg;
+   *          type = LOCALIZED "Sent"/"Received"; confirmed "true"|"error").
+   *   JS→C#: ixian:onload · ixian:back · ixian:remove (remove contact) ·
+   *          ixian:removehistory · ixian:request · ixian:send · ixian:chat ·
+   *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick>.
+   *
+   * CONTEXT CHOICE (deviation from the task's "context 'contact'", flagged):
+   *   we render with context 'chat', kind 'contact'. Reason: this page is the
+   *   1:1 chat-info surface (opened from the chat header), and ONLY context
+   *   'chat' renders BOTH "Delete chat history" (ixian:removehistory) AND
+   *   "Remove contact" (ixian:remove) — matching legacy contact_details.html.
+   *   Per spec #142 the 'contact' context deliberately DROPS delete-history, so
+   *   using it would silently lose a legacy feature; editing the component to add
+   *   delete-history to 'contact' would contradict #142. context 'chat' is the
+   *   only spec-compliant way to cover both destructive actions here.
+   *   Trade-off: the leading "Message" (open-chat) button + "Contact info" title
+   *   belong to 'contact' context and are absent — acceptable, since you reach
+   *   this from inside the chat (ixian:chat would just pop back). See handoff.
+   *
+   * UPDATE CHURN: C#'s updateScreen() re-pushes setNickname + setAvatar +
+   *   showIndicator EVERY SECOND, and clears + re-adds the WHOLE tx list every
+   *   second. A naive rebuild-per-push would wipe an in-progress nickname edit,
+   *   the open payments accordion, and scroll position every tick. So pushes are
+   *   coalesced (settle timer) and the panel is rebuilt ONLY when the meaningful
+   *   state (name / address / tx set) actually CHANGES — and never while a
+   *   nickname edit is open. avatar/presence are stored but don't trigger a
+   *   rebuild (the component renders neither today — see gaps).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createChatInfo, formatIxiAmount,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  const dbg = (...a) => { try { console.debug('[contact-details]', ...a); } catch (_) {} };
+  const asBool = (v) => v === 'True' || v === 'true' || v === true;
+
+  const root = document.getElementById('contact-root');
+
+  /* —— contact state — flushed by ContactDetails.onLoad + updateScreen (1/sec) —— */
+  const state = {
+    name: '',            // friend.nickname (display name; incorporates any user-defined nick)
+    address: '',
+    online: false,       // showIndicator — NOT rendered by the component yet (gap), no rebuild
+    avatarPath: null,    // setAvatar — NOT rendered in the hero (gradient fallback, repo-wide), no rebuild
+    txs: [],             // committed tx rows (txlist-item opts)
+    txsBuf: null,        // accumulator between clearRecentActivity and the settle
+  };
+
+  /** Resolve a C# avatar arg to an <img> src or null (same rule as the other
+   *  shells). Not consumed by the hero today — avatars fall back to a gradient
+   *  repo-wide — but resolved + stored for when the component grows a hero image. */
+  function resolveAvatar(path) {
+    if (!path) return null;
+    const p = String(path).replace(/\\/g, '/');
+    if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') return null;
+    return p;
+  }
+
+  /* Best-effort direction from the LOCALIZED tx type ("Sent"/"Received"). C#
+   * sends a localized string, not an enum (a fragile signal — flagged as a BE
+   * ask). Compare against the shell's own localized words, then a multilingual
+   * "received" stem, else default to outgoing. The row LABEL always shows the
+   * verbatim C# string, so a wrong arrow never mislabels the row. */
+  function txDirection(typeText) {
+    const t = String(typeText || '').trim().toLowerCase();
+    if (!t) return 'out';
+    const recv = (strings.received || 'received').toLowerCase();
+    const sent = (strings.sent || 'sent').toLowerCase();
+    if (t === recv) return 'in';
+    if (t === sent) return 'out';
+    if (/receiv|empfang|recib|reçu|ricev|получ|recebid|受信|接收/.test(t)) return 'in';
+    return 'out';
+  }
+
+  /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
+  let built = false;
+  let lastSig = '';
+
+  function buildPanel() {
+    return createChatInfo({
+      kind: 'contact',
+      context: 'chat',                 // see CONTEXT CHOICE — renders delete-history + remove-contact
+      name: state.name,
+      address: state.address,
+      avatarSeed: state.address,       // identity-stable gradient hue even before the name lands
+      nickname: '',                    // no separate wire-name vs override signal; name = display name,
+                                       // edit prefills empty w/ name as placeholder (empty = clear override)
+      txs: state.txs,
+      capabilities: { presence: state.online },   // notifications/media/selfDestruct OFF: no bridge verb (§9)
+      host: document.body,             // confirm modals / QR-adjacent sheets attach to the page body
+      strings,
+
+      onBack: () => bridge.send('ixian:back'),
+
+      // nickname → local user-defined override (ixian:userdefinednick). Empty clears it.
+      // C# re-pushes friend.nickname on the next tick, so the display self-heals.
+      onNickname: (nick, ctrl) => { bridge.send('ixian:userdefinednick:' + nick); ctrl.done(); },
+
+      // money — these open the NATIVE C# wallet pages (the "C# signs" path, SECURITY.md):
+      //   Pay → WalletSendPage · Request → WalletReceivePage. No in-page compose.
+      onPay: () => bridge.send('ixian:send'),
+      onRequest: () => bridge.send('ixian:request'),
+
+      // payment activity row tap → native tx detail (WalletSentPage).
+      onTx: (tx) => { if (tx && tx.txid) bridge.send('ixian:txdetails:' + tx.txid); },
+
+      // destructive — fire-and-forget INTENT after the FE confirm (oneShot latch).
+      // C# runs its OWN native alert / removal on receipt (settings-delete pattern):
+      //   removehistory → deletes local history + alert · remove → removes the
+      //   contact (bots: pendingDeletion + sendLeave) then popToRoot.
+      onDeleteHistory: (ctrl) => { bridge.send('ixian:removehistory'); ctrl.done(); },
+      onRemoveContact: (ctrl) => { bridge.send('ixian:remove'); ctrl.done(); },
+    });
+  }
+
+  function rebuildPanel() {
+    // preserve the body scroll position across a rebuild (tx-list churn).
+    const prevBody = root.querySelector('.c-chat-info__body');
+    const top = prevBody ? prevBody.scrollTop : 0;
+    root.replaceChildren(buildPanel());
+    const nb = root.querySelector('.c-chat-info__body');
+    if (nb) nb.scrollTop = top;
+    built = true;
+  }
+
+  // Signature of the state that actually AFFECTS the rendered panel (name,
+  // address, tx set). avatar/presence excluded — the component renders neither,
+  // so they must not force a rebuild (and wipe an edit / the accordion).
+  function stateSig() {
+    return JSON.stringify({
+      name: state.name,
+      address: state.address,
+      txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
+    });
+  }
+  function buildIfChanged() {
+    const sig = stateSig();
+    if (built && sig === lastSig) return;                 // C# re-pushed identical data — no-op
+    // never wipe an in-progress nickname edit; defer until it closes.
+    if (built && root.querySelector('.c-chat-info__nick-input')) { scheduleCommit(); return; }
+    lastSig = sig;
+    rebuildPanel();
+  }
+
+  /* Coalesce the per-second updateScreen burst (setNickname + setAvatar +
+   * showIndicator + clearRecentActivity + addPaymentActivity×N — each a separate
+   * EvaluateJavaScriptAsync frame) into ONE commit + change check, so partial tx
+   * lists never paint. 120ms settles comfortably inside the 1s tick. */
+  let commitTimer = 0;
+  function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120); }
+  function commitAndBuild() {
+    if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
+    buildIfChanged();
+  }
+
+  /* NO empty first paint (flicker fix): the boot spinner (in #contact-root markup)
+   * stays until the FIRST coalesced commit lands via scheduleCommit — rebuildPanel's
+   * replaceChildren then swaps it for the filled panel in ONE render. `built` is still
+   * false, so buildIfChanged builds unconditionally on that first commit. A brand-new
+   * contact with no data still resolves: ContactDetails.onLoad always pushes setAddress
+   * + updateScreen (→ scheduleCommit), and this fallback timer force-builds even if a
+   * push never arrives, so the screen can never hang on the spinner. */
+  setTimeout(() => { if (!built) commitAndBuild(); }, 1200);
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const handlers = {
+    setAddress(address) { state.address = address || ''; scheduleCommit(); },
+    setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
+    // avatar path doesn't resolve in the self-contained shell (repo-wide flag) and
+    // the c-chat-info hero has no image slot yet → stored, gradient fallback shown.
+    setAvatar(path) { state.avatarPath = resolveAvatar(path); },
+    // presence — stored; c-chat-info renders no presence line today (component gap).
+    showIndicator(online) { state.online = asBool(online); },
+
+    // tx list is cleared + fully re-pushed every second. Buffer between clear and
+    // the settle so a partial list never commits.
+    clearRecentActivity() { state.txsBuf = []; scheduleCommit(); },
+    addPaymentActivity(txid, type, time, amount, confirmed) {
+      const dir = txDirection(type);
+      if (state.txsBuf === null) state.txsBuf = [];
+      state.txsBuf.push({
+        txid: txid || '',
+        direction: dir,
+        // confirmed "true" → confirmed; anything else ("error" = ActivityStatus
+        // != Final) → pending (still confirming). C# collapses pending+error into
+        // one "error" string — a real status enum is a BE ask.
+        status: asBool(confirmed) ? 'confirmed' : 'pending',
+        name: type || '',                                   // verbatim localized "Sent"/"Received" label
+        amount: (dir === 'in' ? '+' : '-') + formatIxiAmount(amount),
+        timeText: time || '',                               // pre-formatted display string, shown verbatim
+      });
+      scheduleCommit();
+    },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
+   *    invariant): firing during parse races C#'s first push. ————————————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

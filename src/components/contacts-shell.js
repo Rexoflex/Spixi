@@ -157,6 +157,9 @@ function pickerRow(c, st) {
 function renderPickerList(st) {
   const { list, empty } = st.els;
   const { strings } = st.opts;
+  // preserve scroll across a full rebuild — the directory roster re-flushes on
+  // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
+  const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
   const matches = sortedContacts(st.contacts).filter((c) => !needle
@@ -182,6 +185,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
 function syncNext(st) {
@@ -350,6 +354,21 @@ const addState = new WeakMap(); // el → { input, validate }
 
 const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
+// Base58 alphabet (Bitcoin/Ixian — no 0 O I l). Local pre-submit sanity so obviously
+// invalid input (spaces, punctuation, wrong length) shows the INLINE error and NEVER
+// reaches ixian:request — which would otherwise trigger a C# native invalid-address
+// alert + leave Send wedged (bridge-audit-A.md:198). ExtendedAddress does the
+// authoritative check server-side; the C# self/duplicate rejection still round-trips
+// (recovered by the 6s grace in contact_new.html).
+// Length + no-whitespace only — deliberately NOT a base58/charset gate. Ixian's
+// current address encoding (and any newer payment-gateway address types) is not
+// verified here, so a strict alphabet could REJECT valid addresses. C#'s
+// ExtendedAddress is the authoritative validator; this local gate only blocks
+// OBVIOUS garbage (empty / too short / too long / contains whitespace) so a clear
+// typo shows an inline error instead of the native alert. (Damir 2026-07-08.)
+function looksLikeAddress(a) {
+  return a.length >= ADDR_MIN && a.length <= ADDR_MAX && !/\s/.test(a);
+}
 
 export function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
@@ -406,13 +425,14 @@ export function createAddContact({
   group.append(err);
 
   body.append(group);
-  el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
+  // Primary CTA directly beneath the address field + helper/error line (was pinned to
+  // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
+  // in the scroll body right under the group card (body gap = spacing-16).
   const sendBtn = createButton({ label: strings.sendRequest || 'Send request', size: 56, width: 'full' });
-  footer.append(sendBtn);
-  el.append(footer);
+  sendBtn.classList.add('c-contacts-add__submit');
+  body.append(sendBtn);
+  el.append(body);
 
   let inFlight = false;
   let checkTimer = 0;
@@ -452,8 +472,9 @@ export function createAddContact({
     if (inFlight || latched) return;
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
-    if (a.length < ADDR_MIN || a.length > ADDR_MAX) {
+    if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
       return;
     }
     setError('');

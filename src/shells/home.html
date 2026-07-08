@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme, so
+     there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -23,10 +32,13 @@
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
+<link rel="stylesheet" href="../styles/components/contacts-shell.css"><!-- contacts picker/directory takeover (FAB + topbar Contacts) -->
 <!-- wallet tab (tab2, ARCHITECTURE §5 — home shell internal view) -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- Receive/Request takeover (zero-C#) -->
+<link rel="stylesheet" href="../styles/components/wallet-send.css"><!-- Send compose/review takeover (BE-gated composeSend) -->
 <!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
 <link rel="stylesheet" href="../styles/components/apps-icon.css">
 <link rel="stylesheet" href="../styles/components/apps-item.css">
@@ -45,15 +57,11 @@
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
-  /* Discover/Explore is PARKED for v1 (apps-shell-spec §2.4 — feed source TBD) →
-     hide the apps header's Explore banner until the standalone apps shell lands. */
-  #apps-view .c-apps-explore { display: none; }
-  /* No per-row ⋮ menu in v1 (its actions have no honest home-tab bridge home; tap →
-     appDetails). appMenu:false suppresses the handler but c-app-item still renders the
-     button element — hide it here so there's no dead/focusable control or tap-zone.
-     Underlying component fix (guard menuBtn creation on onMenu) tracked for the
-     standalone apps-shell repoint. */
-  #apps-view .c-app-item__menu { display: none; }
+  /* Explore banner is VISIBLE (fix #7) → opens apps.spixi.io in the external browser
+     via ixian:spixiAppsLink (HomePage:278, Browser.OpenAsync — does NOT navigate this
+     WebView away). No CSS hide anymore. The per-row ⋮ menu is likewise gone: the
+     component only builds it when onMenu is passed, and the apps tab passes appMenu:false
+     + no onMenu, so no dead/focusable control renders (was CSS-hidden pre-#184). */
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -68,6 +76,29 @@
   }
   @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
   .fab:active { background: var(--surface-action-pressed); }
+  /* Contacts takeover — full-viewport cover mounted OVER the shell (FAB picker +
+     topbar directory). Mirrors chat.html .chat-info-takeover: z-30 sits above the
+     bars but below any sheet/modal it spawns; the c-contacts panel is height:100%
+     → fills this. Closed via its own back button, never an ixian: nav verb. */
+  .contacts-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .contacts-takeover > .c-contacts { flex: 1; min-height: 0; }
+  /* Wallet Receive/Send takeover — full-viewport cover mounted OVER the wallet view
+     (same z-30 boundary as the contacts takeover: above the bars, below any sheet/
+     modal the send review spawns). Own topbar back button closes it; NEVER an
+     ixian: nav verb (Receive/Send are IN this page, not separate C# pages). */
+  .wallet-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .wallet-takeover__body {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: var(--spacing-16);
+  }
 </style>
 </head>
 <body>
@@ -128,18 +159,29 @@
     createChatsHeader, attachChatsCollapse,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
+    mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
     createWalletHero, setWalletBalance, setBalanceHidden,
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
     setChipSelected,
+    createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   const strings = {};
 
-  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -161,15 +203,54 @@
   /* —— topbar (chats) ——————————————————————————————————————————————————————— */
   document.getElementById('chats-topbar').append(createTopbar({
     variant: 'root', title: 'Spixi', logo: true,
-    // Contacts action → legacy directory. `ixian:newcontact` is the closest
-    // real HomePage verb (opens ContactNewPage); v1 focus is the chats list,
-    // so this is a thin bridge send (no in-page directory takeover yet).
-    actions: [{ icon: 'users', label: 'Contacts', onClick: () => bridge.send('ixian:newcontact') }],
+    // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
+    // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
+    actions: [{ icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') }],
   }));
 
-  /* —— FAB → new chat (legacy WalletRecipientPage picker) ————————————————————— */
+  /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
+   * The FAB no longer emits ixian:newchat directly; it opens the picker takeover.
+   * Tap a row → open the 1:1 (ixian:chat). Add contact → ixian:newcontact. Create
+   * group → ixian:newchat (native multi-picker; in-shell group setup deferred —
+   * see contacts-page.js). */
   document.getElementById('fab').append(icon('message-plus'));
-  document.getElementById('fab').addEventListener('click', () => bridge.send('ixian:newchat'));
+  document.getElementById('fab').addEventListener('click', () => openContacts('start'));
+
+  /* —— contacts DIRECTORY roster (loadContacts flush) ————————————————————————
+   * HomePage pushes the FRIEND roster as clearContacts → addContact×N (→
+   * noContacts when empty) every tick it detects a structural change
+   * (shouldRefreshContacts; bridge-audit-A.md:294). This is the contacts
+   * DIRECTORY — distinct from the chats list (loadChats): a friend with no
+   * messages is here but not in tab1. It feeds the FAB picker + topbar Contacts
+   * takeover, NOT tab1. No clearContactsDone signal exists, so coalesce the burst
+   * into one refresh next frame (wallet/apps pattern); if a takeover is open,
+   * re-flush it live via its controller. */
+  let contactsRoster = [];
+  let contactsView = null;           // open takeover controller ({ close, setContacts }) or null
+  let contactsRenderTimer = 0;
+  // RE-ARMING debounce (not rAF): clearContacts→addContact×N arrive as separate
+  // eval frames within one C# tick, so a plain rAF can fire BETWEEN the clear and
+  // the row pushes → the open takeover flashes its "No contacts" empty state for a
+  // frame. An 80ms timer re-armed on every push only fires once the whole burst
+  // settles (there is no clearContactsDone signal for the directory roster).
+  function scheduleContactsRender() {
+    clearTimeout(contactsRenderTimer);
+    contactsRenderTimer = setTimeout(() => {
+      if (contactsView) contactsView.setContacts(contactsRoster);
+    }, 80);
+  }
+
+  /* Open the contacts takeover via the clean bridge boundary (contacts-page.js).
+   * 'start' (FAB): Add contact + Create group; tap = open chat. 'directory'
+   * (topbar): Add contact only; tap = contact details. One open at a time. */
+  function openContacts(purpose) {
+    if (contactsView) contactsView.close();       // onClose nulls the handle
+    contactsView = mountContacts({
+      host: document.body, bridge, strings, purpose,
+      getRoster: () => contactsRoster,
+      onClose: () => { contactsView = null; },
+    });
+  }
 
   /* —— bottom nav —————————————————————————————————————————————————————————— */
   const NAV_ITEMS = [
@@ -414,6 +495,35 @@
    * set (#52 boundary). ————————————————————————————————————————————————————————— */
   const walletState = { txs: [], filter: 'all', query: '' };
 
+  /* Own receiving address (setAddress push, HomePage:673-674) + the RAW (un-grouped)
+   * balance (setBalance) — captured for the Receive/Send takeovers below. The hero
+   * shows the grouped string; the Send compose needs the raw numeric for money math. */
+  let walletOwnAddress = '';
+  let walletRawBalance = '';
+  /* No fee push reaches the home wallet tab (fee lives on the native WalletSendPage
+   * via setFees). The BE-gated compose review can't show a real fee zero-C# → this
+   * placeholder stands in until the fee-push BE ask lands. composeSend is OFF in
+   * production, so this never faces a user in v1. */
+  const WALLET_FEE_ESTIMATE = 0;
+
+  /* setAddress delivers `new ExtendedAddress(primary, OfflineTag, null).ToString()`
+   * (HomePage.xaml.cs:673). Empirically the legacy pages (address.html,
+   * wallet_request.html) use that string verbatim as the wallet id and append `:ixi`
+   * for the QR — i.e. ToString() is the bare base58 address; OfflineTag is a C#-side
+   * payment flag, not part of the string. Defensive extraction anyway: strip anything
+   * from the first ':' (mirrors the legacy QR parse, bridge-audit-A:200 — "if payload
+   * contains :ixi take the prefix as wallet"), so we never double-suffix the
+   * component's own `:ixi`. NEEDS BE CONFIRMATION (be-cutover W-series). */
+  function cleanReceiveAddress(raw) {
+    // Use the pushed address VERBATIM (legacy address.html/wallet_request.html do —
+    // ExtendedAddress.ToString() is a bare base58 address, no colon). An earlier
+    // split-on-`:` was riskier than legacy for zero benefit: if the string ever
+    // carried a `:` it would truncate the address in the QR = a wrong receiving
+    // address (audit MINOR, Batch 6). The component appends its own `:ixi`. (BE
+    // confirm the ExtendedAddress.ToString() format — be-cutover W7.)
+    return String(raw || '').trim();
+  }
+
   // Money formatting parity (audit M1): the C# bridge sends amounts WITHOUT
   // thousands separators (Utils.amountToHumanFormatString only truncates
   // decimals) — legacy home.js re-applied these in JS (spixi.js:151/436). Port
@@ -442,10 +552,96 @@
     onExplorer: () => bridge.send('ixian:explorer'),
   };
 
+  /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
+   * onReceive opens the redesigned c-wallet-receive OVER the wallet view instead of
+   * pushing the native WalletReceivePage. QR of the own address (`address:ixi`, the
+   * legacy wallet_request format the component builds), an honest copy morph, the
+   * request-an-amount reveal (re-encodes the QR to `address:send:amount` CLIENT-SIDE —
+   * no bridge), and Share. Own back closes it — never an ixian: nav verb.
+   * NOTE: the "send request to a contact" strip is intentionally NOT wired here —
+   * its `ixian:sendrequest` verb belongs to WalletReceivePage, NOT HomePage (dead on
+   * this tab → a false "sent"), so onSendRequest is omitted and the component hides
+   * the strip (audit MAJOR, Batch 6). Request-to-contact from the home wallet tab
+   * needs a HomePage-dispatched verb (be-cutover W8).
+   * FALLBACK: if setAddress hasn't arrived yet (address empty), delegate to the native
+   * WalletReceivePage so Receive is never broken. */
+  let walletTakeover = null;                                  // one Receive/Send takeover open at a time
+  function mountWalletReceive() {
+    if (walletTakeover) return;                               // double-open guard
+    const addr = cleanReceiveAddress(walletOwnAddress);
+    if (!addr) { bridge.send('ixian:receiveixi'); return; }   // own address not pushed yet → native
+    const over = document.createElement('div');
+    over.className = 'wallet-takeover';
+    walletTakeover = over;
+    const close = () => { over.remove(); walletTakeover = null; };
+    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    over.append(createTopbar({
+      variant: 'view', title: tkStrings.receiveTitle || 'Receive',
+      backLabel: tkStrings.back || 'Back', onBack: close,
+    }));
+    const body = document.createElement('div');
+    body.className = 'wallet-takeover__body u-scroll';
+    body.append(createWalletReceive({
+      address: addr,
+      strings: tkStrings, host: document.body,
+      // No native share bridge verb exists (§9 ask). Use the Web Share API where the
+      // WebView provides it; otherwise degrade to a clipboard copy of the payload —
+      // never invent a verb. (The component also has its own address-copy affordance.)
+      onShare: ({ value }) => {
+        if (navigator.share) { navigator.share({ text: value }).catch(() => {}); }
+        else if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(value); }
+      },
+      // onSendRequest OMITTED — see docblock (no HomePage ixian:sendrequest verb).
+    }));
+    over.append(body);
+    document.body.append(over);
+  }
+
+  /* ——— Send compose/review takeover (BE-GATED — built + wired, OFF in v1) ————————
+   * SECURITY.md: no keys/signing in the WebView — C# signs. So the redesigned compose
+   * only goes live once BE lands a signed handoff verb (proposed `ixian:signSend:<addr>:
+   * <amount>`, §8) + a fee push to this tab. Until then `bridge.cap('composeSend')` is
+   * false and onSend keeps the LIVE native signed flow (ixian:sendixi → WalletSendPage),
+   * so v1 is unchanged/working. The compose NEVER emits ixian:sendixi at the end (that
+   * would just reopen the native compose blank) — it emits the gated sign verb only. */
+  function mountWalletSend() {
+    if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // v1: native signed send
+    if (walletTakeover) return;                               // double-open guard
+    const over = document.createElement('div');
+    over.className = 'wallet-takeover';
+    walletTakeover = over;
+    const close = () => { over.remove(); walletTakeover = null; };
+    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    over.append(createTopbar({
+      variant: 'view', title: tkStrings.sendTitle || 'Send',
+      backLabel: tkStrings.back || 'Back', onBack: close,
+    }));
+    const body = document.createElement('div');
+    body.className = 'wallet-takeover__body u-scroll';
+    body.append(createWalletSend({
+      contacts: contactsRoster,
+      balance: walletRawBalance || 0,    // RAW numeric from setBalance (money math needs un-grouped)
+      fee: WALLET_FEE_ESTIMATE,          // placeholder — no home-tab fee push (BE ask)
+      strings: tkStrings, host: document.body,
+      onQuickScan: () => bridge.send('ixian:quickscan'),   // scan-result routing wired with the composeSend BE work
+      // review Confirm → the NEW §8 signed handoff verb (does NOT exist yet). C# signs
+      // the pre-composed tx and takes over the native confirm/broadcast → fire-and-forget,
+      // resolve optimistically (real done/fail on sign result lands with the verb).
+      onSend: (payload, ctrl) => {
+        const r = (payload.recipients && payload.recipients[0]) || {};
+        bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
+        ctrl.done();
+      },
+      onDone: () => close(),             // success morph finished → close the takeover
+    }));
+    over.append(body);
+    document.body.append(over);
+  }
+
   const hero = createWalletHero({
     strings: walletStrings,
-    onSend: () => bridge.send('ixian:sendixi'),            // native signed send flow (SECURITY.md)
-    onReceive: () => bridge.send('ixian:receiveixi'),      // native receive flow
+    onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
+    onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
     onScan: () => bridge.send('ixian:quickscan'),
     // hero toggles its own state, then reports it → persist server-side (home.js toggleBalance)
     onToggleHidden: (hidden) => bridge.send('ixian:balance:' + (hidden ? 'hide' : 'show')),
@@ -513,21 +709,31 @@
    * it once the user (or selectTab) opens tab3 → HomePage.loadApps flushes clearApps
    * then addApp(...) per installed app (HomePage.xaml.cs:1554-1567).
    *
-   * v1 interaction (spec §2.1 + legacy AppsPage parity): a row TAP opens the app's
-   * DETAILS page (ixian:appDetails:<id> → AppDetailsPage), which owns launch
-   * (single vs multi) + uninstall + permissions. Inside HomePage `ixian:details:`
-   * is CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
-   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the
-   * ⋮ list menu (list-scoped uninstall has no bridge verb) are deferred to the
-   * dedicated standalone apps-shell repoint — see docs/be-cutover-brief.md.
+   * v1 interaction (mobile; spec §2.1 + legacy AppsPage parity): a row TAP LAUNCHES
+   * the app — single-user → ixian:startApp:<id> (MiniAppPage), multi-user →
+   * ixian:startAppMulti:<id> (WalletRecipientPage picker); "both flags" → single
+   * (bridge-audit-A.md:271-273). A trailing ⓘ info button opens the app's DETAILS
+   * page (ixian:appDetails:<id> → AppDetailsPage), which owns launch-mode + uninstall
+   * + permissions (covers uninstall for v1). Inside HomePage `ixian:details:` is
+   * CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
+   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the ⋮ list
+   * menu (list-scoped uninstall has no bridge verb — A1) are deferred to the dedicated
+   * standalone apps-shell repoint — see docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
   const appsState = { apps: [], query: '', layout: 'list' };
   const appsOpts = {
     strings, host: document.body,
-    // primary tap → the app's details page (launch/uninstall/permissions live there)
-    onLaunch: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
+    // primary tap → LAUNCH. single → ixian:startApp; multi → ixian:startAppMulti;
+    // both flags → single. C# owns launch (native picker for multi) — SECURITY.md OK.
+    onLaunch: (app) => {
+      if (!app || app.id == null || app.id === '') return;
+      const multi = !!app.isMultiUser && !app.isSingleUser;
+      bridge.send('ixian:' + (multi ? 'startAppMulti' : 'startApp') + ':' + app.id);
+    },
+    // ⓘ info → the app's details page (launch-mode + uninstall + permissions live there).
+    onOpen: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
     onModelChange: () => {},
-    appMenu: false,   // no ⋮ in v1 (its actions have no honest home-tab bridge home)
+    appMenu: false,   // no ⋮ in v1 — the ⓘ info button covers details/uninstall
   };
 
   // Apps topbar — root style + an Add action (→ legacy AppNewPage).
@@ -539,12 +745,16 @@
   const appsScroll = document.getElementById('apps-scroll');
   const appsList = createAppsList(appsState, appsOpts);
 
-  // Header = search (client-side) + list⇄grid toggle (in-memory). The component also
-  // renders an Explore/Discover banner; it's hidden via CSS while Discover is parked.
+  // Header = search (client-side) + list⇄grid toggle (in-memory) + the Explore banner.
+  // Explore → apps.spixi.io in the EXTERNAL browser (ixian:spixiAppsLink, HomePage:278
+  // → Browser.OpenAsync). It does NOT navigate this WebView away, so the shell stays
+  // intact. (Phase 1: a direct web link; an in-app Discover feed is the standalone
+  // apps-shell repoint — be-cutover A2.)
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
+    onExplore: () => bridge.send('ixian:spixiAppsLink'),
   });
   document.getElementById('apps-header').append(appsHeader);
   appsScroll.append(appsList);
@@ -734,6 +944,7 @@
     // (Utils.amountToHumanFormatString truncates decimals only). Group them like
     // legacy home.js:84-87 (amountWithCommas), and prefix fiat with "$".
     setBalance(balance, fiatBalance, _nick) {
+      walletRawBalance = balance || '';   // RAW (un-grouped) — the Send compose does money math on it
       setWalletBalance(hero, {
         balance: balance ? amountWithCommas(balance) : '',
         fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + amountWithCommas(fiatBalance) : '',
@@ -799,13 +1010,15 @@
     // `icon` is a local file path that does NOT resolve in the self-contained shell
     // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
     // to a deterministic gradient tile. `publisher` → the creator subtitle (real
-    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) are accepted for
-    // signature parity but unused in v1: tap → appDetails, where launch mode is chosen.
+    // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) drive the launch
+    // verb picked by onLaunch (startApp vs startAppMulti).
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
       appsState.apps.push({
         id: id || '',
         name: name || '',
         creator: publisher || '',
+        isSingleUser: isSingleUser === 'true' || isSingleUser === 'True' || isSingleUser === true,
+        isMultiUser: isMultiUser === 'true' || isMultiUser === 'True' || isMultiUser === true,
         // icon path ignored (won't resolve) → deterministic gradient placeholder
       });
       scheduleAppsRender();
@@ -813,17 +1026,35 @@
 
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
-    setAddress() { dbg('setAddress'); },
+    // Own primary receiving address (ExtendedAddress+OfflineTag .ToString(), HomePage:673).
+    // Stored for the Receive/Send takeovers; cleaned at use (cleanReceiveAddress).
+    setAddress(extendedAddress) { walletOwnAddress = String(extendedAddress || '').trim(); },
     setVersion() { dbg('setVersion'); },
-    // clearContacts/addContact feed the contacts DIRECTORY roster (loadContacts,
-    // xaml:829-862) — a SEPARATE surface from the chats list. The chats list is
-    // fed by clearChats/addChat/clearChatsDone (loadChats); a friend with no
-    // messages appears in the directory but NOT in chats (getFriendMessageHelper
-    // returns null, xaml:869). The redesign routes the directory to its own
-    // surface (topbar Contacts → ixian:newcontact today; Track D contacts shell
-    // later), so these are intentionally dropped here — NOT wired into tab1.
-    addContact() { dbg('addContact (directory roster — not the chats list)'); },
-    clearContacts() { dbg('clearContacts (directory roster — not the chats list)'); },
+    // clearContacts/addContact/noContacts feed the contacts DIRECTORY roster
+    // (loadContacts, bridge-audit-A.md:294) — a SEPARATE surface from the chats
+    // list. The chats list is fed by clearChats/addChat/clearChatsDone (loadChats);
+    // a friend with no messages is in the directory but NOT in chats
+    // (getFriendMessageHelper returns null, xaml:869). The redesign routes the
+    // directory to the contacts takeover (FAB purpose 'start' + topbar Contacts
+    // purpose 'directory'), NOT tab1 — so these fill contactsRoster, not state.chats.
+    //   addContact(address, nickname, avatar, online, unreadCount)  (HomePage
+    //   signature — NOTE: 5th arg is unreadCount, NOT the WalletRecipientPage
+    //   `type`; so the directory carries no group/bot type and no pending flag —
+    //   §9 asks. Unread is not surfaced in the picker → ignored.)
+    clearContacts() { contactsRoster = []; scheduleContactsRender(); },
+    addContact(address, nickname, avatar, online, _unread) {
+      if (!address) return;
+      contactsRoster.push({
+        address,
+        name: nickname || '',
+        avatar: resolveAvatar(avatar),
+        online: online === 'true' || online === 'True',
+        // type/pending absent from the HomePage roster (§9) → normal row, no badge
+      });
+      scheduleContactsRender();
+    },
+    // empty friend list (loadContacts, xaml:537) → the picker's noContacts state.
+    noContacts() { contactsRoster = []; scheduleContactsRender(); },
     selectMenuOption() { dbg('selectMenuOption'); },
     showWarning() { dbg('showWarning'); },
     showRatingPrompt() { dbg('showRatingPrompt'); },
@@ -842,7 +1073,18 @@
    *    could arrive empty and only a manual refresh fixed it. Deferring to the
    *    window 'load' event makes C# receive the ready signal at the right time,
    *    so real chats populate on first entry. ———————————————————————————————— */
-  function signalReady() { bridge.ready(); }
+  function signalReady() {
+    // Fix #8 — boot to the chats tab. HomePage keeps `currentTab` on its persistent
+    // instance and echoes selectTab(currentTab) on EVERY reload, including the
+    // regenerate-index.html reload after SettingsPage pops (HomePage.xaml.cs:667). If
+    // the user was on Apps (currentTab=tab3) that echo drops them on an EMPTY apps view
+    // after Save. Reset currentTab to tab1 BEFORE onload so the ensuing selectTab
+    // lands on chats. tab1 has no C# loader side effect (HomePage.xaml.cs:300). The
+    // rAF gap serializes the two location.href sends — a synchronous double-set would
+    // drop the first (native.js emits via location.href, no queue).
+    bridge.send('ixian:tab:tab1');
+    requestAnimationFrame(() => bridge.ready());
+  }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

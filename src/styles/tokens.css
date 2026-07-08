@@ -861,17 +861,22 @@
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
-  /* chat canvas — near-darkest base (neutral-950 = "surface-01", Damir 2026-07-07)
-     with a subtle premium glow so it reads gradient-like (Telegram), not flat; the
-     theme-ink line pattern (chat-pattern.css) overlays on top. ✅ "Primary soft"
-     pattern ink locked (2026-07-03). Tune the glow alpha/position here. */
-  --chat-pattern-ink: var(--primary-800);
-  --chat-pattern-opacity: 0.5;
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--neutral-950);
+  /* chat canvas — base = --surface-neutral-01 (resolves to neutral-900 in dark,
+     Damir 2026-07-07) with a subtle premium glow so it reads gradient-like
+     (Telegram), not flat; the theme-ink line pattern (chat-pattern.css) overlays
+     on top. Tune the glow alpha/position here. */
+  /* pattern ink + chat base + sent bubble — Damir exact values 2026-07-07:
+     pattern overlay = hsla(242,76%,72%), chat base = surface-neutral-01,
+     sent bubble = 180deg #353FB7→#2046A7. These are the dark-mode tuning lines. */
+  --chat-pattern-ink: hsla(242, 76%, 72%, 1);
+  /* dark pattern intensity reduced 60% then another 10% (0.5 → 0.2 → 0.18),
+     Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
+     neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
+  --chat-pattern-opacity: 0.18;
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--surface-neutral-01);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
-     (Damir 2026-07-07); white text rides on top. THE line to tune for dark.
-     Deeper end than light so white pops. Damir owns the final palette. */
-  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 100%);
+     (Damir 2026-07-07); white text rides on top. */
+  --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

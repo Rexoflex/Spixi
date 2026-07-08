@@ -966,31 +966,15 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(!!bk.querySelector('.c-settings-backup__hero .c-settings-backup__cta'),
     'the CTA lives ON the hero panel — promise/status/action as one moment (#148③)');
 
+  // R2 (#201): backup fires DIRECTLY — the password modal was removed (theater:
+  // C# ignores the entered password, encrypts with the stored walletpass pref,
+  // be-cutover S12). CTA → onBackup({}, ctrl) with a loading→success morph, NO modal.
   bk.querySelector('.c-settings-backup__cta').click();
-  await sleep(50);
-  const pmodal = [...d.querySelectorAll('.c-modal')].pop();
-  const pin = pmodal.querySelector('.c-settings-backup__pw-input');
-  ok(!!pin && pin.type === 'password', 'CTA opens the password confirm modal');
-  const pbtns = pmodal.querySelectorAll('.c-modal__actions .c-button');
-  pbtns[pbtns.length - 1].click();
-  ok(!bkPayload && !pmodal.querySelector('.c-settings-backup__pw-error').hidden,
-    'empty password → inline error, no bridge call');
-  pin.value = 'wrong';
-  pbtns[pbtns.length - 1].click();
-  ok(bkPayload && bkPayload.password === 'wrong', 'confirm sends the password payload');
-  key(d, 'Escape');
-  ok([...d.querySelectorAll('.c-modal')].includes(pmodal),
-    'Esc dead while the backup round-trips (#135-C1 lock)');
-  bkCtrl.fail();
-  ok(!pmodal.querySelector('.c-settings-backup__pw-error').hidden
-    && [...d.querySelectorAll('.c-modal')].includes(pmodal),
-    'invalid password → INLINE error on the field, modal stays (never an alert)');
-  pin.value = 'right';
-  pbtns[pbtns.length - 1].click();
+  await sleep(20);
+  ok(bkCtrl && bkPayload && !bkPayload.password && !d.querySelector('.c-settings-backup__pw-input'),
+    'CTA fires backup directly (no password modal — theater removed R2)');
   bkCtrl.done();
   await sleep(450);
-  ok(![...d.querySelectorAll('.c-modal')].includes(pmodal),
-    'ctrl.done closes the password modal');
   ok(bk.querySelector('.c-settings-backup__cta').textContent.includes('Backed up'),
     'CTA morphs to "Backed up" (#29 setSuccess)');
   S.setBackupScreenStatus(bk, { last: '5 Jul', dirtyCount: 0 });
@@ -1012,27 +996,23 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   exCtrl.done();
   bhost.remove();
 
-  /* Opus round: Enter-in-field submits the password; the plaintext is scrubbed
-     from the DOM on close (SECURITY.md — no keys/passwords left in the WebView) */
-  let bk2Payload = null, bk2Ctrl = null;
+  /* R2 (#201): backup fires directly (password theater removed) — a thrown
+     onBackup must not wedge the CTA latch (#141-m4), same guard as export below. */
+  let bkThrows = 0;
   const bhost2 = d.createElement('div'); d.body.append(bhost2);
   const bk2 = S.createSettingsBackup({
     status: { last: null, dirtyCount: 0 }, onBack() {},
-    onBackup: (p, ctrl) => { bk2Payload = p; bk2Ctrl = ctrl; },
+    onBackup: () => { bkThrows++; throw new Error('x'); },
   });
   bhost2.append(bk2);
-  bk2.querySelector('.c-settings-backup__cta').click();
-  await sleep(50);
-  const pm2 = [...d.querySelectorAll('.c-modal')].pop();
-  const pin2 = pm2.querySelector('.c-settings-backup__pw-input');
-  pin2.value = 'hunter2';
-  key(pin2, 'Enter');
-  ok(bk2Payload && bk2Payload.password === 'hunter2',
-    'Enter in the password field submits the backup (guarded in-flight)');
-  bk2Ctrl.done();
-  await sleep(450);
-  ok(pin2.value === '',
-    'password is scrubbed from the field on close — no plaintext left in the DOM (SECURITY.md)');
+  const bk2cta = bk2.querySelector('.c-settings-backup__cta');
+  bk2cta.click();
+  await sleep(20);
+  ok(bkThrows === 1 && !bk2cta.querySelector('.c-button__spinner'),
+    'backup: a thrown onBackup unlatches + clears the spinner (#141-m4)');
+  bk2cta.click();
+  await sleep(20);
+  ok(bkThrows === 2, 'backup CTA stays operable after a thrown callback');
   bhost2.remove();
 
   /* Opus round: a thrown onExportWallet must not wedge the Advanced export latch (#141-m4) */
@@ -1710,23 +1690,23 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   });
   d.body.append(add);
   const addInput = add.querySelector('.c-contacts-add__input');
-  const sendBtn = add.querySelector('.c-contacts__footer .c-button');
+  const sendBtn = add.querySelector('.c-contacts-add__submit');   // R2: moved under the input (was .c-contacts__footer)
   addInput.value = 'short';
   sendBtn.click();
   ok(!add.querySelector('.c-contacts-add__error').hidden, 'short address blocked inline (20–128 QR-accept gate)');
-  W.Spixi.setAddContactAddress(add, '4fj2solo4fj2solo4fj2solo');
+  W.Spixi.setAddContactAddress(add, '4fj2soko4fj2soko4fj2soko');
   await sleep(400);
   ok(checked === 1 && !add.querySelector('.c-contacts-add__valid').hidden,
     'checkAddress ✓ affordance after debounce (confirm-only — silent-fail bridge contract)');
   sendBtn.click();
   await sleep(1100);
-  ok(opened === '4fj2solo4fj2solo4fj2solo', 'send success → onOpened(address) — post-add opens the conversation');
+  ok(opened === '4fj2soko4fj2soko4fj2soko', 'send success → onOpened(address) — post-add opens the conversation');
   ok(sendBtn.disabled, 'send button latched after success (one request per screen visit)');
 
   const add2 = W.Spixi.createAddContact({ onSendRequest: () => { throw new Error('boom'); } });
   d.body.append(add2);
   add2.querySelector('.c-contacts-add__input').value = 'x'.repeat(30);
-  const send2 = add2.querySelector('.c-contacts__footer .c-button');
+  const send2 = add2.querySelector('.c-contacts-add__submit');
   send2.click();
   ok(!add2.querySelector('.c-contacts-add__error').hidden && !send2.disabled
     && !add2.querySelector('.c-contacts-add__input').disabled,
@@ -1742,7 +1722,7 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   });
   d.body.append(add3);
   const in3 = add3.querySelector('.c-contacts-add__input');
-  const send3 = add3.querySelector('.c-contacts__footer .c-button');
+  const send3 = add3.querySelector('.c-contacts-add__submit');
   in3.value = 'y'.repeat(24);
   in3.dispatchEvent(new W.Event('input', { bubbles: true }));
   await sleep(300);                     // debounce fires, onCheckAddress captured slowCtrl
@@ -1764,7 +1744,7 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   });
   d.body.append(add5);
   const in5 = add5.querySelector('.c-contacts-add__input');
-  const send5 = add5.querySelector('.c-contacts__footer .c-button');
+  const send5 = add5.querySelector('.c-contacts-add__submit');
   in5.value = 'z'.repeat(24);
   send5.click();                        // now genuinely in flight (ctrl held by the test)
   W.Spixi.setAddContactAddress(add5, 'ignored-mid-flight-address-000000');
@@ -1775,8 +1755,8 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   ok(send5.disabled, 'F5: send button disabled during the success morph window');
   send5.click();                        // a click during the success/latch window must not re-submit
   ok(sendCount5 === 1, 'F5: latched flag blocks re-submit during the success window (call-count stays 1)');
-  W.Spixi.setAddContactAddress(add5, 'brandnewaddress0000000000');
-  ok(in5.value === 'brandnewaddress0000000000',
+  W.Spixi.setAddContactAddress(add5, 'brandnewaddress9999999999');
+  ok(in5.value === 'brandnewaddress9999999999',
     'F5: a new address after a latched success re-fills the field immediately');
   await sleep(1500);                    // past setSuccess's +1400ms restore — this is the assertion that
                                          // fails pre-fix (stale restore re-disables after unlatch re-enables)

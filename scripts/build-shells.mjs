@@ -31,9 +31,18 @@ const OUT_DIR = join(root, 'Spixi', 'Resources', 'Raw', 'html');
 // reads window.__LAUNCH_VIEW__). So one source → five drop-in files. ZERO C# change.
 const SHELLS = {
   chat:     { in: 'src/shells/chat.html',   out: 'chat.html',        page: 'SingleChatPage' },
+  contact_details: { in: 'src/shells/contact_details.html', out: 'contact_details.html', page: 'ContactDetails' },
+  contact_new: { in: 'src/shells/contact_new.html', out: 'contact_new.html', page: 'ContactNewPage' },
   home:     { in: 'src/shells/home.html',   out: 'index.html',       page: 'HomePage (chats tab)' },
   apps:     { in: 'src/demo/apps.html',     out: 'apps.html',        page: 'AppsPage' },
+  app_details: { in: 'src/shells/app_details.html', out: 'app_details.html', page: 'AppDetailsPage' },
+  app_new:  { in: 'src/shells/app_new.html', out: 'app_new.html',    page: 'AppNewPage' },
   settings: { in: 'src/shells/settings.html', out: 'settings.html',   page: 'SettingsPage' },
+  settings_backup:     { in: 'src/shells/settings_backup.html',     out: 'settings_backup.html',     page: 'BackupPage' },
+  settings_encryption: { in: 'src/shells/settings_encryption.html', out: 'settings_encryption.html', page: 'EncryptionPassword' },
+  downloads:    { in: 'src/shells/downloads.html',    out: 'downloads.html',    page: 'DownloadsPage' },
+  dev:          { in: 'src/shells/dev.html',          out: 'dev.html',          page: 'DevPage' },
+  contributors: { in: 'src/shells/contributors.html', out: 'contributors.html', page: 'ContributorsPage' },
   // launch — the five legacy filenames, one bridge-wired shell, per-file boot view:
   launch:          { in: 'src/shells/launch.html', out: 'intro.html',         page: 'LaunchPage (welcome)',        bootView: 'welcome' },
   'launch-create': { in: 'src/shells/launch.html', out: 'intro_new.html',     page: 'LaunchCreatePage (create)',   bootView: 'create'  },
@@ -48,7 +57,8 @@ const SHELLS = {
 // `launch` shorthand expands to all five launch filenames (build them as a set).
 const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
 
-const DEFAULT = ['chat', 'home', 'settings'];   // bridge-wired shells (real C# data)
+const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
+  'settings_backup', 'settings_encryption', 'downloads', 'dev', 'contributors'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
 // `launch` alone means the whole launch set (all five drop-in files)

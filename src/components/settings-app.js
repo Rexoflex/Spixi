@@ -408,3 +408,177 @@ export function createSettingsContributors({
 
   return el;
 }
+
+/* Shared link renderer for About / How-to. A link OPENS via the optional
+   onOpenLink callback (no bridge verb exists → the shells don't wire it; when
+   absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
+   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only. */
+function linkRow({ label, url, onOpenLink, strings }) {
+  if (onOpenLink) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = label;
+    b.append(lab, icon('arrow-up-right', { size: 18 }));
+    b.addEventListener('click', () => onOpenLink(url));
+    return b;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings-links__row c-settings-links__row--static';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings-links__label';
+  lab.textContent = label;
+  const u = document.createElement('span');
+  u.className = 'c-settings-links__url';
+  u.textContent = url;                       // selectable text (no WebView navigation)
+  wrap.append(lab, u);
+  return wrap;
+}
+
+/**
+ * About — createSettingsAbout({ appName, version, tagline, description, links,
+ * onOpenLink, onBack, strings }). STATIC in-hub takeover, zero-C# (no bridge).
+ * Version shows only when provided (SPIXI_ENV / §9 push — no bridge push today).
+ * Links degrade to selectable text unless onOpenLink is wired.
+ */
+export function createSettingsAbout({
+  appName = 'Spixi',
+  version = '',
+  tagline,
+  description,
+  links,
+  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-about', strings.about || 'About', onBack);
+
+  /* hero — logo disc + app name + tagline (backup-hero / contributors art precedent) */
+  const hero = document.createElement('div');
+  hero.className = 'c-settings-about__hero';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc c-settings-about__logo';
+  disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('logo'));
+  disc.append(icon('logo', { size: 32 }));
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'c-settings-about__app-name';
+  nameEl.textContent = appName;
+  const tag = document.createElement('p');
+  tag.className = 'c-settings-about__tagline';
+  tag.textContent = tagline || strings.aboutTagline
+    || 'Private, decentralized messaging on the Ixian network.';
+  hero.append(disc, nameEl, tag);
+  if (version) {
+    const ver = document.createElement('p');
+    ver.className = 'c-settings-about__version';
+    ver.textContent = version;
+    hero.append(ver);
+  }
+  body.append(hero);
+
+  const desc = document.createElement('p');
+  desc.className = 'c-settings__note c-settings-about__desc';
+  desc.textContent = description || strings.aboutBody
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+  body.append(desc);
+
+  /* links card — website / network / source (degrade to text without onOpenLink) */
+  const list = links || [
+    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io' },
+    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io' },
+    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi' },
+  ];
+  if (list.length) {
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'c-settings__groupwrap';
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    for (const l of list) card.append(linkRow({ ...l, onOpenLink, strings }));
+    groupWrap.append(card);
+    body.append(groupWrap);
+  }
+
+  const legal = document.createElement('p');
+  legal.className = 'c-settings__note c-settings-about__legal';
+  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  body.append(legal);
+
+  return el;
+}
+
+/**
+ * How to use — createSettingsHowTo({ steps, links, onOpenLink, onBack, strings }).
+ * STATIC in-hub takeover, zero-C#. Brief getting-started steps + an optional docs
+ * link (degrades to text without onOpenLink).
+ */
+export function createSettingsHowTo({
+  steps,
+  links,
+  onOpenLink,
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-howto', strings.howToUse || 'How to use Spixi', onBack);
+
+  const intro = document.createElement('p');
+  intro.className = 'c-settings__note c-settings-howto__intro';
+  intro.textContent = strings.howToIntro || 'A few basics to get you started.';
+  body.append(intro);
+
+  const list = steps || [
+    { title: strings.howToStep1 || 'Add a contact',
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+    { title: strings.howToStep2 || 'Start chatting',
+      body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
+    { title: strings.howToStep3 || 'Send IXI',
+      body: strings.howToStep3Body || 'Send or request IXI right inside a chat. You confirm every payment on your device.' },
+    { title: strings.howToStep4 || 'Back up your wallet',
+      body: strings.howToStep4Body || 'Save one encrypted backup file from Account → Backup. Without it and your password, nothing can be recovered.' },
+  ];
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const card = document.createElement('div');
+  card.className = 'c-settings__group c-settings-howto__steps';
+  let i = 0;
+  for (const s of list) {
+    i++;
+    const step = document.createElement('div');
+    step.className = 'c-settings-howto__step';
+    const num = document.createElement('span');
+    num.className = 'c-settings-howto__step-num';
+    num.textContent = String(i);
+    const txt = document.createElement('span');
+    txt.className = 'c-settings-howto__step-text';
+    const t = document.createElement('span');
+    t.className = 'c-settings-howto__step-title';
+    t.textContent = s.title;
+    const b = document.createElement('span');
+    b.className = 'c-settings-howto__step-body';
+    b.textContent = s.body;
+    txt.append(t, b);
+    step.append(num, txt);
+    card.append(step);
+  }
+  groupWrap.append(card);
+  body.append(groupWrap);
+
+  const linkList = links || [
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+  ];
+  if (linkList.length) {
+    const lw = document.createElement('div');
+    lw.className = 'c-settings__groupwrap';
+    const lc = document.createElement('div');
+    lc.className = 'c-settings__group c-settings-links';
+    for (const l of linkList) lc.append(linkRow({ ...l, onOpenLink, strings }));
+    lw.append(lc);
+    body.append(lw);
+  }
+
+  return el;
+}

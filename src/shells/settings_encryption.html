@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Change password</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- c-encpass + password fields -->
+<style>
+  /* Production shell: fill the WebView. settings_encryption.html is loaded by the
+     C# EncryptionPassword page (PUSHED). createEncPassScreen provides its own
+     topbar (variant 'view') with a back button + a sticky footer CTA. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #encpass-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #encpass-root > * { flex: 1; min-height: 0; }
+  /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
+     parse / before first render (mirrors contact_details.html); removed once
+     mountEncPassPage has appended the form, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="encpass-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Change-wallet-password shell — the redesigned EncryptionPassword
+   * screen wired to the REAL C# MAUI bridge via the mountEncPassPage adapter
+   * (src/bridge/lock-page.js in the bundle). Loaded by the C# EncryptionPassword
+   * page. ZERO C# change, frozen bridge (bridge-audit-B §3).
+   *
+   * Contract (EncryptionPassword.xaml.cs):
+   *   JS→C#: ixian:onload · ixian:back · ixian:changepass:<DELIM>old<DELIM>new
+   *          (magic leading delimiter, so passwords may contain ':'; ENC_DELIM in
+   *          lock-shell is the single source). ixian:error exists (native alert) —
+   *          the redesign renders inline errors, so it is not used.
+   *   C#→JS: NONE. Wrong current password → C# native alert only, page stays.
+   *          Success → writeWallet(new) + success alert + popPageAsync().
+   *
+   * mountEncPassPage handles the no-callback reality: after 1600 ms with no
+   * page-pop it releases the form via ctrl.fail() with the inline wrong-current
+   * copy (mirroring the alert C# just showed); on success C# pops the page first.
+   * A §9 changePassFailed push is pre-wired (inert until BE ships it).
+   *
+   * SECURITY.md: passwords live only in the field, scrubbed on back/success/
+   * pagehide (createEncPassScreen §5). The WebView never persists them.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    mountEncPassPage,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C# (§9 pre-wires)
+  const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
+
+  /* mountEncPassPage appends the screen, exposes the §9 handlers AND fires
+   * bridge.ready() — so mount on the window LOAD event (#177 load-timing
+   * invariant), never during parse. */
+  function boot() {
+    const encHost = document.getElementById('encpass-root');
+    mountEncPassPage({ host: encHost, bridge, strings });
+    encHost.querySelector('.boot')?.remove();   // mountEncPassPage appends — drop the boot spinner
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot, { once: true });
+</script>
+</body>
+</html>

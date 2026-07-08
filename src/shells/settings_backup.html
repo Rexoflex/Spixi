@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Backup</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (password confirm) -->
+<link rel="stylesheet" href="../styles/components/settings-backup.css">
+<style>
+  /* Production shell: fill the WebView. settings_backup.html is loaded by the C#
+     BackupPage (PUSHED). The c-settings-backup panel provides its own topbar
+     (variant 'view') with a back button — no separate chrome. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #backup-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #backup-root > * { flex: 1; min-height: 0; }
+  /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
+     parse / before first render (mirrors contact_details.html); the first
+     replaceChildren render swaps it out, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="backup-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Backup shell — the redesigned backup screen wired to the REAL C#
+   * MAUI bridge (native.js in the bundle). Loaded by BackupPage, reached from the
+   * Account hub's Backup row (ixian:backup → C# PushAsync(BackupPage)).
+   * ZERO C# change, frozen bridge (bridge-audit-B §2).
+   *
+   * Contract (BackupPage.xaml.cs):
+   *   JS→C#: ixian:onload · ixian:back · ixian:backupAccount · ixian:backupWallet
+   *          (ixian:error exists for a native invalid-password alert — the redesign
+   *          renders errors INLINE instead, so it is deliberately unused).
+   *   C#→JS: NONE (pure command sink; results = OS share sheet, no callback).
+   *
+   * IMPORTANT bridge realities (documented, BE asks carried):
+   *   1. ixian:backupAccount carries NO password — C# encrypts with the STORED
+   *      `walletpass` preference (bridge-audit-B §2 Unusual). The password-confirm
+   *      modal was REMOVED (DECISIONS #199 / be-cutover S12): the entered value was
+   *      never transmitted, a wrong entry was uncatchable JS-side, and the wallet-
+   *      only export never prompted — so it was theater + inconsistent. Backup now
+   *      fires DIRECTLY (consistent with the Advanced wallet export). Real password-
+   *      protected backup = BE ask S12 (send + validate a password arg).
+   *   2. There is NO completion callback (C#→JS none). So ctrl.done() fires
+   *      OPTIMISTICALLY right after the send — "Backed up" reflects "the OS share
+   *      sheet opened", not confirmed completion (backup-ux §5.4). BE ask: an
+   *      explicit completion signal + last-backup timestamp (S2).
+   *   3. No backup-status push exists → the screen shows the standing "Not backed
+   *      up yet" state (S2).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createSettingsBackup,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C# (no pushes today)
+
+  const root = document.getElementById('backup-root');
+
+  root.replaceChildren(createSettingsBackup({
+    status: {},                                  // S2: no backup-status push → standing "Action needed"
+    illustration: 'images/backup.svg',          // Damir: build-shells copies src/demo/images → …/html/images
+    host: document.body,
+    strings,
+    onBack: () => bridge.send('ixian:back'),     // BackupPage.popPageAsync()
+
+    // ixian:backupAccount — C# zips + encrypts (stored walletpass) + OS-shares.
+    // No password arg, no completion callback → optimistic done (see realities #1/#2).
+    onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },
+
+    // ixian:backupWallet — raw wallet.ixi OS share. Same optimistic done.
+    onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
+  }));
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
+   *    invariant): firing during parse races C#'s first push. ————————————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

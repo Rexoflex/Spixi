@@ -4,13 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
+<!-- Resolve the theme BEFORE any style/paint so the instant-bg + tokens match the
+     user's chosen appearance from the first frame (no light→dark flash). Same
+     head-top guard the other shells use; the late body block below is harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
      "blank" pane while the shell boots (Damir F5). Values mirror --surface-screen
      (neutral-10 / neutral-900); tokens.css takes over once loaded. */
   html { background: #f9fafb; }
-  @media (prefers-color-scheme: dark) { html { background: #13171b; } }
+  html[data-theme="dark"] { background: #13171b; }
 </style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -38,6 +42,8 @@
 <link rel="stylesheet" href="../styles/components/tip-sheet.css">
 <link rel="stylesheet" href="../styles/components/chip.css">
 <link rel="stylesheet" href="../styles/components/member-sheet.css">
+<link rel="stylesheet" href="../styles/components/search-field.css"><!-- c-chat-info member filter (group takeover, ≥8 members) -->
+<link rel="stylesheet" href="../styles/components/chat-info.css"><!-- group/bot info takeover (header tap) -->
 <link rel="stylesheet" href="../styles/components/banner.css">
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
@@ -86,6 +92,75 @@
   .chat-app-picker__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
+  /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
+     z-30 sits ABOVE the bars/composer (z-20) but BELOW the sheets (z-40) + modal
+     (z-50) it spawns, so its member sheet + kick/ban/leave confirms render on top.
+     The c-chat-info panel is height:100% → fills this. */
+  .chat-info-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .chat-info-takeover > .c-chat-info { flex: 1; min-height: 0; }
+  /* Bot channels (Option A — channel-as-title, Damir F5 2026-07-08): the CURRENT
+     channel name lives in the topbar title with a chevron-down affordance; tapping
+     the title opens the selector as a panel that slides DOWN from under the topbar
+     (NOT the old under-topbar bar, NOT a bottom sheet). The trailing ⓘ opens the
+     chat-info takeover. */
+  .c-topbar.is-bot-channels .c-topbar__name {
+    display: inline-flex; align-items: center; gap: var(--spacing-1, 4px);
+  }
+  .chat-channel-chev { flex: none; color: var(--icon-neutral-02, currentColor); }
+  .chat-channel-unread-dot {
+    flex: none; width: 8px; height: 8px; border-radius: var(--radius-full, 999px);
+    background: var(--icon-accent, #1892ce);
+  }
+  /* top-anchored channel selector: full-viewport scrim + a panel pinned directly
+     under the topbar (its `top` is set inline = the topbar height) that slides
+     down (translateY -100% → 0). */
+  .chat-channel-overlay { position: fixed; inset: 0; z-index: var(--z-40, 40); }
+  .chat-channel-overlay__scrim {
+    position: absolute; inset: 0; background: var(--surface-scrim, rgba(0,0,0,0.4));
+    opacity: 0; transition: opacity var(--duration-200, 200ms) var(--easing-standard, ease);
+  }
+  .chat-channel-overlay.is-open .chat-channel-overlay__scrim { opacity: 1; }
+  .chat-channel-panel {
+    position: absolute; left: 0; right: 0;   /* top set inline = topbar height */
+    max-height: 60vh; overflow-y: auto;
+    background: var(--surface-menu, var(--surface-neutral-01, #fff));
+    border-bottom-left-radius: var(--radius-16, 16px);
+    border-bottom-right-radius: var(--radius-16, 16px);
+    box-shadow: var(--elevation-3, 0 8px 24px rgba(0,0,0,0.24));
+    padding: var(--spacing-3, 12px);
+    transform: translateY(-100%);
+    transition: transform var(--duration-200, 200ms) var(--easing-emphasized, ease);
+  }
+  .chat-channel-overlay.is-open .chat-channel-panel { transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-channel-overlay__scrim, .chat-channel-panel { transition: none; }
+  }
+  .chat-channel-panel__title {
+    font-size: var(--font-size-label-sm, 13px);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--text-neutral-02, #666);
+    padding: var(--spacing-1, 4px) var(--spacing-2, 8px) var(--spacing-2, 8px);
+  }
+  /* channel list (rows shared by the panel) */
+  .chat-channel-list { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
+  .chat-channel-list__item {
+    display: flex; align-items: center; gap: var(--spacing-2, 8px);
+    width: 100%; padding: var(--spacing-3, 12px); border: 0; border-radius: var(--radius-md, 12px);
+    background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
+    text-align: start; cursor: pointer;
+  }
+  .chat-channel-list__unread {
+    flex: none; width: 8px; height: 8px; border-radius: var(--radius-full, 999px);
+    background: var(--icon-accent, #1892ce);
+  }
+  .chat-channel-list__item[data-selected] { background: var(--surface-action-tonal-default, rgba(24,146,206,0.12)); }
+  .chat-channel-list__item[data-selected] .chat-channel-list__name { font-weight: var(--font-weight-semibold, 600); }
+  .chat-channel-list__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
+  .chat-channel-list__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
 </style>
 </head>
 <body>
@@ -142,11 +217,20 @@
     createModal, openModal, showToast,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
+    createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
 
-  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -160,7 +244,7 @@
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
-  const mode = { type: 0, isBot: false, isMulti: false, admin: false };
+  const mode = { type: 0, isBot: false, isMulti: false, admin: false, notifications: true };
 
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
@@ -179,29 +263,73 @@
   }
   let callVisible = false;   // showCallButton reveals the topbar phone action (1:1, peer reachable)
 
+  // Bot channel selector state — declared BEFORE the topbar renderer because the
+  // channel-as-title (Option A) reads channelState during the first synchronous
+  // paint (see the bot-channel bridge-protocol note further down).
+  const channelState = { has: false, index: 0, name: '', icon: '', unread: false };
+  let channelList = [];               // accumulated per open, from addChannelToSelector
+  let channelDropdown = null;         // top-anchored selector overlay (open = non-null)
+  let channelSheetBody = null;        // the live channel list inside the panel
+  let channelKeydown = null;          // Esc handler while the dropdown is open
+
   const topbarHost = document.getElementById('chat-topbar');
   function renderTopbarNow() {
     topbarHost.textContent = '';
     const s = window.SL || {};
-    topbarHost.append(createTopbar({
+    // Bot channel mode (Option A): once C# has named a channel, the topbar TITLE
+    // becomes the current channel name + chevron and opens the channel selector;
+    // a trailing ⓘ opens the chat-info takeover. Otherwise the identity block
+    // behaves as before (group/blind → chat-info takeover; 1:1 → ContactDetails).
+    const botChannels = mode.isBot && channelState.has;
+
+    const actions = [];
+    // start a voice call — revealed by showCallButton (C# gates availability);
+    // ixian:call toggles initiate/hang-up (xaml:136).
+    if (callVisible) actions.push({ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') });
+    // bot channels: the title now opens the selector, so chat-info moves to a
+    // trailing info icon (shown on desktop AND mobile per Damir).
+    if (botChannels) actions.push({ icon: 'info-circle', label: s.chatInfo || 'Chat info', onClick: () => openChatInfo() });
+
+    const tb = createTopbar({
       variant: 'chat',
       identity: {
-        name: identity.name || identity.address || '',
-        sub: identity.sub || '',
+        // channel-as-title: the channel name is the header label in bot mode; the
+        // bot name/address drops to the sub-line so the identity stays visible.
+        name: botChannels ? ('# ' + (channelState.name || '')) : (identity.name || identity.address || ''),
+        sub: botChannels ? (identity.name || identity.address || '') : (identity.sub || ''),
         address: identity.address || identity.name || '',
-        online: identity.online,
+        online: botChannels ? false : identity.online,
         avatar: identity.avatar || null,
       },
-      // Header tap → chat info. No dedicated redesigned takeover is wired in v1;
-      // ixian:details is the legacy verb SingleChatPage understands.
-      onIdentity: () => bridge.send('ixian:details'),
+      // Header tap. bot channels → open the channel selector (title = affordance).
+      // group/blind-group → the IN-CHAT chat-info takeover (SingleChatPage owns the
+      // group verbs). 1:1 → navigate to the ContactDetails page (ixian:details).
+      onIdentity: botChannels
+        ? () => openChannelSelector()
+        : () => { if (mode.isMulti) openChatInfo(); else bridge.send('ixian:details'); },
       onBack: () => bridge.send('ixian:back'),
-      // start a voice call — revealed by showCallButton (C# gates availability);
-      // ixian:call toggles initiate/hang-up (xaml:136).
-      actions: callVisible
-        ? [{ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') }]
-        : [],
-    }));
+      actions,
+    });
+
+    // Inject the chevron (and an any-channel-unread dot) into the title so the
+    // channel-as-title reads as a dropdown affordance. Done here (not in the
+    // shared c-topbar component) to keep the component generic.
+    if (botChannels) {
+      tb.classList.add('is-bot-channels');
+      const nameEl = tb.querySelector('.c-topbar__name');
+      if (nameEl && window.SpixiIcons && window.SpixiIcons.icon) {
+        if (channelState.unread) {
+          const dot = document.createElement('span');
+          dot.className = 'chat-channel-unread-dot';
+          dot.setAttribute('aria-hidden', 'true');
+          nameEl.append(dot);
+        }
+        const chev = window.SpixiIcons.icon('chevron-down', { size: 18 });
+        chev.classList.add('chat-channel-chev');
+        nameEl.append(chev);
+      }
+    }
+    topbarHost.append(tb);
   }
   // Coalesce topbar rebuilds too: on open C# fires setNickname + setOnlineStatus
   // (+ onChatScreenReady) in quick succession, each tearing down + rebuilding the
@@ -218,6 +346,109 @@
    * opens/updates it, empty text collapses it (bridge showWarning, xaml:1746). */
   const warningBanner = createWarningBanner({ strings: window.SL || {} });
   topbarHost.after(warningBanner);
+
+  /* —— bot channel selector (Damir F5 2026-07-08: bot chats support channels) ——
+   * Bots (mode.type 3) can host multiple channels. C# drives it (legacy chat.js):
+   *   setSelectedChannel(index, icon, name)          → current channel; reveals the
+   *                                                     bar (chat.js:250)
+   *   addChannelToSelector(index, name, icon, unread) → one channel row, pushed
+   *       ONLY in response to ixian:populateChannelSelector (pull-on-open,
+   *       chat.js:1338/1353) — so the list is empty until the bar is tapped
+   *   setChannelSelectorStatus(status)               → any-channel-unread flag
+   *       ("true" = all read, else unread — chat.js:1345)
+   * Tapping a row emits ixian:selectChannel:<index> (chat.js:1319; C# switches +
+   * reloads the messages + echoes setSelectedChannel). The selector shows ONLY for
+   * bots, once C# has named a channel — non-bot chats are untouched. State is
+   * declared above (needed by the first topbar paint). */
+  function makeChannelRow(ch) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chat-channel-list__item';
+    if (ch.index === channelState.index) b.dataset.selected = '';
+    const name = document.createElement('span');
+    name.className = 'chat-channel-list__name';
+    name.textContent = '# ' + (ch.name || '');
+    b.append(name);
+    if (ch.unread) {
+      const dot = document.createElement('span');
+      dot.className = 'chat-channel-list__unread';
+      dot.setAttribute('aria-hidden', 'true');
+      b.append(dot);
+    }
+    b.addEventListener('click', () => {
+      // optimistic selection; C# echoes setSelectedChannel + reloads the messages
+      channelState.index = ch.index;
+      channelState.name = ch.name;
+      channelState.icon = ch.icon || channelState.icon;
+      channelState.unread = false;
+      renderTopbar();                 // channel name lives in the title now
+      bridge.send('ixian:selectChannel:' + ch.index);
+      closeChannelSelector();
+    });
+    return b;
+  }
+
+  /* Channel selector — a top-anchored panel that slides DOWN from directly under
+   * the topbar (Option A, Damir F5 2026-07-08). Opened by tapping the topbar
+   * title; NOT a bottom sheet. Scrim + Esc close it. */
+  function closeChannelSelector() {
+    if (channelKeydown) { document.removeEventListener('keydown', channelKeydown); channelKeydown = null; }
+    if (!channelDropdown) return;
+    const el = channelDropdown;
+    channelDropdown = null;
+    channelSheetBody = null;
+    el.classList.remove('is-open');
+    // let the slide-up finish before detaching (reduced-motion → transition:none,
+    // transitionend still fires); safety timer covers the no-transition case
+    let removed = false;
+    const done = () => { if (removed) return; removed = true; el.remove(); };
+    el.querySelector('.chat-channel-panel').addEventListener('transitionend', done, { once: true });
+    setTimeout(done, 260);
+  }
+
+  function openChannelSelector() {
+    if (!mode.isBot) return;
+    closeChannelSelector();
+    const s = window.SL || {};
+    channelList = [];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'chat-channel-overlay';
+    const scrim = document.createElement('div');
+    scrim.className = 'chat-channel-overlay__scrim';
+    scrim.addEventListener('click', closeChannelSelector);
+
+    const panel = document.createElement('div');
+    panel.className = 'chat-channel-panel';
+    panel.setAttribute('role', 'menu');
+    panel.setAttribute('aria-label', s.channels || 'Channels');
+    // anchor the panel directly under the topbar (+ any connectivity banner)
+    panel.style.top = (topbarHost.offsetHeight + (warningBanner.offsetHeight || 0)) + 'px';
+
+    const title = document.createElement('div');
+    title.className = 'chat-channel-panel__title';
+    title.textContent = s.channels || 'Channels';
+    panel.append(title);
+
+    channelSheetBody = document.createElement('div');
+    channelSheetBody.className = 'chat-channel-list';
+    const empty = document.createElement('p');
+    empty.className = 'chat-channel-list__empty';
+    empty.textContent = s.loading || 'Loading…';
+    channelSheetBody.append(empty);
+    panel.append(channelSheetBody);
+
+    overlay.append(scrim, panel);
+    document.body.append(overlay);
+    channelDropdown = overlay;
+    channelKeydown = (e) => { if (e.key === 'Escape') closeChannelSelector(); };
+    document.addEventListener('keydown', channelKeydown);
+    // trigger the slide-down on the next frame (so the -100% start state paints)
+    requestAnimationFrame(() => { if (channelDropdown === overlay) overlay.classList.add('is-open'); });
+
+    // pull the list — C# answers with addChannelToSelector per channel
+    bridge.send('ixian:populateChannelSelector');
+  }
 
   /* —— message log —————————————————————————————————————————————————————————— */
   const box = document.getElementById('messages');
@@ -254,6 +485,12 @@
   // else the last name resolved via updateGroupChatNicks for that address.
   const resolveNick = (address, nick) =>
     nick || (address && groupNicks.get(String(address))) || '';
+
+  // True when a row has a REAL display nick (not empty, and not just its own
+  // address echoed back as the nick) — nameless senders fall through to the
+  // truncated + copyable address treatment (Damir F5, 2026-07-07).
+  const senderHasNick = (rec) =>
+    !!rec.senderNick && rec.senderNick !== rec.senderAddress;
 
   /* typing pill — appended while typing is on, removed on timeout / new message,
    * and always kept LAST (shell duty mirrored from the demo). */
@@ -346,17 +583,21 @@
       status: isSent ? rec.status : null,
       // group/bot chats: show the sender nick, or the raw ADDRESS (middle-truncated
       // + click-to-copy in the component) when there's no nick yet (Damir 2026-07-07).
-      sender: (!isSent && mode.isMulti) ? (rec.senderNick || rec.senderAddress || null) : null,
-      senderIsAddress: (!isSent && mode.isMulti && !rec.senderNick && !!rec.senderAddress),
+      // A nameless sender is one with no nick AND one whose "nick" is really its
+      // own address (some C# paths pass the address as the nick fallback) — both
+      // must render truncated + copyable, not a full untruncated address label.
+      sender: (!isSent && mode.isMulti) ? (senderHasNick(rec) ? rec.senderNick : (rec.senderAddress || null)) : null,
+      senderIsAddress: (!isSent && mode.isMulti && !senderHasNick(rec) && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
-      name: rec.senderNick || '',
+      name: senderHasNick(rec) ? rec.senderNick : '',
       address: rec.senderAddress || '',
       avatar: rec.avatar || null,   // real per-sender photo (C# addThem avatar); gradient fallback
 
-      // #99: in a NON-blind group, the sender label + avatar open the member
-      // sheet (identity verification + admin). Blind groups (type 2) hide
-      // identities, bots (3) have no member roster → no tap.
-      onSenderClick: (!isSent && mode.type === 1 && (rec.senderAddress || rec.senderNick))
+      // #99: in a NON-blind group (type 1) OR a bot chat (type 3), the sender
+      // label + avatar open the member sheet — the ONLY way to reach a NAMED
+      // sender's full address (nick labels aren't copyable; the address is)
+      // (Damir F5 2026-07-08). Blind groups (type 2) hide identities → no tap.
+      onSenderClick: (!isSent && (mode.type === 1 || mode.type === 3) && (rec.senderAddress || rec.senderNick))
         ? () => openMember(rec) : null,
       // resend has NO SingleChatPage case (dead verb) — gate the Retry affordance
       // behind cap('resend') so a failed message shows an HONEST "Not delivered"
@@ -409,6 +650,9 @@
       gutter: mode.isMulti && !isSent,
       strings: window.SL || {},
       onOpen: () => openMediaViewer({ host: overlayHost, src: media.url, kind: media.kind, alt: label, strings: window.SL || {} }),
+      // the tile grows from its placeholder box to the GIF's full size on load —
+      // if the user was at the bottom, pull the log down so the whole GIF shows.
+      onLoad: () => { if (nearBottom()) box.scrollTop = box.scrollHeight; },
     });
   }
 
@@ -572,6 +816,7 @@
   function reactToMessage(id) {
     id = String(id);
     myLikes.add(id);
+    saveLikes();                                       // persist own-state across re-flushes (C5 interim)
     bridge.send('ixian:contextAction:like:' + id);
     const rec = model.get(id);
     if (!rec) return;
@@ -642,9 +887,11 @@
     dbg('menu action (gated/unhandled)', action);
   }
 
-  /* member identity sheet (#99) — sender tap in a non-blind group. Shows the
-   * FULL address (nick is spoofable), a contact-request path, and admin
-   * kick/ban when I'm the group admin. C# runs its own confirm for kick/ban
+  /* member identity sheet (#99) — sender tap in a non-blind group OR a bot chat
+   * (Damir F5 2026-07-08: a NAMED bot/group sender had no way to reveal its
+   * address). Shows the FULL address (nick is spoofable), a contact-request
+   * path, and admin kick/ban when I'm the group admin (bots have no admin →
+   * just identity + copy + request). C# runs its own confirm for kick/ban
    * (displaySpixiAlert). relation defaults 'none' — the chat shell has no
    * contact roster, so it can't tell if the member is already a contact (BE
    * gap #99/§9); the request verb is idempotent-ish on the C# side. */
@@ -668,6 +915,96 @@
       actions,
       strings: s,
     });
+  }
+
+  /* —— group / bot chat-info takeover (#189-follow: header tap on a multi chat) ——
+   * Mounts a full-viewport c-chat-info panel OVER the conversation (not a page
+   * nav — SingleChatPage owns the group verbs). onBack closes it back to the
+   * chat; it never emits ixian:back (that would pop the whole SingleChatPage).
+   *
+   * Members are BEST-EFFORT: there is no full-roster push from SingleChatPage, so
+   * the list is built from senders we've SEEN (received rows) + resolved group
+   * nicks (updateGroupChatNicks). A true roster + member count is a BE ask.
+   * Blind groups (type 2) hide addresses. Admin (mode.admin) injects Kick/Ban via
+   * the component's built-in member sheet; contact-request + kick/ban reuse the
+   * existing verbs. */
+  let chatInfoTakeover = null;
+  let chatInfoOpen = false;
+
+  // Roster from what the shell knows: received-message senders + updateGroupChatNicks.
+  function collectGroupMembers() {
+    const byAddr = new Map();     // address → best-known nick ('' if none)
+    for (const rec of model.values()) {
+      if (rec.direction === 'received' && rec.senderAddress) {
+        const known = byAddr.get(rec.senderAddress) || '';
+        byAddr.set(rec.senderAddress, known || (senderHasNick(rec) ? rec.senderNick : ''));
+      }
+    }
+    for (const [addr, nick] of groupNicks) {
+      if (!addr) continue;
+      const known = byAddr.get(addr) || '';
+      byAddr.set(addr, known || (nick || ''));
+    }
+    return [...byAddr].map(([address, name]) => ({ name, address }));
+  }
+
+  function buildChatInfo() {
+    const s = window.SL || {};
+    const infoKind = mode.type === 3 ? 'bot' : 'group';   // bot channels reuse the members/notifications surface
+    return createChatInfo({
+      kind: infoKind,
+      context: 'chat',
+      name: identity.name || identity.address || '',
+      avatarSeed: identity.address || identity.name || '',
+      members: collectGroupMembers(),        // best-effort; memberCount falls back to members.length
+      blind: mode.type === 2,                // blind group: identities hidden
+      notifications: mode.notifications,
+      // groups/bots have en/disableNotifications; admin gates kick/ban. media +
+      // selfDestruct stay OFF (no bridge verb, §9).
+      capabilities: { notifications: true, admin: mode.admin },
+      host: overlayHost,                     // member sheet + kick/ban/leave confirms attach to body (above the takeover)
+      strings: s,
+      onBack: closeChatInfo,                 // close the takeover — NOT ixian:back
+
+      // notifications toggle → the group/bot mute verbs. Fire-and-forget: the
+      // bridge gives no ack, so resolve optimistically (component keeps the state).
+      onNotifications: (next, ctrl) => {
+        mode.notifications = next;
+        bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
+        ctrl.done();
+      },
+
+      // member sheet (component-owned): contact request + admin kick/ban. Reuses
+      // the existing verbs; C# runs its own confirm for kick/ban on receipt.
+      onContactRequest: (m) => { if (m && m.address) bridge.send('ixian:sendContactRequest:' + m.address); },
+      onMemberAction: (action, m, ctrl) => {
+        if (m && m.address && (action === 'kick' || action === 'ban')) bridge.send('ixian:' + action + ':' + m.address);
+        ctrl.done();
+      },
+
+      // destructive — leave group (component renders this for kind 'group' only;
+      // bots have no in-chat leave verb → no destructive row for a bot, flagged).
+      onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
+    });
+  }
+
+  function openChatInfo() {
+    if (chatInfoOpen) return;
+    chatInfoOpen = true;
+    chatInfoTakeover = document.createElement('div');
+    chatInfoTakeover.className = 'chat-info-takeover';
+    chatInfoTakeover.append(buildChatInfo());
+    document.body.append(chatInfoTakeover);
+  }
+  function closeChatInfo() {
+    chatInfoOpen = false;
+    if (chatInfoTakeover) { chatInfoTakeover.remove(); chatInfoTakeover = null; }
+  }
+  // Rebuild an OPEN takeover in place (e.g. setChatMode arrived after opening, or
+  // new senders were seen). Cheap; the takeover is a shallow snapshot.
+  function refreshChatInfo() {
+    if (!chatInfoOpen || !chatInfoTakeover) return;
+    chatInfoTakeover.replaceChildren(buildChatInfo());
   }
 
   /* tip: open the amount sheet (no balance — C# runs the real balance check +
@@ -1002,6 +1339,13 @@
       // (SingleChatPage:1222). Group-only logic uses mode.type===1 directly.
       mode.isMulti = (t === 1 || t === 2 || t === 3);
       mode.admin = asBool(admin);
+      // notificationsString "True"/"False" (groups/bots) — current mute state for
+      // the chat-info notifications toggle (legacy chat.js:237).
+      mode.notifications = asBool(notificationsString);
+      // reflect a live mode/notification change into an OPEN chat-info takeover
+      if (chatInfoOpen) refreshChatInfo();
+      // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
+      renderTopbar();
       dbg('setChatMode', { type: t, cost, admin: mode.admin, notificationsString });
     },
 
@@ -1030,7 +1374,10 @@
       rows.clear();
       fileIndex.clear();
       txIndex.clear();
-      myLikes.clear();
+      // NOTE: do NOT clear myLikes here — a C# re-flush (clearMessages→re-add)
+      // must keep my own-reaction state, else the pill reverts to un-selected
+      // while the heart+count survive (Damir 2026-07-07). myLikes is (re)loaded
+      // per-peer from storage in onChatScreenReady; peer-switch resets it there.
       removeRequestPane();   // a re-flush after accept clears the request pane
       order = [];
       hideTyping();
@@ -1098,6 +1445,7 @@
       identity.address = address || '';
       if (!identity.name) renderTopbar();
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
+      loadLikes();                         // address known → restore my own-reaction state (per-peer)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -1241,9 +1589,30 @@
     // → the attach "App invite" picker. icon path doesn't resolve in-shell → omitted.
     addApp(id, name, icon, publisher) { chatApps.push({ id: String(id), name: name || String(id), publisher: publisher || '' }); },
     clearApps() { chatApps.length = 0; },
-    addChannelToSelector() { dbg('addChannelToSelector'); },
-    setSelectedChannel() { dbg('setSelectedChannel'); },
-    setChannelSelectorStatus() { dbg('setChannelSelectorStatus'); },
+    // BOT CHANNELS (chat.js:1353/250/1345). setSelectedChannel names the current
+    // channel + reveals the bar; addChannelToSelector rows arrive (pull-on-open)
+    // into the live sheet; setChannelSelectorStatus flags any-channel-unread.
+    addChannelToSelector(index, name, icon, unread) {
+      const ch = { index: Number(index) || 0, name: name || '', icon: icon || '', unread: asBool(unread) };
+      channelList.push(ch);
+      if (channelSheetBody) {
+        const ph = channelSheetBody.querySelector('.chat-channel-list__empty');
+        if (ph) ph.remove();
+        channelSheetBody.append(makeChannelRow(ch));
+      }
+    },
+    setSelectedChannel(index, icon, name) {
+      channelState.has = true;
+      channelState.index = Number(index) || 0;
+      channelState.icon = icon || '';
+      channelState.name = name || '';
+      renderTopbar();
+    },
+    // "true" ⇒ all read; anything else (incl. "") ⇒ unread (legacy chat.js:1345)
+    setChannelSelectorStatus(status) {
+      channelState.unread = String(status) !== 'true';
+      renderTopbar();
+    },
     // A participant's nick resolved/changed (chat.js:1233). Update every row from
     // that sender address + re-render so their label refreshes. Also store it so
     // later rows from an as-yet-unseen address get the right name on arrival.
@@ -1324,6 +1693,32 @@
     if (!input || input.value) return;          // don't overwrite in-progress typing
     input.value = saved;
     input.dispatchEvent(new Event('input'));    // grow + action sync; isTrusted=false → no spurious ixian:typing
+  }
+
+  /* —— own-reaction persistence (C5 interim). The bridge's addReactions re-emit
+   * carries NO per-user flag, so "I reacted" is FE-remembered in myLikes. A C#
+   * re-flush (clearMessages→re-add) or reopening the chat must NOT drop it, else
+   * the pill loses its selected state while the heart+count survive (Damir F5,
+   * 2026-07-07). Persisted keyed by peer address — same origin/pattern as drafts;
+   * a like is the user's own action metadata, SECURITY.md-OK to cache. */
+  const LIKE_PREFIX = 'spixi.likes.';
+  function likeKey() { return identity.address ? LIKE_PREFIX + identity.address : ''; }
+  function saveLikes() {
+    const k = likeKey();
+    if (!k) return;
+    try {
+      if (myLikes.size) localStorage.setItem(k, JSON.stringify([...myLikes]));
+      else localStorage.removeItem(k);
+    } catch (_) {}
+  }
+  function loadLikes() {
+    myLikes.clear();                            // reset for THIS peer (desktop peer-switch safe)
+    const k = likeKey();
+    if (!k) return;
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]');
+      if (Array.isArray(arr)) arr.forEach((id) => myLikes.add(String(id)));
+    } catch (_) {}
   }
 
   let composerEl = null;

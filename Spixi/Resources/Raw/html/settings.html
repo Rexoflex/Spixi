@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The in-page appearance switch below re-sets the same value. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi — Account</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme, so
+     there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
 
 
 <style data-src="../styles/tokens.css">
@@ -870,17 +879,22 @@
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
-  /* chat canvas — near-darkest base (neutral-950 = "surface-01", Damir 2026-07-07)
-     with a subtle premium glow so it reads gradient-like (Telegram), not flat; the
-     theme-ink line pattern (chat-pattern.css) overlays on top. ✅ "Primary soft"
-     pattern ink locked (2026-07-03). Tune the glow alpha/position here. */
-  --chat-pattern-ink: var(--primary-800);
-  --chat-pattern-opacity: 0.5;
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--neutral-950);
+  /* chat canvas — base = --surface-neutral-01 (resolves to neutral-900 in dark,
+     Damir 2026-07-07) with a subtle premium glow so it reads gradient-like
+     (Telegram), not flat; the theme-ink line pattern (chat-pattern.css) overlays
+     on top. Tune the glow alpha/position here. */
+  /* pattern ink + chat base + sent bubble — Damir exact values 2026-07-07:
+     pattern overlay = hsla(242,76%,72%), chat base = surface-neutral-01,
+     sent bubble = 180deg #353FB7→#2046A7. These are the dark-mode tuning lines. */
+  --chat-pattern-ink: hsla(242, 76%, 72%, 1);
+  /* dark pattern intensity reduced 60% then another 10% (0.5 → 0.2 → 0.18),
+     Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
+     neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
+  --chat-pattern-opacity: 0.18;
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--surface-neutral-01);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
-     (Damir 2026-07-07); white text rides on top. THE line to tune for dark.
-     Deeper end than light so white pops. Damir owns the final palette. */
-  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 100%);
+     (Damir 2026-07-07); white text rides on top. */
+  --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2077,20 +2091,441 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 </style>
+<style data-src="../styles/components/settings-app.css">
+/* c-settings "App" screens (settings-app.js, spec §9b): Downloads · Developer
+   (log) · Contributors. Row/section/disc/group grammar comes from
+   settings-shell.css; screen-specific classes live here. Semantic tokens only;
+   logical properties (RTL-safe); hovers guarded. */
+
+.c-settings-dl,
+.c-settings-dev,
+.c-settings-contrib,
+.c-settings-about,
+.c-settings-howto {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+
+/* —— downloads —— */
+
+/* split row: open (tap target) + delete — two SIBLING buttons, never nested */
+.c-settings-dl__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+.c-settings-dl__open {
+  flex: 1;
+  min-width: 0;                     /* the name ellipsis needs a shrinkable box */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 52px;                 /* settings-row parity (#149②) */
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings-dl__open:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings-dl__open:active { background: var(--surface-interactive-pressed); }
+.c-settings-dl__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-settings-dl__name {
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-dl__time {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings-dl__del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  .c-settings-dl__del:hover {
+    background: var(--surface-interactive-hover);
+    color: var(--icon-error);
+  }
+}
+.c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
+
+/* empty state — centered, calm */
+.c-settings-dl__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-32) var(--spacing-16);
+  text-align: center;
+}
+
+/* —— developer log —— */
+
+/* the ONE sanctioned flex child of the settings scroll body: the log pane
+   fills the screen and scrolls itself (double-class beats the #148
+   `> * { flex:none }` guard without !important) */
+.c-settings-dev__log.u-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: var(--spacing-12);
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-02);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;  /* no mono token yet — flag at DS pass */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;          /* long unbroken log tokens must not overflow */
+  -webkit-user-select: text;        /* the copy fallback is manual selection */
+  user-select: text;
+}
+.c-settings-dev__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  justify-content: center;
+  flex-wrap: wrap;                  /* two 44s survive narrow frames */
+}
+
+/* —— contributors —— */
+.c-settings-contrib__art {
+  display: flex;
+  justify-content: center;
+  padding-block-start: var(--spacing-16);
+}
+.c-settings-contrib__art-disc {
+  width: 64px;                      /* sanctioned: art-slot disc (backup-hero precedent) */
+  height: 64px;
+}
+.c-settings-contrib__lead { text-align: center; }
+.c-settings-contrib__card { padding: var(--spacing-12); }
+.c-settings-contrib__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-8);
+}
+.c-settings-contrib__name {
+  padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-input); /* card scope reassigns to -on-card (#150③) */
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* —— about —— */
+.c-settings-about__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  text-align: center;
+  padding-block: var(--spacing-16);
+}
+.c-settings-about__logo {
+  width: 64px;                        /* art-slot disc (backup-hero precedent) */
+  height: 64px;
+}
+.c-settings-about__app-name {
+  margin: 0;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  color: var(--text-neutral-01);
+}
+.c-settings-about__tagline {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-settings-about__version {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings-about__desc { text-align: start; }
+.c-settings-about__legal {
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+}
+
+/* —— link rows (about / how-to) —— */
+.c-settings-links__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 52px;                   /* settings-row parity (#149②) */
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  text-align: start;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+button.c-settings-links__row {
+  cursor: pointer;
+  border-radius: var(--radius-12);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  button.c-settings-links__row:hover { background: var(--surface-interactive-hover); }
+}
+button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }
+.c-settings-links__row--static { flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+.c-settings-links__label { flex: 1; font-weight: var(--font-weight-semibold); }
+.c-settings-links__url {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* —— how to use —— */
+.c-settings-howto__intro { text-align: start; }
+.c-settings-howto__steps { padding: var(--spacing-4); }
+.c-settings-howto__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+}
+.c-settings-howto__step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--text-action-default);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-label-md);
+}
+.c-settings-howto__step-text { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
+.c-settings-howto__step-title {
+  color: var(--text-neutral-01);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-settings-howto__step-body {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+</style><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<style data-src="../styles/components/bottomnav.css">
+/* c-bottomnav — mirrors Figma nav-bot / nav-item (selected = "super selected":
+   tonal pill around stacked icon + label). Height: --layout-bar-bottom. */
+
+.c-bottomnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: var(--layout-bar-bottom);
+  padding-inline: var(--spacing-8);
+  background: var(--surface-bottombar);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-20);
+}
+
+.c-bottomnav__item {
+  flex: 1 1 0; /* equal widths — selected pill is identical for every item */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-8);
+  max-width: 96px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+  color: var(--icon-neutral-01);
+  -webkit-tap-highlight-color: transparent;
+  min-width: var(--size-target-min);
+  min-height: var(--size-target-min);
+  justify-content: center;
+  position: relative;
+  /* select/deselect ink fade (durations zero out under prefers-reduced-motion
+     via token override); the pill itself lives on ::before below */
+  transition: color var(--duration-200) var(--easing-standard);
+}
+
+/* tonal pill = ::before layer so it can grow in / shrink out under the content */
+.c-bottomnav__item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity var(--duration-200) var(--easing-standard),
+    transform var(--duration-200) var(--easing-decelerate);
+}
+.c-bottomnav__item[aria-current] { color: var(--icon-action-default); }
+.c-bottomnav__item[aria-current]::before {
+  opacity: 1;
+  transform: scale(1);
+}
+/* hover guarded so touch devices don't get sticky hover (matches chatlist-item) */
+@media (hover: hover) {
+  .c-bottomnav__item:hover { background: var(--surface-interactive-hover); }
+  .c-bottomnav__item[aria-current]:hover { background: transparent; }
+  .c-bottomnav__item[aria-current]:hover::before { background: var(--surface-action-tonal-hover); }
+}
+.c-bottomnav__item:active { background: var(--surface-interactive-pressed); }
+.c-bottomnav__item[aria-current]:active { background: transparent; }
+.c-bottomnav__item[aria-current]:active::before { background: var(--surface-action-tonal-pressed); }
+
+.c-bottomnav__iconwrap { position: relative; display: flex; }
+
+/* icon crossfade: outline rests in flow; -filled twin overlays and pops in on
+   select (fade + scale, decelerate). Items without a -filled export just keep
+   the outline glyph — ink transition still marks the state. */
+.c-bottomnav__icon {
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-bottomnav__item[aria-current] [data-dual] .c-bottomnav__icon { opacity: 0; }
+
+.c-bottomnav__icon--filled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity var(--duration-200) var(--easing-standard),
+    transform var(--duration-200) var(--easing-decelerate);
+}
+.c-bottomnav__item[aria-current] .c-bottomnav__icon--filled {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.c-bottomnav__label {
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  position: relative; /* paint above the ::before pill (iconwrap is already positioned) */
+  /* font-weight animates on variable fonts (ours are); older WebViews snap — acceptable
+     degrade. Animating weight re-runs layout per frame — accepted cost per audit review
+     (4 items, 200ms, mobile scale) */
+  transition:
+    color var(--duration-200) var(--easing-standard),
+    font-weight var(--duration-200) var(--easing-standard);
+}
+.c-bottomnav__item[aria-current] .c-bottomnav__label {
+  color: var(--text-action-default);
+  font-weight: var(--font-weight-bold);
+}
+
+/* unread indicator (Figma "indicator") — sits on the icon corner.
+   18px badge + item max-width: 96px are magic values pending size/* tokens at next Figma sync.
+   Error role, NOT action (#48): action-blue vanished against the selected tonal pill +
+   filled icon (same hue family); error reads on every nav surface = badge convention.
+   Ring = bar surface via box-shadow (no layout shift), separates badge from pill/icon. */
+.c-bottomnav__badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-error);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-bottombar);
+  font-size: var(--font-size-label-xs);
+  line-height: 18px;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+/* avatar slot (Account item) */
+.c-bottomnav__avatar {
+  width: var(--size-avatar-24);
+  height: var(--size-avatar-24);
+  border-radius: var(--radius-full);
+  object-fit: cover;
+}
+
+</style><!-- peer-tab chrome (Account active) -->
 <style>
-  /* Production shell: fill the WebView. Two internal views (hub = root · danger =
-     takeover) swap client-side inside #settings-root. No bottom nav — SettingsPage
-     is a standalone PUSHED page (not the home tab bar); legacy settings.html had a
-     back button, not a nav. */
+  /* Production shell: fill the WebView. Internal views (hub = root · danger /
+     about / how-to = takeovers) swap client-side inside #settings-root.
+     PEER-TAB CHROME: a c-bottomnav (Account active) is added so Account READS as
+     a home tab (Damir). SettingsPage is still a standalone PUSHED page (settings
+     data is pushed by SettingsPage, not HomePage), so this is an approximation —
+     non-Account taps do a best-effort ixian:back (pop to home). Precise-tab
+     landing + true in-home integration need BE (be-cutover S11). */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #settings-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #settings-root > * { flex: 1; min-height: 0; }
+  #settings-nav { flex: none; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
   <div id="settings-root"></div>
+  <div id="settings-nav"></div>
 
 <script data-src="../components/icons.iife.js">
 /* GENERATED by scripts/generate-icons.mjs from src/assets/icons/ (82 icons)
@@ -4130,22 +4565,30 @@ function createMessageBubble({
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
     // A nameless sender (no nick — bots / some group members) shows its ADDRESS
-    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
-    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
-    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
-    const copyable = senderIsAddress && !!address;
+    // middle-truncated. Its TAP now opens the member sheet — the SAME pattern as a
+    // named sender (Damir F5 2026-07-08): the sheet holds the full address + copy
+    // action, so identity/copy is consistent for named and nameless alike. Direct
+    // clipboard copy stays ONLY as a fallback when no member sheet is wired (e.g.
+    // blind groups). Otherwise a plain span.
+    const copyable = senderIsAddress && !!address;             // → truncated + monospace display
     const interactive = copyable || !!onSenderClick;
     const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
     if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
     if (interactive) {
       s.type = 'button';
-      if (copyable) {
+      if (onSenderClick) {
+        // named OR nameless → member sheet (full address + copy live there)
+        if (copyable) {
+          s.title = address;                                    // full address on hover
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+        }
+        s.addEventListener('click', onSenderClick);
+      } else {
+        // no member sheet wired (e.g. blind group) → direct clipboard copy fallback
         s.title = address;                                       // full address on hover
         s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
         s.addEventListener('click', () => copySenderAddress(s, address, strings));
-      } else {
-        s.addEventListener('click', onSenderClick);
       }
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
@@ -5620,6 +6063,9 @@ function createMediaBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented bubbles (C8)
   onOpen,
+  onLoad,                  // fired after the full media loads + the tile is sized
+                           // → the shell can scroll the log to the freshly-grown
+                           //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -5687,14 +6133,22 @@ function createMediaBubble({
     img.src = currentSrc;
   };
   img.addEventListener('load', () => {
-    // No sender dimensions (remote GIF/image URL) → the tile has no aspect-ratio,
-    // so object-fit:cover CROPS it (Damir F5: "GIF renders only half"). Once the
-    // real image loads, size the tile to its natural aspect so the whole frame
-    // shows (cover then fills exactly, no crop). Still capped by max-height (CSS).
+    // No sender dimensions (remote GIF/image URL) → the tile starts at the CSS
+    // default aspect (bubble-sized box). Once the real image loads, re-size the
+    // tile to its NATURAL aspect so the whole frame shows uncropped (object-fit:
+    // contain fills exactly, no crop; extreme portraits letterbox — the full
+    // frame is one tap away in the viewer). CLAMP the portrait extreme (min 3:4):
+    // an unbounded tall aspect-ratio can defeat the CSS max-height on device
+    // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
+    // under the composer (Damir F5 2026-07-08).
     if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      el.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+      const ar = img.naturalWidth / img.naturalHeight;
+      el.style.aspectRatio = String(Math.max(ar, 0.75));
     }
     setState('loaded');
+    // the tile just grew to full size — let the shell pull the log to the latest
+    // so the whole GIF comes into view (only if it was already near the bottom).
+    if (onLoad) { try { onLoad(); } catch (_) {} }
   });
   img.addEventListener('error', () => setState('failed'));
   mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
@@ -7409,18 +7863,22 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
  *   layout 'list' → a horizontal ROW (icon 48 · name+creator · ⋮)
  *   layout 'grid' → a CARD (icon 64 · name+creator, ⋮ top-trailing)
  *
- * Structure is a container with TWO sibling buttons (never nested — invalid a11y):
+ * Structure is a container with sibling buttons (never nested — invalid a11y):
  *   .c-app-item__open  — the big tap target → onOpen(app)  (LAUNCHES the app, #126 2B)
- *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (App details / Uninstall)
- * Creator (publisher) is a §8 field — rendered only when provided.
+ *   .c-app-item__info  — a trailing info (ⓘ) button → onInfo(app, btn) (App details page,
+ *                        which owns launch-mode + uninstall; mobile v1 — replaces the ⋮)
+ *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (kept for the standalone
+ *                        apps-shell / demos; not used by the home apps tab)
+ * onInfo and onMenu are independent; a caller passes whichever it wants. Creator
+ * (publisher) is a §8 field — rendered only when provided.
  *
- * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onMenu }) → div
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu }) → div
  */
 
 
 
 
-function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onMenu } = {}) {
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -7448,13 +7906,31 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   if (onOpen) open.addEventListener('click', () => onOpen({ id, name, creator }));
   el.append(open);
 
-  const menuBtn = document.createElement('button');
-  menuBtn.type = 'button';
-  menuBtn.className = 'c-app-item__menu';
-  menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
-  menuBtn.append(icon('dots', { size: 24 }));
-  if (onMenu) menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
-  el.append(menuBtn);
+  // ⓘ info — created ONLY when a handler is provided. Trailing button that opens the
+  // app's details page (launch-mode selection + uninstall + permissions live there).
+  // Mobile v1 uses this in place of the ⋮ menu (no honest list-scoped uninstall verb).
+  if (onInfo) {
+    const infoBtn = document.createElement('button');
+    infoBtn.type = 'button';
+    infoBtn.className = 'c-app-item__info';
+    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ' — ' + name : ''));
+    infoBtn.append(icon('info-circle', { size: 24 }));
+    infoBtn.addEventListener('click', (e) => { e.stopPropagation(); onInfo({ id, name, creator }, infoBtn); });
+    el.append(infoBtn);
+  }
+
+  // ⋮ overflow — created ONLY when a handler is provided. A menu-less item (e.g.
+  // HomePage's apps tab, which has no list-scoped uninstall verb) renders no button
+  // at all (previously the element was always built and hidden via shell CSS — #184).
+  if (onMenu) {
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'c-app-item__menu';
+    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+    menuBtn.append(icon('dots', { size: 24 }));
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
+    el.append(menuBtn);
+  }
 
   return el;
 }
@@ -7596,7 +8072,11 @@ function renderAppsList(listEl, state, opts = {}) {
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app
+      // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
+      // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
+      // details handler exists — so a menu-driven surface (demos) never doubles up.
+      onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
@@ -7781,8 +8261,10 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
  * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
  *
- * createAppsAdd({ strings, onFetchUrl(url), onScan, onPickFile, onCategory,
- *                 onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ * createAppsAdd({ strings, discover = true, onFetchUrl(url), onScan, onPickFile,
+ *                 onCategory, onBrowseWeb, onLearnBuild, onOpenApp }) → view
+ *   discover — set false to OMIT the embedded Discover section (phase-1 production
+ *              add-app shell, where the directory feed isn't wired yet).
  *   onBrowseWeb  — parked-Discover fallback: opens the web directory (via external-link confirm)
  *   onLearnBuild — developer CTA: "anyone can build a mini app" → resources page (same confirm)
  *   onOpenApp    — a live-Discover card/tile tap → that app's details
@@ -7796,7 +8278,7 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
 
 
 
-function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
+function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
 
@@ -7853,7 +8335,8 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
     return b;
   };
   methods.append(
-    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    // 'world' glyph (web link) — 'link' isn't in the icon export yet (glyph-sweep list).
+    method('world', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
     method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
     method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
@@ -7869,14 +8352,17 @@ function createAppsAdd({ strings = getStrings(), onFetchUrl, onScan, onPickFile,
   info.append(itext);
   el.append(info);
 
-  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands) */
-  const disc = document.createElement('section');
-  disc.className = 'c-apps-add__discover';
-  const dTitle = document.createElement('h2');
-  dTitle.className = 'c-apps-add__sectiontitle';
-  dTitle.textContent = strings.discover || 'Discover';
-  disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
-  el.append(disc);
+  /* Discover (embedded, reuses c-apps-discover; parked until the feed lands). OMITTED
+   * when discover:false (phase-1 production shell — no directory feed wired yet). */
+  if (discover) {
+    const disc = document.createElement('section');
+    disc.className = 'c-apps-add__discover';
+    const dTitle = document.createElement('h2');
+    dTitle.className = 'c-apps-add__sectiontitle';
+    dTitle.textContent = strings.discover || 'Discover';
+    disc.append(dTitle, createAppsDiscover({ strings, ready: false, onCategory, onBrowseWeb, onOpen: onOpenApp }));
+    el.append(disc);
+  }
 
   /* developer CTA — anyone can build a mini app (quiet, page bottom; Damir #128③) */
   if (onLearnBuild) {
@@ -12261,24 +12747,33 @@ function createWalletReceive({
   amtRow.append(amtInput, unit);
   reqBox.append(amtRow);
 
-  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment bubble) */
-  const askBox = document.createElement('div');
-  askBox.className = 'c-wallet-receive__ask';
-  askBox.hidden = true;
-  const askLabel = document.createElement('h2');
-  askLabel.className = 'c-wallet-receive__asklabel';
-  askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-  askBox.append(askLabel);
-  const search = createSearchField({
-    placeholder: strings.searchContacts || 'Search contacts',
-    onInput: (v) => renderContacts(v),
-    strings,
-  });
-  askBox.append(search);
-  const rows = document.createElement('div');
-  rows.className = 'c-wallet-receive__contacts';
-  askBox.append(rows);
-  reqBox.append(askBox);
+  /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
+   * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
+   * (HomePage) has NO ixian:sendrequest verb (it's a WalletReceivePage verb), so
+   * omitting the callback HIDES the strip rather than showing a dead action that
+   * would falsely confirm "sent" (audit MAJOR, Batch 6). The amount-request QR
+   * above is client-side and stays available regardless. */
+  let askBox = null;
+  let rows = null;
+  if (onSendRequest) {
+    askBox = document.createElement('div');
+    askBox.className = 'c-wallet-receive__ask';
+    askBox.hidden = true;
+    const askLabel = document.createElement('h2');
+    askLabel.className = 'c-wallet-receive__asklabel';
+    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
+    askBox.append(askLabel);
+    const search = createSearchField({
+      placeholder: strings.searchContacts || 'Search contacts',
+      onInput: (v) => renderContacts(v),
+      strings,
+    });
+    askBox.append(search);
+    rows = document.createElement('div');
+    rows.className = 'c-wallet-receive__contacts';
+    askBox.append(rows);
+    reqBox.append(askBox);
+  }
 
   /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
   function clearLatch(rerender) {
@@ -12289,6 +12784,7 @@ function createWalletReceive({
   }
 
   function renderContacts(q) {
+    if (!rows) return;                                   // contact strip omitted (no onSendRequest)
     state.contactQuery = q || '';
     const needle = state.contactQuery.trim().toLocaleLowerCase();
     rows.textContent = '';
@@ -12357,7 +12853,7 @@ function createWalletReceive({
     caption.textContent = active
       ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
       : (strings.receiveCaption || 'Scan to send IXI to this address');
-    askBox.hidden = !active;
+    if (askBox) askBox.hidden = !active;
     if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
       wasActive = active;
       live.textContent = active
@@ -13748,6 +14244,9 @@ function pickerRow(c, st) {
 function renderPickerList(st) {
   const { list, empty } = st.els;
   const { strings } = st.opts;
+  // preserve scroll across a full rebuild — the directory roster re-flushes on
+  // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
+  const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
   const matches = sortedContacts(st.contacts).filter((c) => !needle
@@ -13773,6 +14272,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
 function syncNext(st) {
@@ -13941,6 +14441,21 @@ const addState = new WeakMap(); // el → { input, validate }
 
 const ADDR_MIN = 20;  // QR raw-accept window (bridge-audit-A.md:200)
 const ADDR_MAX = 128;
+// Base58 alphabet (Bitcoin/Ixian — no 0 O I l). Local pre-submit sanity so obviously
+// invalid input (spaces, punctuation, wrong length) shows the INLINE error and NEVER
+// reaches ixian:request — which would otherwise trigger a C# native invalid-address
+// alert + leave Send wedged (bridge-audit-A.md:198). ExtendedAddress does the
+// authoritative check server-side; the C# self/duplicate rejection still round-trips
+// (recovered by the 6s grace in contact_new.html).
+// Length + no-whitespace only — deliberately NOT a base58/charset gate. Ixian's
+// current address encoding (and any newer payment-gateway address types) is not
+// verified here, so a strict alphabet could REJECT valid addresses. C#'s
+// ExtendedAddress is the authoritative validator; this local gate only blocks
+// OBVIOUS garbage (empty / too short / too long / contains whitespace) so a clear
+// typo shows an inline error instead of the native alert. (Damir 2026-07-08.)
+function looksLikeAddress(a) {
+  return a.length >= ADDR_MIN && a.length <= ADDR_MAX && !/\s/.test(a);
+}
 
 function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
@@ -13997,13 +14512,14 @@ function createAddContact({
   group.append(err);
 
   body.append(group);
-  el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
+  // Primary CTA directly beneath the address field + helper/error line (was pinned to
+  // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
+  // in the scroll body right under the group card (body gap = spacing-16).
   const sendBtn = createButton({ label: strings.sendRequest || 'Send request', size: 56, width: 'full' });
-  footer.append(sendBtn);
-  el.append(footer);
+  sendBtn.classList.add('c-contacts-add__submit');
+  body.append(sendBtn);
+  el.append(body);
 
   let inFlight = false;
   let checkTimer = 0;
@@ -14043,8 +14559,9 @@ function createAddContact({
     if (inFlight || latched) return;
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
-    if (a.length < ADDR_MIN || a.length > ADDR_MAX) {
+    if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
       return;
     }
     setError('');
@@ -14356,6 +14873,91 @@ function setGroupAvatar(el, src) {
   img.src = src;
   img.alt = '';
   st.avatarBtn.append(img);
+}
+
+/* ---- src/bridge/contacts-page.js ---- */
+/**
+ * contacts-page.js — the Contacts DIRECTORY / picker takeover, wired to the
+ * frozen HomePage bridge (bridge-audit-A.md §5 HomePage + §3 ContactNewPage).
+ *
+ * Clean boundary (DECISIONS #167): the home shell owns the roster model (fed by
+ * clearContacts/addContact/noContacts) and hands this module a bridge + a roster
+ * accessor. This builds the full-viewport contacts takeover — createContactsPicker
+ * — and translates its callbacks into EXISTING ixian: verbs. Nothing about
+ * home.html's internals leaks in beyond { host, bridge, strings, getRoster,
+ * onClose }, so a later standalone Contacts shell mounts the same call unchanged.
+ *
+ * Bridge mapping (HomePage — all existing verbs, ZERO C# change):
+ *   Add contact   → ixian:newcontact        (push ContactNewPage; audit :248/:529)
+ *   Create group  → ixian:newchat           (push WalletRecipientPage multi-picker;
+ *                                             audit :247). The in-shell createGroupSetup
+ *                                             multi-select is DEFERRED: its result verb
+ *                                             ixian:select is a WalletRecipientPage verb,
+ *                                             NOT a HomePage one (audit :530) — HomePage
+ *                                             can't receive it, so group assembly stays
+ *                                             with the native multi-picker for v1.
+ *   Open chat     → ixian:chat:<address>     (start; audit :259)
+ *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
+ *
+ * purpose 'start'  (FAB): Add contact + Create group actions; tap = open chat.
+ * purpose 'directory' (topbar Contacts): Add contact only; tap = contact details.
+ *
+ * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
+ * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
+ * a navigation verb for back (the .chat-info-takeover pattern from chat.html).
+ * Open chat / create group close the takeover first (opening a chat should not
+ * leave the picker behind). Add contact AND view contact (directory) leave it open
+ * UNDERNEATH the pushed C# page: back-from-ContactNewPage lands on the picker, and
+ * back-from-ContactDetails lands on the DIRECTORY — not the chats list. Closing the
+ * directory overlay before ixian:details would drop the user on tab1 on pop (the
+ * bug this fixes). A successful add-request has C# chain pickSucceeded → the
+ * conversation over the top.
+ */
+
+
+function mountContacts({
+  host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
+} = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'contacts-takeover';
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    overlay.remove();
+    if (onClose) onClose();
+  };
+
+  const picker = createContactsPicker({
+    contacts: getRoster ? getRoster() : [],
+    purpose,
+    strings,
+    onBack: close,                         // close the takeover — never an ixian: nav verb
+    // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
+    onAddContact: () => bridge.send('ixian:newcontact'),
+    // Create group → native multi-picker (in-shell group setup deferred, see docblock).
+    // createContactsPicker flips to multi-select first; we close over it in the SAME
+    // synchronous click (no paint between) so that transient mode never shows.
+    onCreateGroup: () => { close(); bridge.send('ixian:newchat'); },
+    // start: tap opens the 1:1 conversation.
+    onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
+    // directory: tap opens contact details (accepted → chat-info; pending → minimal).
+    // Do NOT close first — leave the directory overlay mounted UNDER the pushed
+    // ContactDetails page so back (C# pop → home) returns to the DIRECTORY, not the
+    // chats list. (home.js openContacts closes any prior overlay before a new open,
+    // so returning + tapping another contact can't double-stack the takeover.)
+    onViewContact: (c) => { if (c && c.address) bridge.send('ixian:details:' + c.address); },
+  });
+  overlay.append(picker);
+  host.append(overlay);
+
+  return {
+    el: overlay,
+    close,
+    /** Refresh the roster while the takeover is open (bridge clearContacts/addContact re-flush). */
+    setContacts(contacts) { setPickerContacts(picker, contacts); },
+  };
 }
 
 /* ---- src/components/scan-shell.js ---- */
@@ -15274,7 +15876,7 @@ function createSettingsHub({
   paymentAuth = false,           // #150⑤: confirm-payments preference (§9-gated)
   backup = {},                   // { last, dirtyCount } — see backupStatusParts
   version = '',                  // About row value (§9 ask: no bridge push exists)
-  capabilities = {},             // { dev, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
+  capabilities = {},             // { dev, downloads, contributors, changePassword, globalNotifications, securityTiers, readReceipts, typing, paymentAuth }
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
@@ -15290,8 +15892,13 @@ function createSettingsHub({
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
   onPrivacy,                     // nav → privacy screen (§9-gated)
   onBackup,                      // nav → backup screen
-  onDownloads, onContributors, onDev,   // nav (screens = next slice)
+  onDownloads, onContributors, onDev,   // nav (screens) — capability-gated: no SettingsPage open-verb exists
+  onAbout,                       // nav → About takeover (static, zero-C#, ungated)
+  onHowTo,                       // nav → How-to-use takeover (static, zero-C#, ungated)
   onDanger,                      // nav → danger screen
+  onSave,                        // OPTIONAL explicit Save affordance (Damir, legacy parity): a topbar
+                                 // check action → the shell commits everything + pops (ixian:save).
+                                 // Absent = the #146 per-row / on-exit commit only (backward-compatible).
   onBack,                        // OPTIONAL back affordance — the hub is a root tab in
                                  // the home-integrated design (no back), but a STANDALONE
                                  // pushed page (legacy SettingsPage) needs one, esp. on
@@ -15302,7 +15909,14 @@ function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({ variant: 'view', title: strings.account || 'Account', onBack }));
+  el.append(createTopbar({
+    variant: 'view', title: strings.account || 'Account', onBack,
+    // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
+    // with NO Save button — this OPTIONAL trailing action adds an explicit commit
+    // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
+    // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
+    actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
+  }));
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';
@@ -15738,10 +16352,12 @@ function createSettingsHub({
     onToggle: onPaymentAuth,
   }));
 
-  /* change wallet password — lock-shell takeover (Phase 1 #4, docs/lock-spec.md;
-     legacy nav verb ixian:encpass exists, bridge-audit-A.md:258 — presence-gated,
-     NOT §9-gated). 'pencil' glyph: 'square-asterisk' already means App lock here. */
-  if (onChangePassword) sec.card.append(settingRow({
+  /* change wallet password — lock-shell encpass takeover (Phase 1 #4, docs/lock-spec.md).
+     CAPABILITY-GATED (`capabilities.changePassword`): the redesigned settings_encryption.html
+     shell exists, but SettingsPage has NO verb that opens EncryptionPassword (bridge-audit-B
+     §1/§3 — it is a separate HomePage-independent page). So the row is built + ready, gated
+     OFF until BE adds a SettingsPage → EncryptionPassword nav verb (be-cutover ask). */
+  if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
     glyph: 'pencil', hue: 'primary',
     label: strings.changePassword || 'Change wallet password',
     onClick: () => onChangePassword(),
@@ -15779,11 +16395,24 @@ function createSettingsHub({
 
   /* ——— app ——— */
   const app = group(strings.app || 'App');
-  if (onDownloads) app.card.append(settingRow({
+  /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
+     always available (ungated). */
+  if (onHowTo) app.card.append(settingRow({
+    glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    onClick: () => onHowTo(),
+  }).section);
+  if (onAbout) app.card.append(settingRow({
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    onClick: () => onAbout(),
+  }).section);
+  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
+     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
+     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
     onClick: () => onDownloads(),
   }).section);
-  if (onContributors) app.card.append(settingRow({
+  if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
     onClick: () => onContributors(),
   }).section);
@@ -16022,10 +16651,12 @@ function createSettingsDanger({
  * SUPERSET of the wallet backup). Wallet-only export is demoted to an Advanced
  * reveal (ixian:backupWallet — cold storage / other Ixian tools).
  *
- * CTA → password confirm modal (validation errors render INLINE on the field,
- * never an alert — the legacy ixian:error path, restyled) → in-flight fully
- * locked (#135-C1 via live setOverlayOpts) → ctrl.done closes the modal, the
- * CTA morphs setSuccess "Backed up" (#29) and the status line refreshes.
+ * CTA → fires the backup DIRECTLY (NO password prompt — DECISIONS #199 / be-cutover
+ * S12): ixian:backupAccount ignores any entered password and encrypts with the stored
+ * `walletpass` pref (bridge-audit-B §2), and the wallet-only export never prompted —
+ * so the confirm modal was pure theater + inconsistent. Latched → loading → ctrl.done
+ * morphs setSuccess "Backed up" (#29) and refreshes the status line (mirrors the
+ * Advanced wallet export). Real password-protected backup = BE ask S12.
  *
  * Hero = token-styled PLACEHOLDER composition (#146④): shield-lock on a wash
  * disc + satellite motifs (identity/wallet/contacts). `.c-settings-backup__art`
@@ -16043,12 +16674,13 @@ function createSettingsDanger({
 
 
 
-
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
+  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
+                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
   onBack,
-  onBackup,                      // ({ password }, ctrl) — ixian:backupAccount
+  onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
   strings = getStrings(),
 } = {}) {
@@ -16065,24 +16697,35 @@ function createSettingsBackup({
   live.setAttribute('aria-live', 'polite');
   el.append(live);
 
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* ——— hero: placeholder art + copy (illustration #6 swap slot) ——— */
   const heroSec = document.createElement('div');
   heroSec.className = 'c-settings-backup__hero';
   const art = document.createElement('div');
   art.className = 'c-settings-backup__art';
   art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-settings-backup__art-disc';
-  disc.append(icon('shield-lock', { size: 48 }));
-  art.append(disc);
-  for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
-    const sat = document.createElement('span');
-    sat.className = 'c-settings-backup__art-sat';
-    sat.dataset.pos = pos;
-    sat.append(icon(glyph, { size: 16 }));
-    art.append(sat);
+  const buildPlaceholderArt = () => {          // token-styled fallback (shield + satellites)
+    const disc = document.createElement('span');
+    disc.className = 'c-settings-backup__art-disc';
+    disc.append(icon('shield-lock', { size: 48 }));
+    art.append(disc);
+    for (const [glyph, pos] of [['user-circle', 'a'], ['wallet', 'b'], ['users', 'c']]) {
+      const sat = document.createElement('span');
+      sat.className = 'c-settings-backup__art-sat';
+      sat.dataset.pos = pos;
+      sat.append(icon(glyph, { size: 16 }));
+      art.append(sat);
+    }
+  };
+  if (illustration) {
+    // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
+    const img = document.createElement('img');
+    img.className = 'c-settings-backup__illustration';
+    img.src = illustration;
+    img.alt = '';
+    img.addEventListener('error', () => { art.replaceChildren(); buildPlaceholderArt(); }, { once: true });
+    art.append(img);
+  } else {
+    buildPlaceholderArt();
   }
   heroSec.append(art);
   const heroTitle = document.createElement('h2');
@@ -16100,94 +16743,44 @@ function createSettingsBackup({
   heroSec.append(statusLine);
   body.append(heroSec);
 
-  /* ——— primary CTA → password confirm → latched backup ———
-     lives ON the hero panel (#148③): promise → status → action, one moment */
+  /* ——— primary CTA → latched backup (NO password prompt, #199) ———
+     lives ON the hero panel (#148③): promise → status → action, one moment.
+     The password-confirm modal was REMOVED: ixian:backupAccount ignores any typed
+     password + encrypts with the stored walletpass pref, and wallet-export never
+     prompted, so the confirm step was theater + inconsistent. Fires directly here,
+     mirroring the Advanced wallet export (latched → loading → optimistic success).
+     No completion callback exists (C#→JS none) → ctrl.done is optimistic ("share
+     sheet opened"). Real password-protected backup = BE ask S12. */
+  let backingUp = false;                                 // latched (one share at a time)
   const cta = createButton({
     label: strings.backupCta || 'Back up now', type: 'fill', size: 56, width: 'full',
-    onClick: openPasswordConfirm,
+    onClick: runBackup,
   });
   cta.classList.add('c-settings-backup__cta');
   heroSec.append(cta);
 
-  function openPasswordConfirm() {
-    let inFlight = false;
-    const wrap = document.createElement('div');
-    wrap.className = 'c-settings-backup__pw';
-    const label = document.createElement('label');
-    label.className = 'c-settings-backup__pw-label';
-    label.textContent = strings.backupPwLabel || 'Wallet password';
-    const input = document.createElement('input');
-    input.type = 'password';
-    input.className = 'c-settings-backup__pw-input';
-    input.id = overlayId('c-settings-backup-pw');
-    input.autocomplete = 'current-password';
-    label.setAttribute('for', input.id);
-    const err = document.createElement('p');
-    err.className = 'c-settings-backup__pw-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = true;
-    wrap.append(label, input, err);
-
-    let confirmBtn = null;
-    const fail = (msg) => {
-      inFlight = false;
-      input.disabled = false;
-      if (confirmBtn) setLoading(confirmBtn, false);
-      setOverlayOpts(modal, { escDismiss: true, lightDismiss: false });   // restore to the modal default (both keys, explicit)
-      err.textContent = msg || strings.backupPwInvalid || 'That password doesn’t match this wallet.';
-      err.hidden = false;
-      input.focus();                                     // inline, on the field — never an alert
-    };
-    const submit = () => {                               // shared by the confirm button + Enter-in-field
-      if (inFlight) return;
-      const password = input.value;
-      if (!password) {
-        err.textContent = strings.backupPwEmpty || 'Enter your wallet password.';
-        err.hidden = false;
-        input.focus();
-        return;
-      }
-      inFlight = true;
-      err.hidden = true;
-      input.disabled = true;
-      const btns = modal.querySelectorAll('.c-modal__actions .c-button');
-      confirmBtn = btns[btns.length - 1];
-      setLoading(confirmBtn, true);
-      setOverlayOpts(modal, { escDismiss: false, lightDismiss: false });   // #135-C1
-      try {
-        onBackup({ password }, backupCtrl(
-          () => {
-            dismissOverlay(modal);
-            setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
-            live.textContent = strings.backupDone || 'Backed up';
-          },
-          fail,
-        ));
-      } catch (ex) {
-        fail();
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }   // Enter submits (guarded in-flight)
-    });
-
-    const modal = createModal({
-      title: strings.backupConfirmTitle || 'Confirm your password',
-      body: strings.backupConfirmBody || 'The backup file is encrypted with your wallet password.',
-      content: wrap, host: hostFor(),
-      onDismiss: () => { input.value = ''; },              // scrub the plaintext password on ANY close (SECURITY.md)
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text',
-          onClick: () => (inFlight ? false : undefined) },       // dead in flight
-        {
-          label: strings.backupCta || 'Back up now', type: 'fill',
-          onClick: () => { submit(); return false; },            // closes on ctrl.done only
-        },
-      ],
-      strings,
-    });
-    openModal(modal);
-    input.focus();
+  function runBackup() {
+    if (backingUp) return;
+    backingUp = true;
+    setLoading(cta, true);
+    const ctrl = backupCtrl(
+      () => {
+        backingUp = false;
+        setLoading(cta, false);
+        setSuccess(cta, { label: strings.backupDone || 'Backed up' });   // #29 morph
+        live.textContent = strings.backupDone || 'Backed up';
+      },
+      (msg) => {
+        backingUp = false;
+        setLoading(cta, false);
+        live.textContent = msg || strings.backupFailed || 'Couldn’t back up.';
+      },
+    );
+    try {
+      onBackup({}, ctrl);                                // 2-arg (payload, ctrl) contract preserved
+    } catch (ex) {
+      ctrl.fail();                                       // sync throw → unlatch + clear spinner (#141-m4)
+    }
   }
 
   /* ——— what's inside — 2×2 disc tiles (#148③ premium pass) ——— */
@@ -17113,6 +17706,180 @@ function createSettingsContributors({
   card.append(list);
   groupWrap.append(card);
   body.append(groupWrap);
+
+  return el;
+}
+
+/* Shared link renderer for About / How-to. A link OPENS via the optional
+   onOpenLink callback (no bridge verb exists → the shells don't wire it; when
+   absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
+   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only. */
+function linkRow({ label, url, onOpenLink, strings }) {
+  if (onOpenLink) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = label;
+    b.append(lab, icon('arrow-up-right', { size: 18 }));
+    b.addEventListener('click', () => onOpenLink(url));
+    return b;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings-links__row c-settings-links__row--static';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings-links__label';
+  lab.textContent = label;
+  const u = document.createElement('span');
+  u.className = 'c-settings-links__url';
+  u.textContent = url;                       // selectable text (no WebView navigation)
+  wrap.append(lab, u);
+  return wrap;
+}
+
+/**
+ * About — createSettingsAbout({ appName, version, tagline, description, links,
+ * onOpenLink, onBack, strings }). STATIC in-hub takeover, zero-C# (no bridge).
+ * Version shows only when provided (SPIXI_ENV / §9 push — no bridge push today).
+ * Links degrade to selectable text unless onOpenLink is wired.
+ */
+function createSettingsAbout({
+  appName = 'Spixi',
+  version = '',
+  tagline,
+  description,
+  links,
+  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-about', strings.about || 'About', onBack);
+
+  /* hero — logo disc + app name + tagline (backup-hero / contributors art precedent) */
+  const hero = document.createElement('div');
+  hero.className = 'c-settings-about__hero';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc c-settings-about__logo';
+  disc.dataset.hue = 'accent';
+  disc.dataset.grad = String(discGrad('logo'));
+  disc.append(icon('logo', { size: 32 }));
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'c-settings-about__app-name';
+  nameEl.textContent = appName;
+  const tag = document.createElement('p');
+  tag.className = 'c-settings-about__tagline';
+  tag.textContent = tagline || strings.aboutTagline
+    || 'Private, decentralized messaging on the Ixian network.';
+  hero.append(disc, nameEl, tag);
+  if (version) {
+    const ver = document.createElement('p');
+    ver.className = 'c-settings-about__version';
+    ver.textContent = version;
+    hero.append(ver);
+  }
+  body.append(hero);
+
+  const desc = document.createElement('p');
+  desc.className = 'c-settings__note c-settings-about__desc';
+  desc.textContent = description || strings.aboutBody
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+  body.append(desc);
+
+  /* links card — website / network / source (degrade to text without onOpenLink) */
+  const list = links || [
+    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io' },
+    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io' },
+    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi' },
+  ];
+  if (list.length) {
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'c-settings__groupwrap';
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    for (const l of list) card.append(linkRow({ ...l, onOpenLink, strings }));
+    groupWrap.append(card);
+    body.append(groupWrap);
+  }
+
+  const legal = document.createElement('p');
+  legal.className = 'c-settings__note c-settings-about__legal';
+  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  body.append(legal);
+
+  return el;
+}
+
+/**
+ * How to use — createSettingsHowTo({ steps, links, onOpenLink, onBack, strings }).
+ * STATIC in-hub takeover, zero-C#. Brief getting-started steps + an optional docs
+ * link (degrades to text without onOpenLink).
+ */
+function createSettingsHowTo({
+  steps,
+  links,
+  onOpenLink,
+  onBack,
+  strings = getStrings(),
+} = {}) {
+  const { el, body } = appScreenShell(
+    'c-settings-howto', strings.howToUse || 'How to use Spixi', onBack);
+
+  const intro = document.createElement('p');
+  intro.className = 'c-settings__note c-settings-howto__intro';
+  intro.textContent = strings.howToIntro || 'A few basics to get you started.';
+  body.append(intro);
+
+  const list = steps || [
+    { title: strings.howToStep1 || 'Add a contact',
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+    { title: strings.howToStep2 || 'Start chatting',
+      body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
+    { title: strings.howToStep3 || 'Send IXI',
+      body: strings.howToStep3Body || 'Send or request IXI right inside a chat. You confirm every payment on your device.' },
+    { title: strings.howToStep4 || 'Back up your wallet',
+      body: strings.howToStep4Body || 'Save one encrypted backup file from Account → Backup. Without it and your password, nothing can be recovered.' },
+  ];
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const card = document.createElement('div');
+  card.className = 'c-settings__group c-settings-howto__steps';
+  let i = 0;
+  for (const s of list) {
+    i++;
+    const step = document.createElement('div');
+    step.className = 'c-settings-howto__step';
+    const num = document.createElement('span');
+    num.className = 'c-settings-howto__step-num';
+    num.textContent = String(i);
+    const txt = document.createElement('span');
+    txt.className = 'c-settings-howto__step-text';
+    const t = document.createElement('span');
+    t.className = 'c-settings-howto__step-title';
+    t.textContent = s.title;
+    const b = document.createElement('span');
+    b.className = 'c-settings-howto__step-body';
+    b.textContent = s.body;
+    txt.append(t, b);
+    step.append(num, txt);
+    card.append(step);
+  }
+  groupWrap.append(card);
+  body.append(groupWrap);
+
+  const linkList = links || [
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+  ];
+  if (linkList.length) {
+    const lw = document.createElement('div');
+    lw.className = 'c-settings__groupwrap';
+    const lc = document.createElement('div');
+    lc.className = 'c-settings__group c-settings-links';
+    for (const l of linkList) lc.append(linkRow({ ...l, onOpenLink, strings }));
+    lw.append(lc);
+    body.append(lw);
+  }
 
   return el;
 }
@@ -18629,7 +19396,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>
@@ -18657,9 +19424,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsHub, createSettingsDanger,
+    createSettingsAbout, createSettingsHowTo,
+    createBottomNav,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
+  // Version: no SettingsPage bridge push exists (S4) — read it from SPIXI_ENV if
+  // the generation step injects one; else the About row shows no version line.
+  const appVersion = (window.SPIXI_ENV && window.SPIXI_ENV.version) || '';
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -18710,6 +19482,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     if (idx === 1) r.dataset.theme = 'light';
     else if (idx === 2) r.dataset.theme = 'dark';
     else r.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // PERSIST the choice so EVERY other shell (same Resources/Raw/html origin)
+    // adopts it at boot — the redesigned shells otherwise read only the OS scheme,
+    // so a light/dark pick "stayed on Account" (Damir F5). idx 0 = auto → shells
+    // fall back to the OS scheme. Written on the C# setAppearance push + on a pick.
+    try { localStorage.setItem('spixi.appearance', String(idx)); } catch (e) {}
   }
   applyTheme(0);                                 // auto until setAppearance lands
 
@@ -18719,9 +19496,25 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * everything else (theme/language/lock) rides its own immediate verb. Clean
    * exit (no local edits) = ixian:back (discards any stray avatar-tmp). Mirrors
    * legacy Save-vs-Back semantics with the frozen bridge. */
+  // Single-fire exit latch. The topbar Save, the topbar/hardware Back and the peer
+  // bottom-nav ALL terminate this page (C# pops on ixian:save AND ixian:back). Once
+  // any of them fires, a second exit verb is suppressed AND pending hub rebuilds are
+  // dropped (scheduleRebuild bails) — a stray second verb or an rAF rebuild landing
+  // mid-pop was the flicker our code contributed on Save (#199). The empty-Apps
+  // landing after the pop is a HomePage boot-tab problem (home agent), not ours.
+  let exiting = false;
   function exitSettings() {
+    if (exiting) return;
+    exiting = true;
     const dirty = state.dirtyNick || state.dirtyAvatar;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
+  }
+  // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
+  // the C# page pop IS the confirmation (a morph would flash before the teardown).
+  function commitSave() {
+    if (exiting) return;
+    exiting = true;
+    bridge.send('ixian:save:' + state.name);
   }
 
   /* —— views —————————————————————————————————————————————————————————————————— */
@@ -18739,10 +19532,21 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
       version: '',                 // S4: no version push → About row omitted (spec §8-3)
-      capabilities: {},            // all §9 gates OFF (no bridge support) → notifications/privacy/security/payment rows hidden
+      capabilities: {},            // all gates OFF (no SettingsPage verb) → downloads/contributors/dev/
+                                   // change-password + notifications/privacy/security/payment rows hidden.
+                                   // Built + ready; light up when BE adds the open-verbs (be-cutover S-series).
       host: document.body,
       strings,
       onBack: exitSettings,        // standalone pushed page → back button (esp. desktop, no hardware back)
+
+      // Save (Damir, legacy parity) — explicit commit + pop via the single-fire
+      // latch. ixian:save persists nick + language + lock + promotes avatar-tmp,
+      // THEN pops the page (§2). Fires exactly once; no local re-render/morph.
+      onSave: commitSave,
+
+      // About / How to use — STATIC in-hub takeovers, zero-C# (no bridge verb).
+      onAbout: showAbout,
+      onHowTo: showHowTo,
 
       // nickname — held local; empty is blocked by the component (legacy ixian:error).
       // Persisted on exit via ixian:save (immediate save would pop the page).
@@ -18773,10 +19577,16 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // load. Ideal pending-OFF needs a C# auth-cancel signal (BE gap S6).
       onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); },
 
-      // backup — opens the existing legacy BackupPage (SettingsPage:121, PushAsync).
-      // The redesigned in-shell backup screen needs ixian:backupAccount/backupWallet,
-      // which SettingsPage doesn't handle → v1 hands off to the legacy page.
+      // backup — SettingsPage:121 PushAsync(BackupPage), which loads the REDESIGNED
+      // settings_backup.html shell (built this batch). Fully reachable, zero-C#.
       onBackup: () => bridge.send('ixian:backup'),
+
+      // change wallet password — GATED OFF (capabilities.changePassword absent): no
+      // SettingsPage verb opens EncryptionPassword (bridge-audit-B §1/§3). The
+      // settings_encryption.html shell exists + is wired; wire this + flip the flag
+      // when BE adds the nav verb (be-cutover S7). Emits the candidate verb so it's
+      // ready — inert today (SettingsPage doesn't dispatch it, and the row is hidden).
+      onChangePassword: () => bridge.send('ixian:encpass'),
 
       onDanger: showDanger,
     });
@@ -18797,9 +19607,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   // showRemoveAvatar + loadAvatar all fire synchronously) into ONE hub build.
   let rebuildQueued = false;
   function scheduleRebuild() {
-    if (rebuildQueued) return;
+    if (exiting || rebuildQueued) return;          // no rebuild once the page is exiting (flicker guard, #199)
     rebuildQueued = true;
-    requestAnimationFrame(() => { rebuildQueued = false; rebuildHub(); });
+    requestAnimationFrame(() => { rebuildQueued = false; if (!exiting) rebuildHub(); });
   }
 
   function showHub() {
@@ -18823,6 +19633,26 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
       onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
       strings,
+    }));
+  }
+
+  // About — static takeover (zero-C#). Version from SPIXI_ENV when present (S4).
+  function showAbout() {
+    currentView = 'about';
+    root.replaceChildren(createSettingsAbout({
+      version: appVersion, host: document.body, strings,
+      onBack: showHub,
+      // no bridge verb opens a URL from the WebView → links render as selectable text
+      // (onOpenLink deliberately omitted).
+    }));
+  }
+
+  // How to use — static takeover (zero-C#).
+  function showHowTo() {
+    currentView = 'howto';
+    root.replaceChildren(createSettingsHowTo({
+      host: document.body, strings,
+      onBack: showHub,
     }));
   }
 
@@ -18860,12 +19690,35 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       scheduleRebuild();
     },
 
-    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In the danger
-    // view, back returns to the hub; from the hub it exits (save-if-dirty else back).
-    onBack() { if (currentView === 'danger') showHub(); else exitSettings(); },
+    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In any
+    // takeover (danger / about / how-to) back returns to the hub; from the hub it
+    // exits (save-if-dirty else back).
+    onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
   };
 
   bridge.exposeAll(handlers);
+
+  /* —— peer-tab bottom nav (Damir): Account reads as a home tab. Non-Account taps
+   * do a best-effort ixian:back (pop SettingsPage → home); precise-tab landing +
+   * true in-home integration need BE (HomePage pushing settings data, or a
+   * home-tab-select verb) — be-cutover S11. The nav persists across the
+   * hub/takeover swaps (it's a sibling of #settings-root). ————————————————————— */
+  const NAV_ITEMS = [
+    { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
+    { id: 'apps', label: strings.apps || 'Apps', icon: 'apps' },
+    { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
+    { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({
+    items: NAV_ITEMS, active: 'account',
+    // Leaving Account = pop back to home. Route through exitSettings (NOT a raw
+    // ixian:back) so a held-but-uncommitted nickname / picked avatar is saved on
+    // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
+    // dropped the edit + let C# delete avatar-tmp). NOTE: there's no verb to land
+    // on the TAPPED tab, so home shows its last tab (S11 BE — home-tab-select).
+    onChange: (id) => { if (id !== 'account') exitSettings(); },
+  });
+  document.getElementById('settings-nav').append(nav);
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push, arriving empty until

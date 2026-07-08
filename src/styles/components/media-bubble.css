@@ -8,7 +8,16 @@
   /* width lives on the ANCHOR (audit r4: the tile's 75% went cyclic against
      the shrink-wrapped anchor and collapsed to ~0) */
   width: 100%;
-  max-height: var(--layout-bubble-max); /* tall media caps at the same 320 rail */
+  /* DEFAULT placeholder geometry (Damir F5 2026-07-08): before load — and before
+     any sender dims — reserve a bubble-sized box (4:3) so the tile isn't a tiny
+     strip that then jumps to full size when the GIF arrives. The inline
+     aspect-ratio (sender dims, or the natural aspect set on load) overrides this. */
+  aspect-ratio: 4 / 3;
+  /* tall media caps at the 320 bubble rail, but NEVER past ~half the visible
+     scroll area — a portrait GIF used to render half under the composer
+     (Damir F5 2026-07-08). vh keeps it inside #messages on any screen; the
+     full uncropped frame is one tap away in the viewer. */
+  max-height: min(var(--layout-bubble-max), 45vh);
   min-height: 96px;                     /* dimension-less messages still get a tile */
   padding: 0;
   border: 0;
@@ -35,7 +44,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain (was cover): show the WHOLE GIF/image, never crop it (Damir F5
+     2026-07-08 — cover was cutting the frame off). The tile is sized to the
+     natural aspect on load, so contain fills exactly; extreme portraits
+     letterbox against the tile background rather than getting cropped. */
+  object-fit: contain;
   opacity: 0;
   transition: opacity var(--duration-200) var(--easing-standard);
 }

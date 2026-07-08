@@ -166,22 +166,30 @@ export function createMessageBubble({
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
   if (sender && (position === 'first' || position === 'single')) {
     // A nameless sender (no nick — bots / some group members) shows its ADDRESS
-    // middle-truncated and COPIES the full address on click (Damir 2026-07-07);
-    // this takes precedence over the #99 member-sheet tap. Otherwise: tappable
-    // when onSenderClick is wired (member sheet), else a plain span (blind groups).
-    const copyable = senderIsAddress && !!address;
+    // middle-truncated. Its TAP now opens the member sheet — the SAME pattern as a
+    // named sender (Damir F5 2026-07-08): the sheet holds the full address + copy
+    // action, so identity/copy is consistent for named and nameless alike. Direct
+    // clipboard copy stays ONLY as a fallback when no member sheet is wired (e.g.
+    // blind groups). Otherwise a plain span.
+    const copyable = senderIsAddress && !!address;             // → truncated + monospace display
     const interactive = copyable || !!onSenderClick;
     const s = document.createElement(interactive ? 'button' : 'span');
     s.className = 'c-bubble__sender';
     if (copyable) s.dataset.address = '';                       // style hook (monospace/copy affordance)
     if (interactive) {
       s.type = 'button';
-      if (copyable) {
+      if (onSenderClick) {
+        // named OR nameless → member sheet (full address + copy live there)
+        if (copyable) {
+          s.title = address;                                    // full address on hover
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+        }
+        s.addEventListener('click', onSenderClick);
+      } else {
+        // no member sheet wired (e.g. blind group) → direct clipboard copy fallback
         s.title = address;                                       // full address on hover
         s.setAttribute('aria-label', (strings.copyAddress || 'Copy address') + ': ' + address);
         s.addEventListener('click', () => copySenderAddress(s, address, strings));
-      } else {
-        s.addEventListener('click', onSenderClick);
       }
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;

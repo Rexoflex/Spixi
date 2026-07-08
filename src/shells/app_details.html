@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — App</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/chip.css"><!-- capability chips -->
+<link rel="stylesheet" href="../styles/components/badge.css"><!-- verified badge (unused today — always false) -->
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (install confirm / uninstall / removed) -->
+<link rel="stylesheet" href="../styles/components/toast.css"><!-- copy-URL toast -->
+<link rel="stylesheet" href="../styles/components/apps-icon.css">
+<link rel="stylesheet" href="../styles/components/apps-details.css">
+<style>
+  /* Production shell: fill the WebView. app_details.html is loaded by the C#
+     AppDetailsPage (PUSHED). A back-only topbar sits above a scrolling details
+     region; the app name lives in the details hero right below (no vertical
+     repeat, per Damir). The sticky Install bar sticks to the scroll region. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #topbar-slot { flex: none; }
+  #app-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  #app-scroll > .c-app-details { flex: 1; }
+  /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
+     parse / before first render (mirrors contact_details.html); the first
+     replaceChildren render swaps it out, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="topbar-slot"></div>
+  <div id="app-scroll"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production App-details / installer shell — the redesigned AppDetailsPage,
+   * wired to the REAL C# MAUI bridge (native.js in the bundle). Reached by
+   * tapping a mini-app (HomePage apps tab / AppsPage → ixian:appDetails|details
+   * → C# pushes AppDetailsPage, which loads this file), or by the add-app flow
+   * navigating here in "installing" mode. ZERO C# change, frozen bridge.
+   *
+   * Contract (verified bridge-audit-B §10, AppDetailsPage.xaml.cs):
+   *   C#→JS: init(name, icon, publisher, description, version, url, humanSize,
+   *            capabilities, appId, hasSingleUser("True"/"False"), hasMultiUser,
+   *            installed ("false" while installing, else bool-string — MIXED
+   *            casing), verified (always "False"), <hardcoded "True">)  [14 args]
+   *          · showInstalling · showInstallSuccess · showInstallFailed
+   *          · showAppRemoved
+   *   JS→C#: ixian:onload · ixian:back · ixian:install · ixian:uninstall
+   *          · ixian:details (reload — NOT wired; no component reload hook)
+   *          · ixian:startApp:<appId>      (single-user launch)
+   *          · ixian:startAppMulti:<appId> (multi-user launch → contact picker)
+   *
+   * DESIGN NOTES / deviations (flagged in the handoff):
+   *   - Icon path won't resolve inside the self-contained shell (repo-wide flag)
+   *     → app.icon left null → c-app-icon renders its deterministic gradient
+   *     tile (same hue as the list). Raw path stored for a future image slot.
+   *   - `verified` is hardcoded "False" in C# → asBool() → false → NO bogus
+   *     verified badge shown. (BE ask: a real signed-app flag — logged.)
+   *   - `installed` mixes casing ("false" while installing vs Bool.ToString());
+   *     asBool() treats "true"/"True" as true, everything else false.
+   *   - Install = inline button morph (loading → success check → re-render as
+   *     installed), driven by C#'s showInstalling/Success/Failed pushes resolving
+   *     the component's install ctrl. We do NOT also open the modal variants
+   *     (showAppInstalling/Installed) — that would double-signal the inline morph.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    // ALIAS the modal import — a bare `showAppRemoved` const would SHADOW the
+    // same-named bridge handler in identifier resolution (declarative record wins
+    // over the global object), so C#'s executeUiCommand(showAppRemoved) would call
+    // the modal fn and skip the handler's re-render (audit MAJOR, Batch 4).
+    createAppDetails, showAppRemoved: showAppRemovedModal,
+    createTopbar,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  const asBool = (v) => v === 'True' || v === 'true' || v === true;
+
+  const topbarSlot = document.getElementById('topbar-slot');
+  const scroll = document.getElementById('app-scroll');
+
+  // populated by init(); until then the page is intentionally blank (C# queues
+  // init until ixian:onload, then pushes it as the very first frame).
+  let app = null;
+  // the live install ctrl (component's { done, fail }) — resolved by C#'s
+  // showInstallSuccess / showInstallFailed pushes.
+  let pendingInstallCtrl = null;
+
+  /** Choose the launch verb from the app's user-mode flags. Single-user apps →
+   *  ixian:startApp; multi-user-only apps → ixian:startAppMulti (C# then opens a
+   *  contact picker + sends the chat app-invite). If an app declares BOTH, prefer
+   *  single-user (direct launch, no picker). One Open pill → one verb. */
+  function launch(a) {
+    if (!a || a.id == null || a.id === '') return;
+    if (a.hasSingleUser || !a.hasMultiUser) bridge.send('ixian:startApp:' + a.id);
+    else bridge.send('ixian:startAppMulti:' + a.id);
+  }
+
+  function buildTopbar() {
+    // back-only bar — the app name lives in the details hero right below (Damir).
+    topbarSlot.replaceChildren(createTopbar({
+      variant: 'view', title: '', backLabel: strings.back || 'Back',
+      onBack: () => bridge.send('ixian:back'),
+    }));
+  }
+
+  function render() {
+    if (!app) return;
+    scroll.replaceChildren(createAppDetails({
+      app, strings, host: document.body,
+
+      // launch (Open pill on installed apps, or related tiles → their details)
+      onLaunch: (a) => launch(a),
+      onOpen: () => {},                          // no related-app data over this bridge → no-op
+
+      // install — fire the intent, stash the ctrl; C#'s showInstall* resolves it.
+      onInstall: (a, ctrl) => { pendingInstallCtrl = ctrl; bridge.send('ixian:install'); },
+      // after the success morph the component calls onInstalled → re-render as installed
+      onInstalled: () => { if (app) { app.installed = true; render(); } },
+
+      // uninstall — fire-and-forget INTENT after the component's confirm modal.
+      // C# runs MiniAppManager.remove then pushes showAppRemoved (page stays).
+      onUninstall: () => bridge.send('ixian:uninstall'),
+
+      // copy the dev install URL — no bridge verb; best-effort Clipboard API
+      // (the component shows its own "Copied" toast regardless).
+      onCopyUrl: (url) => { try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (_) {} },
+    }));
+    scroll.scrollTop = 0;
+  }
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const handlers = {
+    // init(...) — 14 positional args → the `app` model consumed by createAppDetails.
+    init(name, iconPath, publisher, description, version, url, humanSize,
+         capabilities, appId, hasSingleUser, hasMultiUser, installed, verified /*, _hardcodedTrue */) {
+      app = {
+        id: appId || '',
+        name: name || '',
+        icon: null,                 // path won't resolve here → gradient fallback (repo-wide)
+        _iconPath: iconPath || '',  // stored for a future hero image slot
+        publisher: publisher || '',
+        description: description || '',
+        version: version || '',
+        size: humanSize || '',      // component reads app.size (metaRow "Size")
+        url: url || '',
+        capabilities: capabilities || '',   // string; normalizeCaps() splits on comma
+        installed: asBool(installed),
+        verified: asBool(verified),          // always false today → no badge
+        hasSingleUser: asBool(hasSingleUser),
+        hasMultiUser: asBool(hasMultiUser),
+      };
+      buildTopbar();
+      render();
+    },
+
+    // install lifecycle — resolve the component's inline install morph.
+    // showInstalling: button is already in the loading morph (onInstall set it) —
+    // no extra modal, so this is a no-op ack.
+    showInstalling() {},
+    showInstallSuccess() {
+      if (pendingInstallCtrl) { pendingInstallCtrl.done(); pendingInstallCtrl = null; }
+      else if (app) { app.installed = true; render(); }   // resolved without a live ctrl
+    },
+    showInstallFailed() {
+      // component's fail() restores the button + opens the "Install failed" modal
+      if (pendingInstallCtrl) { pendingInstallCtrl.fail(); pendingInstallCtrl = null; }
+    },
+
+    // uninstall done — C# pushes this on success. Show the "removed" modal and
+    // re-render the page as not-installed (Install CTA returns).
+    showAppRemoved() {
+      showAppRemovedModal({ host: document.body, strings });
+      if (app) { app.installed = false; render(); }
+    },
+  };
+
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
+   *    invariant): firing during parse races C#'s first init push. ——————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

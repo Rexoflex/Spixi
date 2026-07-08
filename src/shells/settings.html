@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The in-page appearance switch below re-sets the same value. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi — Account</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme, so
+     there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -14,19 +23,26 @@
 <link rel="stylesheet" href="../styles/components/badge.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
+<link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <style>
-  /* Production shell: fill the WebView. Two internal views (hub = root · danger =
-     takeover) swap client-side inside #settings-root. No bottom nav — SettingsPage
-     is a standalone PUSHED page (not the home tab bar); legacy settings.html had a
-     back button, not a nav. */
+  /* Production shell: fill the WebView. Internal views (hub = root · danger /
+     about / how-to = takeovers) swap client-side inside #settings-root.
+     PEER-TAB CHROME: a c-bottomnav (Account active) is added so Account READS as
+     a home tab (Damir). SettingsPage is still a standalone PUSHED page (settings
+     data is pushed by SettingsPage, not HomePage), so this is an approximation —
+     non-Account taps do a best-effort ixian:back (pop to home). Precise-tab
+     landing + true in-home integration need BE (be-cutover S11). */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #settings-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #settings-root > * { flex: 1; min-height: 0; }
+  #settings-nav { flex: none; }
 </style>
 </head>
 <body>
   <div id="settings-root"></div>
+  <div id="settings-nav"></div>
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
@@ -56,9 +72,14 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsHub, createSettingsDanger,
+    createSettingsAbout, createSettingsHowTo,
+    createBottomNav,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
+  // Version: no SettingsPage bridge push exists (S4) — read it from SPIXI_ENV if
+  // the generation step injects one; else the About row shows no version line.
+  const appVersion = (window.SPIXI_ENV && window.SPIXI_ENV.version) || '';
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -109,6 +130,11 @@
     if (idx === 1) r.dataset.theme = 'light';
     else if (idx === 2) r.dataset.theme = 'dark';
     else r.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // PERSIST the choice so EVERY other shell (same Resources/Raw/html origin)
+    // adopts it at boot — the redesigned shells otherwise read only the OS scheme,
+    // so a light/dark pick "stayed on Account" (Damir F5). idx 0 = auto → shells
+    // fall back to the OS scheme. Written on the C# setAppearance push + on a pick.
+    try { localStorage.setItem('spixi.appearance', String(idx)); } catch (e) {}
   }
   applyTheme(0);                                 // auto until setAppearance lands
 
@@ -118,9 +144,25 @@
    * everything else (theme/language/lock) rides its own immediate verb. Clean
    * exit (no local edits) = ixian:back (discards any stray avatar-tmp). Mirrors
    * legacy Save-vs-Back semantics with the frozen bridge. */
+  // Single-fire exit latch. The topbar Save, the topbar/hardware Back and the peer
+  // bottom-nav ALL terminate this page (C# pops on ixian:save AND ixian:back). Once
+  // any of them fires, a second exit verb is suppressed AND pending hub rebuilds are
+  // dropped (scheduleRebuild bails) — a stray second verb or an rAF rebuild landing
+  // mid-pop was the flicker our code contributed on Save (#199). The empty-Apps
+  // landing after the pop is a HomePage boot-tab problem (home agent), not ours.
+  let exiting = false;
   function exitSettings() {
+    if (exiting) return;
+    exiting = true;
     const dirty = state.dirtyNick || state.dirtyAvatar;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
+  }
+  // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
+  // the C# page pop IS the confirmation (a morph would flash before the teardown).
+  function commitSave() {
+    if (exiting) return;
+    exiting = true;
+    bridge.send('ixian:save:' + state.name);
   }
 
   /* —— views —————————————————————————————————————————————————————————————————— */
@@ -138,10 +180,21 @@
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
       version: '',                 // S4: no version push → About row omitted (spec §8-3)
-      capabilities: {},            // all §9 gates OFF (no bridge support) → notifications/privacy/security/payment rows hidden
+      capabilities: {},            // all gates OFF (no SettingsPage verb) → downloads/contributors/dev/
+                                   // change-password + notifications/privacy/security/payment rows hidden.
+                                   // Built + ready; light up when BE adds the open-verbs (be-cutover S-series).
       host: document.body,
       strings,
       onBack: exitSettings,        // standalone pushed page → back button (esp. desktop, no hardware back)
+
+      // Save (Damir, legacy parity) — explicit commit + pop via the single-fire
+      // latch. ixian:save persists nick + language + lock + promotes avatar-tmp,
+      // THEN pops the page (§2). Fires exactly once; no local re-render/morph.
+      onSave: commitSave,
+
+      // About / How to use — STATIC in-hub takeovers, zero-C# (no bridge verb).
+      onAbout: showAbout,
+      onHowTo: showHowTo,
 
       // nickname — held local; empty is blocked by the component (legacy ixian:error).
       // Persisted on exit via ixian:save (immediate save would pop the page).
@@ -172,10 +225,16 @@
       // load. Ideal pending-OFF needs a C# auth-cancel signal (BE gap S6).
       onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); },
 
-      // backup — opens the existing legacy BackupPage (SettingsPage:121, PushAsync).
-      // The redesigned in-shell backup screen needs ixian:backupAccount/backupWallet,
-      // which SettingsPage doesn't handle → v1 hands off to the legacy page.
+      // backup — SettingsPage:121 PushAsync(BackupPage), which loads the REDESIGNED
+      // settings_backup.html shell (built this batch). Fully reachable, zero-C#.
       onBackup: () => bridge.send('ixian:backup'),
+
+      // change wallet password — GATED OFF (capabilities.changePassword absent): no
+      // SettingsPage verb opens EncryptionPassword (bridge-audit-B §1/§3). The
+      // settings_encryption.html shell exists + is wired; wire this + flip the flag
+      // when BE adds the nav verb (be-cutover S7). Emits the candidate verb so it's
+      // ready — inert today (SettingsPage doesn't dispatch it, and the row is hidden).
+      onChangePassword: () => bridge.send('ixian:encpass'),
 
       onDanger: showDanger,
     });
@@ -196,9 +255,9 @@
   // showRemoveAvatar + loadAvatar all fire synchronously) into ONE hub build.
   let rebuildQueued = false;
   function scheduleRebuild() {
-    if (rebuildQueued) return;
+    if (exiting || rebuildQueued) return;          // no rebuild once the page is exiting (flicker guard, #199)
     rebuildQueued = true;
-    requestAnimationFrame(() => { rebuildQueued = false; rebuildHub(); });
+    requestAnimationFrame(() => { rebuildQueued = false; if (!exiting) rebuildHub(); });
   }
 
   function showHub() {
@@ -222,6 +281,26 @@
       onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
       onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
       strings,
+    }));
+  }
+
+  // About — static takeover (zero-C#). Version from SPIXI_ENV when present (S4).
+  function showAbout() {
+    currentView = 'about';
+    root.replaceChildren(createSettingsAbout({
+      version: appVersion, host: document.body, strings,
+      onBack: showHub,
+      // no bridge verb opens a URL from the WebView → links render as selectable text
+      // (onOpenLink deliberately omitted).
+    }));
+  }
+
+  // How to use — static takeover (zero-C#).
+  function showHowTo() {
+    currentView = 'howto';
+    root.replaceChildren(createSettingsHowTo({
+      host: document.body, strings,
+      onBack: showHub,
     }));
   }
 
@@ -259,12 +338,35 @@
       scheduleRebuild();
     },
 
-    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In the danger
-    // view, back returns to the hub; from the hub it exits (save-if-dirty else back).
-    onBack() { if (currentView === 'danger') showHub(); else exitSettings(); },
+    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In any
+    // takeover (danger / about / how-to) back returns to the hub; from the hub it
+    // exits (save-if-dirty else back).
+    onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
   };
 
   bridge.exposeAll(handlers);
+
+  /* —— peer-tab bottom nav (Damir): Account reads as a home tab. Non-Account taps
+   * do a best-effort ixian:back (pop SettingsPage → home); precise-tab landing +
+   * true in-home integration need BE (HomePage pushing settings data, or a
+   * home-tab-select verb) — be-cutover S11. The nav persists across the
+   * hub/takeover swaps (it's a sibling of #settings-root). ————————————————————— */
+  const NAV_ITEMS = [
+    { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
+    { id: 'apps', label: strings.apps || 'Apps', icon: 'apps' },
+    { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
+    { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
+  ];
+  const nav = createBottomNav({
+    items: NAV_ITEMS, active: 'account',
+    // Leaving Account = pop back to home. Route through exitSettings (NOT a raw
+    // ixian:back) so a held-but-uncommitted nickname / picked avatar is saved on
+    // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
+    // dropped the edit + let C# delete avatar-tmp). NOTE: there's no verb to land
+    // on the TAPPED tab, so home shows its last tab (S11 BE — home-tab-select).
+    onChange: (id) => { if (id !== 'account') exitSettings(); },
+  });
+  document.getElementById('settings-nav').append(nav);
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push, arriving empty until

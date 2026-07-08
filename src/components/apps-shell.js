@@ -79,7 +79,11 @@ export function renderAppsList(listEl, state, opts = {}) {
   for (const a of apps) {
     listEl.append(createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app (⋮ → details/uninstall)
+      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app
+      // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
+      // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
+      // details handler exists — so a menu-driven surface (demos) never doubles up.
+      onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),

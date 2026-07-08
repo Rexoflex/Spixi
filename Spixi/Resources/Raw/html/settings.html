@@ -19478,9 +19478,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
-  // Version: no SettingsPage bridge push exists (S4) — read it from SPIXI_ENV if
-  // the generation step injects one; else the About row shows no version line.
-  const appVersion = (window.SPIXI_ENV && window.SPIXI_ENV.version) || '';
+  // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
+  // SPIXI_ENV seeds it if the generation step injects one.
+  let appVersion = (window.SPIXI_ENV && window.SPIXI_ENV.version) || '';
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -19490,15 +19490,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
   /* —— account state — flushed by SettingsPage.onLoad after ixian:onload ————————
    * SettingsPage pushes: setNickname · setAppearance · setLockEnabled ·
-   * showRemoveAvatar(conditional) · loadAvatar. It does NOT push the own address,
-   * the current language code, backup status, or a version string — those rows
-   * degrade (BE gaps S1–S4). */
+   * showRemoveAvatar(conditional) · loadAvatar · setVersion (S4) · setAddress (S1) ·
+   * setLanguage (S3). It does NOT push backup status — that row degrades (BE gap S2). */
   const state = {
     name: '', savedName: '',
+    address: '',                 // S1: setAddress push → QR/address block
     theme: 0,                    // ThemeAppearance: 0 automatic · 1 light · 2 dark (ThemeManager.cs:9)
     lockEnabled: false,
     avatarSrc: null, hasCustomAvatar: false,
-    language: 'en-us',           // no current-lang push (S3) → default; the picker still commits any code
+    language: 'en-us',           // setLanguage push (S3) overrides; default until it lands
     dirtyNick: false,            // nick edited since last save → persist on exit (ixian:save pops, §2)
     dirtyAvatar: false,          // avatar-tmp picked → needs promotion on exit (applyAvatar)
   };
@@ -19584,7 +19584,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   function buildHub() {
     return createSettingsHub({
       name: state.name,
-      address: '',                 // S1: SettingsPage never pushes the own address → QR/address chip omitted
+      address: state.address,      // S1: setAddress push → QR + address chip (#147 marquee)
       avatarSrc: state.avatarSrc,
       hasCustomAvatar: state.hasCustomAvatar,
       theme: state.theme,
@@ -19592,7 +19592,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       language: state.language,
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
-      version: '',                 // S4: no version push → About row omitted (spec §8-3)
+      version: appVersion,         // S4: setVersion push → hub Version row (spec §8-3)
       capabilities: {},            // all gates OFF (no SettingsPage verb) → downloads/contributors/dev/
                                    // change-password + notifications/privacy/security/payment rows hidden.
                                    // Built + ready; light up when BE adds the open-verbs (be-cutover S-series).
@@ -19697,7 +19697,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     }));
   }
 
-  // About — static takeover (zero-C#). Version from SPIXI_ENV when present (S4).
+  // About — static takeover (zero-C#). Version from the setVersion push (S4).
   function showAbout() {
     currentView = 'about';
     root.replaceChildren(createSettingsAbout({
@@ -19756,6 +19756,20 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
       scheduleRebuild();
     },
+
+    // setVersion(version) — S4 (SettingsPage.onLoad, mirrors LaunchPage:33);
+    // feeds the hub Version row + the About takeover.
+    setVersion(v) { appVersion = v || ''; scheduleRebuild(); },
+
+    // setAddress(address) — S1 (SettingsPage.onLoad). PLAIN identity address (legacy
+    // share form, HomePage:322 — no ExtendedAddress _suffix, that's payment-only);
+    // used VERBATIM; the component appends ':ixi' for the QR.
+    setAddress(addr) { state.address = addr || ''; scheduleRebuild(); },
+
+    // setLanguage(code) — S3 (SettingsPage.onLoad, legacy codes e.g. 'en-us',
+    // settings.html:69-81). Fixes the Language row's shown "current" only; the
+    // picker always committed correctly. Unknown/empty codes keep the default.
+    setLanguage(code) { if (code) { state.language = String(code).toLowerCase(); scheduleRebuild(); } },
 
     // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In any
     // takeover (danger / about / how-to) back returns to the hub; from the hub it

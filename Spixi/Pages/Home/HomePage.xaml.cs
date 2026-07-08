@@ -862,6 +862,47 @@ namespace SPIXI
             }
         }
 
+        // CH5: does this chat carry an unread @-mention of my nick? No mention protocol
+        // exists, so this is a TEXT HEURISTIC: scan the tail of the current channel for
+        // unread incoming standard messages containing "@<nick>" (case-insensitive,
+        // capped at 50). Groups/bots only — a 1:1 mention indicator would be noise.
+        private bool hasUnreadMention(Friend friend)
+        {
+            if (!friend.bot && friend.type != FriendType.Group)
+            {
+                return false;
+            }
+            if (friend.getUnreadMessageCount() <= 0)
+            {
+                return false;
+            }
+            string nick = IxianHandler.localStorage.nickname;
+            if (nick == null || nick == "")
+            {
+                return false;
+            }
+            var messages = friend.getMessages(friend.metaData.lastMessageChannel);
+            if (messages == null)
+            {
+                return false;
+            }
+            int scanned = 0;
+            for (int i = messages.Count - 1; i >= 0 && scanned < 50; i--, scanned++)
+            {
+                FriendMessage msg = messages[i];
+                if (msg.localSender || msg.read)
+                {
+                    continue;
+                }
+                if (msg.type == FriendMessageType.standard
+                    && msg.message.Contains("@" + nick, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private FriendMessageHelper? getFriendMessageHelper(Friend friend)
         {
             FriendMessage? lastmsg = friend.metaData.lastMessage;
@@ -1027,7 +1068,35 @@ namespace SPIXI
                     return;
                 }
 
-                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString());
+                // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag.
+                // New args go LAST — never reorder.
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString());
+            }
+        }
+
+        // CH8: a counterpart reacted — push a structured reaction excerpt to the chats
+        // list (reactions never become lastMessage, so addChat can't carry this).
+        public void updateChatReaction(Friend friend, Address reactor_address, string reaction)
+        {
+            if (reactor_address == null
+                || IxianHandler.getWalletStorage().isMyAddress(reactor_address))
+            {
+                return;
+            }
+
+            lock (refreshLock)
+            {
+                string nick = friend.nickname;
+                if (friend.bot || friend.type == FriendType.Group)
+                {
+                    nick = "";
+                    if (friend.users.hasUser(reactor_address) && friend.users.getUser(reactor_address).getNick() != "")
+                    {
+                        nick = friend.users.getUser(reactor_address).getNick();
+                    }
+                }
+
+                Utils.sendUiCommand(this, "addChatReaction", friend.walletAddress.ToString(), nick, reaction, Clock.getTimestamp().ToString());
             }
         }
 
@@ -1065,6 +1134,10 @@ namespace SPIXI
 
                 // Prepare a list of message helpers, to facilitate sorting and communication with the UI
                 List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
+                // CH1: chat kind per wallet address (FriendMessageHelper lives in Ixian-Core — no new field)
+                Dictionary<string, string> chat_kinds = new Dictionary<string, string>();
+                // CH5: unread @-mention flag per wallet address
+                Dictionary<string, bool> mention_flags = new Dictionary<string, bool>();
 
                 foreach (Friend friend in friends)
                 {
@@ -1080,6 +1153,8 @@ namespace SPIXI
                     }
 
                     helper_msgs.Add(helper_msg);
+                    chat_kinds[helper_msg.walletAddress] = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
+                    mention_flags[helper_msg.walletAddress] = hasUnreadMention(friend);
                 }
 
                 // Sort the helper messages
@@ -1088,12 +1163,15 @@ namespace SPIXI
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString());
+                    // CH1: trailing chat kind · CH5: mention flag. New args go LAST — never reorder.
+                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString());
                 }
 
                 // Clear the lists so they will be collected by the GC
                 helper_msgs = null;
                 sorted_msgs = null;
+                chat_kinds = null;
+                mention_flags = null;
 
                 Utils.sendUiCommand(this, "clearChatsDone");
             }

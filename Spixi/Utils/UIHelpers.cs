@@ -76,6 +76,16 @@ namespace SPIXI
             }
         }
 
+        // CH8: reaction excerpt for the chats list (mirrors updateReactions' HomePage dispatch)
+        public static void updateChatReaction(Friend friend, Address reactor_address, string reaction)
+        {
+            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChatReaction(friend, reactor_address, reaction);
+            }
+        }
+
         public static void updateGroupChatNicks(Friend friend, Address realSenderAddress, string nick)
         {
             Utils.getChatPage(friend)?.updateGroupChatNicks(realSenderAddress, nick);

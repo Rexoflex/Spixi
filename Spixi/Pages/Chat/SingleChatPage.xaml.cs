@@ -1515,7 +1515,14 @@ namespace SPIXI
                     text = string.Format("{0} ({1}:{2})", text, minutes, seconds < 10 ? "0" + seconds : seconds.ToString());
 
                 }
-                Utils.sendUiCommand(this, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString());
+                // C4: raw call duration in seconds ("" when not answered/ended)
+                string duration_secs = "";
+                if (message.type == FriendMessageType.voiceCallEnd && !declined)
+                {
+                    duration_secs = message.message;
+                }
+                // C4: trailing outgoing/missed/duration. New args go LAST — never reorder.
+                Utils.sendUiCommand(this, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs);
             }
 
             updateMessageReadStatus(message, channel);
@@ -1623,12 +1630,27 @@ namespace SPIXI
 
         private void updateReactions(FriendMessage fm)
         {
+            // C5: own reaction address — blind groups react under a derived address (see the like case above)
+            var own_address = IxianHandler.getWalletStorage().getPrimaryAddress();
+            if (friend.type == FriendType.Group
+                && friend.metaData.botInfo.hideParticipantAddresses
+                && !friend.users.getOwner().SequenceEqual(own_address))
+            {
+                own_address = GroupChat.DeriveGroupAddress(own_address, friend.metaData.botInfo.randomId);
+            }
+
             var reactions_str = "";
+            var own_reactions_str = "";
             foreach (var reaction in fm.reactions)
             {
                 reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
+                // C5: which reaction keys the local user has added (trailing arg — never reorder)
+                if (reaction.Value.Find(x => x.sender.SequenceEqual(own_address)) != null)
+                {
+                    own_reactions_str += reaction.Key + ";";
+                }
             }
-            Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str);
+            Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str);
         }
 
         public void updateMessage(FriendMessage message, int channel)

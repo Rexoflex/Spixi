@@ -51,6 +51,21 @@ namespace SPIXI
             }
             Utils.sendUiCommand(this, "setLockEnabled", lockEnabled.ToString());
 
+            // S4: app version for the About row (mirrors LaunchPage:33)
+            Utils.sendUiCommand(this, "setVersion", Config.version);
+
+            // S1: own IDENTITY address for the add-me QR/address block — PLAIN form, like
+            // the legacy share verb (HomePage:322), NOT the ExtendedAddress payment form
+            // (its _suffix encodes the OfflineTag payment flag; wallet-receive only)
+            Utils.sendUiCommand(this, "setAddress", IxianHandler.getWalletStorage().getPrimaryAddress().ToString());
+
+            // S3: current language for the Language row (source: resetLanguage:229)
+            string lang = "en-us";
+            if (Preferences.Default.ContainsKey("language"))
+            {
+                lang = Preferences.Default.Get("language", "") as string;
+            }
+            Utils.sendUiCommand(this, "setLanguage", lang);
 
             var filePath = IxianHandler.localStorage.getOwnAvatarPath();
             if (filePath.Equals("img/spixiavatar.png", StringComparison.Ordinal))

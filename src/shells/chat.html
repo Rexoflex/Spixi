@@ -845,6 +845,7 @@
   function buildCallRow(rec) {
     return createCallBubble({
       missed: rec.missed,
+      direction: rec.direction || 'received',   // C4: outgoing calls finally sit right
       // pass the C#-localized label verbatim (duration stripped — shown
       // separately) so "No answer" (outgoing rang-out) isn't reconstructed as
       // "Missed voice call". Direction stays default until BE sends it (C4).
@@ -860,11 +861,13 @@
    * `like` contextAction (xaml.cs:1045). Tips carry a txid, not a display amount
    * (xaml.cs:979/1607), so we can't show the value — but we DO render a tip pill
    * (heart-handshake glyph + "Tipped", Damir F5) so a tip is visible on the
-   * bubble. No per-user flag in the bridge → own from myLikes (session interim). */
-  function parseReactions(str, id) {
+   * bubble. C5: the bridge's trailing own arg (";"-joined keys I reacted with) is
+   * authoritative; myLikes stays as the optimistic/old-exe fallback. */
+  function parseReactions(str, id, ownStr) {
     const reactions = [];
     let tipCount = 0;
-    const likedByMe = myLikes.has(String(id));
+    const ownKeys = new Set(String(ownStr || '').split(';').filter(Boolean));
+    const likedByMe = ownKeys.has('like') || myLikes.has(String(id));
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
@@ -1395,7 +1398,7 @@
   /* CREATE a call event row (legacy addCall). missed = the bridge `declined`
    * flag (rang out / no answer); label = the C#-localized wording verbatim;
    * duration is a preformatted "m:ss" or empty. */
-  function upsertCall(id, ts, missed, label, duration) {
+  function upsertCall(id, ts, missed, label, duration, outgoing) {
     id = String(id);
     const existing = model.get(id);
     const rec = existing || { id, kind: 'call' };
@@ -1404,6 +1407,9 @@
     rec.missed = !!missed;
     rec.label = label || '';
     rec.duration = duration || '';
+    // C4: card side from message.localSender; undefined (old exe) keeps the
+    // pre-C4 received-side default.
+    if (outgoing !== undefined) rec.direction = outgoing ? 'sent' : 'received';
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
@@ -1505,9 +1511,13 @@
     // TEXT status UPSERT (chat.js:1035, xaml.cs:1624). Update the row's status
     // (and text) if it exists; create it if not (robustness — the legacy handler
     // only updated, but C# may updateMessage a row this shell hasn't seen yet).
+    // NOTE: `sent` here is the DELIVERY flag (message.sent, xaml.cs:1646), NOT
+    // direction — a status tick must NEVER flip an existing row's side (own group
+    // messages flipped to 'received' while delivery lagged, Damir F5 2026-07-08).
+    // Only a robustness-create of an unseen row uses it as a best-guess direction.
     updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
-      const dir = asBool(sent) ? 'sent' : 'received';
       const existing = model.get(String(id));
+      const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
       upsertText(id, message, dir, existing ? existing.ts : Date.now(),
         { sent, confirmed, read, paid, errorSending });
     },
@@ -1638,26 +1648,39 @@
       }
     },
 
-    // CALL event (chat.js addCall:1496): (id, text, declined, time). VIEW-ONLY
-    // best-effort — see buildCallRow. declined ("True"/"False") = rang out /
-    // no answer; an answered call embeds a "(m:ss)" duration in the localized text.
-    addCall(id, text, declined, time) {
+    // CALL event (chat.js addCall:1496): (id, text, declined, time) + C4 trailing
+    // args: outgoing ("True"/"False" — message.localSender), missed (declined AND
+    // incoming; carried for future no-answer-vs-missed styling — the call-back
+    // nudge intentionally still shows for BOTH, legacy parity), durationSecs (raw
+    // seconds, "" unless answered+ended). Old exe → all three undefined: side
+    // defaults to received and the duration falls back to the "(m:ss)" embedded
+    // in the localized label, exactly as before.
+    addCall(id, text, declined, time, outgoing, missed, durationSecs) {
       const isDeclined = asBool(declined);
       const raw = String(text || '');
-      const dur = isDeclined ? '' : ((raw.match(/\((\d+:\d{2})\)/) || [])[1] || '');
+      // C4 raw seconds win; legacy "(m:ss)"-in-label is the fallback
+      let dur = '';
+      const secs = parseInt(durationSecs, 10);
+      if (!isDeclined && !isNaN(secs) && secs >= 0) {
+        dur = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+      }
+      if (!dur) dur = isDeclined ? '' : ((raw.match(/\((\d+:\d{2})\)/) || [])[1] || '');
       // strip a trailing "(m:ss)" so the label is just the wording; the duration
       // is rendered separately by the card
       const label = raw.replace(/\s*\(\d+:\d{2}\)\s*$/, '').trim();
-      upsertCall(id, toMs(time), isDeclined, label, dur);
+      upsertCall(id, toMs(time), isDeclined, label, dur,
+        outgoing === undefined ? undefined : asBool(outgoing));
     },
 
     // REACTIONS (chat.js addReactions:549) — ;-joined "key:count". Store on the
     // record (so re-renders keep them) + apply to the live row with a pop. The
     // bridge re-emits the FULL list each time, so parse-replace is correct.
-    addReactions(id, reactions) {
+    // C5: trailing `own` arg = ;-joined keys the local user reacted with
+    // (undefined on an old exe → myLikes fallback inside parseReactions).
+    addReactions(id, reactions, own) {
       const rec = model.get(String(id));
       if (!rec) { dbg('addReactions: unknown', id); return; }
-      const parsed = parseReactions(reactions, id);
+      const parsed = parseReactions(reactions, id, own);
       rec.reactions = parsed.reactions;
       rec.tip = parsed.tip;
       const row = rows.get(String(id));

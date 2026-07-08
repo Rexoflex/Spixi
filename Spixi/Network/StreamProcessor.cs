@@ -470,6 +470,8 @@ namespace SPIXI
                             friend.saveMetaData();
                         }
                         UIHelpers.updateReactions(friend, channel, reaction.msgId);
+                        // CH8: reaction excerpt for the chats list (a reaction never becomes lastMessage)
+                        UIHelpers.updateChatReaction(friend, group_sender_address != null ? group_sender_address : sender_address, reaction.reaction);
                         UIHelpers.shouldRefreshContacts = true;
                         break;
 

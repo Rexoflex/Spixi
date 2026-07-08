@@ -330,6 +330,12 @@
    * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
    * contact) still needs the BE verbs — this only removes the row. */
   const deletedChats = new Set();
+  /* CH8: sticky reaction excerpts, addr → { excerpt, ts }. A counterpart reaction
+   * arrives via addChatReaction, but C# re-flushes the chats list within a tick
+   * (msgReaction sets shouldRefreshContacts) re-pushing the last REAL message
+   * excerpt — so the reaction excerpt is remembered here and re-applied on addChat
+   * until the chat is read (unread 0) or a newer real message lands. */
+  const reactionExcerpts = new Map();
   const opts = {
     strings,
     host: document.body,
@@ -896,12 +902,13 @@
 
     // One row. Maps the legacy addChat args → a redesigned chat, then UPSERTS by
     // address. Order (home.js:397 / HomePage.updateChat:1030):
-    //   wallet, from, timestamp, avatar, online, excerpt_msg, type, unread
+    //   wallet, from, timestamp, avatar, online, excerpt_msg, type, unread,
+    //   kind (CH1), mention (CH5)
     // Two callers: (1) inside a clear…done flush (loadChats) — flushing, no
     // render here; (2) a LONE call from updateChat on a message event — upsert
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
-    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread) {
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention) {
       // Deleted this session (CH3 tombstone): a STRUCTURAL flush must keep it gone;
       // a LONE addChat (a real new-message event) RESURRECTS it (they messaged you).
       if (deletedChats.has(wallet)) {
@@ -919,6 +926,14 @@
         // fails to load falls back to the gradient (avatar.js onerror).
         avatar: resolveAvatar(avatar),
         online: online === 'true' || online === 'True',
+        // CH1: trailing chat kind (9th arg) — 'group' | 'bot' | '' (1:1). Bot channels
+        // count as groups for the Groups chip (Damir, CH1 review) → chat.type 'group'
+        // (chatMatchesFilter keys on it, chats-shell.js:45); 'True' = pre-amend bool safety.
+        type: (kind === 'group' || kind === 'bot' || kind === 'True') ? 'group' : '1to1',
+        // CH5: unread @-mention flag (10th arg) → mention indicator + Unread-filter
+        // bump (chatMatchesFilter/chatsUnreadTotal read chat.mention). Always set —
+        // a re-flush after read must CLEAR a stale mention.
+        mention: mention === 'True' || mention === 'true',
         // canon reverse-map (CH6) + draft override (CH7); a pending draft wins.
         excerpt: excerptFor(wallet, excerpt_msg, type),
         unread: n,
@@ -933,6 +948,13 @@
       if (n === 0) {
         const st = statusFromType(type);
         if (st) chat.status = st;
+      }
+      // CH8: re-apply a sticky reaction excerpt (see reactionExcerpts above);
+      // read chats / newer real messages clear it, drafts keep priority.
+      const rx = reactionExcerpts.get(wallet);
+      if (rx) {
+        if (n === 0 || (t && t > rx.ts)) reactionExcerpts.delete(wallet);
+        else if (chat.excerpt.type !== 'draft') chat.excerpt = rx.excerpt;
       }
       upsertChat(chat);
       if (!chatsFlushing) scheduleChatsRender();   // lone updateChat → render now-ish
@@ -966,11 +988,35 @@
       if (!c) return;                                   // contacts-directory-only status → ignore
       c.online = online === 'true' || online === 'True';
       c.unread = Number(unread) || 0;
+      // CH5: a mention is by definition unread — clear it when the live tick
+      // reports the chat read (a full re-flush would clear it too, later).
+      if (c.unread === 0) c.mention = false;
       // A live status tick is normally excerpt="" (pure online/unread refresh); when
       // it does carry text, run it through the same canon+draft path as addChat.
       { const ex = excerptFor(address, excerpt, undefined); if (excerpt || ex.type === 'draft') c.excerpt = ex; }
       const t = Number(timestamp);
       if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
+      scheduleChatsRender();
+    },
+
+    // CH8: a counterpart reacted (StreamProcessor msgReaction → HomePage.
+    // updateChatReaction). args: wallet · reactor nick ('' in 1:1/unknown) ·
+    // reaction key ('like' / 'tip:<txid>') · unix-seconds timestamp. Renders the
+    // built reaction glyph + "Reacted"/"Tipped" and remembers it (sticky — see
+    // reactionExcerpts) across the C# re-flush that follows. Replaces the #193
+    // lone-heart best-effort for new exes; that path stays as the old-exe fallback.
+    addChatReaction(wallet, nick, reaction, timestamp) {
+      if (!wallet) return;
+      const c = state.chats.find((x) => x && x.address === wallet);
+      if (!c) return;                                   // no conversation row → ignore
+      let t = Number(timestamp) || Date.now();
+      if (t < 1e12) t *= 1000;
+      const sl = window.SL || {};
+      const text = String(reaction || '').startsWith('tip')
+        ? (sl.tipped || 'Tipped') : (sl.reacted || 'Reacted');
+      const ex = { type: 'reaction', text, sender: nick || null };
+      reactionExcerpts.set(wallet, { excerpt: ex, ts: t });
+      if (!c.excerpt || c.excerpt.type !== 'draft') c.excerpt = ex;
       scheduleChatsRender();
     },
 

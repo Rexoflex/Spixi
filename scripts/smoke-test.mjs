@@ -1496,6 +1496,26 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'u-scroll reserves the scrollbar gutter — QR/payments expand no longer reflows content (#145 ⑤)');
 }
 
+{
+  /* static guard — a11y sweep Phase 2 (2026-07-08, docs/a11y-sweep-phase2.md).
+     The chat SHELL hand-rolls the top-anchored channel selector (Damir Option A,
+     F5 2026-07-08) instead of routing through overlay.js, so its focus management
+     is verified by source markers — the shell isn't jsdom-loaded here. */
+  const chatShell = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/panel\.setAttribute\('role', 'dialog'\)/.test(chatShell)
+    && /panel\.setAttribute\('aria-modal', 'true'\)/.test(chatShell),
+    'channel selector panel is a dialog + aria-modal (a11y sweep)');
+  ok(/function channelFocusables\(\)/.test(chatShell)
+    && /channelKeydown = \(e\) => \{[\s\S]*?e\.key !== 'Tab'/.test(chatShell),
+    'channel selector traps Tab within the panel (a11y sweep)');
+  ok(/channelFocusin = \(e\) => \{/.test(chatShell)
+    && /document\.addEventListener\('focusin', channelFocusin\)/.test(chatShell),
+    'channel selector contains focus via a focusin handler (a11y sweep)');
+  ok(/channelReturnFocus = document\.activeElement/.test(chatShell)
+    && /rf\.focus\(\{ preventScroll: true \}\)/.test(chatShell),
+    'channel selector restores focus to the trigger on close (a11y sweep)');
+}
+
 console.log('chats.html — contacts flow (Phase 1 #2)');
 {
   const dom = await load('chats.html');

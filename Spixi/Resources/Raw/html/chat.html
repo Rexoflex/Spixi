@@ -21312,7 +21312,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   let channelList = [];               // accumulated per open, from addChannelToSelector
   let channelDropdown = null;         // top-anchored selector overlay (open = non-null)
   let channelSheetBody = null;        // the live channel list inside the panel
-  let channelKeydown = null;          // Esc handler while the dropdown is open
+  let channelKeydown = null;          // Esc + Tab-trap handler while the dropdown is open
+  let channelFocusin = null;          // focus containment while the dropdown is open
+  let channelReturnFocus = null;      // element to restore focus to on close (the title trigger)
+  let focusTitleAfterRender = false;  // row-select rebuilds the topbar → focus the new title (review MINOR-2)
 
   const topbarHost = document.getElementById('chat-topbar');
   function renderTopbarNow() {
@@ -21372,6 +21375,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       }
     }
     topbarHost.append(tb);
+    // channel row-select coalesces a topbar rebuild; land focus on the NEW title
+    // (the old trigger is detached by textContent='' above → would drop to body).
+    if (focusTitleAfterRender && botChannels) {
+      focusTitleAfterRender = false;
+      const wrap = tb.querySelector('.c-topbar__identity-wrap');
+      if (wrap) wrap.focus({ preventScroll: true });
+    }
   }
   // Coalesce topbar rebuilds too: on open C# fires setNickname + setOnlineStatus
   // (+ onChatScreenReady) in quick succession, each tearing down + rebuilding the
@@ -21423,6 +21433,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       channelState.name = ch.name;
       channelState.icon = ch.icon || channelState.icon;
       channelState.unread = false;
+      focusTitleAfterRender = true;   // land focus on the rebuilt title (review MINOR-2)
       renderTopbar();                 // channel name lives in the title now
       bridge.send('ixian:selectChannel:' + ch.index);
       closeChannelSelector();
@@ -21433,13 +21444,32 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   /* Channel selector — a top-anchored panel that slides DOWN from directly under
    * the topbar (Option A, Damir F5 2026-07-08). Opened by tapping the topbar
    * title; NOT a bottom sheet. Scrim + Esc close it. */
+  /* focusables inside the open dropdown panel (rows arrive async) — mirrors overlay.js */
+  function channelFocusables() {
+    if (!channelDropdown) return [];
+    const p = channelDropdown.querySelector('.chat-channel-panel');
+    if (!p) return [];
+    return [...p.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && !el.hidden);
+  }
+
   function closeChannelSelector() {
     if (channelKeydown) { document.removeEventListener('keydown', channelKeydown); channelKeydown = null; }
+    if (channelFocusin) { document.removeEventListener('focusin', channelFocusin); channelFocusin = null; }
     if (!channelDropdown) return;
     const el = channelDropdown;
     channelDropdown = null;
     channelSheetBody = null;
+    // restore focus to the title trigger — only if focus is ours to move (still
+    // inside the closing overlay or dropped to body), matching overlay.js policy.
+    const rf = channelReturnFocus; channelReturnFocus = null;
+    const active = document.activeElement;
+    if (rf && rf.isConnected && typeof rf.focus === 'function' &&
+        (el.contains(active) || active === document.body)) {
+      rf.focus({ preventScroll: true });
+    }
     el.classList.remove('is-open');
+    el.style.pointerEvents = 'none';   // exiting overlay: stale scrim must not catch clicks (review NIT)
     // let the slide-up finish before detaching (reduced-motion → transition:none,
     // transitionend still fires); safety timer covers the no-transition case
     let removed = false;
@@ -21451,6 +21481,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   function openChannelSelector() {
     if (!mode.isBot) return;
     closeChannelSelector();
+    channelReturnFocus = document.activeElement;   // the topbar title trigger
     const s = window.SL || {};
     channelList = [];
 
@@ -21462,7 +21493,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
     const panel = document.createElement('div');
     panel.className = 'chat-channel-panel';
-    panel.setAttribute('role', 'menu');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('tabindex', '-1');
     panel.setAttribute('aria-label', s.channels || 'Channels');
     // anchor the panel directly under the topbar (+ any connectivity banner)
     panel.style.top = (topbarHost.offsetHeight + (warningBanner.offsetHeight || 0)) + 'px';
@@ -21483,10 +21516,28 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     overlay.append(scrim, panel);
     document.body.append(overlay);
     channelDropdown = overlay;
-    channelKeydown = (e) => { if (e.key === 'Escape') closeChannelSelector(); };
+    // Esc closes; Tab is trapped within the panel (mirrors overlay.js house style).
+    channelKeydown = (e) => {
+      if (e.key === 'Escape') { closeChannelSelector(); return; }
+      if (e.key !== 'Tab' || !channelDropdown) return;
+      const f = channelFocusables();
+      if (f.length === 0) { e.preventDefault(); panel.focus({ preventScroll: true }); return; }
+      const first = f[0], last = f[f.length - 1], act = document.activeElement;
+      if (!f.includes(act)) { e.preventDefault(); (e.shiftKey ? last : first).focus({ preventScroll: true }); }
+      else if (e.shiftKey && act === first) { e.preventDefault(); last.focus({ preventScroll: true }); }
+      else if (!e.shiftKey && act === last) { e.preventDefault(); first.focus({ preventScroll: true }); }
+    };
     document.addEventListener('keydown', channelKeydown);
+    // anything focused outside the open dropdown bounces back in (overlay.js parity)
+    channelFocusin = (e) => {
+      if (!channelDropdown || channelDropdown.contains(e.target)) return;
+      (channelFocusables()[0] || panel).focus({ preventScroll: true });
+    };
+    document.addEventListener('focusin', channelFocusin);
     // trigger the slide-down on the next frame (so the -100% start state paints)
     requestAnimationFrame(() => { if (channelDropdown === overlay) overlay.classList.add('is-open'); });
+    // move focus into the panel now (list is still loading → the panel itself)
+    panel.focus({ preventScroll: true });
 
     // pull the list — C# answers with addChannelToSelector per channel
     bridge.send('ixian:populateChannelSelector');

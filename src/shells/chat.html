@@ -907,7 +907,7 @@
     }
     openMemberSheet({
       host: overlayHost,
-      member: { name: rec.senderNick || '', address: rec.senderAddress || '' },
+      member: { name: rec.senderNick || '', address: rec.senderAddress || '', avatar: rec.avatar || null },
       blind: false,
       relation: 'none',
       onRequest: rec.senderAddress
@@ -933,19 +933,22 @@
 
   // Roster from what the shell knows: received-message senders + updateGroupChatNicks.
   function collectGroupMembers() {
-    const byAddr = new Map();     // address → best-known nick ('' if none)
+    const byAddr = new Map();     // address → { name, avatar } (best-known nick + per-sender photo)
     for (const rec of model.values()) {
       if (rec.direction === 'received' && rec.senderAddress) {
-        const known = byAddr.get(rec.senderAddress) || '';
-        byAddr.set(rec.senderAddress, known || (senderHasNick(rec) ? rec.senderNick : ''));
+        const prev = byAddr.get(rec.senderAddress) || { name: '', avatar: null };
+        byAddr.set(rec.senderAddress, {
+          name: prev.name || (senderHasNick(rec) ? rec.senderNick : ''),
+          avatar: prev.avatar || rec.avatar || null,   // real per-sender photo (C# addThem avatar)
+        });
       }
     }
     for (const [addr, nick] of groupNicks) {
       if (!addr) continue;
-      const known = byAddr.get(addr) || '';
-      byAddr.set(addr, known || (nick || ''));
+      const prev = byAddr.get(addr) || { name: '', avatar: null };
+      byAddr.set(addr, { name: prev.name || (nick || ''), avatar: prev.avatar });
     }
-    return [...byAddr].map(([address, name]) => ({ name, address }));
+    return [...byAddr].map(([address, m]) => ({ name: m.name, address, avatar: m.avatar }));
   }
 
   function buildChatInfo() {
@@ -955,6 +958,7 @@
       kind: infoKind,
       context: 'chat',
       name: identity.name || identity.address || '',
+      avatar: identity.avatar || null,       // real 1:1/bot/group photo (C# addThem/setAvatar); gradient fallback
       avatarSeed: identity.address || identity.name || '',
       members: collectGroupMembers(),        // best-effort; memberCount falls back to members.length
       blind: mode.type === 2,                // blind group: identities hidden

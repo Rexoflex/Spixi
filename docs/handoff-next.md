@@ -1,44 +1,102 @@
-# Handoff → next session (after the #192–#194 chat F5 rounds)
+# Handoff → next session (after #204 avatar/app-icon resolution)
 
-Paste-in for a fresh chat. This session did three uncommitted batches on the chat/chats surface (**#192 next-zero-C# batch**, **#193 F5 round**, **#194 F5 iteration**), each independently audited/reviewed. What's left is Damir's local **build + smoke + F5 + commit**, then the **next batch = Track C (scan + lock shells)**.
+Paste-in for a fresh session. Track C (scan+lock, #203) and avatar/app-icon path
+resolution (#204) are done. This doc = where we are, what's left, what to start next.
 
-## FIRST: read in this order
-`CLAUDE.md` (status tail — the #192/#193/#194 bullets) → `DECISIONS.md` rows **#194, #193, #192** (newest first) → this file → `docs/be-cutover-brief.md` (the batched C# asks). Then, when starting Track C: `docs/scan-spec.md`, `docs/lock-spec.md`, `src/bridge/scan-page.js`, `src/bridge/lock-page.js`, `scripts/build-shells.mjs` (the manifest), `docs/opus-scan-lock-audit-brief.md`.
+## Read order
+`CLAUDE.md` status tail → `DECISIONS.md` #204→#195 → this file →
+`docs/finalization-roadmap.md` (master plan) → `docs/gap-audit.md` (Phase 3.5
+per-surface source of truth) → `docs/be-cutover-brief.md` (the one BE work order).
 
-## STATE RIGHT NOW (uncommitted; reviewer GREEN)
-Three batches sit in the working tree, all zero-C#, bridge frozen:
-- **#192** — CH6 excerpt canon (home.html `excerptFromRaw`) · CH7 composer drafts (`spixi.draft.<addr>` localStorage) · CH3 two-step delete modal (built) · A8b "Open file" label.
-- **#193** — outgoing file transfer shows progress + keep-open + "File sent" toast · reaction excerpt (lone heart → glyph + "Reacted") · delete enabled in-app with a session **tombstone** (`deletedChats`).
-- **#194** — reaction glyph → `heart-plus` (+ `ICONS` glyph guard) · delete modal REDESIGNED (avatar+nickname header + checkboxes + step-2 "Delete contact") · chat THEMING (dark canvas `--neutral-950` + glow; outgoing bubble `--gradient-bubble-sent` saturated + WHITE text + light glyphs) · nameless bot/group sender → address middle-truncated + click-to-copy · dual-pane selected tint → `--surface-action-tonal-default`.
+## State right now
+- **Bridge still FROZEN**; zero C# shipped. Every BE-dependent feature is built +
+  capability-gated (never shown broken) and queued in `be-cutover-brief.md`.
+- **v1 mobile is redesigned + wired on the real bridge** across every surface:
+  chat (text/file/app/payment-view/call-view/reactions/typing/channels/context-menu/
+  attach/member-sheet/chat-info) · contact details · contacts (FAB picker + directory +
+  add-contact) · chats-list (live status, upsert fix) · apps (list/add/details/launch) ·
+  wallet (balance/tx/**Receive** live, Send built+gated) · account/settings hub ·
+  scan + lock shells · launch/onboarding · systemic first-paint flicker fix ·
+  **real avatars + app icons** now thread `src` everywhere (gradient fallback on error).
+- **#204 (this session):** Option A (C# data-URI push) chosen for avatar/app-icon
+  resolution → `be-cutover-brief` **X1**. FE is ready NOW; consuming X1 = zero further FE.
+  Harness `src/demo/avatar-datauri.html` proves the chain (6/6 green).
+- **YOU ARE HERE (mid-test):** Damir is F5-testing #204 on a fresh WinUI account. Before F5:
+  `node scripts/build-demo-bundle.mjs` → `node scripts/build-shells.mjs`. Check real photos
+  show for a contact/app that HAS an image (own avatar · app-tile icon · contact photo in
+  chats-list/chat header/contact-details hero · group member rows + member sheet); photo-less
+  = gradient is correct; nothing should show a broken-image glyph. Resolves on WinUI (file://);
+  iOS waits on X1.
+- **Support-session findings (2026-07-08, added to `be-cutover-brief.md`):** while debugging a
+  locked-out account we found real bugs in the (frozen, legacy) launch/lock/restore C# flow —
+  **L2 amended** (create/unlock/restore all `UrlDecode` the password but parse it differently →
+  a `+`/`%xx`/space/`<nick>:` silently locks the user out of their own wallet) · **L5** blank
+  create-error dialog (undefined `intro-new-walleterror-*` strings + `"global -dialog-ok"` typo;
+  fires when a wallet already exists) · **L6** `onRestore` clears onboarding/lock flags +
+  overwrites `walletpass` BEFORE verifying the password (destructive on a wrong guess) · **L7**
+  restore shows the internal `wallet.ixi.tmp` instead of the picked filename · **L8** SECURITY:
+  `walletpass` stored in PLAINTEXT prefs. All land in the one BE cutover.
 
-**Audits done:** independent read-only agent over #192/#193 (fixed the reaction-glyph MAJOR); independent adversarial reviewer over #194 (**GREEN**, 2 MINORs fixed). No `deleteAll` residue; all theming tokens resolve both modes; smoke assertions intact.
+## ⚠ Two live environment warnings (READ FIRST)
+1. **`.git/index` is CORRUPT** ("bad signature 0x00000000 · index file corrupt") →
+   `git diff`/`git stash` fail. Fix: **`rm .git/index && git reset`** (working tree
+   intact, no work lost). Do this before any git work.
+2. **The PC sandbox mount TRUNCATES large Edit-tool writes** (#175/#165 class). This
+   session, chat-info.js / chat.html / contact_details.html / home.html / smoke-test.mjs
+   (and CLAUDE.md, from a prior session) were silently truncated by the Edit tool and had
+   to be reconstructed from HEAD+edits via **node `fs`** (writeFileSync writes intact).
+   **On this mount: apply edits via node/git and verify tails (`tail -1`), NOT the Edit
+   tool.** `node --check` + `build-demo-bundle`'s own syntax check catch a truncated file.
 
-### Damir's local steps BEFORE the next code batch (order matters — icons first)
-```
-node scripts/generate-icons.mjs      # registers heart-plus from the exported SVG
-node scripts/build-demo-bundle.mjs   # chatlist-item · chats-row-menu · chats-shell · message-bubble changed
-node scripts/build-shells.mjs
-node scripts/smoke-test.mjs
-```
-Then F5 the chat/chats/home surfaces → **commit #192–#194** (one commit or three per the DECISIONS rows). Two things are Damir-owned after: **tune `--gradient-bubble-sent`** (two token lines in tokens.css, light+dark — the sent-bubble palette) and, if wanted, the delete-modal `aria-describedby` (soft a11y gap, reviewer said acceptable).
+## Uncommitted working tree (needs commit)
+DECISIONS #195–#204 and the matching source are in the working tree, uncommitted
+(the corrupt index blocked GitHub Desktop). After fixing the index: rebuild
+(`build-demo-bundle` → `build-shells`), run smoke, F5, then commit.
 
-## NEXT BATCH — Track C: scan + lock shells (Damir picked)
-Near-drop-ins — the adapters, grammar, and QR lib already exist; they just need shell entries.
-1. **`src/shells/scan.html` + `src/shells/lock.html`** — self-contained entries wiring `scan-shell.js`/`lock-shell.js` to the real bridge via `src/bridge/scan-page.js` / `lock-page.js` (#173). Same Stage-4b drop-in pattern as home/chat/settings/launch (dropped over the legacy filenames by `build-shells.mjs`).
-2. **`build-shells.mjs` manifest** — add `scan` + `lock` entries (+ default set). Aim for NO component change → no bundle rebuild, just `build-shells` + `smoke`.
-3. **Combined #46 loop** via `docs/opus-scan-lock-audit-brief.md` — camera grant/deny/torch, one-shot decode + hostile-payload gates, terminal-latch (decode vs cancel mutually exclusive), lock unlock/confirm boot takeover, encpass leading-`ENC_DELIM` + scrub coverage, SECURITY.md checklist.
-4. DECISIONS row → hand back for Damir's `build-shells` + `smoke` + F5 + commit.
+## Path to launch (phases, in order)
 
-## OPEN BE items added this session (in be-cutover-brief.md)
-- **CH8** (new) — reaction excerpt signal (reactor + emoji + "reacted to your message"); reactions are `ReactionMessage`s that never become `lastMessage`, so the FE lone-heart map is best-effort only.
-- **CH3** (amended) — delete now sticks this session via the tombstone; true persistence + the deeper wipe (history/files/contact) still need the verbs. `detail{media}` + `deleteContact` carry the intent.
-- Earlier still-open: CH1/CH2/CH4/CH5 (chats list), C1–C9 (chat), W/S/A/L, N1/N2/A8/§82.
+1. **Remaining zero-C# polish (Track G/H tail)** — small:
+   - Apps: `menuBtn` creation-guard fix (be-cutover A-note) · Explore-banner `explore-apps.svg` placement.
+   - **Cross-cutting sweeps (Phase 2):** dark-mode verification (`dark-mode-deviations.md`) ·
+     a11y focus/SR sweep · copy-morph honesty sweep (`copy-sweep-phase2.md`) ·
+     empty/error/offline states + toasts · B2 icon exports (`icon-export-gaps.md`:
+     shield-lock, user-circle-filled, torch/bulb, user-plus, world, lock).
+   - Run any parked Opus audits (contacts #155 / scan #158 / lock #159) + a per-surface #46 loop.
+
+2. **Desktop split-view passes (Phase 2 Desktop)** — wallet/apps/settings ≥700px
+   (chats/chat already in desktop.html). Spec: `desktop-split-spec.md`.
+
+3. **The ONE BE cutover** (the big unlock — flips gated features on). `be-cutover-brief.md`
+   is the work order, one reviewed C# PR:
+   chat **C1–C9** · chats-list **CH1–CH8** · wallet **W1–W8** (incl. `signSend` → the
+   redesigned Send) · settings **S1–S13** · apps **A1–A5b** · contacts **CO1–CO5** ·
+   chat-info **CI1–CI5** · launch **L1–L4** · cross-cutting **N1–N3** + **X1** (avatar/app-icon
+   data-URI push, #204). Every arg-signature change lands JS+C# in the same commit.
+
+4. **Integration**
+   - **C# §5 repoint** — page classes → canonical shell filenames + `setRoute`
+     (currently Stage-4a drop-in over legacy names). We deliver the mapping table (ARCHITECTURE §5).
+   - **Full-app Windows test** (`maui-integration-test-plan.md`) → **Android**
+     (`android-test-quickstart.md`). iOS: verify X1 resolves avatars (WKWebView was the suspect).
+
+5. **Phase 4 freeze** — full-app adversarial #46 loop → fix → review until CLEAN ·
+   lock smoke count · DECISIONS freeze row · BE handoff.
+
+## Recommended next
+The FE surface is essentially complete. Two good options:
+- **(a) Wrap the zero-C# tail** — Phase-2 sweeps (dark/a11y/copy) + desktop split-view +
+  the small apps/explore polish — so the whole FE is freeze-ready before BE work.
+- **(b) Kick off the BE cutover prep** — hand BE `be-cutover-brief.md` as the work order;
+  it's now comprehensive (X1 added). Nothing FE blocks it.
+Damir's stated strategy: **max out zero-C#, get the whole app working+tested, THEN one
+focused BE pass.** So (a) first, then (b).
 
 ## Working constraints (unchanged)
-- **Sandbox #175**: bash mount serves STALE/TRUNCATED copies of large files → validate edits with the **Read/Grep file tools** (authoritative), NOT `bash cat`/`wc`/`node --check`/`git` for content. Bundle + smoke are Damir's local step.
-- Bridge FROZEN, no C# edits. BE-gated features ship behind capability flags (built + ready).
-- If you edit a component: `build-demo-bundle` FIRST, then `build-shells`, then `smoke-test`.
-- Per-batch loop: build → independent #46 read-only audit → fix → adversarial reviewer → Damir build+smoke+F5 → DECISIONS row → commit.
-
-## One-line status
-#192–#194 written + audited + reviewer-GREEN, uncommitted; Damir runs generate-icons+bundle+shells+smoke+F5, tunes the sent-bubble gradient, commits — then next session builds **Track C (scan + lock shells)**.
+- Frozen bridge; new needs → §8/§9 proposals in `be-cutover-brief.md`; BE-gated features
+  ship behind capability flags, built + ready.
+- Per-surface loop: build → #46 adversarial review → fix → Damir F5 → DECISIONS row → commit.
+- Build sequence (components changed → bundle first):
+  `node scripts/build-demo-bundle.mjs` → `node scripts/build-shells.mjs` →
+  `node scripts/smoke-test.mjs` → F5. Smoke's contacts block has a real-timer tail that
+  exceeds the sandbox 45s window — it completes on a local terminal (force-exits 0).
+- When a component's DOM/behavior changes, update the matching `scripts/smoke-test.mjs` assertion.

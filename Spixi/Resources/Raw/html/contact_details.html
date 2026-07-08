@@ -5014,8 +5014,13 @@ function createAppBubble({
   ic.className = 'c-tcard__app-icon';
   if (iconUrl) {
     const img = document.createElement('img');
-    img.src = iconUrl;
     img.alt = '';
+    // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
+    // resolve in a self-contained shell must NOT show a broken-image glyph — drop the
+    // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
+    // cached error still fires.
+    img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
+    img.src = iconUrl;
     ic.append(img);
   } else {
     ic.append(icon('rocket', { size: 24 }));
@@ -7523,6 +7528,26 @@ function appInitial(name) {
   return [...s][0].toLocaleUpperCase();   // [...s] not s[0] — first char may be astral-plane
 }
 
+/** Render the deterministic gradient tile (hue from name hash) + the initial or the
+ *  apps glyph into `el`. Extracted so it's reusable as the onerror fallback when a
+ *  photo `src` fails to load — mirrors c-avatar's renderPlaceholder. */
+function renderAppPlaceholder(el, { name, size }) {
+  const hue = hashHue(name || 'app');
+  el.dataset.placeholder = '';
+  el.style.setProperty('--ai-h1', hue);
+  el.style.setProperty('--ai-h2', (hue + 40) % 360);
+  const letter = appInitial(name);
+  if (letter) {
+    const t = document.createElement('span');
+    t.className = 'c-app-icon__initial';
+    t.setAttribute('aria-hidden', 'true');
+    t.textContent = letter;
+    el.append(t);
+  } else {
+    el.append(icon('apps', { size: Math.round(size * 0.5) }));
+  }
+}
+
 function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   const el = document.createElement('span');
   el.className = 'c-app-icon';
@@ -7532,24 +7557,15 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-app-icon__img';
-    img.src = src;
     img.alt = '';                          // decorative — the name label carries meaning
+    // Graceful fallback (mirrors c-avatar): a C# icon path that doesn't resolve in a
+    // self-contained shell must NOT show a broken-image glyph — drop the <img> and
+    // render the gradient tile. Handler BEFORE src so a sync-cached error still fires.
+    img.addEventListener('error', () => { img.remove(); renderAppPlaceholder(el, { name, size }); }, { once: true });
+    img.src = src;
     el.append(img);
   } else {
-    const hue = hashHue(name || 'app');
-    el.dataset.placeholder = '';
-    el.style.setProperty('--ai-h1', hue);
-    el.style.setProperty('--ai-h2', (hue + 40) % 360);
-    const letter = appInitial(name);
-    if (letter) {
-      const t = document.createElement('span');
-      t.className = 'c-app-icon__initial';
-      t.setAttribute('aria-hidden', 'true');
-      t.textContent = letter;
-      el.append(t);
-    } else {
-      el.append(icon('apps', { size: Math.round(size * 0.5) }));
-    }
+    renderAppPlaceholder(el, { name, size });
   }
   return el;
 }
@@ -13109,6 +13125,7 @@ function createChatInfo({
   context = 'chat',              // 'chat' | 'contact' — contact page reuses this surface (#142)
   name = '',
   address = '',
+  avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
@@ -13162,7 +13179,7 @@ function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  hero.append(createAvatar({ name: name, address: avatarSeed || address, size: 64 }));
+  hero.append(createAvatar({ src: avatar, name: name, address: avatarSeed || address, size: 64 }));
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -13547,7 +13564,7 @@ function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address },
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -13606,7 +13623,9 @@ function createChatInfo({
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'c-chat-info__member';
-        row.append(createAvatar({ name: m.name, address: blind ? '' : m.address, size: 40 }));
+        // blind group hides identity → suppress the real photo too (matches the
+        // hidden address); non-blind rows show the per-sender avatar, gradient-safe.
+        row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
@@ -19169,14 +19188,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     name: '',            // friend.nickname (display name; incorporates any user-defined nick)
     address: '',
     online: false,       // showIndicator — NOT rendered by the component yet (gap), no rebuild
-    avatarPath: null,    // setAvatar — NOT rendered in the hero (gradient fallback, repo-wide), no rebuild
+    avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
   };
 
   /** Resolve a C# avatar arg to an <img> src or null (same rule as the other
-   *  shells). Not consumed by the hero today — avatars fall back to a gradient
-   *  repo-wide — but resolved + stored for when the component grows a hero image. */
+   *  shells). Threaded into the c-chat-info hero; a path that can't load degrades
+   *  cleanly via the avatar component's onerror → deterministic gradient. */
   function resolveAvatar(path) {
     if (!path) return null;
     const p = String(path).replace(/\\/g, '/');
@@ -19210,6 +19229,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       context: 'chat',                 // see CONTEXT CHOICE — renders delete-history + remove-contact
       name: state.name,
       address: state.address,
+      avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
       avatarSeed: state.address,       // identity-stable gradient hue even before the name lands
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
                                        // edit prefills empty w/ name as placeholder (empty = clear override)
@@ -19252,12 +19272,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,
-  // address, tx set). avatar/presence excluded — the component renders neither,
-  // so they must not force a rebuild (and wipe an edit / the accordion).
+  // address, avatar, tx set). The hero now renders the photo, so a resolved
+  // avatarPath must rebuild once; presence stays excluded (no presence line yet).
+  // A nickname edit in progress defers the rebuild (buildIfChanged guard).
   function stateSig() {
     return JSON.stringify({
       name: state.name,
       address: state.address,
+      avatar: state.avatarPath,
       txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
     });
   }
@@ -19296,9 +19318,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const handlers = {
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
-    // avatar path doesn't resolve in the self-contained shell (repo-wide flag) and
-    // the c-chat-info hero has no image slot yet → stored, gradient fallback shown.
-    setAvatar(path) { state.avatarPath = resolveAvatar(path); },
+    // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
+    // platform once BE cutover X1 lands the data: URI). Commit so the hero updates
+    // when the photo arrives; the coalescer + edit-guard keep it churn-safe, and
+    // c-avatar's onerror falls back to the gradient if the path can't load.
+    setAvatar(path) { state.avatarPath = resolveAvatar(path); scheduleCommit(); },
     // presence — stored; c-chat-info renders no presence line today (component gap).
     showIndicator(online) { state.online = asBool(online); },
 

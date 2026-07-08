@@ -400,6 +400,17 @@
     return p;
   }
 
+  /** Resolve a C# app-icon arg to a usable <img> src, or null for the gradient
+   *  tile. Like resolveAvatar but without the avatar-placeholder mapping — an app
+   *  with no custom icon arrives as empty/undefined → null → c-app-icon draws its
+   *  deterministic letter/glyph tile. A real `icon.png` path is normalized and
+   *  passed through; c-app-icon's onerror falls back to the gradient if it can't
+   *  load (same resolution story + BE cutover X1 as avatars). */
+  function resolveIcon(path) {
+    if (!path) return null;
+    return String(path).replace(/\\/g, '/');
+  }
+
   /** Insert-or-update a chat by address. Merges the new fields onto an existing
    *  row (preserving client-only flags the bridge never sends — pinned/muted/
    *  favorite/selected), else appends. The component sorts by pinned+timestamp
@@ -1007,9 +1018,12 @@
 
     // One installed app (HomePage.xaml.cs:1567):
     //   addApp(id, name, icon, publisher, isSingleUser, isMultiUser)
-    // `icon` is a local file path that does NOT resolve in the self-contained shell
-    // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
-    // to a deterministic gradient tile. `publisher` → the creator subtitle (real
+    // `icon` is `icon.png` under the app storage dir (MiniAppManager.cs:374). We
+    // thread it into the tile as a c-app-icon `src` (resolveIcon normalizes it like
+    // an avatar path). It resolves today on WinUI/WebView2 (same file:// origin as
+    // avatars) and — pending BE cutover row X1 — as a data: URI on every platform;
+    // an unresolvable path degrades cleanly via c-app-icon's onerror → gradient tile
+    // (worst case = the previous behavior). `publisher` → the creator subtitle (real
     // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) drive the launch
     // verb picked by onLaunch (startApp vs startAppMulti).
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
@@ -1017,9 +1031,9 @@
         id: id || '',
         name: name || '',
         creator: publisher || '',
+        icon: resolveIcon(icon),                          // c-app-icon src (onerror → gradient)
         isSingleUser: isSingleUser === 'true' || isSingleUser === 'True' || isSingleUser === true,
         isMultiUser: isMultiUser === 'true' || isMultiUser === 'True' || isMultiUser === true,
-        // icon path ignored (won't resolve) → deterministic gradient placeholder
       });
       scheduleAppsRender();
     },

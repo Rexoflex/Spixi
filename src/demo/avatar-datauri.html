@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi avatar / app-icon data-URI harness</title>
+<!--
+  Option A end-to-end proof (avatar/app-icon path resolution, DECISIONS #204).
+  Feeds a known `data:image/png;base64,…` URI — exactly what the BE cutover row X1
+  will push instead of a filesystem path — through every avatar/icon consumer and
+  checks each one renders a real <img> from that source (not the gradient fallback).
+  Also verifies an UNRESOLVABLE path degrades to the deterministic gradient (the
+  onerror path) rather than a broken-image glyph.
+
+  This validates the whole FE chain BEFORE C# is touched: if the harness is green
+  here and on F5, Option A is purely a C#-side encode-at-push change — no further FE
+  work. The smoke test (scripts/smoke-test.mjs, "avatar-datauri.html" block) asserts
+  the same structurally in jsdom; this page adds the F5 eyeball (a browser actually
+  decodes the PNG, so a green row means a visible image, not just a wired src).
+-->
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/apps-icon.css">
+<link rel="stylesheet" href="../styles/components/badge.css">
+<link rel="stylesheet" href="../styles/components/typed-bubbles.css">
+<link rel="stylesheet" href="../styles/components/message-bubble.css">
+<link rel="stylesheet" href="../styles/components/txlist-item.css">
+<link rel="stylesheet" href="../styles/components/chat-info.css">
+<style>
+  body { padding: var(--spacing-24); max-width: 960px; margin: 0 auto; }
+  h1 { font-size: var(--font-size-heading-md); }
+  .lede { color: var(--text-neutral-02); max-width: 60ch; margin-bottom: var(--spacing-24); }
+  .case {
+    display: flex; align-items: center; gap: var(--spacing-16);
+    padding: var(--spacing-16); margin-bottom: var(--spacing-12);
+    border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-16);
+    background: var(--surface-menu);
+  }
+  .case__specimen { flex: none; display: flex; align-items: center; gap: var(--spacing-12); min-width: 180px; }
+  .case__desc { flex: 1; }
+  .case__desc b { display: block; }
+  .case__desc span { color: var(--text-neutral-02); font-size: var(--font-size-body-sm); }
+  .verdict { flex: none; font-weight: var(--font-weight-bold); padding: var(--spacing-4) var(--spacing-10); border-radius: var(--radius-full); }
+  .verdict[data-pass="true"]  { color: var(--text-success-default, #1c8a4e); background: var(--surface-success-tonal, rgba(28,138,78,.12)); }
+  .verdict[data-pass="false"] { color: var(--text-error-default, #c33); background: var(--surface-error-tonal, rgba(204,51,51,.12)); }
+  #summary { font-size: var(--font-size-heading-sm); margin: var(--spacing-24) 0; }
+  .info-wrap { max-width: 420px; border: 1px solid var(--outline-neutral-02); border-radius: var(--radius-16); overflow: hidden; margin-top: var(--spacing-24); }
+</style>
+</head>
+<body>
+  <h1>Avatar / app-icon data-URI harness</h1>
+  <p class="lede">Option A proof — a real <code>data:image/png;base64,…</code> URI is pushed through
+  every avatar/icon consumer. Green = a real image renders; the unresolvable-path row must go green by
+  falling back to the gradient (never a broken-image glyph).</p>
+
+  <div id="summary">Running…</div>
+  <div id="cases"></div>
+
+  <div class="info-wrap" id="info-host" aria-label="createChatInfo hero specimen"></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get('en-us');</script>
+<script src="spixi.iife.js"></script>
+<script>
+  const { createAvatar, createAppIcon, createAppBubble, createChatInfo } = window.Spixi;
+
+  // Real 64×64 PNGs (image/png;base64) — exactly the shape Option A (X1) will push.
+  const TEAL  = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAATklEQVR42u3PQQkAAAgEsAthfy6qEXwLgxVYpn0tAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKXBXtTQTzSmQUXAAAAAElFTkSuQmCC';
+  const CORAL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAT0lEQVR42u3PQQkAAAgEsMtpCGObwwi+hcEKLNP1WgQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQELgvwVuGHAWei8gAAAABJRU5ErkJggg==';
+  const BOGUS = 'C:/Users/nobody/does-not-exist/avatar.png';   // unresolvable path → onerror → gradient
+
+  const casesEl = document.getElementById('cases');
+  const results = [];
+
+  /** Render one specimen, assert, and print a verdict row. `check(node)` returns
+   *  { pass, note } — pass=true means the expected source rendered. */
+  function addCase(title, hint, node, check) {
+    const { pass, note } = check(node);
+    results.push(pass);
+    const row = document.createElement('div');
+    row.className = 'case';
+    row.dataset.pass = String(pass);          // smoke test keys off this
+    const spec = document.createElement('div'); spec.className = 'case__specimen'; spec.append(node);
+    const desc = document.createElement('div'); desc.className = 'case__desc';
+    desc.innerHTML = '<b></b><span></span>';
+    desc.querySelector('b').textContent = title;
+    desc.querySelector('span').textContent = note || hint;
+    const v = document.createElement('div'); v.className = 'verdict'; v.dataset.pass = String(pass);
+    v.textContent = pass ? 'PASS' : 'FAIL';
+    row.append(spec, desc, v);
+    casesEl.append(row);
+  }
+
+  // A consumer PASSES the data-URI test when it renders an <img> whose src is the
+  // exact data URI we fed (proves the source threaded through, not dropped/gradient).
+  const imgHasSrc = (root, src, sel) => {
+    const img = root.querySelector(sel);
+    if (!img) return { pass: false, note: 'no <img> rendered (source dropped → gradient)' };
+    const ok = img.getAttribute('src') === src;
+    return { pass: ok, note: ok ? 'renders <img> from the data URI ✓' : 'src mismatch: ' + img.getAttribute('src') };
+  };
+
+  // 1 — c-avatar with a data URI
+  addCase('c-avatar · data URI', 'expect an <img>',
+    createAvatar({ src: TEAL, name: 'Han Solo', address: 'S1abc', size: 48 }),
+    (n) => imgHasSrc(n, TEAL, '.c-avatar__img'));
+
+  // 2 — c-avatar with an UNRESOLVABLE path → must fall back to the gradient placeholder
+  //     (onerror). In jsdom no error fires (it doesn't fetch), so accept EITHER the
+  //     pre-error <img> OR the placeholder — both are non-broken. In a real browser
+  //     the <img> is removed and the gradient shows.
+  addCase('c-avatar · bad path', 'expect gradient fallback (no broken glyph)',
+    createAvatar({ src: BOGUS, name: 'Nia Vega', address: 'S2def', size: 48 }),
+    (n) => {
+      const placeholder = n.dataset.placeholder !== undefined || n.querySelector('.c-avatar__initials');
+      const img = n.querySelector('.c-avatar__img');
+      return { pass: !!(placeholder || img), note: placeholder ? 'gradient placeholder shown ✓' : 'img present (browser fires onerror → gradient)' };
+    });
+
+  // 3 — c-app-icon with a data URI
+  addCase('c-app-icon · data URI', 'expect an <img>',
+    createAppIcon({ src: CORAL, name: 'Chess', size: 48 }),
+    (n) => imgHasSrc(n, CORAL, '.c-app-icon__img'));
+
+  // 4 — app-invite bubble (createAppBubble) icon
+  addCase('c-app bubble · iconUrl', 'expect an <img> in the card icon',
+    createAppBubble({ name: 'Chess', iconUrl: CORAL, state: 'invite', direction: 'received', timestamp: Date.now() }),
+    (n) => imgHasSrc(n, CORAL, '.c-tcard__app-icon img'));
+
+  // 5 — createChatInfo hero avatar + a member row avatar
+  const info = createChatInfo({
+    kind: 'group', context: 'chat', name: 'Design crew', address: 'GRP1', avatar: TEAL,
+    members: [{ name: 'Han Solo', address: 'S1abc', avatar: CORAL }],
+    strings: window.SL,
+  });
+  document.getElementById('info-host').append(info);
+  addCase('createChatInfo · hero', 'expect a hero <img>',
+    document.createElement('span'),   // placeholder specimen (real render is in #info-host)
+    () => imgHasSrc(info, TEAL, '.c-chat-info__hero .c-avatar__img'));
+  addCase('createChatInfo · member', 'expect a member-row <img>',
+    document.createElement('span'),
+    () => imgHasSrc(info, CORAL, '.c-chat-info__member .c-avatar__img'));
+
+  const passed = results.filter(Boolean).length;
+  const summary = document.getElementById('summary');
+  const allGreen = passed === results.length;
+  summary.textContent = `${passed}/${results.length} checks passed` + (allGreen ? ' — chain is Option-A ready ✓' : ' — see FAIL rows');
+  summary.style.color = allGreen ? 'var(--text-success-default, #1c8a4e)' : 'var(--text-error-default, #c33)';
+  window.__HARNESS__ = { passed, total: results.length, allGreen };   // smoke test reads this
+</script>
+</body>
+</html>

@@ -94,6 +94,7 @@ export function createChatInfo({
   context = 'chat',              // 'chat' | 'contact' — contact page reuses this surface (#142)
   name = '',
   address = '',
+  avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
@@ -147,7 +148,7 @@ export function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  hero.append(createAvatar({ name: name, address: avatarSeed || address, size: 64 }));
+  hero.append(createAvatar({ src: avatar, name: name, address: avatarSeed || address, size: 64 }));
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -532,7 +533,7 @@ export function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address },
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -591,7 +592,9 @@ export function createChatInfo({
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'c-chat-info__member';
-        row.append(createAvatar({ name: m.name, address: blind ? '' : m.address, size: 40 }));
+        // blind group hides identity → suppress the real photo too (matches the
+        // hidden address); non-blind rows show the per-sender avatar, gradient-safe.
+        row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);

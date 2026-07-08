@@ -127,14 +127,14 @@
     name: '',            // friend.nickname (display name; incorporates any user-defined nick)
     address: '',
     online: false,       // showIndicator — NOT rendered by the component yet (gap), no rebuild
-    avatarPath: null,    // setAvatar — NOT rendered in the hero (gradient fallback, repo-wide), no rebuild
+    avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
   };
 
   /** Resolve a C# avatar arg to an <img> src or null (same rule as the other
-   *  shells). Not consumed by the hero today — avatars fall back to a gradient
-   *  repo-wide — but resolved + stored for when the component grows a hero image. */
+   *  shells). Threaded into the c-chat-info hero; a path that can't load degrades
+   *  cleanly via the avatar component's onerror → deterministic gradient. */
   function resolveAvatar(path) {
     if (!path) return null;
     const p = String(path).replace(/\\/g, '/');
@@ -168,6 +168,7 @@
       context: 'chat',                 // see CONTEXT CHOICE — renders delete-history + remove-contact
       name: state.name,
       address: state.address,
+      avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
       avatarSeed: state.address,       // identity-stable gradient hue even before the name lands
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
                                        // edit prefills empty w/ name as placeholder (empty = clear override)
@@ -210,12 +211,14 @@
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,
-  // address, tx set). avatar/presence excluded — the component renders neither,
-  // so they must not force a rebuild (and wipe an edit / the accordion).
+  // address, avatar, tx set). The hero now renders the photo, so a resolved
+  // avatarPath must rebuild once; presence stays excluded (no presence line yet).
+  // A nickname edit in progress defers the rebuild (buildIfChanged guard).
   function stateSig() {
     return JSON.stringify({
       name: state.name,
       address: state.address,
+      avatar: state.avatarPath,
       txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
     });
   }
@@ -254,9 +257,11 @@
   const handlers = {
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
-    // avatar path doesn't resolve in the self-contained shell (repo-wide flag) and
-    // the c-chat-info hero has no image slot yet → stored, gradient fallback shown.
-    setAvatar(path) { state.avatarPath = resolveAvatar(path); },
+    // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
+    // platform once BE cutover X1 lands the data: URI). Commit so the hero updates
+    // when the photo arrives; the coalescer + edit-guard keep it churn-safe, and
+    // c-avatar's onerror falls back to the gradient if the path can't load.
+    setAvatar(path) { state.avatarPath = resolveAvatar(path); scheduleCommit(); },
     // presence — stored; c-chat-info renders no presence line today (component gap).
     showIndicator(online) { state.online = asBool(online); },
 

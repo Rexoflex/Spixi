@@ -3023,6 +3023,26 @@ console.log('native bridge adapters (Phase 3 #173, docs/native-bridge-spec.md �
     'bundle order: shells → native core → page adapters (shared-scope resolution)');
 }
 
+console.log('avatar-datauri.html');
+{
+  // Option A end-to-end (avatar/app-icon data-URI push, DECISIONS #204). The harness
+  // self-checks every avatar/icon consumer against a real data:image/png URI and exposes
+  // the tally on window.__HARNESS__. jsdom doesn't fetch images, so the onerror path
+  // isn't exercised here — the page's bad-path row is written to pass on the pre-error
+  // <img> too — but the data-URI THREADING (the thing Option A depends on) is fully proven.
+  const dom = await load('avatar-datauri.html');
+  const d = dom.window.document, W = dom.window;
+  const h = W.__HARNESS__;
+  ok(h && h.total >= 6, 'harness ran all avatar/icon consumer checks (' + (h ? h.total : 0) + ')');
+  ok(h && h.allGreen, 'every consumer renders an <img> from the data URI (Option-A ready): ' + (h ? h.passed + '/' + h.total : 'n/a'));
+  const heroImg = d.querySelector('.c-chat-info__hero .c-avatar__img');
+  ok(heroImg && heroImg.getAttribute('src').startsWith('data:image/png'), 'createChatInfo hero renders the data-URI photo (CI5 drop closed)');
+  const memberImg = d.querySelector('.c-chat-info__member .c-avatar__img');
+  ok(memberImg && memberImg.getAttribute('src').startsWith('data:image/png'), 'createChatInfo member row renders the per-sender data-URI photo');
+  const appImg = d.querySelector('.c-tcard__app-icon img');
+  ok(appImg && appImg.getAttribute('src').startsWith('data:image/png'), 'app-invite bubble renders the data-URI icon');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

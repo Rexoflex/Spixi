@@ -259,8 +259,13 @@ export function createAppBubble({
   ic.className = 'c-tcard__app-icon';
   if (iconUrl) {
     const img = document.createElement('img');
-    img.src = iconUrl;
     img.alt = '';
+    // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
+    // resolve in a self-contained shell must NOT show a broken-image glyph — drop the
+    // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
+    // cached error still fires.
+    img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
+    img.src = iconUrl;
     ic.append(img);
   } else {
     ic.append(icon('rocket', { size: 24 }));

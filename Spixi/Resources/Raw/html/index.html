@@ -6682,8 +6682,13 @@ function createAppBubble({
   ic.className = 'c-tcard__app-icon';
   if (iconUrl) {
     const img = document.createElement('img');
-    img.src = iconUrl;
     img.alt = '';
+    // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
+    // resolve in a self-contained shell must NOT show a broken-image glyph — drop the
+    // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
+    // cached error still fires.
+    img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
+    img.src = iconUrl;
     ic.append(img);
   } else {
     ic.append(icon('rocket', { size: 24 }));
@@ -9191,6 +9196,26 @@ function appInitial(name) {
   return [...s][0].toLocaleUpperCase();   // [...s] not s[0] — first char may be astral-plane
 }
 
+/** Render the deterministic gradient tile (hue from name hash) + the initial or the
+ *  apps glyph into `el`. Extracted so it's reusable as the onerror fallback when a
+ *  photo `src` fails to load — mirrors c-avatar's renderPlaceholder. */
+function renderAppPlaceholder(el, { name, size }) {
+  const hue = hashHue(name || 'app');
+  el.dataset.placeholder = '';
+  el.style.setProperty('--ai-h1', hue);
+  el.style.setProperty('--ai-h2', (hue + 40) % 360);
+  const letter = appInitial(name);
+  if (letter) {
+    const t = document.createElement('span');
+    t.className = 'c-app-icon__initial';
+    t.setAttribute('aria-hidden', 'true');
+    t.textContent = letter;
+    el.append(t);
+  } else {
+    el.append(icon('apps', { size: Math.round(size * 0.5) }));
+  }
+}
+
 function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   const el = document.createElement('span');
   el.className = 'c-app-icon';
@@ -9200,24 +9225,15 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
   if (src) {
     const img = document.createElement('img');
     img.className = 'c-app-icon__img';
-    img.src = src;
     img.alt = '';                          // decorative — the name label carries meaning
+    // Graceful fallback (mirrors c-avatar): a C# icon path that doesn't resolve in a
+    // self-contained shell must NOT show a broken-image glyph — drop the <img> and
+    // render the gradient tile. Handler BEFORE src so a sync-cached error still fires.
+    img.addEventListener('error', () => { img.remove(); renderAppPlaceholder(el, { name, size }); }, { once: true });
+    img.src = src;
     el.append(img);
   } else {
-    const hue = hashHue(name || 'app');
-    el.dataset.placeholder = '';
-    el.style.setProperty('--ai-h1', hue);
-    el.style.setProperty('--ai-h2', (hue + 40) % 360);
-    const letter = appInitial(name);
-    if (letter) {
-      const t = document.createElement('span');
-      t.className = 'c-app-icon__initial';
-      t.setAttribute('aria-hidden', 'true');
-      t.textContent = letter;
-      el.append(t);
-    } else {
-      el.append(icon('apps', { size: Math.round(size * 0.5) }));
-    }
+    renderAppPlaceholder(el, { name, size });
   }
   return el;
 }
@@ -14777,6 +14793,7 @@ function createChatInfo({
   context = 'chat',              // 'chat' | 'contact' — contact page reuses this surface (#142)
   name = '',
   address = '',
+  avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
@@ -14830,7 +14847,7 @@ function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  hero.append(createAvatar({ name: name, address: avatarSeed || address, size: 64 }));
+  hero.append(createAvatar({ src: avatar, name: name, address: avatarSeed || address, size: 64 }));
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -15215,7 +15232,7 @@ function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address },
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -15274,7 +15291,9 @@ function createChatInfo({
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'c-chat-info__member';
-        row.append(createAvatar({ name: m.name, address: blind ? '' : m.address, size: 40 }));
+        // blind group hides identity → suppress the real photo too (matches the
+        // hidden address); non-blind rows show the per-sender avatar, gradient-safe.
+        row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
@@ -21032,6 +21051,17 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     return p;
   }
 
+  /** Resolve a C# app-icon arg to a usable <img> src, or null for the gradient
+   *  tile. Like resolveAvatar but without the avatar-placeholder mapping — an app
+   *  with no custom icon arrives as empty/undefined → null → c-app-icon draws its
+   *  deterministic letter/glyph tile. A real `icon.png` path is normalized and
+   *  passed through; c-app-icon's onerror falls back to the gradient if it can't
+   *  load (same resolution story + BE cutover X1 as avatars). */
+  function resolveIcon(path) {
+    if (!path) return null;
+    return String(path).replace(/\\/g, '/');
+  }
+
   /** Insert-or-update a chat by address. Merges the new fields onto an existing
    *  row (preserving client-only flags the bridge never sends — pinned/muted/
    *  favorite/selected), else appends. The component sorts by pinned+timestamp
@@ -21639,9 +21669,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
     // One installed app (HomePage.xaml.cs:1567):
     //   addApp(id, name, icon, publisher, isSingleUser, isMultiUser)
-    // `icon` is a local file path that does NOT resolve in the self-contained shell
-    // (repo-wide avatar/icon flag) → intentionally ignored so c-app-icon falls back
-    // to a deterministic gradient tile. `publisher` → the creator subtitle (real
+    // `icon` is `icon.png` under the app storage dir (MiniAppManager.cs:374). We
+    // thread it into the tile as a c-app-icon `src` (resolveIcon normalizes it like
+    // an avatar path). It resolves today on WinUI/WebView2 (same file:// origin as
+    // avatars) and — pending BE cutover row X1 — as a data: URI on every platform;
+    // an unresolvable path degrades cleanly via c-app-icon's onerror → gradient tile
+    // (worst case = the previous behavior). `publisher` → the creator subtitle (real
     // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) drive the launch
     // verb picked by onLaunch (startApp vs startAppMulti).
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
@@ -21649,9 +21682,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         id: id || '',
         name: name || '',
         creator: publisher || '',
+        icon: resolveIcon(icon),                          // c-app-icon src (onerror → gradient)
         isSingleUser: isSingleUser === 'true' || isSingleUser === 'True' || isSingleUser === true,
         isMultiUser: isMultiUser === 'true' || isMultiUser === 'True' || isMultiUser === true,
-        // icon path ignored (won't resolve) → deterministic gradient placeholder
       });
       scheduleAppsRender();
     },

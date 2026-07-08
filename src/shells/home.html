@@ -4,6 +4,11 @@
 <!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
      light<->dark flip). The body-tail theme block is now redundant but harmless. -->
 <script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<!-- Desktop split (Approach 1, DECISIONS #208): render the vertical rail + master-detail
+     when .is-desktop. Set by ?desktop=1 (browser preview) or window.__SPIXI_DESKTOP__
+     (C# sets this at the cutover when HomePage goes two-pane at >=700px). Off by default
+     → mobile layout is 100% untouched. -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1'||window.__SPIXI_DESKTOP__)document.documentElement.classList.add('is-desktop');}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
@@ -99,6 +104,39 @@
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: var(--spacing-16);
   }
+
+  /* ============================================================================
+     DESKTOP SPLIT — Approach 1 (DECISIONS #208), gated behind .is-desktop.
+     The shared bottom nav becomes a VERTICAL RAIL on the far left; the active
+     view fills beside it. Reuses the c-bottomnav component (turned vertical via
+     CSS, the demo's desktop precedent). EVERYTHING here is under .is-desktop —
+     the mobile layout above is 100% untouched. C# widens col-0 + sets the flag
+     at the cutover; the FE renders identically whatever width it's given. */
+  .is-desktop body { flex-direction: row; }
+  /* nav → vertical rail, first in the row */
+  .is-desktop #chats-nav { order: -1; flex: none; }
+  .is-desktop #chats-nav .c-bottomnav {
+    flex-direction: column;
+    justify-content: flex-start;
+    height: 100%;
+    width: 84px;
+    gap: var(--spacing-16);
+    padding-block: var(--spacing-24);
+    padding-inline: var(--spacing-4);
+    border-top: 0;
+    border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01);
+    background: var(--surface-bottombar);
+  }
+  /* items size to content + group at the top (horizontal nav makes them flex:1
+     equal-width → vertical that becomes equal-HEIGHT and stretches; undo it so the
+     rail reads as a stacked list, not full-height blobs with a tall selected pill) */
+  .is-desktop #chats-nav .c-bottomnav__item { flex: none; padding-block: var(--spacing-8); }
+  /* active view fills the space beside the rail */
+  .is-desktop .view { min-width: 0; }
+  /* FAB pins to the bottom of the CHATS LIST column, not the whole window
+     (fixed-to-viewport would float it over the C# conversation pane) */
+  .is-desktop #chats-view { position: relative; }
+  .is-desktop .fab { position: absolute; bottom: var(--spacing-16); right: var(--spacing-16); }
 </style>
 </head>
 <body>

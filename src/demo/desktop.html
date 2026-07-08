@@ -186,6 +186,19 @@
   @keyframes dt-info-in { from { translate: 24px 0; opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .dt-info { animation: none; } }
 
+  /* —— desktop chat background (docs/desktop-split-spec.md item 2, Damir 2026-07-08) ——
+     The doodle pattern reads too busy in a wide desktop pane, so DROP it on desktop
+     while KEEPING the gradient wash. The pattern is a SEPARATE layer painted by
+     .c-chat-canvas::before (message-bubble.css); the --gradient-chat overlay is the
+     element background — so hiding ::before removes only the pattern. Scoped to the
+     .dt-frame wrapper (NOT a min-width query: a 700px query misfires inside the
+     phone-frame demos). Dark desktop swaps the canvas BASE (the solid layer under the
+     gradient) to neutral-1000 (#111213) for a deeper, flatter ground. Light desktop =
+     pattern-off only; its gradient + surface-screen base stay. A real desktop shell
+     should carry the same .dt-frame/.is-desktop wrapper class. */
+  .dt-frame .c-chat-canvas::before { display: none; }
+  [data-theme="dark"] .dt-frame .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
+
   /* Damir 2026-07-06 ③: bottom sheets read poorly on desktop — inside the frame
      they PRESENT as centered dialogs. Presentation-only demo CSS: the #56 stack,
      host and dismissal grammar are untouched, component CSS untouched. */
@@ -1050,6 +1063,43 @@
       onNotifications: (next, ctrl) => setTimeout(ctrl.done, 500),
       onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
       onLeave: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); closeChat(); toast('Left the channel'); }, 1100),
+    }),
+    // the remaining 1:1s — minimal contact-kind info so the ⓘ toggle NEVER
+    // dead-ends into the "not wired" toast (Damir F5 2026-07-08: "third pane
+    // missing"). Every chat row now opens a real info panel.
+    sarah: () => ({
+      kind: 'contact', name: 'Sarah Jo', address: '9sarahjo01', txs: [],
+      capabilities: { selfDestruct: true },
+      onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+      onPay: () => toast('Would open Send IXI locked to Sarah'),
+      onRequest: () => toast('Would open the request sheet'),
+      onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); toast('Contact removed — ixian:remove'); }, 1100),
+    }),
+    john: () => ({
+      kind: 'contact', name: 'John Connor', address: 'jconnor2029', txs: [],
+      capabilities: { selfDestruct: true },
+      onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+      onPay: () => toast('Would open Send IXI locked to John'),
+      onRequest: () => toast('Would open the request sheet'),
+      onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); toast('Contact removed — ixian:remove'); }, 1100),
+    }),
+    baracuda: () => ({
+      kind: 'contact', name: 'Baracuda', address: 'baracudaXX',
+      txs: [
+        { direction: 'in', status: 'pending', name: 'Baracuda', timestamp: Date.now() - 4 * 864e5, amount: '+25.00', fiat: '$0.04' },
+      ],
+      capabilities: { selfDestruct: true },
+      onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),
+      onPay: () => toast('Would open Send IXI locked to Baracuda'),
+      onRequest: () => toast('Would open the request sheet'),
+      onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),
+      onTx: () => toast('Would open the wallet tx detail'),
+      onDeleteHistory: (ctrl) => setTimeout(() => { ctrl.done(); toast('History deleted — ixian:removehistory'); }, 1100),
+      onRemoveContact: (ctrl) => setTimeout(() => { ctrl.done(); closeChatInfo(); toast('Contact removed — ixian:remove'); }, 1100),
     }),
   };
   const infoPanel = document.getElementById('chat-info-panel');

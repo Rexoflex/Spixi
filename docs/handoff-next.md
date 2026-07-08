@@ -37,14 +37,22 @@ source of truth) → `docs/be-cutover-brief.md` (the one BE work order).
 3. **`DECISIONS.md` rows 203+204 share one physical line** (an earlier-session
    truncation merge — cosmetic, untouched). Don't be alarmed; don't need to fix.
 
-## NEXT BATCH — Desktop split-view + desktop chat-bg rule (Damir queued)
+## NEXT BATCH — Desktop split-view + desktop chat-bg rule — ✅ LANDED #207 (pending Damir F5 + commit)
 Spec: `docs/desktop-split-spec.md`. Per-surface loop unchanged: build → #46 review →
 fix → Damir F5 → DECISIONS row → commit.
 
-1. **Desktop split-view passes for wallet / apps / settings** (chats + chat already
-   exist in `src/demo/desktop.html`) — ≥700px two-pane layouts per shell.
+**Status (2026-07-08):** item 1 was already built + Damir-reviewed in the 2026-07-06
+demo passes (spec §6b/c/d); item 2 landed this session (DECISIONS #207). CSS/token
+only — **NO bundle rebuild**. Damir: `node scripts/smoke-test.mjs` → F5 desktop chat
+(light: pattern off, gradient stays · dark: pattern off, deep grey-1000 ground) + confirm
+MOBILE chat.html unchanged (pattern still shows) → commit.
 
-2. **Desktop-only chat-pattern rule (Damir 2026-07-08, root-caused this session):**
+1. **Desktop split-view passes for wallet / apps / settings** (chats + chat already
+   exist in `src/demo/desktop.html`) — ≥700px two-pane layouts per shell. ✅ built
+   in the 07-06 sessions (routers `dtOpenSettings`/`dtOpenWalletDetail`/`dtOpenAppDetail`).
+
+2. **Desktop-only chat-pattern rule (Damir 2026-07-08, root-caused this session):** ✅ LANDED #207 —
+   `--chat-canvas-base` token split + `.dt-frame` pattern-off + dark grey-1000 base.
    - The pattern is painted by `.c-chat-canvas::before` (layer geometry in
      `message-bubble.css:17-31`, paint in generated `chat-pattern.css`). The
      `--gradient-chat` overlay is a SEPARATE layer (the `.c-chat-canvas` element
@@ -72,6 +80,16 @@ fix → Damir F5 → DECISIONS row → commit.
   data-URI · **#82** media-load posture). Every arg-signature change lands JS+C# together.
 - Integration: C# §5 repoint (mapping table = ARCHITECTURE §5) → full-app Windows test
   → Android → iOS (verify X1 resolves avatars). Then Phase 4 freeze audit.
+
+## Open bugs (Damir F5)
+- **Fulfilled payment request = two cards** (2026-07-08, scenario confirmed: 2
+  accounts, A requests → B pays). Requester sees the request card + a separate
+  "Payment Received" card. FE renders one card per C# message (unique `message.id`,
+  no optimistic add); `requestFunds` + `sentFunds` are separate, unlinked messages.
+  It's a UX/link decision — collapse the fulfilled request into one updated card
+  (`updateRequestFundsStatus` exists at SingleChatPage:1673) + suppress/merge the
+  standalone `sentFunds` push. Logged as **C10** in `be-cutover-brief.md`. No FE-only
+  dedup (would hide distinct payments).
 
 ## #206 backlog (fold into related batches, not blockers)
 - `refreshChatInfo` doesn't preserve member-list scroll on the async roster refresh

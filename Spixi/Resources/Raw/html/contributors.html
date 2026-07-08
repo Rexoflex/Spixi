@@ -780,7 +780,11 @@
      tokens); soften dial = the two alphas. TOKEN-CANDIDATE colors at next
      Figma mirror. Replaces primary-100→50; recheck canvas-tuned inks
      (scroll thumb -03, datesep) at UX review. */
-  --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--surface-screen);
+  /* canvas base = the SOLID color layer under the gradient wash. Split out so a
+     surface (e.g. desktop, docs/desktop-split-spec.md item 2) can drop the doodle
+     pattern AND swap the base without touching the gradient overlay itself. */
+  --chat-canvas-base: var(--surface-screen);
+  --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
      (Damir 2026-07-07). White text (--text-bubble-sent) rides on top. This is the
      ONE line to tune the sent-bubble look (Damir owns the final palette); the solid
@@ -894,7 +898,10 @@
      Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
      neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
   --chat-pattern-opacity: 0.18;
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--surface-neutral-01);
+  /* dark canvas base (see light-mode note): desktop swaps this to --neutral-1000
+     for a solid grey-1000 under the gradient overlay (desktop-split-spec item 2). */
+  --chat-canvas-base: var(--surface-neutral-01);
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
      (Damir 2026-07-07); white text rides on top. */
   --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);

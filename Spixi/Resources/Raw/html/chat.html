@@ -8,6 +8,10 @@
      user's chosen appearance from the first frame (no light→dark flash). Same
      head-top guard the other shells use; the late body block below is harmless. -->
 <script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<!-- Desktop split (Approach 1, DECISIONS #208): .is-desktop drops the chat doodle
+     pattern + renders chat-info as a side panel. Set by ?desktop=1 (preview) or
+     window.__SPIXI_DESKTOP__ (C# at cutover). Off by default → mobile untouched. -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1'||window.__SPIXI_DESKTOP__)document.documentElement.classList.add('is-desktop');}catch(e){}})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -785,7 +789,11 @@
      tokens); soften dial = the two alphas. TOKEN-CANDIDATE colors at next
      Figma mirror. Replaces primary-100→50; recheck canvas-tuned inks
      (scroll thumb -03, datesep) at UX review. */
-  --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--surface-screen);
+  /* canvas base = the SOLID color layer under the gradient wash. Split out so a
+     surface (e.g. desktop, docs/desktop-split-spec.md item 2) can drop the doodle
+     pattern AND swap the base without touching the gradient overlay itself. */
+  --chat-canvas-base: var(--surface-screen);
+  --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
      (Damir 2026-07-07). White text (--text-bubble-sent) rides on top. This is the
      ONE line to tune the sent-bubble look (Damir owns the final palette); the solid
@@ -899,7 +907,10 @@
      Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
      neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
   --chat-pattern-opacity: 0.18;
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--surface-neutral-01);
+  /* dark canvas base (see light-mode note): desktop swaps this to --neutral-1000
+     for a solid grey-1000 under the gradient overlay (desktop-split-spec item 2). */
+  --chat-canvas-base: var(--surface-neutral-01);
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
      (Damir 2026-07-07); white text rides on top. */
   --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);
@@ -4235,6 +4246,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   #chat-composer { flex: none; }
+  /* ===== DESKTOP (.is-desktop, DECISIONS #208) — pattern-off + grey ground =====
+     The doodle pattern reads busy in a wide desktop pane, so drop it while KEEPING
+     the gradient wash (the pattern is the ::before layer; the gradient is the
+     element background). Dark desktop deepens the base to grey-1000. Mirrors the
+     demo's .dt-frame rule (#207). .is-desktop is on <html>, same element as
+     data-theme, so the dark rule is a COMPOUND selector (not descendant). The
+     info side-panel layout is added in a later stage. Mobile keeps its pattern. */
+  .is-desktop .c-chat-canvas::before { display: none; }
+  html.is-desktop[data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }

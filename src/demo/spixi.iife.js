@@ -10797,7 +10797,7 @@ function createChatInfo({
   el.append(createTopbar({
     variant: 'view',
     title: context === 'contact'
-      ? (strings.contactInfo || 'Contact info')
+      ? (strings.contactDetails || 'Contact details')
       : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
     onBack,
   }));
@@ -11351,8 +11351,9 @@ function createChatInfo({
     b.addEventListener('click', () => confirmAction(buildOpts()));
     danger.append(b);
   };
-  // delete-history is a CHAT action — the contact page doesn't offer it (#142)
-  if (kind !== 'group' && context === 'chat' && onDeleteHistory) {
+  // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
+  // revises #142 — contact-details keeps delete-history while gaining Message + title)
+  if (kind !== 'group' && onDeleteHistory) {
     dangerRow(strings.deleteHistory || 'Delete chat history', 'trash', () => ({
       title: strings.deleteHistoryTitle || 'Delete chat history?',
       bodyText: strings.deleteHistoryBody || 'Messages are removed from this device. The contact keeps their copy.',
@@ -13262,14 +13263,31 @@ function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({
+  const topbar = createTopbar({
     variant: 'view', title: strings.account || 'Account', onBack,
     // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
     // with NO Save button — this OPTIONAL trailing action adds an explicit commit
     // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
     // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
     actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
-  }));
+  });
+  el.append(topbar);
+
+  // Save-without-pop confirmation (S14, gated OFF today): the shell calls this after
+  // an ixian:apply — morph the topbar check to a brief "Saved" state + announce it.
+  el.showSaved = () => {
+    live.textContent = strings.saved || 'Saved';
+    const act = topbar.querySelector('.c-topbar__actions button');
+    if (act) {
+      act.setAttribute('data-saved', '');
+      act.setAttribute('aria-label', strings.saved || 'Saved');
+    }
+    clearTimeout(el._savedTimer);
+    el._savedTimer = setTimeout(() => {
+      if (act) { act.removeAttribute('data-saved'); act.setAttribute('aria-label', strings.save || 'Save'); }
+      live.textContent = '';
+    }, 1600);
+  };
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';

@@ -118,7 +118,7 @@
   /* top-anchored channel selector: full-viewport scrim + a panel pinned directly
      under the topbar (its `top` is set inline = the topbar height) that slides
      down (translateY -100% → 0). */
-  .chat-channel-overlay { position: fixed; inset: 0; z-index: var(--z-40, 40); }
+  .chat-channel-overlay { position: fixed; inset: 0; z-index: 15; } /* below topbar (--z-20): panel slides out from UNDER the bar; scrim dims messages/composer but NOT the topbar (Damir 2026-07-08) */
   .chat-channel-overlay__scrim {
     position: absolute; inset: 0; background: var(--surface-scrim, rgba(0,0,0,0.4));
     opacity: 0; transition: opacity var(--duration-200, 200ms) var(--easing-standard, ease);
@@ -299,7 +299,9 @@
         // channel-as-title: the channel name is the header label in bot mode; the
         // bot name/address drops to the sub-line so the identity stays visible.
         name: botChannels ? ('# ' + (channelState.name || '')) : (identity.name || identity.address || ''),
-        sub: botChannels ? (identity.name || identity.address || '') : (identity.sub || ''),
+        sub: botChannels
+          ? [identity.name || identity.address || '', identity.sub || ''].filter(Boolean).join(' · ')
+          : (identity.sub || ''),
         address: identity.address || identity.name || '',
         online: botChannels ? false : identity.online,
         avatar: identity.avatar || null,
@@ -521,12 +523,14 @@
   const fileIndex = new Map(); // fileid → message id
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
+  const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
   // msg-ids I've liked THIS session. The bridge's addReactions sends only
   // key:count (no per-user flag — C5), so a fresh reaction can't tell the shell
   // that *I* reacted; tracking my own likes locally lets the pill show the
   // selected "you reacted" state immediately (Damir F5). Historical own-state
   // (a like from a previous session, re-pushed on load) still needs the C5 flag.
   const myLikes = new Set();
+  let loadedMedia = new Set();   // remote-media URLs the user has loaded (persisted per peer, Damir 2026-07-08)
   // installed multi-user apps pushed by C# loadApps (addApp) — feed the attach
   // → "App invite" picker (legacy parity: legacy showed an app option in the
   // attach bar, picking one emits ixian:app:<id>, chat.js:1250 / onApp xaml:832).
@@ -700,10 +704,14 @@
       timestamp: rec.ts,
       gutter: mode.isMulti && !isSent,
       strings: window.SL || {},
+      // legacy parity (Damir 2026-07-08): LOAD BY DEFAULT — or if the user loaded
+      // this exact URL before (persisted), even when the global pref is off.
+      autoload: mediaAutoloadOn() || loadedMedia.has(media.url),
       onOpen: () => openMediaViewer({ host: overlayHost, src: media.url, kind: media.kind, alt: label, strings: window.SL || {} }),
       // the tile grows from its placeholder box to the GIF's full size on load —
-      // if the user was at the bottom, pull the log down so the whole GIF shows.
-      onLoad: () => { if (nearBottom()) box.scrollTop = box.scrollHeight; },
+      // if the user was at the bottom, pull the log down; and remember this URL so
+      // it auto-expands on re-entry even if autoload is later turned off.
+      onLoad: () => { rememberLoadedMedia(media.url); if (nearBottom()) box.scrollTop = box.scrollHeight; },
     });
   }
 
@@ -982,24 +990,32 @@
   let chatInfoTakeover = null;
   let chatInfoOpen = false;
 
-  // Roster from what the shell knows: received-message senders + updateGroupChatNicks.
+  // Members: authoritative full roster (ixian:loadContacts) enriched with senders
+  // SEEN in loaded history (fresher nick/photo, and covers not-yet-synced members).
   function collectGroupMembers() {
-    const byAddr = new Map();     // address → { name, avatar } (best-known nick + per-sender photo)
+    const byKey = new Map();     // unique key → { name, address, avatar }
+    // 1) full participant roster (blind entries keyed by nick, real ones by address)
+    for (const [key, m] of groupRoster) {
+      byKey.set(key, { name: m.name || '', address: m.address || '', avatar: m.avatar || null });
+    }
+    // 2) enrich from received-message senders (skip blind-masked addresses)
     for (const rec of model.values()) {
-      if (rec.direction === 'received' && rec.senderAddress) {
-        const prev = byAddr.get(rec.senderAddress) || { name: '', avatar: null };
-        byAddr.set(rec.senderAddress, {
+      if (rec.direction === 'received' && rec.senderAddress && rec.senderAddress !== '[Unknown]') {
+        const prev = byKey.get(rec.senderAddress) || { name: '', address: rec.senderAddress, avatar: null };
+        byKey.set(rec.senderAddress, {
           name: prev.name || (senderHasNick(rec) ? rec.senderNick : ''),
+          address: rec.senderAddress,
           avatar: prev.avatar || rec.avatar || null,   // real per-sender photo (C# addThem avatar)
         });
       }
     }
+    // 3) resolved nicks
     for (const [addr, nick] of groupNicks) {
-      if (!addr) continue;
-      const prev = byAddr.get(addr) || { name: '', avatar: null };
-      byAddr.set(addr, { name: prev.name || (nick || ''), avatar: prev.avatar });
+      if (!addr || addr === '[Unknown]') continue;
+      const prev = byKey.get(addr) || { name: '', address: addr, avatar: null };
+      byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar });
     }
-    return [...byAddr].map(([address, m]) => ({ name: m.name, address, avatar: m.avatar }));
+    return [...byKey.values()];
   }
 
   function buildChatInfo() {
@@ -1043,9 +1059,18 @@
     });
   }
 
+  let chatInfoRefreshQueued = false;
+  function scheduleChatInfoRefresh() {   // coalesce the loadContacts roster burst → one rebuild
+    if (chatInfoRefreshQueued) return;
+    chatInfoRefreshQueued = true;
+    requestAnimationFrame(() => { chatInfoRefreshQueued = false; refreshChatInfo(); });
+  }
+
   function openChatInfo() {
     if (chatInfoOpen) return;
     chatInfoOpen = true;
+    groupRoster.clear();                 // fresh roster per open (avoids stale/removed members accumulating)
+    bridge.send('ixian:loadContacts');   // pull the full participant roster → addContact per member
     chatInfoTakeover = document.createElement('div');
     chatInfoTakeover.className = 'chat-info-takeover';
     chatInfoTakeover.append(buildChatInfo());
@@ -1501,6 +1526,9 @@
       if (!identity.name) renderTopbar();
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
+      loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
+      groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
+      groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -1625,7 +1653,21 @@
         else applyReactions(row, { reactions: [] });   // cleared → remove pills
       }
     },
-    addContact() { dbg('addContact'); },
+    // full participant roster (SingleChatPage.loadContacts → addContact per member,
+    // xaml:474; args = address, nick, avatar, role). Blind groups mask address to
+    // "[Unknown]" with a unique nick → key those by nick so they don't collapse.
+    // Feeds the chat-info member list (Damir 2026-07-08; was a no-op stub — corrects
+    // be-cutover CI1: this roster push already existed on the frozen bridge).
+    addContact(address, nick, avatar) {
+      const addr = String(address || '');
+      if (!addr) return;
+      const key = addr === '[Unknown]' ? ('blind:' + (nick || '')) : addr;
+      const raw = avatar ? String(avatar).replace(/\\/g, '/') : '';
+      const av = raw && !/spixiavatar\.png$|spixi-group-avatar\.png$/.test(raw) ? raw : null;
+      const prev = groupRoster.get(key) || {};
+      groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
+      if (chatInfoOpen) scheduleChatInfoRefresh();
+    },
     // incoming contact request (xaml:1196) → accept/decline pane above composer
     showContactRequest() { showRequestPane(); },
     // reveal the topbar call action (C# gates when a call is possible, xaml:583)
@@ -1774,6 +1816,35 @@
       const arr = JSON.parse(localStorage.getItem(k) || '[]');
       if (Array.isArray(arr)) arr.forEach((id) => myLikes.add(String(id)));
     } catch (_) {}
+  }
+
+  // Remote media (GIF/image) load policy — legacy parity: load by default. The
+  // global pref defaults ON; write 'off' to spixi.media.autoload to opt out (a
+  // settings toggle can flip it — deferred UI). Regardless of the pref, URLs the
+  // user DID load are remembered per peer so they auto-expand on re-entry (fixes
+  // the "GIF hidden again after leaving + returning" bug). #82 security note in
+  // be-cutover-brief (auto-loading remote media reveals the reader's IP to the host).
+  const MEDIA_AUTOLOAD_KEY = 'spixi.media.autoload';
+  const MEDIA_LOADED_PREFIX = 'spixi.media.loaded.';
+  function mediaAutoloadOn() {
+    try { return localStorage.getItem(MEDIA_AUTOLOAD_KEY) !== 'off'; } catch (_) { return true; }
+  }
+  function loadedMediaKey() { return identity.address ? MEDIA_LOADED_PREFIX + identity.address : ''; }
+  function loadLoadedMedia() {
+    loadedMedia = new Set();                    // reset for THIS peer (desktop peer-switch safe)
+    const k = loadedMediaKey();
+    if (!k) return;
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]');
+      if (Array.isArray(arr)) arr.forEach((u) => loadedMedia.add(String(u)));
+    } catch (_) {}
+  }
+  function rememberLoadedMedia(url) {
+    if (!url) return;
+    loadedMedia.add(url);
+    const k = loadedMediaKey();
+    if (!k) return;
+    try { localStorage.setItem(k, JSON.stringify([...loadedMedia])); } catch (_) {}
   }
 
   let composerEl = null;

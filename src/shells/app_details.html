@@ -117,6 +117,11 @@
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
   const asBool = (v) => v === 'True' || v === 'true' || v === true;
+  // Thread the icon path like the apps tab (home.html resolveIcon): normalize the
+  // Windows separator; c-app-icon's onerror falls back to the gradient. Shows the
+  // gradient until X1 (C# data-URI push) lands, then the real image — parity with
+  // the tab (Damir F5 2026-07-08: details showed initials, tab showed the same).
+  const resolveIcon = (pth) => { const t = (pth || '').replace(/\\/g, '/'); return t || null; };
 
   const topbarSlot = document.getElementById('topbar-slot');
   const scroll = document.getElementById('app-scroll');
@@ -181,8 +186,8 @@
       app = {
         id: appId || '',
         name: name || '',
-        icon: null,                 // path won't resolve here → gradient fallback (repo-wide)
-        _iconPath: iconPath || '',  // stored for a future hero image slot
+        icon: resolveIcon(iconPath), // parity with the apps tab; gradient until X1, then real image
+        _iconPath: iconPath || '',  // raw path kept for reference
         publisher: publisher || '',
         description: description || '',
         version: version || '',

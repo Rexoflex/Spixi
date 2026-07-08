@@ -137,6 +137,8 @@ export const enUS = {
   confirmTitle: "Confirm it’s you",
   contact: "Contact",
   contactInfo: "Contact info",
+  contactDetails: "Contact details",
+  saved: "Saved",
   contactPendingLabel: "request sent",
   contacts: "Contacts",
   contributors: "Contributors",

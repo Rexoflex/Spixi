@@ -73,7 +73,7 @@
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
-    createBottomNav,
+    createBottomNav, showToast,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -161,6 +161,18 @@
   // the C# page pop IS the confirmation (a morph would flash before the teardown).
   function commitSave() {
     if (exiting) return;
+    // S14 (BE, gated OFF until C# lands ixian:apply): save WITHOUT popping — persist
+    // nick + promote avatar-tmp, STAY on the page, confirm with a topbar "Saved" morph
+    // + toast (Damir 2026-07-08). Built + ready; bridge.cap('settingsApply') is false
+    // today, so we fall through to the frozen-bridge persist-and-pop below.
+    if (bridge.cap('settingsApply')) {
+      bridge.send('ixian:apply:' + state.name);
+      state.dirtyNick = false; state.dirtyAvatar = false;
+      if (hubEl && hubEl.showSaved) hubEl.showSaved();
+      showToast({ text: strings.saved || 'Saved', tone: 'success', host: document.body, strings });
+      return;
+    }
+    // frozen-bridge fallback: persist + pop, exactly once (the C# page pop = confirm).
     exiting = true;
     bridge.send('ixian:save:' + state.name);
   }
@@ -329,7 +341,13 @@
     // mark dirty so exit promotes it. Path resolution in-shell is the known avatar
     // flag → the tile falls back to a gradient until that's fixed.
     loadAvatar(path) {
-      const p = (path || '').replace(/&bsol;/g, '/');
+      let p = (path || '').replace(/&bsol;/g, '/');
+      // DEFAULT sentinel: SettingsPage pushes 'img/spixiavatar.png' when no custom
+      // avatar exists (xaml:461). It RESOLVES on WinUI → rendered the LEGACY avatar
+      // image instead of the redesign gradient (Damir F5 2026-07-08). Map the default
+      // sentinels to null so createAvatar draws the deterministic gradient — same as
+      // contact_details' resolveAvatar.
+      if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') p = '';
       state.avatarSrc = p || null;
       // A tmp path = a fresh pick pending promotion (dirty). A non-tmp path (initial
       // load, or the default pushed after a remove) means nothing is pending → clear

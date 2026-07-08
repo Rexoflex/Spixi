@@ -75,18 +75,14 @@
    *          ixian:removehistory · ixian:request · ixian:send · ixian:chat ·
    *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick>.
    *
-   * CONTEXT CHOICE (deviation from the task's "context 'contact'", flagged):
-   *   we render with context 'chat', kind 'contact'. Reason: this page is the
-   *   1:1 chat-info surface (opened from the chat header), and ONLY context
-   *   'chat' renders BOTH "Delete chat history" (ixian:removehistory) AND
-   *   "Remove contact" (ixian:remove) — matching legacy contact_details.html.
-   *   Per spec #142 the 'contact' context deliberately DROPS delete-history, so
-   *   using it would silently lose a legacy feature; editing the component to add
-   *   delete-history to 'contact' would contradict #142. context 'chat' is the
-   *   only spec-compliant way to cover both destructive actions here.
-   *   Trade-off: the leading "Message" (open-chat) button + "Contact info" title
-   *   belong to 'contact' context and are absent — acceptable, since you reach
-   *   this from inside the chat (ixian:chat would just pop back). See handoff.
+   * CONTEXT CHOICE (Damir 2026-07-08 — revises #142): context 'contact', kind
+   *   'contact'. The contact-details page now shows the "Contact details" title +
+   *   a leading "Message" button (ixian:chat → opens/pops the conversation) AND
+   *   keeps BOTH destructive actions — the component was un-gated so context
+   *   'contact' renders "Delete chat history" (ixian:removehistory) alongside
+   *   "Remove contact" (ixian:remove). ixian:chat pushes SingleChatPage when
+   *   reached from the contacts list, or pops back when opened from a chat header
+   *   (customChatBtn) — same "open conversation" outcome either way.
    *
    * UPDATE CHURN: C#'s updateScreen() re-pushes setNickname + setAvatar +
    *   showIndicator EVERY SECOND, and clears + re-adds the WHOLE tx list every
@@ -165,7 +161,7 @@
   function buildPanel() {
     return createChatInfo({
       kind: 'contact',
-      context: 'chat',                 // see CONTEXT CHOICE — renders delete-history + remove-contact
+      context: 'contact',              // see CONTEXT CHOICE — title "Contact details" + Message + both destructive actions
       name: state.name,
       address: state.address,
       avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
@@ -178,6 +174,10 @@
       strings,
 
       onBack: () => bridge.send('ixian:back'),
+
+      // Message → open the conversation with this contact (ixian:chat: pushes
+      // SingleChatPage from the contacts list, pops back from a chat header).
+      onMessage: () => bridge.send('ixian:chat'),
 
       // nickname → local user-defined override (ixian:userdefinednick). Empty clears it.
       // C# re-pushes friend.nickname on the next tick, so the display self-heals.

@@ -491,16 +491,18 @@ console.log('chat.html — chat info (#141)');
     onDeleteHistory() {}, onRemoveContact() {},
   });
   chost.append(cinfo);
-  ok(cinfo.querySelector('.c-topbar__title').textContent === 'Contact info'
+  ok(cinfo.querySelector('.c-topbar__title').textContent === 'Contact details'
     && cinfo.dataset.context === 'contact',
-    'contact context retitles the surface (one component, two feels — #142)');
+    'contact context title = "Contact details" (Damir 2026-07-08, revises #142)');
   const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-button')];
   ok(moneyBtns[0].classList.contains('c-chat-info__message') && moneyBtns[0].dataset.type === 'fill'
     && moneyBtns[1].dataset.type === 'outline',
     'contact page: Message LEADS (fill), Pay demotes to outline');
   const dRows = [...cinfo.querySelectorAll('.c-chat-info__danger-row')];
-  ok(dRows.length === 1 && dRows[0].textContent.includes('Remove'),
-    'contact page drops delete-history (chat action) but keeps remove-contact');
+  ok(dRows.length === 2
+    && dRows.some((r) => /Delete/i.test(r.textContent))
+    && dRows.some((r) => /Remove/i.test(r.textContent)),
+    'contact-details keeps BOTH delete-history + remove-contact (revises #142)');
   ok(!cinfo.querySelector('.c-chat-info__setting'),
     'disappearing messages is chat-side — hidden on the contact page');
   cinfo.querySelector('.c-chat-info__txs-toggle').click();
@@ -1514,6 +1516,35 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(/channelReturnFocus = document\.activeElement/.test(chatShell)
     && /rf\.focus\(\{ preventScroll: true \}\)/.test(chatShell),
     'channel selector restores focus to the trigger on close (a11y sweep)');
+}
+
+{
+  /* static guards — zero-C# bug-fix batch (2026-07-08). Shell-level wiring isn't
+     jsdom-loaded, so verify by source markers (like the a11y block above). */
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/bridge\.send\('ixian:loadContacts'\)/.test(chat) && /const groupRoster = new Map\(\)/.test(chat),
+    'chat: full member roster wired via ixian:loadContacts (bug batch)');
+  ok(/\.chat-channel-overlay \{ position: fixed; inset: 0; z-index: 15;/.test(chat),
+    'chat: channel selector sits below the topbar (z-index 15) (bug batch)');
+  ok(/autoload: mediaAutoloadOn\(\) \|\| loadedMedia\.has\(media\.url\)/.test(chat)
+    && /const MEDIA_LOADED_PREFIX = 'spixi\.media\.loaded\.'/.test(chat),
+    'chat: remote media loads by default + persists per peer (bug batch)');
+  ok(/\[identity\.name \|\| identity\.address \|\| '', identity\.sub \|\| ''\]\.filter\(Boolean\)/.test(chat),
+    'chat: bot topbar keeps the member count next to the name (bug batch)');
+  const mcss = readFileSync(join(root, 'src/styles/components/media-bubble.css'), 'utf8');
+  ok(/\.c-bubble-row\[data-direction="sent"\] \.c-mbubble \{\s*border: 2px solid var\(--surface-bubble-sent\)/.test(mcss),
+    'media: sent tiles carry a 2px outgoing-bubble border (bug batch)');
+  const setg = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/p === 'img\/spixiavatar\.png'/.test(setg),
+    'settings: default avatar sentinel maps to gradient, not the legacy image (bug batch)');
+  ok(/bridge\.cap\('settingsApply'\)/.test(setg) && /ixian:apply:/.test(setg),
+    'settings: save-without-pop stay+Saved path built, gated behind settingsApply (S14) (bug batch)');
+  const appd = readFileSync(join(root, 'src/shells/app_details.html'), 'utf8');
+  ok(/icon: resolveIcon\(iconPath\)/.test(appd),
+    'apps: details icon threaded for parity with the tab (bug batch)');
+  const tok = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/rgba\(132, 108, 200, 0\.22\)/.test(tok),
+    'lock: gradient softened/desaturated (bug batch)');
 }
 
 console.log('chats.html — contacts flow (Phase 1 #2)');

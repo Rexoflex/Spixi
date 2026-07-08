@@ -129,7 +129,7 @@ export function createChatInfo({
   el.append(createTopbar({
     variant: 'view',
     title: context === 'contact'
-      ? (strings.contactInfo || 'Contact info')
+      ? (strings.contactDetails || 'Contact details')
       : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
     onBack,
   }));
@@ -683,8 +683,9 @@ export function createChatInfo({
     b.addEventListener('click', () => confirmAction(buildOpts()));
     danger.append(b);
   };
-  // delete-history is a CHAT action — the contact page doesn't offer it (#142)
-  if (kind !== 'group' && context === 'chat' && onDeleteHistory) {
+  // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
+  // revises #142 — contact-details keeps delete-history while gaining Message + title)
+  if (kind !== 'group' && onDeleteHistory) {
     dangerRow(strings.deleteHistory || 'Delete chat history', 'trash', () => ({
       title: strings.deleteHistoryTitle || 'Delete chat history?',
       bodyText: strings.deleteHistoryBody || 'Messages are removed from this device. The contact keeps their copy.',

@@ -734,12 +734,17 @@
      3 corner radials (purple / blue / cyan — the demo avatar-gradient hue
      family) over a 215° near-black base. Raw rgba sanctioned like
      --gradient-hero-overlay (gradients = code-only tokens). */
+  /* Softened 2026-07-08 (Damir: less saturation, gentler, "slightly blurred"):
+     halved blob alphas + muted hues toward grey + wider radial falloff (feathered
+     edges) + compressed base lightness (lower stop-to-stop contrast). Alphas =
+     strength, radial extent % = blur/feather, base lightness spread = base contrast
+     — the dials, Damir's final call. */
   --gradient-lock:
-    radial-gradient(120% 85% at 50% -25%, rgba(124, 88, 255, 0.45) 0%, rgba(124, 88, 255, 0) 60%),
-    radial-gradient(70% 50% at 90% 16%, rgba(233, 78, 168, 0.135) 0%, rgba(233, 78, 168, 0) 62%),
-    radial-gradient(85% 60% at 6% 84%, rgba(43, 118, 255, 0.25) 0%, rgba(43, 118, 255, 0) 58%),
-    radial-gradient(60% 42% at 86% 98%, rgba(56, 224, 211, 0.11) 0%, rgba(56, 224, 211, 0) 55%),
-    linear-gradient(200deg, #1a1240 0%, #10102e 45%, #05060f 100%);
+    radial-gradient(150% 100% at 50% -25%, rgba(132, 108, 200, 0.22) 0%, rgba(132, 108, 200, 0) 70%),
+    radial-gradient(90% 65% at 90% 16%, rgba(190, 120, 175, 0.07) 0%, rgba(190, 120, 175, 0) 72%),
+    radial-gradient(105% 75% at 6% 84%, rgba(80, 120, 190, 0.13) 0%, rgba(80, 120, 190, 0) 70%),
+    radial-gradient(75% 55% at 86% 98%, rgba(90, 170, 175, 0.06) 0%, rgba(90, 170, 175, 0) 68%),
+    linear-gradient(200deg, #201a38 0%, #191830 45%, #10111f 100%);
 
   /* launch/welcome brand gradient (Damir premium round 2026-07-06: "more
      premium colors" than --gradient-lock). Aurora build, FIXED-DARK like the
@@ -12663,7 +12668,7 @@ function createChatInfo({
   el.append(createTopbar({
     variant: 'view',
     title: context === 'contact'
-      ? (strings.contactInfo || 'Contact info')
+      ? (strings.contactDetails || 'Contact details')
       : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
     onBack,
   }));
@@ -13217,8 +13222,9 @@ function createChatInfo({
     b.addEventListener('click', () => confirmAction(buildOpts()));
     danger.append(b);
   };
-  // delete-history is a CHAT action — the contact page doesn't offer it (#142)
-  if (kind !== 'group' && context === 'chat' && onDeleteHistory) {
+  // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
+  // revises #142 — contact-details keeps delete-history while gaining Message + title)
+  if (kind !== 'group' && onDeleteHistory) {
     dangerRow(strings.deleteHistory || 'Delete chat history', 'trash', () => ({
       title: strings.deleteHistoryTitle || 'Delete chat history?',
       bodyText: strings.deleteHistoryBody || 'Messages are removed from this device. The contact keeps their copy.',
@@ -15128,14 +15134,31 @@ function createSettingsHub({
   const el = document.createElement('div');
   el.className = 'c-settings';
 
-  el.append(createTopbar({
+  const topbar = createTopbar({
     variant: 'view', title: strings.account || 'Account', onBack,
     // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
     // with NO Save button — this OPTIONAL trailing action adds an explicit commit
     // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar
     // actions are icon-buttons, so it's a `check` glyph with a labeled aria-name.
     actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
-  }));
+  });
+  el.append(topbar);
+
+  // Save-without-pop confirmation (S14, gated OFF today): the shell calls this after
+  // an ixian:apply — morph the topbar check to a brief "Saved" state + announce it.
+  el.showSaved = () => {
+    live.textContent = strings.saved || 'Saved';
+    const act = topbar.querySelector('.c-topbar__actions button');
+    if (act) {
+      act.setAttribute('data-saved', '');
+      act.setAttribute('aria-label', strings.saved || 'Saved');
+    }
+    clearTimeout(el._savedTimer);
+    el._savedTimer = setTimeout(() => {
+      if (act) { act.removeAttribute('data-saved'); act.setAttribute('aria-label', strings.save || 'Save'); }
+      live.textContent = '';
+    }, 1600);
+  };
 
   const body = document.createElement('div');
   body.className = 'c-settings__body u-scroll';

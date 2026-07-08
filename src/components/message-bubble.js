@@ -33,7 +33,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { createAvatar, hashHue } from './avatar.js';
+import { createAvatar, hashHue, truncateAddressMiddle } from './avatar.js';
 import { createStatusIcon } from './chatlist-item.js';
 import { dayBucketLabel, docLocale } from './timestamp.js';
 
@@ -67,7 +67,61 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
-function linkifyInto(parent, text, onLinkClick) {
+/* @-mention highlighting (Damir 2026-07-09, premium mentions, DECISIONS #210).
+   A mention token = "@" + a name; rendered as a styled span (color + bold, theme-
+   aware, XSS-safe textContent — never innerHTML). When the shell supplies the known
+   member `names`, matching is name-anchored + word-boundary-gated so "@bob" never
+   lights up inside "@bobby" and an email like "a@b.com" is left alone; otherwise a
+   generic `@word` fallback keeps mentions visible in 1:1 chats with no roster.
+   `self` keys (lowercased) get the stronger self-mention treatment (`data-self`). */
+function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const GENERIC_TERM = '[\\p{L}\\p{N}_]{1,48}';
+const GENERIC_MENTION_RE = () => new RegExp('@(' + GENERIC_TERM + ')(?![\\p{L}\\p{N}_])', 'giu');
+/* Match ANY @word (so a mention of the local user highlights even before we know
+   their nick — Damir F5 2026-07-09), with known member names as LEADING, longest-
+   first alternatives so multi-word nicks ("@John Doe") match fully instead of just
+   "@John". The generic term is always the last alternative. */
+function buildMentionRe(names) {
+  const alts = [];
+  if (names && names.length) {
+    for (const n of names.map((x) => String(x == null ? '' : x).trim()).filter(Boolean).sort((a, b) => b.length - a.length)) {
+      alts.push(escapeRe(n));
+    }
+  }
+  alts.push(GENERIC_TERM);
+  // a pathological name (e.g. a lone surrogate) can throw under the `u` flag →
+  // fall back to the plain generic matcher rather than aborting the log render (review m2)
+  try { return new RegExp('@(' + alts.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu'); }
+  catch (_) { return GENERIC_MENTION_RE(); }
+}
+function appendWithMentions(parent, text, mention) {
+  if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
+  const re = mention._re || (mention._re = buildMentionRe(mention.names));
+  const selfSet = mention._self || (mention._self = new Set((mention.self || []).map((s) => String(s).toLowerCase())));
+  re.lastIndex = 0;
+  const WORD_BEFORE = /[\p{L}\p{N}_@]/u;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    // boundary-BEFORE the "@": if the char preceding it is a word char or another
+    // "@", this is not a mention (e.g. an email "a@bob.com") — leave it as plain
+    // text (it stays in the run flushed by the next match / the tail append).
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && WORD_BEFORE.test(prev)) {
+      if (re.lastIndex === m.index) re.lastIndex++;
+      continue;
+    }
+    if (m.index > last) parent.append(text.slice(last, m.index));
+    const span = document.createElement('span');
+    span.className = 'c-bubble__mention';
+    span.textContent = m[0];                 // "@Name" verbatim (safe)
+    if (selfSet.has(String(m[1]).toLowerCase())) span.dataset.self = '';
+    parent.append(span);
+    last = m.index + m[0].length;
+    if (re.lastIndex === m.index) re.lastIndex++;   // zero-width guard (defensive)
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+function linkifyInto(parent, text, onLinkClick, mention = null) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     let url = m[0];
@@ -77,7 +131,7 @@ function linkifyInto(parent, text, onLinkClick) {
     while (url.endsWith(')') &&
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
-    parent.append(text.slice(last, m.index));
+    appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
@@ -86,16 +140,11 @@ function linkifyInto(parent, text, onLinkClick) {
     parent.append(b);
     last = m.index + url.length;
   }
-  parent.append(text.slice(last));
+  appendWithMentions(parent, text.slice(last), mention);
 }
 
-/* Middle-truncate a wallet address for a nameless group/bot sender label
-   (Damir 2026-07-07): 6…6 keeps both ends recognisable. */
-function truncateAddressMiddle(s, head = 6, tail = 6) {
-  s = String(s == null ? '' : s);
-  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
-}
-/* Copy the FULL address to the clipboard + brief inline "Copied" feedback. */
+/* Copy the FULL address to the clipboard + brief inline "Copied" feedback.
+   truncateAddressMiddle now lives in avatar.js (#211 canon — shared, no cycle). */
 function copySenderAddress(btn, address, strings) {
   const revert = truncateAddressMiddle(address);
   const flash = () => {
@@ -128,6 +177,7 @@ export function createMessageBubble({
   edited = false,
   onLinkClick = null,
   linkPreview = null,
+  mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -243,7 +293,7 @@ export function createMessageBubble({
 
   const body = document.createElement('span');
   body.className = 'c-bubble__text';
-  linkifyInto(body, text, onLinkClick); // plain text appends untouched
+  linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
   el.append(body);
 
   // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)

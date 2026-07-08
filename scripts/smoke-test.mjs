@@ -1529,8 +1529,8 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(/autoload: mediaAutoloadOn\(\) \|\| loadedMedia\.has\(media\.url\)/.test(chat)
     && /const MEDIA_LOADED_PREFIX = 'spixi\.media\.loaded\.'/.test(chat),
     'chat: remote media loads by default + persists per peer (bug batch)');
-  ok(/\[identity\.name \|\| identity\.address \|\| '', identity\.sub \|\| ''\]\.filter\(Boolean\)/.test(chat),
-    'chat: bot topbar keeps the member count next to the name (bug batch)');
+  ok(/\[identityTitle\(\), identity\.sub \|\| ''\]\.filter\(Boolean\)/.test(chat),
+    'chat: bot topbar keeps the member count next to the name (bug batch; #212 identityTitle refactor)');
   const mcss = readFileSync(join(root, 'src/styles/components/media-bubble.css'), 'utf8');
   ok(/\.c-bubble-row\[data-direction="sent"\] \.c-mbubble \{\s*border: 2px solid var\(--surface-bubble-sent\)/.test(mcss),
     'media: sent tiles carry a 2px outgoing-bubble border (bug batch)');

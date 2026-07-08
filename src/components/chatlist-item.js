@@ -6,7 +6,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { formatChatTimestamp } from './timestamp.js';
 
 /** Cap counts for compact badges/indicators (shared with c-bottomnav). */
@@ -125,13 +125,19 @@ export function createChatItem({
   // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
 
-  el.append(createAvatar({ src: avatar, name, address, size: 48, online }));
+  // #211 address-display canon: a nick wins; a nameless row (or one whose "nick"
+  // is really its address echoed back) shows the address MIDDLE-TRUNCATED, never
+  // in full. Full address lives only in Contact details + payments.
+  const hasNick = !!name && name !== address;
+  const displayName = hasNick ? name : (address ? truncateAddressMiddle(address) : (name || ''));
+
+  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online }));
 
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-chatlist-item__name';
-  nameEl.textContent = name || address;
+  nameEl.textContent = displayName;
   content.append(nameEl, createExcerpt({ ...excerpt, strings }));
   el.append(content);
 

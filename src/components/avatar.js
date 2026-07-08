@@ -18,6 +18,17 @@ export function hashHue(str) { // exported: sender labels reuse the identity hue
   return h % 360;
 }
 
+/* Middle-truncate a wallet address (Damir 2026-07-07 · #211 canon): 6…6 keeps
+   both ends recognisable. The ONE helper every chat surface uses — a raw address
+   is never shown in full on a chat surface (topbar title, list row, sender label);
+   the full address lives only in Contact details + payment/wallet surfaces. Lives
+   in avatar.js (the shared identity/address module) so bubbles + list rows import
+   it without a circular dependency. */
+export function truncateAddressMiddle(s, head = 6, tail = 6) {
+  s = String(s == null ? '' : s);
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
+}
+
 function initials(name) {
   const trimmed = name.trim();
   // must start with a letter (any script) — empty/whitespace-only and

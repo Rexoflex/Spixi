@@ -356,6 +356,7 @@
     onPersist: (action, chat, detail) => {
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
+        reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
       }
     },
     // Delete ON: the tombstone makes the two-step delete actually stick this session
@@ -990,7 +991,9 @@
       c.unread = Number(unread) || 0;
       // CH5: a mention is by definition unread — clear it when the live tick
       // reports the chat read (a full re-flush would clear it too, later).
-      if (c.unread === 0) c.mention = false;
+      // CH8: likewise drop any sticky reaction excerpt on read, so the live-tick
+      // read path clears it now instead of lingering until the next structural flush.
+      if (c.unread === 0) { c.mention = false; reactionExcerpts.delete(address); }
       // A live status tick is normally excerpt="" (pure online/unread refresh); when
       // it does carry text, run it through the same canon+draft path as addChat.
       { const ex = excerptFor(address, excerpt, undefined); if (excerpt || ex.type === 'draft') c.excerpt = ex; }

@@ -4321,6 +4321,17 @@ function hashHue(str) { // exported: sender labels reuse the identity hue (singl
   return h % 360;
 }
 
+/* Middle-truncate a wallet address (Damir 2026-07-07 · #211 canon): 6…6 keeps
+   both ends recognisable. The ONE helper every chat surface uses — a raw address
+   is never shown in full on a chat surface (topbar title, list row, sender label);
+   the full address lives only in Contact details + payment/wallet surfaces. Lives
+   in avatar.js (the shared identity/address module) so bubbles + list rows import
+   it without a circular dependency. */
+function truncateAddressMiddle(s, head = 6, tail = 6) {
+  s = String(s == null ? '' : s);
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
+}
+
 function initials(name) {
   const trimmed = name.trim();
   // must start with a letter (any script) — empty/whitespace-only and
@@ -4518,13 +4529,19 @@ function createChatItem({
   // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
 
-  el.append(createAvatar({ src: avatar, name, address, size: 48, online }));
+  // #211 address-display canon: a nick wins; a nameless row (or one whose "nick"
+  // is really its address echoed back) shows the address MIDDLE-TRUNCATED, never
+  // in full. Full address lives only in Contact details + payments.
+  const hasNick = !!name && name !== address;
+  const displayName = hasNick ? name : (address ? truncateAddressMiddle(address) : (name || ''));
+
+  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online }));
 
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-chatlist-item__name';
-  nameEl.textContent = name || address;
+  nameEl.textContent = displayName;
   content.append(nameEl, createExcerpt({ ...excerpt, strings }));
   el.append(content);
 
@@ -5881,7 +5898,61 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
-function linkifyInto(parent, text, onLinkClick) {
+/* @-mention highlighting (Damir 2026-07-09, premium mentions, DECISIONS #210).
+   A mention token = "@" + a name; rendered as a styled span (color + bold, theme-
+   aware, XSS-safe textContent — never innerHTML). When the shell supplies the known
+   member `names`, matching is name-anchored + word-boundary-gated so "@bob" never
+   lights up inside "@bobby" and an email like "a@b.com" is left alone; otherwise a
+   generic `@word` fallback keeps mentions visible in 1:1 chats with no roster.
+   `self` keys (lowercased) get the stronger self-mention treatment (`data-self`). */
+function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const GENERIC_TERM = '[\\p{L}\\p{N}_]{1,48}';
+const GENERIC_MENTION_RE = () => new RegExp('@(' + GENERIC_TERM + ')(?![\\p{L}\\p{N}_])', 'giu');
+/* Match ANY @word (so a mention of the local user highlights even before we know
+   their nick — Damir F5 2026-07-09), with known member names as LEADING, longest-
+   first alternatives so multi-word nicks ("@John Doe") match fully instead of just
+   "@John". The generic term is always the last alternative. */
+function buildMentionRe(names) {
+  const alts = [];
+  if (names && names.length) {
+    for (const n of names.map((x) => String(x == null ? '' : x).trim()).filter(Boolean).sort((a, b) => b.length - a.length)) {
+      alts.push(escapeRe(n));
+    }
+  }
+  alts.push(GENERIC_TERM);
+  // a pathological name (e.g. a lone surrogate) can throw under the `u` flag →
+  // fall back to the plain generic matcher rather than aborting the log render (review m2)
+  try { return new RegExp('@(' + alts.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu'); }
+  catch (_) { return GENERIC_MENTION_RE(); }
+}
+function appendWithMentions(parent, text, mention) {
+  if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
+  const re = mention._re || (mention._re = buildMentionRe(mention.names));
+  const selfSet = mention._self || (mention._self = new Set((mention.self || []).map((s) => String(s).toLowerCase())));
+  re.lastIndex = 0;
+  const WORD_BEFORE = /[\p{L}\p{N}_@]/u;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    // boundary-BEFORE the "@": if the char preceding it is a word char or another
+    // "@", this is not a mention (e.g. an email "a@bob.com") — leave it as plain
+    // text (it stays in the run flushed by the next match / the tail append).
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && WORD_BEFORE.test(prev)) {
+      if (re.lastIndex === m.index) re.lastIndex++;
+      continue;
+    }
+    if (m.index > last) parent.append(text.slice(last, m.index));
+    const span = document.createElement('span');
+    span.className = 'c-bubble__mention';
+    span.textContent = m[0];                 // "@Name" verbatim (safe)
+    if (selfSet.has(String(m[1]).toLowerCase())) span.dataset.self = '';
+    parent.append(span);
+    last = m.index + m[0].length;
+    if (re.lastIndex === m.index) re.lastIndex++;   // zero-width guard (defensive)
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+function linkifyInto(parent, text, onLinkClick, mention = null) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     let url = m[0];
@@ -5891,7 +5962,7 @@ function linkifyInto(parent, text, onLinkClick) {
     while (url.endsWith(')') &&
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
-    parent.append(text.slice(last, m.index));
+    appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
@@ -5900,16 +5971,11 @@ function linkifyInto(parent, text, onLinkClick) {
     parent.append(b);
     last = m.index + url.length;
   }
-  parent.append(text.slice(last));
+  appendWithMentions(parent, text.slice(last), mention);
 }
 
-/* Middle-truncate a wallet address for a nameless group/bot sender label
-   (Damir 2026-07-07): 6…6 keeps both ends recognisable. */
-function truncateAddressMiddle(s, head = 6, tail = 6) {
-  s = String(s == null ? '' : s);
-  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
-}
-/* Copy the FULL address to the clipboard + brief inline "Copied" feedback. */
+/* Copy the FULL address to the clipboard + brief inline "Copied" feedback.
+   truncateAddressMiddle now lives in avatar.js (#211 canon — shared, no cycle). */
 function copySenderAddress(btn, address, strings) {
   const revert = truncateAddressMiddle(address);
   const flash = () => {
@@ -5942,6 +6008,7 @@ function createMessageBubble({
   edited = false,
   onLinkClick = null,
   linkPreview = null,
+  mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -6057,7 +6124,7 @@ function createMessageBubble({
 
   const body = document.createElement('span');
   body.className = 'c-bubble__text';
-  linkifyInto(body, text, onLinkClick); // plain text appends untouched
+  linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
   el.append(body);
 
   // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)
@@ -6258,7 +6325,9 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
 
 
 
+
 const MAX_LINES = 5;
+const MENTION_MAX = 8;   // rows shown in the @-autocomplete
 
 function createComposer({
   placeholder = 'Message',
@@ -6267,6 +6336,7 @@ function createComposer({
   onAttach,
   onTyping,
   onRecord,
+  mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
@@ -6355,8 +6425,129 @@ function createComposer({
     else send();
   });
 
+  if (mentionSource) wireMentions(el, input, mentionSource, strings);
+
   syncAction();
   return el;
+}
+
+/* —— @-mention autocomplete (Damir 2026-07-09, premium mentions #210). Typing
+   "@" (at line start or after whitespace) opens an anchored member picker sourced
+   from `mentionSource()`; filters as you type, keyboard (↑/↓/Enter/Tab/Esc) + tap,
+   inserts "@Name ". Blind-group-safe (the shell simply supplies no members).
+   Caret-aware on the textarea; XSS-safe (textContent). */
+const MENTION_FRAG_RE = /(?:^|[\s\n])@([\p{L}\p{N}_]*)$/u;
+function wireMentions(el, input, mentionSource, strings) {
+  let box = null, options = [], active = -1;
+
+  const close = () => {
+    if (box) { box.remove(); box = null; }
+    options = []; active = -1;
+    input.removeAttribute('aria-activedescendant');
+    input.removeAttribute('aria-expanded');
+  };
+
+  // the active "@fragment" ending at the caret, or null
+  const fragment = () => {
+    const pos = input.selectionStart;
+    if (pos == null || pos !== input.selectionEnd) return null;   // no fragment while a range is selected
+    const m = MENTION_FRAG_RE.exec(input.value.slice(0, pos));
+    if (!m) return null;
+    return { query: m[1], at: pos - m[1].length - 1 };            // index of '@'
+  };
+
+  const matches = (query) => {
+    let list = [];
+    try { list = mentionSource() || []; } catch (_) { list = []; }
+    const seen = new Set(); const uniq = [];
+    for (const m of list) {                                       // dedupe by name, drop nameless
+      if (!m || !m.name) continue;
+      const k = m.name.toLowerCase();
+      if (seen.has(k)) continue; seen.add(k); uniq.push(m);
+    }
+    const q = query.toLowerCase();
+    if (!q) return uniq.slice(0, MENTION_MAX);
+    const starts = uniq.filter((m) => m.name.toLowerCase().startsWith(q));
+    const rest = uniq.filter((m) => !m.name.toLowerCase().startsWith(q) && m.name.toLowerCase().includes(q));
+    return starts.concat(rest).slice(0, MENTION_MAX);
+  };
+
+  const setActive = (i) => {
+    active = i;
+    const rows = box ? box.querySelectorAll('.c-composer__mention') : [];
+    rows.forEach((r, idx) => {
+      const on = idx === active;
+      r.classList.toggle('is-active', on);
+      r.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) { input.setAttribute('aria-activedescendant', r.id); r.scrollIntoView({ block: 'nearest' }); }
+    });
+  };
+
+  const insert = (member) => {
+    const frag = fragment(); if (!frag) { close(); return; }
+    const before = input.value.slice(0, frag.at);
+    const after = input.value.slice(input.selectionStart);
+    const ins = '@' + member.name + ' ';
+    input.value = before + ins + after;
+    const caret = (before + ins).length;
+    close();
+    input.dispatchEvent(new Event('input'));       // grow + syncAction (isTrusted=false → no ixian:typing)
+    input.focus();
+    try { input.setSelectionRange(caret, caret); } catch (_) {}
+  };
+
+  const open = (list) => {
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'c-composer__mentions';
+      box.setAttribute('role', 'listbox');
+      box.setAttribute('aria-label', strings.mentionMembers || 'Members');
+      el.append(box);                              // el is position:relative; box anchors bottom:100%
+      input.setAttribute('aria-expanded', 'true');
+    }
+    box.textContent = '';
+    options = list;
+    list.forEach((m, idx) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'c-composer__mention';
+      row.id = 'c-mention-opt-' + idx;
+      row.setAttribute('role', 'option');
+      row.append(createAvatar({ src: m.avatar || null, name: m.name, address: m.address || '', size: 24 }));
+      const nm = document.createElement('span');
+      nm.className = 'c-composer__mention-name';
+      nm.textContent = m.name;
+      row.append(nm);
+      // mousedown (not click) so the textarea doesn't blur before we insert
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); insert(m); });
+      box.append(row);
+    });
+    setActive(0);
+  };
+
+  const refresh = () => {
+    const frag = fragment();
+    if (!frag) { close(); return; }
+    const list = matches(frag.query);
+    if (!list.length) { close(); return; }
+    open(list);
+  };
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('click', refresh);
+  // capture phase → runs BEFORE the send/Enter + ctx-Esc handlers so the picker
+  // consumes navigation keys while open (stopImmediatePropagation blocks them).
+  input.addEventListener('keydown', (e) => {
+    if (!box) return;
+    // IME guard (mirror the send handler): an Enter/arrow confirming a CJK
+    // composition must not select/navigate the picker (review MAJOR M1).
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active + 1) % options.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active - 1 + options.length) % options.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); if (options[active]) insert(options[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+  }, true);
+  input.addEventListener('blur', () => { setTimeout(close, 120); });   // allow row mousedown to land first
 }
 
 /** Bridge clearInput hook — empties the field and resets height/state. */
@@ -20848,7 +21039,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>
@@ -21037,6 +21228,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     onPersist: (action, chat, detail) => {
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
+        reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
       }
     },
     // Delete ON: the tombstone makes the two-step delete actually stick this session
@@ -21671,7 +21863,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       c.unread = Number(unread) || 0;
       // CH5: a mention is by definition unread — clear it when the live tick
       // reports the chat read (a full re-flush would clear it too, later).
-      if (c.unread === 0) c.mention = false;
+      // CH8: likewise drop any sticky reaction excerpt on read, so the live-tick
+      // read path clears it now instead of lingering until the next structural flush.
+      if (c.unread === 0) { c.mention = false; reactionExcerpts.delete(address); }
       // A live status tick is normally excerpt="" (pure online/unread refresh); when
       // it does carry text, run it through the same canon+draft path as addChat.
       { const ex = excerptFor(address, excerpt, undefined); if (excerpt || ex.type === 'draft') c.excerpt = ex; }

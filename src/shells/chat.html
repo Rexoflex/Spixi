@@ -174,6 +174,50 @@
   .chat-channel-list__item[data-selected] .chat-channel-list__name { font-weight: var(--font-weight-semibold, 600); }
   .chat-channel-list__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
   .chat-channel-list__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
+
+  /* @ jump-to-mention FAB (#8) — mirrors c-scroll-latest, stacked ABOVE the
+     chevron slot (one fixed slot; never overlaps the chevron). Hidden until a
+     mention of the local user is off-screen. */
+  .chat-mention-fab {
+    position: absolute;
+    inset-inline-end: var(--spacing-16);
+    /* one 44px button + gap above the scroll-latest slot */
+    inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
+    width: var(--size-target-min); height: var(--size-target-min);
+    display: flex; align-items: center; justify-content: center;
+    border: var(--outline-width-1) solid var(--outline-neutral-01);
+    border-radius: var(--radius-full);
+    background: var(--surface-action-tonal-default);
+    color: var(--text-action-default);
+    box-shadow: var(--elevation-2);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    opacity: 0; transform: translateY(var(--spacing-8)); visibility: hidden; pointer-events: none;
+    transition: opacity var(--duration-200) var(--easing-standard),
+                transform var(--duration-200) var(--easing-decelerate),
+                visibility var(--duration-200),
+                background-color var(--duration-100) var(--easing-standard);
+  }
+  .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
+  @media (hover: hover) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } }
+  .chat-mention-fab:active { background: var(--surface-action-tonal-pressed); }
+  /* unseen-mention count (same recipe as the scroll-latest badge: error role + ring) */
+  .chat-mention-fab__badge {
+    position: absolute; top: calc(-1 * var(--spacing-4)); inset-inline-end: calc(-1 * var(--spacing-4));
+    min-width: 18px; height: 18px; padding: 0 var(--spacing-4);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--surface-error); color: var(--text-neutral-on-action);
+    box-shadow: 0 0 0 2px var(--surface-menu);
+    font-size: var(--font-size-label-xs); line-height: 1; font-weight: var(--font-weight-bold);
+  }
+
+  /* pulse the target message on jump */
+  .c-bubble-row[data-mention-pulse] .c-bubble { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
+  @keyframes chat-mention-pulse {
+    0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning-inverse); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) { .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; } }
 </style>
 </head>
 <body>
@@ -232,8 +276,18 @@
     createSheet, openSheet, closeSheet,
     createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
+    truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
+
+  /* #211 address-display canon: the visible chat title is the nick, or the address
+   * MIDDLE-TRUNCATED (6…6) when there's no nick (or the "nick" is really the address
+   * echoed back). Full address lives only in Contact details + payments. */
+  function identityTitle() {
+    const nick = identity.name || '';
+    if (nick && nick !== identity.address) return nick;
+    return identity.address ? truncateAddressMiddle(identity.address) : (nick || '');
+  }
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
   // the Account screen — same Resources/Raw/html origin) so a light/dark pick
@@ -311,9 +365,10 @@
       identity: {
         // channel-as-title: the channel name is the header label in bot mode; the
         // bot name/address drops to the sub-line so the identity stays visible.
-        name: botChannels ? ('# ' + (channelState.name || '')) : (identity.name || identity.address || ''),
+        // #211: a nameless identity shows its address MIDDLE-TRUNCATED, never in full.
+        name: botChannels ? ('# ' + (channelState.name || '')) : identityTitle(),
         sub: botChannels
-          ? [identity.name || identity.address || '', identity.sub || ''].filter(Boolean).join(' · ')
+          ? [identityTitle(), identity.sub || ''].filter(Boolean).join(' · ')
           : (identity.sub || ''),
         address: identity.address || identity.name || '',
         online: botChannels ? false : identity.online,
@@ -537,6 +592,53 @@
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
+
+  /* —— @-mention context (premium mentions #210). The bubble highlighter (#7) and
+   * the composer picker (#6) share ONE source of member names: roster nicks
+   * (loadContacts) + seen-sender nicks (groupNicks) + the 1:1 peer nick. `self`
+   * keys = the LOCAL user's nick, which C# does NOT push to the chat today — read
+   * from window.SL.SelfNick / SPIXI_ENV.selfNick when a trivial push lands
+   * (be-cutover) so self-mention emphasis + the jump-to-me FAB (#8) light up; empty
+   * until then (highlight-all + picker work regardless). Memoized; invalidated when
+   * the name sources change. */
+  let _mentionObj = null;
+  function selfMentionKeys() {
+    const sl = window.SL || {}, env = window.SPIXI_ENV || {};
+    const out = [];
+    if (sl.SelfNick) out.push(String(sl.SelfNick));
+    if (env.selfNick) out.push(String(env.selfNick));
+    return out;
+  }
+  function mentionNameList() {
+    const set = new Set();
+    for (const [, m] of groupRoster) { if (m && m.name) set.add(m.name); }
+    for (const [, n] of groupNicks) { if (n) set.add(n); }
+    for (const rec of model.values()) { if (rec && rec.senderNick && rec.senderNick !== rec.senderAddress) set.add(rec.senderNick); }  // seen senders (addThem)
+    if (!mode.isMulti && identity.name) set.add(identity.name);   // 1:1 peer nick
+    for (const s of selfMentionKeys()) set.add(s);                // my own nick is a valid @target too
+    return [...set];
+  }
+  function mentionCtx() {
+    if (!_mentionObj) _mentionObj = { names: mentionNameList(), self: selfMentionKeys() };
+    return _mentionObj;
+  }
+  function invalidateMentions() { _mentionObj = null; }
+  /* Members for the composer @-picker (#6): group/bot only (1:1 → []). Dedupe by
+   * name. Sources: roster (loadContacts, has avatars) + resolved nicks (groupNicks)
+   * + SEEN SENDERS from the loaded messages (model) — the last is essential so the
+   * picker works on a chat you just opened, BEFORE chat-info/loadContacts has run
+   * (Damir F5 2026-07-09: "@ in composer does nothing"). */
+  function mentionMembers() {
+    if (!mode.isMulti) return [];
+    const by = new Map();
+    for (const [, m] of groupRoster) { if (m && m.name && !by.has(m.name)) by.set(m.name, { name: m.name, address: m.address || '', avatar: m.avatar || null }); }
+    for (const [addr, n] of groupNicks) { if (n && !by.has(n)) by.set(n, { name: n, address: addr || '', avatar: null }); }
+    for (const rec of model.values()) {                       // seen senders (addThem) — before any roster load
+      const nm = rec && rec.senderNick;
+      if (nm && nm !== rec.senderAddress && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
+    }
+    return [...by.values()];
+  }
   // msg-ids I've liked THIS session. The bridge's addReactions sends only
   // key:count (no per-user flag — C5), so a fresh reaction can't tell the shell
   // that *I* reacted; tracking my own likes locally lets the pill show the
@@ -676,6 +778,8 @@
       // (#82 — P2P has no server, so no auto-load of remote content). Fixes
       // Damir F5: links were inert because no handler was wired.
       onLinkClick: (url) => confirmOpenLink(url),
+      // @-mentions → highlighted spans (bold + tonal pill); self-mention stronger (#210)
+      mention: mentionCtx(),
     });
   }
 
@@ -867,7 +971,11 @@
     const reactions = [];
     let tipCount = 0;
     const ownKeys = new Set(String(ownStr || '').split(';').filter(Boolean));
-    const likedByMe = ownKeys.has('like') || myLikes.has(String(id));
+    // C5: when the bridge supplies the own-keys arg (new exe) it is AUTHORITATIVE —
+    // honor it exclusively so a stale local myLikes can't override an authoritative
+    // negative (e.g. a reaction removed on another device). myLikes is used ONLY on
+    // old exes that don't send the arg (ownStr === undefined).
+    const likedByMe = ownStr !== undefined ? ownKeys.has('like') : myLikes.has(String(id));
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
@@ -1218,6 +1326,7 @@
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
   function renderLogNow() {
+    invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     const scrollWasAtBottom = nearBottom();
     // Build the whole log into a DETACHED fragment, then swap it in with ONE
     // replaceChildren — the live #messages box is NEVER momentarily empty, so a
@@ -1243,6 +1352,7 @@
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
     firstRenderDone = true;                 // boot spinner is now gone
+    if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
   }
 
   /* Render scheduling — two regimes:
@@ -1450,6 +1560,7 @@
 
     setNickname(nick) {
       identity.name = nick || '';
+      invalidateMentions();                // 1:1 peer nick feeds the mention list
       renderTopbar();
     },
 
@@ -1552,6 +1663,8 @@
       loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
+      invalidateMentions();                // per-peer reset of the mention name list
+      resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -1702,6 +1815,7 @@
       const av = raw && !/spixiavatar\.png$|spixi-group-avatar\.png$/.test(raw) ? raw : null;
       const prev = groupRoster.get(key) || {};
       groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
+      invalidateMentions();                // roster nick changed → rebuild the mention name list
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer
@@ -1753,6 +1867,7 @@
       const addr = String(address || '');
       if (!addr) return;
       groupNicks.set(addr, nick || '');
+      invalidateMentions();                // a resolved sender nick joins the mention name list
       let touched = false;
       for (const rec of model.values()) {
         if (rec.senderAddress === addr && rec.senderNick !== (nick || '')) {
@@ -1779,6 +1894,103 @@
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });
   box.closest('.c-chat-canvas').append(stl);
+
+  /* —— @ jump-to-mention FAB (#8, premium mentions #210) ————————————————————
+   * Sits bottom-right, ABOVE the scroll-to-latest chevron. Appears ONLY when a
+   * message mentioning the LOCAL user is off-screen; tap smooth-scrolls to the
+   * nearest such message + pulses it. Identifying "me" needs the local nick,
+   * which C# does not push to the chat yet — so this stays hidden until
+   * SelfNick lands (be-cutover); highlight-all + the picker work regardless. */
+  const mentionFab = document.createElement('button');
+  mentionFab.type = 'button';
+  mentionFab.className = 'chat-mention-fab';
+  mentionFab.setAttribute('aria-label', (window.SL && window.SL.jumpToMention) || 'Jump to mention');
+  if (window.SpixiIcons && window.SpixiIcons.icon) mentionFab.append(window.SpixiIcons.icon('at', { size: 22 }));
+  else mentionFab.textContent = '@';
+  const mentionFabBadge = document.createElement('span');   // count of unseen mentions (Telegram-style)
+  mentionFabBadge.className = 'chat-mention-fab__badge u-tabular';
+  mentionFabBadge.setAttribute('aria-hidden', 'true');       // count lives in the button aria-label
+  mentionFabBadge.hidden = true;
+  mentionFab.append(mentionFabBadge);
+  box.closest('.c-chat-canvas').append(mentionFab);
+
+  /* Cycle-with-count behaviour (best practice: Slack/Telegram/Discord). The FAB
+   * counts mentions of ME the user hasn't SEEN yet and, per tap, jumps to the
+   * OLDEST unseen one (catch-up order), pulsing it; a mention is "seen" once it
+   * scrolls into view. A baseline seed on chat open marks all EXISTING mentions
+   * seen, so only NEW off-screen pings surface (not every historical @you). */
+  const mentionSeen = new Set();      // message ids whose @me has been seen this session
+  let mentionBaseline = false;
+
+  /* does a message text @-mention the LOCAL user? (boundary-checked, case-insensitive) */
+  function textMentionsMe(text) {
+    const keys = mentionCtx().self;
+    if (!keys.length || !text || text.indexOf('@') < 0) return false;
+    const low = text.toLowerCase();
+    const isWord = (c) => c && /[\p{L}\p{N}_]/u.test(c);
+    for (const k of keys) {
+      const key = String(k).toLowerCase();
+      if (!key) continue;
+      let i = low.indexOf('@' + key);
+      while (i !== -1) {
+        const before = i > 0 ? low[i - 1] : '';
+        const after = low[i + 1 + key.length] || '';
+        if (!isWord(before) && before !== '@' && !isWord(after)) return true;
+        i = low.indexOf('@' + key, i + 1);
+      }
+    }
+    return false;
+  }
+  function mentionIdsOrdered() {                         // chronological (oldest → newest)
+    const out = [];
+    for (const id of order) { const rec = model.get(id); if (rec && textMentionsMe(rec.text)) out.push(id); }
+    return out;
+  }
+  function mentionRowVisible(row) {
+    const br = box.getBoundingClientRect(); const rr = row.getBoundingClientRect();
+    return rr.bottom > br.top && rr.top < br.bottom;
+  }
+  /* first paint after opening a chat → treat all current mentions as already seen */
+  function seedMentionBaseline(ids) {
+    if (mentionBaseline) return;
+    mentionBaseline = true;
+    for (const id of ids) mentionSeen.add(id);
+  }
+  function updateMentionFab() {
+    if (!mentionFab) return;
+    if (!mentionCtx().self.length) { mentionFab.removeAttribute('data-visible'); return; }
+    const ids = mentionIdsOrdered();
+    seedMentionBaseline(ids);
+    for (const id of ids) {                              // mark any now-visible mention seen
+      const row = rows.get(id);
+      if (row && row.isConnected && mentionRowVisible(row)) mentionSeen.add(id);
+    }
+    const unseen = ids.filter((id) => !mentionSeen.has(id));
+    const n = unseen.length;
+    mentionFab.toggleAttribute('data-visible', n > 0);
+    mentionFab._next = n ? unseen[0] : null;             // OLDEST unseen (catch-up order)
+    mentionFabBadge.hidden = n <= 1;                     // show a count only when >1 pending
+    if (n > 1) mentionFabBadge.textContent = n > 99 ? '99+' : String(n);
+    const base = (window.SL && window.SL.jumpToMention) || 'Jump to mention';
+    mentionFab.setAttribute('aria-label', n > 1 ? base + ' — ' + n : base);
+  }
+  function resetMentionTracking() { mentionSeen.clear(); mentionBaseline = false; }
+  mentionFab.addEventListener('click', () => {
+    const id = mentionFab._next; if (!id) return;
+    const row = rows.get(id); if (!row) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    row.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    row.setAttribute('data-mention-pulse', '');
+    row.addEventListener('animationend', () => row.removeAttribute('data-mention-pulse'), { once: true });
+    mentionSeen.add(id);                                 // viewing it counts as seen → next tap advances
+    setTimeout(() => { row.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
+    updateMentionFab();
+  });
+  let mentionFabRaf = 0;
+  box.addEventListener('scroll', () => {
+    if (mentionFabRaf) return;
+    mentionFabRaf = requestAnimationFrame(() => { mentionFabRaf = 0; updateMentionFab(); });
+  }, { passive: true });
 
   /* —— composer (JS→C# emits) ——————————————————————————————————————————————
    * send  → ixian:chat:<encodeURIComponent(text)>  (legacy chat.js:409 — chat
@@ -1905,6 +2117,10 @@
     // ⊕ attach: redesigned attach sheet (tile grid) replacing the legacy native
     // attach bar. Routes to the existing verbs — nothing invisible.
     onAttach: () => openAttach(),
+    // @-autocomplete member picker (#210). Always wired; mentionMembers() returns
+    // [] in 1:1 (nothing to pick) so the picker only ever opens in group/bot chats.
+    // `mode` isn't known at composer-creation, so the gate lives in the source fn.
+    mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').append(composerEl);
 

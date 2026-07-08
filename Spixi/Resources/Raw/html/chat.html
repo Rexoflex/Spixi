@@ -1701,6 +1701,33 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
 
+/* —— @-mentions (Damir 2026-07-09, premium mentions #210) ——————————————————
+   Immediately visible: bold + a tonal pill. Colour is direction-scoped so it
+   reads on BOTH the light received bubble AND the saturated sent gradient. A
+   self-mention (data-self) gets the stronger warning treatment. */
+.c-bubble__mention {
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0 3px;
+  color: var(--text-action-default);
+  background: var(--surface-action-tonal-default);
+}
+.c-bubble__mention[data-self] {
+  color: var(--text-warning);
+  background: var(--surface-warning-inverse);
+}
+/* sent bubble = white text on the brand gradient → translucent-white pill keeps
+   the mention legible without a low-contrast blue-on-blue. The self rgba values
+   are TOKEN CANDIDATES (same class as the #49 on-hero white washes). */
+.c-bubble-row[data-direction="sent"] .c-bubble__mention {
+  color: var(--text-bubble-sent);
+  background: rgba(255, 255, 255, 0.22);
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__mention[data-self] {
+  color: var(--text-bubble-sent);
+  background: rgba(255, 214, 10, 0.34);
+}
+
 /* —— link preview card (§8-gated: sender-composed, Signal-style) —— */
 .c-bubble__linkpreview {
   display: flex;
@@ -1864,6 +1891,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   align-items: flex-end;
   flex-wrap: wrap; /* batch 3b: the reply/edit ctx strip takes the full first line */
   gap: var(--spacing-8);
+  position: relative; /* anchor for the @-mention autocomplete popover (#210) */
   min-height: var(--layout-composer-min);
   /* logical props — RTL-correct (audit MAJOR) */
   padding-block: var(--spacing-8);
@@ -2032,6 +2060,46 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-on-disabled);
   cursor: default;
 }
+
+/* —— @-mention autocomplete popover (#210) — anchored above the field —————————— */
+.c-composer__mentions {
+  position: absolute;
+  left: var(--spacing-12);
+  right: var(--spacing-12);
+  bottom: calc(100% + var(--spacing-8));
+  z-index: var(--z-30);
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+  background: var(--surface-menu);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  box-shadow: var(--elevation-3);
+}
+.c-composer__mention {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  width: 100%;
+  padding: var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.c-composer__mention-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-composer__mention.is-active { background: var(--surface-interactive-hover); }
+@media (hover: hover) {
+  .c-composer__mention:hover { background: var(--surface-interactive-hover); }
+}
+.c-composer__mention:active { background: var(--surface-interactive-pressed); }
 
 </style>
 <style data-src="../styles/components/badge.css">
@@ -4346,6 +4414,50 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .chat-channel-list__item[data-selected] .chat-channel-list__name { font-weight: var(--font-weight-semibold, 600); }
   .chat-channel-list__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
   .chat-channel-list__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
+
+  /* @ jump-to-mention FAB (#8) — mirrors c-scroll-latest, stacked ABOVE the
+     chevron slot (one fixed slot; never overlaps the chevron). Hidden until a
+     mention of the local user is off-screen. */
+  .chat-mention-fab {
+    position: absolute;
+    inset-inline-end: var(--spacing-16);
+    /* one 44px button + gap above the scroll-latest slot */
+    inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
+    width: var(--size-target-min); height: var(--size-target-min);
+    display: flex; align-items: center; justify-content: center;
+    border: var(--outline-width-1) solid var(--outline-neutral-01);
+    border-radius: var(--radius-full);
+    background: var(--surface-action-tonal-default);
+    color: var(--text-action-default);
+    box-shadow: var(--elevation-2);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    opacity: 0; transform: translateY(var(--spacing-8)); visibility: hidden; pointer-events: none;
+    transition: opacity var(--duration-200) var(--easing-standard),
+                transform var(--duration-200) var(--easing-decelerate),
+                visibility var(--duration-200),
+                background-color var(--duration-100) var(--easing-standard);
+  }
+  .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
+  @media (hover: hover) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } }
+  .chat-mention-fab:active { background: var(--surface-action-tonal-pressed); }
+  /* unseen-mention count (same recipe as the scroll-latest badge: error role + ring) */
+  .chat-mention-fab__badge {
+    position: absolute; top: calc(-1 * var(--spacing-4)); inset-inline-end: calc(-1 * var(--spacing-4));
+    min-width: 18px; height: 18px; padding: 0 var(--spacing-4);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--surface-error); color: var(--text-neutral-on-action);
+    box-shadow: 0 0 0 2px var(--surface-menu);
+    font-size: var(--font-size-label-xs); line-height: 1; font-weight: var(--font-weight-bold);
+  }
+
+  /* pulse the target message on jump */
+  .c-bubble-row[data-mention-pulse] .c-bubble { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
+  @keyframes chat-mention-pulse {
+    0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning-inverse); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) { .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; } }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -4736,6 +4848,17 @@ function hashHue(str) { // exported: sender labels reuse the identity hue (singl
   return h % 360;
 }
 
+/* Middle-truncate a wallet address (Damir 2026-07-07 · #211 canon): 6…6 keeps
+   both ends recognisable. The ONE helper every chat surface uses — a raw address
+   is never shown in full on a chat surface (topbar title, list row, sender label);
+   the full address lives only in Contact details + payment/wallet surfaces. Lives
+   in avatar.js (the shared identity/address module) so bubbles + list rows import
+   it without a circular dependency. */
+function truncateAddressMiddle(s, head = 6, tail = 6) {
+  s = String(s == null ? '' : s);
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
+}
+
 function initials(name) {
   const trimmed = name.trim();
   // must start with a letter (any script) — empty/whitespace-only and
@@ -4933,13 +5056,19 @@ function createChatItem({
   // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
 
-  el.append(createAvatar({ src: avatar, name, address, size: 48, online }));
+  // #211 address-display canon: a nick wins; a nameless row (or one whose "nick"
+  // is really its address echoed back) shows the address MIDDLE-TRUNCATED, never
+  // in full. Full address lives only in Contact details + payments.
+  const hasNick = !!name && name !== address;
+  const displayName = hasNick ? name : (address ? truncateAddressMiddle(address) : (name || ''));
+
+  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online }));
 
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-chatlist-item__name';
-  nameEl.textContent = name || address;
+  nameEl.textContent = displayName;
   content.append(nameEl, createExcerpt({ ...excerpt, strings }));
   el.append(content);
 
@@ -6296,7 +6425,61 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
-function linkifyInto(parent, text, onLinkClick) {
+/* @-mention highlighting (Damir 2026-07-09, premium mentions, DECISIONS #210).
+   A mention token = "@" + a name; rendered as a styled span (color + bold, theme-
+   aware, XSS-safe textContent — never innerHTML). When the shell supplies the known
+   member `names`, matching is name-anchored + word-boundary-gated so "@bob" never
+   lights up inside "@bobby" and an email like "a@b.com" is left alone; otherwise a
+   generic `@word` fallback keeps mentions visible in 1:1 chats with no roster.
+   `self` keys (lowercased) get the stronger self-mention treatment (`data-self`). */
+function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const GENERIC_TERM = '[\\p{L}\\p{N}_]{1,48}';
+const GENERIC_MENTION_RE = () => new RegExp('@(' + GENERIC_TERM + ')(?![\\p{L}\\p{N}_])', 'giu');
+/* Match ANY @word (so a mention of the local user highlights even before we know
+   their nick — Damir F5 2026-07-09), with known member names as LEADING, longest-
+   first alternatives so multi-word nicks ("@John Doe") match fully instead of just
+   "@John". The generic term is always the last alternative. */
+function buildMentionRe(names) {
+  const alts = [];
+  if (names && names.length) {
+    for (const n of names.map((x) => String(x == null ? '' : x).trim()).filter(Boolean).sort((a, b) => b.length - a.length)) {
+      alts.push(escapeRe(n));
+    }
+  }
+  alts.push(GENERIC_TERM);
+  // a pathological name (e.g. a lone surrogate) can throw under the `u` flag →
+  // fall back to the plain generic matcher rather than aborting the log render (review m2)
+  try { return new RegExp('@(' + alts.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu'); }
+  catch (_) { return GENERIC_MENTION_RE(); }
+}
+function appendWithMentions(parent, text, mention) {
+  if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
+  const re = mention._re || (mention._re = buildMentionRe(mention.names));
+  const selfSet = mention._self || (mention._self = new Set((mention.self || []).map((s) => String(s).toLowerCase())));
+  re.lastIndex = 0;
+  const WORD_BEFORE = /[\p{L}\p{N}_@]/u;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    // boundary-BEFORE the "@": if the char preceding it is a word char or another
+    // "@", this is not a mention (e.g. an email "a@bob.com") — leave it as plain
+    // text (it stays in the run flushed by the next match / the tail append).
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && WORD_BEFORE.test(prev)) {
+      if (re.lastIndex === m.index) re.lastIndex++;
+      continue;
+    }
+    if (m.index > last) parent.append(text.slice(last, m.index));
+    const span = document.createElement('span');
+    span.className = 'c-bubble__mention';
+    span.textContent = m[0];                 // "@Name" verbatim (safe)
+    if (selfSet.has(String(m[1]).toLowerCase())) span.dataset.self = '';
+    parent.append(span);
+    last = m.index + m[0].length;
+    if (re.lastIndex === m.index) re.lastIndex++;   // zero-width guard (defensive)
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+function linkifyInto(parent, text, onLinkClick, mention = null) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     let url = m[0];
@@ -6306,7 +6489,7 @@ function linkifyInto(parent, text, onLinkClick) {
     while (url.endsWith(')') &&
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
-    parent.append(text.slice(last, m.index));
+    appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
@@ -6315,16 +6498,11 @@ function linkifyInto(parent, text, onLinkClick) {
     parent.append(b);
     last = m.index + url.length;
   }
-  parent.append(text.slice(last));
+  appendWithMentions(parent, text.slice(last), mention);
 }
 
-/* Middle-truncate a wallet address for a nameless group/bot sender label
-   (Damir 2026-07-07): 6…6 keeps both ends recognisable. */
-function truncateAddressMiddle(s, head = 6, tail = 6) {
-  s = String(s == null ? '' : s);
-  return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
-}
-/* Copy the FULL address to the clipboard + brief inline "Copied" feedback. */
+/* Copy the FULL address to the clipboard + brief inline "Copied" feedback.
+   truncateAddressMiddle now lives in avatar.js (#211 canon — shared, no cycle). */
 function copySenderAddress(btn, address, strings) {
   const revert = truncateAddressMiddle(address);
   const flash = () => {
@@ -6357,6 +6535,7 @@ function createMessageBubble({
   edited = false,
   onLinkClick = null,
   linkPreview = null,
+  mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -6472,7 +6651,7 @@ function createMessageBubble({
 
   const body = document.createElement('span');
   body.className = 'c-bubble__text';
-  linkifyInto(body, text, onLinkClick); // plain text appends untouched
+  linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
   el.append(body);
 
   // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)
@@ -6673,7 +6852,9 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
 
 
 
+
 const MAX_LINES = 5;
+const MENTION_MAX = 8;   // rows shown in the @-autocomplete
 
 function createComposer({
   placeholder = 'Message',
@@ -6682,6 +6863,7 @@ function createComposer({
   onAttach,
   onTyping,
   onRecord,
+  mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
@@ -6770,8 +6952,129 @@ function createComposer({
     else send();
   });
 
+  if (mentionSource) wireMentions(el, input, mentionSource, strings);
+
   syncAction();
   return el;
+}
+
+/* —— @-mention autocomplete (Damir 2026-07-09, premium mentions #210). Typing
+   "@" (at line start or after whitespace) opens an anchored member picker sourced
+   from `mentionSource()`; filters as you type, keyboard (↑/↓/Enter/Tab/Esc) + tap,
+   inserts "@Name ". Blind-group-safe (the shell simply supplies no members).
+   Caret-aware on the textarea; XSS-safe (textContent). */
+const MENTION_FRAG_RE = /(?:^|[\s\n])@([\p{L}\p{N}_]*)$/u;
+function wireMentions(el, input, mentionSource, strings) {
+  let box = null, options = [], active = -1;
+
+  const close = () => {
+    if (box) { box.remove(); box = null; }
+    options = []; active = -1;
+    input.removeAttribute('aria-activedescendant');
+    input.removeAttribute('aria-expanded');
+  };
+
+  // the active "@fragment" ending at the caret, or null
+  const fragment = () => {
+    const pos = input.selectionStart;
+    if (pos == null || pos !== input.selectionEnd) return null;   // no fragment while a range is selected
+    const m = MENTION_FRAG_RE.exec(input.value.slice(0, pos));
+    if (!m) return null;
+    return { query: m[1], at: pos - m[1].length - 1 };            // index of '@'
+  };
+
+  const matches = (query) => {
+    let list = [];
+    try { list = mentionSource() || []; } catch (_) { list = []; }
+    const seen = new Set(); const uniq = [];
+    for (const m of list) {                                       // dedupe by name, drop nameless
+      if (!m || !m.name) continue;
+      const k = m.name.toLowerCase();
+      if (seen.has(k)) continue; seen.add(k); uniq.push(m);
+    }
+    const q = query.toLowerCase();
+    if (!q) return uniq.slice(0, MENTION_MAX);
+    const starts = uniq.filter((m) => m.name.toLowerCase().startsWith(q));
+    const rest = uniq.filter((m) => !m.name.toLowerCase().startsWith(q) && m.name.toLowerCase().includes(q));
+    return starts.concat(rest).slice(0, MENTION_MAX);
+  };
+
+  const setActive = (i) => {
+    active = i;
+    const rows = box ? box.querySelectorAll('.c-composer__mention') : [];
+    rows.forEach((r, idx) => {
+      const on = idx === active;
+      r.classList.toggle('is-active', on);
+      r.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) { input.setAttribute('aria-activedescendant', r.id); r.scrollIntoView({ block: 'nearest' }); }
+    });
+  };
+
+  const insert = (member) => {
+    const frag = fragment(); if (!frag) { close(); return; }
+    const before = input.value.slice(0, frag.at);
+    const after = input.value.slice(input.selectionStart);
+    const ins = '@' + member.name + ' ';
+    input.value = before + ins + after;
+    const caret = (before + ins).length;
+    close();
+    input.dispatchEvent(new Event('input'));       // grow + syncAction (isTrusted=false → no ixian:typing)
+    input.focus();
+    try { input.setSelectionRange(caret, caret); } catch (_) {}
+  };
+
+  const open = (list) => {
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'c-composer__mentions';
+      box.setAttribute('role', 'listbox');
+      box.setAttribute('aria-label', strings.mentionMembers || 'Members');
+      el.append(box);                              // el is position:relative; box anchors bottom:100%
+      input.setAttribute('aria-expanded', 'true');
+    }
+    box.textContent = '';
+    options = list;
+    list.forEach((m, idx) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'c-composer__mention';
+      row.id = 'c-mention-opt-' + idx;
+      row.setAttribute('role', 'option');
+      row.append(createAvatar({ src: m.avatar || null, name: m.name, address: m.address || '', size: 24 }));
+      const nm = document.createElement('span');
+      nm.className = 'c-composer__mention-name';
+      nm.textContent = m.name;
+      row.append(nm);
+      // mousedown (not click) so the textarea doesn't blur before we insert
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); insert(m); });
+      box.append(row);
+    });
+    setActive(0);
+  };
+
+  const refresh = () => {
+    const frag = fragment();
+    if (!frag) { close(); return; }
+    const list = matches(frag.query);
+    if (!list.length) { close(); return; }
+    open(list);
+  };
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('click', refresh);
+  // capture phase → runs BEFORE the send/Enter + ctx-Esc handlers so the picker
+  // consumes navigation keys while open (stopImmediatePropagation blocks them).
+  input.addEventListener('keydown', (e) => {
+    if (!box) return;
+    // IME guard (mirror the send handler): an Enter/arrow confirming a CJK
+    // composition must not select/navigate the picker (review MAJOR M1).
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active + 1) % options.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active - 1 + options.length) % options.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); if (options[active]) insert(options[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+  }, true);
+  input.addEventListener('blur', () => { setTimeout(close, 120); });   // allow row mousedown to land first
 }
 
 /** Bridge clearInput hook — empties the field and resets height/state. */
@@ -21263,7 +21566,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>
@@ -21311,8 +21614,18 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createSheet, openSheet, closeSheet,
     createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
+    truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
+
+  /* #211 address-display canon: the visible chat title is the nick, or the address
+   * MIDDLE-TRUNCATED (6…6) when there's no nick (or the "nick" is really the address
+   * echoed back). Full address lives only in Contact details + payments. */
+  function identityTitle() {
+    const nick = identity.name || '';
+    if (nick && nick !== identity.address) return nick;
+    return identity.address ? truncateAddressMiddle(identity.address) : (nick || '');
+  }
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
   // the Account screen — same Resources/Raw/html origin) so a light/dark pick
@@ -21390,9 +21703,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       identity: {
         // channel-as-title: the channel name is the header label in bot mode; the
         // bot name/address drops to the sub-line so the identity stays visible.
-        name: botChannels ? ('# ' + (channelState.name || '')) : (identity.name || identity.address || ''),
+        // #211: a nameless identity shows its address MIDDLE-TRUNCATED, never in full.
+        name: botChannels ? ('# ' + (channelState.name || '')) : identityTitle(),
         sub: botChannels
-          ? [identity.name || identity.address || '', identity.sub || ''].filter(Boolean).join(' · ')
+          ? [identityTitle(), identity.sub || ''].filter(Boolean).join(' · ')
           : (identity.sub || ''),
         address: identity.address || identity.name || '',
         online: botChannels ? false : identity.online,
@@ -21616,6 +21930,53 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
+
+  /* —— @-mention context (premium mentions #210). The bubble highlighter (#7) and
+   * the composer picker (#6) share ONE source of member names: roster nicks
+   * (loadContacts) + seen-sender nicks (groupNicks) + the 1:1 peer nick. `self`
+   * keys = the LOCAL user's nick, which C# does NOT push to the chat today — read
+   * from window.SL.SelfNick / SPIXI_ENV.selfNick when a trivial push lands
+   * (be-cutover) so self-mention emphasis + the jump-to-me FAB (#8) light up; empty
+   * until then (highlight-all + picker work regardless). Memoized; invalidated when
+   * the name sources change. */
+  let _mentionObj = null;
+  function selfMentionKeys() {
+    const sl = window.SL || {}, env = window.SPIXI_ENV || {};
+    const out = [];
+    if (sl.SelfNick) out.push(String(sl.SelfNick));
+    if (env.selfNick) out.push(String(env.selfNick));
+    return out;
+  }
+  function mentionNameList() {
+    const set = new Set();
+    for (const [, m] of groupRoster) { if (m && m.name) set.add(m.name); }
+    for (const [, n] of groupNicks) { if (n) set.add(n); }
+    for (const rec of model.values()) { if (rec && rec.senderNick && rec.senderNick !== rec.senderAddress) set.add(rec.senderNick); }  // seen senders (addThem)
+    if (!mode.isMulti && identity.name) set.add(identity.name);   // 1:1 peer nick
+    for (const s of selfMentionKeys()) set.add(s);                // my own nick is a valid @target too
+    return [...set];
+  }
+  function mentionCtx() {
+    if (!_mentionObj) _mentionObj = { names: mentionNameList(), self: selfMentionKeys() };
+    return _mentionObj;
+  }
+  function invalidateMentions() { _mentionObj = null; }
+  /* Members for the composer @-picker (#6): group/bot only (1:1 → []). Dedupe by
+   * name. Sources: roster (loadContacts, has avatars) + resolved nicks (groupNicks)
+   * + SEEN SENDERS from the loaded messages (model) — the last is essential so the
+   * picker works on a chat you just opened, BEFORE chat-info/loadContacts has run
+   * (Damir F5 2026-07-09: "@ in composer does nothing"). */
+  function mentionMembers() {
+    if (!mode.isMulti) return [];
+    const by = new Map();
+    for (const [, m] of groupRoster) { if (m && m.name && !by.has(m.name)) by.set(m.name, { name: m.name, address: m.address || '', avatar: m.avatar || null }); }
+    for (const [addr, n] of groupNicks) { if (n && !by.has(n)) by.set(n, { name: n, address: addr || '', avatar: null }); }
+    for (const rec of model.values()) {                       // seen senders (addThem) — before any roster load
+      const nm = rec && rec.senderNick;
+      if (nm && nm !== rec.senderAddress && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
+    }
+    return [...by.values()];
+  }
   // msg-ids I've liked THIS session. The bridge's addReactions sends only
   // key:count (no per-user flag — C5), so a fresh reaction can't tell the shell
   // that *I* reacted; tracking my own likes locally lets the pill show the
@@ -21755,6 +22116,8 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // (#82 — P2P has no server, so no auto-load of remote content). Fixes
       // Damir F5: links were inert because no handler was wired.
       onLinkClick: (url) => confirmOpenLink(url),
+      // @-mentions → highlighted spans (bold + tonal pill); self-mention stronger (#210)
+      mention: mentionCtx(),
     });
   }
 
@@ -21946,7 +22309,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     const reactions = [];
     let tipCount = 0;
     const ownKeys = new Set(String(ownStr || '').split(';').filter(Boolean));
-    const likedByMe = ownKeys.has('like') || myLikes.has(String(id));
+    // C5: when the bridge supplies the own-keys arg (new exe) it is AUTHORITATIVE —
+    // honor it exclusively so a stale local myLikes can't override an authoritative
+    // negative (e.g. a reaction removed on another device). myLikes is used ONLY on
+    // old exes that don't send the arg (ownStr === undefined).
+    const likedByMe = ownStr !== undefined ? ownKeys.has('like') : myLikes.has(String(id));
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
@@ -22297,6 +22664,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
   function renderLogNow() {
+    invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     const scrollWasAtBottom = nearBottom();
     // Build the whole log into a DETACHED fragment, then swap it in with ONE
     // replaceChildren — the live #messages box is NEVER momentarily empty, so a
@@ -22322,6 +22690,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
     firstRenderDone = true;                 // boot spinner is now gone
+    if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
   }
 
   /* Render scheduling — two regimes:
@@ -22529,6 +22898,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
     setNickname(nick) {
       identity.name = nick || '';
+      invalidateMentions();                // 1:1 peer nick feeds the mention list
       renderTopbar();
     },
 
@@ -22631,6 +23001,8 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
+      invalidateMentions();                // per-peer reset of the mention name list
+      resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -22781,6 +23153,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const av = raw && !/spixiavatar\.png$|spixi-group-avatar\.png$/.test(raw) ? raw : null;
       const prev = groupRoster.get(key) || {};
       groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
+      invalidateMentions();                // roster nick changed → rebuild the mention name list
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer
@@ -22832,6 +23205,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const addr = String(address || '');
       if (!addr) return;
       groupNicks.set(addr, nick || '');
+      invalidateMentions();                // a resolved sender nick joins the mention name list
       let touched = false;
       for (const rec of model.values()) {
         if (rec.senderAddress === addr && rec.senderNick !== (nick || '')) {
@@ -22858,6 +23232,103 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });
   box.closest('.c-chat-canvas').append(stl);
+
+  /* —— @ jump-to-mention FAB (#8, premium mentions #210) ————————————————————
+   * Sits bottom-right, ABOVE the scroll-to-latest chevron. Appears ONLY when a
+   * message mentioning the LOCAL user is off-screen; tap smooth-scrolls to the
+   * nearest such message + pulses it. Identifying "me" needs the local nick,
+   * which C# does not push to the chat yet — so this stays hidden until
+   * SelfNick lands (be-cutover); highlight-all + the picker work regardless. */
+  const mentionFab = document.createElement('button');
+  mentionFab.type = 'button';
+  mentionFab.className = 'chat-mention-fab';
+  mentionFab.setAttribute('aria-label', (window.SL && window.SL.jumpToMention) || 'Jump to mention');
+  if (window.SpixiIcons && window.SpixiIcons.icon) mentionFab.append(window.SpixiIcons.icon('at', { size: 22 }));
+  else mentionFab.textContent = '@';
+  const mentionFabBadge = document.createElement('span');   // count of unseen mentions (Telegram-style)
+  mentionFabBadge.className = 'chat-mention-fab__badge u-tabular';
+  mentionFabBadge.setAttribute('aria-hidden', 'true');       // count lives in the button aria-label
+  mentionFabBadge.hidden = true;
+  mentionFab.append(mentionFabBadge);
+  box.closest('.c-chat-canvas').append(mentionFab);
+
+  /* Cycle-with-count behaviour (best practice: Slack/Telegram/Discord). The FAB
+   * counts mentions of ME the user hasn't SEEN yet and, per tap, jumps to the
+   * OLDEST unseen one (catch-up order), pulsing it; a mention is "seen" once it
+   * scrolls into view. A baseline seed on chat open marks all EXISTING mentions
+   * seen, so only NEW off-screen pings surface (not every historical @you). */
+  const mentionSeen = new Set();      // message ids whose @me has been seen this session
+  let mentionBaseline = false;
+
+  /* does a message text @-mention the LOCAL user? (boundary-checked, case-insensitive) */
+  function textMentionsMe(text) {
+    const keys = mentionCtx().self;
+    if (!keys.length || !text || text.indexOf('@') < 0) return false;
+    const low = text.toLowerCase();
+    const isWord = (c) => c && /[\p{L}\p{N}_]/u.test(c);
+    for (const k of keys) {
+      const key = String(k).toLowerCase();
+      if (!key) continue;
+      let i = low.indexOf('@' + key);
+      while (i !== -1) {
+        const before = i > 0 ? low[i - 1] : '';
+        const after = low[i + 1 + key.length] || '';
+        if (!isWord(before) && before !== '@' && !isWord(after)) return true;
+        i = low.indexOf('@' + key, i + 1);
+      }
+    }
+    return false;
+  }
+  function mentionIdsOrdered() {                         // chronological (oldest → newest)
+    const out = [];
+    for (const id of order) { const rec = model.get(id); if (rec && textMentionsMe(rec.text)) out.push(id); }
+    return out;
+  }
+  function mentionRowVisible(row) {
+    const br = box.getBoundingClientRect(); const rr = row.getBoundingClientRect();
+    return rr.bottom > br.top && rr.top < br.bottom;
+  }
+  /* first paint after opening a chat → treat all current mentions as already seen */
+  function seedMentionBaseline(ids) {
+    if (mentionBaseline) return;
+    mentionBaseline = true;
+    for (const id of ids) mentionSeen.add(id);
+  }
+  function updateMentionFab() {
+    if (!mentionFab) return;
+    if (!mentionCtx().self.length) { mentionFab.removeAttribute('data-visible'); return; }
+    const ids = mentionIdsOrdered();
+    seedMentionBaseline(ids);
+    for (const id of ids) {                              // mark any now-visible mention seen
+      const row = rows.get(id);
+      if (row && row.isConnected && mentionRowVisible(row)) mentionSeen.add(id);
+    }
+    const unseen = ids.filter((id) => !mentionSeen.has(id));
+    const n = unseen.length;
+    mentionFab.toggleAttribute('data-visible', n > 0);
+    mentionFab._next = n ? unseen[0] : null;             // OLDEST unseen (catch-up order)
+    mentionFabBadge.hidden = n <= 1;                     // show a count only when >1 pending
+    if (n > 1) mentionFabBadge.textContent = n > 99 ? '99+' : String(n);
+    const base = (window.SL && window.SL.jumpToMention) || 'Jump to mention';
+    mentionFab.setAttribute('aria-label', n > 1 ? base + ' — ' + n : base);
+  }
+  function resetMentionTracking() { mentionSeen.clear(); mentionBaseline = false; }
+  mentionFab.addEventListener('click', () => {
+    const id = mentionFab._next; if (!id) return;
+    const row = rows.get(id); if (!row) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    row.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    row.setAttribute('data-mention-pulse', '');
+    row.addEventListener('animationend', () => row.removeAttribute('data-mention-pulse'), { once: true });
+    mentionSeen.add(id);                                 // viewing it counts as seen → next tap advances
+    setTimeout(() => { row.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
+    updateMentionFab();
+  });
+  let mentionFabRaf = 0;
+  box.addEventListener('scroll', () => {
+    if (mentionFabRaf) return;
+    mentionFabRaf = requestAnimationFrame(() => { mentionFabRaf = 0; updateMentionFab(); });
+  }, { passive: true });
 
   /* —— composer (JS→C# emits) ——————————————————————————————————————————————
    * send  → ixian:chat:<encodeURIComponent(text)>  (legacy chat.js:409 — chat
@@ -22984,6 +23455,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // ⊕ attach: redesigned attach sheet (tile grid) replacing the legacy native
     // attach bar. Routes to the existing verbs — nothing invisible.
     onAttach: () => openAttach(),
+    // @-autocomplete member picker (#210). Always wired; mentionMembers() returns
+    // [] in 1:1 (nothing to pick) so the picker only ever opens in group/bot chats.
+    // `mode` isn't known at composer-creation, so the gate lives in the source fn.
+    mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').append(composerEl);
 

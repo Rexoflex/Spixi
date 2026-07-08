@@ -11,8 +11,10 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { createAvatar } from './avatar.js';
 
 const MAX_LINES = 5;
+const MENTION_MAX = 8;   // rows shown in the @-autocomplete
 
 export function createComposer({
   placeholder = 'Message',
@@ -21,6 +23,7 @@ export function createComposer({
   onAttach,
   onTyping,
   onRecord,
+  mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
@@ -109,8 +112,129 @@ export function createComposer({
     else send();
   });
 
+  if (mentionSource) wireMentions(el, input, mentionSource, strings);
+
   syncAction();
   return el;
+}
+
+/* —— @-mention autocomplete (Damir 2026-07-09, premium mentions #210). Typing
+   "@" (at line start or after whitespace) opens an anchored member picker sourced
+   from `mentionSource()`; filters as you type, keyboard (↑/↓/Enter/Tab/Esc) + tap,
+   inserts "@Name ". Blind-group-safe (the shell simply supplies no members).
+   Caret-aware on the textarea; XSS-safe (textContent). */
+const MENTION_FRAG_RE = /(?:^|[\s\n])@([\p{L}\p{N}_]*)$/u;
+function wireMentions(el, input, mentionSource, strings) {
+  let box = null, options = [], active = -1;
+
+  const close = () => {
+    if (box) { box.remove(); box = null; }
+    options = []; active = -1;
+    input.removeAttribute('aria-activedescendant');
+    input.removeAttribute('aria-expanded');
+  };
+
+  // the active "@fragment" ending at the caret, or null
+  const fragment = () => {
+    const pos = input.selectionStart;
+    if (pos == null || pos !== input.selectionEnd) return null;   // no fragment while a range is selected
+    const m = MENTION_FRAG_RE.exec(input.value.slice(0, pos));
+    if (!m) return null;
+    return { query: m[1], at: pos - m[1].length - 1 };            // index of '@'
+  };
+
+  const matches = (query) => {
+    let list = [];
+    try { list = mentionSource() || []; } catch (_) { list = []; }
+    const seen = new Set(); const uniq = [];
+    for (const m of list) {                                       // dedupe by name, drop nameless
+      if (!m || !m.name) continue;
+      const k = m.name.toLowerCase();
+      if (seen.has(k)) continue; seen.add(k); uniq.push(m);
+    }
+    const q = query.toLowerCase();
+    if (!q) return uniq.slice(0, MENTION_MAX);
+    const starts = uniq.filter((m) => m.name.toLowerCase().startsWith(q));
+    const rest = uniq.filter((m) => !m.name.toLowerCase().startsWith(q) && m.name.toLowerCase().includes(q));
+    return starts.concat(rest).slice(0, MENTION_MAX);
+  };
+
+  const setActive = (i) => {
+    active = i;
+    const rows = box ? box.querySelectorAll('.c-composer__mention') : [];
+    rows.forEach((r, idx) => {
+      const on = idx === active;
+      r.classList.toggle('is-active', on);
+      r.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) { input.setAttribute('aria-activedescendant', r.id); r.scrollIntoView({ block: 'nearest' }); }
+    });
+  };
+
+  const insert = (member) => {
+    const frag = fragment(); if (!frag) { close(); return; }
+    const before = input.value.slice(0, frag.at);
+    const after = input.value.slice(input.selectionStart);
+    const ins = '@' + member.name + ' ';
+    input.value = before + ins + after;
+    const caret = (before + ins).length;
+    close();
+    input.dispatchEvent(new Event('input'));       // grow + syncAction (isTrusted=false → no ixian:typing)
+    input.focus();
+    try { input.setSelectionRange(caret, caret); } catch (_) {}
+  };
+
+  const open = (list) => {
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'c-composer__mentions';
+      box.setAttribute('role', 'listbox');
+      box.setAttribute('aria-label', strings.mentionMembers || 'Members');
+      el.append(box);                              // el is position:relative; box anchors bottom:100%
+      input.setAttribute('aria-expanded', 'true');
+    }
+    box.textContent = '';
+    options = list;
+    list.forEach((m, idx) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'c-composer__mention';
+      row.id = 'c-mention-opt-' + idx;
+      row.setAttribute('role', 'option');
+      row.append(createAvatar({ src: m.avatar || null, name: m.name, address: m.address || '', size: 24 }));
+      const nm = document.createElement('span');
+      nm.className = 'c-composer__mention-name';
+      nm.textContent = m.name;
+      row.append(nm);
+      // mousedown (not click) so the textarea doesn't blur before we insert
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); insert(m); });
+      box.append(row);
+    });
+    setActive(0);
+  };
+
+  const refresh = () => {
+    const frag = fragment();
+    if (!frag) { close(); return; }
+    const list = matches(frag.query);
+    if (!list.length) { close(); return; }
+    open(list);
+  };
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('click', refresh);
+  // capture phase → runs BEFORE the send/Enter + ctx-Esc handlers so the picker
+  // consumes navigation keys while open (stopImmediatePropagation blocks them).
+  input.addEventListener('keydown', (e) => {
+    if (!box) return;
+    // IME guard (mirror the send handler): an Enter/arrow confirming a CJK
+    // composition must not select/navigate the picker (review MAJOR M1).
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active + 1) % options.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); setActive((active - 1 + options.length) % options.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); if (options[active]) insert(options[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+  }, true);
+  input.addEventListener('blur', () => { setTimeout(close, 120); });   // allow row mousedown to land first
 }
 
 /** Bridge clearInput hook — empties the field and resets height/state. */

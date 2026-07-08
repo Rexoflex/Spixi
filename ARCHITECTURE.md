@@ -113,8 +113,8 @@ What C# pushes into each view. Full argument lists and triggers in the appendice
 
 | View | Data pushed in (JS functions) |
 |---|---|
-| **Home** | `selectTab` · `loadAvatar` · `setVersion` · `setAddress` · `setHideBalance` · `selectChat` / `selectTx` (split view) · `clearContacts`/`addContact(addr, nick, avatar, online, unread)` · `clearChats`/`addChat(addr, nick, ts, avatar, online, excerpt, type, unread)`/`clearChatsDone` · `setUnreadIndicator` · `clearPaymentActivity(filter)`/`addPaymentActivity(txid, received, counterparty, time, amount, fiat, confirmed)` · `setBalance(balance, fiat, nick)` · `setContactStatus` · `showWarning` · `toggleAnimatedSlider` · `showRatingPrompt` · `updateDebugInfo` |
-| **Chat** | `onChatScreenReady`/`onChatScreenLoaded` · `setChatMode(type, cost, costText, admin, desc, notif)` · channel functions (`addChannelToSelector`, `setSelectedChannel`, `setChannelSelectorStatus`) · message renderers: `addMe`/`addThem` (11 args) · `addPaymentRequest` (14) · `addFile` (13) · `addAppRequest` (13) · `addCall` (4) · `updateMessage` · `updateFile` · `updateTransactionStatus` · `updatePaymentRequestStatus` · `addReactions` · `deleteMessage` · `clearMessages` · `clearInput` · `showUserTyping` · `setNickname` · `setOnlineStatus` · `setUnreadIndicator` · `showWarning` · `showCallButton` · `showRequestSentModal` · `showContactRequest` · `clearApps`/`addApp` · `hideBackButton` |
+| **Home** | `selectTab` · `loadAvatar` · `setVersion` · `setAddress` · `setHideBalance` · `selectChat` / `selectTx` (split view) · `clearContacts`/`addContact(addr, nick, avatar, online, unread)` · `clearChats`/`addChat(addr, nick, ts, avatar, online, excerpt, type, unread, kind, mention)`/`clearChatsDone` · `addChatReaction(addr, nick, key, unixSecs)` · `setUnreadIndicator` · `clearPaymentActivity(filter)`/`addPaymentActivity(txid, received, counterparty, time, amount, fiat, confirmed)` · `setBalance(balance, fiat, nick)` · `setContactStatus` · `showWarning` · `toggleAnimatedSlider` · `showRatingPrompt` · `updateDebugInfo` |
+| **Chat** | `onChatScreenReady`/`onChatScreenLoaded` · `setChatMode(type, cost, costText, admin, desc, notif)` · channel functions (`addChannelToSelector`, `setSelectedChannel`, `setChannelSelectorStatus`) · message renderers: `addMe`/`addThem` (11 args) · `addPaymentRequest` (14) · `addFile` (13) · `addAppRequest` (13) · `addCall` (7 — +outgoing/missed/durationSecs, #208) · `updateMessage` · `updateFile` · `updateTransactionStatus` · `updatePaymentRequestStatus` · `addReactions` (+ trailing own-keys arg, #208) · `deleteMessage` · `clearMessages` · `clearInput` · `showUserTyping` · `setNickname` · `setOnlineStatus` · `setUnreadIndicator` · `showWarning` · `showCallButton` · `showRequestSentModal` · `showContactRequest` · `clearApps`/`addApp` · `hideBackButton` |
 | **Contact details** | `setAddress` · `setNickname` · `setAvatar` · `showIndicator` · `clearRecentActivity`/`addPaymentActivity(txid, type, time, amount, confirmed)` — note: 5-arg variant vs Home's 7-arg |
 | **Contact new** | `setAddress` · `onValidAddress` |
 | **Wallet send 1** | `setBalance(balance, fiatPrice)` — 2-arg variant · `addRecipient(nick, addr)` · `setAmount` · `onValidAddress` · `showSendingModal`/`hideSendingModal`/`showSendingFailedModal` |
@@ -125,7 +125,7 @@ What C# pushes into each view. Full argument lists and triggers in the appendice
 | **Payment request confirm** | `setData(addr, nick, amount, fee, date)` |
 | **Launch pages** | `setVersion` · `showTerms` · `showOnboardingSection` · `loadAvatar` · `setUploadedFileName` · `showPasswordError` · `removeLoadingOverlay` |
 | **Lock** | `setJustConfirm` |
-| **Settings** | `setNickname` · `setAppearance` · `setLockEnabled` · `showRemoveAvatar` · `loadAvatar` · `onBack` (hardware-back bounce) |
+| **Settings** | `setNickname` · `setAppearance` · `setLockEnabled` · `showRemoveAvatar` · `loadAvatar` · `onBack` (hardware-back bounce) · `setVersion` · `setAddress` (plain identity form, #208) · `setLanguage` |
 | **Apps / app details** | `clearApps`/`addApp(id, name, icon)` · `init` (14 args) · `showInstalling`/`showInstallSuccess`/`showInstallFailed`/`showAppRemoved` · `setScannedData` · `showUrlError` |
 | **Downloads** | `clearFiles`/`addFile(name, created)` |
 | **Dev** | `setLog(fullLogText)` |
@@ -257,7 +257,7 @@ Kind legend: **signal** = new C#→JS event/push · **data** = extra fields on a
 | Chat | **Blind-group flag + member addresses** exposed to the WebView? | data | member sheet shows full address for verification; blind groups hide identity | #99 |
 | Chat | **Per-member relation state** `none / pending / contact` | data | member-sheet CTA switches on it; fixture | #102 |
 | Chat | **Reaction senders** — aggregation must carry sender names/addresses, not only per-emoji counts | data | "+N" reactions sheet lists *who*; fixture | #83 |
-| Chat | **Declined vs missed call** distinguished | data | third call-card state (declined = no call-back nudge); fixture | #87⑦ |
+| Chat | ✅ **Declined vs missed call** distinguished — LANDED #208 (`addCall` args 5–7 outgoing/missed/durationSecs). OPEN: call-back nudge shows during an ACTIVE call (Damir finding 3 → be-cutover C4). | data | third call-card state (declined = no call-back nudge) | #87⑦/#208 |
 | Chat | **Self-destructing messages** — per-chat **window command**, message **TTL + deletion signal**, and **both-peer expiry enforcement** | signal | chat-info setting row ships capability-gated (`capabilities.selfDestruct`) | #87③/#142 |
 | Chat | **1:1 mute/notifications** — bridge has only group/bot `ixian:en/disableNotifications` | confirm | toggle designed for both, 1:1 gated off | #141 |
 | Chat | **Shared-media inventory** — paged media-strip command | signal | chat-info media strip gated `capabilities.media` | #141 |
@@ -282,7 +282,7 @@ Kind legend: **signal** = new C#→JS event/push · **data** = extra fields on a
 | Apps | Feed **schema wishlist** (site repo, non-bridge): cover, screenshots[], related[], size, verified | config | graceful omission | #129 |
 | Settings | **Backup**: last-backup timestamp persisted + exposed · dirty-since signal (contacts/wallet activity since) · explicit completion callback (vs "share sheet opened") | signal | date-only mock states, capability-flagged (#115 convention) | #131②/#146, backup-ux-spec §5 |
 | Settings | **`ixian:deleteh` auth gate** — should it ride the LockPage gate like deletea/delete? (§9.1) | confirm | FE always confirms destructively | #146 |
-| Settings | **Version string** for the About row — `SPIXI_ENV` or an onload push | data | placeholder | #146 |
+| Settings | ✅ **Version string** for the About row — LANDED #208 (`SettingsPage.onLoad` → `setVersion`). Also landed: `setAddress` (identity form) + `setLanguage` current pick. | data | real | #146/#208 |
 | Settings | **Language list source** — expose available lang files, or FE ships the list at build time | config | FE list | #146 |
 | Settings | **Security tiers** — tier id commit + C#-side policy cascade; confirm the proposed Basic/Moderate/Strict table | confirm | screen ships gated `securityTiers` (→§8 family) | #147, settings-shell-spec §10 |
 | Settings | **Downloads path sanitization** C#-side on `ixian:open/delete:<name>` (`..` traversal, §9.1) | guard | FE never composes paths | #152⑤ |

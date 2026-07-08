@@ -253,6 +253,33 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
 
+/* —— @-mentions (Damir 2026-07-09, premium mentions #210) ——————————————————
+   Immediately visible: bold + a tonal pill. Colour is direction-scoped so it
+   reads on BOTH the light received bubble AND the saturated sent gradient. A
+   self-mention (data-self) gets the stronger warning treatment. */
+.c-bubble__mention {
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0 3px;
+  color: var(--text-action-default);
+  background: var(--surface-action-tonal-default);
+}
+.c-bubble__mention[data-self] {
+  color: var(--text-warning);
+  background: var(--surface-warning-inverse);
+}
+/* sent bubble = white text on the brand gradient → translucent-white pill keeps
+   the mention legible without a low-contrast blue-on-blue. The self rgba values
+   are TOKEN CANDIDATES (same class as the #49 on-hero white washes). */
+.c-bubble-row[data-direction="sent"] .c-bubble__mention {
+  color: var(--text-bubble-sent);
+  background: rgba(255, 255, 255, 0.22);
+}
+.c-bubble-row[data-direction="sent"] .c-bubble__mention[data-self] {
+  color: var(--text-bubble-sent);
+  background: rgba(255, 214, 10, 0.34);
+}
+
 /* —— link preview card (§8-gated: sender-composed, Signal-style) —— */
 .c-bubble__linkpreview {
   display: flex;

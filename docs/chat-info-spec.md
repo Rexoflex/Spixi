@@ -129,6 +129,23 @@ the notifications toggle is optimistic with revert-on-fail (`ctrl.fail()`).
 - disappearing/self-destructing messages: per-chat window command + expiry
   enforcement (both peers), #142 — UI ships capability-gated
 
+## Address display canon (Damir 2026-07-09)
+
+**A raw wallet address is NEVER shown in full on any chat surface — always middle-truncated.**
+The full address lives ONLY in **Contact details** and **payment/wallet** surfaces.
+
+- **Applies to:** the chat **topbar title** (an unknown / pending "Waiting for response"
+  contact whose only name is its address — the reported bug), **chat-list rows**, **bubble
+  sender labels** (already done, #194), and any member/roster row lacking a nickname.
+- **Truncation:** the shared `truncateAddressMiddle(addr, 6, 6)` → `6…6` (message-bubble.js:94,
+  #194) keeps both ends recognisable. Same helper everywhere; do not hand-roll per surface.
+- **A nickname always wins** — truncate only when the display string IS the address
+  (`nick === address` or no nick), the same gate as `senderIsAddress` (#195 `senderHasNick`).
+- **Full address is reachable** by opening the contact (Contact details) or in a payment
+  card — that is the deliberate "reveal on intent" boundary, not a chat-surface default.
+- **Rationale:** a full base58 address as a chat title/label is unreadable noise and leaks
+  the whole identifier before the user has chosen to engage; truncation is the messenger norm.
+
 ## Out of scope
 
 Channel selector (`ixian:selectChannel` — bot channels get their own pass) ·

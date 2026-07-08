@@ -50,15 +50,20 @@ const SHELLS = {
   'launch-retry':  { in: 'src/shells/launch.html', out: 'intro_retry.html',   page: 'LaunchRetryPage (retry)',     bootView: 'retry'   },
   'launch-tail':   { in: 'src/shells/launch.html', out: 'onboarding.html',    page: 'OnboardPage (tail)',          bootView: 'tail'    },
   payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
-  // scan / contacts / lock live INSIDE other demos (takeover pattern) — they need
-  // dedicated src/shells/ entries at Stage 4b (native.js + setRoute), not a demo drop-in.
+  // Track C (#186+): scan + lock are now dedicated bridge-wired shells (adapters
+  // scan-page.js / lock-page.js in the bundle). Drop in over the legacy filenames
+  // the C# ScanPage / LockPage already load — ZERO C# change, frozen bridge.
+  scan:     { in: 'src/shells/scan.html',   out: 'scan.html',        page: 'ScanPage' },
+  lock:     { in: 'src/shells/lock.html',   out: 'lock.html',        page: 'LockPage' },
+  // contacts still lives INSIDE the chats demo (takeover pattern) — needs a
+  // dedicated src/shells/ entry (native.js + setRoute), not a demo drop-in.
 };
 
 // `launch` shorthand expands to all five launch filenames (build them as a set).
 const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
 
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
-  'settings_backup', 'settings_encryption', 'downloads', 'dev', 'contributors'];   // bridge-wired shells (real C# data)
+  'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
 // `launch` alone means the whole launch set (all five drop-in files)

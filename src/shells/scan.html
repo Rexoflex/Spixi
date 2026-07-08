@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Scan QR code</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark)
+     so the page doesn't flash white while tokens.css + the bundle load. */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/scan-shell.css"><!-- prompt/denied/scanning + torch -->
+<style>
+  /* Production shell: fill the WebView. scan.html is loaded by the C# ScanPage
+     (full takeover, camera). createScanView provides its own topbar (variant
+     'view') with a back button; the camera area fills the rest. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #scan-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #scan-root > * { flex: 1; min-height: 0; }
+  /* Boot spinner — static, theme-colored loader shown during the bundle parse /
+     before first render (mirrors settings_encryption.html); removed once
+     mountScanPage has appended the view, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="scan-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Scan-QR shell — the redesigned ScanPage takeover wired to the
+   * REAL C# MAUI bridge via the mountScanPage adapter (src/bridge/scan-page.js
+   * in the bundle). Loaded by the C# ScanPage. ZERO C# change, frozen bridge
+   * (bridge-audit-B §5, docs/scan-spec.md).
+   *
+   * Contract (ScanPage / processQRResult):
+   *   JS→C#: ixian:onload (page ready) · ixian:qrresult:<text> (decoded payload
+   *          — C# is allowScanning ONE-SHOT, pops the page, then raises
+   *          scanSucceeded to the parent page) · ixian:back (cancel → pop +
+   *          GC.Collect()).
+   *   C#→JS: NONE. The parent page consumes the result (e.g. add-contact's
+   *          setAddress); this shell only emits.
+   *
+   * The payload is a RAW passthrough — the shell never interprets
+   * <addr>:ixi / <addr>:send routing (that's the parent page's processQRResult).
+   * Hostile-payload gates (empty/whitespace, self-prefixed ixian:qrresult:) and
+   * the one-decode latch live in scan-shell.js (allowScanning mirror).
+   *
+   * Decode runs IN the WebView via the vendored html5-qrcode library
+   * (Resources/Raw/html/js/html5-qrcode.min.js — co-located with this shell).
+   * It is loaded at runtime (not inlined) so build-shells keeps the shell small;
+   * if it is missing the permission CTA lands on the honest 'denied' state
+   * (integration gap visible, never silent — scan-spec §4).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    mountScanPage,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme: honor the user's chosen appearance (persisted to localStorage by
+  // the Account screen — same Resources/Raw/html origin) so a light/dark pick
+  // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
+  (function () {
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C# (defensive; scan has no pushes)
+  const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
+
+  /* mountScanPage appends the view AND fires bridge.ready() — so mount on the
+   * window LOAD event (#177 load-timing invariant), never during parse. The
+   * html5-qrcode library must be present BEFORE mount (mountScanPage defaults
+   * its camera to html5QrcodeCamera(), which reads window.Html5Qrcode); load it
+   * first, then mount whether it succeeded or not (fail → honest denied state). */
+  function mount() {
+    const scanHost = document.getElementById('scan-root');
+    mountScanPage({ host: scanHost, bridge, strings });
+    scanHost.querySelector('.boot')?.remove();   // mountScanPage appends — drop the boot spinner
+  }
+  function boot() {
+    const lib = document.createElement('script');
+    lib.src = 'js/html5-qrcode.min.js';          // vendored, co-located with this shell in Resources/Raw/html
+    lib.onload = mount;
+    lib.onerror = mount;                          // missing lib → camera null → denied CTA (scan-spec §4)
+    document.head.appendChild(lib);
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot, { once: true });
+</script>
+</body>
+</html>

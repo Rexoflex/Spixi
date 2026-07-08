@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi is locked</title>
+<style>
+  /* The lock screen is a FIXED-DARK brand surface in BOTH themes (#160): the
+     .c-lock subtree pins itself to dark tokens over --gradient-lock. So paint a
+     deep dark IMMEDIATELY (never theme-dependent) to avoid any light flash
+     before tokens.css + the bundle load. */
+  html { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/source-sans-3-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- escape-hatch confirm modal -->
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- unlock/confirm surface + password field -->
+<style>
+  /* Production shell: fill the WebView. lock.html is loaded by the C# LockPage
+     (boot takeover — there is no back/topbar; the full screen is the brand
+     moment). createLockScreen owns the gradient + zone layout internally. */
+  html, body { margin: 0; height: 100%; background: #13171b; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #lock-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #lock-root > * { flex: 1; min-height: 0; }
+  /* Boot spinner — pinned dark (the lock screen is always dark) so it reads
+     against the deep surface during the bundle parse; removed once
+     mountLockPage has appended the screen, so the load gap is never blank. */
+  .boot { flex: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    border-top-color: #ffffff;
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="lock-root" data-theme="dark"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Lock shell — the redesigned LockPage boot takeover wired to the
+   * REAL C# MAUI bridge via the mountLockPage adapter (src/bridge/lock-page.js
+   * in the bundle). Loaded by the C# LockPage. ZERO C# change, frozen bridge
+   * (bridge-audit-A §11, bridge-audit-B §3, docs/lock-spec.md).
+   *
+   * Contract (LockPage):
+   *   JS→C#: ixian:onload (ready; LockPage.onLoad relaunches native biometrics —
+   *          re-emitting it IS the "try fingerprint again" affordance) ·
+   *          ixian:unlock:<password> (raw — C# Splits on the prefix,
+   *          WalletStorage.verifyWallet decides) · ixian:change (unlock mode =
+   *          escape hatch → LaunchPage; confirm mode = cancel → authSucceeded(false)).
+   *   C#→JS: setJustConfirm("True") — flips into confirm-action mode (no escape
+   *          hatch, Cancel instead). Exposed by mountLockPage.
+   *
+   * NO-CALLBACK CONTRACT (lock-spec §3): C# answers a WRONG password with a
+   * NATIVE alert only — no JS callback. mountLockPage relies on the shell's own
+   * 1600 ms auto-release to restore the form (value kept; the alert already
+   * spoke). On success C# replaces the page mid-latch. A §9 unlockFailed push is
+   * pre-wired (inert until BE ships it).
+   *
+   * Biometrics: gated by window.SPIXI_ENV.biometrics (one generation-time flag
+   * at the repoint PR); absent = false = the button is hidden (WinUI hosts have
+   * no fingerprint — the #115 graceful default).
+   *
+   * SECURITY.md: the wallet password lives only in the field, transiently —
+   * scrubbed on successful morph, on the escape-hatch confirm, and on pagehide
+   * (createLockScreen §5). The WebView never persists or logs it.
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    mountLockPage,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  /* —— bridge transport ———————————————————————————————————————————————————— */
+  installExecuteUiCommand();                     // defines window.executeUiCommand for C# (setJustConfirm)
+  const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
+
+  /* mountLockPage appends the screen, exposes setJustConfirm AND fires
+   * bridge.ready() — so mount on the window LOAD event (#177 load-timing
+   * invariant), never during parse (a premature onload races C#'s
+   * setJustConfirm push → confirm mode would arrive before the handler exists). */
+  function boot() {
+    const lockHost = document.getElementById('lock-root');
+    mountLockPage({ host: lockHost, bridge, strings });   // biometrics ← SPIXI_ENV (default false)
+    lockHost.querySelector('.boot')?.remove();   // mountLockPage appends — drop the boot spinner
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot, { once: true });
+</script>
+</body>
+</html>

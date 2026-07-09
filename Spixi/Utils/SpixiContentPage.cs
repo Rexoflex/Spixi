@@ -273,6 +273,9 @@ namespace SPIXI
             // already claimed (e.g. by the timeout): the present path honours it and
             // drops the page instead of showing a dead screen (audit M1).
             public volatile bool abandoned = false;
+            // Round 2: non-push presentation (the desktop dual-pane swaps the loaded
+            // page into HomePage.rightContent instead of PushAsync).
+            public Action<PreloadOp>? customPresent = null;
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -330,6 +333,22 @@ namespace SPIXI
 
         public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000)
         {
+            stagePage(target, timeoutMs, null);
+        }
+
+        // Dual-pane variant of pushPageLoaded (round 2, Damir F5: the desktop pane
+        // showed an empty themed pane for the whole conversation load — the "dark
+        // second"). Stages + loads identically, but instead of PushAsync the caller
+        // swaps the loaded page into its detail pane. present runs on the main thread
+        // with the page's Content already restored; it is NOT called when the stage
+        // was abandoned or dropped (the page is Dispose()d instead).
+        public void stagePageForPane(SpixiContentPage target, Action<SpixiContentPage> present, int timeoutMs = 4000)
+        {
+            stagePage(target, timeoutMs, op => present(op.target));
+        }
+
+        private void stagePage(SpixiContentPage target, int timeoutMs, Action<PreloadOp>? customPresent)
+        {
             lock (preloadLock)
             {
                 if (preloadPending || activePreload != null)
@@ -364,6 +383,7 @@ namespace SPIXI
                 };
 
                 PreloadOp op = new PreloadOp(this, target, stage, targetContent, hostGrid);
+                op.customPresent = customPresent;
 
                 try
                 {
@@ -442,6 +462,12 @@ namespace SPIXI
                         // conversation's bot-not-ready path blocks the main thread past
                         // the timeout) — honour the bail: never show a dead page (M1).
                         op.target.Dispose();
+                    }
+                    else if (op.customPresent != null)
+                    {
+                        // Dual-pane swap — the caller re-hosts the loaded Content and
+                        // disposes whatever it replaces (HomePage.removeDetailContent).
+                        op.customPresent(op);
                     }
                     else if (op.host.Navigation.NavigationStack.Contains(op.host))
                     {

@@ -84,9 +84,19 @@ namespace SPIXI
         // reported light-mode dark flash). getBackgroundColor() above keeps the LEGACY
         // launch-blue values for the remaining legacy call sites (WalletSentPage,
         // Android edge-to-edge); do not repoint those here.
+        // The ACTIVE appearance resolved to the shell theme name ("light"/"dark") —
+        // the single C#-side truth handed to the WebViews (the *SL{SpixiThemeName}
+        // boot substitution and the live "setTheme" push). Shells must NOT re-derive
+        // "auto" from matchMedia — the WebView's prefers-color-scheme can disagree
+        // with the app theme (Damir F5: Account read light while the app was dark).
+        public static string getResolvedAppearanceName()
+        {
+            return getActiveAppearanceString() == "spixiui-light" ? "light" : "dark";
+        }
+
         public static string getSurfaceColorString()
         {
-            if (getActiveAppearanceString() == "spixiui-light")
+            if (getResolvedAppearanceName() == "light")
                 return "#f9fafb";
             return "#13171b";
         }

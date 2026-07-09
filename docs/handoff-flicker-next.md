@@ -3,8 +3,10 @@
 > **For the next session (or continuing this one).** Work order was `docs/handoff-flicker-fable.md`;
 > decision row DECISIONS #222. Goal here: make the C# trivially reviewable — every change listed with
 > file:line, why it's safe, and what to test. FE changes are one mechanical pattern across shells.
-> Written 2026-07-09 (Fable build session). AUDIT LOOP COMPLETE — Opus verdict CLEAN (DECISIONS #223).
-> Remaining: Damir's §4 F5 sweep in both themes → the one commit.
+> Written 2026-07-09 (Fable build session). Round 1: audit loop CLEAN (#223), committed 9e574280.
+> **ROUND 2 (same day, DECISIONS #224): Damir's F5 findings all fixed, reviewer CLEAN** — dual-pane
+> load-then-swap, Account auto-theme = C# truth, save/theme-change double-reload bugs killed, live setTheme
+> push, AppNew/Backup/EncPass wired. Remaining: commit+push → VM pull → rebuild → §4 F5 v2.
 
 ## 1. What this changeset does (one paragraph)
 
@@ -50,15 +52,19 @@ animation flag, exactly per the work order.
   UNTOUCHED shells (apps, wallet_send, the 5 launch outputs) were reverted so the commit stays focused —
   their src had moved since the last build; rebuild them in their own batch.
 
-## 4. Damir's F5 checklist (BOTH themes — light w/ dark OS is the key config)
+## 4. Damir's F5 checklist — v2 (BOTH themes; light app + dark OS is the key config)
 
-1. Conversation from chats list · 2. chat-info (header → details) · 3. add-contact (FAB) ·
-4. app-details (apps tab tile) · 5. Account (avatar). For each: no blank/white/dark/wrong-theme frame, no
-half-booted shell, Account does NOT slide. Also: double-tap a chat row (one open), back mid-open (~within
-half a second — nothing should wedge), a bot/group chat open, theme switch in Account then re-test 1–5,
-desktop dual-pane chat select (rightContent path — should look as before but themed, no navy flash).
-If a screen ever hangs >4s before presenting, that's the timeout fallback working — report it (means the
-shell never signalled onload).
+WIDE window (dual-pane): 1. click chat rows — old conversation stays until the new one appears fully drawn
+(no dark second, no boot flicker); 2. double-click a row — nothing extra happens; 3. switch chats rapidly.
+NARROW window (<700px): 4. conversation push · 5. chat-info · 6. add-contact · 7. ADD MINI APP (new) ·
+8. app-details · 9. Account · 10. Backup + Change password from Account (new). For each: no blank/white/
+dark/wrong-theme frame, fully-drawn single paint, Account does not slide.
+THEME: 11. Account on appearance=Auto must match the rest of the app (dark app → dark Account); 12. pick
+Light/Dark in Account — Account re-themes INSTANTLY (no reload flash) and Home + open chat pane re-theme
+behind; 13. exit Account (Save) — NO home reboot flash (the move-to-home itself stays until BE lands S14);
+14. change language + Save — one visible Home reload is EXPECTED (strings are baked); 15. bot/group chat ·
+16. chat from a notification (may take up to 4s — fallback; report if seen).
+If a pushed screen ever hangs ~4s before presenting, that's the timeout fallback — report which screen.
 
 ## 5. Status / next steps (tick as they land)
 

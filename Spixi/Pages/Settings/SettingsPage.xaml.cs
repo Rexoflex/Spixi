@@ -133,7 +133,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new BackupPage(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new BackupPage());   // load-then-move (N3, round 2)
             }
             else if (current_url.Contains("ixian:save:"))
             {
@@ -190,7 +190,24 @@ namespace SPIXI
                 if (ThemeManager.changeAppearance(selectedAppearance))
                 {
                     SPlatformUtils.setEdgeToEdge();
-                    loadPage(webView, "settings.html");
+                    // Round 2 (Damir F5 "changing theme still flickers"): NO settings.html
+                    // reload — the redesigned shell already applied the new theme LIVE
+                    // (applyTheme on the pick) and persisted it; the full reload here was
+                    // the visible flicker, and the regenerated boot theme comes along on
+                    // the next natural open. Re-theme the OTHER live WebViews (Home and,
+                    // on desktop, its detail pane) with a lightweight setTheme push —
+                    // C#-resolved, so "auto" follows the app, not the WebView's own
+                    // prefers-color-scheme (which disagreed on WinUI).
+                    string themeName = ThemeManager.getResolvedAppearanceName();
+                    HomePage? home = HomePage.Instance();
+                    if (home != null)
+                    {
+                        Utils.sendUiCommand(home, "setTheme", themeName);
+                        if (home.getDetailContent() is SpixiContentPage detail)
+                        {
+                            Utils.sendUiCommand(detail, "setTheme", themeName);
+                        }
+                    }
                 }
             }
             else
@@ -206,9 +223,14 @@ namespace SPIXI
 
         public void onSaveSettings(string nick)
         {
+            bool homeNeedsReload = false;
+
             if (selectedLanguage != null)
             {
                 Preferences.Default.Set("language", selectedLanguage);
+                // Strings are baked into the generated pages — a language change needs
+                // a real Home reload (reload() re-localizes; SpixiContentPage.reload).
+                homeNeedsReload = true;
             }
             else
             {
@@ -226,10 +248,15 @@ namespace SPIXI
             Node.changedSettings = true;
             applyAvatar();
 
-            if (ThemeManager.changeAppearance(selectedAppearance))
+            // Round 2 (Damir F5 "saving flickers + moves home"): the old block here —
+            // if (ThemeManager.changeAppearance(selectedAppearance)) reload Home — ran on
+            // EVERY save, because changeAppearance/loadTheme returns true unconditionally.
+            // Combined with HomePage.OnAppearing's (also removed) fromSettings reload,
+            // every Account exit double-booted Home in front of the user. Appearance is
+            // applied LIVE at pick time (ixian:appearance above); nothing to do on save.
+            if (homeNeedsReload)
             {
-                SPlatformUtils.setEdgeToEdge();
-                HomePage.Instance().reload();
+                HomePage.Instance()?.reload();
             }
 
             // Pop the current page from the stack

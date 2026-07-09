@@ -21898,6 +21898,23 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   }
 
   const handlers = {
+
+    // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
+    // appearance pick / HomePage on return from Account). C#-RESOLVED name — never
+    // re-derive 'auto' from matchMedia here (the WebView's prefers-color-scheme can
+    // disagree with the app theme; Damir F5). Transitions suppressed for the swap
+    // (#53) so tokens flip in one clean frame; persisted value already written by
+    // the Account shell (same origin).
+    setTheme(name) {
+      const t = name === 'dark' ? 'dark' : 'light';
+      const r = document.documentElement;
+      if (r.dataset.theme === t) return;
+      try { r.classList.add('theme-switching'); } catch (e) {}
+      r.dataset.theme = t;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { r.classList.remove('theme-switching'); } catch (e) {}
+      }));
+    },
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
 
     // Batch start of a FULL flush: reset the model + enter flushing mode so the

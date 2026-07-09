@@ -222,7 +222,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:newapp", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new AppNewPage(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new AppNewPage());   // load-then-move (N3, round 2)
             }
             else if (current_url.Equals("ixian:sendixi", StringComparison.Ordinal))
             {
@@ -259,11 +259,11 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new BackupPage(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new BackupPage());   // load-then-move (N3, round 2)
             }
             else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new EncryptionPassword(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new EncryptionPassword());   // load-then-move (N3, round 2)
             }
             else if (current_url.Contains("ixian:chat:"))
             {
@@ -770,7 +770,7 @@ namespace SPIXI
             Navigation.PushAsync(new WalletSentPage(activity.transaction), Config.defaultXamarinAnimations);
         }
 
-        public async void onChat(Address friend_address, WebNavigatingEventArgs? ev)
+        public void onChat(Address friend_address, WebNavigatingEventArgs? ev)
         {
             Friend? friend = FriendList.getFriend(friend_address);
 
@@ -785,31 +785,25 @@ namespace SPIXI
 
             if (rightContent.IsVisible)
             {
-
-                try
+                if (detailContent is SingleChatPage currentChat && currentChat.friend == friend)
                 {
-                    await rightContent.Content.FadeTo(0, 50);
-                }
-                catch (Exception ex)
-                {
-                    Logging.warn("Exception: " + ex);
-                }
-                removeDetailContent(false);
-                detailContent = new SingleChatPage(friend, this);
-                rightContent.Content.BackgroundColor = ThemeManager.getSurfaceColor();   // theme-aware (N1)
-
-                rightContent.Content.Opacity = 0;
-                rightContent.Content = detailContent.Content;
-                try
-                {
-                    await rightContent.Content.FadeTo(1, 150);
-                }
-                catch (Exception ex)
-                {
-                    Logging.warn("Exception: " + ex);
+                    // Already open in the pane (also swallows double-clicks).
+                    return;
                 }
 
-                Utils.sendUiCommand(this, "selectChat", friend.walletAddress.ToString());
+                // Load-then-SWAP (N1 round 2, Damir F5): the old fade-to-empty-pane
+                // showed a blank themed pane for the whole conversation load (~1s dark
+                // pane in dark mode; boot flicker in light). Keep the CURRENT pane
+                // visible while the new conversation loads + paints off-screen, then
+                // swap it in fully drawn. Concurrent taps are dropped by the stage
+                // guard; same-friend re-taps by the check above.
+                stagePageForPane(new SingleChatPage(friend, this), page =>
+                {
+                    removeDetailContent(false);
+                    detailContent = page;
+                    rightContent.Content = page.Content;   // legacy hosting pattern (#177)
+                    Utils.sendUiCommand(this, "selectChat", friend.walletAddress.ToString());
+                });
                 return;
             }
 
@@ -1554,7 +1548,16 @@ namespace SPIXI
             if (fromSettings)
             {
                 fromSettings = false;
-                loadPage(webView, "index.html");
+                // Round 2 (Damir F5 "saving flickers"): do NOT full-reload index.html
+                // here — combined with onSaveSettings' own home reload this DOUBLE-
+                // booted Home in front of the user on every Account exit. Refresh via
+                // pushes instead: theme (idempotent re-assert, covers a pick made
+                // while Home was covered/detached), own avatar, and a contacts
+                // re-flush. A LANGUAGE change still full-reloads Home — triggered at
+                // save time in SettingsPage (strings are baked into the page).
+                Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
+                Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
+                UIHelpers.shouldRefreshContacts = true;
             }
             else if (fromChat)
             {

@@ -19769,11 +19769,16 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * The redesign swaps the token theme via data-theme (no page reload needed),
    * but C# STILL reloads settings.html on ixian:appearance (SettingsPage:178) —
    * we apply locally for instant feedback; the reload re-pushes setAppearance. */
+  // 'Auto' resolves to the C#-injected boot theme (the app's own resolution of the
+  // OS scheme), captured before any applyTheme call — NOT to this WebView's
+  // matchMedia, whose prefers-color-scheme can disagree with the app theme
+  // (Damir F5: Account rendered light while the whole app was dark).
+  const bootTheme = document.documentElement.dataset.theme || '';
   function applyTheme(idx) {
     const r = document.documentElement;
     if (idx === 1) r.dataset.theme = 'light';
     else if (idx === 2) r.dataset.theme = 'dark';
-    else r.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    else r.dataset.theme = bootTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     // PERSIST the choice so EVERY other shell (same Resources/Raw/html origin)
     // adopts it at boot — the redesigned shells otherwise read only the OS scheme,
     // so a light/dark pick "stayed on Account" (Damir F5). idx 0 = auto → shells

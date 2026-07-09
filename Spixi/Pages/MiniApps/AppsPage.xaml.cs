@@ -63,7 +63,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:newapp", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new AppNewPage(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new AppNewPage());   // load-then-move (N3, round 2)
             }
             else
             {

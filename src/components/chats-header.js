@@ -21,8 +21,38 @@ const CHATS_FILTERS = [
   { id: 'requests', label: 'Requests' },
 ];
 
+/** Set a chip's count (Damir 2026-07-09): a plain trailing NUMBER (not a badge pill).
+ *  n<=0 removes it. The 'requests' chip additionally hides itself when 0 (only
+ *  surfaced with active pending requests) — done by setChatsHeaderCounts. */
+function setChipCount(chip, n) {
+  let count = chip.querySelector('.c-chip__count');
+  if (n > 0) {
+    if (!count) {
+      count = document.createElement('span');
+      count.className = 'c-chip__count';
+      count.setAttribute('aria-hidden', 'true');   // the SR reads the chip via its label; the number is decorative
+      chip.append(count);
+    }
+    count.textContent = String(n);
+  } else if (count) {
+    count.remove();
+  }
+}
+
+/** Update the chip count badges + Requests-chip visibility after a data change
+ *  (Damir 2026-07-09). counts = { unread, groups, requests }. The Requests chip is
+ *  HIDDEN unless there are pending requests; Groups shows a badge only when its
+ *  unread count > 0; Unread shows its unread count. */
+export function setChatsHeaderCounts(headerEl, { unread = 0, groups = 0, requests = 0 } = {}) {
+  const q = (id) => headerEl.querySelector('.c-chip[data-filter="' + id + '"]');
+  const u = q('unread'), g = q('groups'), r = q('requests');
+  if (u) setChipCount(u, unread);
+  if (g) setChipCount(g, groups);
+  if (r) { setChipCount(r, requests); r.style.display = requests > 0 ? '' : 'none'; }
+}
+
 /** Build the header: search field + exclusive filter-chip group. */
-export function createChatsHeader({ activeFilter = 'all', strings = getStrings(), favorites = false, onFilter, onQuery } = {}) {
+export function createChatsHeader({ activeFilter = 'all', strings = getStrings(), favorites = false, counts = null, onFilter, onQuery } = {}) {
   const el = document.createElement('div');
   el.className = 'c-chats-header';
 
@@ -55,6 +85,10 @@ export function createChatsHeader({ activeFilter = 'all', strings = getStrings()
     });
   chipsRow.append(...chips);
   el.append(chipsRow);
+
+  // initial count badges + Requests visibility (Damir 2026-07-09). Requests starts
+  // hidden (0) until the feed lands (CH2); Unread/Groups reflect current unread.
+  setChatsHeaderCounts(el, counts || {});
 
   return el;
 }

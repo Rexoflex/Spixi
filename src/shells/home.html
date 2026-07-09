@@ -195,7 +195,7 @@
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
-    createChatsHeader, attachChatsCollapse,
+    createChatsHeader, attachChatsCollapse, setChatsHeaderCounts,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     mountContacts,                       // Track D: contacts picker/directory takeover
@@ -363,7 +363,10 @@
     // Delete ON: the tombstone makes the two-step delete actually stick this session
     // (CH3 interim). pin/mute/favorites (CH4) stay parked until their persist verbs.
     capabilities: { pin: false, mute: false, favorites: false, delete: true },
-    onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
+    // onModelChange fires on EVERY re-render — including row-menu delete/accept that
+    // re-render directly (not via renderChatsNow) — so update the nav badge AND the
+    // chip counts here so a delete/mark-read never leaves a stale chip count.
+    onModelChange: (s) => { setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)); setChatsHeaderCounts(header, chatsHeaderCounts()); },
   };
 
   const scroller = document.getElementById('chat-scroll');
@@ -412,9 +415,23 @@
       renderChatsNow();
     });
   }
+  // Chip counts (Damir 2026-07-09): the Unread chip shows the number of unread
+  // conversations, Groups shows unread GROUP conversations (badge only when > 0),
+  // Requests shows the pending-request count AND the chip hides entirely at 0.
+  // Unread here = an unread conversation (unread>0 OR a mention), muted excluded —
+  // a COUNT of chats, not a message total (the nav badge keeps the message total).
+  function isUnreadChat(c) { return !c.muted && ((Math.max(0, c.unread || 0) > 0) || !!c.mention); }
+  function chatsHeaderCounts() {
+    const chats = (state.chats || []).filter(Boolean);
+    return {
+      unread: chats.filter(isUnreadChat).length,
+      groups: chats.filter((c) => c.type === 'group' && isUnreadChat(c)).length,
+      requests: (state.requests || []).filter(Boolean).length,
+    };
+  }
   function renderChatsNow() {
     renderChatsList(list, state, opts);
-    if (opts.onModelChange) opts.onModelChange(state);
+    if (opts.onModelChange) opts.onModelChange(state);   // updates nav badge + chip counts (setChatsHeaderCounts)
     if (selectedAddress) highlightSelected(selectedAddress);
   }
   /** Decode HTML entities in a C#-sent string. The bridge delivers excerpts as

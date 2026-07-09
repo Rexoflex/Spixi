@@ -51,6 +51,12 @@
 
 .c-chip__icon, .c-chip__dismiss { flex: none; }
 
+/* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
+   after the label via the chip's flex gap. Muted so the label stays primary; the
+   selected chip tints it with the chip text colour (inherits currentColor). */
+.c-chip__count { flex: none; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.c-chip[aria-pressed="true"] .c-chip__count { opacity: 1; }
+
 /* readonly (display) variant — non-interactive tags e.g. app permissions/capabilities */
 .c-chip[data-readonly] {
   cursor: default;

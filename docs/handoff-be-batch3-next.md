@@ -107,13 +107,27 @@ null/http/`img/`-sentinels/missing) wrapped at every redesigned-shell avatar/ico
 wallet-native + AppsPage excluded (do at their repoint). WinUI shows no visible change; the win is
 iOS/WKWebView (verify at the iOS pass). Build `net10.0-windows` + F5 (avatars/icons still render).
 
+## Just landed & pending Damir commit (DECISIONS #218)
+**CH2a — chat filter-chip counts + Requests-hide (DONE, #46 CLEAN, Damir F5 "looks/works good").**
+FE-only: `chats-header.js` `setChatsHeaderCounts` (plain trailing NUMBER per chip, not a badge) +
+Requests chip hidden unless pending; `home.html chatsHeaderCounts()` (unread = unread CONVERSATIONS,
+groups = unread groups, requests = state.requests.length) routed through `onModelChange`. Component+
+shell → FULL build. Requests count is 0 until CH2b feeds it.
+
 ## Next work-order (pick the top 🟢 row, one at a time)
 `docs/fable-be-workorder.md` order, minus what's done:
-1. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + accept/decline/
-   handshake verbs · delete/mark-read persistence + history/media wipe · pin/mute/favorites). Bigger;
-   new verbs. CH4 likely Ixian-Core metadata → flag. CH3 also covers the in-chat delete-persistence
-   gap from the C7 F5. **CH2 is the highest-value** (the contact-request UI is built but UNFED).
-2. **S14** + the §9 settings family (save-without-pop verb, notif/privacy reachability).
+1. **CH2b** — the C# CONTACT-REQUEST FEED (the other half of CH2): `addRequest`/`clearRequests`/
+   `clearRequestsDone` push in `HomePage.loadChats` (iterate `friends` for `state==RequestReceived`)
+   + new `ixian:acceptRequest:<addr>`/`ixian:declineRequest:<addr>` HomePage verbs (reuse
+   SingleChatPage's `onAcceptFriendRequest` = `friend.approved=true`+`StreamProcessor.sendAcceptAdd`;
+   decline = `FriendList.removeFriend`). FE `home.html`: `addRequest`/`clearRequests` handlers →
+   `state.requests` + `opts.onRequestAccept/Decline` → verbs. The `createContactRequest` UI +
+   `acceptContactRequest` handshake staging are BUILT (demo-proven). **When the feed drops to 0 while
+   Requests is the active filter, reset the filter to 'all'** (CH2a flag). Map in `docs/…` (the
+   Explore inventory is in this session's context).
+2. **CH3 / CH4** — delete/mark-read persistence (+ the in-chat delete gap from C7 F5) · pin/mute/
+   favorites (CH4 likely Ixian-Core metadata → flag).
+3. **S14** + the §9 settings family (save-without-pop verb, notif/privacy reachability).
 2. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + verbs · delete/
    mark-read persistence + history/media wipe · pin/mute/favorites). Bigger; new verbs. CH4 likely
    Ixian-Core metadata → flag. (CH3 also covers the in-chat delete-persistence gap from the C7 F5.)

@@ -8,6 +8,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Ground rules
 
+- **★ PARAMOUNT SECURITY INVARIANT (read first — overrides everything below): Chat, and ANY surface that renders untrusted/remote content, ALWAYS lives in its OWN dedicated WebView, isolated from the wallet and every other pane.** Never compose chat into a shared WebView/DOM/JS context with other surfaces (incl. desktop split-view panes). On desktop each pane = its own native WebView; cross-pane coordination goes through C# (`selectChat`/`selectTx`), never shared JS. A chat exploit must never be able to read wallet, keys, or other-pane data. The ARCHITECTURE §8 "Hosted panes" single-host-WebView idea is **REJECTED** — see SECURITY.md §1 + DECISIONS #220. Desktop "demo parity" (the one-page `desktop.html`) is art-direction ONLY, not production architecture.
+- **★ C# TOUCHES NO RISKY PARTS.** Any C#/bridge work must NOT: sign/broadcast a tx from WebView-composed data without a NATIVE confirm · move keys/passwords/seed across the bridge or into the WebView · feed a WebView-supplied path/filename into a filesystem op (C# names its own temp files) · wire a JS bridge between chat and other panes (breaks §1) · extend the password-over-URL pattern · auto-fetch remote resources that leak IP without the media-autoload gate. If a task appears to need any of these → STOP, don't code it, log it in `docs/security-review-for-be-engineer.md` (the doc Damir shows the BE engineer). Shipped + planned C# risk review lives there.
 - **Plan before building.** Nothing ships without a doc reviewed by Damir + BE engineer (+ a second AI review pass).
 - **Bridge protocol is frozen** unless BE approves a new command (ARCHITECTURE.md §8). Existing `ixian:` commands and `executeUiCommand` calls must keep working.
 - **Security is non-negotiable** — see SECURITY.md. Shells emit payment *intent*; only C# signs/broadcasts. No keys/passwords in the WebView.
@@ -24,6 +26,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 | `ARCHITECTURE.md` | Bridge command inventory, per-view data contracts, 29→9 consolidation, stack, i18n plan, proposed commands, BE findings |
 | `SECURITY.md` | Wallet/payment isolation invariants every shell must preserve |
 | `CLAUDE.md` | This file — orientation + workflow loop |
+| `docs/security-review-for-be-engineer.md` | **Security handoff for the BE engineer** — shipped-C# verdict + planned-C# risk ranking + the "C# touches no risky parts" rule. If Damir mentions the risks / showing the BE engineer / the wallet wall-off, point him here. |
 | `docs/audit/bridge-audit-A.md` | Source-level bridge audit: Chat, Contacts, Home, Launch, Wallet |
 | `docs/audit/bridge-audit-B.md` | Source-level bridge audit: Settings, Scan, MiniApps, Downloads, Dev, Contributors + base class |
 | `docs/audit/assets-audit.md` | HTML/JS/CSS inventory, localization mechanism, duplication analysis |

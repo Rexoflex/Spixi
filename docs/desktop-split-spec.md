@@ -17,6 +17,15 @@ grid stays a right-pane Discover option ④ scope = **extend `desktop.html`**
 container queries (conservative baseline #4) and no ≥700px rules inside
 audited component CSS.
 
+## 0a. ⚠️ PROVISIONAL production desktop architecture (PARK — decide when we start the panes pass; DECISIONS #221)
+
+NOT locked — captured for discussion at the panes/desktop pass. Production desktop is **NOT one WebView**. Per SECURITY.md §1 (paramount) + DECISIONS #220 (hosted-panes WITHDRAWN), the sanctioned shape is:
+
+- **Frame shell WebView** = rail (navigation) + chat LIST + wallet + apps + right-side detail panes (mobile `home.html` equivalent; first-party data + `textContent`-escaped list strings only).
+- **Conversation WebView** = its OWN MAUI-hosted WebView (the wall), centre column on the Chats tab, hidden otherwise.
+
+This mirrors the trust boundary already shipped on mobile (home.html = list+wallet+apps in one WebView; conversation is separate) → parity, not new exposure. HARD RULES: the two WebViews never share a JS bridge (coordinate via C# only — shell `ixian:chat:<addr>` → C# loads the conversation WebView); no wallet data pushed into the conversation WebView; the list stays `textContent`-only. OPEN CALL for the BE engineer: whether chat-list + chat-info ride in the shell (mobile parity) or move into the isolated chat column (stricter). Everything ELSE in this spec (pane layouts/grammar below) is the DEMO composition (`desktop.html`) — valid as art-direction; production swaps the centre pane for the isolated WebView. Risks handoff: docs/security-review-for-be-engineer.md.
+
 ## 1. Frame grammar (exists — reuse verbatim)
 
 `.dt-frame` flex: rail (`.c-bottomnav` verticalized) · list pane · 6px

@@ -195,7 +195,7 @@
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
-    createChatsHeader, attachChatsCollapse, setChatsHeaderCounts,
+    createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     mountContacts,                       // Track D: contacts picker/directory takeover
@@ -331,6 +331,11 @@
    * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
    * contact) still needs the BE verbs — this only removes the row. */
   const deletedChats = new Set();
+  /* CH2 (Damir): after Accept, hold the "Establishing a quantum-secure handshake…"
+   * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
+   * otherwise replace it sub-second). While an address is held: clearChats keeps its
+   * row and addChat forces it back to handshaking; a 3s timer then settles it. */
+  const handshakeHold = new Set();
   /* CH8: sticky reaction excerpts, addr → { excerpt, ts }. A counterpart reaction
    * arrives via addChatReaction, but C# re-flushes the chats list within a tick
    * (msgReaction sets shouldRefreshContacts) re-pushing the last REAL message
@@ -359,6 +364,38 @@
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
       }
+    },
+    // CH2: Accept an incoming contact request. Emit the verb (C# approves + sends
+    // acceptAdd → a contacts re-flush moves the friend into the chat list) AND
+    // optimistically stage it locally: acceptContactRequest turns the request card
+    // into a "handshaking" chat that slides to the top (the #109 staged handshake),
+    // so the row doesn't blink out before the C# re-flush lands.
+    onRequestAccept: (req, row) => {
+      if (!req || !req.address) return;
+      const addr = req.address;
+      // Guard a double-tap: acceptContactRequest returns null if the request already
+      // went (removed on the first tap) — don't re-send the verb or arm a 2nd timer.
+      if (!acceptContactRequest(list, state, req, opts)) return;   // optimistic handshaking chat (#109)
+      bridge.send('ixian:acceptRequest:' + addr);
+      // CH2 (Damir): hold the "Establishing…" state for ≥3s so it reads as real — the
+      // C# contacts re-flush would otherwise replace the row sub-second. clearChats/
+      // addChat keep it handshaking while held; this timer settles it after 3s.
+      handshakeHold.add(addr);
+      setTimeout(() => {
+        handshakeHold.delete(addr);
+        const c = (state.chats || []).find((x) => x && x.address === addr);
+        if (c && c.handshaking) completeHandshake(list, state, c, opts);   // → normal chat
+        else renderChatsNow();
+      }, 3000);
+      leaveRequestsFilterIfEmpty();
+    },
+    // CH2: Decline = drop the request locally + emit the verb (C# removes the friend).
+    onRequestDecline: (req) => {
+      if (!req || !req.address) return;
+      bridge.send('ixian:declineRequest:' + req.address);
+      state.requests = (state.requests || []).filter((r) => r !== req);
+      renderChatsNow();                 // re-render + onModelChange (refreshes the Requests chip count/hide)
+      leaveRequestsFilterIfEmpty();
     },
     // Delete ON: the tombstone makes the two-step delete actually stick this session
     // (CH3 interim). pin/mute/favorites (CH4) stay parked until their persist verbs.
@@ -433,6 +470,17 @@
     renderChatsList(list, state, opts);
     if (opts.onModelChange) opts.onModelChange(state);   // updates nav badge + chip counts (setChatsHeaderCounts)
     if (selectedAddress) highlightSelected(selectedAddress);
+  }
+  // CH2: when the last pending request is accepted/declined while the Requests filter
+  // is active, the chip hides (setChatsHeaderCounts) — so leaving the user on an empty
+  // 'requests' view with no chip to escape it. Fall back to 'all' + sync the header chip
+  // selection (the chips' own click handler didn't fire on this programmatic switch).
+  function leaveRequestsFilterIfEmpty() {
+    if (state.filter !== 'requests' || (state.requests || []).length) return;
+    setChatsFilter(list, state, 'all', opts);
+    for (const chip of header.querySelectorAll('.c-chip[data-filter]')) {
+      setChipSelected(chip, chip.dataset.filter === 'all');
+    }
   }
   /** Decode HTML entities in a C#-sent string. The bridge delivers excerpts as
    *  HTML-encoded text (legacy home.js rendered them via innerHTML) — e.g. an
@@ -922,7 +970,10 @@
     // per-row addChat upserts don't each render (clearChatsDone renders once).
     clearChats() {
       chatsFlushing = true;
-      state.chats = [];
+      // CH2: keep a row that's inside its ≥3s handshake hold so a C# re-flush during
+      // those 3s can't cut the "Establishing…" state short (Damir). Normal flush (no
+      // holds) → filters to [] as before.
+      state.chats = (state.chats || []).filter((c) => c && handshakeHold.has(c.address));
     },
 
     // One row. Maps the legacy addChat args → a redesigned chat, then UPSERTS by
@@ -981,6 +1032,13 @@
         if (n === 0 || (t && t > rx.ts)) reactionExcerpts.delete(wallet);
         else if (chat.excerpt.type !== 'draft') chat.excerpt = rx.excerpt;
       }
+      // CH2: while an address is in its ≥3s handshake hold, keep the row in the
+      // "Establishing…" handshaking state even though C# now pushes it as a normal
+      // approved chat — the 3s timer settles it (completeHandshake) afterwards.
+      if (handshakeHold.has(wallet)) {
+        chat.handshaking = true;
+        chat.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Establishing a quantum-secure handshake…' };
+      }
       upsertChat(chat);
       if (!chatsFlushing) scheduleChatsRender();   // lone updateChat → render now-ish
     },
@@ -989,6 +1047,22 @@
     clearChatsDone() {
       chatsFlushing = false;
       renderChatsNow();
+    },
+
+    // CH2: incoming contact-request feed. Pushed WITHIN the chats flush (clearRequests
+    // after clearChats; addRequest rows before clearChatsDone) so the single
+    // clearChatsDone render paints chats + requests together — addRequest rides the
+    // chatsFlushing guard like addChat. The request cards + Accept/Decline UI live in
+    // chats-shell (createContactRequest); onRequestAccept/Decline (opts) emit the verbs.
+    clearRequests() { state.requests = []; },
+    addRequest(address, nick, avatar, timestamp) {
+      if (!address) return;
+      let t = Number(timestamp);
+      if (t && t < 1e12) t *= 1000;                 // legacy Unix seconds → ms (mirrors addChat)
+      const req = { address, nick: nick || '', name: nick || '', avatar: resolveAvatar(avatar), timestamp: t || 0 };
+      const i = state.requests.findIndex((r) => r && r.address === address);
+      if (i >= 0) state.requests[i] = req; else state.requests.push(req);
+      if (!chatsFlushing) scheduleChatsRender();    // lone push (rare) → coalesced render
     },
 
     // Two-pane (tablet/desktop) selection sync from C#.

@@ -6118,14 +6118,20 @@ function crDisplayAddress(addr) {
 }
 
 function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = getStrings(), host, onAccept, onDecline } = {}) {
-  const display = nick || name || crDisplayAddress(address);
+  // #211 address-display canon: a raw address is NEVER shown in full on a chat
+  // surface. A request friend's nick/name often DEFAULTS to its own address (no
+  // custom name yet) — treat a name that IS the address as "no name" and
+  // middle-truncate, matching the chat-list rows / bubble sender labels.
+  const realName = (nick && nick !== address) ? nick : (name && name !== address) ? name : '';
+  const display = realName || crDisplayAddress(address);
 
   const row = document.createElement('div');
   row.className = 'c-contact-request';
   row.dataset.kind = 'request';
 
-  // photo if present, else deterministic hue off the ADDRESS (identity-stable)
-  row.append(createAvatar({ src: avatar, name: nick || name, address, size: 48 }));
+  // photo if present, else deterministic hue off the ADDRESS (identity-stable);
+  // initials only from a REAL name (else the user glyph, avatar.js).
+  row.append(createAvatar({ src: avatar, name: realName, address, size: 48 }));
 
   const body = document.createElement('div');
   body.className = 'c-contact-request__body';

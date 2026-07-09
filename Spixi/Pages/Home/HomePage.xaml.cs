@@ -417,6 +417,16 @@ namespace SPIXI
                 string appId = current_url.Substring("ixian:uninstall:".Length);
                 onUninstallApp(appId);
             }
+            else if (current_url.StartsWith("ixian:acceptRequest:", StringComparison.Ordinal))
+            {
+                // CH2: accept an incoming contact request from the chats-list request card.
+                onAcceptRequest(current_url.Substring("ixian:acceptRequest:".Length));
+            }
+            else if (current_url.StartsWith("ixian:declineRequest:", StringComparison.Ordinal))
+            {
+                // CH2: decline an incoming contact request from the chats-list request card.
+                onDeclineRequest(current_url.Substring("ixian:declineRequest:".Length));
+            }
             else if (current_url.StartsWith("ixian:explorer"))
             {
                 Browser.Default.OpenAsync(new Uri(Config.explorerUrl + "index.php?p=address&id=" + IxianHandler.primaryWalletAddress));
@@ -1077,6 +1087,18 @@ namespace SPIXI
                     return;
                 }
 
+                // CH2: an incoming contact request goes to the REQUESTS feed, not a chat row —
+                // mirror loadChats here so a LONE updateChat (a message event, e.g. the arriving
+                // requestAdd) doesn't briefly render the request as a normal, button-less,
+                // tappable chat row (Damir F5: a half-second window where tapping the row acted
+                // on the request). addRequest is a lone push — the FE upserts + re-renders.
+                var lm = friend.metaData.lastMessage;
+                if (!friend.approved && lm != null && lm.type == FriendMessageType.requestAdd && !lm.localSender)
+                {
+                    Utils.sendUiCommand(this, "addRequest", fmh.walletAddress, fmh.nickname, fmh.avatar, fmh.timestamp.ToString());
+                    return;
+                }
+
                 // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag.
                 // New args go LAST — never reorder.
                 Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString());
@@ -1140,9 +1162,14 @@ namespace SPIXI
                 }
 
                 Utils.sendUiCommand(this, "clearChats");
+                // CH2: incoming contact requests are their OWN feed (not chat rows) — clear it
+                // within the same flush so clearChatsDone renders chats + requests together.
+                Utils.sendUiCommand(this, "clearRequests");
 
                 // Prepare a list of message helpers, to facilitate sorting and communication with the UI
                 List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
+                // CH2: incoming contact requests (their requestAdd, not yet approved) → requests feed
+                List<FriendMessageHelper> request_msgs = new List<FriendMessageHelper>();
                 // CH1: chat kind per wallet address (FriendMessageHelper lives in Ixian-Core — no new field)
                 Dictionary<string, string> chat_kinds = new Dictionary<string, string>();
                 // CH5: unread @-mention flag per wallet address
@@ -1161,6 +1188,20 @@ namespace SPIXI
                         continue;
                     }
 
+                    // CH2: an INCOMING contact request (they sent a requestAdd, I haven't approved)
+                    // goes to the requests feed with Accept/Decline — NOT the chat list. Detected
+                    // from the last message (their requestAdd, !localSender); an OUTGOING request I
+                    // sent (localSender) stays a normal "waiting for response" chat row.
+                    // NOTE (graceful degrade): this keys on the LAST message being the requestAdd —
+                    // if an unapproved friend sends a follow-up before I accept, they fall through to
+                    // the chat list; opening that row still offers the legacy in-chat Accept/Decline.
+                    var lm = friend.metaData.lastMessage;
+                    if (!friend.approved && lm != null && lm.type == FriendMessageType.requestAdd && !lm.localSender)
+                    {
+                        request_msgs.Add(helper_msg);
+                        continue;
+                    }
+
                     helper_msgs.Add(helper_msg);
                     chat_kinds[helper_msg.walletAddress] = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
                     mention_flags[helper_msg.walletAddress] = hasUnreadMention(friend);
@@ -1176,8 +1217,16 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString());
                 }
 
+                // CH2: incoming contact requests (newest first) — the FE renders these as
+                // Accept/Decline request cards + drives the Requests filter chip.
+                foreach (FriendMessageHelper rm in request_msgs.OrderByDescending(x => x.timestamp))
+                {
+                    Utils.sendUiCommand(this, "addRequest", rm.walletAddress, rm.nickname, rm.avatar, rm.timestamp.ToString());
+                }
+
                 // Clear the lists so they will be collected by the GC
                 helper_msgs = null;
+                request_msgs = null;
                 sorted_msgs = null;
                 chat_kinds = null;
                 mention_flags = null;
@@ -1748,6 +1797,34 @@ namespace SPIXI
         private void onAppDetails(string appId)
         {
             Navigation.PushAsync(new AppDetailsPage(appId), Config.defaultXamarinAnimations);
+        }
+
+        private void onAcceptRequest(string address)
+        {
+            // CH2: mirrors SingleChatPage.onAcceptFriendRequest — approve + send the accept.
+            // A full contacts refresh (shouldRefreshContacts) re-flushes loadChats, which
+            // drops the friend from the requests feed (now approved) into the chat list.
+            Friend friend = FriendList.getFriend(new Address(address));
+            if (friend == null)
+            {
+                return;
+            }
+            friend.approved = true;
+            friend.handshakePushed = false;
+            UIHelpers.shouldRefreshContacts = true;
+            StreamProcessor.sendAcceptAdd(friend, true);
+        }
+
+        private void onDeclineRequest(string address)
+        {
+            // CH2: decline = remove the friend (mirrors SingleChatPage's undorequest).
+            Friend friend = FriendList.getFriend(new Address(address));
+            if (friend == null)
+            {
+                return;
+            }
+            FriendList.removeFriend(friend);
+            UIHelpers.shouldRefreshContacts = true;
         }
 
         private void onUninstallApp(string appId)

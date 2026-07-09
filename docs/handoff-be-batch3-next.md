@@ -53,6 +53,17 @@ All F5-confirmed by Damir and committed.
   the remote icon renders only when the media-autoload pref (`mediaAutoloadOn()`) is ON, else
   rocket fallback; local installed-app icons never gated. **These are the ONLY C# changes; decline
   + the icon gate are FE-only.**
+- **C7 deferred follow-ups (F5, 2026-07-09 — NOT bugs in C7, logged for the desktop/app-invite
+  pass):** (1) **split-view only:** returning from AppDetailsPage after installing does NOT
+  refresh the invite card (still shows Get app until you fully leave+re-enter the chat) — because
+  the desktop split-view chat is a reparented WebView pane and `SingleChatPage.OnAppearing`
+  doesn't fire on that return; **single-window works correctly** (OnAppearing→reloadScreen→
+  loadMessages re-reads getApp → flips to Join). Fix at the desktop pass (trigger a chat reload
+  after install, or detect the app-list change on the per-second tick). (2) **UX idea:** after
+  install, offer "Join" directly from the AppDetailsPage modal instead of returning the user to a
+  stale invite card. (3) **CH3-class (separate):** in-chat message Delete doesn't persist across
+  reload + doesn't refresh the chats-list excerpt (local delete never calls `updateChat`; reappear
+  points at `friend.deleteMessage` persistence — Ixian-Core).
 - **C7 in-session fix (Damir F5):** after joining an app the card kept showing Decline/Join
   because C# never signaled an active session. Now `SingleChatPage` sets `app_state="Minimized"`
   when `getAppPage(friend.walletAddress, app_id)` is live; FE maps `Minimized→'in-session'`
@@ -65,17 +76,25 @@ All F5-confirmed by Damir and committed.
   → `smoke` → F5 (incoming invite: Decline → card flips to "Declined" + persists on reopen,
   sender unaffected · app you don't have: Get app installs · own invite still Cancel) → commit.
 
+## C8 — arbitrary emoji reactions: ⛔ BUILT then REVERTED → 🟡 BE/core (DECISIONS #215)
+The mandated Ixian-Core check LOOKED 🟢 (the reaction store holds `tip:`/`fileReceived:` beside
+`like:`), so C8 was built zero-core (C# `case "react"` + FE emoji menu, #46-CLEAN). **But Damir's
+on-device F5 proved core persists ONLY `like` for USER reactions** — every other key (raw emoji AND
+ASCII shortcodes) renders live but is dropped on reload (`tip`/`fileReceived` persist only because
+they're app/system-added, not user `contextAction` `addReaction`). So C8 needs an **Ixian-Core**
+change (persist arbitrary user-reaction keys). **All C8 code was reverted to exactly pre-C8**
+(grep-clean). Kept as a BE recommendation (be-cutover C8) with the full FE+C# re-apply plan in
+DECISIONS #215. **Lesson: the store holding system keys ≠ user reactions are key-agnostic; flag
+🟡 pending an on-device persistence F5 before building a reaction/persistence row.**
+
 ## Next work-order (pick the top 🟢 row, one at a time)
 `docs/fable-be-workorder.md` order, minus what's done:
-1. **C8** — arbitrary emoji reactions (not just `like`). ⚠ **Check Ixian-Core FIRST** — `addReaction`
-   hardcodes `"like:"` and `contextAction` only has a `like` case; if the store/aggregate needs a
-   core change it's 🟡 (flag to Damir). The FE menu is ready to offer 👍❤️😂😮😢🔥.
-2. **A1** (in-tab uninstall verb) · **A2** (Discover feed source — decision) · **X1** (avatar/app-icon
+1. **A1** (in-tab uninstall verb) · **A2** (Discover feed source — decision) · **X1** (avatar/app-icon
    **data-URI push** — Damir chose Option A; FE is ready, degrade-to-gradient wired).
-3. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + verbs · delete/
+2. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + verbs · delete/
    mark-read persistence + history/media wipe · pin/mute/favorites). Bigger; new verbs. CH4 likely
-   Ixian-Core metadata → flag.
-4. **S14** + the §9 settings family (save-without-pop verb, notif/privacy reachability).
+   Ixian-Core metadata → flag. (CH3 also covers the in-chat delete-persistence gap from the C7 F5.)
+3. **S14** + the §9 settings family (save-without-pop verb, notif/privacy reachability).
 - 🟡 human: L1–L4 (wallet create/restore), change-password/security-level. 🔴 never: C1/C2/C3/C6/
   C9/C10 (payments/tips), W1–W8 (wallet).
 

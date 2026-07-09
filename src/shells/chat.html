@@ -1076,7 +1076,7 @@
     attachMessageMenu(row, {
       host: overlayHost,
       text: rec.text || '',
-      reactions: ['❤️'],   // the bridge supports only "like" — offer just the heart
+      reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
       capabilities: {
         reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
         edit: bridge.cap('edit') && isSent && !!rec.text, // own text only

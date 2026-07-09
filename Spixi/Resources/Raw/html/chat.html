@@ -22346,6 +22346,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * (heart-handshake glyph + "Tipped", Damir F5) so a tip is visible on the
    * bubble. C5: the bridge's trailing own arg (";"-joined keys I reacted with) is
    * authoritative; myLikes stays as the optimistic/old-exe fallback. */
+  /* C8: reaction KEY (what core stores/sends) ↔ display EMOJI. The core reaction
+   * store round-trips plain-ASCII keys (like/tip/fileReceived) but drops raw
+   * multi-byte emoji keys — they render live but don't survive a reload. So we send
+   * stable ASCII shortcodes and map them back to emoji for display; core/C# only
+   * ever see ASCII. ❤️ stays the legacy 'like' key (back-compat). An unknown key
+   * falls back to itself (an old/other client's raw emoji still displays). */
+  const REACTION_KEY = { '👍': 'thumbsup', '❤️': 'like', '😂': 'joy', '😮': 'wow', '😢': 'cry', '🔥': 'fire' };
+  const REACTION_EMOJI = { thumbsup: '👍', like: '❤️', joy: '😂', wow: '😮', cry: '😢', fire: '🔥' };
+
   function parseReactions(str, id, ownStr) {
     const reactions = [];
     let tipCount = 0;
@@ -22353,15 +22362,21 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // C5: when the bridge supplies the own-keys arg (new exe) it is AUTHORITATIVE —
     // honor it exclusively so a stale local myLikes can't override an authoritative
     // negative (e.g. a reaction removed on another device). myLikes is used ONLY on
-    // old exes that don't send the arg (ownStr === undefined).
-    const likedByMe = ownStr !== undefined ? ownKeys.has('like') : myLikes.has(String(id));
+    // old exes that don't send the arg (ownStr === undefined), and only for the heart.
+    const hasOwnArg = ownStr !== undefined;
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
       const count = parseInt(parts[parts.length - 1], 10) || 0;
       if (count <= 0) continue;
-      if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
-      else if (tok.startsWith('tip')) tipCount += count;   // txid, not amount → count only
+      const key = parts.slice(0, -1).join(':');   // key = everything before the trailing count
+      if (key === 'tip') { tipCount += count; continue; }   // txid, not amount → count only
+      // C8: map the ASCII key → its emoji ('like'→❤️); an unknown key (e.g. a raw
+      // emoji from another client) falls back to itself so it still displays.
+      const emoji = REACTION_EMOJI[key] || key;
+      const own = hasOwnArg ? ownKeys.has(key)
+                            : (key === 'like' && myLikes.has(String(id)));
+      reactions.push({ emoji, count, own });
     }
     const sl = window.SL || {};
     const tip = tipCount > 0
@@ -22375,17 +22390,28 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * the toggle, and optimistically reflects it on the row so the pill shows
    * selected immediately (C#'s addReactions re-emit lands the authoritative
    * count next). Shared by the context-menu React action AND tapping a pill. */
-  function reactToMessage(id) {
+  /* C8: react with ANY emoji. The heart still rides the legacy 'like' verb (stored as
+   * key "like", back-compat); every other emoji uses the new 'react' verb, keyed by the
+   * emoji itself. Multiple reactions per user are allowed (Telegram-style, per-key
+   * toggle in C#). Tapping an existing pill toggles that emoji; the authoritative
+   * own-state lands with C#'s addReactions re-emit (ownStr, C5). */
+  function reactToMessage(id, emoji) {
     id = String(id);
-    myLikes.add(id);
-    saveLikes();                                       // persist own-state across re-flushes (C5 interim)
-    bridge.send('ixian:contextAction:like:' + id);
+    emoji = emoji || '❤️';
+    const key = REACTION_KEY[emoji] || emoji;          // C8: send the ASCII key, not the raw emoji
+    if (key === 'like') {
+      myLikes.add(id);
+      saveLikes();                                     // persist heart own-state (C5 interim, old-exe)
+      bridge.send('ixian:contextAction:like:' + id);
+    } else {
+      bridge.send('ixian:contextAction:react:' + id + ':' + encodeURIComponent(key));
+    }
     const rec = model.get(id);
     if (!rec) return;
     rec.reactions = rec.reactions || [];
-    const heart = rec.reactions.find((r) => r.emoji === '❤️');
-    if (heart) heart.own = true;                       // count updates when C# responds
-    else rec.reactions.push({ emoji: '❤️', count: 1, own: true }); // optimistic first like
+    const pill = rec.reactions.find((r) => r.emoji === emoji);
+    if (pill) pill.own = true;                         // count/authoritative own lands on C#'s re-emit
+    else rec.reactions.push({ emoji, count: 1, own: true }); // optimistic first reaction
     const row = rows.get(id);
     if (row) applyRowReactions(rec, row, true);
   }
@@ -22400,7 +22426,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       tip: rec.tip || '',
       animate: !!animate,
       host: box,
-      onToggle: () => reactToMessage(rec.id),
+      onToggle: (emoji) => reactToMessage(rec.id, emoji),   // C8: toggle the tapped emoji
     });
   }
 
@@ -22423,7 +22449,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     attachMessageMenu(row, {
       host: overlayHost,
       text: rec.text || '',
-      reactions: ['❤️'],   // the bridge supports only "like" — offer just the heart
+      reactions: ['👍', '❤️', '😂', '😮', '😢', '🔥'],   // C8: full quick-react set (❤️→like, rest→react)
       capabilities: {
         reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
         edit: bridge.cap('edit') && isSent && !!rec.text, // own text only
@@ -22431,13 +22457,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
         select: false,                                    // multi-select not wired in the shell yet
       },
-      onAction: (action, arg) => onMenuAction(action, rec),
+      onAction: (action, arg) => onMenuAction(action, rec, arg),   // C8: forward the chosen emoji
     });
   }
 
-  function onMenuAction(action, rec) {
+  function onMenuAction(action, rec, arg) {
     const id = rec.id;
-    if (action === 'react') { reactToMessage(id); return; }
+    if (action === 'react') { reactToMessage(id, arg); return; }   // C8: arg = chosen emoji
     if (action === 'copy') {
       if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
       return;

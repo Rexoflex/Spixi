@@ -23,18 +23,14 @@ img, svg { display: block; max-width: 100%; }
    otherwise override the UA's non-important [hidden] rule (audit 2026-07-02) */
 [hidden] { display: none !important; }
 
-/* Sora + Source Sans 3 — variable WOFF2, Latin subset (src/assets/fonts) */
+/* Sora — variable WOFF2, Latin subset (src/assets/fonts). BRAND DISPLAY face only
+   (--font-display: wordmark/hero) since B1/#226 moved all UI text to system-ui.
+   Source Sans 3 RETIRED (#226): its @font-face was dead weight — the shell build
+   inlines every referenced font as a data-URI (~70KB per shell). */
 @font-face {
   font-family: 'Sora';
   src: url('../assets/fonts/sora-latin-wght-normal.woff2') format('woff2'); /* plain 'woff2': Safari rejects 'woff2-variations'; variable axes still load */
   font-weight: 100 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Source Sans 3';
-  src: url('../assets/fonts/source-sans-3-latin-wght-normal.woff2') format('woff2');
-  font-weight: 200 900;
   font-style: normal;
   font-display: swap;
 }

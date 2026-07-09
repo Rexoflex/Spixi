@@ -140,3 +140,10 @@
 @media (prefers-reduced-motion: reduce) {
   .c-chatlist-item[data-handshaking] .c-excerpt__text { animation: none; }
 }
+
+
+/* B3/R3 — desktop row rhythm (#226): 48px avatar + 2×8px padding ≈ 64px rows
+   (Telegram-class density; font-size-audit §2). Mobile keeps spacing-12. */
+@media (min-width: 700px) {
+  .c-chatlist-item { padding-block: var(--spacing-8); }
+}

@@ -23,10 +23,18 @@ namespace Spixi.WinUI;
 /// </summary>
 public partial class App : MauiWinUIApplication
 {
-    const int WindowWidth = 800*2;
-    const int WindowHeight = 600*2;
-    const int MinWidth = 300*2;
-    const int MinHeight = 420*2;
+    // Logical (DPI-independent) sizes — scaled by the window's actual DPI below.
+    // The old constants were PHYSICAL pixels (800*2 etc.), so the window opened
+    // larger than a 1366×768 laptop screen at 100% scale and tiny at 200%; the
+    // 840px physical min-height forbade legitimate short-wide desktop windows
+    // (docs/font-size-audit.md §3, DECISIONS #226).
+    const int DefaultWidthDip = 1000;
+    const int DefaultHeightDip = 700;
+    const int MinWidthDip = 480;
+    const int MinHeightDip = 360;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     /// <summary>
     /// Initializes the singleton application object.  This is the first line of authored code
@@ -57,40 +65,83 @@ public partial class App : MauiWinUIApplication
             IntPtr windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
             WindowId windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
             AppWindow appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            appWindow.Resize(new SizeInt32(WindowWidth, WindowHeight));
 
+            // Window sizing pass (#226, docs/font-size-audit.md §3):
+            // DPI-aware defaults + a REAL OS-enforced minimum + last-size restore.
+            double scale = GetDpiForWindow(windowHandle) / 96.0;
+            if (scale <= 0)
+            {
+                scale = 1.0;
+            }
+            int minW = (int)(MinWidthDip * scale);
+            int minH = (int)(MinHeightDip * scale);
+
+            var workArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Nearest).WorkArea;
+
+            // Restore the last window size (physical px), clamped to the work area;
+            // first run = DPI-scaled default, centred.
+            int width = 0, height = 0;
+            try
+            {
+                width = Microsoft.Maui.Storage.Preferences.Default.Get("windowWidth", 0);
+                height = Microsoft.Maui.Storage.Preferences.Default.Get("windowHeight", 0);
+            }
+            catch
+            {
+                // Preferences unavailable this early on some configs → default size.
+            }
+            bool firstRun = width <= 0 || height <= 0;
+            if (firstRun)
+            {
+                width = (int)(DefaultWidthDip * scale);
+                height = (int)(DefaultHeightDip * scale);
+            }
+            width = Math.Max(Math.Min(width, workArea.Width), minW);
+            height = Math.Max(Math.Min(height, workArea.Height), minH);
+            appWindow.Resize(new SizeInt32(width, height));
+            if (firstRun)
+            {
+                appWindow.Move(new Windows.Graphics.PointInt32(
+                    workArea.X + (workArea.Width - width) / 2,
+                    workArea.Y + (workArea.Height - height) / 2));
+            }
+
+            // The minimum is enforced by the OS DURING the drag — no resize-fighting,
+            // no snap-back jitter, and no teardown-time Resize() ArgumentException
+            // (the old Changed-handler approach caused both).
+            if (appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.PreferredMinimumWidth = minW;
+                presenter.PreferredMinimumHeight = minH;
+            }
+
+            // Persist the size so the next launch restores it (premium-app parity).
+            int lastSavedW = width, lastSavedH = height;
             appWindow.Changed += (sender, args) =>
             {
-                // Only react to actual size changes, and never to the teardown-time
-                // events: while the window is CLOSING (or minimized) it reports an
-                // invalid/zero size, and Resize() then throws ArgumentException
-                // "The parameter is incorrect" — broke into the debugger on every
-                // app close (Damir). The resize-fighting approach itself should be
-                // replaced with OverlappedPresenter.PreferredMinimumWidth/Height at
-                // the window-sizing pass — see docs/font-size-audit.md §3.
                 if (!args.DidSizeChange)
                 {
                     return;
                 }
-                if (appWindow.Size.Width <= 0 || appWindow.Size.Height <= 0)
+                var size = appWindow.Size;
+                if (size.Width <= 0 || size.Height <= 0)
+                {
+                    return;   // teardown/minimize reports invalid sizes
+                }
+                if (size.Width == lastSavedW && size.Height == lastSavedH)
                 {
                     return;
                 }
-                if (appWindow.Size.Width < MinWidth || appWindow.Size.Height < MinHeight)
+                lastSavedW = size.Width;
+                lastSavedH = size.Height;
+                try
                 {
-                    var newSize = new SizeInt32
-                    {
-                        Width = Math.Max(appWindow.Size.Width, MinWidth),
-                        Height = Math.Max(appWindow.Size.Height, MinHeight)
-                    };
-                    try
-                    {
-                        appWindow.Resize(newSize);
-                    }
-                    catch (ArgumentException)
-                    {
-                        // Window is closing/being destroyed — nothing to enforce.
-                    }
+                    Microsoft.Maui.Storage.Preferences.Default.Set("windowWidth", size.Width);
+                    Microsoft.Maui.Storage.Preferences.Default.Set("windowHeight", size.Height);
+                }
+                catch
+                {
+                    // Preferences unavailable during shutdown — size just isn't saved.
                 }
             };
         });

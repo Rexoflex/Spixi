@@ -39,6 +39,12 @@ All safe C# (background colour + navigation timing + an animation flag) — none
 
 ## B. Crispness — frontend dials (ranked by leverage)
 
+> **STATUS 2026-07-10 (DECISIONS #226): B1 SHIPPED** (system-ui everywhere; Sora = wordmark-only
+> --font-display; Source Sans 3 retired, ~70KB lighter per shell) · **B3 partially SHIPPED** (desktop type
+> step: titles 20px, row names 15px, excerpts 13px, labels 14px; chat rows ≈64px) · **window sizing SHIPPED**
+> (OS-enforced 480×360 logical min, DPI-aware default, size restore, centred first run — also fixes the
+> on-close ArgumentException). Damir dials values at F5; B2 (pixel scale) verify at F5; B4/B5 open.
+
 > Caveat: the reference screenshot is Spixi **light** vs Telegram **dark**; dark UIs read sleeker. Judge
 > like-for-like: **Spixi dark vs Telegram dark**.
 

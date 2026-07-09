@@ -120,8 +120,17 @@
   --purple-950: #0d0811;
 
   /* type */
-  --font-primary: "Sora", sans-serif;          /* headings, display */
-  --font-secondary: "Source Sans 3", sans-serif; /* body, labels */
+  /* B1 — NATIVE UI FONT (Damir 2026-07-09, punch-list; DECISIONS #226): system-ui
+     EVERYWHERE — the WhatsApp/Viber model (SF Pro on iOS/macOS, Segoe UI Variable on
+     Windows, device face/Roboto on Android). Web fonts render soft in a WebView —
+     the un-native tell. Sora survives ONLY as the brand display face
+     (--font-display: topbar wordmark; hero brand moments opt in explicitly).
+     Source Sans 3 RETIRES from the UI (face kept in base.css, nothing references
+     it; shell preloads removed). Figma type mirror pending. */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Sora", system-ui, sans-serif; /* brand wordmark/hero ONLY */
+  --font-primary: var(--font-ui);               /* headings, display (was Sora) */
+  --font-secondary: var(--font-ui);             /* body, labels (was Source Sans 3) */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -313,8 +322,15 @@
     --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
     --font-size-heading-lg: 36px;  --line-height-heading-lg: 44px;
     --font-size-heading-md: 28px;  --line-height-heading-md: 28px;
-    --font-size-heading-sm: 24px;  --line-height-heading-sm: 28px;
-    --font-size-heading-xs: 20px;  --line-height-heading-xs: 28px;
+    /* B3/R2 — desktop DENSITY step (font-size-audit §2, DECISIONS #226 🟡 Damir
+       dials at F5): desktop apps read SMALLER than mobile, not bigger — 24px
+       screen titles + 18px list names were the "reads huge vs Telegram" factor.
+       heading-lg/display keep their large desktop values (hero/launch only). */
+    --font-size-heading-sm: 20px;  --line-height-heading-sm: 26px;   /* screen titles */
+    --font-size-heading-xs: 18px;  --line-height-heading-xs: 24px;
+    --font-size-body-lg: 15px;     --line-height-body-lg: 22px;      /* chat-row names */
+    --font-size-body-sm: 13px;     --line-height-body-sm: 18px;      /* excerpts */
+    --font-size-label-md: 14px;    --line-height-label-md: 20px;     /* buttons/inputs */
     --tracking-label-lg: -0.25px;  --tracking-label-md: -0.25px;
     --tracking-label-sm: -0.25px;  --tracking-label-xs: -0.25px;
     --tracking-body-md: -0.25px;   --tracking-body-sm: -0.25px;

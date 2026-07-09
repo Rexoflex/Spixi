@@ -410,6 +410,13 @@ namespace SPIXI
                 string appId = current_url.Substring("ixian:appDetails:".Length);
                 onAppDetails(appId);
             }
+            else if (current_url.StartsWith("ixian:uninstall:", StringComparison.Ordinal))
+            {
+                // A1: uninstall from the apps-tab ⋮ menu (list-scoped; AppDetailsPage
+                // owns the same MiniAppManager.remove for its details-scoped uninstall).
+                string appId = current_url.Substring("ixian:uninstall:".Length);
+                onUninstallApp(appId);
+            }
             else if (current_url.StartsWith("ixian:explorer"))
             {
                 Browser.Default.OpenAsync(new Uri(Config.explorerUrl + "index.php?p=address&id=" + IxianHandler.primaryWalletAddress));
@@ -1738,6 +1745,18 @@ namespace SPIXI
         private void onAppDetails(string appId)
         {
             Navigation.PushAsync(new AppDetailsPage(appId), Config.defaultXamarinAnimations);
+        }
+
+        private void onUninstallApp(string appId)
+        {
+            // A1: same removal AppDetailsPage.onUninstall uses (MiniAppManager.remove).
+            // Re-render the tab UNCONDITIONALLY (mirrors AppDetailsPage setting
+            // shouldRefreshApps regardless) so the FE's optimistic tile-removal and the
+            // authoritative C# list always converge — even if remove() returns false
+            // (app already gone), loadApps re-pushes the current truth.
+            Node.MiniAppManager.remove(appId);
+            UIHelpers.shouldRefreshApps = true;
+            loadApps(true);
         }
 
         public SpixiContentPage? getDetailContent()

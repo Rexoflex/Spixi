@@ -87,10 +87,22 @@ change (persist arbitrary user-reaction keys). **All C8 code was reverted to exa
 DECISIONS #215. **Lesson: the store holding system keys ≠ user reactions are key-agnostic; flag
 🟡 pending an on-device persistence F5 before building a reaction/persistence row.**
 
+## Just landed & pending Damir commit (DECISIONS #216)
+**A1 — apps-tab uninstall (DONE, F5-CONFIRMED "works well", #46 0 MAJOR).** New `ixian:uninstall:<id>`
+in `HomePage` (`onUninstallApp` → `MiniAppManager.remove` + `loadApps(true)`); FE `home.html` apps
+`appMenu:true` + `onUninstall` — un-gates the ⋮ menu. Parity NITs logged (uninstalling a RUNNING app
+can throw / dangle a session — pre-existing in AppDetailsPage, be-cutover A1 backlog).
+**A2 — Discover (Damir clarified): KEEP the banner (website link, legacy), drop only the IN-APP
+feed.** The Explore banner STAYS + links out to the mini-apps website (`ixian:spixiAppsLink`,
+external browser — compliant, it's an outbound link not an in-app catalog); the in-app Discover
+FEED (apps-feed.js) stays parked. Net = NO functional change (an interim banner-hide was reverted;
+`home.html` keeps `discover:false` = "no in-app feed" + `onExplore→ixian:spixiAppsLink`). #46 CLEAN.
+Commit A1 (+ the A2 comment/no-op) together.
+
 ## Next work-order (pick the top 🟢 row, one at a time)
 `docs/fable-be-workorder.md` order, minus what's done:
-1. **A1** (in-tab uninstall verb) · **A2** (Discover feed source — decision) · **X1** (avatar/app-icon
-   **data-URI push** — Damir chose Option A; FE is ready, degrade-to-gradient wired).
+1. **X1** (avatar/app-icon **data-URI push** — Damir chose Option A; FE is ready, degrade-to-gradient
+   wired — a clean C# encode-at-each-push-site row + a shared `Utils.imageToDataUri(path)` helper).
 2. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + verbs · delete/
    mark-read persistence + history/media wipe · pin/mute/favorites). Bigger; new verbs. CH4 likely
    Ixian-Core metadata → flag. (CH3 also covers the in-chat delete-persistence gap from the C7 F5.)

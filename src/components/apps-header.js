@@ -46,7 +46,10 @@ export function createAppsHeader({ layout = 'list', strings = getStrings(), disc
   row.append(toggle);
   el.append(row);
 
-  /* explore / discover banner (parked until the feed lands, §2.4) */
+  /* explore banner — a LINK OUT to the Spixi mini-apps WEBSITE (opens in the external
+   * browser via onExplore, legacy parity). This is an outbound web link, NOT an in-app
+   * app catalog, so it's fine to show; the app-store-like IN-APP Discover FEED
+   * (apps-feed.js / the standalone shell's browsable catalog) stays parked (A2). */
   const banner = document.createElement('button');
   banner.type = 'button';
   banner.className = 'c-apps-explore';

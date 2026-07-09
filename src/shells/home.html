@@ -62,11 +62,12 @@
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
-  /* Explore banner is VISIBLE (fix #7) → opens apps.spixi.io in the external browser
-     via ixian:spixiAppsLink (HomePage:278, Browser.OpenAsync — does NOT navigate this
-     WebView away). No CSS hide anymore. The per-row ⋮ menu is likewise gone: the
-     component only builds it when onMenu is passed, and the apps tab passes appMenu:false
-     + no onMenu, so no dead/focusable control renders (was CSS-hidden pre-#184). */
+  /* Explore banner is VISIBLE (A2, Damir 2026-07-09) → LINKS OUT to the Spixi mini-apps
+     website in the external browser (ixian:spixiAppsLink, HomePage:278 Browser.OpenAsync
+     — does NOT navigate this WebView away). An outbound web link is compliant; only an
+     IN-APP browsable app catalog (the Discover feed) is app-store-like → that stays parked.
+     The per-row ⋮ menu is now ON (A1): the component builds it only when onMenu is passed,
+     and the apps tab passes appMenu:true → "App details" + "Uninstall". */
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -769,12 +770,13 @@
    * the app — single-user → ixian:startApp:<id> (MiniAppPage), multi-user →
    * ixian:startAppMulti:<id> (WalletRecipientPage picker); "both flags" → single
    * (bridge-audit-A.md:271-273). A trailing ⓘ info button opens the app's DETAILS
-   * page (ixian:appDetails:<id> → AppDetailsPage), which owns launch-mode + uninstall
-   * + permissions (covers uninstall for v1). Inside HomePage `ixian:details:` is
-   * CONTACT details — apps MUST use `ixian:appDetails:` (HomePage:274 vs :408).
-   * Add → ixian:newapp (AppNewPage). Discover, direct-launch/recents, and the ⋮ list
-   * menu (list-scoped uninstall has no bridge verb — A1) are deferred to the dedicated
-   * standalone apps-shell repoint — see docs/be-cutover-brief.md.
+   * page (ixian:appDetails:<id> → AppDetailsPage), which owns launch-mode +
+   * permissions. Inside HomePage `ixian:details:` is CONTACT details — apps MUST use
+   * `ixian:appDetails:` (HomePage:274 vs :408). Add → ixian:newapp (AppNewPage).
+   * A1 (LANDED): the ⋮ list menu is ON — "App details" (→ appDetails) + "Uninstall"
+   * (confirm modal → ixian:uninstall:<id> → HomePage.onUninstallApp → MiniAppManager
+   * .remove). Discover + direct-launch/recents remain deferred to the standalone
+   * apps-shell repoint — see docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
   const appsState = { apps: [], query: '', layout: 'list' };
   const appsOpts = {
@@ -786,10 +788,14 @@
       const multi = !!app.isMultiUser && !app.isSingleUser;
       bridge.send('ixian:' + (multi ? 'startAppMulti' : 'startApp') + ':' + app.id);
     },
-    // ⓘ info → the app's details page (launch-mode + uninstall + permissions live there).
+    // details → the app's details page (launch-mode + permissions live there); reached
+    // via the ⋮ menu's "App details" action (onOpen).
     onOpen: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
+    // A1: uninstall from the ⋮ menu — the list-scoped verb now exists (HomePage
+    // onUninstallApp → MiniAppManager.remove; C# re-pushes the trimmed list).
+    onUninstall: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:uninstall:' + app.id); },
     onModelChange: () => {},
-    appMenu: false,   // no ⋮ in v1 — the ⓘ info button covers details/uninstall
+    appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
   };
 
   // Apps topbar — root style + an Add action (→ legacy AppNewPage).
@@ -802,10 +808,11 @@
   const appsList = createAppsList(appsState, appsOpts);
 
   // Header = search (client-side) + list⇄grid toggle (in-memory) + the Explore banner.
-  // Explore → apps.spixi.io in the EXTERNAL browser (ixian:spixiAppsLink, HomePage:278
-  // → Browser.OpenAsync). It does NOT navigate this WebView away, so the shell stays
-  // intact. (Phase 1: a direct web link; an in-app Discover feed is the standalone
-  // apps-shell repoint — be-cutover A2.)
+  // A2 (Damir 2026-07-09): the banner STAYS (legacy parity) and LINKS OUT to the Spixi
+  // mini-apps website (ixian:spixiAppsLink → HomePage:278 Browser.OpenAsync, external
+  // browser — does NOT navigate this WebView away). An outbound web link is fine; the
+  // app-store-like part to avoid is an IN-APP browsable catalog (the Discover feed),
+  // which stays parked. `discover:false` here only means "no in-app feed", not "no banner".
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),

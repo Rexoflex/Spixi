@@ -244,9 +244,10 @@ namespace SPIXI
 
             app.image = Node.MiniAppManager.getAppIconPath(appId);
 
-            Navigation.PushAsync(new AppDetailsPage(app, null, false, friendOrGroup, true), Config.defaultXamarinAnimations);
-            removePage(this);          
-        }
+            // #225: replaces=this — close this details overlay only after the refreshed
+            // one is visible (reviewer MAJOR fix).
+            pushPageLoaded(new AppDetailsPage(app, null, false, friendOrGroup, true), replaces: this);
+}
 
         // Executed every second
         public override void updateScreen()
@@ -278,7 +279,7 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Navigation.PushAsync(miniAppPage, Config.defaultXamarinAnimations);
+                hostNav.PushAsync(miniAppPage, Config.defaultXamarinAnimations);   // #225: root nav
             });
         }
 
@@ -298,7 +299,7 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
+                hostNav.PushAsync(recipientPage, Config.defaultXamarinAnimations);   // #225: root nav
             });
         }
 
@@ -337,7 +338,7 @@ namespace SPIXI
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 await Task.Delay(200); // WinUI Crash fix
-                await Navigation.PushAsync(miniAppPage, Config.defaultXamarinAnimations);
+                await hostNav.PushAsync(miniAppPage, Config.defaultXamarinAnimations);   // #225: root nav
             });
 
             return miniAppPage.sessionId;

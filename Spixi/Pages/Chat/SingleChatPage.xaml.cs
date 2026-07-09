@@ -116,7 +116,9 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
-                if (Navigation.NavigationStack.Count > 1)
+                // #225: no stack-count guard — an overlay conversation has an empty
+                // Navigation proxy; popToRootAsync itself handles both modes (closes
+                // all overlays, or pops the native stack) and no-ops at the root.
                 {
                     try
                     {
@@ -400,7 +402,7 @@ namespace SPIXI
                 return;
             }
 
-            Navigation.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);
+            hostNav.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);   // #225: root nav (this page may be an overlay)
         }
 
         private void onRequestIxi()
@@ -417,7 +419,7 @@ namespace SPIXI
                 return;
             }
 
-            Navigation.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);
+            hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav
         }
 
         private void populateChannelSelector()
@@ -881,7 +883,7 @@ namespace SPIXI
                     return;
                 }
 
-                Navigation.PushAsync(new WalletSentPage(transaction), Config.defaultXamarinAnimations);
+                hostNav.PushAsync(new WalletSentPage(transaction), Config.defaultXamarinAnimations);   // #225: root nav
 
                 return;
             }
@@ -904,7 +906,7 @@ namespace SPIXI
                 return;
             }
 
-            Navigation.PushAsync(new WalletContactRequestPage(msg, friend, amount, date_text), Config.defaultXamarinAnimations);
+            hostNav.PushAsync(new WalletContactRequestPage(msg, friend, amount, date_text), Config.defaultXamarinAnimations);   // #225: root nav
         }
 
         public void onApp(string app_id)
@@ -928,7 +930,7 @@ namespace SPIXI
                 session_id = custom_app_page.sessionId;
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    Navigation.PushAsync(custom_app_page, Config.defaultXamarinAnimations);
+                    hostNav.PushAsync(custom_app_page, Config.defaultXamarinAnimations);   // #225: root nav
                 });
             }
 
@@ -957,7 +959,7 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Navigation.PushAsync(miniAppPage, Config.defaultXamarinAnimations);
+                hostNav.PushAsync(miniAppPage, Config.defaultXamarinAnimations);   // #225: root nav
             });
 
         }

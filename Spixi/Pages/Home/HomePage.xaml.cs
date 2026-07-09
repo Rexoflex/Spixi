@@ -89,6 +89,10 @@ namespace SPIXI
             this.Title = "Spixi";
             webView.Opacity = 0;
 
+            // #225: HomePage hosts the redesigned screens as flicker-free OVERLAYS
+            // (own WebView each — SECURITY.md §1 intact) instead of pushed pages.
+            setOverlayHost(this);
+
             devMode = Preferences.Default.Get("devMode", false);
 
             hideBalance = (bool)Preferences.Default.Get("hidebalance", false);
@@ -783,58 +787,27 @@ namespace SPIXI
                 return;
             }
 
-            if (rightContent.IsVisible)
-            {
-                if (detailContent is SingleChatPage currentChat && currentChat.friend == friend)
-                {
-                    // Already open in the pane (also swallows double-clicks).
-                    return;
-                }
-
-                // Load-then-SWAP (N1 round 2, Damir F5): the old fade-to-empty-pane
-                // showed a blank themed pane for the whole conversation load (~1s dark
-                // pane in dark mode; boot flicker in light). Keep the CURRENT pane
-                // visible while the new conversation loads + paints off-screen, then
-                // swap it in fully drawn. Concurrent taps are dropped by the stage
-                // guard; same-friend re-taps by the check above.
-                stagePageForPane(new SingleChatPage(friend, this), page =>
-                {
-                    removeDetailContent(false);
-                    detailContent = page;
-                    rightContent.Content = page.Content;   // legacy hosting pattern (#177)
-                    Utils.sendUiCommand(this, "selectChat", friend.walletAddress.ToString());
-                });
-                return;
-            }
-
             fromChat = true;
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (Utils.getChatPage(friend) != null)
                 {
-                    // Prevent duplicates
+                    // Already open (overlay, pane or pushed) — also swallows double-clicks.
                     Logging.warn("Chat page for {0} already open.", friend.ToString());
                     return;
                 }
 
-                if (Navigation.NavigationStack.Count > 1)
+                // #225: conversations open as OVERLAYS — loaded + painted off-screen,
+                // then shown in place (wide window: pinned over the detail column,
+                // narrow: full-screen). tag "chat" makes a new conversation REPLACE
+                // the previous one only after it is visible → seamless switching,
+                // nothing detaches, nothing can flicker.
+                bool wide = rightContent.IsVisible;
+                pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1);
+                if (wide)
                 {
-                    popToRootAsync();
-                }
-
-                // TODO
-                /*if (IXICore.Platform.onWindows())
-                {
-                    Window secondWindow = new Window(new SingleChatPage(friend));
-                    secondWindow.Title = friend.nickname;
-                    Application.Current.OpenWindow(secondWindow);
-                }
-                else*/
-                {
-                    // Load-then-move (N1): keep the user on the chats list until the
-                    // conversation is loaded + revealed, then present it in one paint.
-                    pushPageLoaded(new SingleChatPage(friend));
+                    Utils.sendUiCommand(this, "selectChat", friend.walletAddress.ToString());
                 }
             });
         }
@@ -1536,11 +1509,49 @@ namespace SPIXI
                 {
                     ((SpixiContentPage)detailContent).updateScreen();
                 }
+
+                // #225: overlays are live surfaces outside the NavigationStack — tick
+                // the TOP one (parity with the old top-of-stack behaviour: the chat
+                // overlay gets its online-status/nick updates every second).
+                var topOverlay = SpixiContentPage.getTopOverlay();
+                if (topOverlay != null && topOverlay.pageLoaded)
+                {
+                    topOverlay.updateScreen();
+                }
             }
             catch (Exception ex)
             {
                 Logging.error("Exception occured in onUpdateUI: {0}", ex);
             }
+        }
+
+        // #225: overlays never fire OnAppearing on this host (it is never detached) —
+        // per-close refreshes live here instead.
+        public override void onOverlayClosed(SpixiContentPage overlay)
+        {
+            if (overlay is SettingsPage)
+            {
+                // Same refresh the (push-era) fromSettings branch below does.
+                Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
+                Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
+                UIHelpers.shouldRefreshContacts = true;
+                fromSettings = false;
+            }
+            else if (overlay is SingleChatPage)
+            {
+                fromChat = false;
+                checkForRating();
+            }
+        }
+
+        protected override bool OnBackButtonPressed()
+        {
+            // #225: hardware/host back closes the top overlay first.
+            if (SpixiContentPage.closeTopOverlay())
+            {
+                return true;
+            }
+            return base.OnBackButtonPressed();
         }
 
         protected override void OnAppearing()

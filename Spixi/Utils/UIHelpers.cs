@@ -34,6 +34,12 @@ namespace SPIXI
             {
                 ((SpixiContentPage)p).reload();
             }
+            // #225: overlay pages are live surfaces outside the NavigationStack
+            // (reload() regenerates the page, picking up the current theme/language).
+            foreach (SpixiContentPage overlay in SpixiContentPage.getOverlayPages())
+            {
+                overlay.reload();
+            }
         }
 
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)

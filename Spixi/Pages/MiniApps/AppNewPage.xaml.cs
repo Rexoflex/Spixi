@@ -110,7 +110,7 @@ namespace SPIXI
         {
             var scanPage = new ScanPage();
             scanPage.scanSucceeded += HandleScanSucceeded;
-            await Navigation.PushAsync(scanPage, Config.defaultXamarinAnimations);
+            await hostNav.PushAsync(scanPage, Config.defaultXamarinAnimations);   // #225: root nav
         }
 
         private void HandleScanSucceeded(object sender, SPIXI.EventArgs<string> e)
@@ -173,8 +173,9 @@ namespace SPIXI
                 MiniApp app = Node.MiniAppManager.extractAppInfo(filepath);
                 if (app != null)
                 {
-                    Navigation.PushAsync(new AppDetailsPage(app, filepath, true), Config.defaultXamarinAnimations);
-                    removePage(this);
+                    // #225: replaces=this — the machinery closes THIS page only after the
+                    // details screen is visible (no gap, no orphaned overlay stage).
+                    pushPageLoaded(new AppDetailsPage(app, filepath, true), replaces: this);
                 }
                 else
                 {
@@ -208,8 +209,8 @@ namespace SPIXI
 
             app.url = url;
             
-            Navigation.PushAsync(new AppDetailsPage(app, null, true), Config.defaultXamarinAnimations);
-            removePage(this);
+            // #225: replaces=this (see onSelectAppFile).
+            pushPageLoaded(new AppDetailsPage(app, null, true), replaces: this);
         }
 
         private void onBack()

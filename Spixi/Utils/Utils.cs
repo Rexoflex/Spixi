@@ -155,6 +155,16 @@ namespace SPIXI
                 }
             }
 
+            // #225: an OPEN conversation overlay is a live surface outside the
+            // NavigationStack — message routing must find it.
+            foreach (var overlay in SpixiContentPage.getOverlayPages())
+            {
+                if (overlay is SingleChatPage overlayChat && overlayChat.friend == friend)
+                {
+                    return overlayChat;
+                }
+            }
+
             // A conversation staging off-screen (load-then-move, DECISIONS #222) is not in
             // the NavigationStack yet, but its WebView is live and accepts UI pushes —
             // route messages to it so nothing arriving during the stage window is dropped.
@@ -175,6 +185,13 @@ namespace SPIXI
                 if (item is SingleChatPage)
                 {
                     chatPages.Add((SingleChatPage)item);
+                }
+            }
+            foreach (var overlay in SpixiContentPage.getOverlayPages())   // #225
+            {
+                if (overlay is SingleChatPage overlayChat && !chatPages.Contains(overlayChat))
+                {
+                    chatPages.Add(overlayChat);
                 }
             }
             if (SpixiContentPage.getStagingPage() is SingleChatPage stagingChat

@@ -273,9 +273,17 @@ namespace SPIXI
             // already claimed (e.g. by the timeout): the present path honours it and
             // drops the page instead of showing a dead screen (audit M1).
             public volatile bool abandoned = false;
-            // Round 2: non-push presentation (the desktop dual-pane swaps the loaded
-            // page into HomePage.rightContent instead of PushAsync).
-            public Action<PreloadOp>? customPresent = null;
+            // Round 3 (DECISIONS #225): overlay presentation. When true, present =
+            // make the staged view VISIBLE in the host's Grid (no PushAsync, no
+            // re-parent — nothing left that can repaint a WebView2 surface). tag
+            // lets a new overlay REPLACE a same-tag one after it is shown (chat
+            // switching); column pins the overlay to one grid column (desktop pane).
+            public bool overlayMode = false;
+            public string? tag = null;
+            public int column = -1;
+            // Chained navigation (AppNew → AppDetails): the page to close/remove only
+            // AFTER this one is visible — never a gap, never an orphaned overlay.
+            public SpixiContentPage? replaces = null;
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -296,6 +304,135 @@ namespace SPIXI
         private static readonly object preloadLock = new object();
         private static PreloadOp? activePreload = null;
         private static bool preloadPending = false;   // reserved between the tap and staging
+
+        /* ————— Overlay navigation (round 3, DECISIONS #225) ——————————————————
+         * WinUI repaints a WebView2's composition surface whenever the view is
+         * (re)attached to the tree — a pushed page presenting, a pop re-attaching
+         * the page below, a pane re-host — painting a transient blank frame even
+         * when the document inside is fully rendered. Push/pop navigation
+         * therefore flickers STRUCTURALLY. Fix: redesigned screens are not pushed
+         * at all. They load invisibly inside the HOST page's Grid (the round-1
+         * staging) and are then simply made VISIBLE — attached once, shown once —
+         * and on close they are removed + Disposed while the screen below was
+         * never detached. HomePage registers itself as the host; when the host is
+         * NOT the top of the native stack (a legacy page is pushed above it), the
+         * machinery falls back to the round-1 load-then-PushAsync presentation.
+         *
+         * SECURITY (SECURITY.md §1 / DECISIONS #221): each overlay keeps its OWN
+         * WebView, JS context and bridge — the native Grid hosts N isolated
+         * WebViews; nothing is merged into a shared document, coordination stays
+         * C#-only. This is the sanctioned #221 model, NOT the rejected #220
+         * single-host-WebView. Legacy/native flows (wallet money pages, scan,
+         * lock, mini-apps) keep their NavigationPage pushes — untouched. */
+
+        private static SpixiContentPage? overlayHost = null;
+        private static readonly List<PreloadOp> overlayStack = new List<PreloadOp>();
+
+        public static void setOverlayHost(SpixiContentPage host)
+        {
+            List<PreloadOp> stale;
+            lock (preloadLock)
+            {
+                stale = new List<PreloadOp>(overlayStack);
+                overlayStack.Clear();
+                overlayHost = host;
+            }
+            // A re-created host (HomePage singleton reset) orphans previous overlays —
+            // tear their WebViews down defensively.
+            foreach (PreloadOp op in stale)
+            {
+                try { op.target.Dispose(); } catch { }
+            }
+        }
+
+        public static SpixiContentPage? getTopOverlay()
+        {
+            lock (preloadLock)
+            {
+                return overlayStack.Count > 0 ? overlayStack[overlayStack.Count - 1].target : null;
+            }
+        }
+
+        // For Utils.getChatPage / reloadAllPages: overlay pages are live surfaces but
+        // are not in the NavigationStack.
+        public static List<SpixiContentPage> getOverlayPages()
+        {
+            lock (preloadLock)
+            {
+                List<SpixiContentPage> pages = new List<SpixiContentPage>();
+                foreach (PreloadOp op in overlayStack)
+                {
+                    pages.Add(op.target);
+                }
+                return pages;
+            }
+        }
+
+        // Hardware/host back: close the top overlay if one is open. Returns true when handled.
+        public static bool closeTopOverlay()
+        {
+            PreloadOp? top;
+            lock (preloadLock)
+            {
+                top = overlayStack.Count > 0 ? overlayStack[overlayStack.Count - 1] : null;
+            }
+            if (top == null)
+            {
+                return false;
+            }
+            closeOverlay(top);
+            return true;
+        }
+
+        private static void closeOverlay(PreloadOp op)
+        {
+            SpixiContentPage? host;
+            lock (preloadLock)
+            {
+                overlayStack.Remove(op);
+                host = overlayHost;
+            }
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    op.hostGrid.Children.Remove(op.stage);
+                    op.stage.Content = null;
+                    op.target.Content = op.targetContent;   // reattach for a clean Dispose
+                    op.target.Dispose();                    // tear the WebView down
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("Overlay close failed: " + ex);
+                }
+                try
+                {
+                    host?.onOverlayClosed(op.target);
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("onOverlayClosed failed: " + ex);
+                }
+            });
+        }
+
+        // Host hook: fired on the overlay HOST (HomePage) after an overlay closed —
+        // the host was never detached, so OnAppearing does not fire; per-close
+        // refreshes (Account exit, rating prompt) live here instead.
+        public virtual void onOverlayClosed(SpixiContentPage overlay)
+        {
+        }
+
+        // Native pushes (legacy wallet/scan/mini-app pages, modals) issued FROM an
+        // overlay page must ride the ROOT NavigationPage — an overlay page is not in
+        // the navigation tree, so its own Navigation proxy is detached.
+        protected INavigation hostNav
+        {
+            get
+            {
+                return (Application.Current?.MainPage as NavigationPage)?.Navigation ?? Navigation;
+            }
+        }
 
         // Pages whose content pops in AFTER ixian:onload (the conversation loads its
         // messages on a background task and reveals with a FadeTo) set this true in
@@ -331,23 +468,14 @@ namespace SPIXI
             }
         }
 
-        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000)
-        {
-            stagePage(target, timeoutMs, null);
-        }
-
-        // Dual-pane variant of pushPageLoaded (round 2, Damir F5: the desktop pane
-        // showed an empty themed pane for the whole conversation load — the "dark
-        // second"). Stages + loads identically, but instead of PushAsync the caller
-        // swaps the loaded page into its detail pane. present runs on the main thread
-        // with the page's Content already restored; it is NOT called when the stage
-        // was abandoned or dropped (the page is Dispose()d instead).
-        public void stagePageForPane(SpixiContentPage target, Action<SpixiContentPage> present, int timeoutMs = 4000)
-        {
-            stagePage(target, timeoutMs, op => present(op.target));
-        }
-
-        private void stagePage(SpixiContentPage target, int timeoutMs, Action<PreloadOp>? customPresent)
+        // Open a redesigned screen without flicker. Overlay mode (host = HomePage at
+        // the top of the native stack): the page loads invisibly and is then SHOWN in
+        // place — no push, no re-parent. Fallback (no host / a legacy page pushed
+        // above the host): round-1 load-then-PushAsync. tag = replace-group (opening
+        // a "chat" overlay closes the previous one AFTER the new one is visible —
+        // seamless conversation switching); column pins the overlay to a grid column
+        // (desktop: 1 = the detail pane; -1 = full span).
+        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null)
         {
             lock (preloadLock)
             {
@@ -364,7 +492,16 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Grid? hostGrid = this.Content as Grid;
+                // OVERLAY mode when a host is registered AND nothing legacy is pushed
+                // above it (else the overlay would render beneath the pushed page) —
+                // otherwise fall back to round-1 load-then-PushAsync from this page.
+                SpixiContentPage? oh;
+                lock (preloadLock) { oh = overlayHost; }
+                bool overlayMode = oh != null
+                    && (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() == oh;
+                SpixiContentPage hostPage = overlayMode ? oh! : this;
+
+                Grid? hostGrid = hostPage.Content as Grid;
                 View? targetContent = target.Content;
 
                 if (hostGrid == null || targetContent == null)
@@ -382,8 +519,11 @@ namespace SPIXI
                     CascadeInputTransparent = true,
                 };
 
-                PreloadOp op = new PreloadOp(this, target, stage, targetContent, hostGrid);
-                op.customPresent = customPresent;
+                PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
+                op.overlayMode = overlayMode;
+                op.tag = tag;
+                op.column = column;
+                op.replaces = replaces;
 
                 try
                 {
@@ -391,7 +531,12 @@ namespace SPIXI
                     // a real property change (Parent must come back to the page pre-push).
                     target.Content = null;
                     stage.Content = targetContent;
-                    if (hostGrid.ColumnDefinitions.Count > 1)
+                    if (column >= 0 && hostGrid.ColumnDefinitions.Count > column)
+                    {
+                        // Pinned overlay (desktop detail column); rows still span.
+                        Grid.SetColumn(stage, column);
+                    }
+                    else if (hostGrid.ColumnDefinitions.Count > 1)
                     {
                         Grid.SetColumnSpan(stage, hostGrid.ColumnDefinitions.Count);
                     }
@@ -452,38 +597,109 @@ namespace SPIXI
                     // the page becomes visible (queued EvaluateJavaScriptAsync work).
                     await Task.Delay(120);
 
-                    op.hostGrid.Children.Remove(op.stage);
-                    op.stage.Content = null;
-                    op.target.Content = op.targetContent;
-
                     if (op.abandoned)
                     {
                         // The staged page bailed out while the present was queued (the
                         // conversation's bot-not-ready path blocks the main thread past
                         // the timeout) — honour the bail: never show a dead page (M1).
+                        op.hostGrid.Children.Remove(op.stage);
+                        op.stage.Content = null;
+                        op.target.Content = op.targetContent;
                         op.target.Dispose();
                     }
-                    else if (op.customPresent != null)
+                    else if (op.overlayMode)
                     {
-                        // Dual-pane swap — the caller re-hosts the loaded Content and
-                        // disposes whatever it replaces (HomePage.removeDetailContent).
-                        op.customPresent(op);
-                    }
-                    else if (op.host.Navigation.NavigationStack.Contains(op.host))
-                    {
-                        op.target.presentedFromPreload = true;
-                        await op.host.Navigation.PushAsync(op.target, Config.defaultXamarinAnimations);
+                        // OVERLAY present (#225): the view is already attached + painted —
+                        // showing it is a property flip, nothing re-attaches, nothing can
+                        // repaint blank. Content stays hosted in the stage until close.
+                        op.stage.InputTransparent = false;
+                        op.stage.Opacity = 1;
+                        lock (preloadLock)
+                        {
+                            overlayStack.Add(op);
+                        }
 
-                        // Re-apply platform page chrome now the page is really attached:
-                        // iOS SafeAreaInsets() read ZERO while it loaded off-screen (M2).
-                        await Task.Delay(250);
-                        op.target.applyPlatformPageChrome();
+                        // Same-tag replacement (chat switching): close the previous
+                        // overlay of this tag only AFTER the new one is visible —
+                        // a seamless swap with no intermediate frame.
+                        if (op.tag != null)
+                        {
+                            List<PreloadOp> stale;
+                            lock (preloadLock)
+                            {
+                                stale = overlayStack.FindAll(o => o != op && o.tag == op.tag);
+                            }
+                            foreach (PreloadOp s in stale)
+                            {
+                                closeOverlay(s);
+                            }
+                        }
+
+                        // Chained navigation: close/remove the page this one replaces —
+                        // also only now that the replacement is visible (reviewer MAJOR:
+                        // the old removePage(this)-at-stage-time orphaned the caller's
+                        // overlay stage and left a dead frame under the new screen).
+                        if (op.replaces != null)
+                        {
+                            PreloadOp? replacedOverlay;
+                            lock (preloadLock)
+                            {
+                                replacedOverlay = overlayStack.Find(o => o.target == op.replaces);
+                            }
+                            if (replacedOverlay != null)
+                            {
+                                closeOverlay(replacedOverlay);
+                            }
+                            else
+                            {
+                                op.host.removePage(op.replaces);   // legacy pushed caller
+                            }
+                        }
+
+                        // Overlays never get OnAppearing — run the once-visible refresh
+                        // (app requests / call bar / per-page data) explicitly.
+                        try
+                        {
+                            UIHelpers.refreshAppRequests = true;
+                            op.target.updateScreen();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("Overlay updateScreen failed: " + ex);
+                        }
                     }
                     else
                     {
-                        // The user navigated away while the page was staging — drop it and
-                        // tear the hidden WebView down (never leave it alive off-screen).
-                        op.target.Dispose();
+                        // PUSH fallback (no overlay host / a legacy page pushed above it):
+                        // detach the stage, give the Content back to the page, and present
+                        // it the round-1 way.
+                        op.hostGrid.Children.Remove(op.stage);
+                        op.stage.Content = null;
+                        op.target.Content = op.targetContent;
+
+                        if (op.host.Navigation.NavigationStack.Contains(op.host))
+                        {
+                            op.target.presentedFromPreload = true;
+                            await op.host.Navigation.PushAsync(op.target, Config.defaultXamarinAnimations);
+
+                            // Chained navigation (legacy parity: push new, then remove the
+                            // caller from beneath it).
+                            if (op.replaces != null)
+                            {
+                                op.target.removePage(op.replaces);
+                            }
+
+                            // Re-apply platform page chrome now the page is really attached:
+                            // iOS SafeAreaInsets() read ZERO while it loaded off-screen (M2).
+                            await Task.Delay(250);
+                            op.target.applyPlatformPageChrome();
+                        }
+                        else
+                        {
+                            // The user navigated away while the page was staging — drop it
+                            // and tear the hidden WebView down.
+                            op.target.Dispose();
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -619,7 +835,10 @@ namespace SPIXI
                 {
                     try
                     {
-                        var result = await DisplayAlert(title, message, ok, cancel);
+                        // Route via the ROOT page: overlay pages (#225) are not in the
+                        // navigation tree, and DisplayAlert on an unattached page is lost.
+                        Page alertHost = (Application.Current?.MainPage) ?? (Page)this;
+                        var result = await alertHost.DisplayAlert(title, message, ok, cancel);
                         tcs.TrySetResult(result);
                     }
                     catch (Exception ex)
@@ -646,7 +865,9 @@ namespace SPIXI
                 {
                     try
                     {
-                        var result = DisplayAlert(title, message, cancel);
+                        // Route via the ROOT page (see 4-arg overload — overlay pages).
+                        Page alertHost = (Application.Current?.MainPage) ?? (Page)this;
+                        var result = alertHost.DisplayAlert(title, message, cancel);
                         tcs.TrySetResult(result);
                     }
                     catch (Exception ex)
@@ -743,7 +964,7 @@ namespace SPIXI
             MiniAppPage app_page = Node.MiniAppManager.acceptAppRequest(sender_address, b_session_id);
             if (app_page != null)
             {
-                Navigation.PushAsync(app_page, Config.defaultXamarinAnimations);
+                hostNav.PushAsync(app_page, Config.defaultXamarinAnimations);   // #225: works from overlay pages too
             }// TODO else error?
         }
 
@@ -842,6 +1063,19 @@ namespace SPIXI
 
         public void popPageAsync()
         {
+            // If THIS page is an OPEN OVERLAY (#225), "pop" = close the overlay; the
+            // screen below was never detached, so nothing repaints.
+            PreloadOp? overlayOp;
+            lock (preloadLock)
+            {
+                overlayOp = overlayStack.Find(o => o.target == this);
+            }
+            if (overlayOp != null)
+            {
+                closeOverlay(overlayOp);
+                return;
+            }
+
             // If THIS page is still staging off-screen (load-then-move) and bails out
             // (e.g. the conversation's bot-not-ready path), cancel the preload instead
             // of popping the page the user is actually looking at.
@@ -874,6 +1108,22 @@ namespace SPIXI
 
         public void popToRootAsync()
         {
+            // Overlay pages "pop to root" by closing every open overlay (#225) — the
+            // host (HomePage) is the root and was never covered by the native stack.
+            List<PreloadOp> overlays;
+            lock (preloadLock)
+            {
+                overlays = new List<PreloadOp>(overlayStack);
+            }
+            if (overlays.Find(o => o.target == this) != null)
+            {
+                for (int i = overlays.Count - 1; i >= 0; i--)
+                {
+                    closeOverlay(overlays[i]);
+                }
+                return;
+            }
+
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 var mainPage = (Application.Current.MainPage as NavigationPage);
@@ -904,11 +1154,35 @@ namespace SPIXI
 
         public void removePage(Page page)
         {
+            // #225: an OPEN OVERLAY is not in the navigation tree — removing it means
+            // closing the overlay (detaches its stage + disposes); Navigation.RemovePage
+            // on a detached page would no-op/throw and leave a dead frame in the grid.
+            if (page is SpixiContentPage overlayCandidate)
+            {
+                PreloadOp? overlayOp;
+                lock (preloadLock)
+                {
+                    overlayOp = overlayStack.Find(o => o.target == overlayCandidate);
+                }
+                if (overlayOp != null)
+                {
+                    closeOverlay(overlayOp);
+                    return;
+                }
+            }
+
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (page != null)
                 {
-                    Navigation.RemovePage(page);
+                    try
+                    {
+                        Navigation.RemovePage(page);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("removePage: " + ex);
+                    }
                     if (page is SpixiContentPage)
                     {
                         ((SpixiContentPage)page).Dispose();

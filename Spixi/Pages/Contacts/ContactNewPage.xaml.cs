@@ -130,7 +130,7 @@ namespace SPIXI
         {
             var scanPage = new ScanPage();
             scanPage.scanSucceeded += HandleScanSucceeded;
-            await Navigation.PushAsync(scanPage, Config.defaultXamarinAnimations);
+            await hostNav.PushAsync(scanPage, Config.defaultXamarinAnimations);   // #225: root nav
         }
 
         public void processQRResult(string result)

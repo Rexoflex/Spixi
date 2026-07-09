@@ -115,13 +115,13 @@ namespace SPIXI
             {
                 var lockPage = new LockPage(true);
                 lockPage.authSucceeded += onDeleteWallet;
-                Navigation.PushModalAsync(lockPage);
+                hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
             }
             else if (current_url.Equals("ixian:deletea", StringComparison.Ordinal))
             {
                 var lockPage = new LockPage(true);
                 lockPage.authSucceeded += onDeleteAccount;
-                Navigation.PushModalAsync(lockPage);
+                hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
             }
             else if (current_url.Equals("ixian:deleteh", StringComparison.Ordinal))
             {
@@ -179,7 +179,7 @@ namespace SPIXI
                     // Show authentication screen
                     var lockPage = new LockPage(true);
                     lockPage.authSucceeded += HandleAuthSucceeded;
-                    Navigation.PushModalAsync(lockPage);
+                    hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
                 }
             }
             else if (current_url.StartsWith("ixian:appearance:", StringComparison.Ordinal))
@@ -206,6 +206,15 @@ namespace SPIXI
                         if (home.getDetailContent() is SpixiContentPage detail)
                         {
                             Utils.sendUiCommand(detail, "setTheme", themeName);
+                        }
+                    }
+                    // #225: other live overlays (an open conversation under this Account
+                    // overlay) re-theme too; this page itself already applied the pick.
+                    foreach (SpixiContentPage overlay in getOverlayPages())
+                    {
+                        if (overlay != this)
+                        {
+                            Utils.sendUiCommand(overlay, "setTheme", themeName);
                         }
                     }
                 }
@@ -320,7 +329,7 @@ namespace SPIXI
                 popToRootAsync();
 
                 // Show the launch page
-                Navigation.PushAsync(new LaunchPage(), Config.defaultXamarinAnimations);
+                hostNav.PushAsync(new LaunchPage(), Config.defaultXamarinAnimations);   // #225: root nav
 
                 // Todo: also remove the parent page without causing memory leaks
             }

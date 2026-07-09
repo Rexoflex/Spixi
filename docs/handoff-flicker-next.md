@@ -4,6 +4,16 @@
 > decision row DECISIONS #222. Goal here: make the C# trivially reviewable — every change listed with
 > file:line, why it's safe, and what to test. FE changes are one mechanical pattern across shells.
 > Written 2026-07-09 (Fable build session). Round 1: audit loop CLEAN (#223), committed 9e574280.
+> **ROUND 3 (2026-07-10, DECISIONS #225): OVERLAY NAVIGATION — reviewer CLEAN.** Push/pop flickers
+> structurally on WinUI (WebView2 re-attach repaint), so redesigned screens now load hidden in HomePage's
+> grid and are SHOWN in place; close = remove+dispose, home never detaches. Conversations switch via tagged
+> overlay replacement. Wallet/scan/lock/mini-apps stay native pushes. §1 isolation intact (per-overlay
+> WebViews, #221 model). Also fixed: the on-close ArgumentException (min-size handler firing on teardown).
+> **F5 v3:** wide+narrow chat open/switch/back · Account open/theme/save/exit (lands on the SAME tab, zero
+> reload) · add-contact/add-app→fetch→details chain→back · backup/change-password · a wallet money flow from
+> chat and from Home (native pushes still work + return cleanly over overlays) · incoming call while a chat
+> is open · bot chat · Android back button when it reaches the Android pass. C#-only round — no script
+> reruns; VM: pull → Rebuild → run.
 > **ROUND 2 (same day, DECISIONS #224): Damir's F5 findings all fixed, reviewer CLEAN** — dual-pane
 > load-then-swap, Account auto-theme = C# truth, save/theme-change double-reload bugs killed, live setTheme
 > push, AppNew/Backup/EncPass wired. Remaining: commit+push → VM pull → rebuild → §4 F5 v2.

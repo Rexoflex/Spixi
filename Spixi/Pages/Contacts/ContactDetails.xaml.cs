@@ -71,11 +71,11 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:request", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);
+                hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav
             }
             else if (current_url.Equals("ixian:send", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);
+                hostNav.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);   // #225: root nav
             }
             else if (current_url.Equals("ixian:chat", StringComparison.Ordinal))
             {
@@ -87,7 +87,10 @@ namespace SPIXI
                 }
                 else
                 {
-                    pushPageLoaded(new SingleChatPage(friend));   // load-then-move (N1)
+                    // #225: close this details overlay, then open the conversation via
+                    // the host's onChat (tagged chat overlay, wide/narrow aware).
+                    popPageAsync();
+                    HomePage.Instance()?.onChat(friend.walletAddress, null);
                 }
             }
             else if (current_url.Contains("ixian:txdetails:"))
@@ -102,7 +105,7 @@ namespace SPIXI
                     return;
                 }
 
-                Navigation.PushAsync(new WalletSentPage(activity.transaction), Config.defaultXamarinAnimations);
+                hostNav.PushAsync(new WalletSentPage(activity.transaction), Config.defaultXamarinAnimations);   // #225: root nav
             }else if(current_url.Contains("ixian:userdefinednick:"))
             {
                 string[] split = current_url.Split(new string[] { "ixian:userdefinednick:" }, StringSplitOptions.None);

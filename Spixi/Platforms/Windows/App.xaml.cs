@@ -61,6 +61,21 @@ public partial class App : MauiWinUIApplication
 
             appWindow.Changed += (sender, args) =>
             {
+                // Only react to actual size changes, and never to the teardown-time
+                // events: while the window is CLOSING (or minimized) it reports an
+                // invalid/zero size, and Resize() then throws ArgumentException
+                // "The parameter is incorrect" — broke into the debugger on every
+                // app close (Damir). The resize-fighting approach itself should be
+                // replaced with OverlappedPresenter.PreferredMinimumWidth/Height at
+                // the window-sizing pass — see docs/font-size-audit.md §3.
+                if (!args.DidSizeChange)
+                {
+                    return;
+                }
+                if (appWindow.Size.Width <= 0 || appWindow.Size.Height <= 0)
+                {
+                    return;
+                }
                 if (appWindow.Size.Width < MinWidth || appWindow.Size.Height < MinHeight)
                 {
                     var newSize = new SizeInt32
@@ -68,7 +83,14 @@ public partial class App : MauiWinUIApplication
                         Width = Math.Max(appWindow.Size.Width, MinWidth),
                         Height = Math.Max(appWindow.Size.Height, MinHeight)
                     };
-                    appWindow.Resize(newSize);
+                    try
+                    {
+                        appWindow.Resize(newSize);
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Window is closing/being destroyed — nothing to enforce.
+                    }
                 }
             };
         });

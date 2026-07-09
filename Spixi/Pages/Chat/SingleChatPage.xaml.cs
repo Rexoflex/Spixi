@@ -1437,6 +1437,7 @@ namespace SPIXI
 
                 string app_id;
                 string app_install_url = "";
+                string app_image_url = "";      // C7(b): remote icon URL carried in the invite
                 string app_name = "";
                 string app_image = "img/app-noicon.jpg";
                 if (message.message.Contains("||"))
@@ -1445,6 +1446,7 @@ namespace SPIXI
                     app_id = app_id_data[0];
                     app_install_url = app_id_data.Length > 1 ? app_id_data[1] : "";
                     app_name = app_id_data.Length > 2 ? app_id_data[2] : "";
+                    app_image_url = app_id_data.Length > 3 ? app_id_data[3] : "";
                 }
                 else
                 {
@@ -1454,10 +1456,18 @@ namespace SPIXI
 
                 MiniApp app = am.getApp(app_id);
                 string app_state = "";
-                
+
                 if (app == null)
                 {
                     app_state = "Missing";
+                    // C7(b): we don't have the app locally, so use the remote icon URL the
+                    // invite carries (absolute http(s) only — excludes relative paths) for a
+                    // real tile instead of the no-icon placeholder. The shell renders it as
+                    // <img> with a rocket fallback on error.
+                    if (app_image_url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        app_image = app_image_url;
+                    }
                 }
                 else
                 {
@@ -1466,6 +1476,14 @@ namespace SPIXI
                     if (app_image == null)
                     {
                         app_image = "img/app-noicon.jpg";
+                    }
+                    // C7 follow-up: if a session for this app with this friend is already
+                    // active (the user joined and minimized back to the chat), report it so
+                    // the invite card shows the in-session (Resume) state instead of
+                    // re-offering Join/Decline after the user has already joined.
+                    if (am.getAppPage(friend.walletAddress, app_id) != null)
+                    {
+                        app_state = "Minimized";
                     }
                 }
 

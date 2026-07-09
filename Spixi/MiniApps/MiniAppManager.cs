@@ -405,7 +405,11 @@ namespace SPIXI.MiniApps
             MiniApp mini_app = getApp(app_id);
             if (mini_app != null)
             {
-                return $"{app_id}||{mini_app.url}||{mini_app.name}"; // TODO pack this information better
+                // C7(b): append the app image URL so the receiver can show a real icon for
+                // an app it doesn't have (mini_app.image is absolute for URL-installed apps).
+                // Trailing, ||-delimited, backward-compatible — old receivers ignore the extra
+                // segment; new receivers guard the index (SingleChatPage app_id_data.Length>3).
+                return $"{app_id}||{mini_app.url}||{mini_app.name}||{mini_app.image}"; // TODO pack this information better
             }
             return app_id;
         }

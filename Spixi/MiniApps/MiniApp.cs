@@ -145,6 +145,16 @@ namespace SPIXI.MiniApps
             // If an app url is provided, this app metadata is likely from a remote source
             if (app_url != null)
             {
+                // C7(b): remember the source URL so app invites can always carry an
+                // install URL (getAppInfo → "id||url||name"). The appinfo.spixi often
+                // omits a `url=` line; without this a fetched app loses its origin and
+                // the invite emits an empty URL → the receiver's "Get app" no-ops.
+                // An explicit `url=` line (parsed above) wins; only fill when empty.
+                if (url == "" && IxiUtils.IsValidUrl(app_url))
+                {
+                    url = app_url;
+                }
+
                 // Attempt to resolve relative URLs
                 if (!contentUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {

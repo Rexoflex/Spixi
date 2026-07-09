@@ -239,7 +239,7 @@ export function setPaymentStatus(row, patch = {}) {
 export function createAppBubble({
   name = '',
   iconUrl = null,
-  state = 'invite',        // invite (them→you) | invited (you→them) | missing | in-session | ended
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | in-session | ended
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
@@ -281,6 +281,7 @@ export function createAppBubble({
     invite: strings.invitedYou || 'Invited you to join',
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
+    declined: strings.declinedInvite || 'You declined this invite',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
   }[state] || ''; // audit r2: unknown state rendered "undefined"
@@ -304,12 +305,20 @@ export function createAppBubble({
       createButton({ label: strings.launchApp || 'Launch app', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onLaunch) }),
     ));
   } else if (state === 'missing') {
-    el.append(actionsRow(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) })));
+    // C7(a): Decline renders when the caller supplies onDecline (same gate as the
+    // 'invite' branch). C7(b): Get app renders ONLY when onGet is supplied — an invite
+    // with no install URL passes no onGet, so no dead "does nothing" button.
+    const missBtns = [];
+    if (onDecline) missBtns.push(createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }));
+    if (onGet) missBtns.push(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) }));
+    if (missBtns.length) el.append(actionsRow(...missBtns));
   } else if (state === 'in-session') {
-    el.append(actionsRow(
-      createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }),
-      createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }),
-    ));
+    // End session renders only when the caller supplies onEnd (the bridge has no
+    // end-session verb today, C7 follow-up) — no dead button; Resume takes the row.
+    const sessBtns = [];
+    if (onEnd) sessBtns.push(createButton({ label: strings.endSession || 'End session', type: 'outline', size: 32, onClick: oneShot(onEnd) }));
+    sessBtns.push(createButton({ label: strings.resume || 'Resume', type: 'fill', size: 32, icon: icon('player-play', { size: 16 }), onClick: reentryGuard(onResume) }));
+    el.append(actionsRow(...sessBtns));
   }
   return row;
 }

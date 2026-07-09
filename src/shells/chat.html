@@ -891,29 +891,53 @@
 
   /* app invite/session card (chat.js addAppRequest:1174). state derives from the
    * stable localSender + appStatus signals; actions reuse the EXISTING verbs
-   * (installApp / joinApp) so no new bridge command is needed. Decline-invite has
-   * no legacy verb → intentionally omitted in v1 (legacy had none either). */
+   * (installApp / joinApp). C7(a): Decline is a LOCAL action — the invite card flips
+   * to a terminal 'declined' state (persisted per peer, survives re-flush/re-open);
+   * the sender is NOT notified (be-cutover C7 decline-notify is future BE). Only on
+   * incoming invites (invite / missing states); own invites keep Cancel. */
   function buildAppRow(rec) {
+    const incoming = rec.direction === 'received';
+    const declined = incoming && declinedApps.has(String(rec.id));
+    // C7(b) privacy: a REMOTE (http) app icon auto-fetches from the publisher on render
+    // → reveals the receiver's IP before any install consent (#82). Gate it behind the
+    // media-autoload pref (privacy-first) so the same opt-out that suppresses remote chat
+    // media also suppresses the publisher icon → rocket fallback. Local icon paths
+    // (installed apps) are never remote, so never gated.
+    const rawIcon = rec.iconUrl || null;
+    const remoteIcon = !!rawIcon && /^https?:\/\//i.test(rawIcon);
+    const iconUrl = (remoteIcon && !mediaAutoloadOn()) ? null : rawIcon;
     return createAppBubble({
       name: rec.name || '',
-      iconUrl: rec.iconUrl || null,
-      state: rec.astate,
+      iconUrl: iconUrl,
+      state: declined ? 'declined' : rec.astate,
       direction: rec.direction,
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
-      onGet: () => bridge.send('ixian:installApp:' + encodeURIComponent(rec.appInstallURL || '')),
+      // C7(b): only offer Get app when the invite actually carries an install URL —
+      // otherwise installApp fires with an empty string and silently no-ops (C# fetch
+      // rejects it). No URL → no dead button (the user can still Decline).
+      onGet: rec.appInstallURL ? () => bridge.send('ixian:installApp:' + encodeURIComponent(rec.appInstallURL)) : undefined,
       onLaunch: () => bridge.send('ixian:joinApp:' + rec.appid),
       onJoin: () => bridge.send('ixian:joinApp:' + rec.appid),
+      // in-session (already joined) → Resume reopens the app; joinApp re-shows the
+      // minimized session. No End-session verb exists in the bridge → onEnd omitted
+      // (createAppBubble gates it, so no dead button).
+      onResume: () => bridge.send('ixian:joinApp:' + rec.appid),
+      // local decline → persist + repaint as 'declined'; not shown once already declined
+      onDecline: (incoming && !declined) ? () => declineApp(rec.id) : undefined,
     });
   }
 
   /* map the legacy addAppRequest flags → createAppBubble state.
-   *   own invite (localSender)     → 'invited' (Launch)
-   *   incoming, app not installed  → 'missing' (Get)
-   *   incoming, installed/minimized→ 'invite'  (Join) */
+   *   own invite (localSender)      → 'invited'    (Launch)
+   *   incoming, app not installed   → 'missing'    (Get)
+   *   incoming, session active      → 'in-session' (Resume) — C# 'Minimized' (xaml)
+   *   incoming, installed, no session→ 'invite'    (Join) */
   function appStateFrom(localSender, appStatus) {
     if (asBool(localSender)) return 'invited';
-    return appStatus === 'Missing' ? 'missing' : 'invite';
+    if (appStatus === 'Missing') return 'missing';
+    if (appStatus === 'Minimized') return 'in-session';   // joined already → Resume, not Join again
+    return 'invite';
   }
 
   /* payment card (chat.js addPaymentRequest / xaml.cs:1310,1361 · updates
@@ -1678,6 +1702,7 @@
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
+      loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       invalidateMentions();                // per-peer reset of the mention name list
@@ -2111,6 +2136,33 @@
     const k = loadedMediaKey();
     if (!k) return;
     try { localStorage.setItem(k, JSON.stringify([...loadedMedia])); } catch (_) {}
+  }
+
+  /* —— declined app-invite persistence (C7(a)). Declining an app invite is a LOCAL
+   * action (the sender is NOT notified — future BE, be-cutover C7). Instead of deleting
+   * the card (feels like it vanished), the invite stays and flips to a terminal
+   * "Declined" state. Remembered per peer so it survives a C# re-flush (loadMessages
+   * re-pushes the invite as 'invite'/'missing') and re-opening the chat. Same
+   * origin/pattern as myLikes — the user's own action metadata, SECURITY.md-OK. */
+  let declinedApps = new Set();
+  const DECLINED_APP_PREFIX = 'spixi.app.declined.';
+  function declinedAppKey() { return identity.address ? DECLINED_APP_PREFIX + identity.address : ''; }
+  function loadDeclinedApps() {
+    declinedApps = new Set();                    // reset for THIS peer (desktop peer-switch safe)
+    const k = declinedAppKey();
+    if (!k) return;
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]');
+      if (Array.isArray(arr)) arr.forEach((id) => declinedApps.add(String(id)));
+    } catch (_) {}
+  }
+  function declineApp(id) {
+    id = String(id);
+    if (declinedApps.has(id)) return;
+    declinedApps.add(id);
+    const k = declinedAppKey();
+    if (k) { try { localStorage.setItem(k, JSON.stringify([...declinedApps])); } catch (_) {} }
+    renderLog();                                 // repaint the card as 'declined'
   }
 
   /* —— @ jump-to-mention seen-state persistence (Telegram-style catch-up, Damir

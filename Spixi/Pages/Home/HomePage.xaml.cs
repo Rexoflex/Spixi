@@ -673,7 +673,7 @@ namespace SPIXI
 
             Utils.sendUiCommand(this, "selectTab", currentTab);
 
-            Utils.sendUiCommand(this, "loadAvatar", IxianHandler.localStorage.getOwnAvatarPath());
+            Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
 
             Utils.sendUiCommand(this, "setVersion", Config.version + " BETA (" + Node.startCounter + ")");
 
@@ -863,6 +863,7 @@ namespace SPIXI
                             avatar = "img/spixi-group-avatar.png";
                         }
                     }
+                    avatar = Utils.imageToDataUri(avatar);   // X1
 
                     Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString());
                 }
@@ -1033,6 +1034,7 @@ namespace SPIXI
                     avatar = "img/spixi-group-avatar.png";
                 }
             }
+            avatar = Utils.imageToDataUri(avatar);   // X1 (feeds both addChat pushes via the helper)
 
             string type = "";
 
@@ -1448,7 +1450,7 @@ namespace SPIXI
                 // Check if we should reload certain elements
                 if (Node.changedSettings == true)
                 {
-                    Utils.sendUiCommand(this, "loadAvatar", IxianHandler.localStorage.getOwnAvatarPath());
+                    Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
                     Node.changedSettings = false;
                 }
 
@@ -1649,6 +1651,7 @@ namespace SPIXI
                     {
                         icon = "";
                     }
+                    icon = Utils.imageToDataUri(icon);   // X1
                     Utils.sendUiCommand(this, "addApp", app.id, app.name, icon, app.publisher, app.hasCapability(MiniAppCapabilities.SingleUser).ToString(), app.hasCapability(MiniAppCapabilities.MultiUser).ToString());
                 }
             }

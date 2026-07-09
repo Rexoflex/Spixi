@@ -3,7 +3,9 @@ using IXICore.Meta;
 using IXICore.Streaming;
 using Spixi;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -39,6 +41,43 @@ namespace SPIXI
         public static string escapeHtmlParameter(byte[] str)
         {
             return Convert.ToBase64String(str);
+        }
+
+        // X1: convert a local avatar / app-icon FILE PATH into a data:image/...;base64 URI so
+        // every platform's WebView renders it uniformly. iOS/WKWebView blocks a raw file:// path
+        // from the Raw-assets html origin (the avatar dir differs from the html dir), so a pushed
+        // PATH shows nothing there; a data-URI is origin-independent and works everywhere.
+        // Passes through UNCHANGED anything that is NOT a readable local file — null/empty,
+        // WebView-relative sentinels ("img/..."), http(s) URLs, or a missing path — which the
+        // redesigned shells already degrade to the deterministic gradient / rocket. Cached by
+        // (path, last-write-time) so repeated pushes (chat list, group rosters) don't re-read+encode.
+        private static readonly ConcurrentDictionary<string, (DateTime mtime, string uri)> imageUriCache = new();
+
+        public static string imageToDataUri(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return path;   // remote URL — leave as-is
+            if (path.StartsWith("img/", StringComparison.OrdinalIgnoreCase)) return path;   // WebView asset sentinel
+
+            try
+            {
+                if (!File.Exists(path)) return path;                       // not a local file → shell degrades to gradient
+                DateTime mtime = File.GetLastWriteTimeUtc(path);
+                if (imageUriCache.TryGetValue(path, out var cached) && cached.mtime == mtime)
+                {
+                    return cached.uri;
+                }
+                string mime = path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg"
+                    : path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ? "image/gif"
+                    : "image/png";
+                string uri = "data:" + mime + ";base64," + Convert.ToBase64String(File.ReadAllBytes(path));
+                imageUriCache[path] = (mtime, uri);
+                return uri;
+            }
+            catch
+            {
+                return path;   // IO/permission failure → fall back to the raw path (shell gradient-fallbacks)
+            }
         }
 
         public static string amountToHumanFormatString(IxiNumber amount)

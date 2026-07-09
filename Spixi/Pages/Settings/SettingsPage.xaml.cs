@@ -78,7 +78,7 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "showRemoveAvatar", "1");
             }
 
-            Utils.sendUiCommand(this, "loadAvatar", filePath);
+            Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(filePath));   // X1
 
         }
 
@@ -386,7 +386,7 @@ namespace SPIXI
                 return;
             }
 
-            Utils.sendUiCommand(this, "loadAvatar", file_path);
+            Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(file_path));   // X1
             Node.changedSettings = true;
         }
 
@@ -424,7 +424,7 @@ namespace SPIXI
             if (IxianHandler.localStorage.deleteOwnAvatar())
             {
                 Utils.sendUiCommand(this, "showRemoveAvatar", "0");
-                Utils.sendUiCommand(this, "loadAvatar", IxianHandler.localStorage.getOwnAvatarPath());
+                Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
                 Node.changedSettings = true;
             }
         }

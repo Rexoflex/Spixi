@@ -120,7 +120,7 @@ namespace SPIXI
                 return;
             }
 
-            Utils.sendUiCommand(this, "loadAvatar", file_path);
+            Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(file_path));   // X1
         }
 
         public void onCreateAccount(string nick, string pass)

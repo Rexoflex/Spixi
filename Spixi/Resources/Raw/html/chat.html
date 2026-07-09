@@ -4334,6 +4334,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   @keyframes chat-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: none; } }
+  /* avatar flash guard: keep the topbar avatar invisible (slot reserved) until the
+     identity lands, so the boot gradient never flashes before the real avatar. */
+  .c-topbar.is-avatar-pending .c-avatar { visibility: hidden; }
   /* attach → App-invite picker (inside a c-sheet) */
   .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
   .chat-app-picker__item {
@@ -21758,6 +21761,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         nameEl.append(chev);
       }
     }
+    // Avatar flash guard (Damir F5): the synchronous first paint runs BEFORE C# pushes
+    // onChatScreenReady/setAvatar, so identity has no address yet and createAvatar would
+    // paint a default gradient that then swaps to the real avatar. Hide the avatar until
+    // the identity lands (address known) — the slot reserves space, then the real avatar
+    // (or the correct address-gradient) appears once, with no wrong-colour flash.
+    if (!identity.address) tb.classList.add('is-avatar-pending');
     topbarHost.append(tb);
     // channel row-select coalesces a topbar rebuild; land focus on the NEW title
     // (the old trigger is detached by textContent='' above → would drop to body).
@@ -22946,6 +22955,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       renderTopbar();
     },
 
+    // X1 follow-up: C# pushes the peer's (or group's) avatar on chat load so the TOPBAR
+    // shows it with no messages yet (new contact) and for groups. Authoritative over the
+    // message-scavenged fallback (addThem). resolveAvatar maps a sentinel → null → gradient.
+    setAvatar(avatar) {
+      identity.avatar = resolveAvatar(avatar);
+      renderTopbar();
+    },
+
     // setOnlineStatus receives a fully-localised string from C# (chat-online /
     // chat-offline / member count / waiting-for-response) — render it verbatim
     // as the presence sub-line. We flag the avatar dot online only for the
@@ -22996,8 +23013,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const av = resolveAvatar(avatar);
       upsertText(id, text, 'received', toMs(time), {},
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av });
-      // 1:1 topbar: C# never pushes a peer avatar for the header (only setNickname/
-      // setOnlineStatus, xaml:1694/1705) — capture it from the peer's message.
+      // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
+      // scavenge it from the peer's first message (1:1/bot only — groups get the group
+      // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
       if (av && !mode.isMulti && !identity.avatar) { identity.avatar = av; renderTopbar(); }
     },
 
@@ -23048,6 +23066,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // avatar hue is identity-stable even before setNickname lands.
     onChatScreenReady(address) {
       identity.address = address || '';
+      identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
       if (!identity.name) renderTopbar();
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)

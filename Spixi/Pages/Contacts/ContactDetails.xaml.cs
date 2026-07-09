@@ -191,6 +191,7 @@ namespace SPIXI
             {
                 avatar = "";
             }
+            avatar = Utils.imageToDataUri(avatar);   // X1
 
             Utils.sendUiCommand(this, "setAvatar", avatar);
 

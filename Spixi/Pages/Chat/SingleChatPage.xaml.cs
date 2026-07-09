@@ -460,6 +460,7 @@ namespace SPIXI
                 {
                     avatar = "img/spixiavatar.png";
                 }
+                avatar = Utils.imageToDataUri(avatar);   // X1
                 int role = contact.Value.getPrimaryRole();
                 string nick = resolveNick(contact.Value.getNick(), contactAddress);
                 if (friend.type == FriendType.Group
@@ -483,6 +484,17 @@ namespace SPIXI
         private void onLoad()
         {
             Utils.sendUiCommand(this, "onChatScreenReady", friend.walletAddress.ToString());
+
+            // X1 follow-up: push the peer's (or group's) avatar so the chat TOPBAR shows it
+            // even before any message arrives (a newly-accepted contact) and for groups — the
+            // shell otherwise scavenges the header avatar from the first 1:1 message only.
+            // Converted to a data-URI like every other avatar push; a sentinel → gradient FE-side.
+            string? chat_avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
+            if (chat_avatar == null)
+            {
+                chat_avatar = friend.type == FriendType.Group ? "img/spixi-group-avatar.png" : "img/spixiavatar.png";
+            }
+            Utils.sendUiCommand(this, "setAvatar", Utils.imageToDataUri(chat_avatar));
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
@@ -1112,6 +1124,7 @@ namespace SPIXI
                         {
                             icon = "";
                         }
+                        icon = Utils.imageToDataUri(icon);   // X1
                         Utils.sendUiCommand(this, "addApp", app.id, app.name, icon, app.publisher);
                     }
                     catch (Exception e)
@@ -1269,6 +1282,11 @@ namespace SPIXI
                     avatar = "img/spixiavatar.png";
                 }
             }
+
+            // X1: convert the (possibly local) avatar path to a data-URI ONCE here — covers
+            // every avatar push below (message/payment/file/app rows). "" (own messages) and
+            // "img/..." sentinels pass through unchanged.
+            avatar = Utils.imageToDataUri(avatar);
 
             if (message.type == FriendMessageType.requestFunds)
             {
@@ -1486,6 +1504,9 @@ namespace SPIXI
                         app_state = "Minimized";
                     }
                 }
+
+                // X1: local app-icon path → data-URI (http remote-icon URL + "img/" sentinel pass through).
+                app_image = Utils.imageToDataUri(app_image);
 
 
                 if (message.localSender)

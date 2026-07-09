@@ -99,10 +99,21 @@ FEED (apps-feed.js) stays parked. Net = NO functional change (an interim banner-
 `home.html` keeps `discover:false` = "no in-app feed" + `onExplore→ixian:spixiAppsLink`). #46 CLEAN.
 Commit A1 (+ the A2 comment/no-op) together.
 
+## Just landed & pending Damir commit (DECISIONS #217)
+**X1 — avatar/app-icon data-URI push (DONE, #46 CLEAN, C#-ONLY, NO bundle/shell rebuild).** New
+`Utils.imageToDataUri(path)` (local file → `data:image/…;base64`, mtime cache, passes through
+null/http/`img/`-sentinels/missing) wrapped at every redesigned-shell avatar/icon push
+(SingleChatPage/HomePage/ContactDetails/SettingsPage/LaunchCreatePage/AppDetailsPage). Legacy
+wallet-native + AppsPage excluded (do at their repoint). WinUI shows no visible change; the win is
+iOS/WKWebView (verify at the iOS pass). Build `net10.0-windows` + F5 (avatars/icons still render).
+
 ## Next work-order (pick the top 🟢 row, one at a time)
 `docs/fable-be-workorder.md` order, minus what's done:
-1. **X1** (avatar/app-icon **data-URI push** — Damir chose Option A; FE is ready, degrade-to-gradient
-   wired — a clean C# encode-at-each-push-site row + a shared `Utils.imageToDataUri(path)` helper).
+1. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + accept/decline/
+   handshake verbs · delete/mark-read persistence + history/media wipe · pin/mute/favorites). Bigger;
+   new verbs. CH4 likely Ixian-Core metadata → flag. CH3 also covers the in-chat delete-persistence
+   gap from the C7 F5. **CH2 is the highest-value** (the contact-request UI is built but UNFED).
+2. **S14** + the §9 settings family (save-without-pop verb, notif/privacy reachability).
 2. **CH2 / CH3 / CH4** — chats-list persistence cluster (contact-request feed + verbs · delete/
    mark-read persistence + history/media wipe · pin/mute/favorites). Bigger; new verbs. CH4 likely
    Ixian-Core metadata → flag. (CH3 also covers the in-chat delete-persistence gap from the C7 F5.)

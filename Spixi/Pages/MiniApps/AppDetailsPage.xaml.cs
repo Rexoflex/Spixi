@@ -150,6 +150,7 @@ namespace SPIXI
             {
                 icon = "";
             }
+            icon = Utils.imageToDataUri(icon);   // X1 (local icon path → data-URI; http remote-icon URL passes through)
 
             var app_list = Node.MiniAppManager.getInstalledApps();
             bool app_installed = app_list.ContainsKey(appId);

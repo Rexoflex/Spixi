@@ -3836,11 +3836,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
-  /* Explore banner is VISIBLE (fix #7) → opens apps.spixi.io in the external browser
-     via ixian:spixiAppsLink (HomePage:278, Browser.OpenAsync — does NOT navigate this
-     WebView away). No CSS hide anymore. The per-row ⋮ menu is now ON (A1): the
-     component builds it only when onMenu is passed, and the apps tab passes
-     appMenu:true → "App details" + "Uninstall" (list-scoped uninstall verb now exists). */
+  /* Explore banner is VISIBLE (A2, Damir 2026-07-09) → LINKS OUT to the Spixi mini-apps
+     website in the external browser (ixian:spixiAppsLink, HomePage:278 Browser.OpenAsync
+     — does NOT navigate this WebView away). An outbound web link is compliant; only an
+     IN-APP browsable app catalog (the Discover feed) is app-store-like → that stays parked.
+     The per-row ⋮ menu is now ON (A1): the component builds it only when onMenu is passed,
+     and the apps tab passes appMenu:true → "App details" + "Uninstall". */
   /* placeholder view (apps/account WIP) */
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
@@ -9855,7 +9856,10 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
   row.append(toggle);
   el.append(row);
 
-  /* explore / discover banner (parked until the feed lands, §2.4) */
+  /* explore banner — a LINK OUT to the Spixi mini-apps WEBSITE (opens in the external
+   * browser via onExplore, legacy parity). This is an outbound web link, NOT an in-app
+   * app catalog, so it's fine to show; the app-store-like IN-APP Discover FEED
+   * (apps-feed.js / the standalone shell's browsable catalog) stays parked (A2). */
   const banner = document.createElement('button');
   banner.type = 'button';
   banner.className = 'c-apps-explore';
@@ -21688,10 +21692,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const appsList = createAppsList(appsState, appsOpts);
 
   // Header = search (client-side) + list⇄grid toggle (in-memory) + the Explore banner.
-  // Explore → apps.spixi.io in the EXTERNAL browser (ixian:spixiAppsLink, HomePage:278
-  // → Browser.OpenAsync). It does NOT navigate this WebView away, so the shell stays
-  // intact. (Phase 1: a direct web link; an in-app Discover feed is the standalone
-  // apps-shell repoint — be-cutover A2.)
+  // A2 (Damir 2026-07-09): the banner STAYS (legacy parity) and LINKS OUT to the Spixi
+  // mini-apps website (ixian:spixiAppsLink → HomePage:278 Browser.OpenAsync, external
+  // browser — does NOT navigate this WebView away). An outbound web link is fine; the
+  // app-store-like part to avoid is an IN-APP browsable catalog (the Discover feed),
+  // which stays parked. `discover:false` here only means "no in-app feed", not "no banner".
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),

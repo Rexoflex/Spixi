@@ -127,7 +127,9 @@ namespace SPIXI
             // WebView2 paints its DefaultBackgroundColor (WHITE out of the box) until the
             // document's first paint — the white flash on every push in dark mode. Match
             // it to this page's themed surface so the pre-paint frame is invisible.
-            mauiWebView.DefaultBackgroundColor = pageSurfaceColor.ToPlatform();
+            // ToWindowsColor, NOT ToPlatform: on WinUI ToPlatform(Color) yields a Brush,
+            // but WebView2.DefaultBackgroundColor takes a Windows.UI.Color (CS0029).
+            mauiWebView.DefaultBackgroundColor = pageSurfaceColor.ToWindowsColor();
             CoreWebView2 coreWebView2 = mauiWebView.CoreWebView2;
             if (coreWebView2 == null) return;
             coreWebView2.Settings.IsStatusBarEnabled = false;

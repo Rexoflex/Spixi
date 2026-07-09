@@ -3,6 +3,8 @@
 > Work order. Read this + `docs/native-feel-punch-list.md` §A + `docs/be-cutover-brief.md` [N1]/[N3] before starting.
 > Also read FIRST: `CLAUDE.md` ground rules (esp. the two ★ rules), `SECURITY.md` §1, `docs/security-review-for-be-engineer.md` §3.
 > Prepared 2026-07-09 (Opus) for Damir.
+> **STATUS: IMPLEMENTED 2026-07-09 (Fable) — see DECISIONS #222** (load-then-present + theme-aware surface +
+> Account fix + C#-injected boot theme). Awaiting Damir's both-themes F5 + commit.
 
 ## Context (1 paragraph)
 Spixi is a decentralized MAUI messenger. The UI is a redesigned WebView frontend (vanilla-JS shells in `src/shells/`, built to `Spixi/Resources/Raw/html`) talking to C# over a FROZEN `ixian:` bridge. The chat CONVERSATION is its OWN isolated WebView; the home shell (chat list + wallet + apps) and settings are separate WebViews. This isolation is the #1 security invariant (SECURITY.md §1) — do not weaken it.

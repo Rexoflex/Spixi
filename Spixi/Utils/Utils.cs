@@ -155,6 +155,15 @@ namespace SPIXI
                 }
             }
 
+            // A conversation staging off-screen (load-then-move, DECISIONS #222) is not in
+            // the NavigationStack yet, but its WebView is live and accepts UI pushes —
+            // route messages to it so nothing arriving during the stage window is dropped.
+            if (SpixiContentPage.getStagingPage() is SingleChatPage stagingChat
+                && stagingChat.friend == friend)
+            {
+                return stagingChat;
+            }
+
             return null;
         }
 
@@ -167,6 +176,11 @@ namespace SPIXI
                 {
                     chatPages.Add((SingleChatPage)item);
                 }
+            }
+            if (SpixiContentPage.getStagingPage() is SingleChatPage stagingChat
+                && !chatPages.Contains(stagingChat))
+            {
+                chatPages.Add(stagingChat);
             }
             return chatPages;
         }

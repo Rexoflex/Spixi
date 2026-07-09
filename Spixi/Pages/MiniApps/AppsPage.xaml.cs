@@ -88,7 +88,7 @@ namespace SPIXI
 
         private void onDetails(string app_id)
         {
-            Navigation.PushAsync(new AppDetailsPage(app_id), Config.defaultXamarinAnimations);
+            pushPageLoaded(new AppDetailsPage(app_id));   // load-then-move (N3)
         }
 
         private void loadApps()

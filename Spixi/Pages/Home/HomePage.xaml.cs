@@ -218,7 +218,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:newcontact", StringComparison.Ordinal))
             {
-                Navigation.PushAsync(new ContactNewPage(), Config.defaultXamarinAnimations);
+                pushPageLoaded(new ContactNewPage());   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:newapp", StringComparison.Ordinal))
             {
@@ -285,7 +285,7 @@ namespace SPIXI
                     return;
                 }
 
-                Navigation.PushAsync(new ContactDetails(friend), Config.defaultXamarinAnimations);
+                pushPageLoaded(new ContactDetails(friend));   // load-then-move (N3)
             }
             else if (current_url.Contains("ixian:txdetails:"))
             {
@@ -488,7 +488,7 @@ namespace SPIXI
 
         public void onContactDetails(Friend friend)
         {
-            Navigation.PushAsync(new ContactDetails(friend, true), Config.defaultXamarinAnimations);
+            pushPageLoaded(new ContactDetails(friend, true));   // load-then-move (N3)
         }
 
         public void onConfirmPaymentRequest(FriendMessage msg, Friend friend, string amount, string date_text)
@@ -723,7 +723,10 @@ namespace SPIXI
         public void onSettings(object sender, EventArgs e)
         {
             fromSettings = true;
-            Navigation.PushAsync(new SettingsPage());
+            // Load-then-move (N3) — also fixes the Account slide-in: this was the ONLY
+            // push missing Config.defaultXamarinAnimations (so it animated); the helper
+            // presents with that flag like every other push.
+            pushPageLoaded(new SettingsPage());
         }
 
         public async void onTransaction(byte[] txid, WebNavigatingEventArgs e)
@@ -747,7 +750,7 @@ namespace SPIXI
                 }
                 removeDetailContent(false);
                 detailContent = new WalletSentPage(activity.transaction, true, this);
-                rightContent.Content.BackgroundColor = ThemeManager.getBackgroundColor();
+                rightContent.Content.BackgroundColor = ThemeManager.getSurfaceColor();   // theme-aware (N1)
 
                 rightContent.Content.Opacity = 0;
                 rightContent.Content = detailContent.Content;
@@ -793,7 +796,7 @@ namespace SPIXI
                 }
                 removeDetailContent(false);
                 detailContent = new SingleChatPage(friend, this);
-                rightContent.Content.BackgroundColor = ThemeManager.getBackgroundColor();
+                rightContent.Content.BackgroundColor = ThemeManager.getSurfaceColor();   // theme-aware (N1)
 
                 rightContent.Content.Opacity = 0;
                 rightContent.Content = detailContent.Content;
@@ -811,9 +814,8 @@ namespace SPIXI
             }
 
             fromChat = true;
-            bool animated = ev != null && Config.defaultXamarinAnimations;
 
-            MainThread.BeginInvokeOnMainThread(async () =>
+            MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (Utils.getChatPage(friend) != null)
                 {
@@ -836,7 +838,9 @@ namespace SPIXI
                 }
                 else*/
                 {
-                    await Navigation.PushAsync(new SingleChatPage(friend), animated);
+                    // Load-then-move (N1): keep the user on the chats list until the
+                    // conversation is loaded + revealed, then present it in one paint.
+                    pushPageLoaded(new SingleChatPage(friend));
                 }
             });
         }
@@ -1790,13 +1794,13 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Navigation.PushAsync(new AppDetailsPage(app, null, true, friendOrGroup), Config.defaultXamarinAnimations);
+                pushPageLoaded(new AppDetailsPage(app, null, true, friendOrGroup));   // load-then-move (N3)
             });
         }
 
         private void onAppDetails(string appId)
         {
-            Navigation.PushAsync(new AppDetailsPage(appId), Config.defaultXamarinAnimations);
+            pushPageLoaded(new AppDetailsPage(appId));   // load-then-move (N3)
         }
 
         private void onAcceptRequest(string address)

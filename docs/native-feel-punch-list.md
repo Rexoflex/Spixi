@@ -8,6 +8,13 @@
 
 ## A. Flicker — the NATIVE causes (safe C#; none touch the risky parts)
 
+> **STATUS 2026-07-09 (Fable build session): A1+A2+A3 IMPLEMENTED — DECISIONS #222.** Load-then-present
+> (`SpixiContentPage.pushPageLoaded`) wired at all 5 screens; theme-aware surface (`ThemeManager.getSurfaceColor`,
+> WinUI `DefaultBackgroundColor`); Account slide fixed via the helper; PLUS the root-cause kill: C#-substituted
+> boot theme (`*SL{SpixiThemeName}`) in every shell head script (the light-mode dark flash came from the legacy
+> launch-blue `getBackgroundColor()` behind the chat WebView + OS-scheme boot fallback). Pending: Damir F5 both
+> themes → commit.
+
 The frontend already killed the WebView-internal flicker (theme flip via a head-top `data-theme` script; blank gap via an instant themed background + boot spinner, #190/#191). What remains is native. **Decided approach (Damir 2026-07-09): "load then move" — keep the user on the CURRENT screen until the incoming screen's WebView has loaded (signals `ixian:onload`), then present it.** Theme-agnostic — no blank / half-booted / wrong-theme frame is ever shown. A theme-matched background is the cheaper complement for screens where full preload is too costly.
 
 ### Affected screens (all pushed pages → same native cause)

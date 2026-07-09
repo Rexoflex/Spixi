@@ -52,7 +52,15 @@ namespace SPIXI
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
             webView.Opacity = 0;
-            Content.BackgroundColor = ThemeManager.getBackgroundColor();
+            // Theme-aware surface (N1): the old getBackgroundColor() here was the LEGACY
+            // launch-blue — #223766 even in LIGHT mode — which was exactly the reported
+            // "dark flash in light mode" behind the opacity-0 WebView. The themed surface
+            // is now applied for every page by loadPage() (base class).
+
+            // Load-then-move: the conversation reveals its WebView only after messages
+            // are loaded + painted (FadeTo in onLoad's finally) — present the preloaded
+            // page at THAT point, not at ixian:onload (signalPreloadReady() below).
+            deferPreloadReady = true;
 
             friend = fr;
             Title = friend.nickname;
@@ -73,6 +81,15 @@ namespace SPIXI
         protected override void OnAppearing()
         {
             base.OnAppearing();
+            if (presentedFromPreload)
+            {
+                // First appearance after a load-then-move present: the staged load
+                // already ran loadApps/loadMessages — re-rendering now would flash
+                // the just-painted log. Subsequent appearances (returning from a
+                // pushed page) reload as before.
+                presentedFromPreload = false;
+                return;
+            }
             reloadScreen();
         }
 
@@ -366,7 +383,7 @@ namespace SPIXI
                 return;
             }
 
-            Navigation.PushAsync(new ContactDetails(friend, true), Config.defaultXamarinAnimations);
+            pushPageLoaded(new ContactDetails(friend, true));   // load-then-move (N3)
         }
 
         private void onSendIxi()
@@ -530,7 +547,21 @@ namespace SPIXI
                     if (sleep_cnt >= 50)
                     {
                         popPageAsync();
-                        DisplayAlert(SpixiLocalization._SL("chat-bot-not-ready-title"), SpixiLocalization._SL("chat-bot-not-ready-body"), SpixiLocalization._SL("global-dialog-ok"));
+                        // Show the alert on the page the user is actually LOOKING at: under
+                        // load-then-move this page may never have been presented (staged
+                        // off-screen and just cancelled by popPageAsync above), and an
+                        // alert on an unattached page is silently lost (audit M1).
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            try
+                            {
+                                Microsoft.Maui.Controls.Application.Current?.MainPage?.DisplayAlert(SpixiLocalization._SL("chat-bot-not-ready-title"), SpixiLocalization._SL("chat-bot-not-ready-body"), SpixiLocalization._SL("global-dialog-ok"));
+                            }
+                            catch (Exception ex)
+                            {
+                                Logging.warn("Exception showing bot-not-ready alert: " + ex);
+                            }
+                        });
                         return;
                     }
                     Thread.Sleep(100);
@@ -622,6 +653,14 @@ namespace SPIXI
                         catch (Exception ex)
                         {
                             Logging.warn("Exception revealing chat webView: " + ex);
+                        }
+                        finally
+                        {
+                            // Load-then-move (deferPreloadReady): the conversation is now
+                            // loaded + revealed — if this page was preloaded off-screen,
+                            // present it to the user at this exact point. No-op when the
+                            // page was pushed normally (no active preload for it).
+                            signalPreloadReady();
                         }
                     });
                 }
@@ -941,7 +980,7 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                Navigation.PushAsync(new AppDetailsPage(app, null, true, friend), Config.defaultXamarinAnimations);
+                pushPageLoaded(new AppDetailsPage(app, null, true, friend));   // load-then-move (N3)
             });
         }
 

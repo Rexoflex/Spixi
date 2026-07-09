@@ -76,5 +76,25 @@ namespace SPIXI
             return Color.FromArgb(getBackgroundColorString());
         }
 
+        // Redesigned-shell SCREEN SURFACE (N1/N3 flicker fix). MUST match the shells'
+        // instant-bg (src/shells/*: html{background:#f9fafb} / [data-theme=dark]{#13171b},
+        // mirroring --surface-screen = neutral-10 / neutral-900) so the native frame shown
+        // before the WebView paints is indistinguishable from the shell that follows.
+        // THEME-AWARE by requirement: a hardcoded dark value breaks light mode (the
+        // reported light-mode dark flash). getBackgroundColor() above keeps the LEGACY
+        // launch-blue values for the remaining legacy call sites (WalletSentPage,
+        // Android edge-to-edge); do not repoint those here.
+        public static string getSurfaceColorString()
+        {
+            if (getActiveAppearanceString() == "spixiui-light")
+                return "#f9fafb";
+            return "#13171b";
+        }
+
+        public static Color getSurfaceColor()
+        {
+            return Color.FromArgb(getSurfaceColorString());
+        }
+
     }
 }

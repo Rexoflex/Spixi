@@ -87,7 +87,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    Navigation.PushAsync(new SingleChatPage(friend), Config.defaultXamarinAnimations);
+                    pushPageLoaded(new SingleChatPage(friend));   // load-then-move (N1)
                 }
             }
             else if (current_url.Contains("ixian:txdetails:"))

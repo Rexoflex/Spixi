@@ -4415,14 +4415,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .chat-channel-list__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
   .chat-channel-list__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
 
-  /* @ jump-to-mention FAB (#8) — mirrors c-scroll-latest, stacked ABOVE the
-     chevron slot (one fixed slot; never overlaps the chevron). Hidden until a
-     mention of the local user is off-screen. */
+  /* @ jump-to-mention FAB (#8). Hidden until an unseen mention of the local user
+     exists. It occupies the PRIMARY bottom slot by default (when the scroll-to-latest
+     chevron is hidden — i.e. at the bottom, image-1 case); when the chevron is visible
+     (scrolled up) it slides UP one slot to sit ABOVE the chevron, never overlapping it.
+     Keyed off the sibling c-scroll-latest[data-visible] (appended before this button). */
   .chat-mention-fab {
     position: absolute;
     inset-inline-end: var(--spacing-16);
-    /* one 44px button + gap above the scroll-latest slot */
-    inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
+    inset-block-end: var(--spacing-16);   /* primary bottom slot (chevron hidden) */
     width: var(--size-target-min); height: var(--size-target-min);
     display: flex; align-items: center; justify-content: center;
     border: var(--outline-width-1) solid var(--outline-neutral-01);
@@ -4434,8 +4435,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     opacity: 0; transform: translateY(var(--spacing-8)); visibility: hidden; pointer-events: none;
     transition: opacity var(--duration-200) var(--easing-standard),
                 transform var(--duration-200) var(--easing-decelerate),
+                inset-block-end var(--duration-200) var(--easing-decelerate),
                 visibility var(--duration-200),
                 background-color var(--duration-100) var(--easing-standard);
+  }
+  /* chevron visible → stack the @ FAB one 44px button + gap above it */
+  .c-scroll-latest[data-visible] ~ .chat-mention-fab {
+    inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
   }
   .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
   @media (hover: hover) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } }
@@ -21940,10 +21946,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * until then (highlight-all + picker work regardless). Memoized; invalidated when
    * the name sources change. */
   let _mentionObj = null;
+  let selfNickPushed = '';   // C13: the LOCAL user's nick, delivered by the setSelfNick bridge push
   function selfMentionKeys() {
     const sl = window.SL || {}, env = window.SPIXI_ENV || {};
     const out = [];
-    if (sl.SelfNick) out.push(String(sl.SelfNick));
+    if (selfNickPushed) out.push(selfNickPushed);       // C13 primary source (native bridge)
+    if (sl.SelfNick) out.push(String(sl.SelfNick));     // demo/injection fallback
     if (env.selfNick) out.push(String(env.selfNick));
     return out;
   }
@@ -22971,6 +22979,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         { sent, confirmed, read, paid, errorSending });
     },
 
+    // C13: the LOCAL user's own nick (SingleChatPage.onLoad). Lets the shell identify
+    // "me" for self-mention emphasis + the @ jump-to-mention FAB. Refresh the memoized
+    // mention context + the FAB so an already-rendered log re-evaluates its self-mentions.
+    setSelfNick(nick) {
+      selfNickPushed = nick ? String(nick) : '';
+      invalidateMentions();
+      if (typeof updateMentionFab === 'function') updateMentionFab();
+    },
+
     // Remove a row and re-render so #63 grouping repairs around the gap.
     deleteMessage(id) {
       id = String(id);
@@ -23252,13 +23269,17 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   mentionFab.append(mentionFabBadge);
   box.closest('.c-chat-canvas').append(mentionFab);
 
-  /* Cycle-with-count behaviour (best practice: Slack/Telegram/Discord). The FAB
-   * counts mentions of ME the user hasn't SEEN yet and, per tap, jumps to the
-   * OLDEST unseen one (catch-up order), pulsing it; a mention is "seen" once it
-   * scrolls into view. A baseline seed on chat open marks all EXISTING mentions
-   * seen, so only NEW off-screen pings surface (not every historical @you). */
-  const mentionSeen = new Set();      // message ids whose @me has been seen this session
-  let mentionBaseline = false;
+  /* Cycle-with-count behaviour (Telegram-style, Damir 2026-07-09). The FAB counts
+   * EVERY mention of ME the user hasn't SEEN yet — regardless of where it sits in the
+   * history — and, per tap, jumps to the NEWEST unseen one first (the most recent @you,
+   * usually the nearest scroll), pulsing it; each subsequent tap steps to the next-older
+   * unseen (Damir: jumping to the earliest first felt backwards). A mention becomes
+   * "seen" once it scrolls into view (or is jumped to). The seen set is PERSISTED per
+   * peer (localStorage, same pattern as myLikes/loadedMedia) so a caught-up mention does
+   * not resurface on the next open — mirrors Telegram's durable unread-mention marker.
+   * No baseline seed: on first open, all not-yet-seen mentions (anywhere in the log)
+   * surface, which IS the desired catch-up. */
+  const mentionSeen = new Set();      // message ids whose @me has been seen (persisted per peer)
 
   /* does a message text @-mention the LOCAL user? (boundary-checked, case-insensitive) */
   function textMentionsMe(text) {
@@ -23288,31 +23309,28 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     const br = box.getBoundingClientRect(); const rr = row.getBoundingClientRect();
     return rr.bottom > br.top && rr.top < br.bottom;
   }
-  /* first paint after opening a chat → treat all current mentions as already seen */
-  function seedMentionBaseline(ids) {
-    if (mentionBaseline) return;
-    mentionBaseline = true;
-    for (const id of ids) mentionSeen.add(id);
-  }
   function updateMentionFab() {
     if (!mentionFab) return;
     if (!mentionCtx().self.length) { mentionFab.removeAttribute('data-visible'); return; }
     const ids = mentionIdsOrdered();
-    seedMentionBaseline(ids);
+    let changed = false;
     for (const id of ids) {                              // mark any now-visible mention seen
       const row = rows.get(id);
-      if (row && row.isConnected && mentionRowVisible(row)) mentionSeen.add(id);
+      if (row && row.isConnected && mentionRowVisible(row) && !mentionSeen.has(id)) {
+        mentionSeen.add(id); changed = true;
+      }
     }
+    if (changed) saveMentionSeen();                      // persist catch-up progress
     const unseen = ids.filter((id) => !mentionSeen.has(id));
     const n = unseen.length;
     mentionFab.toggleAttribute('data-visible', n > 0);
-    mentionFab._next = n ? unseen[0] : null;             // OLDEST unseen (catch-up order)
+    mentionFab._next = n ? unseen[n - 1] : null;         // NEWEST unseen first (Damir: jump to the most recent mention; each tap then steps to the next-older)
     mentionFabBadge.hidden = n <= 1;                     // show a count only when >1 pending
     if (n > 1) mentionFabBadge.textContent = n > 99 ? '99+' : String(n);
     const base = (window.SL && window.SL.jumpToMention) || 'Jump to mention';
     mentionFab.setAttribute('aria-label', n > 1 ? base + ' — ' + n : base);
   }
-  function resetMentionTracking() { mentionSeen.clear(); mentionBaseline = false; }
+  function resetMentionTracking() { loadMentionSeen(); }   // per-peer: restore the durable seen set
   mentionFab.addEventListener('click', () => {
     const id = mentionFab._next; if (!id) return;
     const row = rows.get(id); if (!row) return;
@@ -23320,7 +23338,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     row.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
     row.setAttribute('data-mention-pulse', '');
     row.addEventListener('animationend', () => row.removeAttribute('data-mention-pulse'), { once: true });
-    mentionSeen.add(id);                                 // viewing it counts as seen → next tap advances
+    mentionSeen.add(id); saveMentionSeen();              // viewing it counts as seen (persisted) → next tap advances
     setTimeout(() => { row.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
     updateMentionFab();
   });
@@ -23431,6 +23449,30 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     const k = loadedMediaKey();
     if (!k) return;
     try { localStorage.setItem(k, JSON.stringify([...loadedMedia])); } catch (_) {}
+  }
+
+  /* —— @ jump-to-mention seen-state persistence (Telegram-style catch-up, Damir
+   * 2026-07-09). Which of MY mentions the user has already caught up on, keyed by
+   * peer address — so a mention doesn't resurface on re-open. Same origin/pattern
+   * as myLikes; it's the user's own read-progress metadata, SECURITY.md-OK to cache. */
+  const MENTION_SEEN_PREFIX = 'spixi.mentions.seen.';
+  function mentionSeenKey() { return identity.address ? MENTION_SEEN_PREFIX + identity.address : ''; }
+  function saveMentionSeen() {
+    const k = mentionSeenKey();
+    if (!k) return;
+    try {
+      if (mentionSeen.size) localStorage.setItem(k, JSON.stringify([...mentionSeen]));
+      else localStorage.removeItem(k);
+    } catch (_) {}
+  }
+  function loadMentionSeen() {
+    mentionSeen.clear();                        // reset for THIS peer (desktop peer-switch safe)
+    const k = mentionSeenKey();
+    if (!k) return;
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]');
+      if (Array.isArray(arr)) arr.forEach((id) => mentionSeen.add(String(id)));
+    } catch (_) {}
   }
 
   let composerEl = null;

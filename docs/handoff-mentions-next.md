@@ -1,5 +1,16 @@
 # Handoff — Opus batch 2 (2026-07-09) → next chat
 
+## ⇢ UPDATE (batch 2b, 2026-07-09): C13 + C11 LANDED (DECISIONS #213, UNCOMMITTED)
+In `Pages/Chat/SingleChatPage.xaml.cs` + (C13) `src/shells/chat.html`, frozen bridge. **C11 = C# only; C13 = C# + shell → `build-shells`, NO bundle rebuild.** Next session: Damir's build+F5+commit, then pick the next 🟢 row.
+- **C11 — ✅ Damir F5-CONFIRMED ("tick works", DONE):** one line in `updateReactions(msg_id,channel):1631` → `updateMessage(fm, channel)` after `updateReactions(fm)`. Maps the group `received:`/`seen:` aggregate to the delivery tick (the `msgReaction` case never re-pushed status; 1:1 rides the separate `msgReceived`/`msgRead` codes). H1 holds.
+- **C13 — CORRECTED after Damir F5 ("FAB doesn't appear"):** the first cut used `addCustomString("SelfNick", …)`, but the self-contained shells build `window.SL` from the BUNDLED dictionary (chat.html:233), NOT `*SL{}` substitution — a C# custom string never reaches them. **Redone as a bridge push:** C# `sendUiCommand(this,"setSelfNick", IxianHandler.localStorage.nickname)` in `onLoad` (:490) + shell `setSelfNick` handler (`selfNickPushed` → `invalidateMentions`+`updateMentionFab`; `selfMentionKeys()` reads it first). ⚑ **RULE: never feed a redesigned shell via `addCustomString`; always `sendUiCommand`.**
+- **@ FAB — now Telegram-style catch-up (Damir asked):** counts EVERY unseen mention of me anywhere in the log (dropped the baseline-seed), jumps oldest-first, and PERSISTS the seen set per peer (`spixi.mentions.seen.<addr>`) so caught-up mentions don't resurface on re-open. To test: open a group with a historical @you that's off-screen → FAB shows; tap → jumps + pulses; scroll it into view → clears; re-open → stays cleared. New @you while scrolled up → FAB appears. The immediate proof C13 works at all is the **self-mention emphasis** (warning style on @your-nick) on any visible mention. FE-only, in the same `build-shells`.
+- **Damir build/F5:** `node scripts/build-shells.mjs` → build `net10.0-windows`. C13 = @your-nick shows self style immediately; FAB per the scroll-up scenario above. C11 = 2 devices, read on the other → tick advances (confirmed).
+- **Remaining order now:** C7 → C8 (check Ixian-Core first) → A1/A2/X1 → CH2/CH3/CH4 → S14. (C13/C11 done above.)
+
+---
+
+
 **Role.** Continue the Spixi frontend redesign as the Opus BE-cutover + FE-depth agent.
 Read first, in order: `CLAUDE.md` (status tail) → `DECISIONS.md` (rows #208–#212) →
 `docs/be-cutover-brief.md` → `docs/be-conventions.md` + `docs/fable-be-workorder.md`

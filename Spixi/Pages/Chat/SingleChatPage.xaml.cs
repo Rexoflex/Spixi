@@ -484,6 +484,11 @@ namespace SPIXI
         {
             Utils.sendUiCommand(this, "onChatScreenReady", friend.walletAddress.ToString());
 
+            // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
+            // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
+            // their bundled dictionary, NOT from addCustomString, so this must be a bridge push.
+            Utils.sendUiCommand(this, "setSelfNick", IxianHandler.localStorage.nickname);
+
             if (homePage != null)
             {
                 Utils.sendUiCommand(this, "hideBackButton");
@@ -1624,6 +1629,16 @@ namespace SPIXI
                 if (fm != null)
                 {
                     updateReactions(fm);
+                    // C11: in groups/bots, delivery/read confirmations arrive as received:/seen:
+                    // aggregate reactions that flip OUR OWN message's sent/confirmed/read flags
+                    // (Friend.addReaction, Ixian-Core) — but only the reaction pills were pushed, so
+                    // the open chat's delivery tick stayed on the clock. Re-push the status so the
+                    // tick advances. Guarded to localSender: only our own messages carry a delivery
+                    // tick, and a received row would force a needless full re-render on every reaction.
+                    if (fm.localSender)
+                    {
+                        updateMessage(fm, channel);
+                    }
                 }
             }
         }

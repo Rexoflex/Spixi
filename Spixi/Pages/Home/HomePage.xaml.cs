@@ -64,6 +64,23 @@ namespace SPIXI
         private bool fromSettings = false;
         private bool fromChat = false;
 
+        // D1 (#240): native resizable left pane. The boundary sits between two
+        // ISOLATED WebViews (#221 model), so the divider must be native — a thin
+        // pan-grip at the right edge of column 0 resizes the chats/list pane
+        // against the detail pane. Demo grammar (desktop-split-spec §1): 280–520,
+        // double-click resets; width persisted across restarts.
+        private const double leftPaneMinWidth = 280;
+        private const double leftPaneMaxWidth = 624;   // #243: 520 + 20% (Damir)
+        private const double leftPaneDefaultWidth = 400;
+        // #245: the home shell's desktop nav rail is 72 CSS px (#237 r2 dial); CSS px
+        // == DIPs in the WebView at default zoom, so the Account peer-pane insets by
+        // this much to keep the rail visible. Single source C#-side; if the rail is
+        // ever re-dialed in bottomnav.css, update BOTH (flagged in the spec).
+        private const double railWidthDip = 72;
+        private double leftPaneWidth = leftPaneDefaultWidth;
+        private double panStartPaneWidth = leftPaneDefaultWidth;
+        private bool paneDividerPanning = false;
+
         public bool devMode = false;
 
         private bool warningDisplayed = false;
@@ -103,6 +120,52 @@ namespace SPIXI
             loadPage(webView, "index.html");
 
             rightContent.Content = defaultDetailContent.Content;
+
+            // D1 (#240): divider gestures + persisted pane width. The grip is a
+            // native BoxView pinned to column 0's trailing edge (HomePage.xaml) —
+            // it never overlaps the column-1 overlays (chat/Account panes), and a
+            // full-span overlay/lock stage is added AFTER it, so a takeover or an
+            // in-place lock always covers the grip (#230 ordering intact).
+            leftPaneWidth = clampLeftPaneWidth(Preferences.Default.Get("leftPaneWidth", leftPaneDefaultWidth));
+            var dividerPan = new PanGestureRecognizer();
+            dividerPan.PanUpdated += onPaneDividerPan;
+            paneDivider.GestureRecognizers.Add(dividerPan);
+            var dividerReset = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+            dividerReset.Tapped += (s, ev) =>
+            {
+                leftPaneWidth = leftPaneDefaultWidth;
+                applyLeftPaneWidth();
+                Preferences.Default.Set("leftPaneWidth", leftPaneWidth);
+            };
+            paneDivider.GestureRecognizers.Add(dividerReset);
+
+#if WINDOWS
+            // #242 (Damir F5: "no cursor change, hard to catch"): give the grip the
+            // ↔ resize cursor. MAUI has no cross-platform cursor API; on WinUI the
+            // cursor lives on UIElement.ProtectedCursor (protected → reflection, the
+            // established WinUI-3 workaround). Presentation-only; try/catch so a
+            // WinAppSDK rename can never take the app down.
+            paneDivider.HandlerChanged += (s, ev) =>
+            {
+                try
+                {
+                    if (paneDivider.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement el)
+                    {
+                        var prop = typeof(Microsoft.UI.Xaml.UIElement).GetProperty(
+                            "ProtectedCursor",
+                            System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.NonPublic
+                            | System.Reflection.BindingFlags.Public);
+                        prop?.SetValue(el, Microsoft.UI.Input.InputSystemCursor.Create(
+                            Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("paneDivider cursor: " + ex.Message);
+                }
+            };
+#endif
 
             SizeChanged += OnPageSizeChanged;
 
@@ -145,15 +208,73 @@ namespace SPIXI
                 //mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 rightContent.IsVisible = false;
+                paneDivider.IsVisible = false;   // D1: no divider in single-pane
                 removeDetailContent(false);
             }
             else
             {
-                // Show both panes
-                mainGrid.ColumnDefinitions[0].Width = new GridLength(400);
+                // Show both panes — D1 (#240): column 0 uses the persisted,
+                // user-resizable width (was a fixed 400).
+                applyLeftPaneWidth();
                 //mainGrid.ColumnDefinitions[1].Width = new GridLength(2);
                 mainGrid.ColumnDefinitions[1].Width = GridLength.Star;
                 rightContent.IsVisible = true;
+                paneDivider.IsVisible = true;
+            }
+        }
+
+        /* ————— D1 (#240): native left-pane divider ————————————————————————————
+         * Pure presentation: resizes mainGrid column 0 between the two isolated
+         * WebViews. No bridge, no page content, no signing paths touched. */
+
+        private double clampLeftPaneWidth(double w)
+        {
+            if (double.IsNaN(w) || double.IsInfinity(w))
+            {
+                return leftPaneDefaultWidth;
+            }
+            double max = leftPaneMaxWidth;
+            // #243: the raised max (624) must never starve the detail pane on a
+            // just-wide-enough window (at 700px it would leave 76px) — reserve a
+            // usable detail width; the ceiling grows with the window.
+            if (Width > 0)
+            {
+                max = Math.Max(leftPaneMinWidth, Math.Min(max, Width - 320));
+            }
+            return Math.Clamp(w, leftPaneMinWidth, max);
+        }
+
+        private void applyLeftPaneWidth()
+        {
+            // Clamp the APPLIED width only — the user's chosen width (field +
+            // preference) survives a temporary window shrink and comes back.
+            mainGrid.ColumnDefinitions[0].Width = new GridLength(clampLeftPaneWidth(leftPaneWidth));
+        }
+
+        private void onPaneDividerPan(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    panStartPaneWidth = leftPaneWidth;
+                    paneDividerPanning = true;
+                    break;
+                case GestureStatus.Running:
+                    // Defensive: WinUI has been seen skipping Started — seed the
+                    // anchor from the first Running tick instead of drifting.
+                    if (!paneDividerPanning)
+                    {
+                        panStartPaneWidth = leftPaneWidth;
+                        paneDividerPanning = true;
+                    }
+                    leftPaneWidth = clampLeftPaneWidth(panStartPaneWidth + e.TotalX);
+                    applyLeftPaneWidth();
+                    break;
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    paneDividerPanning = false;
+                    Preferences.Default.Set("leftPaneWidth", leftPaneWidth);
+                    break;
             }
         }
 
@@ -302,6 +423,10 @@ namespace SPIXI
             else if (current_url.Contains("ixian:tab:"))
             {
                 currentTab = current_url.Split(new string[] { "ixian:tab:" }, StringSplitOptions.None)[1];
+                // Unit 2 (#240): switching home tab closes an open Account pane —
+                // routed THROUGH the shell so held edits are saved (never a silent
+                // teardown around a dirty nickname/avatar/lock).
+                requestSettingsOverlayExit();
                 if (currentTab == "tab2")
                 {
                     loadTransactions(true);
@@ -726,11 +851,39 @@ namespace SPIXI
 
         public void onSettings(object sender, EventArgs e)
         {
+            // Unit 2 (#240): with the Account as a PANE the home rail stays live while
+            // it is open — a second Account tap must not stage a duplicate SettingsPage.
+            // If one is already open (possibly buried under a chat overlay), close the
+            // overlays stacked ABOVE it so it resurfaces, and stop.
+            if (SpixiContentPage.getOverlayPages().Exists(p => p is SettingsPage))
+            {
+                while (!(SpixiContentPage.getTopOverlay() is SettingsPage)
+                    && SpixiContentPage.closeTopOverlay())
+                {
+                }
+                return;
+            }
+
             fromSettings = true;
-            // Load-then-move (N3) — also fixes the Account slide-in: this was the ONLY
-            // push missing Config.defaultXamarinAnimations (so it animated); the helper
-            // presents with that flag like every other push.
-            pushPageLoaded(new SettingsPage());
+            // Load-then-move (N3): Account opens as a #225 overlay. #245 (Damir: "same
+            // peer as wallet/apps/chats, NOT a distant pane"): on a WIDE window the
+            // settings WebView spans the WHOLE grid minus the rail strip — the home
+            // rail (inside the home WebView, leading railWidthDip) stays visible and
+            // live beside it. Inside, the shell renders the hub in the LIST-column
+            // slot (width pushed via setPaneMetrics, aligned with the chats column)
+            // and sublevels in the detail region — exactly the desktop demo layout.
+            // One WebView, one trust domain (settings only); the chat wall (#221) is
+            // untouched. Narrow windows keep the full-span takeover.
+            bool wide = rightContent.IsVisible;
+            if (wide)
+            {
+                pushPageLoaded(new SettingsPage(true, leftPaneWidth - railWidthDip), 4000, "settings", -1,
+                    null, new Thickness(railWidthDip, 0, 0, 0));
+            }
+            else
+            {
+                pushPageLoaded(new SettingsPage(), 4000, "settings");
+            }
         }
 
         public async void onTransaction(byte[] txid, WebNavigatingEventArgs e)
@@ -741,6 +894,11 @@ namespace SPIXI
                 e.Cancel = true;
                 return;
             }
+
+            // Unit 2 (#240): a tx detail renders in rightContent, UNDER an open
+            // Account pane pinned to the same column — dismiss the pane first
+            // (save-if-dirty through the shell) so the detail is actually visible.
+            requestSettingsOverlayExit();
 
             if (rightContent.IsVisible)
             {
@@ -797,6 +955,13 @@ namespace SPIXI
                     Logging.warn("Chat page for {0} already open.", friend.ToString());
                     return;
                 }
+
+                // Unit 2 (#240): opening a conversation dismisses an open Account
+                // pane (save-if-dirty through the shell) — both pin to the detail
+                // column; stacking the chat OVER settings would leave a hidden pane
+                // whose dirty edits SingleChatPage's back (popToRootAsync = close
+                // ALL overlays) could later discard unsaved.
+                requestSettingsOverlayExit();
 
                 // #225: conversations open as OVERLAYS — loaded + painted off-screen,
                 // then shown in place (wide window: pinned over the detail column,
@@ -1534,6 +1699,8 @@ namespace SPIXI
                 // Same refresh the (push-era) fromSettings branch below does.
                 Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
                 Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
+                // #245: drop the rail's Account highlight back to the real in-page tab.
+                Utils.sendUiCommand(this, "onSettingsClosed");
                 UIHelpers.shouldRefreshContacts = true;
                 fromSettings = false;
             }
@@ -1544,12 +1711,44 @@ namespace SPIXI
             }
         }
 
+        // Unit 2 (#240): ask an open Account overlay to EXIT ITSELF — the shell runs
+        // its save-if-dirty path (ixian:save/ixian:back → SettingsPage pops → the
+        // overlay closes). Direct closeOverlay would discard held nickname/avatar/lock
+        // edits. A shell that never booted has nothing to save → close it directly.
+        private void requestSettingsOverlayExit()
+        {
+            foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+            {
+                if (p is SettingsPage sp)
+                {
+                    if (sp.pageLoaded)
+                    {
+                        Utils.sendUiCommand(sp, "onExitRequest");
+                    }
+                    else
+                    {
+                        removePage(sp);   // wedged/never-booted shell: nothing to save
+                    }
+                    return;
+                }
+            }
+        }
+
         protected override bool OnBackButtonPressed()
         {
             // #230: while a lock is shown in place, HomePage is still the CurrentPage —
             // swallow back entirely (the lock's own OnBackButtonPressed never runs).
             if (SpixiContentPage.hasModalOverlay())
             {
+                return true;
+            }
+            // Unit 2 (#240) close-audit: an Account overlay holds uncommitted edits —
+            // route back THROUGH the shell (takeover→hub, hub→save-if-dirty exit),
+            // exactly like SettingsPage.OnBackButtonPressed did when it was pushed.
+            // (Pre-existing #225 gap fixed: closeTopOverlay bypassed the save path.)
+            if (SpixiContentPage.getTopOverlay() is SettingsPage sp && sp.pageLoaded)
+            {
+                Utils.sendUiCommand(sp, "onBack");
                 return true;
             }
             // #225: hardware/host back closes the top overlay first.

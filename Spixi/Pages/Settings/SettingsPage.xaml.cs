@@ -24,8 +24,21 @@ namespace SPIXI
 
         bool lockEnabled = false;
 
-        public SettingsPage()
+        // Unit 2 (#240, reshaped #245): true when HomePage hosts this page as the
+        // Account PEER PANE (wide window, spans the grid minus the rail strip)
+        // instead of a full-window takeover. Display-only: the shell hides its own
+        // rail, renders the hub in the LIST-column slot (masterWidth, pushed as
+        // setPaneMetrics so it aligns with the native chats column) and opens
+        // sublevels in the detail region. Fields (not one-shots) so the
+        // language-change reload's re-onLoad re-pushes them.
+        bool paneMode = false;
+        double masterWidth = 0;
+
+        public SettingsPage(bool pane_mode = false, double master_width = 0)
         {
+            paneMode = pane_mode;
+            masterWidth = master_width;
+
             InitializeComponent();
 
             NavigationPage.SetHasNavigationBar(this, false);
@@ -40,6 +53,27 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // Unit 2 (#240): tell the shell it is pane-hosted BEFORE the data burst —
+            // all onLoad pushes coalesce ahead of the overlay present, so the pane
+            // lays out master-detail before it ever becomes visible.
+            if (paneMode)
+            {
+                Utils.sendUiCommand(this, "setPaneMode", "1");
+                if (masterWidth > 0)
+                {
+                    // #245: hub column width = native list column − rail (invariant digits)
+                    Utils.sendUiCommand(this, "setPaneMetrics", masterWidth.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+
+            // #242 (S14): this build dispatches ixian:apply (save WITHOUT popping) —
+            // declare it so the shell's Save stays on the page + toasts instead of
+            // falling back to the frozen persist-and-pop.
+            // #243: + backupInline — ixian:backupAccount/backupWallet are forwarded
+            // below, so the pane renders Backup as a SUBLEVEL instead of pushing
+            // BackupPage over itself.
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline");
+
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
             int activeAppearanceIdx = (int)selectedAppearance;
@@ -133,13 +167,36 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
-                pushPageLoaded(new BackupPage());   // load-then-move (N3, round 2)
+                // #242 (Damir F5 issue 4): while the Account is a detail-column PANE,
+                // Backup opens PINNED to the same column (covers the pane; its back
+                // reveals the Account again) instead of a full-window takeover. A
+                // true in-detail backup needs the BackupPage verbs routed through
+                // SettingsPage — logged as be-cutover S15.
+                pushPageLoaded(new BackupPage(), 4000, null, paneMode ? 1 : -1);   // load-then-move (N3)
             }
             else if (current_url.Contains("ixian:save:"))
             {
                 string[] split = current_url.Split(new string[] { "ixian:save:" }, StringSplitOptions.None);
                 string nick = split[1];
                 onSaveSettings(nick);
+            }
+            else if (current_url.Contains("ixian:apply:"))
+            {
+                // #242 (S14): persist WITHOUT popping — the Save button stays on the
+                // Account pane; the shell shows the "Saved" morph + toast.
+                string[] split = current_url.Split(new string[] { "ixian:apply:" }, StringSplitOptions.None);
+                onApplySettings(split[1]);
+            }
+            else if (current_url.Equals("ixian:backupAccount", StringComparison.Ordinal))
+            {
+                // #243 (S15): the Backup SUBLEVEL inside the Account pane — same
+                // self-contained operation BackupPage runs (static; C# names all
+                // paths, the verb is a bare trigger).
+                _ = BackupPage.backupAccount();
+            }
+            else if (current_url.Equals("ixian:backupWallet", StringComparison.Ordinal))
+            {
+                _ = BackupPage.backupWallet();
             }
             else if (current_url.Equals("ixian:avatar", StringComparison.Ordinal))
             {
@@ -232,6 +289,21 @@ namespace SPIXI
 
         public void onSaveSettings(string nick)
         {
+            saveSettingsCore(nick);
+
+            // Pop the current page from the stack
+            popPageAsync();
+        }
+
+        // #242 (S14): explicit Save on the Account pane — persist, DON'T pop. The
+        // shell confirms with the "Saved" morph + toast and stays on the page.
+        public void onApplySettings(string nick)
+        {
+            saveSettingsCore(nick);
+        }
+
+        private void saveSettingsCore(string nick)
+        {
             bool homeNeedsReload = false;
 
             if (selectedLanguage != null)
@@ -240,6 +312,9 @@ namespace SPIXI
                 // Strings are baked into the generated pages — a language change needs
                 // a real Home reload (reload() re-localizes; SpixiContentPage.reload).
                 homeNeedsReload = true;
+                // #242: consumed — an apply must not re-reload Home on every later
+                // save/exit of this same page instance.
+                selectedLanguage = null;
             }
             else
             {
@@ -267,9 +342,6 @@ namespace SPIXI
             {
                 HomePage.Instance()?.reload();
             }
-
-            // Pop the current page from the stack
-            popPageAsync();
         }
 
         private void resetLanguage()

@@ -17,6 +17,11 @@
 
             <WebView x:Name="webView" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"  Grid.Column="0"/>
             <ContentView x:Name="rightContent" Grid.Column="1"/>
+            <!-- D1 (#240): native pane divider — a thin pan-grip on column 0's trailing
+                 edge (the visible hairline is painted by the home shell, #237 ⑦; this
+                 stays transparent). Gestures + visibility wired in code-behind; sits
+                 BEFORE any overlay stage in z-order, so takeovers/locks cover it. -->
+            <BoxView x:Name="paneDivider" Grid.Column="0" WidthRequest="10" HorizontalOptions="End" VerticalOptions="Fill" Color="Transparent" BackgroundColor="Transparent" IsVisible="False" />
         </Grid>
         
     </ContentPage.Content>

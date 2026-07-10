@@ -10,6 +10,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Threading.Tasks;
 using System.Web;
 
 namespace SPIXI
@@ -75,7 +76,23 @@ namespace SPIXI
 
         }
 
-        private async void onBackupWallet()
+        private void onBackupWallet()
+        {
+            _ = backupWallet();
+        }
+
+        private void onBackupAccount()
+        {
+            _ = backupAccount();
+        }
+
+        /* #243: the two backup operations are SELF-CONTAINED (no page state; C#
+         * names every path, the WebView only sends the bare trigger verb) — static
+         * so SettingsPage can forward ixian:backupAccount/backupWallet and render
+         * the backup screen as a SUBLEVEL inside the Account pane (be-cutover S15).
+         * Bodies unchanged from the instance handlers they replace. */
+
+        public static async Task backupWallet()
         {
             try
             {
@@ -90,7 +107,7 @@ namespace SPIXI
             }
         }
 
-        private async void onBackupAccount()
+        public static async Task backupAccount()
         {
             try
             {

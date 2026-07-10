@@ -308,6 +308,37 @@ change-password (S7) · backup status (S2).
   re-render on model change). Pinned state must survive `clearChats…clearChatsDone`
   full re-flushes (same pattern as the #193 delete tombstones).
 
+### 6e.4 Account as a PANE + master-detail + Contributors + D1 (batch 2, DECISIONS #240)
+
+- **C# host:** `HomePage.onSettings` opens SettingsPage via the #225 overlay machinery
+  pinned to the detail column on wide windows (`column: wide ? 1 : -1`, tag "settings");
+  `SettingsPage(pane_mode)` pushes `setPaneMode('1')` first in `onLoad` (pre-present, no
+  layout flash; re-pushed on the language reload). Narrow windows + mobile keep the
+  full-span overlay/takeover — behavior unchanged there.
+- **Close-audit (every pane close routes the shell's save-if-dirty exit):** home tab
+  switch → `requestSettingsOverlayExit()` (`onExitRequest` push → shell `exitSettings`);
+  hardware back → routed `onBack` push (screen→hub, hub→exit; fixes the pre-existing
+  #225 closeTopOverlay bypass); opening a chat or a tx detail dismisses the pane first
+  (both target the detail column). Account re-tap = no-op (resurfaces a buried pane by
+  closing overlays above it). Resize-to-narrow strand = #225-M2, next unit.
+- **Master-detail (this spec §2.1, now PRODUCTION in `src/shells/settings.html`):**
+  `body[data-pane]` hides the peer rail; ≥640px inside the pane (the WebView viewport
+  IS the pane) the hub = master column (360px, `outline-neutral-03` hairline), screens
+  (danger/about/howto/chatappearance/contributors) render in the detail column via
+  stateless `buildScreen()`; empty state default (dt-empty grammar, flag ② stays
+  "empty"); screen back EMPTIES the detail, not `ixian:back`; selected row =
+  `aria-current` + `--surface-action-tonal-default` tint via `data-setting-key`
+  (settingRow `key:` — component change). Below 640px the pane behaves like the
+  mobile hub (takeovers). `?pane=1` = browser preview forcing.
+- **Contributors un-gated:** static component screen (`createSettingsContributors`) —
+  no verb needed; S10 obsolete (be-cutover updated).
+- **D1 divider (native):** 6px transparent BoxView grip at col 0's trailing edge
+  (`HomePage.xaml`), pan 280–520, dbl-tap reset 400, `Preferences leftPaneWidth`
+  persisted; hidden <700px; overlay/lock stages cover it (added later in z-order).
+- **Locks:** pane-hosted SettingsPage confirm-locks stage via the overlay-host
+  fallback → full-span, in-place over HomePage (`op.host == overlayHost` holds) —
+  #230/#235 invariants re-verified, no change needed.
+
 ## 7. Non-goals
 
 Real window-resize reflow between mobile/desktop compositions (the demo IS

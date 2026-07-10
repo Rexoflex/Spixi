@@ -76,57 +76,67 @@
   --brand-900: #0d1324;
   --brand-950: #05080f;
 
-  /* color/blue */
-  --blue-50: #f1f1ff;
-  --blue-100: #e3e4fe;
-  --blue-200: #cbcffe;
-  --blue-300: #a8aefd;
-  --blue-400: #8088fa;
-  --blue-500: #515ee6;
-  --blue-600: #4d57cb;
-  --blue-700: #252dc1;
-  --blue-800: #16185a;
-  --blue-900: #0d1435;
-  --blue-950: #03030c;
+  /* color/blue — #241/#244 semantic-primitive rework (Damir 2026-07-10 r2 —
+     the #241 set read too muted): re-anchored on #0B87B4 at 500 (links/info;
+     replaces the indigo that sat too close to brand). All four scales = OKLCH,
+     brand-ladder lightness, constant anchor hue, gamut-clamped; generator at
+     outputs/gen-scales*.js session scratch. ⚠ MIRROR TO FIGMA (primitives). */
+  --blue-50: #e8edef;
+  --blue-100: #c7d8e0;
+  --blue-200: #b2cfde;
+  --blue-300: #8dbfd9;
+  --blue-400: #64acd0;
+  --blue-500: #0b87b4;   /* ANCHOR (Damir r2) */
+  --blue-600: #006588;
+  --blue-700: #004863;
+  --blue-800: #0d2f3f;
+  --blue-900: #0a161c;
+  --blue-950: #05090b;
 
-  /* color/red */
-  --red-50: #f1e2e2;
-  --red-100: #f8e8e8;
-  --red-200: #f6bbbb;
-  --red-300: #f66e75;
-  --red-400: #df1c41;
-  --red-500: #cb0020;
-  --red-600: #900013;
-  --red-700: #750014;
-  --red-800: #540813;
-  --red-900: #1b0607;
-  --red-950: #0b0303;
+  /* color/red — #244: re-anchored on #B12525 at 600 (error/destructive — the
+     exact hex IS the error surface). #241's old-scale note stands (the pre-#241
+     scale was irregular: 50 darker than 100, crimson mid-steps). */
+  --red-50: #f3eae8;
+  --red-100: #ecccc8;
+  --red-200: #f1bab4;
+  --red-300: #f49c92;
+  --red-400: #f1786e;
+  --red-500: #e34540;
+  --red-600: #b12525;   /* ANCHOR (Damir r2) */
+  --red-700: #781918;
+  --red-800: #4c1714;
+  --red-900: #220d0b;
+  --red-950: #0e0605;
 
-  /* color/orange */
-  --orange-50: #f9f7f2;
-  --orange-100: #f6f1e7;
-  --orange-200: #f0e0bc;
-  --orange-300: #f3deae;
-  --orange-400: #eac06d;
-  --orange-500: #e2a233;
-  --orange-600: #bc821f;
-  --orange-700: #8f5f00;
-  --orange-800: #553d06;
-  --orange-900: #342406;
-  --orange-950: #070502;
+  /* color/orange — #244: re-anchored on #EF9132 at 400 (its lightness home —
+     a bright accent orange); warning surfaces keep the deeper generated 600
+     under white text (6.9:1). */
+  --orange-50: #f1ebe5;
+  --orange-100: #e7d0bd;
+  --orange-200: #e9c09f;
+  --orange-300: #eaa66c;
+  --orange-400: #ef9132;   /* ANCHOR (Damir r2) */
+  --orange-500: #c26d00;
+  --orange-600: #884b00;
+  --orange-700: #623400;
+  --orange-800: #432200;
+  --orange-900: #201003;
+  --orange-950: #0d0703;
 
-  /* color/green */
-  --green-50: #ebf0ee;
-  --green-100: #e6efeb;
-  --green-200: #c9e3d8;
-  --green-300: #9bd1bb;
-  --green-400: #71c6a7;
-  --green-500: #2db38b;
-  --green-600: #007052;
-  --green-700: #005b43;
-  --green-800: #0f3b2d;
-  --green-900: #0c1c16;
-  --green-950: #050c09;
+  /* color/green — #244: re-anchored on #26994C at 500 (its lightness home —
+     the vivid green = presence dot / fresh-success step); 600 carries the
+     surfaces/text under white (6.3:1). */
+  --green-50: #e9eee9;
+  --green-100: #c9dacb;
+  --green-200: #b4d3b9;
+  --green-300: #91c69b;
+  --green-400: #69b67a;
+  --green-500: #26994c;   /* ANCHOR (Damir r2) */
+  --green-600: #007030;
+  --green-700: #075022;
+  --green-800: #10341a;
+  --green-900: #0a170d;
+  --green-950: #050906;
 
   /* color/purple */
   --purple-50: #f5f3f6;
@@ -473,6 +483,11 @@
   --text-accent: var(--accent-600);
   --text-info: var(--info-700);
   --text-info-inverse: var(--info-300);
+  /* #244: LINK role (Damir: the new blue is for "links and similar") — its own
+     token so links stop riding text-action (brand) and can diverge from it.
+     info-600 on light = 6.3:1. */
+  --text-link: var(--info-600);
+  --text-link-hover: var(--info-700);
   --text-success: var(--success-600);
   --text-success-inverse: var(--success-300);
   --text-warning: var(--warning-700);
@@ -636,6 +651,9 @@
   --text-accent: var(--accent-300);
   --text-info: var(--info-300);
   --text-info-inverse: var(--info-800);
+  /* #244: link role, dark — light blue on dark surfaces (9.1:1 on screen). */
+  --text-link: var(--info-300);
+  --text-link-hover: var(--info-200);
   --text-success: var(--success-400);
   --text-success-inverse: var(--success-800);
   --text-warning: var(--warning-400);
@@ -3801,8 +3819,14 @@ function displayUrl(url) {
   if (!hasUserinfo && url.length <= MAX) return url;      // short + honest: as typed
   // rebuild host-first: userinfo stripped, scheme dropped, END-truncated — the
   // real host is always fully visible at the start of the label
+  const host = u.host;
+  // #235b (Opus review F1): a host LONGER than the budget must NOT end-truncate —
+  // that hides the registrable domain ("paypal.com.<64-char-pad>.evil.com" would
+  // render "paypal.com.…", eliding the true evil.com). Middle-truncate the HOST so
+  // both the leading label AND the trailing registrable domain stay visible.
+  if (host.length > MAX) return host.slice(0, MAX - 25) + '…' + host.slice(-24);
   const rest = (u.pathname === '/' && !u.search && !u.hash) ? '' : u.pathname + u.search + u.hash;
-  const label = u.host + rest;
+  const label = host + rest;
   return label.length <= MAX ? label : label.slice(0, MAX - 1) + '…';
 }
 
@@ -3909,7 +3933,7 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
-    b.textContent = displayUrl(url);   // #231c: long URLs middle-truncated for display only
+    b.textContent = displayUrl(url);   // #235: host-first label; long labels truncated for display only (full url on title/click)
     b.title = url;
     if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
@@ -15330,7 +15354,7 @@ function backupStatusParts(status = {}, strings = getStrings()) {
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked }) {
+function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -15345,6 +15369,12 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
     wrap.append(h);
   }
   let inFlight = false;
+  // #242 inline mode (pane detail screen): the list stays mounted after a pick,
+  // so the check has to MOVE — track the option nodes and repaint on commit.
+  const optEls = new Map();
+  const paintChecks = () => {
+    for (const [v, el] of optEls) el.setAttribute('aria-checked', String(v === current));
+  };
   for (const o of options) {
     const opt = document.createElement('button');
     opt.type = 'button';
@@ -15377,7 +15407,21 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
       const ctrl = settingsCtrl(
-        () => { closeSheet(sheet); if (onPicked) onPicked(o); },
+        () => {
+          if (inline) {
+            // #242: no sheet to close — release the latch, move the check
+            // (the theme-tiles stay-open grammar) and report.
+            inFlight = false;
+            opt.removeAttribute('aria-busy');
+            delete opt.dataset.loading;
+            spinner.remove();
+            current = o.value;
+            paintChecks();
+          } else {
+            closeSheet(sheet);
+          }
+          if (onPicked) onPicked(o);
+        },
         (msg) => {
           inFlight = false;
           opt.removeAttribute('aria-busy');
@@ -15392,8 +15436,10 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
         ctrl.fail();                          // sync throw → clear spinner/latch (#141-m4)
       }
     });
+    optEls.set(o.value, opt);
     wrap.append(opt);
   }
+  if (inline) return wrap;                    // #242: a pane detail screen hosts the list
   const sheet = createSheet({ content: wrap, host, title, strings });
   openSheet(sheet);
   return sheet;
@@ -15406,7 +15452,7 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked }) {
+function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');
@@ -15481,6 +15527,7 @@ function settingsThemeSheet({ current, host, strings = getStrings(), commit, onP
     tilesByValue.set(o.value, tile);
     wrap.append(tile);
   }
+  if (inline) return wrap;                    // #242: pane detail screen hosts the tiles (already stay-open)
   const sheet = createSheet({ content: wrap, host, title: strings.theme || 'Theme', strings });
   openSheet(sheet);
   return sheet;
@@ -15506,6 +15553,9 @@ function createSettingsHub({
   onAvatarRemove,                // (ctrl) — ixian:remove
   onTheme,                       // (index, ctrl) — ixian:appearance:<int>
   onLanguage,                    // (code, ctrl) — ixian:language:<code>
+  onThemeNav,                    // (#242) optional — return true to TAKE the Theme row tap
+                                 // (pane master-detail: detail screen instead of the sheet)
+  onLanguageNav,                 // (#242) same for the Language row
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
   onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
@@ -15918,7 +15968,7 @@ function createSettingsHub({
     const t = settingRow({
       glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
-      onClick: () => settingsThemeSheet({
+      onClick: () => { if (onThemeNav && onThemeNav()) return; settingsThemeSheet({
         current: theme, host: hostFor(), strings,
         commit: (v, ctrl) => onTheme(v, ctrl),
         onPicked: (o, msg) => {
@@ -15927,7 +15977,7 @@ function createSettingsHub({
           t.val.textContent = strings[o.key] || o.label;
           live.textContent = (strings.theme || 'Theme') + ': ' + (strings[o.key] || o.label);
         },
-      }),
+      }); },
     });
     prefs.card.append(t.section);
   }
@@ -15938,7 +15988,7 @@ function createSettingsHub({
       glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
-      onClick: () => settingsOptionSheet({
+      onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
         title: strings.language || 'Language',
         options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
         current: language, host: hostFor(), strings,
@@ -15949,20 +15999,20 @@ function createSettingsHub({
           lg.val.textContent = o.label;
           live.textContent = (strings.language || 'Language') + ': ' + o.label;
         },
-      }),
+      }); },
     });
     prefs.card.append(lg.section);
   }
 
   if (onChatAppearance) prefs.card.append(settingRow({
     glyph: 'messages', hue: 'primary',
-    label: strings.chatAppearance || 'Chat appearance',
+    label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     onClick: () => onChatAppearance(),
   }).section);
 
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
     glyph: 'bell', hue: 'warning',
-    label: strings.notifications || 'Notifications',
+    label: strings.notifications || 'Notifications', key: 'notifications',
     onClick: () => onNotifications(),
   }).section);
 
@@ -16023,7 +16073,7 @@ function createSettingsHub({
     const b = settingRow({
       glyph: 'shield-lock', hue: 'success',
       label: strings.backup || 'Backup',
-      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup',
+      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup', key: 'backup',
       onClick: () => onBackup(),
     });
     // the status line keeps its own identity — setBackupStatus/smoke/css hook
@@ -16042,25 +16092,28 @@ function createSettingsHub({
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
     glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    key: 'howto',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About', key: 'about',
     onClick: () => onAbout(),
   }).section);
-  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
-     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
-     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  /* Downloads — CAPABILITY-GATED: HomePage-driven separate page, no SettingsPage
+     open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF until BE adds a
+     SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
+     no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
+    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
+    key: 'contributors',
     onClick: () => onContributors(),
   }).section);
   if (capabilities.dev && onDev) app.card.append(settingRow({
-    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer',
+    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer', key: 'dev',
     onClick: () => onDev(),
   }).section);
   if (version) app.card.append(settingRow({
@@ -16073,6 +16126,7 @@ function createSettingsHub({
     const dz = group();
     dz.card.append(settingRow({
       glyph: 'trash', hue: 'error', label: strings.deleteData || 'Delete data…',
+      key: 'danger',
       onClick: () => onDanger(),
     }).section);
     body.append(dz.wrap);

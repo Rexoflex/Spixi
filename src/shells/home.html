@@ -332,12 +332,13 @@
     variant: isDesktop ? 'rail' : undefined,
     logo: isDesktop,
     onChange: (id) => {
-      // Account is NOT an in-page tab — it PUSHES the separate SettingsPage
-      // (HomePage.xaml.cs:239: ixian:settings → PushAsync(new SettingsPage) → settings.html).
-      // Emit the verb and revert the nav highlight so returning lands on the prior tab.
+      // Account is NOT an in-page tab — it's the SettingsPage WebView, which since
+      // #245 opens as a PEER PANE over the list+detail area (the rail stays visible
+      // beside it). Highlight Account while it's open; C# pushes onSettingsClosed
+      // when the pane exits and the highlight falls back to the real in-page tab.
       if (id === 'account') {
         bridge.send('ixian:settings');
-        setNavActive(nav, activeNav);
+        setNavActive(nav, 'account');
         return;
       }
       activeNav = id;
@@ -1089,6 +1090,10 @@
         try { r.classList.remove('theme-switching'); } catch (e) {}
       }));
     },
+
+    // #245: the Account pane closed (HomePage.onOverlayClosed) — the rail
+    // highlight falls back from Account to the real in-page tab.
+    onSettingsClosed() { setNavActive(nav, activeNav); },
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
 
     // Batch start of a FULL flush: reset the model + enter flushing mode so the

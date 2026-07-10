@@ -566,7 +566,10 @@ namespace SPIXI
         // a "chat" overlay closes the previous one AFTER the new one is visible —
         // seamless conversation switching); column pins the overlay to a grid column
         // (desktop: 1 = the detail pane; -1 = full span).
-        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null)
+        // stageMargin (#245): insets the overlay stage inside the host grid — the
+        // Account peer-pane leaves the home rail strip (leading 72dip) visible and
+        // interactive. Presentation-only; zero margin = exact previous behavior.
+        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default)
         {
             lock (preloadLock)
             {
@@ -622,6 +625,7 @@ namespace SPIXI
                     Opacity = 0,
                     InputTransparent = true,
                     CascadeInputTransparent = true,
+                    Margin = stageMargin,   // #245: zero by default; peer-pane rail inset
                 };
 
                 PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);

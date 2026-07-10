@@ -249,13 +249,13 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
   letter-spacing: inherit;
   text-align: start;  /* #231c: <button> default CENTERS text — a wrapped long URL centered its 2nd line (Damir F5); RTL-safe */
   text-decoration: underline;
-  color: var(--text-action-default);
+  color: var(--text-link);   /* #244: dedicated link role (Damir's blue) — was text-action (brand) */
   cursor: pointer;
   word-break: break-all;
   -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) {
-  .c-bubble__link:hover { color: var(--text-action-hover); }
+  .c-bubble__link:hover { color: var(--text-link-hover); }
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
 

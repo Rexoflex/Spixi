@@ -95,7 +95,7 @@ export function backupStatusParts(status = {}, strings = getStrings()) {
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-export function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked }) {
+export function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -110,6 +110,12 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
     wrap.append(h);
   }
   let inFlight = false;
+  // #242 inline mode (pane detail screen): the list stays mounted after a pick,
+  // so the check has to MOVE — track the option nodes and repaint on commit.
+  const optEls = new Map();
+  const paintChecks = () => {
+    for (const [v, el] of optEls) el.setAttribute('aria-checked', String(v === current));
+  };
   for (const o of options) {
     const opt = document.createElement('button');
     opt.type = 'button';
@@ -142,7 +148,21 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
       const ctrl = settingsCtrl(
-        () => { closeSheet(sheet); if (onPicked) onPicked(o); },
+        () => {
+          if (inline) {
+            // #242: no sheet to close — release the latch, move the check
+            // (the theme-tiles stay-open grammar) and report.
+            inFlight = false;
+            opt.removeAttribute('aria-busy');
+            delete opt.dataset.loading;
+            spinner.remove();
+            current = o.value;
+            paintChecks();
+          } else {
+            closeSheet(sheet);
+          }
+          if (onPicked) onPicked(o);
+        },
         (msg) => {
           inFlight = false;
           opt.removeAttribute('aria-busy');
@@ -157,8 +177,10 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
         ctrl.fail();                          // sync throw → clear spinner/latch (#141-m4)
       }
     });
+    optEls.set(o.value, opt);
     wrap.append(opt);
   }
+  if (inline) return wrap;                    // #242: a pane detail screen hosts the list
   const sheet = createSheet({ content: wrap, host, title, strings });
   openSheet(sheet);
   return sheet;
@@ -171,7 +193,7 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-export function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked }) {
+export function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');
@@ -246,6 +268,7 @@ export function settingsThemeSheet({ current, host, strings = getStrings(), comm
     tilesByValue.set(o.value, tile);
     wrap.append(tile);
   }
+  if (inline) return wrap;                    // #242: pane detail screen hosts the tiles (already stay-open)
   const sheet = createSheet({ content: wrap, host, title: strings.theme || 'Theme', strings });
   openSheet(sheet);
   return sheet;
@@ -271,6 +294,9 @@ export function createSettingsHub({
   onAvatarRemove,                // (ctrl) — ixian:remove
   onTheme,                       // (index, ctrl) — ixian:appearance:<int>
   onLanguage,                    // (code, ctrl) — ixian:language:<code>
+  onThemeNav,                    // (#242) optional — return true to TAKE the Theme row tap
+                                 // (pane master-detail: detail screen instead of the sheet)
+  onLanguageNav,                 // (#242) same for the Language row
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
   onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
@@ -683,7 +709,7 @@ export function createSettingsHub({
     const t = settingRow({
       glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
-      onClick: () => settingsThemeSheet({
+      onClick: () => { if (onThemeNav && onThemeNav()) return; settingsThemeSheet({
         current: theme, host: hostFor(), strings,
         commit: (v, ctrl) => onTheme(v, ctrl),
         onPicked: (o, msg) => {
@@ -692,7 +718,7 @@ export function createSettingsHub({
           t.val.textContent = strings[o.key] || o.label;
           live.textContent = (strings.theme || 'Theme') + ': ' + (strings[o.key] || o.label);
         },
-      }),
+      }); },
     });
     prefs.card.append(t.section);
   }
@@ -703,7 +729,7 @@ export function createSettingsHub({
       glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
-      onClick: () => settingsOptionSheet({
+      onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
         title: strings.language || 'Language',
         options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
         current: language, host: hostFor(), strings,
@@ -714,20 +740,20 @@ export function createSettingsHub({
           lg.val.textContent = o.label;
           live.textContent = (strings.language || 'Language') + ': ' + o.label;
         },
-      }),
+      }); },
     });
     prefs.card.append(lg.section);
   }
 
   if (onChatAppearance) prefs.card.append(settingRow({
     glyph: 'messages', hue: 'primary',
-    label: strings.chatAppearance || 'Chat appearance',
+    label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     onClick: () => onChatAppearance(),
   }).section);
 
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
     glyph: 'bell', hue: 'warning',
-    label: strings.notifications || 'Notifications',
+    label: strings.notifications || 'Notifications', key: 'notifications',
     onClick: () => onNotifications(),
   }).section);
 
@@ -788,7 +814,7 @@ export function createSettingsHub({
     const b = settingRow({
       glyph: 'shield-lock', hue: 'success',
       label: strings.backup || 'Backup',
-      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup',
+      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup', key: 'backup',
       onClick: () => onBackup(),
     });
     // the status line keeps its own identity — setBackupStatus/smoke/css hook
@@ -807,25 +833,28 @@ export function createSettingsHub({
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
     glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    key: 'howto',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About', key: 'about',
     onClick: () => onAbout(),
   }).section);
-  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
-     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
-     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  /* Downloads — CAPABILITY-GATED: HomePage-driven separate page, no SettingsPage
+     open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF until BE adds a
+     SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
+     no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
+    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
+    key: 'contributors',
     onClick: () => onContributors(),
   }).section);
   if (capabilities.dev && onDev) app.card.append(settingRow({
-    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer',
+    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer', key: 'dev',
     onClick: () => onDev(),
   }).section);
   if (version) app.card.append(settingRow({
@@ -838,6 +867,7 @@ export function createSettingsHub({
     const dz = group();
     dz.card.append(settingRow({
       glyph: 'trash', hue: 'error', label: strings.deleteData || 'Delete data…',
+      key: 'danger',
       onClick: () => onDanger(),
     }).section);
     body.append(dz.wrap);

@@ -76,57 +76,67 @@
   --brand-900: #0d1324;
   --brand-950: #05080f;
 
-  /* color/blue */
-  --blue-50: #f1f1ff;
-  --blue-100: #e3e4fe;
-  --blue-200: #cbcffe;
-  --blue-300: #a8aefd;
-  --blue-400: #8088fa;
-  --blue-500: #515ee6;
-  --blue-600: #4d57cb;
-  --blue-700: #252dc1;
-  --blue-800: #16185a;
-  --blue-900: #0d1435;
-  --blue-950: #03030c;
+  /* color/blue — #241/#244 semantic-primitive rework (Damir 2026-07-10 r2 —
+     the #241 set read too muted): re-anchored on #0B87B4 at 500 (links/info;
+     replaces the indigo that sat too close to brand). All four scales = OKLCH,
+     brand-ladder lightness, constant anchor hue, gamut-clamped; generator at
+     outputs/gen-scales*.js session scratch. ⚠ MIRROR TO FIGMA (primitives). */
+  --blue-50: #e8edef;
+  --blue-100: #c7d8e0;
+  --blue-200: #b2cfde;
+  --blue-300: #8dbfd9;
+  --blue-400: #64acd0;
+  --blue-500: #0b87b4;   /* ANCHOR (Damir r2) */
+  --blue-600: #006588;
+  --blue-700: #004863;
+  --blue-800: #0d2f3f;
+  --blue-900: #0a161c;
+  --blue-950: #05090b;
 
-  /* color/red */
-  --red-50: #f1e2e2;
-  --red-100: #f8e8e8;
-  --red-200: #f6bbbb;
-  --red-300: #f66e75;
-  --red-400: #df1c41;
-  --red-500: #cb0020;
-  --red-600: #900013;
-  --red-700: #750014;
-  --red-800: #540813;
-  --red-900: #1b0607;
-  --red-950: #0b0303;
+  /* color/red — #244: re-anchored on #B12525 at 600 (error/destructive — the
+     exact hex IS the error surface). #241's old-scale note stands (the pre-#241
+     scale was irregular: 50 darker than 100, crimson mid-steps). */
+  --red-50: #f3eae8;
+  --red-100: #ecccc8;
+  --red-200: #f1bab4;
+  --red-300: #f49c92;
+  --red-400: #f1786e;
+  --red-500: #e34540;
+  --red-600: #b12525;   /* ANCHOR (Damir r2) */
+  --red-700: #781918;
+  --red-800: #4c1714;
+  --red-900: #220d0b;
+  --red-950: #0e0605;
 
-  /* color/orange */
-  --orange-50: #f9f7f2;
-  --orange-100: #f6f1e7;
-  --orange-200: #f0e0bc;
-  --orange-300: #f3deae;
-  --orange-400: #eac06d;
-  --orange-500: #e2a233;
-  --orange-600: #bc821f;
-  --orange-700: #8f5f00;
-  --orange-800: #553d06;
-  --orange-900: #342406;
-  --orange-950: #070502;
+  /* color/orange — #244: re-anchored on #EF9132 at 400 (its lightness home —
+     a bright accent orange); warning surfaces keep the deeper generated 600
+     under white text (6.9:1). */
+  --orange-50: #f1ebe5;
+  --orange-100: #e7d0bd;
+  --orange-200: #e9c09f;
+  --orange-300: #eaa66c;
+  --orange-400: #ef9132;   /* ANCHOR (Damir r2) */
+  --orange-500: #c26d00;
+  --orange-600: #884b00;
+  --orange-700: #623400;
+  --orange-800: #432200;
+  --orange-900: #201003;
+  --orange-950: #0d0703;
 
-  /* color/green */
-  --green-50: #ebf0ee;
-  --green-100: #e6efeb;
-  --green-200: #c9e3d8;
-  --green-300: #9bd1bb;
-  --green-400: #71c6a7;
-  --green-500: #2db38b;
-  --green-600: #007052;
-  --green-700: #005b43;
-  --green-800: #0f3b2d;
-  --green-900: #0c1c16;
-  --green-950: #050c09;
+  /* color/green — #244: re-anchored on #26994C at 500 (its lightness home —
+     the vivid green = presence dot / fresh-success step); 600 carries the
+     surfaces/text under white (6.3:1). */
+  --green-50: #e9eee9;
+  --green-100: #c9dacb;
+  --green-200: #b4d3b9;
+  --green-300: #91c69b;
+  --green-400: #69b67a;
+  --green-500: #26994c;   /* ANCHOR (Damir r2) */
+  --green-600: #007030;
+  --green-700: #075022;
+  --green-800: #10341a;
+  --green-900: #0a170d;
+  --green-950: #050906;
 
   /* color/purple */
   --purple-50: #f5f3f6;
@@ -473,6 +483,11 @@
   --text-accent: var(--accent-600);
   --text-info: var(--info-700);
   --text-info-inverse: var(--info-300);
+  /* #244: LINK role (Damir: the new blue is for "links and similar") — its own
+     token so links stop riding text-action (brand) and can diverge from it.
+     info-600 on light = 6.3:1. */
+  --text-link: var(--info-600);
+  --text-link-hover: var(--info-700);
   --text-success: var(--success-600);
   --text-success-inverse: var(--success-300);
   --text-warning: var(--warning-700);
@@ -636,6 +651,9 @@
   --text-accent: var(--accent-300);
   --text-info: var(--info-300);
   --text-info-inverse: var(--info-800);
+  /* #244: link role, dark — light blue on dark surfaces (9.1:1 on screen). */
+  --text-link: var(--info-300);
+  --text-link-hover: var(--info-200);
   --text-success: var(--success-400);
   --text-success-inverse: var(--success-800);
   --text-warning: var(--warning-400);
@@ -2553,6 +2571,258 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
 .c-settings-security__tier[data-loading] .c-settings__opt-check { display: none; }
 
 </style><!-- Chat appearance takeover (6e.2) -->
+<style data-src="../styles/components/settings-backup.css">
+/* c-settings-backup — Backup screen (backup-ux-spec §3.2 / settings-shell-spec §5, #146).
+   Hero art = token-styled placeholder; .c-settings-backup__art is the
+   illustration-#6 swap slot. */
+
+.c-settings-backup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-settings-backup__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* #148③: scrolling flex column — children are shrinkable by default, which
+   crushed the 56px CTA under overflow (Damir screenshot). Never shrink. */
+.c-settings-backup__body > * { flex: none; }
+/* the CTA lives INSIDE the hero panel now (#148③) — full width there */
+.c-settings-backup__hero > .c-settings-backup__cta { width: 100%; }
+
+.c-settings-backup__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
+}
+
+/* —— hero PANEL (#148③ premium pass): the promise + status + CTA live on ONE
+   raised card — the screen leads with a composed moment, not a stack of
+   fragments. Art = placeholder composition (illustration-#6 swap slot). —— */
+.c-settings-backup__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-24) var(--spacing-16) var(--spacing-16);
+  background: var(--surface-card);
+  border-radius: var(--radius-24);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③ — the status pill sits on the panel */
+}
+.c-settings-backup__art {
+  position: relative;
+  width: 128px;                     /* sanctioned: placeholder art dims — swapped for illustration #6 */
+  height: 128px;
+}
+/* illustration swap (Damir: images/backup.svg) — fills the art slot, fail-soft
+   to the placeholder composition on load error (handled in JS) */
+.c-settings-backup__illustration {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.c-settings-backup__art-disc {
+  position: absolute;
+  inset: 10px;                      /* sanctioned: placeholder art dims */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  box-shadow: var(--elevation-1);
+}
+.c-settings-backup__art-sat {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-card-raised);
+  color: var(--icon-neutral-02);
+  border: 2px solid var(--surface-card);     /* sanctioned: ring cut against the panel, badge-ring precedent (#48) */
+  box-shadow: var(--elevation-1);
+}
+.c-settings-backup__art-sat[data-pos='a'] { inset-block-start: 0; inset-inline-end: 0; }
+.c-settings-backup__art-sat[data-pos='b'] { inset-block-end: 0; inset-inline-end: 10px; }   /* sanctioned */
+.c-settings-backup__art-sat[data-pos='c'] { inset-block-end: 10px; inset-inline-start: 0; } /* sanctioned */
+
+.c-settings-backup__title {
+  margin: 0;
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-settings-backup__copy {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  max-width: 32ch;
+}
+/* status pill — sits between copy and CTA on the panel */
+.c-settings-backup__status {
+  margin: 0;
+  padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-input);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* —— what's inside: 2×2 disc tiles (#148③) —— */
+.c-settings-backup__label {
+  margin: 0 0 var(--spacing-8);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  padding-inline-start: var(--spacing-4);
+}
+.c-settings-backup__inside {
+  display: flex;
+  flex-direction: column;
+}
+.c-settings-backup__inside-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-8);
+}
+.c-settings-backup__inside-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
+}
+.c-settings-backup__inside-title {
+  margin-top: var(--spacing-4);
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-backup__inside-sub {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+.c-settings-backup__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* —— password modal content —— */
+.c-settings-backup__pw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+.c-settings-backup__pw-label {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-backup__pw-input {
+  font: inherit;
+  color: var(--text-neutral-01);
+  background: var(--surface-input);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  min-height: 44px;
+  width: 100%;
+}
+.c-settings-backup__pw-input:focus-visible {
+  outline: none;
+  border-color: var(--outline-action-default);
+}
+/* the show-password eye is the WebView2/Edge NATIVE ::-ms-reveal control —
+   it can't ride our tokens, so tint the black glyph readable in dark mode
+   (Damir screenshot 2026-07-05; Android/iOS WebViews render no native reveal) */
+[data-theme="dark"] .c-settings-backup__pw-input::-ms-reveal { filter: invert(0.8); }
+.c-settings-backup__pw-error {
+  margin: 0;
+  color: var(--text-error);
+  font-size: var(--font-size-body-sm);
+}
+
+/* —— Advanced reveal (QR-reveal grammar) —— */
+.c-settings-backup__advanced { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-settings-backup__adv-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-backup__adv-chevron {
+  margin-inline-start: auto;
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-settings-backup__adv-toggle[aria-expanded='true'] > .c-settings-backup__adv-chevron {
+  transform: rotate(180deg);        /* child combinator — #137 M4 lesson */
+}
+/* animated reveal (#147 — reveals shouldn't snap): max-height+opacity ride
+   data-open; content stays in the DOM (aria-hidden carries the a11y state).
+   240px comfortably clears note + button; conservative-CSS friendly. */
+.c-settings-backup__adv-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-height var(--duration-200) var(--easing-standard),
+              opacity var(--duration-200) var(--easing-standard);
+}
+.c-settings-backup__adv-box[data-open] {
+  max-height: 240px;                /* sanctioned: reveal clearance */
+  opacity: 1;
+  pointer-events: auto;
+}
+.c-settings-backup__adv-note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-backup__adv-chevron, .c-settings-backup__adv-box { transition: none; }
+}
+
+</style><!-- Backup sublevel in the pane (#243) -->
 <style data-src="../styles/components/message-bubble.css">
 /* c-bubble — chat message bubble (Figma 11288:4442 · DECISIONS #63 grouping,
    #14 width). Region tokens only. No tails — grouping = inner-corner
@@ -2805,13 +3075,13 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
   letter-spacing: inherit;
   text-align: start;  /* #231c: <button> default CENTERS text — a wrapped long URL centered its 2nd line (Damir F5); RTL-safe */
   text-decoration: underline;
-  color: var(--text-action-default);
+  color: var(--text-link);   /* #244: dedicated link role (Damir's blue) — was text-action (brand) */
   cursor: pointer;
   word-break: break-all;
   -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) {
-  .c-bubble__link:hover { color: var(--text-action-hover); }
+  .c-bubble__link:hover { color: var(--text-link-hover); }
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
 
@@ -3252,6 +3522,51 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
+
+  /* —— Account as a PEER PANE (unit 2 #240 · #243 sublevels · #245 placement,
+     Damir: "same peer as wallet/apps/chats, NOT a distant pane"): C# pins this
+     WebView over the home grid MINUS the rail strip (stage margin — the home
+     rail stays visible + live beside us), so the peer-tab chrome here is
+     dropped. Inside: the HUB renders in the LIST-column slot (width pushed via
+     setPaneMetrics → --sd-master-w, aligned with the native chats column +
+     hairline where the pane divider sits) and rows open SUBLEVELS in the
+     DETAIL region — the desktop demo layout verbatim. Sublevel content keeps
+     the demo grammar (§6d ⑬⑭): 640px cap centered, sheet padding on lifted
+     pickers, hugging CTAs. Mobile (no data-pane) is untouched. */
+  body[data-pane] #settings-nav { display: none; }
+  /* #242 specificity: the desktop rail rule `:root[data-desktop] #settings-nav`
+     (1,2,0) BEAT a plain (1,1,1) hide — the pane must always out-rank it. */
+  :root[data-desktop] body[data-pane] #settings-nav { display: none; }
+  body[data-pane] #settings-root { flex-direction: row; }
+  body[data-pane] #settings-root > .sd-master {
+    flex: 0 0 var(--sd-master-w, 328px);
+    display: flex; flex-direction: column; min-height: 0;
+    border-inline-end: 1px solid var(--outline-neutral-03);
+  }
+  body[data-pane] #settings-root > .sd-detail {
+    flex: 1 1 auto; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  body[data-pane] .sd-master > * { flex: 1; min-height: 0; }
+  /* #245b (Damir): sublevel TITLE BAR spans the full detail width; only the
+     CONTENT below it locks at the demo cap (640px, centered). The screen
+     element itself is full-width; every non-topbar child gets the cap. */
+  body[data-pane] .sd-detail > * { flex: 1; min-height: 0; width: 100%; }
+  body[data-pane] .sd-detail > :not(.sd-empty) > :not(.c-topbar) { width: 100%; max-width: 640px; margin-inline: auto; }
+  /* selected hub row while its sublevel is open (#33 desktop selection, #194 tint) */
+  body[data-pane] .c-settings__row[aria-current="true"] { background: var(--surface-action-tonal-default); }
+  body[data-pane] .c-settings__themes { padding: var(--spacing-16); }
+  body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
+  body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
+  body[data-pane] .c-settings-backup__adv-box .c-button { width: auto; }
+  /* detail empty state (dt-empty grammar, desktop demo §3) */
+  .sd-empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--spacing-12); color: var(--text-neutral-02); text-align: center; padding: var(--spacing-24);
+  }
+  .sd-empty svg { color: var(--icon-neutral-02); opacity: var(--opacity-disabled, 0.4); }
+  .sd-empty h2 { color: var(--text-neutral-01); margin: 0; }
+  .sd-empty p { margin: 0; font-size: var(--font-size-body-sm); max-width: 320px; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -5238,8 +5553,14 @@ function displayUrl(url) {
   if (!hasUserinfo && url.length <= MAX) return url;      // short + honest: as typed
   // rebuild host-first: userinfo stripped, scheme dropped, END-truncated — the
   // real host is always fully visible at the start of the label
+  const host = u.host;
+  // #235b (Opus review F1): a host LONGER than the budget must NOT end-truncate —
+  // that hides the registrable domain ("paypal.com.<64-char-pad>.evil.com" would
+  // render "paypal.com.…", eliding the true evil.com). Middle-truncate the HOST so
+  // both the leading label AND the trailing registrable domain stay visible.
+  if (host.length > MAX) return host.slice(0, MAX - 25) + '…' + host.slice(-24);
   const rest = (u.pathname === '/' && !u.search && !u.hash) ? '' : u.pathname + u.search + u.hash;
-  const label = u.host + rest;
+  const label = host + rest;
   return label.length <= MAX ? label : label.slice(0, MAX - 1) + '…';
 }
 
@@ -5346,7 +5667,7 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
-    b.textContent = displayUrl(url);   // #231c: long URLs middle-truncated for display only
+    b.textContent = displayUrl(url);   // #235: host-first label; long labels truncated for display only (full url on title/click)
     b.title = url;
     if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
@@ -16767,7 +17088,7 @@ function backupStatusParts(status = {}, strings = getStrings()) {
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked }) {
+function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
@@ -16782,6 +17103,12 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
     wrap.append(h);
   }
   let inFlight = false;
+  // #242 inline mode (pane detail screen): the list stays mounted after a pick,
+  // so the check has to MOVE — track the option nodes and repaint on commit.
+  const optEls = new Map();
+  const paintChecks = () => {
+    for (const [v, el] of optEls) el.setAttribute('aria-checked', String(v === current));
+  };
   for (const o of options) {
     const opt = document.createElement('button');
     opt.type = 'button';
@@ -16814,7 +17141,21 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
       spinner.setAttribute('aria-hidden', 'true');
       status.append(spinner);
       const ctrl = settingsCtrl(
-        () => { closeSheet(sheet); if (onPicked) onPicked(o); },
+        () => {
+          if (inline) {
+            // #242: no sheet to close — release the latch, move the check
+            // (the theme-tiles stay-open grammar) and report.
+            inFlight = false;
+            opt.removeAttribute('aria-busy');
+            delete opt.dataset.loading;
+            spinner.remove();
+            current = o.value;
+            paintChecks();
+          } else {
+            closeSheet(sheet);
+          }
+          if (onPicked) onPicked(o);
+        },
         (msg) => {
           inFlight = false;
           opt.removeAttribute('aria-busy');
@@ -16829,8 +17170,10 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
         ctrl.fail();                          // sync throw → clear spinner/latch (#141-m4)
       }
     });
+    optEls.set(o.value, opt);
     wrap.append(opt);
   }
+  if (inline) return wrap;                    // #242: a pane detail screen hosts the list
   const sheet = createSheet({ content: wrap, host, title, strings });
   openSheet(sheet);
   return sheet;
@@ -16843,7 +17186,7 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked }) {
+function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__themes';
   wrap.setAttribute('role', 'radiogroup');
@@ -16918,6 +17261,7 @@ function settingsThemeSheet({ current, host, strings = getStrings(), commit, onP
     tilesByValue.set(o.value, tile);
     wrap.append(tile);
   }
+  if (inline) return wrap;                    // #242: pane detail screen hosts the tiles (already stay-open)
   const sheet = createSheet({ content: wrap, host, title: strings.theme || 'Theme', strings });
   openSheet(sheet);
   return sheet;
@@ -16943,6 +17287,9 @@ function createSettingsHub({
   onAvatarRemove,                // (ctrl) — ixian:remove
   onTheme,                       // (index, ctrl) — ixian:appearance:<int>
   onLanguage,                    // (code, ctrl) — ixian:language:<code>
+  onThemeNav,                    // (#242) optional — return true to TAKE the Theme row tap
+                                 // (pane master-detail: detail screen instead of the sheet)
+  onLanguageNav,                 // (#242) same for the Language row
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
   onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
@@ -17355,7 +17702,7 @@ function createSettingsHub({
     const t = settingRow({
       glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
-      onClick: () => settingsThemeSheet({
+      onClick: () => { if (onThemeNav && onThemeNav()) return; settingsThemeSheet({
         current: theme, host: hostFor(), strings,
         commit: (v, ctrl) => onTheme(v, ctrl),
         onPicked: (o, msg) => {
@@ -17364,7 +17711,7 @@ function createSettingsHub({
           t.val.textContent = strings[o.key] || o.label;
           live.textContent = (strings.theme || 'Theme') + ': ' + (strings[o.key] || o.label);
         },
-      }),
+      }); },
     });
     prefs.card.append(t.section);
   }
@@ -17375,7 +17722,7 @@ function createSettingsHub({
       glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
-      onClick: () => settingsOptionSheet({
+      onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
         title: strings.language || 'Language',
         options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
         current: language, host: hostFor(), strings,
@@ -17386,20 +17733,20 @@ function createSettingsHub({
           lg.val.textContent = o.label;
           live.textContent = (strings.language || 'Language') + ': ' + o.label;
         },
-      }),
+      }); },
     });
     prefs.card.append(lg.section);
   }
 
   if (onChatAppearance) prefs.card.append(settingRow({
     glyph: 'messages', hue: 'primary',
-    label: strings.chatAppearance || 'Chat appearance',
+    label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     onClick: () => onChatAppearance(),
   }).section);
 
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
     glyph: 'bell', hue: 'warning',
-    label: strings.notifications || 'Notifications',
+    label: strings.notifications || 'Notifications', key: 'notifications',
     onClick: () => onNotifications(),
   }).section);
 
@@ -17460,7 +17807,7 @@ function createSettingsHub({
     const b = settingRow({
       glyph: 'shield-lock', hue: 'success',
       label: strings.backup || 'Backup',
-      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup',
+      sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup', key: 'backup',
       onClick: () => onBackup(),
     });
     // the status line keeps its own identity — setBackupStatus/smoke/css hook
@@ -17479,25 +17826,28 @@ function createSettingsHub({
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
     glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    key: 'howto',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About',
+    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About', key: 'about',
     onClick: () => onAbout(),
   }).section);
-  /* Downloads / Contributors — CAPABILITY-GATED: HomePage-driven separate pages,
-     no SettingsPage open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF
-     until BE adds SettingsPage nav verbs (be-cutover asks). */
+  /* Downloads — CAPABILITY-GATED: HomePage-driven separate page, no SettingsPage
+     open-verb (bridge-audit-B §6/§8). Built + ready, gated OFF until BE adds a
+     SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
+     no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads',
+    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
     glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
+    key: 'contributors',
     onClick: () => onContributors(),
   }).section);
   if (capabilities.dev && onDev) app.card.append(settingRow({
-    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer',
+    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer', key: 'dev',
     onClick: () => onDev(),
   }).section);
   if (version) app.card.append(settingRow({
@@ -17510,6 +17860,7 @@ function createSettingsHub({
     const dz = group();
     dz.card.append(settingRow({
       glyph: 'trash', hue: 'error', label: strings.deleteData || 'Delete data…',
+      key: 'danger',
       onClick: () => onDanger(),
     }).section);
     body.append(dz.wrap);
@@ -20514,13 +20865,29 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
+    createSettingsContributors, createSettingsBackup,
     createChatAppearance, setSettingsSaveVisible,
+    settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, showToast,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
   // bottom bar for the LEFT RAIL + drops the topbar back (rail = the exit).
   const isDesktop = document.documentElement.hasAttribute('data-desktop');
+  /* PANE MODE (#240 → #243 → #245): C# pushes setPaneMode('1') in onLoad when
+   * HomePage hosts this page as the Account PEER PANE (wide window — the stage
+   * spans the grid minus the home rail strip, so the rail stays visible+live
+   * beside us). Display-only: the shell hides its own peer chrome, renders the
+   * HUB in the list-column slot (setPaneMetrics width) and opens Theme/Language/
+   * Backup/etc as SUBLEVELS in the detail region — the desktop demo layout.
+   * `?pane=1` = browser-preview forcing (the app never passes query strings). */
+  let paneMode = new URLSearchParams(location.search).get('pane') === '1';
+  if (paneMode) document.body.dataset.pane = '';
+  /* #242 (Damir F5 issue 3): X1 turned the post-picker loadAvatar push into a
+   * DATA URI, so the old /avatar-tmp/ path sniff never marked a fresh pick dirty
+   * → changing ONLY the photo never showed Save. Track the pick explicitly: set
+   * on ixian:avatar, consumed by the NEXT loadAvatar push, cleared on remove. */
+  let avatarPickPending = false;
   const strings = window.SL || {};
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
   // SPIXI_ENV seeds it if the generation step injects one.
@@ -20651,7 +21018,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       if (hubEl && hubEl.showSaved) hubEl.showSaved();
       // let the "Saved" morph play, then the clean hub hides Save again
       setTimeout(syncSave, 1700);
-      showToast({ text: strings.saved || 'Saved', tone: 'success', host: document.body, strings });
+      showToast({ text: strings.settingsSaved || 'Settings saved', tone: 'success', host: document.body, strings });
       return;
     }
     // frozen-bridge fallback: persist + pop, exactly once (the C# page pop = confirm).
@@ -20659,8 +21026,61 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     bridge.send('ixian:save:' + state.name);
   }
 
-  /* —— views —————————————————————————————————————————————————————————————————— */
+  /* —— views ——————————————————————————————————————————————————————————————————
+   * Two presentations, ONE view state (#245):
+   *   mobile takeover (no data-pane): the current view replaces #settings-root.
+   *   peer pane (data-pane): hub = the LIST-column slot, sublevel = the DETAIL
+   *     region ('hub' = detail empty; a sublevel's back EMPTIES the detail).
+   * Screens are stateless builders. */
   let hubEl = null, currentView = 'hub';
+
+  const masterWrap = document.createElement('div');
+  masterWrap.className = 'sd-master';
+  const detailWrap = document.createElement('div');
+  detailWrap.className = 'sd-detail';
+  let emptyEl = null;
+
+  // detail empty state — dt-empty grammar (desktop demo §3)
+  function getEmpty() {
+    if (emptyEl) return emptyEl;
+    emptyEl = document.createElement('div');
+    emptyEl.className = 'sd-empty';
+    try {
+      const ic = window.SpixiIcons && window.SpixiIcons.icon;
+      if (ic) emptyEl.append(ic('user-circle', { size: 64 }));
+    } catch (e) {}
+    const h = document.createElement('h2');
+    h.className = 't-heading-sm';
+    h.textContent = strings.account || 'Account';
+    const p = document.createElement('p');
+    p.textContent = strings.settingsEmptyHint || 'Choose a setting on the left';
+    emptyEl.append(h, p);
+    return emptyEl;
+  }
+
+  // selected hub row while its sublevel is open (aria-current + tint, CSS above)
+  function markSelected(view) {
+    for (const r of masterWrap.querySelectorAll('.c-settings__row[aria-current]')) {
+      r.removeAttribute('aria-current');
+    }
+    if (view) {
+      const r = masterWrap.querySelector('.c-settings__row[data-setting-key="' + view + '"]');
+      if (r) r.setAttribute('aria-current', 'true');
+    }
+  }
+
+  function renderLayout() {
+    if (exiting) return;                           // no re-render once the page is exiting
+    if (!hubEl) { hubEl = buildHub(); syncSave(); }
+    if (paneMode) {
+      if (hubEl.parentNode !== masterWrap) masterWrap.replaceChildren(hubEl);
+      if (masterWrap.parentNode !== root) root.replaceChildren(masterWrap, detailWrap);
+      detailWrap.replaceChildren(currentView === 'hub' ? getEmpty() : buildScreen(currentView));
+      markSelected(currentView === 'hub' ? null : currentView);
+    } else {
+      root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+    }
+  }
 
   function buildHub() {
     return createSettingsHub({
@@ -20674,9 +21094,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
       version: appVersion,         // S4: setVersion push → hub Version row (spec §8-3)
-      capabilities: {},            // all gates OFF (no SettingsPage verb) → downloads/contributors/dev/
-                                   // change-password + notifications/privacy/security/payment rows hidden.
-                                   // Built + ready; light up when BE adds the open-verbs (be-cutover S-series).
+      // Gates: downloads/dev/change-password + notifications/privacy/security/
+      // payment rows stay OFF (no SettingsPage verb — be-cutover S-series).
+      // Contributors UN-GATED (#240): the screen is STATIC component data — the
+      // S10 open-verb was only ever needed to reach the separate ContributorsPage,
+      // which an in-shell view doesn't touch.
+      capabilities: { contributors: true },
       host: document.body,
       strings,
       // Mobile: standalone pushed page → topbar back. Desktop (Damir F5 r2): NO
@@ -20689,9 +21112,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // THEN pops the page (§2). Fires exactly once; no local re-render/morph.
       onSave: commitSave,
 
-      // About / How to use — STATIC in-hub takeovers, zero-C# (no bridge verb).
+      // About / How to use / Contributors — STATIC in-hub views, zero-C# (no bridge verb).
       onAbout: showAbout,
       onHowTo: showHowTo,
+      onContributors: showContributors,
 
       // Chat appearance — FE-only takeover (6e.2): pattern intensity + text size,
       // persisted to localStorage; chat.html applies at boot. Zero-C#.
@@ -20710,14 +21134,18 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // Close the sheet keeping the current tile; the tmp arrives via loadAvatar and
       // is promoted on exit. NOTE: avatar file paths don't resolve in the self-contained
       // shell yet (repo-wide flag) → the tile shows the deterministic gradient fallback.
-      onAvatarChange: (ctrl) => { bridge.send('ixian:avatar'); ctrl.done({ src: state.avatarSrc || null }); },
+      onAvatarChange: (ctrl) => { avatarPickPending = true; bridge.send('ixian:avatar'); ctrl.done({ src: state.avatarSrc || null }); },
       // avatar remove — immediate C#-side (deleteOwnAvatar) → pushes showRemoveAvatar('0') + default loadAvatar.
       // Clear dirtyAvatar: a prior pick left avatar-tmp.jpg on disk; without this, exit would
       // ixian:save → applyAvatar() promotes that leftover tmp and RESURRECTS the removed avatar.
-      onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); syncSave(); },
+      onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); avatarPickPending = false; state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); syncSave(); },
 
       // theme — apply locally for instant feedback, then the legacy verb (C# reloads the page).
       onTheme: (index, ctrl) => { applyTheme(index); bridge.send('ixian:appearance:' + index); ctrl.done(); },
+      // #242/#243 (Damir): in the pane, Theme/Language open as SUBLEVEL screens
+      // like every other row — the sheets stay for mobile.
+      onThemeNav: () => { if (!paneMode) return false; showTheme(); return true; },
+      onLanguageNav: () => { if (!paneMode) return false; showLanguage(); return true; },
       // language — persists + reloads C#-side. i18n gap: the reloaded shell reads its
       // OWN bundled dictionary (en-us here), so the settings UI won't re-render in the
       // picked locale until the holistic i18n live-locale pass (CLAUDE.md). The choice
@@ -20734,9 +21162,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // leaves the C# field unchanged, so the save is a harmless no-op then.
       onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); state.dirtyLock = true; syncSave(); },
 
-      // backup — SettingsPage:121 PushAsync(BackupPage), which loads the REDESIGNED
-      // settings_backup.html shell (built this batch). Fully reachable, zero-C#.
-      onBackup: () => bridge.send('ixian:backup'),
+      // backup — #243: in the pane it opens as a SUBLEVEL (the same c-settings-backup
+      // screen, verbs forwarded by SettingsPage — cap 'backupInline'); mobile keeps
+      // the BackupPage push. The cap also keeps an old exe on the safe push path.
+      onBackup: () => {
+        if (paneMode && bridge.cap('backupInline')) { showBackup(); return; }
+        bridge.send('ixian:backup');
+      },
 
       // change wallet password — GATED OFF (capabilities.changePassword absent): no
       // SettingsPage verb opens EncryptionPassword (bridge-audit-B §1/§3). The
@@ -20760,7 +21192,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     const top = prevBody ? prevBody.scrollTop : 0;
     hubEl = buildHub();
     syncSave();
-    if (currentView === 'hub') {
+    if (paneMode) {
+      // the hub column is always mounted; keep the open sublevel + its selection
+      masterWrap.replaceChildren(hubEl);
+      markSelected(currentView === 'hub' ? null : currentView);
+      const nb = hubEl.querySelector('.c-settings__body');
+      if (nb) nb.scrollTop = top;
+    } else if (currentView === 'hub') {
       root.replaceChildren(hubEl);
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
@@ -20776,73 +21214,139 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     requestAnimationFrame(() => { rebuildQueued = false; if (!exiting) rebuildHub(); });
   }
 
-  function showHub() {
-    currentView = 'hub';
-    if (!hubEl) { hubEl = buildHub(); syncSave(); }
-    root.replaceChildren(hubEl);
+  // View switches — one-liners into the mode-aware renderer (#240). showHub as a
+  // screen's onBack = "detail → empty" in split mode, "takeover → hub" otherwise.
+  function showHub() { currentView = 'hub'; renderLayout(); }
+  function showDanger() { currentView = 'danger'; renderLayout(); }
+  function showAbout() { currentView = 'about'; renderLayout(); }
+  function showHowTo() { currentView = 'howto'; renderLayout(); }
+  function showChatAppearance() { currentView = 'chatappearance'; renderLayout(); }
+  function showContributors() { currentView = 'contributors'; renderLayout(); }
+  function showTheme() { currentView = 'theme'; renderLayout(); }          // #242/#243: pane-mode sublevels (hub routes them)
+  function showLanguage() { currentView = 'language'; renderLayout(); }
+  function showBackup() { currentView = 'backup'; renderLayout(); }        // #243: pane + backupInline cap only
+
+  // #242: detail-screen chrome for the inline pickers — same view topbar + body
+  // grammar as the component screens; back = showHub (split: empties the detail).
+  function pickerScreen(title, content) {
+    const el = document.createElement('div');
+    el.className = 'c-settings';
+    el.append(createTopbar({ variant: 'view', title, onBack: showHub }));
+    const body = document.createElement('div');
+    body.className = 'c-settings__body u-scroll';
+    body.append(content);
+    el.append(body);
+    return el;
   }
 
-  // Danger screen — view takeover. All four deletes are fire-and-forget INTENT:
-  // ctrl.done() dismisses the FE confirm; C# takes over (native alert for
-  // history/downloads; LockPage auth for account/wallet). On a successful
-  // account delete C# re-runs onLoad → the hub rebuilds; a wallet delete tears
-  // the page down (shutdown → Launch).
-  function showDanger() {
-    currentView = 'danger';
-    root.replaceChildren(createSettingsDanger({
-      host: document.body,
-      onBack: showHub,
-      onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
-      onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
-      onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
-      onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
-      strings,
-    }));
-  }
-
-  // About — static takeover (zero-C#). Version from the setVersion push (S4).
-  function showAbout() {
-    currentView = 'about';
-    root.replaceChildren(createSettingsAbout({
-      version: appVersion, host: document.body, strings,
-      onBack: showHub,
-      // no bridge verb opens a URL from the WebView → links render as selectable text
-      // (onOpenLink deliberately omitted).
-    }));
-  }
-
-  // How to use — static takeover (zero-C#).
-  function showHowTo() {
-    currentView = 'howto';
-    root.replaceChildren(createSettingsHowTo({
-      host: document.body, strings,
-      onBack: showHub,
-    }));
-  }
-
-  // Chat appearance — FE-only takeover (6e.2 / #147): live preview + presets.
-  // Picks apply to THIS document instantly and persist for every shell; the
-  // chat shell reads the same keys at boot (no push, no verb).
-  function showChatAppearance() {
-    currentView = 'chatappearance';
-    const prefs = readChatPrefs();
-    root.replaceChildren(createChatAppearance({
-      patternOpacity: prefs.pattern,
-      textScale: prefs.textScale,
-      strings,
-      onBack: showHub,
-      // persist only — chat.html consumes at boot (see CHAT_PREFS note above).
-      // KNOWN FLAG: in dark theme the preview shows the light-scale intensity
-      // (component sets raw v); real dark chat renders v × 0.36 — slightly
-      // brighter preview, logged for Damir's pass.
-      onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
-      onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
-    }));
+  /* Screen builders (stateless — rebuilt per open/mode-flip):
+   * · danger — all four deletes are fire-and-forget INTENT: ctrl.done() dismisses
+   *   the FE confirm; C# takes over (native alert for history/downloads; LockPage
+   *   auth for account/wallet — presents FULL-WINDOW via the overlay-host fallback,
+   *   #229/#230, even while this page is a pane). On a successful account delete
+   *   C# re-runs onLoad → the hub rebuilds; a wallet delete tears the page down.
+   * · about — static, zero-C#; version from the setVersion push (S4). No bridge
+   *   verb opens a URL from the WebView → links render as selectable text
+   *   (onOpenLink deliberately omitted, be-cutover S13).
+   * · howto — static, zero-C#.
+   * · contributors — static component data (#240 un-gated; no verb needed).
+   * · chatappearance — FE-only (6e.2 / #147): live preview + presets; persists to
+   *   localStorage, chat.html consumes at boot (see CHAT_PREFS note above).
+   *   KNOWN FLAG: in dark theme the preview shows the light-scale intensity
+   *   (component sets raw v); real dark chat renders v × 0.36 — logged (#239 ⓐ). */
+  function buildScreen(view) {
+    switch (view) {
+      case 'danger': return createSettingsDanger({
+        host: document.body,
+        onBack: showHub,
+        onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
+        onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
+        onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
+        onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
+        strings,
+      });
+      case 'about': return createSettingsAbout({
+        version: appVersion, host: document.body, strings,
+        onBack: showHub,
+      });
+      case 'howto': return createSettingsHowTo({
+        host: document.body, strings,
+        onBack: showHub,
+      });
+      case 'contributors': return createSettingsContributors({
+        strings,
+        onBack: showHub,
+      });
+      case 'chatappearance': {
+        const prefs = readChatPrefs();
+        return createChatAppearance({
+          patternOpacity: prefs.pattern,
+          textScale: prefs.textScale,
+          strings,
+          onBack: showHub,
+          onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
+          onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
+        });
+      }
+      // #242/#243: Theme/Language as pane sublevels (the hub routes here via
+      // onThemeNav/onLanguageNav only in pane mode). Same commit verbs as the
+      // sheets; the picker content is the SAME component in inline mode
+      // (stay-open, check moves), wrapped in the view-topbar chrome.
+      case 'theme': return pickerScreen(strings.theme || 'Theme',
+        settingsThemeSheet({
+          current: state.theme, strings, inline: true,
+          commit: (v, ctrl) => { applyTheme(v); bridge.send('ixian:appearance:' + v); ctrl.done(); },
+          onPicked: (o) => { if (o) { state.theme = o.value; scheduleRebuild(); } },
+        }));
+      case 'language': return pickerScreen(strings.language || 'Language',
+        settingsOptionSheet({
+          title: strings.language || 'Language',
+          options: LANGS.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
+          current: state.language, strings, inline: true,
+          // C# persists + RELOADS settings.html on this verb — the fresh page
+          // re-lands on the hub with the new current (S5 i18n note applies).
+          commit: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+        }));
+      // #243: Backup as a pane sublevel — the SAME c-settings-backup screen the
+      // standalone settings_backup.html shell mounts, with SettingsPage now
+      // forwarding the two verbs (cap 'backupInline'; the flow is fire-and-forget,
+      // C# owns file paths + the share sheet — S12/S2 notes apply unchanged).
+      case 'backup': return createSettingsBackup({
+        status: {},                          // S2: no backup-status push → conservative default
+        host: document.body,
+        // #245b (Damir): the ONE backup illustration everywhere — same asset the
+        // create-account/onboarding tail + backup nudge use (build-shells copies
+        // src/demo/images → html/images; fail-soft to the shield placeholder).
+        illustration: 'images/backup.svg',
+        onBack: showHub,
+        onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },
+        onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
+        strings,
+      });
+    }
+    // unknown view (unreachable — all setters are controlled): degrade safely.
+    // NEVER hand hubEl to the detail region (it would steal it from the master).
+    return paneMode ? getEmpty() : hubEl;
   }
 
   // Share own address (6e.2). navigator.share where the WebView exposes it
   // (never assumed — WinUI WebView2 may not); fallback = clipboard + "Copied"
   // toast so the row is never a dead end. Errors (incl. user-cancel) are benign.
+  // #235b (Opus review MINOR-2): navigator.clipboard is UNDEFINED on non-secure /
+  // older WebView2 origins → `.writeText` threw into a silent catch (no copy, no
+  // feedback). Now: guard clipboard existence, fall back to execCommand, and if
+  // EVERYTHING fails surface an error toast — the row always gives feedback.
+  function execCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
   function shareAddress({ address }) {
     const addr = address || state.address;
     if (!addr) return;
@@ -20850,11 +21354,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       navigator.share({ text: addr }).catch(() => {});
       return;
     }
+    const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
+    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Could not copy', tone: 'error', host: document.body, strings }); };
     try {
-      navigator.clipboard.writeText(addr).then(
-        () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings }),
-        () => {});
-    } catch (e) {}
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(addr).then(ok, fail);
+      } else { fail(); }
+    } catch (e) { fail(); }
   }
 
   showHub();   // render immediately; C# fills it after ixian:onload
@@ -20890,10 +21396,17 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // contact_details' resolveAvatar.
       if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') p = '';
       state.avatarSrc = p || null;
-      // A tmp path = a fresh pick pending promotion (dirty). A non-tmp path (initial
-      // load, or the default pushed after a remove) means nothing is pending → clear
-      // the flag so a stale pick can't get promoted on the next exit.
-      state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
+      // Dirty = a fresh pick pending promotion. #242: since X1 this push is a DATA
+      // URI (no 'avatar-tmp' in it) — the explicit pick latch decides; the path
+      // sniff stays as a fallback for the imageToDataUri raw-path failure mode.
+      // Initial load / post-remove default pushes arrive with no pick pending →
+      // not dirty, so a stale pick can't get promoted on the next exit.
+      if (avatarPickPending && p) {
+        state.dirtyAvatar = true;
+        avatarPickPending = false;
+      } else {
+        state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
+      }
       scheduleRebuild();
     },
 
@@ -20911,9 +21424,52 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // picker always committed correctly. Unknown/empty codes keep the default.
     setLanguage(code) { if (code) { state.language = String(code).toLowerCase(); scheduleRebuild(); } },
 
-    // onBack() — hardware back (SettingsPage.OnBackButtonPressed:419). In any
-    // takeover (danger / about / how-to) back returns to the hub; from the hub it
-    // exits (save-if-dirty else back).
+    // setPaneMode('1') — unit 2 (#240): HomePage hosts this page as a detail-column
+    // PANE (wide window). Arrives in the onLoad burst BEFORE the overlay presents
+    // (pushes coalesce ahead of the #225 present), so the pane never flashes the
+    // takeover layout; re-pushed by the language-change reload. Display-only.
+    setPaneMode(v) {
+      const on = (v === '1' || v === 'true' || v === true);
+      if (on === paneMode) return;
+      paneMode = on;
+      if (on) document.body.dataset.pane = '';
+      else delete document.body.dataset.pane;
+      renderLayout();
+    },
+
+    // setPaneMetrics(width) — #245: the hub column's width in CSS px (= the native
+    // list column minus the rail strip), so the Account hub aligns with the chats
+    // list and its hairline lands where the pane divider sits. Pushed with
+    // setPaneMode; guarded against junk.
+    setPaneMetrics(w) {
+      const n = parseFloat(w);
+      if (!isNaN(n) && n >= 200 && n <= 1000) {
+        document.documentElement.style.setProperty('--sd-master-w', n + 'px');
+      }
+    },
+
+    // onExitRequest() — C# asks the pane to close ITSELF (home tab switch, #240):
+    // the same save-if-dirty exit as back-from-hub; single-fire latched, so a
+    // repeat request while the pop is in flight is a no-op.
+    onExitRequest() { exitSettings(); },
+
+    // setCaps('a,b,…') — #242: C# declares which OPTIONAL verbs this build
+    // dispatches (SettingsPage.onLoad pushes 'settingsApply' now that ixian:apply
+    // exists). Mutates the bridge's capability object IN PLACE — bridge.cap()
+    // reads the same reference — so the S14-gated Save-stays path lights up.
+    // Shell + C# ship in one commit, but the gate keeps an OLD exe with a NEW
+    // shell (or vice versa) from emitting a verb nobody dispatches.
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => {
+        c = c.trim();
+        if (c) bridge.capabilities[c] = true;
+      });
+    },
+
+    // onBack() — hardware back, routed by HomePage while this page is an overlay
+    // (#240; SettingsPage.OnBackButtonPressed when pushed). In any screen (danger /
+    // about / how-to / …) back returns to the hub (split: empties the detail);
+    // from the hub it exits (save-if-dirty else back).
     onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
   };
 
@@ -20932,9 +21488,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   ];
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'account',
-    // Desktop (Damir F5 r2): same LEFT RAIL as the home shell (logo on top) so
-    // Account reads as a peer pane, not a full-screen mobile takeover — the real
-    // Account-as-pane (column placement) is unit 2, small C#, still queued.
+    // Desktop (Damir F5 r2): same LEFT RAIL as the home shell (logo on top) so a
+    // FULL-WINDOW Account (narrow desktop window) reads as a peer pane. When C#
+    // hosts this page as a real PANE (unit 2 #240, setPaneMode) this whole nav is
+    // hidden — home's rail sits beside the pane.
     variant: isDesktop ? 'rail' : undefined,
     logo: isDesktop,
     // Leaving Account = pop back to home. Route through exitSettings (NOT a raw

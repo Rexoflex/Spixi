@@ -55,57 +55,67 @@
   --brand-900: #0d1324;
   --brand-950: #05080f;
 
-  /* color/blue */
-  --blue-50: #f1f1ff;
-  --blue-100: #e3e4fe;
-  --blue-200: #cbcffe;
-  --blue-300: #a8aefd;
-  --blue-400: #8088fa;
-  --blue-500: #515ee6;
-  --blue-600: #4d57cb;
-  --blue-700: #252dc1;
-  --blue-800: #16185a;
-  --blue-900: #0d1435;
-  --blue-950: #03030c;
+  /* color/blue — #241/#244 semantic-primitive rework (Damir 2026-07-10 r2 —
+     the #241 set read too muted): re-anchored on #0B87B4 at 500 (links/info;
+     replaces the indigo that sat too close to brand). All four scales = OKLCH,
+     brand-ladder lightness, constant anchor hue, gamut-clamped; generator at
+     outputs/gen-scales*.js session scratch. ⚠ MIRROR TO FIGMA (primitives). */
+  --blue-50: #e8edef;
+  --blue-100: #c7d8e0;
+  --blue-200: #b2cfde;
+  --blue-300: #8dbfd9;
+  --blue-400: #64acd0;
+  --blue-500: #0b87b4;   /* ANCHOR (Damir r2) */
+  --blue-600: #006588;
+  --blue-700: #004863;
+  --blue-800: #0d2f3f;
+  --blue-900: #0a161c;
+  --blue-950: #05090b;
 
-  /* color/red */
-  --red-50: #f1e2e2;
-  --red-100: #f8e8e8;
-  --red-200: #f6bbbb;
-  --red-300: #f66e75;
-  --red-400: #df1c41;
-  --red-500: #cb0020;
-  --red-600: #900013;
-  --red-700: #750014;
-  --red-800: #540813;
-  --red-900: #1b0607;
-  --red-950: #0b0303;
+  /* color/red — #244: re-anchored on #B12525 at 600 (error/destructive — the
+     exact hex IS the error surface). #241's old-scale note stands (the pre-#241
+     scale was irregular: 50 darker than 100, crimson mid-steps). */
+  --red-50: #f3eae8;
+  --red-100: #ecccc8;
+  --red-200: #f1bab4;
+  --red-300: #f49c92;
+  --red-400: #f1786e;
+  --red-500: #e34540;
+  --red-600: #b12525;   /* ANCHOR (Damir r2) */
+  --red-700: #781918;
+  --red-800: #4c1714;
+  --red-900: #220d0b;
+  --red-950: #0e0605;
 
-  /* color/orange */
-  --orange-50: #f9f7f2;
-  --orange-100: #f6f1e7;
-  --orange-200: #f0e0bc;
-  --orange-300: #f3deae;
-  --orange-400: #eac06d;
-  --orange-500: #e2a233;
-  --orange-600: #bc821f;
-  --orange-700: #8f5f00;
-  --orange-800: #553d06;
-  --orange-900: #342406;
-  --orange-950: #070502;
+  /* color/orange — #244: re-anchored on #EF9132 at 400 (its lightness home —
+     a bright accent orange); warning surfaces keep the deeper generated 600
+     under white text (6.9:1). */
+  --orange-50: #f1ebe5;
+  --orange-100: #e7d0bd;
+  --orange-200: #e9c09f;
+  --orange-300: #eaa66c;
+  --orange-400: #ef9132;   /* ANCHOR (Damir r2) */
+  --orange-500: #c26d00;
+  --orange-600: #884b00;
+  --orange-700: #623400;
+  --orange-800: #432200;
+  --orange-900: #201003;
+  --orange-950: #0d0703;
 
-  /* color/green */
-  --green-50: #ebf0ee;
-  --green-100: #e6efeb;
-  --green-200: #c9e3d8;
-  --green-300: #9bd1bb;
-  --green-400: #71c6a7;
-  --green-500: #2db38b;
-  --green-600: #007052;
-  --green-700: #005b43;
-  --green-800: #0f3b2d;
-  --green-900: #0c1c16;
-  --green-950: #050c09;
+  /* color/green — #244: re-anchored on #26994C at 500 (its lightness home —
+     the vivid green = presence dot / fresh-success step); 600 carries the
+     surfaces/text under white (6.3:1). */
+  --green-50: #e9eee9;
+  --green-100: #c9dacb;
+  --green-200: #b4d3b9;
+  --green-300: #91c69b;
+  --green-400: #69b67a;
+  --green-500: #26994c;   /* ANCHOR (Damir r2) */
+  --green-600: #007030;
+  --green-700: #075022;
+  --green-800: #10341a;
+  --green-900: #0a170d;
+  --green-950: #050906;
 
   /* color/purple */
   --purple-50: #f5f3f6;
@@ -452,6 +462,11 @@
   --text-accent: var(--accent-600);
   --text-info: var(--info-700);
   --text-info-inverse: var(--info-300);
+  /* #244: LINK role (Damir: the new blue is for "links and similar") — its own
+     token so links stop riding text-action (brand) and can diverge from it.
+     info-600 on light = 6.3:1. */
+  --text-link: var(--info-600);
+  --text-link-hover: var(--info-700);
   --text-success: var(--success-600);
   --text-success-inverse: var(--success-300);
   --text-warning: var(--warning-700);
@@ -615,6 +630,9 @@
   --text-accent: var(--accent-300);
   --text-info: var(--info-300);
   --text-info-inverse: var(--info-800);
+  /* #244: link role, dark — light blue on dark surfaces (9.1:1 on screen). */
+  --text-link: var(--info-300);
+  --text-link-hover: var(--info-200);
   --text-success: var(--success-400);
   --text-success-inverse: var(--success-800);
   --text-warning: var(--warning-400);

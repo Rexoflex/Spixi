@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="utf-8">
 <!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
      light<->dark flip). The body-tail theme block is now redundant but harmless. -->
 <script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
-<meta charset="utf-8">
+<!-- #228 platform type flag: desktop OS → compact desktop type/density (tokens.css
+     :root[data-desktop]); set BEFORE first paint, constant across window resize
+     (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi — Change password</title>
 <style>
@@ -23,7 +27,8 @@
    Tier mapping (mirrors Figma collections):
      1. primitives  ("Spixi - primitives")  → static, mode-less
      2. keys        ("keys", "keys-responsive") → static aliases; type switches
-        at the desktop breakpoint (min-width: 700px)
+        via the PLATFORM flag :root[data-desktop] (#228 — set once at shell
+        boot from desktop-OS detection; NOT a viewport query)
      3. tokens      ("tokens")              → light values on :root,
         dark overrides under [data-theme="dark"] (set by JS from OS
         preference + manual override via the existing ixian:appearance flow)
@@ -307,7 +312,7 @@
   --layout-bar-top: 56px;
   --layout-bar-bottom: 64px;
   --layout-composer-min: 56px;
-  --layout-breakpoint-split: 700px; /* informational: match @media below */
+  --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
   --layout-bubble-max: 320px;       /* chat bubble max width (responsive-ready) */
 }
@@ -333,26 +338,38 @@
   --font-size-body-xs: 12px;     --line-height-body-xs: 16px;     --tracking-body-xs: 0px;
 }
 
-@media (min-width: 700px) {
-  :root {
-    --font-size-display-lg: 56px;  --line-height-display-lg: 64px;  --tracking-display-lg: -2px;
-    --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
-    --font-size-heading-lg: 36px;  --line-height-heading-lg: 44px;
-    --font-size-heading-md: 28px;  --line-height-heading-md: 28px;
-    /* B3/R2 — desktop DENSITY step (font-size-audit §2, DECISIONS #226 🟡 Damir
-       dials at F5): desktop apps read SMALLER than mobile, not bigger — 24px
-       screen titles + 18px list names were the "reads huge vs Telegram" factor.
-       heading-lg/display keep their large desktop values (hero/launch only). */
-    --font-size-heading-sm: 20px;  --line-height-heading-sm: 26px;   /* screen titles */
-    --font-size-heading-xs: 18px;  --line-height-heading-xs: 24px;
-    --font-size-body-lg: 15px;     --line-height-body-lg: 22px;      /* chat-row names */
-    --font-size-body-sm: 13px;     --line-height-body-sm: 18px;      /* excerpts */
-    --font-size-label-md: 14px;    --line-height-label-md: 20px;     /* buttons/inputs */
-    --tracking-label-lg: -0.25px;  --tracking-label-md: -0.25px;
-    --tracking-label-sm: -0.25px;  --tracking-label-xs: -0.25px;
-    --tracking-body-md: -0.25px;   --tracking-body-sm: -0.25px;
-    --tracking-body-xs: -0.25px;
-  }
+/* B3/R2 — desktop DENSITY step (font-size-audit §2, DECISIONS #226 🟡 Damir
+   dials at F5): desktop apps read SMALLER than mobile, not bigger — 24px
+   screen titles + 18px list names were the "reads huge vs Telegram" factor.
+   heading-lg/display keep their large desktop values (hero/launch only).
+   DIAL 2 (2026-07-10, Damir post-F5 "smaller, TG/Discord parity"): titles
+   20→18, heading-xs 18→16, row names 15→14 (=TG), NEW body-md 16→15
+   (bubbles/body — midpoint of TG 14 / Discord 16), NEW label-lg 18→16 +
+   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5).
+   TRIGGER (#228, Damir): PLATFORM flag `:root[data-desktop]` — set once at
+   shell boot (desktop OS detection), NOT a viewport query. Type stays
+   constant while the window resizes (TG/Discord behavior; the old
+   @media 700px flipped type at the pane-split threshold — min window is
+   480 logical, so narrowed desktop windows got phone-scale text). The 700px
+   split threshold remains layout-only (HomePage). Phone-frame demos in a
+   wide desktop browser no longer inherit desktop sizes (#226 caveat gone). */
+:root[data-desktop] {
+  --font-size-display-lg: 56px;  --line-height-display-lg: 64px;  --tracking-display-lg: -2px;
+  --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
+  --font-size-heading-lg: 36px;  --line-height-heading-lg: 44px;
+  --font-size-heading-md: 28px;  --line-height-heading-md: 28px;
+  --font-size-heading-sm: 18px;  --line-height-heading-sm: 24px;   /* screen titles */
+  --font-size-heading-xs: 16px;  --line-height-heading-xs: 22px;
+  --font-size-body-lg: 14px;     --line-height-body-lg: 20px;      /* chat-row names */
+  --font-size-body-md: 15px;     --line-height-body-md: 21px;      /* bubbles/body copy */
+  --font-size-body-sm: 13px;     --line-height-body-sm: 18px;      /* excerpts */
+  --font-size-label-lg: 16px;    --line-height-label-lg: 24px;     /* large buttons */
+  --font-size-label-md: 14px;    --line-height-label-md: 20px;     /* buttons/inputs */
+  --font-size-label-sm: 13px;    --line-height-label-sm: 18px;
+  --tracking-label-lg: -0.25px;  --tracking-label-md: -0.25px;
+  --tracking-label-sm: -0.25px;  --tracking-label-xs: -0.25px;
+  --tracking-body-md: -0.25px;   --tracking-body-sm: -0.25px;
+  --tracking-body-xs: -0.25px;
 }
 
 /* Weight-per-role (from "typography" composites):

@@ -22,6 +22,10 @@
 /* :active AFTER the hover block so pressed wins (source order at equal specificity) */
 .c-txlist-item:active { background: var(--surface-interactive-pressed); }
 
+/* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
+   + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
+:root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
+
 /* direction circle: 48, centered 24 arrow */
 .c-txlist-item__direction {
   flex: none;

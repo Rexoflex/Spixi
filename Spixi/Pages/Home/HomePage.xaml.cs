@@ -1546,6 +1546,12 @@ namespace SPIXI
 
         protected override bool OnBackButtonPressed()
         {
+            // #230: while a lock is shown in place, HomePage is still the CurrentPage —
+            // swallow back entirely (the lock's own OnBackButtonPressed never runs).
+            if (SpixiContentPage.hasModalOverlay())
+            {
+                return true;
+            }
             // #225: hardware/host back closes the top overlay first.
             if (SpixiContentPage.closeTopOverlay())
             {

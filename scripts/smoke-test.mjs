@@ -2858,7 +2858,23 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
     }
   }
   ok(containers === 0, 'no component CSS uses container queries (#4 conservative baseline)');
-  ok(wide === 0, 'no component CSS gained ≥700px viewport rules (desktop = demo composition only)');
+  ok(wide === 0, 'no component CSS gained ≥700px viewport rules (#228: desktop density rides :root[data-desktop], never a viewport query)');
+
+  /* ①b #228 — desktop type/density is a PLATFORM flag: tokens.css must carry the
+     :root[data-desktop] block (not @media ≥700px), and every shell except
+     launch.html (drifted; own rebuild batch) must set the flag at boot. */
+  const tok = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/:root\[data-desktop\]/.test(tok), 'tokens.css desktop type step keyed on :root[data-desktop] (#228)');
+  ok(!/@media[^{]*min-width:\s*700px/.test(tok), 'tokens.css has NO 700px media query (type must not flip on window resize, #228)');
+  {
+    const shellsDir = join(root, 'src/shells');
+    const exempt = new Set(['launch.html']); // drifted; gets the flag in its own rebuild batch
+    for (const f of readdirSync(shellsDir)) {
+      if (!f.endsWith('.html') || exempt.has(f)) continue;
+      const html = readFileSync(join(shellsDir, f), 'utf8');
+      ok(html.includes("setAttribute('data-desktop'"), 'shell sets the #228 platform type flag: ' + f);
+    }
+  }
 
   /* ② the desktop demo links every stylesheet it renders (the chat.html chip.css lesson) */
   const dt = readFileSync(join(root, 'src/demo/desktop.html'), 'utf8');

@@ -25,7 +25,7 @@
 /* compact balance — appears in the title row while minimized (#134 scroll UX) */
 .c-wallet-hero__compactbal {
   margin-inline-start: auto;
-  font-family: var(--font-primary);
+  font-family: var(--font-display);  /* same brand face as the full amount (#228) */
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-body-lg);
   opacity: 0;
@@ -60,7 +60,10 @@
 }
 .c-wallet-hero__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
 .c-wallet-hero__amount {
-  font-family: var(--font-primary);
+  /* Damir 2026-07-10 (#228): the IXI balance keeps the BRAND face (Sora) after
+     the B1 system-ui swap — Sora is already data-URI-embedded in every shell
+     for the wordmark, so zero extra bytes/perf. Title/fiat/actions stay native. */
+  font-family: var(--font-display);
   font-size: var(--font-size-heading-lg);
   line-height: var(--line-height-heading-lg);
   font-weight: var(--font-weight-semibold);

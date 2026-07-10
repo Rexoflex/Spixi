@@ -20,6 +20,13 @@
               box-shadow var(--duration-100) var(--easing-standard);
 }
 
+/* #228 desktop density: pointer targets may go tighter than the 44px touch
+   minimum (TG search ≈32–36px). Mobile keeps --size-target-min. */
+:root[data-desktop] .c-search-field {
+  min-height: 36px;
+  padding-block: var(--spacing-4);
+}
+
 /* Figma text-field used outline-info (hover) + text-action-default (focus) as
    borders — confirmed errors by Damir 2026-07-02; action OUTLINE roles are the
    correct family (#51). Mirror back to Figma text-field/large. */

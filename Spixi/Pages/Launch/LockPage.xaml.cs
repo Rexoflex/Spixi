@@ -6,6 +6,7 @@ using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
 using System.IO;
+using System.Linq;   // #229: ModalStack (IReadOnlyList<Page>).Contains
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -42,14 +43,47 @@ namespace SPIXI
             // Deprecated due to WPF, use onLoad
         }
 
-        private async void onLoad()
+        // #229 (reviewer MINOR-1/-3): the lock may load while STAGED INVISIBLE
+        // (pushModalLoaded). Biometrics must only fire once the page is actually
+        // on screen — firing during staging popped the OS auth sheet over the
+        // PREVIOUS screen's content, and a fast auth could PopModalAsync an empty
+        // modal stack (the modal push had not happened yet).
+        private bool uiReady = false;        // ixian:onload received
+        private bool pageVisible = false;    // OnAppearing fired (really presented)
+        private bool authAttempted = false;
+
+        private void onLoad()
         {
             if(justConfirmAction)
                 Utils.sendUiCommand(this, "setJustConfirm", "True");
 
+            uiReady = true;
+            maybeAuthenticate();
+        }
+
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            pageVisible = true;
+            maybeAuthenticate();
+        }
+
+        // #230: in-place presents don't fire OnAppearing — same "really visible" signal.
+        public override void onPresentedInPlace()
+        {
+            pageVisible = true;
+            maybeAuthenticate();
+        }
+
+        private async void maybeAuthenticate()
+        {
+            if (!uiReady || !pageVisible || authAttempted)
+                return;
+
             if (Device.RuntimePlatform == Device.WinUI)
                 return;
 
+            authAttempted = true;
             // Show biometric and alternative authentication methods
             await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));
         }
@@ -82,7 +116,11 @@ namespace SPIXI
                     {
                         authSucceeded(this, new SPIXI.EventArgs<bool>(false));
                     }
-                    Navigation.PopModalAsync();
+                    // #230: shown-in-place lock closes via the overlay path.
+                    if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
+                    {
+                        Navigation.PopModalAsync();
+                    }
                 }
                 else
                 {
@@ -127,8 +165,13 @@ namespace SPIXI
             }
 
             if (justConfirmAction)
-            {              
-                Navigation.PopModalAsync();
+            {
+                // #230: shown-in-place lock closes via the overlay path; else pop the
+                // modal — but never pop a stack this page is not on (#229 guard).
+                if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
+                {
+                    Navigation.PopModalAsync();
+                }
                 return;
             }
             Navigation.InsertPageBefore(HomePage.Instance(true), this);

@@ -221,6 +221,13 @@ public partial class App : Application
         unlockedDate = DateTime.Now;
     }
 
+    // #229 fail-closed (reviewer MINOR-5): a LOCK that failed to PRESENT must clear
+    // the active-lock latch, else every later resume would skip locking until restart.
+    public void onLockPresentFailed()
+    {
+        isLockScreenActive = false;
+    }
+
     protected override void OnResume()
     {
         base.OnResume();
@@ -234,14 +241,27 @@ public partial class App : Application
         // Popup the lockscreen if necessary
         // Allow a 5 second cooldown after unlock
         TimeSpan ts = DateTime.Now - unlockedDate;
-        if (isLockEnabled() && ts.Seconds > 5 && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
+        // #229 (reviewer find): ts.Seconds is the SECONDS COMPONENT (0–59) — 63s in the
+        // background gave Seconds==3 → no lock. TotalSeconds is the real elapsed time.
+        if (isLockEnabled() && ts.TotalSeconds > 5 && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
             // Show the lock screen
             isLockScreenActive = true;
             OfflinePushMessages.resetCooldown();
             var lockPage = new LockPage(true);
             lockPage.authSucceeded += onUnlock;
-            MainPage.Navigation.PushModalAsync(lockPage);
+            // #229: load-then-present — stage the lock's WebView hidden on the current
+            // page and push the modal only once lock.html signals ready (no boot
+            // flicker). Fallbacks inside pushModalLoaded guarantee the lock ALWAYS
+            // presents (worst case = today's plain modal push).
+            if (((NavigationPage)MainPage).CurrentPage is SpixiContentPage cur)
+            {
+                cur.pushModalLoaded(lockPage);
+            }
+            else
+            {
+                MainPage.Navigation.PushModalAsync(lockPage, Config.defaultXamarinAnimations);
+            }
             return;
         }
 

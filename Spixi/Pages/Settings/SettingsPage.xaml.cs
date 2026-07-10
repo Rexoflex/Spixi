@@ -115,13 +115,13 @@ namespace SPIXI
             {
                 var lockPage = new LockPage(true);
                 lockPage.authSucceeded += onDeleteWallet;
-                hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
+                pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
             }
             else if (current_url.Equals("ixian:deletea", StringComparison.Ordinal))
             {
                 var lockPage = new LockPage(true);
                 lockPage.authSucceeded += onDeleteAccount;
-                hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
+                pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
             }
             else if (current_url.Equals("ixian:deleteh", StringComparison.Ordinal))
             {
@@ -179,7 +179,7 @@ namespace SPIXI
                     // Show authentication screen
                     var lockPage = new LockPage(true);
                     lockPage.authSucceeded += HandleAuthSucceeded;
-                    hostNav.PushModalAsync(lockPage);   // #225: root nav (this page may be an overlay)
+                    pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
                 }
             }
             else if (current_url.StartsWith("ixian:appearance:", StringComparison.Ordinal))

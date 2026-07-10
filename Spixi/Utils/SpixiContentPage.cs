@@ -279,6 +279,10 @@ namespace SPIXI
             // lets a new overlay REPLACE a same-tag one after it is shown (chat
             // switching); column pins the overlay to one grid column (desktop pane).
             public bool overlayMode = false;
+            // #229: present as a MODAL push (the lock screen) instead of PushAsync/
+            // overlay — staged the same way, presented via PushModalAsync on the root
+            // nav so it covers everything (incl. overlays + pushed pages).
+            public bool modalMode = false;
             public string? tag = null;
             public int column = -1;
             // Chained navigation (AppNew → AppDetails): the page to close/remove only
@@ -328,14 +332,88 @@ namespace SPIXI
         private static SpixiContentPage? overlayHost = null;
         private static readonly List<PreloadOp> overlayStack = new List<PreloadOp>();
 
+        // #230: a modal-mode op (the LOCK) that was SHOWN IN PLACE instead of pushed —
+        // kept out of overlayStack on purpose (closeTopOverlay/back must never close a
+        // lock; it closes ONLY via closeModalOverlay from the lock's own auth paths).
+        private static PreloadOp? modalOverlayOp = null;
+
+        /** In-place present hook (#230): fired instead of OnAppearing when a modal-mode
+         *  page is shown in place. Default no-op; LockPage arms biometrics off it. */
+        public virtual void onPresentedInPlace()
+        {
+        }
+
+        /** True while a lock is shown in place — hosts must swallow back-button
+         *  presses (the lock page is not the CurrentPage, so its own
+         *  OnBackButtonPressed guard never runs). */
+        public static bool hasModalOverlay()
+        {
+            lock (preloadLock)
+            {
+                return modalOverlayOp != null;
+            }
+        }
+
+        /** Close an in-place-presented modal (the lock, after auth). Returns false if
+         *  this page was not presented that way — caller falls back to PopModalAsync. */
+        public static bool closeModalOverlay(SpixiContentPage page)
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = modalOverlayOp;
+                if (op == null || op.target != page)
+                {
+                    return false;
+                }
+                modalOverlayOp = null;
+            }
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    // #229b pattern: hide first (no-repaint property flip), let the
+                    // frame commit, then detach + dispose the WebView.
+                    op.stage.Opacity = 0;
+                    op.stage.InputTransparent = true;
+                    await Task.Delay(100);
+                    op.hostGrid.Children.Remove(op.stage);
+                    op.stage.Content = null;
+                    op.target.Content = op.targetContent;
+                    op.target.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("Modal overlay close failed: " + ex);
+                }
+            });
+            return true;
+        }
+
         public static void setOverlayHost(SpixiContentPage host)
         {
             List<PreloadOp> stale;
+            PreloadOp? staleModal;
             lock (preloadLock)
             {
                 stale = new List<PreloadOp>(overlayStack);
                 overlayStack.Clear();
                 overlayHost = host;
+                // #230: a lock shown in place on the OLD host would be stranded
+                // invisible with back swallowed forever — drop and dispose it, and
+                // clear the app's lock latch so the NEXT resume re-locks (fail closed).
+                // Practically unreachable: host recreation needs user interaction,
+                // which the visible lock blocks.
+                staleModal = modalOverlayOp;
+                modalOverlayOp = null;
+            }
+            if (staleModal != null)
+            {
+                try { staleModal.target.Dispose(); } catch { }
+                if (staleModal.target is LockPage)
+                {
+                    (Application.Current as App)?.onLockPresentFailed();
+                }
             }
             // A re-created host (HomePage singleton reset) orphans previous overlays —
             // tear their WebViews down defensively.
@@ -389,13 +467,26 @@ namespace SPIXI
             SpixiContentPage? host;
             lock (preloadLock)
             {
-                overlayStack.Remove(op);
+                // Reviewer MINOR-4: two racing closers (closeTopOverlay reads the top
+                // outside the lock) must not double-run the teardown + host hook.
+                if (!overlayStack.Remove(op))
+                {
+                    return;
+                }
                 host = overlayHost;
             }
-            MainThread.BeginInvokeOnMainThread(() =>
+            MainThread.BeginInvokeOnMainThread(async () =>
             {
                 try
                 {
+                    // #229b (Damir F5: chat-info → conversation flashed): HIDE first —
+                    // an Opacity flip is the #225-proven no-repaint operation — let the
+                    // frame commit, and only THEN detach + dispose. Removing/tearing
+                    // down a WebView2's composition surface in the same frame it is
+                    // still visible briefly flashes the reveal on WinUI.
+                    op.stage.Opacity = 0;
+                    op.stage.InputTransparent = true;
+                    await Task.Delay(100);
                     op.hostGrid.Children.Remove(op.stage);
                     op.stage.Content = null;
                     op.target.Content = op.targetContent;   // reattach for a clean Dispose
@@ -578,6 +669,145 @@ namespace SPIXI
             });
         }
 
+        /* ————— Modal variant (#229, the LOCK screen) ————————————————————————————
+         * Same load-then-present staging as pushPageLoaded, but the target is
+         * presented with PushModalAsync on the ROOT nav (covers overlays AND pushed
+         * pages — the lock's requirement). Differences, both deliberate:
+         *   1. NEVER drops the target. The lock is a security/privacy surface — if
+         *      another preload is in flight, staging is impossible (non-Grid host)
+         *      or staging throws, fall back to an IMMEDIATE plain modal push
+         *      (pre-#229 behaviour: flickers, but always locks).
+         *   2. Shorter timeout: the screen the user left stays visible while the
+         *      lock stages, so exposure is capped at ~1.2s (lock.html is local and
+         *      typically signals in well under 300ms).
+         * SECURITY: staging changes presentation TIMING only — auth logic, unlock
+         * events and the encpass path are untouched; the staged page keeps its own
+         * isolated WebView (SECURITY.md §1). */
+        public void pushModalLoaded(SpixiContentPage target, int timeoutMs = 1200)
+        {
+            lock (preloadLock)
+            {
+                if (preloadPending || activePreload != null)
+                {
+                    presentPlainModal(target);
+                    return;
+                }
+                preloadPending = true;
+            }
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                // Stage in THIS page's grid — but an OVERLAY page's Content is null
+                // (it lives in the host's stage, #225), so fall back to the overlay
+                // host's grid; else plain modal push (never drop a lock).
+                SpixiContentPage hostPage = this;
+                Grid? hostGrid = this.Content as Grid;
+                if (hostGrid == null)
+                {
+                    SpixiContentPage? oh;
+                    lock (preloadLock) { oh = overlayHost; }
+                    if (oh != null)
+                    {
+                        hostPage = oh;
+                        hostGrid = oh.Content as Grid;
+                    }
+                }
+                View? targetContent = target.Content;
+
+                if (hostGrid == null || targetContent == null)
+                {
+                    lock (preloadLock) { preloadPending = false; }
+                    presentPlainModal(target);
+                    return;
+                }
+
+                ContentView stage = new ContentView
+                {
+                    Opacity = 0,
+                    InputTransparent = true,
+                    CascadeInputTransparent = true,
+                };
+
+                PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
+                op.modalMode = true;
+
+                try
+                {
+                    target.Content = null;
+                    stage.Content = targetContent;
+                    if (hostGrid.ColumnDefinitions.Count > 1)
+                    {
+                        Grid.SetColumnSpan(stage, hostGrid.ColumnDefinitions.Count);
+                    }
+                    if (hostGrid.RowDefinitions.Count > 1)
+                    {
+                        Grid.SetRowSpan(stage, hostGrid.RowDefinitions.Count);
+                    }
+                    lock (preloadLock)
+                    {
+                        activePreload = op;
+                        preloadPending = false;
+                    }
+                    hostGrid.Children.Add(stage);   // WebView gets a handler → starts loading
+
+                    // Reviewer MAJOR-1: the lock's threat model is "someone else resumes
+                    // the app" — while the lock stages (≤ timeout+120ms), the old screen
+                    // must not accept INPUT either. Do not rely on the invisible stage
+                    // hit-testing (iOS skips alpha-0 views); freeze the host outright.
+                    // Restored on every path: present/timeout/abandoned/exception (the
+                    // presentPreload finally) and the staging-failure catch below.
+                    hostGrid.InputTransparent = true;
+                    hostGrid.CascadeInputTransparent = true;
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("Modal preload staging failed, falling back to plain modal push: " + ex);
+                    lock (preloadLock)
+                    {
+                        activePreload = null;
+                        preloadPending = false;
+                    }
+                    try
+                    {
+                        hostGrid.InputTransparent = false;
+                        hostGrid.Children.Remove(stage);
+                        stage.Content = null;
+                    }
+                    catch { }
+                    try { target.Content = targetContent; } catch { }
+                    presentPlainModal(target);
+                    return;
+                }
+
+                Task.Delay(timeoutMs).ContinueWith(_ =>
+                {
+                    presentPreload(op, "timeout");
+                });
+            });
+        }
+
+        private void presentPlainModal(SpixiContentPage target)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await hostNav.PushModalAsync(target, Config.defaultXamarinAnimations);
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("Exception while modally pushing " + target.GetType().Name + ": " + ex);
+                    // Reviewer MINOR-5, fail CLOSED: a LOCK that failed to present must
+                    // clear the app's active-lock latch, else every later resume skips
+                    // locking until restart.
+                    if (target is LockPage)
+                    {
+                        (Application.Current as App)?.onLockPresentFailed();
+                    }
+                }
+            });
+        }
+
         private static void presentPreload(PreloadOp op, string reason)
         {
             if (!op.tryFinish())
@@ -606,6 +836,59 @@ namespace SPIXI
                         op.stage.Content = null;
                         op.target.Content = op.targetContent;
                         op.target.Dispose();
+                    }
+                    else if (op.modalMode)
+                    {
+                        // MODAL present (#229/#230, the lock screen). Damir F5 proved the
+                        // PushModalAsync present STILL flashes on WinUI — the modal push
+                        // re-attaches the WebView, the structural #225 repaint. So, like
+                        // #225 screens, the lock is SHOWN IN PLACE (opacity flip, zero
+                        // re-attach) whenever its host is the top-of-stack page with no
+                        // modal above — the stage was added LAST, so it covers Home AND
+                        // every open overlay. Only when something native is pushed/modal
+                        // above (money flow, mini-app) fall back to the real modal push.
+                        INavigation? rootNav = (Application.Current?.MainPage as NavigationPage)?.Navigation;
+                        bool canShowInPlace;
+                        lock (preloadLock)
+                        {
+                            canShowInPlace = rootNav != null
+                                && rootNav.NavigationStack.LastOrDefault() == op.host
+                                && rootNav.ModalStack.Count == 0
+                                && modalOverlayOp == null;
+                        }
+
+                        if (canShowInPlace)
+                        {
+                            op.stage.InputTransparent = false;
+                            op.stage.Opacity = 1;
+                            lock (preloadLock)
+                            {
+                                modalOverlayOp = op;   // closed via closeModalOverlay (LockPage)
+                            }
+                            // OnAppearing never fires for an in-place present — give the
+                            // page its "really visible now" signal (LockPage arms
+                            // biometrics off it; default is a no-op).
+                            try { op.target.onPresentedInPlace(); }
+                            catch (Exception ex) { Logging.warn("onPresentedInPlace failed: " + ex); }
+                        }
+                        else
+                        {
+                            // Detach the stage, restore the page's Content and push it
+                            // modally on the ROOT nav — fully painted, no boot frame.
+                            op.hostGrid.Children.Remove(op.stage);
+                            op.stage.Content = null;
+                            op.target.Content = op.targetContent;
+
+                            op.target.presentedFromPreload = true;
+                            // A lock must never be silently dropped — root nav, else the host's.
+                            await (rootNav ?? op.host.Navigation).PushModalAsync(op.target, Config.defaultXamarinAnimations);
+
+                            // Reviewer MINOR-2: re-apply platform page chrome now the page is
+                            // really attached (iOS insets read 0 while staged; the Android-15
+                            // modal branch needs ModalStack membership) — mirrors the push path.
+                            await Task.Delay(250);
+                            op.target.applyPlatformPageChrome();
+                        }
                     }
                     else if (op.overlayMode)
                     {
@@ -705,10 +988,22 @@ namespace SPIXI
                 catch (Exception ex)
                 {
                     Logging.error("Preload present failed: " + ex);
+                    // Fail CLOSED (reviewer MINOR-5): see presentPlainModal.
+                    if (op.modalMode && op.target is LockPage)
+                    {
+                        (Application.Current as App)?.onLockPresentFailed();
+                    }
                     try { op.target.Dispose(); } catch { }
                 }
                 finally
                 {
+                    // Reviewer MAJOR-1: unfreeze the host that pushModalLoaded froze —
+                    // on EVERY outcome (ready/timeout/abandoned/exception). No-op if it
+                    // was never frozen; never touches non-modal ops.
+                    if (op.modalMode)
+                    {
+                        try { op.hostGrid.InputTransparent = false; } catch { }
+                    }
                     lock (preloadLock)
                     {
                         if (activePreload == op)

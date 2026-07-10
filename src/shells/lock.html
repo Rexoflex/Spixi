@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi is locked</title>
+<!-- #228 platform type flag: desktop OS → compact desktop type/density (tokens.css
+     :root[data-desktop]); set BEFORE first paint, constant across window resize
+     (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
 <style>
   /* The lock screen is a FIXED-DARK brand surface in BOTH themes (#160): the
      .c-lock subtree pins itself to dark tokens over --gradient-lock. So paint a

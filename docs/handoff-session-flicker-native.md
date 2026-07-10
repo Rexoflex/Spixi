@@ -109,12 +109,46 @@ onload).
 
 ## 5. NEXT SESSION — suggested order
 
-1. Damir F5 verdict on §3 → dial B3 token values (one-liners in tokens.css ≥700px block) + brand-font
-   opt-ins where wanted → rebuild shells (`node scripts/build-shells.mjs <names>` — NOT `all`, see
-   drift note §4) → commit.
+1. ~~Damir F5 verdict on §3 → dial B3 token values~~ **DONE 2026-07-10 (#227 dial 2 + #228 trigger):**
+   heading-sm 18 · heading-xs 16 · body-lg 14 (row names) · NEW body-md 15 (bubbles) · NEW label-lg 16/
+   label-sm 13. **#228: trigger = `:root[data-desktop]` platform flag** (head-top snippet × 14 shells;
+   launch exempt) — type constant across resize, 700px stays pane-split only, smoke ≥700px guard passes
+   again + new flag assertions. Extras: tx rows padding-block 8 desktop · search field 36px desktop ·
+   wallet IXI amount + compactbal = `--font-display` (Sora, zero cost — brand-font opt-in #1 done).
+   Owed: further brand-font opt-ins (launch/lock) → `node scripts/build-shells.mjs` (default set) →
+   `node scripts/smoke-test.mjs` → F5 vs TG/Discord → ONE commit (#227+#228).
 2. Remaining punch: B4 excerpt canon + B5 avatars (FE), B2 scale check.
 3. Tab-intent push + S14 (small C#/BE), then the desktop split-view pass (fixes M2 structurally).
 4. Figma mirrors (type + keys-responsive), then the drifted-shells rebuild batch.
+
+## 5b. SESSION 2026-07-10 ADDENDUM (#227–#229, uncommitted on top of §1's tree)
+
+Type dial 2 (#227) + **platform-flag trigger `:root[data-desktop]`** replacing the 700px type query
+(#228: 14 shell head snippets, launch exempt; tx-row + search-field desktop density; wallet IXI amount
+back on Sora; smoke guard modernized + new assertions; charset moved head-first in 12 shells) +
+**lock modal load-then-present + overlay-close hide-then-dispose (#229, C#:** SpixiContentPage/App/
+SettingsPage/LockPage; #46 review run, MAJOR input-freeze + biometric-defer + fail-closed + TotalSeconds
+lock-bypass all fixed**)**. F5 adds: resize across 700px = type CONSTANT (panes still split) · app→lock
+in both themes + from Settings confirms (delete wallet/account, lock off) · chat-info→conversation back
+(no flash) · background >60s → resume MUST lock (TotalSeconds fix) · wallet balance renders Sora ·
+search 36px / tx+chat rows ≈64px desktop. Damir sign-off owed: ≤1.3s staging exposure on resume-lock
+(input frozen, screen visible) — DECISIONS #229.
+**#230 (same day, F5 round 2):** the modal push STILL flashed (WebView re-attach, #225-class) → lock now
+SHOWN IN PLACE (opacity flip) when host is top-of-stack + no modal above; modal push = fallback only.
+`closeModalOverlay`/`hasModalOverlay`/`onPresentedInPlace`; HomePage back swallowed while locked.
+Also: LockPage using System.Linq (CS1929) · "24 build errors" = the pre-existing net10.0-android
+RocksDbSharp breakage — F5 with Framework=net10.0-windows only, don't Rebuild Solution.
+Opus review session must cover #230 alongside #227–#229.
+
+## 5c. NEXT-SESSION WORKFLOW (Damir 2026-07-10 — efficiency split, applies from now on)
+
+Build sessions (fable): BUILD ONLY — no smoke/bundle/shell runs, no long commands; end each batch by
+listing the exact commands for Damir to run locally. Adversarial review = SEPARATE Opus session over
+a prepared brief; fable's in-session self-review is a pre-filter, not the sign-off. Damir F5s and
+commits. Next session order: (1) Damir's F5 verdict + QUIRKS LIST triage — zero-C# quick fixes land
+in ONE polish batch, bigger items get DECISIONS/be-cutover rows; (2) brand-font opt-ins (launch/lock);
+(3) B4 excerpt canon · B5 avatar uniformity · B2 pixel-scale check; (4) then the desktop split-view
+pass (fixes #225-M2) and the drifted-shells rebuild batch (launch gets the #228 flag there).
 
 ## 6. REVIEW/SECURITY TRAIL (for Damir + BE engineer)
 

@@ -325,7 +325,8 @@
 }
 
 /* ==========================================================================
-   2b. RESPONSIVE TYPE KEYS — mobile values, desktop overrides at 700px
+   2b. RESPONSIVE TYPE KEYS — mobile values on :root; desktop overrides under
+   :root[data-desktop] (#228 platform flag, NOT a viewport query — see §2b below)
    ("keys-responsive" + "typography" collections)
    ========================================================================== */
 :root {
@@ -1724,6 +1725,7 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
   background: transparent;
   font: inherit;
   letter-spacing: inherit;
+  text-align: start;  /* #231c: <button> default CENTERS text — a wrapped long URL centered its 2nd line (Damir F5); RTL-safe */
   text-decoration: underline;
   color: var(--text-action-default);
   cursor: pointer;
@@ -4102,7 +4104,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-contact-request__sub { font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+.c-contact-request__sub { font-size: var(--font-size-body-sm); color: var(--text-neutral-02); } /* #231b (Opus sweep): secondary list-row line — body-md is 15px desktop, LARGER than the body-lg=14 name; match the chatlist excerpt/tx secondary-line parity */
 .c-contact-request__time { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
 .c-contact-request__actions { display: flex; gap: var(--spacing-8); margin-block-start: var(--spacing-8); }
 

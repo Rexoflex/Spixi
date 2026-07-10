@@ -570,6 +570,20 @@ namespace SPIXI
         {
             lock (preloadLock)
             {
+                // #230 SECURITY (Opus review): never stage/present an overlay while a
+                // lock is SHOWN IN PLACE. The lock stage was added LAST to the host grid
+                // (topmost); a new overlay stage would be added on top of it, covering the
+                // lock and exposing the content behind it. User input is already frozen by
+                // the opaque lock stage, so this only guards PROGRAMMATIC navigation — the
+                // real vector is a push-notification-driven onChat (App.startingScreen →
+                // HomePage.onChat → pushPageLoaded) racing the resume-lock. Fail closed:
+                // drop the target (the caller re-navigates after unlock; the deep-link is
+                // intentionally lost rather than shown under the lock).
+                if (modalOverlayOp != null)
+                {
+                    try { target.Dispose(); } catch { }
+                    return;
+                }
                 if (preloadPending || activePreload != null)
                 {
                     // A page is already staging (double-tap / competing nav) — drop this
@@ -851,7 +865,20 @@ namespace SPIXI
                         bool canShowInPlace;
                         lock (preloadLock)
                         {
+                            // #230 SECURITY (Opus re-audit): in-place present is only SAFE
+                            // over the registered overlay host (HomePage) — that page's
+                            // OnBackButtonPressed swallows back while a lock is up AND
+                            // pushPageLoaded's guard blocks overlays covering the lock.
+                            // App.OnResume stages the resume lock on the CURRENT page,
+                            // which may be a pushed LEGACY page (Wallet Send / Scan / Backup
+                            // / mini-app / …). Those pages pop themselves on back with NO
+                            // hasModalOverlay guard, so an in-place lock hosted by them is
+                            // dismissable via hardware back → content exposed without auth.
+                            // When the host is NOT the overlay host, fall through to the
+                            // real PushModalAsync (ModalStack sits above the page tree and
+                            // the LOCK page's own OnBackButtonPressed swallows back).
                             canShowInPlace = rootNav != null
+                                && op.host == overlayHost
                                 && rootNav.NavigationStack.LastOrDefault() == op.host
                                 && rootNav.ModalStack.Count == 0
                                 && modalOverlayOp == null;

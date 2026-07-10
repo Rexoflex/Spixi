@@ -15,6 +15,6 @@
   font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-contact-request__sub { font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+.c-contact-request__sub { font-size: var(--font-size-body-sm); color: var(--text-neutral-02); } /* #231b (Opus sweep): secondary list-row line — body-md is 15px desktop, LARGER than the body-lg=14 name; match the chatlist excerpt/tx secondary-line parity */
 .c-contact-request__time { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
 .c-contact-request__actions { display: flex; gap: var(--spacing-8); margin-block-start: var(--spacing-8); }

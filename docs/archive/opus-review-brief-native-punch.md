@@ -1,3 +1,8 @@
+> 🗄️ **STALE — consumed.** The Opus review ran 2026-07-10 → PASS; outcome in **DECISIONS #233/#234**,
+> `docs/handoff-session-flicker-native.md` §5b, `docs/handoff-desktop-pass.md` §1, and
+> `docs/security-review-for-be-engineer.md` §1a. Next build order: `docs/fable-build-brief-desktop-pass.md`.
+> Historical only.
+
 # Opus adversarial review brief — flicker/native-punch era (#227–#231)
 
 > For a SEPARATE Opus review session (workflow §5c, handoff-session-flicker-native.md). fable's

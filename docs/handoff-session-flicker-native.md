@@ -146,6 +146,20 @@ opt-ins (lock/launch titles → --font-display) · B4 excerpt canon (base58→tr
 shell-only) · B5 avatar border normalization (borderless gradient / hairline photo img) · B2 verified
 code-clean + F12 probe steps in punch-list B2. NO bundle rebuild needed (shell+CSS only). Opus brief:
 `docs/opus-review-brief-native-punch.md` (covers #231 AND the owed #227–#230 review).
+**OPUS REVIEW DONE 2026-07-10 (#233) → PASS.** 2 mechanical fixes landed directly (via file
+tools; sandbox mount stale): (1) **#230 lock-cover guard** — `SpixiContentPage.pushPageLoaded`
+now drops a staged overlay when `modalOverlayOp != null` (a programmatic notification-driven
+`onChat` could otherwise stage an overlay ON TOP of an in-place lock, covering it — a real modal
+push couldn't be covered, so #230 introduced the gap); (2) **#231b sweep miss** —
+`.c-contact-request__sub` body-md→body-sm (was 15px > the 14px name on desktop). Plus a stale
+tokens.css comment NIT. Everything else CLEAN. **NOTE — the #231c linkify change (message-bubble.js,
+a COMPONENT) means a bundle rebuild IS required now** (the "shell+CSS only / no bundle rebuild"
+line above predates the #231c mid-session additions). **⚠ #234 — PRE-EXISTING MAJOR flagged (NOT
+this batch):** the resume/privacy lock (`LockPage(true)` = confirm mode) shows a **Cancel** that
+emits `ixian:change` → `authSucceeded(false)` → `App.onUnlock` (ignores the bool) → **unlocks
+without the password.** Settings-confirm locks are safe (they check `e.Value`). Damir must F5-confirm
+on-device + decide the fix (architectural — `justConfirm` couples close-behavior with cancel-visibility);
+it is item 1 of `docs/fable-build-brief-desktop-pass.md` and logged in `security-review-for-be-engineer.md`.
 
 ## 5c. NEXT-SESSION WORKFLOW (Damir 2026-07-10 — efficiency split, applies from now on)
 

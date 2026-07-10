@@ -26,8 +26,13 @@
   · docs (#231/#232 rows, punch-list, Opus brief). Damir: `node scripts/build-demo-bundle.mjs` →
   `node scripts/build-shells.mjs` → `node scripts/smoke-test.mjs` → F5 → commit
   (title/description + F5 checklist at the bottom of this file).
-- **Opus adversarial review OWED over #227–#231:** brief = `docs/opus-review-brief-native-punch.md`.
-  Run it as a SEPARATE session before/alongside the desktop pass.
+- **Opus adversarial review DONE 2026-07-10 (#233) → PASS** (brief archived to
+  `docs/archive/opus-review-brief-native-punch.md`). 2 mechanical fixes landed directly:
+  (1) `SpixiContentPage.pushPageLoaded` drops a staged overlay when `modalOverlayOp != null`
+  (#230 gap — a programmatic notification-driven overlay could cover an in-place lock);
+  (2) `.c-contact-request__sub` body-md→body-sm (#231b sweep miss). Rest CLEAN.
+  **⚠ #234 — PRE-EXISTING MAJOR: resume-lock Cancel unlocks without the password** (Damir must
+  F5-confirm + decide the fix — it is item 1 of `docs/fable-build-brief-desktop-pass.md`).
 - F5 verdict #227–#230 = PASS; app-wide quirks triage DEFERRED until most is done.
 - Launch OUTPUT rebuild deferred to its own batch (#228 flag + #231 title font land there).
 

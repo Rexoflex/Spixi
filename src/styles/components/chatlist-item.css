@@ -113,9 +113,14 @@
   align-items: center;
   gap: var(--spacing-4);
   min-width: 0;
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  /* #231b (Damir F5): excerpt rode body-md — after the #227 dial repurposed
+     body-md for BUBBLES (desktop 15px) the excerpt rendered BIGGER than the
+     body-lg row name (desktop 14px). Excerpts belong on body-sm (the #226/#227
+     dial's stated intent: "body-sm = excerpts") → desktop 13 < name 14,
+     mobile 14 < name 18. */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }
 .c-excerpt svg { flex: none; color: var(--icon-neutral-03); }

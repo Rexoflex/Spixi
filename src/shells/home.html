@@ -198,6 +198,7 @@
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
@@ -586,6 +587,35 @@
     const t = (s.charCodeAt(s.length - 1) === 0xFE0F) ? s.slice(0, -1) : s;
     return t.length === 1 && t.charCodeAt(0) === 0x2764;
   }
+  /* —— B4 excerpt canon extension (#231): NEVER show a full base58 address or a
+   * full URL on the excerpt line — extends the #211/#212 address canon (names/
+   * topbar) to excerpts (native-feel punch list B4: raw "3JDNzTw5…" excerpts and
+   * full github.com/... URLs read unfinished).
+   * Address token: whole-token base58 alphabet (no 0/O/I/l), 20–128 chars (the
+   * contacts checkAddress gate, contacts-spec) + AT LEAST ONE DIGIT — the digit
+   * guard keeps long plain words ("Zusammenarbeit…") from being mangled; every
+   * real Ixian address contains digits. Best-effort false-positives accepted,
+   * same posture as CH6's phrase matches.
+   * URL token: scheme'd http(s) URL → hostname only, leading www. dropped
+   * (Telegram-class "domain only" excerpt). The lone-GIF-URL check runs FIRST
+   * so tenor/giphy links keep the GIF chip. Token pass is whitespace-split →
+   * embedded addresses/URLs inside a sentence are canonicalized too. */
+  const BASE58_TOKEN_RE = /^[1-9A-HJ-NP-Za-km-z]{20,128}$/;
+  function looksLikeAddress(t) { return BASE58_TOKEN_RE.test(t) && /\d/.test(t); }
+  function domainOf(t) {
+    try { const h = new URL(t).hostname.replace(/^www\./, ''); return h || t; } catch (_) { return t; }
+  }
+  function canonExcerptText(s) {
+    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{20}/.test(s))) return s; // fast path
+    let changed = false;
+    const out = s.split(/(\s+)/).map((tok) => {
+      if (!tok || /^\s+$/.test(tok)) return tok;
+      if (looksLikeAddress(tok)) { changed = true; return truncateAddressMiddle(tok); }
+      if (/^https?:\/\/\S+$/i.test(tok)) { changed = true; return domainOf(tok); }
+      return tok;
+    });
+    return changed ? out.join('') : s;
+  }
   function excerptFromRaw(raw, statusType) {
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
@@ -594,7 +624,7 @@
     if (kind) return { type: kind, text: trimmed };
     if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
-    return { type: 'text', text: decoded };
+    return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
   }
 
   /* —— composer drafts (CH7). chat.html persists the unsent composer text to

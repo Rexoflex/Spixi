@@ -64,7 +64,7 @@
   min-width: 0;
   text-align: center;
   color: var(--text-neutral-01);
-  font-family: var(--font-primary);
+  font-family: var(--font-display);         /* #231 brand opt-in: lock is a brand moment (B1/#226 exception) */
   font-size: var(--font-size-heading-sm);   /* #58: all titles heading-sm */
   font-weight: var(--font-weight-semibold);
 }

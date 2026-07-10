@@ -30,7 +30,11 @@ public partial class App : MauiWinUIApplication
     // (docs/font-size-audit.md §3, DECISIONS #226).
     const int DefaultWidthDip = 1000;
     const int DefaultHeightDip = 700;
-    const int MinWidthDip = 480;
+    // #231c (Damir F5): 480 min-width still read wider than Telegram Desktop —
+    // TG allows ~380 logical. 384 = the chat pane's comfortable floor with the
+    // #227 desktop type (list rows + composer stay usable; below the 700px split
+    // threshold this is single-pane anyway).
+    const int MinWidthDip = 384;
     const int MinHeightDip = 360;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

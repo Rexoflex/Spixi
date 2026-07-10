@@ -58,6 +58,15 @@ All safe C# (background colour + navigation timing + an animation flag) — none
 
 **B2 — WebView pixel scaling.** A blurry WebView is often a `devicePixelRatio` / scale mismatch. Confirm the
 WebView renders at the display's integer scale on WinUI + macCatalyst (a fractional scale softens everything).
+> **STATUS 2026-07-10 (#231): code-side CLEAN, F5 probe prepared.** No C# sets `ZoomFactor`/zoom on WinUI
+> (grep: only the Android renderer's pinch-zoom plumbing) → WebView2 default auto-DPI applies. **Damir's probe
+> (F5 debug build, click into any shell WebView, press F12 → Console):**
+> 1. `devicePixelRatio` — must EQUAL the Windows display scale (1 / 1.25 / 1.5 / 2). Fractional (1.25/1.5)
+>    is normal Windows and NOT itself a bug — blur only if it disagrees with the OS setting.
+> 2. `window.chrome && '' + window.outerWidth/window.innerWidth` sanity ≈1 (no stray page zoom); Ctrl+0 first.
+> 3. Eyeball a hairline (chat datesep / topbar border) — crisp, not doubled/soft.
+> If (1) mismatches the OS scale → real B2 bug, log a DECISIONS row (fix = WebView2 rasterization follows
+> XAML scale; investigate the host's `RasterizationScale` then).
 
 **B3 — Density / vertical rhythm.** Telegram rows are tighter and uniform; Spixi rows read taller/variable and
 spend more vertical space on chrome first (a large rounded search pill + a filter-chip row) before the list.
@@ -69,10 +78,17 @@ spend more vertical space on chrome first (a large rounded search pill + a filte
 (CH6 excerpt canon best-effort; address truncation #211/#212) but cases still slip through.
 - Audit excerpt rendering for **raw addresses → middle-truncated / nickname**, and **URLs → domain only**.
 - Never show full base58 as a name OR an excerpt (extends #212 to the excerpt line).
+> **STATUS 2026-07-10 (#231): SHIPPED** — `home.html excerptFromRaw` token pass (`canonExcerptText`): whole
+> or embedded base58 tokens (20–128, ≥1 digit) → `truncateAddressMiddle`; http(s) URL tokens → hostname sans
+> www. (lone GIF URLs keep the GIF chip, checked first). Shell-only, no bundle rebuild.
 
 **B5 — Avatar uniformity.** Telegram avatars are uniform and slightly smaller; Spixi's read larger/heavier.
 Normalise avatar size + circular mask across photo and gradient-initials variants; consider a touch smaller in
 the list to tighten rhythm.
+> **STATUS 2026-07-10 (#231): border normalized** — the container hairline dropped (gradient placeholders now
+> BORDERLESS, Telegram-class); photos keep the hairline on the `<img>` (light photo on light surface). Same
+> footprint + mask both variants. Size dial NOT taken: 48px avatar in the ≈64px desktop row (#226/#227) is
+> already Telegram rhythm — shrink only if Damir calls it at F5.
 
 ## C. How to verify
 - **Flicker:** F5 sweep across every push + tab switch (+ desktop pane show/hide later); Add Contact and Account are the two known-worst — both resolved by A1(+A2 for Account).

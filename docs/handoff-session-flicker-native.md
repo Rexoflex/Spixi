@@ -139,16 +139,24 @@ SHOWN IN PLACE (opacity flip) when host is top-of-stack + no modal above; modal 
 Also: LockPage using System.Linq (CS1929) · "24 build errors" = the pre-existing net10.0-android
 RocksDbSharp breakage — F5 with Framework=net10.0-windows only, don't Rebuild Solution.
 Opus review session must cover #230 alongside #227–#229.
+**F5 VERDICT 2026-07-10 (Damir): #227–#230 PASS** — "works well so far, lock is without that noticeable
+flicker". Remaining quirks = app-wide/general → triage DEFERRED until most surfaces are done (no
+quick-fix list this round). **#231 closeout batch landed same day (build-only session):** brand-font
+opt-ins (lock/launch titles → --font-display) · B4 excerpt canon (base58→truncated, URL→domain, home.html
+shell-only) · B5 avatar border normalization (borderless gradient / hairline photo img) · B2 verified
+code-clean + F12 probe steps in punch-list B2. NO bundle rebuild needed (shell+CSS only). Opus brief:
+`docs/opus-review-brief-native-punch.md` (covers #231 AND the owed #227–#230 review).
 
 ## 5c. NEXT-SESSION WORKFLOW (Damir 2026-07-10 — efficiency split, applies from now on)
 
 Build sessions (fable): BUILD ONLY — no smoke/bundle/shell runs, no long commands; end each batch by
 listing the exact commands for Damir to run locally. Adversarial review = SEPARATE Opus session over
 a prepared brief; fable's in-session self-review is a pre-filter, not the sign-off. Damir F5s and
-commits. Next session order: (1) Damir's F5 verdict + QUIRKS LIST triage — zero-C# quick fixes land
-in ONE polish batch, bigger items get DECISIONS/be-cutover rows; (2) brand-font opt-ins (launch/lock);
-(3) B4 excerpt canon · B5 avatar uniformity · B2 pixel-scale check; (4) then the desktop split-view
-pass (fixes #225-M2) and the drifted-shells rebuild batch (launch gets the #228 flag there).
+commits. Next session order: ~~(1) Damir's F5 verdict + QUIRKS LIST triage~~ **DONE 2026-07-10 —
+verdict PASS, quirks triage deferred app-wide (#231)**; ~~(2) brand-font opt-ins (launch/lock)~~ +
+~~(3) B4 excerpt canon · B5 avatar uniformity · B2 pixel-scale check~~ **DONE — #231 closeout batch**;
+(4) then the desktop split-view pass (fixes #225-M2) and the drifted-shells rebuild batch (launch gets
+the #228 flag there + the #231 title font).
 
 ## 6. REVIEW/SECURITY TRAIL (for Damir + BE engineer)
 

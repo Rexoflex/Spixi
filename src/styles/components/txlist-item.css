@@ -70,9 +70,11 @@
 }
 
 .c-txlist-item__time {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
+     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -103,9 +105,9 @@
   color: var(--text-neutral-01);
 }
 .c-txlist-item__fiat {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
   color: var(--text-neutral-02);
 }

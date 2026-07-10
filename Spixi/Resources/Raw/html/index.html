@@ -1569,7 +1569,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   justify-content: center;
   flex: none;
   border-radius: var(--radius-full);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  /* B5 (#231): container border DROPPED — gradient placeholders go borderless
+     (Telegram-class, lighter list rhythm); the hairline moves to the PHOTO img
+     only (below) so a light photo still separates from a light surface. Outer
+     size unchanged (border-box) → photo and gradient variants render the same
+     footprint + identical circular mask. */
   color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
   overflow: visible;
 }
@@ -1593,6 +1597,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   width: 100%;
   height: 100%;
   border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-02); /* B5 (#231): photos-only hairline */
   object-fit: cover;
 }
 
@@ -1734,9 +1739,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   align-items: center;
   gap: var(--spacing-4);
   min-width: 0;
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  /* #231b (Damir F5): excerpt rode body-md — after the #227 dial repurposed
+     body-md for BUBBLES (desktop 15px) the excerpt rendered BIGGER than the
+     body-lg row name (desktop 14px). Excerpts belong on body-sm (the #226/#227
+     dial's stated intent: "body-sm = excerpts") → desktop 13 < name 14,
+     mobile 14 < name 18. */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }
 .c-excerpt svg { flex: none; color: var(--icon-neutral-03); }
@@ -2861,9 +2871,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 .c-txlist-item__time {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
+     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2894,9 +2906,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--text-neutral-01);
 }
 .c-txlist-item__fiat {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  letter-spacing: var(--tracking-body-md);
+  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
   /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
   color: var(--text-neutral-02);
 }
@@ -5928,10 +5940,29 @@ function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
-/* linkify (Damir 2026-07-03): URLs become BUTTONS routed through onLinkClick
-   (the shell's existing external-link warning) — XSS-safe, DOM-built, no
-   innerHTML; trailing sentence punctuation stays text. */
-const URL_RE = /https?:\/\/[^\s<>"']+/g;
+/* linkify (Damir 2026-07-03; EXTENDED 2026-07-10 #231c): URLs become BUTTONS
+   routed through onLinkClick (the shell's existing external-link warning) —
+   XSS-safe, DOM-built, no innerHTML; trailing sentence punctuation stays text.
+   #231c: also matches `www.`-prefixed hosts AND bare domains on a common-TLD
+   whitelist (Damir F5: "github.com" must link without https://) — the
+   whitelist keeps file.txt / node.js / version tokens plain text. An email
+   guard in linkifyInto keeps a@b.com plain. Scheme-less matches get https://
+   prefixed for the CLICK; the display stays as the user typed it. OG/thumbnail
+   link previews remain §8/BE-gated (sender-composed card, be-cutover §82) —
+   client-side unfurl is CORS-blocked + an IP-leak (#232 human-BE-review class). */
+const BARE_TLDS = 'com|org|net|io|ai|app|dev|co|me|xyz|info|news|link|site|online|network|finance|exchange|market|money|cash|gg|tv|sh|so|to|us|uk|de|fr|es|it|nl|pl|cz|sk|ch|at|se|no|fi|dk|be|pt|gr|hr|rs|ba|si|hu|ro|bg|eu|ca|au|nz|jp|kr|in|br|mx|ar|za|tr|il|ae|sg|hk|tw|id|th|vn|ph|my';
+const URL_RE = new RegExp(
+  'https?:\\/\\/[^\\s<>"\']+' +
+  '|www\\.[^\\s<>"\']+' +
+  '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
+  'gi');
+/* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
+   (Damir screenshot) — display is middle-truncated past 64 chars; the button
+   carries the FULL url on click/title and the shell's confirm modal shows it
+   in full (never navigate on a hidden target). */
+function displayUrl(url) {
+  return url.length <= 64 ? url : url.slice(0, 46) + '…' + url.slice(-14);
+}
 
 /* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
    label fallback when the shell sends no excerpt text */
@@ -6011,6 +6042,11 @@ function appendWithMentions(parent, text, mention) {
 function linkifyInto(parent, text, onLinkClick, mention = null) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
+    // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
+    // dash or slash is part of a larger token ("a@b.com", "path/x.com") → stays
+    // plain text (the skipped run is flushed by the next match / tail append).
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && /[\w@.\-\/]/.test(prev)) continue;
     let url = m[0];
     const trail = url.match(/[.,!?;:]+$/);
     if (trail) url = url.slice(0, url.length - trail[0].length);
@@ -6019,11 +6055,13 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
     appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
+    const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;  // #231c: click target for scheme-less links
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
-    b.textContent = url;
-    if (onLinkClick) b.addEventListener('click', () => onLinkClick(url));
+    b.textContent = displayUrl(url);   // #231c: long URLs middle-truncated for display only
+    b.title = url;
+    if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
     last = m.index + url.length;
   }
@@ -21174,6 +21212,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
@@ -21562,6 +21601,35 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     const t = (s.charCodeAt(s.length - 1) === 0xFE0F) ? s.slice(0, -1) : s;
     return t.length === 1 && t.charCodeAt(0) === 0x2764;
   }
+  /* —— B4 excerpt canon extension (#231): NEVER show a full base58 address or a
+   * full URL on the excerpt line — extends the #211/#212 address canon (names/
+   * topbar) to excerpts (native-feel punch list B4: raw "3JDNzTw5…" excerpts and
+   * full github.com/... URLs read unfinished).
+   * Address token: whole-token base58 alphabet (no 0/O/I/l), 20–128 chars (the
+   * contacts checkAddress gate, contacts-spec) + AT LEAST ONE DIGIT — the digit
+   * guard keeps long plain words ("Zusammenarbeit…") from being mangled; every
+   * real Ixian address contains digits. Best-effort false-positives accepted,
+   * same posture as CH6's phrase matches.
+   * URL token: scheme'd http(s) URL → hostname only, leading www. dropped
+   * (Telegram-class "domain only" excerpt). The lone-GIF-URL check runs FIRST
+   * so tenor/giphy links keep the GIF chip. Token pass is whitespace-split →
+   * embedded addresses/URLs inside a sentence are canonicalized too. */
+  const BASE58_TOKEN_RE = /^[1-9A-HJ-NP-Za-km-z]{20,128}$/;
+  function looksLikeAddress(t) { return BASE58_TOKEN_RE.test(t) && /\d/.test(t); }
+  function domainOf(t) {
+    try { const h = new URL(t).hostname.replace(/^www\./, ''); return h || t; } catch (_) { return t; }
+  }
+  function canonExcerptText(s) {
+    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{20}/.test(s))) return s; // fast path
+    let changed = false;
+    const out = s.split(/(\s+)/).map((tok) => {
+      if (!tok || /^\s+$/.test(tok)) return tok;
+      if (looksLikeAddress(tok)) { changed = true; return truncateAddressMiddle(tok); }
+      if (/^https?:\/\/\S+$/i.test(tok)) { changed = true; return domainOf(tok); }
+      return tok;
+    });
+    return changed ? out.join('') : s;
+  }
   function excerptFromRaw(raw, statusType) {
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
@@ -21570,7 +21638,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     if (kind) return { type: kind, text: trimmed };
     if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
-    return { type: 'text', text: decoded };
+    return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
   }
 
   /* —— composer drafts (CH7). chat.html persists the unsent composer text to

@@ -242,6 +242,7 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
   background: transparent;
   font: inherit;
   letter-spacing: inherit;
+  text-align: start;  /* #231c: <button> default CENTERS text — a wrapped long URL centered its 2nd line (Damir F5); RTL-safe */
   text-decoration: underline;
   color: var(--text-action-default);
   cursor: pointer;

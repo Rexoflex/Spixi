@@ -19,7 +19,11 @@
   justify-content: center;
   flex: none;
   border-radius: var(--radius-full);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  /* B5 (#231): container border DROPPED — gradient placeholders go borderless
+     (Telegram-class, lighter list rhythm); the hairline moves to the PHOTO img
+     only (below) so a light photo still separates from a light surface. Outer
+     size unchanged (border-box) → photo and gradient variants render the same
+     footprint + identical circular mask. */
   color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
   overflow: visible;
 }
@@ -43,6 +47,7 @@
   width: 100%;
   height: 100%;
   border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-02); /* B5 (#231): photos-only hairline */
   object-fit: cover;
 }
 

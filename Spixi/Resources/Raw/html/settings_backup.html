@@ -3698,10 +3698,29 @@ function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
-/* linkify (Damir 2026-07-03): URLs become BUTTONS routed through onLinkClick
-   (the shell's existing external-link warning) — XSS-safe, DOM-built, no
-   innerHTML; trailing sentence punctuation stays text. */
-const URL_RE = /https?:\/\/[^\s<>"']+/g;
+/* linkify (Damir 2026-07-03; EXTENDED 2026-07-10 #231c): URLs become BUTTONS
+   routed through onLinkClick (the shell's existing external-link warning) —
+   XSS-safe, DOM-built, no innerHTML; trailing sentence punctuation stays text.
+   #231c: also matches `www.`-prefixed hosts AND bare domains on a common-TLD
+   whitelist (Damir F5: "github.com" must link without https://) — the
+   whitelist keeps file.txt / node.js / version tokens plain text. An email
+   guard in linkifyInto keeps a@b.com plain. Scheme-less matches get https://
+   prefixed for the CLICK; the display stays as the user typed it. OG/thumbnail
+   link previews remain §8/BE-gated (sender-composed card, be-cutover §82) —
+   client-side unfurl is CORS-blocked + an IP-leak (#232 human-BE-review class). */
+const BARE_TLDS = 'com|org|net|io|ai|app|dev|co|me|xyz|info|news|link|site|online|network|finance|exchange|market|money|cash|gg|tv|sh|so|to|us|uk|de|fr|es|it|nl|pl|cz|sk|ch|at|se|no|fi|dk|be|pt|gr|hr|rs|ba|si|hu|ro|bg|eu|ca|au|nz|jp|kr|in|br|mx|ar|za|tr|il|ae|sg|hk|tw|id|th|vn|ph|my';
+const URL_RE = new RegExp(
+  'https?:\\/\\/[^\\s<>"\']+' +
+  '|www\\.[^\\s<>"\']+' +
+  '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
+  'gi');
+/* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
+   (Damir screenshot) — display is middle-truncated past 64 chars; the button
+   carries the FULL url on click/title and the shell's confirm modal shows it
+   in full (never navigate on a hidden target). */
+function displayUrl(url) {
+  return url.length <= 64 ? url : url.slice(0, 46) + '…' + url.slice(-14);
+}
 
 /* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
    label fallback when the shell sends no excerpt text */
@@ -3781,6 +3800,11 @@ function appendWithMentions(parent, text, mention) {
 function linkifyInto(parent, text, onLinkClick, mention = null) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
+    // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
+    // dash or slash is part of a larger token ("a@b.com", "path/x.com") → stays
+    // plain text (the skipped run is flushed by the next match / tail append).
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && /[\w@.\-\/]/.test(prev)) continue;
     let url = m[0];
     const trail = url.match(/[.,!?;:]+$/);
     if (trail) url = url.slice(0, url.length - trail[0].length);
@@ -3789,11 +3813,13 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
     appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
+    const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;  // #231c: click target for scheme-less links
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
-    b.textContent = url;
-    if (onLinkClick) b.addEventListener('click', () => onLinkClick(url));
+    b.textContent = displayUrl(url);   // #231c: long URLs middle-truncated for display only
+    b.title = url;
+    if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
     last = m.index + url.length;
   }

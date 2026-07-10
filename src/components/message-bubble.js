@@ -78,8 +78,14 @@ function displayUrl(url) {
   if (!hasUserinfo && url.length <= MAX) return url;      // short + honest: as typed
   // rebuild host-first: userinfo stripped, scheme dropped, END-truncated — the
   // real host is always fully visible at the start of the label
+  const host = u.host;
+  // #235b (Opus review F1): a host LONGER than the budget must NOT end-truncate —
+  // that hides the registrable domain ("paypal.com.<64-char-pad>.evil.com" would
+  // render "paypal.com.…", eliding the true evil.com). Middle-truncate the HOST so
+  // both the leading label AND the trailing registrable domain stay visible.
+  if (host.length > MAX) return host.slice(0, MAX - 25) + '…' + host.slice(-24);
   const rest = (u.pathname === '/' && !u.search && !u.hash) ? '' : u.pathname + u.search + u.hash;
-  const label = u.host + rest;
+  const label = host + rest;
   return label.length <= MAX ? label : label.slice(0, MAX - 1) + '…';
 }
 
@@ -186,7 +192,7 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-bubble__link';
-    b.textContent = displayUrl(url);   // #231c: long URLs middle-truncated for display only
+    b.textContent = displayUrl(url);   // #235: host-first label; long labels truncated for display only (full url on title/click)
     b.title = url;
     if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);

@@ -412,6 +412,21 @@
   // Share own address (6e.2). navigator.share where the WebView exposes it
   // (never assumed — WinUI WebView2 may not); fallback = clipboard + "Copied"
   // toast so the row is never a dead end. Errors (incl. user-cancel) are benign.
+  // #235b (Opus review MINOR-2): navigator.clipboard is UNDEFINED on non-secure /
+  // older WebView2 origins → `.writeText` threw into a silent catch (no copy, no
+  // feedback). Now: guard clipboard existence, fall back to execCommand, and if
+  // EVERYTHING fails surface an error toast — the row always gives feedback.
+  function execCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
   function shareAddress({ address }) {
     const addr = address || state.address;
     if (!addr) return;
@@ -419,11 +434,13 @@
       navigator.share({ text: addr }).catch(() => {});
       return;
     }
+    const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
+    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Could not copy', tone: 'error', host: document.body, strings }); };
     try {
-      navigator.clipboard.writeText(addr).then(
-        () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings }),
-        () => {});
-    } catch (e) {}
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(addr).then(ok, fail);
+      } else { fail(); }
+    } catch (e) { fail(); }
   }
 
   showHub();   // render immediately; C# fills it after ixian:onload

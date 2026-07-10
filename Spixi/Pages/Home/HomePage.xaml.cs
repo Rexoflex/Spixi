@@ -79,6 +79,16 @@ namespace SPIXI
         private const double railWidthDip = 72;
         private double leftPaneWidth = leftPaneDefaultWidth;
         private double panStartPaneWidth = leftPaneDefaultWidth;
+
+        /* Unit 6 (#247): chat-info as an integrated desktop PANE — a ContactDetails
+         * overlay (its OWN WebView, shell side of the #221 wall) pinned to mainGrid
+         * col 2 BESIDE the open conversation. Coordination is C#-only: the
+         * conversation emits ixian:details, this page hosts/closes the pane. */
+        private const double infoPaneWidth = 360;      // Damir dial
+        private const double infoPaneMinWidth = 280;   // below this the pane closes/degrades
+        private const double detailMinWidth = 320;     // conversation keeps at least this
+        private bool infoPaneCol2Pending = false;      // set at push, consumed at present
+        private bool infoPaneCol2Open = false;         // col 2 currently expanded
         private bool paneDividerPanning = false;
 
         public bool devMode = false;
@@ -207,9 +217,15 @@ namespace SPIXI
                 mainGrid.ColumnDefinitions[0].Width = GridLength.Star;
                 //mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
+                mainGrid.ColumnDefinitions[2].Width = new GridLength(0);   // #247 info pane
                 rightContent.IsVisible = false;
                 paneDivider.IsVisible = false;   // D1: no divider in single-pane
                 removeDetailContent(false);
+                // #225-M2: column-pinned overlays (chat col 1, info col 2) would strand
+                // invisible-but-open in a zero-width column — re-home them full-span
+                // (the mobile takeover presentation). Property flips only, no re-attach;
+                // infoPaneCol2Open stays set so re-widening restores the pane.
+                SpixiContentPage.relayoutPinnedOverlays(false);
             }
             else
             {
@@ -220,6 +236,32 @@ namespace SPIXI
                 mainGrid.ColumnDefinitions[1].Width = GridLength.Star;
                 rightContent.IsVisible = true;
                 paneDivider.IsVisible = true;
+                // #247: restore/adjust the info-pane column while its overlay is open;
+                // a wide-but-squeezed window closes the pane (honest degrade — the
+                // surface is read-only, one tap re-opens it).
+                updateInfoPaneWidth();
+                // #225-M2: re-pin re-homed overlays back to their columns.
+                SpixiContentPage.relayoutPinnedOverlays(true);
+            }
+        }
+
+        // #247: size (or close) the info-pane column against the current window +
+        // left-pane widths. The conversation keeps >= detailMinWidth; the pane gets
+        // min(infoPaneWidth, what's left) and closes below infoPaneMinWidth.
+        private void updateInfoPaneWidth()
+        {
+            if (!infoPaneCol2Open)
+            {
+                return;
+            }
+            double avail = Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth;
+            if (avail >= infoPaneMinWidth)
+            {
+                mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Min(infoPaneWidth, avail));
+            }
+            else
+            {
+                closeContactDetailsOverlays();   // collapses col 2 via onOverlayClosed
             }
         }
 
@@ -269,6 +311,7 @@ namespace SPIXI
                     }
                     leftPaneWidth = clampLeftPaneWidth(panStartPaneWidth + e.TotalX);
                     applyLeftPaneWidth();
+                    updateInfoPaneWidth();   // #247: keep the conversation >= detailMinWidth
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
@@ -410,7 +453,22 @@ namespace SPIXI
                     return;
                 }
 
-                pushPageLoaded(new ContactDetails(friend));   // load-then-move (N3)
+                // #247/#248: contacts DIRECTORY entry → context 'contact' ("Contact
+                // details" + Message). wide = pane, narrow = takeover.
+                openContactDetails(friend, false, false);
+            }
+            else if (current_url.Contains("ixian:chatinfo:"))
+            {
+                // #248 (Damir F5 items 1/5): chats row-menu entry → context 'chat'
+                // ("Chat info"/"Group info", no Message action) — same pane routing.
+                string id = current_url.Split(new string[] { "ixian:chatinfo:" }, StringSplitOptions.None)[1];
+                Friend? friend = FriendList.getFriend(new Address(id));
+                if (friend == null)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                openContactDetails(friend, false, true);
             }
             else if (current_url.Contains("ixian:txdetails:"))
             {
@@ -427,6 +485,9 @@ namespace SPIXI
                 // routed THROUGH the shell so held edits are saved (never a silent
                 // teardown around a dirty nickname/avatar/lock).
                 requestSettingsOverlayExit();
+                // #247: the chat-info pane belongs to the chats context — leaving it
+                // closes the pane (direct close is safe: its edits commit per-action).
+                closeContactDetailsOverlays();
                 if (currentTab == "tab2")
                 {
                     loadTransactions(true);
@@ -617,7 +678,110 @@ namespace SPIXI
 
         public void onContactDetails(Friend friend)
         {
-            pushPageLoaded(new ContactDetails(friend, true));   // load-then-move (N3)
+            // Chat header entry (via SingleChatPage) → context 'chat' (#248).
+            openContactDetails(friend, true, true);
+        }
+
+        /* Unit 6 (#247): ONE router for every chat-info entry (conversation header
+         * tap via SingleChatPage, chats row-menu / contacts directory ixian:details:).
+         * ★ #221: ContactDetails keeps its OWN WebView; the conversation WebView is
+         * never touched — all coordination is right here in C#.
+         *  - wide + conversation open + room  → pane pinned BESIDE the chat (col 2).
+         *    Staged full-span with a leading margin so the shell loads at its REAL
+         *    width (a zero-width column would lay the WebView out at 0), then pinned
+         *    to col 2 in the same frame it becomes visible (onOverlayPresented) —
+         *    the column expands exactly when there is painted content to show.
+         *  - wide + no conversation OR wide-but-squeezed → the detail slot (col 1):
+         *    the info overtakes ONLY the conversation region, the list stays (#248,
+         *    Damir F5 item 4 — full-window was wrong on wide windows).
+         *  - narrow (single-pane)             → the full-span takeover (= the
+         *    conversation region, which spans the window there).
+         * chatContext (#248): 'chat' entries (header/row-menu) title "Chat info"/
+         * "Group info"; only the contacts directory keeps "Contact details".
+         * Re-tapping for the SAME contact toggles the surface closed (Telegram
+         * grammar); a different contact rides the "chatinfo" tag-replace (seamless). */
+        private void openContactDetails(Friend friend, bool customChatBtn, bool chatContext)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+                {
+                    if (p is ContactDetails open)
+                    {
+                        if (open.friendAddressString() == friend.walletAddress.ToString())
+                        {
+                            removePage(open);   // toggle close
+                            return;
+                        }
+                        break;   // different contact — the tag swap closes it after present
+                    }
+                }
+
+                infoPaneCol2Pending = false;
+                bool wide = rightContent.IsVisible;
+                // #249 (Damir F5 r3): the BESIDE-the-conversation column is ONLY for the
+                // OPEN conversation's own info — any other target (a contact from the
+                // directory, another chat's row menu) pinned there reads as if it
+                // belonged to the visible conversation. Everything else → col 1.
+                bool chatOpenIsTarget = SpixiContentPage.getOverlayPages()
+                    .Exists(p => p is SingleChatPage scp && scp.friend == friend);
+                // Loop fix A-3/B-3: col 0's Width.Value is the star MULTIPLIER when
+                // narrow — only meaningful under the wide guard.
+                double avail = wide ? (Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth) : 0;
+
+                if (wide && chatOpenIsTarget && avail >= infoPaneMinWidth)
+                {
+                    double paneW = Math.Min(infoPaneWidth, avail);
+                    infoPaneCol2Pending = true;
+                    pushPageLoaded(new ContactDetails(friend, customChatBtn, "2", chatContext), 4000, "chatinfo", -1,
+                        null, new Thickness(Math.Max(0, Width - paneW), 0, 0, 0));
+                }
+                else if (wide)
+                {
+                    // No conversation open, or no room beside it → the detail slot
+                    // (stacks OVER an open conversation, covering only its region).
+                    pushPageLoaded(new ContactDetails(friend, customChatBtn, "1", chatContext), 4000, "chatinfo", 1);
+                }
+                else
+                {
+                    pushPageLoaded(new ContactDetails(friend, customChatBtn, null, chatContext), 4000, "chatinfo");
+                }
+            });
+        }
+
+        // #251 (Damir F5: the EmptyDetail resting pane stayed DARK after a dark→light
+        // pick): it is neither in the NavigationStack nor an overlay nor detailContent,
+        // so every re-theme path missed it. Expose it for the SettingsPage setTheme
+        // push + the reloadAllPages regenerate.
+        public SpixiContentPage? getDefaultDetailContent()
+        {
+            return defaultDetailContent;
+        }
+
+        public void reloadDefaultDetail()
+        {
+            try
+            {
+                defaultDetailContent?.reload();
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("reloadDefaultDetail: " + ex.Message);
+            }
+        }
+
+        // #247: close any open chat-info surface. DIRECT close is safe here — unlike
+        // the Account pane there is no held dirty state (nickname override / QR / money
+        // actions all commit per-action through their own verbs).
+        private void closeContactDetailsOverlays()
+        {
+            foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+            {
+                if (p is ContactDetails)
+                {
+                    removePage(p);   // #225: removing an open overlay = closeOverlay
+                }
+            }
         }
 
         public void onConfirmPaymentRequest(FriendMessage msg, Friend friend, string amount, string date_text)
@@ -899,6 +1063,7 @@ namespace SPIXI
             // Account pane pinned to the same column — dismiss the pane first
             // (save-if-dirty through the shell) so the detail is actually visible.
             requestSettingsOverlayExit();
+            closeContactDetailsOverlays();   // #247: same reasoning for the info pane
 
             if (rightContent.IsVisible)
             {
@@ -962,6 +1127,9 @@ namespace SPIXI
                 // whose dirty edits SingleChatPage's back (popToRootAsync = close
                 // ALL overlays) could later discard unsaved.
                 requestSettingsOverlayExit();
+                // #247: an open info pane belongs to the PREVIOUS conversation —
+                // close it before the new chat stages (direct close is safe).
+                closeContactDetailsOverlays();
 
                 // #225: conversations open as OVERLAYS — loaded + painted off-screen,
                 // then shown in place (wide window: pinned over the detail column,
@@ -1683,6 +1851,19 @@ namespace SPIXI
                 {
                     topOverlay.updateScreen();
                 }
+                // #247: with a chat-info PANE open, the conversation sits BELOW it in
+                // the overlay stack but stays VISIBLE beside it — keep it ticking too
+                // (it was the top overlay whenever visible before the pane existed).
+                if (topOverlay is ContactDetails)
+                {
+                    foreach (SpixiContentPage op in SpixiContentPage.getOverlayPages())
+                    {
+                        if (op is SingleChatPage && op.pageLoaded)
+                        {
+                            op.updateScreen();
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -1707,7 +1888,79 @@ namespace SPIXI
             else if (overlay is SingleChatPage)
             {
                 fromChat = false;
+                // #247: a conversation's info pane has no life of its own — closing
+                // the chat closes it (no dirty state; commits are per-action).
+                closeContactDetailsOverlays();
                 checkForRating();
+            }
+            else if (overlay is ContactDetails)
+            {
+                infoPaneCol2Pending = false;
+                // Collapse the info column only when NO info pane remains open — a
+                // "chatinfo" tag-replace closes the OLD pane AFTER the new one
+                // presented (and re-expanded the column for itself).
+                if (!SpixiContentPage.getOverlayPages().Exists(p => p is ContactDetails))
+                {
+                    infoPaneCol2Open = false;
+                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                }
+            }
+        }
+
+        // Unit 6 (#247): presentation-time pin of the chat-info pane. The overlay was
+        // staged full-span with a leading margin (real width during load); NOW — in the
+        // same main-thread frame it became visible — pin it to col 2 and expand the
+        // column, so the pane appears fully painted with zero empty-strip frames.
+        // Room is re-checked against the CURRENT window (it may have changed during the
+        // load); no room anymore → the pane degrades to the full-span takeover.
+        public override void onOverlayPresented(SpixiContentPage overlay)
+        {
+            if (!(overlay is ContactDetails))
+            {
+                return;
+            }
+            if (!infoPaneCol2Pending)
+            {
+                // Loop fix A-1 (MAJOR): a col-1/full-span info pane presented while a
+                // PREVIOUS col-2 pane is still expanded (the "chatinfo" tag-replace is
+                // about to close it) — the new pane does NOT own col 2, and the old
+                // pane's onOverlayClosed will see "a ContactDetails remains" and skip
+                // the collapse. Collapse it here, or the empty 360px column stays.
+                if (infoPaneCol2Open)
+                {
+                    infoPaneCol2Open = false;
+                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                }
+                return;
+            }
+            infoPaneCol2Pending = false;
+            // Loop fix A-3/B-3: read col 0's Width.Value only under the wide guard —
+            // when narrow it is GridLength.Star and .Value is the star MULTIPLIER.
+            bool wide = rightContent.IsVisible;
+            double avail = wide ? (Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth) : 0;
+            // Re-check: the conversation may have closed or SWITCHED during the load —
+            // col 2 is only for the open conversation's OWN info (#249).
+            ContactDetails cd = (ContactDetails)overlay;
+            bool chatOpenIsTarget = SpixiContentPage.getOverlayPages()
+                .Exists(p => p is SingleChatPage scp && scp.friend.walletAddress.ToString() == cd.friendAddressString());
+            if (wide && chatOpenIsTarget && avail >= infoPaneMinWidth)
+            {
+                SpixiContentPage.rehomeOverlay(overlay, 2);
+                mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Min(infoPaneWidth, avail));
+                infoPaneCol2Open = true;
+            }
+            else
+            {
+                // #248 degrade grammar: on a WIDE window the info covers only the
+                // conversation region (col 1, the detail slot); narrow = full span.
+                SpixiContentPage.rehomeOverlay(overlay, wide ? 1 : -1);
+                // A-1 family: this pane no longer owns col 2 — if a replaced col-2
+                // pane left the column expanded, collapse it.
+                if (infoPaneCol2Open)
+                {
+                    infoPaneCol2Open = false;
+                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                }
             }
         }
 

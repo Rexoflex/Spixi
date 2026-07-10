@@ -419,6 +419,12 @@
     host: document.body,
     // Opening a chat → legacy verb ixian:chat:<address> (home.js:438 → C# onChat)
     onOpen: (c) => { if (c.address) bridge.send('ixian:chat:' + c.address); },
+    // #247/#248 (quirk-13 fix, r2): row-menu "Chat info" → the C#-hosted info
+    // surface for BOTH kinds — ixian:chatinfo: carries context 'chat' ("Chat
+    // info"/"Group info" titles; ixian:details: stays the DIRECTORY's
+    // "Contact details" entry). ContactDetails now renders groups too (#248),
+    // so groups get the same pane/takeover instead of doing nothing.
+    onChatInfo: (c) => { if (c && c.address) bridge.send('ixian:chatinfo:' + c.address); },
     // Row-menu/swipe intents. delete/deleteAll → tombstone the address (the row is
     // already removed from the model by applyChatRowAction). pin/mute/markRead have
     // no BE persistence path yet → local model change only. When BE ships the §8

@@ -3,8 +3,9 @@
  * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
  * styling (message-menu.css) + the message-menu interaction pattern (long-press
  * ~500ms, cancel on >10px move = scroll intent; desktop right-click; Android
- * double-open guard). Delete routes through the c-modal confirm. Chat info is a
- * stub (Damir: pane deferred) → fires onAction('info'), shell shows a toast.
+ * double-open guard). Delete routes through the c-modal confirm. Chat info fires
+ * onAction('info') → the shell routes it (#247: home.html sends ixian:details:
+ * for 1:1 — desktop pane / mobile takeover — and opens the chat for groups).
  *
  * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
  * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat

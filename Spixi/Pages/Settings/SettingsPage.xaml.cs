@@ -264,6 +264,13 @@ namespace SPIXI
                         {
                             Utils.sendUiCommand(detail, "setTheme", themeName);
                         }
+                        // #251 (Damir F5): the EmptyDetail resting pane is neither an
+                        // overlay nor detailContent — without this it kept the old
+                        // theme (dark welcome pane on a light app).
+                        if (home.getDefaultDetailContent() is SpixiContentPage emptyDetail)
+                        {
+                            Utils.sendUiCommand(emptyDetail, "setTheme", themeName);
+                        }
                     }
                     // #225: other live overlays (an open conversation under this Account
                     // overlay) re-theme too; this page itself already applied the pick.

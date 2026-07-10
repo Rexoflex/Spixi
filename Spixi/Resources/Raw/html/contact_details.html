@@ -2269,6 +2269,234 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-member__actions > .c-button { flex: 1; }
 
 </style>
+<style data-src="../styles/components/search-field.css">
+/* c-search-field — text-field/large specialization (docs/chip-search-spec.md,
+   DECISIONS #51). Permanent transparent border prevents the Figma default→hover
+   layout jump; focus fakes the spec's 2px border via box-shadow (no shift). */
+
+.c-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--size-target-min); /* Figma ≈40px — raised to touch minimum (#51) */
+  padding: var(--spacing-8) var(--spacing-12);
+  border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+  /* glyph ink shares the placeholder's text token — one resting ink for the
+     whole empty field (deliberate; icon-neutral-* would split the pair) */
+  color: var(--text-neutral-02);
+  /* 100ms intentional: micro-interaction, matches chip/chatlist hover */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard),
+              box-shadow var(--duration-100) var(--easing-standard);
+}
+
+/* #228 desktop density: pointer targets may go tighter than the 44px touch
+   minimum (TG search ≈32–36px). Mobile keeps --size-target-min. */
+:root[data-desktop] .c-search-field {
+  min-height: 36px;
+  padding-block: var(--spacing-4);
+}
+
+/* Figma text-field used outline-info (hover) + text-action-default (focus) as
+   borders — confirmed errors by Damir 2026-07-02; action OUTLINE roles are the
+   correct family (#51). Mirror back to Figma text-field/large. */
+@media (hover: hover) {
+  .c-search-field:hover {
+    background: var(--surface-neutral-03);
+    border-color: var(--outline-action-hover);
+  }
+}
+
+.c-search-field:focus-within {
+  background: var(--surface-neutral-01);
+  border-color: var(--outline-action-default);
+  box-shadow: 0 0 0 1px var(--outline-action-default); /* 1px border + 1px shadow ≈ spec 2px */
+}
+
+.c-search-field__icon { flex: none; }
+
+.c-search-field__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0 var(--spacing-4);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md); /* 16px — no iOS focus zoom */
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-01);
+  caret-color: var(--text-action-default);
+}
+.c-search-field__input::placeholder { color: var(--text-neutral-02); opacity: 1; }
+/* sanctioned #51 deviation from the #23 ring: text fields show focus as the
+   container's action border+shadow (Figma text-field treatment), not the ring */
+.c-search-field__input:focus { outline: none; }
+/* custom clear button is the affordance — hide the native WebKit one */
+.c-search-field__input::-webkit-search-cancel-button { display: none; }
+
+.c-search-field__clear {
+  flex: none;
+  display: flex;
+  border: 0;
+  padding: var(--spacing-4);
+  margin: calc(-1 * var(--spacing-4)); /* bigger hit area, same layout */
+  background: transparent;
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+/* 44px tap target (same pattern as chip) — glyph stays 18px visual */
+.c-search-field__clear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  transform: translate(-50%, -50%);
+}
+@media (hover: hover) {
+  .c-search-field__clear:hover { color: var(--text-neutral-01); }
+}
+/* pressed after hover (source-order rule) */
+.c-search-field__clear:active { color: var(--text-action-pressed); }
+
+</style><!-- #251: group-surface member filter (≥8 members) -->
+<style data-src="../styles/components/member-sheet.css">
+/* c-member — group member identity sheet (#99). Centered identity column;
+   the address is the hero: full, tabular, copyable. */
+
+.c-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
+  text-align: center;
+}
+/* identity block — button variant (contacts → contact page) gets a wash */
+.c-member__id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: transparent;
+  font: inherit;
+}
+button.c-member__id {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) {
+  button.c-member__id:hover { background: var(--surface-interactive-hover); }
+}
+button.c-member__id:active { background: var(--surface-interactive-pressed); }
+.c-member__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-member__chevron { color: var(--icon-neutral-02); flex: none; }
+[dir="rtl"] .c-member__chevron { transform: scaleX(-1); } /* points inline-end (freeze audit) */
+.c-member__payrow {
+  display: flex;
+  gap: var(--spacing-8);
+  align-self: stretch;
+  margin-top: var(--spacing-4);
+}
+.c-member__payrow .c-button { flex: 1; min-width: 0; }
+.c-member__addr-label {
+  margin-top: var(--spacing-4);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  color: var(--text-neutral-02);
+}
+.c-member__addr {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: 100%;
+  /* logical padding (freeze audit RTL): wide inset on the ADDRESS side */
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+}
+.c-member__addr-text {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;
+  text-align: start;
+}
+.c-member__copy {
+  flex: none;
+  position: relative; /* hit-area extension */
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-member__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) {
+  .c-member__copy:hover { background: var(--surface-interactive-hover); }
+}
+.c-member__copy:active { background: var(--surface-interactive-pressed); }
+
+.c-member__request { margin-top: var(--spacing-8); align-self: stretch; }
+.c-member__relation { margin-top: var(--spacing-4); }
+
+/* —— blind-group state: identity withheld by design —— */
+.c-member__blind-medallion {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-neutral-02);
+  color: var(--icon-neutral-02);
+}
+.c-member__blind-title {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-member__blind-sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  max-width: 280px;
+}
+
+</style><!-- #251: member identity sheet (roster row tap) -->
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -2289,6 +2517,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   }
   @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+  /* Unit 6 (#247): desktop pane hosting. C# pushes setPaneMode('1'|'2') pre-present:
+       '1' = the detail slot (no conversation open) — the body content caps at the demo
+             grammar 640, title bar spans full width (#245b pattern);
+       '2' = the 360px column beside the open conversation — hairline divider on its
+             leading edge (the col-1 case reuses the home shell's right-edge hairline,
+             so no double line; the 640 cap is inert at pane width). */
+  body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
+  body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -6571,6 +6807,16 @@ function openMemberSheet({
     const nameRow = document.createElement('span');
     nameRow.className = 'c-member__name';
     nameRow.textContent = member.name || member.address || '';
+    // #249 loop C-1: mirror the member-row Owner/Admin badge in the sheet's
+    // identity block (row and sheet must not disagree about who owns the group).
+    if (member.owner || member.admin) {
+      const roleBadge = createBadge({
+        type: 'info', weight: 'tonal',
+        label: member.owner ? (strings.owner || 'Owner') : (strings.admin || 'Admin'),
+      });
+      roleBadge.classList.add('c-member__role-badge');
+      nameRow.append(roleBadge);
+    }
     if (canView) {
       const chev = icon('chevron-right', { size: 18 });
       chev.classList.add('c-member__chevron');
@@ -7037,8 +7283,9 @@ function setRequestAccepting(row, strings = getStrings()) {
  * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
  * styling (message-menu.css) + the message-menu interaction pattern (long-press
  * ~500ms, cancel on >10px move = scroll intent; desktop right-click; Android
- * double-open guard). Delete routes through the c-modal confirm. Chat info is a
- * stub (Damir: pane deferred) → fires onAction('info'), shell shows a toast.
+ * double-open guard). Delete routes through the c-modal confirm. Chat info fires
+ * onAction('info') → the shell routes it (#247: home.html sends ixian:details:
+ * for 1:1 — desktop pane / mobile takeover — and opens the chat for groups).
  *
  * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
  * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat
@@ -13515,7 +13762,7 @@ function createChatInfo({
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
-  members = [],                  // [{ name, address, admin, relation }]
+  members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
@@ -13547,7 +13794,9 @@ function createChatInfo({
     variant: 'view',
     title: context === 'contact'
       ? (strings.contactDetails || 'Contact details')
-      : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
+      // Quirk-7 fix (#247): the old `strings.chatInfo || (group ? …)` fallback meant a
+      // PRESENT chatInfo key hid the group branch — groups always titled "Chat info".
+      : (kind === 'group' ? (strings.groupInfo || 'Group info') : (strings.chatInfo || 'Chat info')),
     onBack,
   }));
 
@@ -13950,7 +14199,9 @@ function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
+      // #249 loop C-1: owner/admin ride into the sheet so its identity block can
+      // badge them consistently with the row list.
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar, owner: m.owner, admin: m.admin },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -13960,7 +14211,7 @@ function createChatInfo({
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
       // confirm (ixian:kick:ADDR / ixian:ban:ADDR are irreversible for the peer)
-      actions: capabilities.admin && onMemberAction && !m.admin ? [
+      actions: capabilities.admin && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
         {
           label: strings.kick || 'Kick', glyph: 'circle-x', destructive: true,
           onClick: () => confirmAction({
@@ -14016,7 +14267,13 @@ function createChatInfo({
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
         row.append(nm);
-        if (m.admin) {
+        if (m.owner) {
+          // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
+          // C# users.getOwner(); never marked in blind groups — no owner push).
+          const b = createBadge({ type: 'info', weight: 'tonal', label: strings.owner || 'Owner' });
+          b.classList.add('c-chat-info__member-badge');
+          row.append(b);
+        } else if (m.admin) {
           const b = createBadge({ type: 'info', weight: 'tonal', label: strings.admin || 'Admin' });
           b.classList.add('c-chat-info__member-badge');
           row.append(b);
@@ -19575,13 +19832,20 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * frozen bridge — every action is an existing legacy `ixian:` verb.
    *
    * Contract (verified ContactDetails.xaml.cs):
-   *   C#→JS: setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
+   *   C#→JS: setPaneMode('1'|'2') [#247 desktop pane, pre-present]
+   *          · setContext('chat'|'contact') [#248 entry-dependent title/actions]
+   *          · setGroupInfo(count, blind, admin, notifications, owner) +
+   *            clearMembers/addMember(addr, nick, avatar, role) [#248 group surface]
+   *          · setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
    *          ["" = none] · showIndicator("true"|"false") · clearRecentActivity()
    *          · addPaymentActivity(txid, type, time, amount, confirmed)  (5-arg;
    *          type = LOCALIZED "Sent"/"Received"; confirmed "true"|"error").
    *   JS→C#: ixian:onload · ixian:back · ixian:remove (remove contact) ·
    *          ixian:removehistory · ixian:request · ixian:send · ixian:chat ·
-   *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick>.
+   *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick> ·
+   *          [#248 group] ixian:leave · ixian:en/disableNotifications ·
+   *          ixian:kick:<addr> · ixian:ban:<addr> (all forwarded by ContactDetails,
+   *          mirroring the SingleChatPage handlers).
    *
    * CONTEXT CHOICE (Damir 2026-07-08 — revises #142): context 'contact', kind
    *   'contact'. The contact-details page now shows the "Contact details" title +
@@ -19638,6 +19902,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
+    // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
+    // info", no Message action) vs 'contact' (directory → "Contact details").
+    context: 'contact',
+    // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
+    // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
+    isGroup: false,
+    group: { count: 0, blind: false, admin: false, notifications: true, owner: '' },
+    members: [],         // committed roster [{ name, address, avatar, owner }]
+    membersBuf: null,    // accumulator between clearMembers and the settle
   };
 
   /** Resolve a C# avatar arg to an <img> src or null (same rule as the other
@@ -19671,9 +19944,53 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   let lastSig = '';
 
   function buildPanel() {
+    // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
+    // the full member list (owner chip, admin kick/ban) + Leave — no money, no
+    // Message, no nickname override (group rename = a BE ask, no verb exists).
+    // Context is forced to 'chat' for groups ("Group info" — a group is never a
+    // "contact details" surface even from the directory).
+    if (state.isGroup) {
+      return createChatInfo({
+        kind: state.group.kind || 'group',   // #249: 'bot' → members/notifications, no Leave (CI4)
+        context: 'chat',
+        name: state.name,
+        address: state.address,
+        avatar: state.avatarPath,
+        avatarSeed: state.address,
+        memberCount: state.group.count,
+        members: state.members.map((m) => ({
+          name: m.name, address: m.address, avatar: m.avatar,
+          owner: !!(state.group.owner && m.address && m.address !== '[Unknown]' && m.address === state.group.owner),
+        })),
+        blind: state.group.blind,
+        notifications: state.group.notifications,
+        capabilities: { notifications: true, admin: state.group.admin },
+        host: document.body,
+        strings,
+        onBack: () => bridge.send('ixian:back'),
+        // notifications toggle → the group mute verbs (#248 ContactDetails forwards;
+        // fire-and-forget, resolve optimistically — same as the in-chat takeover).
+        onNotifications: (next, ctrl) => {
+          state.group.notifications = next;
+          bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
+          ctrl.done();
+        },
+        // admin kick/ban (#248 forwards); blind-masked rows have no real address —
+        // never emit a verb with a masked payload.
+        onMemberAction: (action, m, ctrl) => {
+          if (m && m.address && m.address !== '[Unknown]' && (action === 'kick' || action === 'ban')) {
+            bridge.send('ixian:' + action + ':' + m.address);
+          }
+          ctrl.done();
+        },
+        onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
+      });
+    }
     return createChatInfo({
       kind: 'contact',
-      context: 'contact',              // see CONTEXT CHOICE — title "Contact details" + Message + both destructive actions
+      // #248: entry-dependent — 'contact' (directory) keeps the Message action +
+      // "Contact details" title; 'chat' (header/row-menu) titles "Chat info".
+      context: state.context,
       name: state.name,
       address: state.address,
       avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
@@ -19732,6 +20049,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       address: state.address,
       avatar: state.avatarPath,
       txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
+      // #248: context + group meta/roster affect the rendered panel too. Loop C-6:
+      // signature sorted by address so a re-pushed roster in a different order
+      // never forces a needless rebuild (would drop an open search/sheet).
+      context: state.context,
+      isGroup: state.isGroup,
+      group: state.group,
+      members: state.members.map((m) => [m.address, m.name, m.avatar])
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
     });
   }
   function buildIfChanged() {
@@ -19751,6 +20076,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120); }
   function commitAndBuild() {
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
+    if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; }   // #248 roster
     buildIfChanged();
   }
 
@@ -19767,6 +20093,37 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    // #247: desktop pane hosting — C# pushes '1' (detail slot) or '2' (column beside
+    // the conversation) BEFORE any content push; unset = mobile/full-span takeover.
+    setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
+    // #248: entry-dependent surface — pushed before setAddress in onLoad.
+    setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
+    // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
+    // list so a partial roster never commits.
+    setGroupInfo(count, blind, admin, notifications, owner, kind) {
+      state.isGroup = true;
+      state.group = {
+        count: Number(count) || 0,
+        blind: blind === '1' || blind === 'true' || blind === 'True',
+        admin: admin === '1' || admin === 'true' || admin === 'True',
+        notifications: notifications === '1' || notifications === 'true' || notifications === 'True',
+        owner: owner || '',
+        kind: kind === 'bot' ? 'bot' : 'group',   // #249: bots ride this surface too
+      };
+      scheduleCommit();
+    },
+    clearMembers() { state.membersBuf = []; scheduleCommit(); },
+    addMember(address, nick, avatar, role) {
+      if (state.membersBuf === null) state.membersBuf = [];
+      state.membersBuf.push({
+        address: address || '',
+        name: nick || '',
+        avatar: resolveAvatar(avatar),
+        role: role || '',            // opaque role int (semantics live in Ixian-Core); owner comes from setGroupInfo
+      });
+      scheduleCommit();
+    },
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every

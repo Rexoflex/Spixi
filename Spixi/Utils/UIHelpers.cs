@@ -40,6 +40,10 @@ namespace SPIXI
             {
                 overlay.reload();
             }
+            // #251: the default detail (EmptyDetail in HomePage.rightContent) is in
+            // neither collection — regenerate it too (theme/language), or it keeps
+            // the boot-time substitution forever.
+            HomePage.Instance()?.reloadDefaultDetail();
         }
 
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)

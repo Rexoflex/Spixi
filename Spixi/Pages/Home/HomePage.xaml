@@ -9,6 +9,9 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="0" />
+                <!-- Unit 6 (#247): chat-info pane column — 0 until a ContactDetails
+                     overlay is pinned here (expanded at present time, code-behind). -->
+                <ColumnDefinition Width="0" />
             </Grid.ColumnDefinitions>
             
             <Grid.RowDefinitions>

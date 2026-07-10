@@ -75,6 +75,16 @@ export function openMemberSheet({
     const nameRow = document.createElement('span');
     nameRow.className = 'c-member__name';
     nameRow.textContent = member.name || member.address || '';
+    // #249 loop C-1: mirror the member-row Owner/Admin badge in the sheet's
+    // identity block (row and sheet must not disagree about who owns the group).
+    if (member.owner || member.admin) {
+      const roleBadge = createBadge({
+        type: 'info', weight: 'tonal',
+        label: member.owner ? (strings.owner || 'Owner') : (strings.admin || 'Admin'),
+      });
+      roleBadge.classList.add('c-member__role-badge');
+      nameRow.append(roleBadge);
+    }
     if (canView) {
       const chev = icon('chevron-right', { size: 18 });
       chev.classList.add('c-member__chevron');

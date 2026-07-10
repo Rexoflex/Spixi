@@ -514,6 +514,98 @@ namespace SPIXI
         {
         }
 
+        // Host hook (unit 6, #247): fired on the overlay HOST in the same main-thread
+        // frame an overlay-mode page is made VISIBLE. Presentation-only — HomePage
+        // pins the chat-info pane to its column + expands the column here, so the
+        // pane appears fully painted in one frame (no empty strip while it loads).
+        public virtual void onOverlayPresented(SpixiContentPage overlay)
+        {
+        }
+
+        // Unit 6 (#247): re-home a PRESENTED overlay stage. Presentation-only property
+        // flips (attached props + margin) — nothing re-attaches, nothing repaints blank.
+        // column >= 0 pins to that grid column (margin cleared); column < 0 = full-span
+        // zero-margin takeover. Mutates op.column (this IS the op's placement from now
+        // on — relayoutPinnedOverlays returns it here after a resize round-trip).
+        // MAIN THREAD ONLY (called from onOverlayPresented / host size handlers).
+        public static void rehomeOverlay(SpixiContentPage target, int column)
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = overlayStack.Find(o => o.target == target);
+            }
+            if (op == null)
+            {
+                return;
+            }
+            try
+            {
+                op.stage.Margin = new Thickness(0);
+                if (column >= 0 && op.hostGrid.ColumnDefinitions.Count > column)
+                {
+                    Grid.SetColumnSpan(op.stage, 1);
+                    Grid.SetColumn(op.stage, column);
+                }
+                else
+                {
+                    Grid.SetColumn(op.stage, 0);
+                    Grid.SetColumnSpan(op.stage, Math.Max(1, op.hostGrid.ColumnDefinitions.Count));
+                    column = -1;
+                }
+                op.column = column;
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("rehomeOverlay: " + ex);
+            }
+        }
+
+        // #225-M2 (unit 6 batch): resizing across the pane breakpoint used to strand a
+        // column-pinned overlay (chat col 1, info col 2) invisible-but-open in a
+        // zero-width column. Re-home every pinned stage on each breakpoint crossing:
+        // narrow → col 0 + full column-span (the mobile takeover presentation);
+        // wide → back to its pinned column. Includes a still-STAGING overlay-mode op
+        // (resize mid-load), so the present can never land in a collapsed column.
+        // Does NOT mutate op.column — that is the memory of where to return.
+        // Full-span ops (column < 0, incl. the margin-inset Account pane) are untouched.
+        public static void relayoutPinnedOverlays(bool wide)
+        {
+            List<PreloadOp> ops;
+            lock (preloadLock)
+            {
+                ops = new List<PreloadOp>(overlayStack);
+                if (activePreload != null && activePreload.overlayMode)
+                {
+                    ops.Add(activePreload);
+                }
+            }
+            foreach (PreloadOp op in ops)
+            {
+                if (op.column < 0)
+                {
+                    continue;
+                }
+                try
+                {
+                    if (wide && op.hostGrid.ColumnDefinitions.Count > op.column)
+                    {
+                        Grid.SetColumnSpan(op.stage, 1);
+                        Grid.SetColumn(op.stage, op.column);
+                    }
+                    else
+                    {
+                        Grid.SetColumn(op.stage, 0);
+                        Grid.SetColumnSpan(op.stage, Math.Max(1, op.hostGrid.ColumnDefinitions.Count));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("relayoutPinnedOverlays: " + ex);
+                }
+            }
+        }
+
         // Native pushes (legacy wallet/scan/mini-app pages, modals) issued FROM an
         // overlay page must ride the ROOT NavigationPage — an overlay page is not in
         // the navigation tree, so its own Navigation proxy is detached.
@@ -626,6 +718,11 @@ namespace SPIXI
                     InputTransparent = true,
                     CascadeInputTransparent = true,
                     Margin = stageMargin,   // #245: zero by default; peer-pane rail inset
+                    // #248 (Damir F5: dark slivers on light mode while dragging the
+                    // divider): WebView2 composition surfaces LAG a resize — paint the
+                    // stage with the page's own themed surface so any exposed strip
+                    // matches the shell instead of whatever sits behind the stage.
+                    BackgroundColor = target.pageSurfaceColor,
                 };
 
                 PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
@@ -744,6 +841,7 @@ namespace SPIXI
                     Opacity = 0,
                     InputTransparent = true,
                     CascadeInputTransparent = true,
+                    BackgroundColor = target.pageSurfaceColor,   // #248: themed resize backing (lock = its own dark)
                 };
 
                 PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
@@ -931,6 +1029,19 @@ namespace SPIXI
                         lock (preloadLock)
                         {
                             overlayStack.Add(op);
+                        }
+
+                        // Unit 6 (#247): presentation-time layout on the HOST in the
+                        // same frame the overlay becomes visible (chat-info pane pin +
+                        // column expand). Runs BEFORE the same-tag close below, so a
+                        // replaced pane's onOverlayClosed sees the new one already open.
+                        try
+                        {
+                            op.host.onOverlayPresented(op.target);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("onOverlayPresented failed: " + ex);
                         }
 
                         // Same-tag replacement (chat switching): close the previous

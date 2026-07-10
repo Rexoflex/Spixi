@@ -55,6 +55,9 @@ const SHELLS = {
   // the C# ScanPage / LockPage already load — ZERO C# change, frozen bridge.
   scan:     { in: 'src/shells/scan.html',   out: 'scan.html',        page: 'ScanPage' },
   lock:     { in: 'src/shells/lock.html',   out: 'lock.html',        page: 'LockPage' },
+  // #248: desktop right-pane resting state (EmptyDetail) — replaces the always-dark
+  // legacy page that clashed with light mode. Static, *SL{}-localized.
+  empty_detail: { in: 'src/shells/empty_detail.html', out: 'empty_detail.html', page: 'EmptyDetail' },
   // contacts still lives INSIDE the chats demo (takeover pattern) — needs a
   // dedicated src/shells/ entry (native.js + setRoute), not a demo drop-in.
 };
@@ -63,7 +66,8 @@ const SHELLS = {
 const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
 
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
-  'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors'];   // bridge-wired shells (real C# data)
+  'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors',
+  'empty_detail'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
 // `launch` alone means the whole launch set (all five drop-in files)

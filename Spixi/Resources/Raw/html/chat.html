@@ -8834,6 +8834,16 @@ function openMemberSheet({
     const nameRow = document.createElement('span');
     nameRow.className = 'c-member__name';
     nameRow.textContent = member.name || member.address || '';
+    // #249 loop C-1: mirror the member-row Owner/Admin badge in the sheet's
+    // identity block (row and sheet must not disagree about who owns the group).
+    if (member.owner || member.admin) {
+      const roleBadge = createBadge({
+        type: 'info', weight: 'tonal',
+        label: member.owner ? (strings.owner || 'Owner') : (strings.admin || 'Admin'),
+      });
+      roleBadge.classList.add('c-member__role-badge');
+      nameRow.append(roleBadge);
+    }
     if (canView) {
       const chev = icon('chevron-right', { size: 18 });
       chev.classList.add('c-member__chevron');
@@ -9300,8 +9310,9 @@ function setRequestAccepting(row, strings = getStrings()) {
  * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
  * styling (message-menu.css) + the message-menu interaction pattern (long-press
  * ~500ms, cancel on >10px move = scroll intent; desktop right-click; Android
- * double-open guard). Delete routes through the c-modal confirm. Chat info is a
- * stub (Damir: pane deferred) → fires onAction('info'), shell shows a toast.
+ * double-open guard). Delete routes through the c-modal confirm. Chat info fires
+ * onAction('info') → the shell routes it (#247: home.html sends ixian:details:
+ * for 1:1 — desktop pane / mobile takeover — and opens the chat for groups).
  *
  * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
  * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat
@@ -15778,7 +15789,7 @@ function createChatInfo({
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
-  members = [],                  // [{ name, address, admin, relation }]
+  members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
@@ -15810,7 +15821,9 @@ function createChatInfo({
     variant: 'view',
     title: context === 'contact'
       ? (strings.contactDetails || 'Contact details')
-      : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
+      // Quirk-7 fix (#247): the old `strings.chatInfo || (group ? …)` fallback meant a
+      // PRESENT chatInfo key hid the group branch — groups always titled "Chat info".
+      : (kind === 'group' ? (strings.groupInfo || 'Group info') : (strings.chatInfo || 'Chat info')),
     onBack,
   }));
 
@@ -16213,7 +16226,9 @@ function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
+      // #249 loop C-1: owner/admin ride into the sheet so its identity block can
+      // badge them consistently with the row list.
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar, owner: m.owner, admin: m.admin },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -16223,7 +16238,7 @@ function createChatInfo({
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
       // confirm (ixian:kick:ADDR / ixian:ban:ADDR are irreversible for the peer)
-      actions: capabilities.admin && onMemberAction && !m.admin ? [
+      actions: capabilities.admin && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
         {
           label: strings.kick || 'Kick', glyph: 'circle-x', destructive: true,
           onClick: () => confirmAction({
@@ -16279,7 +16294,13 @@ function createChatInfo({
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
         row.append(nm);
-        if (m.admin) {
+        if (m.owner) {
+          // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
+          // C# users.getOwner(); never marked in blind groups — no owner push).
+          const b = createBadge({ type: 'info', weight: 'tonal', label: strings.owner || 'Owner' });
+          b.classList.add('c-chat-info__member-badge');
+          row.append(b);
+        } else if (m.admin) {
           const b = createBadge({ type: 'info', weight: 'tonal', label: strings.admin || 'Admin' });
           b.classList.add('c-chat-info__member-badge');
           row.append(b);
@@ -21950,13 +21971,28 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // behaves as before (group/blind → chat-info takeover; 1:1 → ContactDetails).
     const botChannels = mode.isBot && channelState.has;
 
+    // #248/#249: ALL chat info lives on the SHELL side now (the ContactDetails
+    // group/bot/contact surface) — same desktop pane / takeover behavior for
+    // every kind, C#-mediated (ixian:details). #249 (Damir r3): bots included —
+    // the in-chat takeover overtook the conversation instead of paning. The
+    // channel SELECTOR stays in-convo (title tap, botChannels mode). The
+    // conversation wall (#221) is untouched — only a verb is emitted.
+    // (openChatInfo/buildChatInfo remain for a possible channel-scoped info
+    // surface — currently unreferenced by the topbar.)
+    const infoTap = () => bridge.send('ixian:details');
+
     const actions = [];
     // start a voice call — revealed by showCallButton (C# gates availability);
     // ixian:call toggles initiate/hang-up (xaml:136).
     if (callVisible) actions.push({ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') });
-    // bot channels: the title now opens the selector, so chat-info moves to a
-    // trailing info icon (shown on desktop AND mobile per Damir).
-    if (botChannels) actions.push({ icon: 'info-circle', label: s.chatInfo || 'Chat info', onClick: () => openChatInfo() });
+    // #248 (Damir): an EXPLICIT info affordance on EVERY chat — the bare header
+    // tap wasn't discoverable. Bot-channel mode already had it (its title became
+    // the channel selector); now 1:1 + groups + plain bots get it too.
+    actions.push({
+      icon: 'info-circle',
+      label: mode.isMulti && !mode.isBot ? (s.groupInfo || 'Group info') : (s.chatInfo || 'Chat info'),
+      onClick: infoTap,
+    });
 
     const tb = createTopbar({
       variant: 'chat',
@@ -21973,11 +22009,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         avatar: identity.avatar || null,
       },
       // Header tap. bot channels → open the channel selector (title = affordance).
-      // group/blind-group → the IN-CHAT chat-info takeover (SingleChatPage owns the
-      // group verbs). 1:1 → navigate to the ContactDetails page (ixian:details).
-      onIdentity: botChannels
-        ? () => openChannelSelector()
-        : () => { if (mode.isMulti) openChatInfo(); else bridge.send('ixian:details'); },
+      // #248: everything else routes like the info icon — 1:1 AND groups go to the
+      // shell-side surface (ixian:details); plain bots keep the in-chat takeover.
+      onIdentity: botChannels ? () => openChannelSelector() : infoTap,
       onBack: () => bridge.send('ixian:back'),
       actions,
     });
@@ -22196,6 +22230,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
+  let groupOwner = '';           // #248: owner address (setGroupOwner; '' for blind groups) → "Owner" chip
 
   /* —— @-mention context (premium mentions #210). The bubble highlighter (#7) and
    * the composer picker (#6) share ONE source of member names: roster nicks
@@ -22741,6 +22776,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * Blind groups (type 2) hide addresses. Admin (mode.admin) injects Kick/Ban via
    * the component's built-in member sheet; contact-request + kick/ban reuse the
    * existing verbs. */
+  /* ⚠ #249 loop C-3: this whole in-chat takeover block (openChatInfo/buildChatInfo/
+   * refreshChatInfo/collectGroupMembers + the groupRoster/groupOwner feeds) is
+   * RETAINED BUT CURRENTLY UNREACHABLE — every topbar info route now emits
+   * ixian:details (the shell-side ContactDetails surface owns group/bot info).
+   * Kept for a possible future CHANNEL-scoped info surface; C#'s addContact/
+   * setGroupOwner pushes still land here harmlessly. Prune when that's decided. */
   let chatInfoTakeover = null;
   let chatInfoOpen = false;
 
@@ -22769,7 +22810,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const prev = byKey.get(addr) || { name: '', address: addr, avatar: null };
       byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar });
     }
-    return [...byKey.values()];
+    // #248: mark the owner (address match; blind groups never get an owner push).
+    const list = [...byKey.values()];
+    if (groupOwner) {
+      for (const m of list) {
+        if (m.address && m.address !== '[Unknown]' && m.address === groupOwner) m.owner = true;
+      }
+    }
+    return list;
   }
 
   function buildChatInfo() {
@@ -23331,6 +23379,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
+      groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
       invalidateMentions();                // per-peer reset of the mention name list
       resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       dbg('onChatScreenReady', address);
@@ -23484,6 +23533,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const prev = groupRoster.get(key) || {};
       groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
+      if (chatInfoOpen) scheduleChatInfoRefresh();
+    },
+    // #248 (Damir item 3): the group/bot OWNER address — the in-chat takeover's
+    // member list marks the matching row with an "Owner" chip. Never pushed for
+    // blind groups (C# suppresses it — the address would de-anonymize).
+    setGroupOwner(address) {
+      groupOwner = String(address || '');
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer

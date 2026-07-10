@@ -1,5 +1,6 @@
 ﻿using IXICore;
 using IXICore.Meta;
+using IXICore.SpixiBot;
 using IXICore.Streaming;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
@@ -15,16 +16,36 @@ namespace SPIXI
 	{
         private Friend friend = null;
         private bool customChatBtn = false;
+        // Unit 6 (#247): desktop pane hosting — "2" = the column beside the open
+        // conversation, "1" = the detail slot, null = the mobile/full-span takeover.
+        // Pushed to the shell BEFORE any content (SettingsPage setPaneMode pattern).
+        private string paneCol = null;
+        // #248 (Damir F5 item 1): entry-dependent surface — a chat header / chats
+        // row-menu entry renders "Chat info"/"Group info" (context 'chat'); ONLY the
+        // contacts directory keeps "Contact details" + the Message action.
+        private bool chatContext = false;
+        private bool isGroup = false;
 
-		public ContactDetails (Friend lfriend, bool customChatButton = false)
+		public ContactDetails (Friend lfriend, bool customChatButton = false, string paneColumn = null, bool chat_context = false)
 		{
 			InitializeComponent ();
             NavigationPage.SetHasNavigationBar(this, false);
 
             friend = lfriend;
             customChatBtn = customChatButton;
+            paneCol = paneColumn;
+            chatContext = chat_context;
+            // #249 (Damir F5 r3): BOTS get the group surface too (members/notifications/
+            // owner as a desktop pane) — the in-chat takeover overtook the conversation.
+            isGroup = friend.type == FriendType.Group || friend.bot;
 
             loadPage(webView, "contact_details.html");
+        }
+
+        // #247: HomePage's toggle/close routing compares by address, never by instance.
+        public string friendAddressString()
+        {
+            return friend.walletAddress.ToString();
         }
 
         private void onNavigated(object sender, WebNavigatedEventArgs e)
@@ -34,9 +55,100 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // #247: pane layout FIRST — coalesces ahead of the present, so the shell
+            // never paints a takeover layout that reflows into the pane grammar.
+            if (paneCol != null)
+            {
+                Utils.sendUiCommand(this, "setPaneMode", paneCol);
+            }
+
+            // #248: entry-dependent context (chat header/row-menu = 'chat' → "Chat
+            // info"/"Group info", no Message action; contacts directory = 'contact').
+            Utils.sendUiCommand(this, "setContext", chatContext ? "chat" : "contact");
+
+            if (isGroup)
+            {
+                // #248 GROUP INFO shell-side (Damir F5 item 2): this page now carries
+                // the group surface too, so group info gets the same desktop pane /
+                // takeover behavior as 1:1. Meta + full roster (masking mirrors
+                // SingleChatPage.loadContacts for blind groups).
+                bool blind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                bool amAdmin = friend.metaData.botInfo != null && friend.metaData.botInfo.admin;
+                bool notifications = friend.metaData.botInfo == null || friend.metaData.botInfo.sendNotification;
+                // Owner address: identity-revealing → NEVER sent for a blind group.
+                string owner = "";
+                if (!blind)
+                {
+                    try { owner = friend.users.getOwner()?.ToString() ?? ""; } catch { }
+                }
+                Utils.sendUiCommand(this, "setGroupInfo",
+                    friend.users.contacts.Count.ToString(),
+                    blind ? "1" : "0",
+                    amAdmin ? "1" : "0",
+                    notifications ? "1" : "0",
+                    owner,
+                    friend.type == FriendType.Group ? "group" : "bot");   // #249: surface kind
+                loadMembers(blind);
+            }
+
             Utils.sendUiCommand(this, "setAddress", friend.walletAddress.ToString());
 
             updateScreen();
+        }
+
+        // #248: full participant roster for the group surface — same push contract
+        // as SingleChatPage.loadContacts (CI1), incl. the blind-group masking.
+        private void loadMembers(bool blind)
+        {
+            Utils.sendUiCommand(this, "clearMembers");
+            // #249 (Damir F5 r3): the LOCAL user is a participant too, but has no
+            // participant nick / stored contact avatar — resolve self from localStorage.
+            Address selfAddress = IxianHandler.getWalletStorage().getPrimaryAddress();
+            var contacts = friend.users.contacts;
+            foreach (var contact in contacts)
+            {
+                var contactAddress = contact.Key;
+                bool isSelf = selfAddress != null && contactAddress.SequenceEqual(selfAddress);
+                string address = contactAddress.ToString();
+                string? avatar = IxianHandler.localStorage.getAvatarPath(address);
+                if (avatar == null && isSelf)
+                {
+                    avatar = IxianHandler.localStorage.getOwnAvatarPath();
+                }
+                if (avatar == null)
+                {
+                    avatar = "img/spixiavatar.png";
+                }
+                avatar = Utils.imageToDataUri(avatar);   // X1
+                // nick resolution mirrors SingleChatPage.resolveNick's fallback chain
+                // (participant nick → the local friend's nickname if we know them),
+                // + the self row falls back to MY OWN nickname (#249).
+                string nick = contact.Value.getNick();
+                if (string.IsNullOrEmpty(nick))
+                {
+                    if (isSelf)
+                    {
+                        nick = IxianHandler.localStorage.nickname;
+                    }
+                    else
+                    {
+                        var local_fr = FriendList.getFriend(contactAddress);
+                        if (local_fr != null)
+                        {
+                            nick = local_fr.nickname;
+                        }
+                    }
+                }
+                if (blind)
+                {
+                    if (string.IsNullOrEmpty(nick))
+                    {
+                        nick = "x" + contactAddress.ToString();
+                    }
+                    address = "[Unknown]";
+                }
+                Utils.sendUiCommand(this, "addMember", address, nick, avatar, contact.Value.getPrimaryRole().ToString());
+            }
         }
 
         private void onNavigating(object sender, WebNavigatingEventArgs e)
@@ -91,6 +203,79 @@ namespace SPIXI
                     // the host's onChat (tagged chat overlay, wide/narrow aware).
                     popPageAsync();
                     HomePage.Instance()?.onChat(friend.walletAddress, null);
+                }
+            }
+            else if (current_url.StartsWith("ixian:leave"))
+            {
+                // #248 group surface: leave — mirrors SingleChatPage's ixian:leave
+                // (group → sendLeave + removeFriend · bot → pendingDeletion + sendLeave).
+                if (friend.bot || friend.type == FriendType.Group)
+                {
+                    if (!friend.bot)
+                    {
+                        CoreStreamProcessor.sendLeave(friend, null);
+                        FriendList.removeFriend(friend);
+                    }
+                    else
+                    {
+                        friend.pendingDeletion = true;
+                        friend.save();
+                        CoreStreamProcessor.sendLeave(friend, null);
+                    }
+                    UIHelpers.shouldRefreshContacts = true;
+                    displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    popToRootAsync();
+                    HomePage.Instance()?.removeDetailContent();
+                }
+            }
+            else if (current_url.StartsWith("ixian:enableNotifications"))
+            {
+                // #248: mirrors SingleChatPage — persist + bot action. Loop fix A-2:
+                // onLoad tolerates a null botInfo (defaults the toggle ON), so the
+                // forward must too — never NPE inside the navigating callback.
+                if (friend.metaData.botInfo != null)
+                {
+                    friend.metaData.botInfo.sendNotification = true;
+                    friend.saveMetaData();
+                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 1 }, 0, true);
+                }
+            }
+            else if (current_url.StartsWith("ixian:disableNotifications"))
+            {
+                if (friend.metaData.botInfo != null)
+                {
+                    friend.metaData.botInfo.sendNotification = false;
+                    friend.saveMetaData();
+                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 0 }, 0, true);
+                }
+            }
+            else if (current_url.StartsWith("ixian:kick:"))
+            {
+                // #248: admin kick/ban — mirrors SingleChatPage.onKickUser/onBanUser.
+                // Loop fix A-4: the payload rides the WebView URL — parse defensively
+                // (a malformed/masked address must never throw in onNavigating).
+                string str_address = current_url.Substring("ixian:kick:".Length);
+                try
+                {
+                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.kickUser, new Address(str_address).addressWithChecksum, 0, true);
+                    displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-kicked-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-kicked-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("kick: invalid address payload: " + ex.Message);
+                }
+            }
+            else if (current_url.StartsWith("ixian:ban:"))
+            {
+                string str_address = current_url.Substring("ixian:ban:".Length);
+                try
+                {
+                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.banUser, new Address(str_address).addressWithChecksum, 0, true);
+                    displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-banned-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-banned-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("ban: invalid address payload: " + ex.Message);
                 }
             }
             else if (current_url.Contains("ixian:txdetails:"))
@@ -197,6 +382,13 @@ namespace SPIXI
             avatar = Utils.imageToDataUri(avatar);   // X1
 
             Utils.sendUiCommand(this, "setAvatar", avatar);
+
+            // #248 group surface: no presence line, no 1:1 payment activity — the
+            // per-second tick only refreshes the group name/photo.
+            if (isGroup)
+            {
+                return;
+            }
 
             if (friend.online)
             {

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). Same recipe as every redesigned shell. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<!-- #228 platform type flag -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<style>
+  /* —————————————————————————————————————————————————————————————————————————
+   * #248 (Damir F5): redesigned EMPTY DETAIL — the desktop right-pane resting
+   * state (EmptyDetail page, shown when no conversation is open). Replaces the
+   * ALWAYS-DARK legacy empty_detail.html that clashed with light mode. Static,
+   * token-themed both modes, dt-empty grammar; localized via the C# star-SL
+   * substitution (same keys as legacy) with English fallbacks for previews.
+   * ————————————————————————————————————————————————————————————————————————— */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .empty {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: var(--spacing-12, 12px);
+    max-width: 420px;
+    padding: var(--spacing-24, 24px);
+  }
+  .empty__icon { color: var(--icon-neutral-03, var(--icon-neutral-02)); margin-bottom: var(--spacing-8, 8px); }
+  .empty__icon svg { width: 56px; height: 56px; }
+  /* type rides the base.css role classes (.t-heading-sm / .t-body-sm) */
+  .empty__title { color: var(--text-neutral-01); margin: 0; }
+  .empty__text { color: var(--text-neutral-02); margin: 0; }
+</style>
+</head>
+<body>
+  <main class="empty">
+    <div class="empty__icon" id="empty-icon" aria-hidden="true"></div>
+    <h1 class="empty__title t-heading-sm" id="empty-title">*SL{empty-state-title}</h1>
+    <p class="empty__text t-body-sm" id="empty-p1">*SL{empty-state-detail-1}</p>
+    <p class="empty__text t-body-sm" id="empty-p2">*SL{empty-state-detail-2}</p>
+  </main>
+
+<script src="../components/icons.iife.js"></script>
+<script>
+  /* Localization: C#'s generatePage substitutes the star-SL markers from the lang
+   * files (they live in HTML TEXT nodes — safe for any localized characters).
+   * A plain-browser preview has no substitution → swap the raw marker for the
+   * English fallback. ⚠ The marker is BUILT AT RUNTIME below: SpixiLocalization's
+   * line parser crashes on any source line that contains the raw marker without a
+   * closing brace after it (Substring(0, IndexOf("}")) with IndexOf = -1) — never
+   * write the four-character sequence literally outside a real substitution. */
+  (function () {
+    var MARK = '*SL' + '{';   // runtime-assembled — see the warning above
+    var fb = {
+      'empty-title': 'Welcome to Spixi',
+      'empty-p1': 'Your secure peer-to-peer chat app with an integrated wallet.',
+      'empty-p2': 'Enjoy encrypted conversations that ensure your messages are stored and transmitted only between your device and your contacts, keeping your privacy intact.',
+    };
+    for (var id in fb) {
+      var el = document.getElementById(id);
+      if (el && el.textContent.indexOf(MARK) !== -1) el.textContent = fb[id];
+    }
+    try {
+      var host = document.getElementById('empty-icon');
+      if (host && window.SpixiIcons && window.SpixiIcons.icon) host.append(window.SpixiIcons.icon('logo', { size: 56 }));
+    } catch (e) {}
+  })();
+
+  /* #251 (Damir F5: pane stayed DARK after a dark→light theme pick): C# re-themes
+   * live WebViews with sendUiCommand(page, "setTheme", name) — the command arrives
+   * as executeUiCommand(setTheme, 'light'), i.e. a BARE GLOBAL fn reference. Provide
+   * the global + a minimal dispatcher (loop C-4 hardening folded in: unknown pushes
+   * must not throw into EvaluateJavaScriptAsync). */
+  window.setTheme = function (name) {
+    if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
+  };
+  if (!window.executeUiCommand) {
+    window.executeUiCommand = function (fn) {
+      try { if (typeof fn === 'function') fn.apply(null, Array.prototype.slice.call(arguments, 1)); } catch (e) {}
+    };
+  }
+
+  /* Page ready — window load (#177 timing invariant). EmptyDetail.onLoad is a
+   * no-op, but the signal keeps the page on the standard shell lifecycle. */
+  function signalReady() { try { location.href = 'ixian:onload'; } catch (e) {} }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

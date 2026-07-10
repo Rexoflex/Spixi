@@ -376,13 +376,28 @@
     // behaves as before (group/blind → chat-info takeover; 1:1 → ContactDetails).
     const botChannels = mode.isBot && channelState.has;
 
+    // #248/#249: ALL chat info lives on the SHELL side now (the ContactDetails
+    // group/bot/contact surface) — same desktop pane / takeover behavior for
+    // every kind, C#-mediated (ixian:details). #249 (Damir r3): bots included —
+    // the in-chat takeover overtook the conversation instead of paning. The
+    // channel SELECTOR stays in-convo (title tap, botChannels mode). The
+    // conversation wall (#221) is untouched — only a verb is emitted.
+    // (openChatInfo/buildChatInfo remain for a possible channel-scoped info
+    // surface — currently unreferenced by the topbar.)
+    const infoTap = () => bridge.send('ixian:details');
+
     const actions = [];
     // start a voice call — revealed by showCallButton (C# gates availability);
     // ixian:call toggles initiate/hang-up (xaml:136).
     if (callVisible) actions.push({ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') });
-    // bot channels: the title now opens the selector, so chat-info moves to a
-    // trailing info icon (shown on desktop AND mobile per Damir).
-    if (botChannels) actions.push({ icon: 'info-circle', label: s.chatInfo || 'Chat info', onClick: () => openChatInfo() });
+    // #248 (Damir): an EXPLICIT info affordance on EVERY chat — the bare header
+    // tap wasn't discoverable. Bot-channel mode already had it (its title became
+    // the channel selector); now 1:1 + groups + plain bots get it too.
+    actions.push({
+      icon: 'info-circle',
+      label: mode.isMulti && !mode.isBot ? (s.groupInfo || 'Group info') : (s.chatInfo || 'Chat info'),
+      onClick: infoTap,
+    });
 
     const tb = createTopbar({
       variant: 'chat',
@@ -399,11 +414,9 @@
         avatar: identity.avatar || null,
       },
       // Header tap. bot channels → open the channel selector (title = affordance).
-      // group/blind-group → the IN-CHAT chat-info takeover (SingleChatPage owns the
-      // group verbs). 1:1 → navigate to the ContactDetails page (ixian:details).
-      onIdentity: botChannels
-        ? () => openChannelSelector()
-        : () => { if (mode.isMulti) openChatInfo(); else bridge.send('ixian:details'); },
+      // #248: everything else routes like the info icon — 1:1 AND groups go to the
+      // shell-side surface (ixian:details); plain bots keep the in-chat takeover.
+      onIdentity: botChannels ? () => openChannelSelector() : infoTap,
       onBack: () => bridge.send('ixian:back'),
       actions,
     });
@@ -622,6 +635,7 @@
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
+  let groupOwner = '';           // #248: owner address (setGroupOwner; '' for blind groups) → "Owner" chip
 
   /* —— @-mention context (premium mentions #210). The bubble highlighter (#7) and
    * the composer picker (#6) share ONE source of member names: roster nicks
@@ -1167,6 +1181,12 @@
    * Blind groups (type 2) hide addresses. Admin (mode.admin) injects Kick/Ban via
    * the component's built-in member sheet; contact-request + kick/ban reuse the
    * existing verbs. */
+  /* ⚠ #249 loop C-3: this whole in-chat takeover block (openChatInfo/buildChatInfo/
+   * refreshChatInfo/collectGroupMembers + the groupRoster/groupOwner feeds) is
+   * RETAINED BUT CURRENTLY UNREACHABLE — every topbar info route now emits
+   * ixian:details (the shell-side ContactDetails surface owns group/bot info).
+   * Kept for a possible future CHANNEL-scoped info surface; C#'s addContact/
+   * setGroupOwner pushes still land here harmlessly. Prune when that's decided. */
   let chatInfoTakeover = null;
   let chatInfoOpen = false;
 
@@ -1195,7 +1215,14 @@
       const prev = byKey.get(addr) || { name: '', address: addr, avatar: null };
       byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar });
     }
-    return [...byKey.values()];
+    // #248: mark the owner (address match; blind groups never get an owner push).
+    const list = [...byKey.values()];
+    if (groupOwner) {
+      for (const m of list) {
+        if (m.address && m.address !== '[Unknown]' && m.address === groupOwner) m.owner = true;
+      }
+    }
+    return list;
   }
 
   function buildChatInfo() {
@@ -1757,6 +1784,7 @@
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
+      groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
       invalidateMentions();                // per-peer reset of the mention name list
       resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       dbg('onChatScreenReady', address);
@@ -1910,6 +1938,13 @@
       const prev = groupRoster.get(key) || {};
       groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
+      if (chatInfoOpen) scheduleChatInfoRefresh();
+    },
+    // #248 (Damir item 3): the group/bot OWNER address — the in-chat takeover's
+    // member list marks the matching row with an "Owner" chip. Never pushed for
+    // blind groups (C# suppresses it — the address would de-anonymize).
+    setGroupOwner(address) {
+      groupOwner = String(address || '');
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer

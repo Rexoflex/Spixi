@@ -27,6 +27,8 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- payments accordion rows -->
 <link rel="stylesheet" href="../styles/components/chat-info.css">
+<link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
+<link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -47,6 +49,14 @@
   }
   @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+  /* Unit 6 (#247): desktop pane hosting. C# pushes setPaneMode('1'|'2') pre-present:
+       '1' = the detail slot (no conversation open) — the body content caps at the demo
+             grammar 640, title bar spans full width (#245b pattern);
+       '2' = the 360px column beside the open conversation — hairline divider on its
+             leading edge (the col-1 case reuses the home shell's right-edge hairline,
+             so no double line; the 640 cap is inert at pane width). */
+  body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
+  body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 </head>
 <body>
@@ -70,13 +80,20 @@
    * frozen bridge — every action is an existing legacy `ixian:` verb.
    *
    * Contract (verified ContactDetails.xaml.cs):
-   *   C#→JS: setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
+   *   C#→JS: setPaneMode('1'|'2') [#247 desktop pane, pre-present]
+   *          · setContext('chat'|'contact') [#248 entry-dependent title/actions]
+   *          · setGroupInfo(count, blind, admin, notifications, owner) +
+   *            clearMembers/addMember(addr, nick, avatar, role) [#248 group surface]
+   *          · setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
    *          ["" = none] · showIndicator("true"|"false") · clearRecentActivity()
    *          · addPaymentActivity(txid, type, time, amount, confirmed)  (5-arg;
    *          type = LOCALIZED "Sent"/"Received"; confirmed "true"|"error").
    *   JS→C#: ixian:onload · ixian:back · ixian:remove (remove contact) ·
    *          ixian:removehistory · ixian:request · ixian:send · ixian:chat ·
-   *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick>.
+   *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick> ·
+   *          [#248 group] ixian:leave · ixian:en/disableNotifications ·
+   *          ixian:kick:<addr> · ixian:ban:<addr> (all forwarded by ContactDetails,
+   *          mirroring the SingleChatPage handlers).
    *
    * CONTEXT CHOICE (Damir 2026-07-08 — revises #142): context 'contact', kind
    *   'contact'. The contact-details page now shows the "Contact details" title +
@@ -133,6 +150,15 @@
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
+    // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
+    // info", no Message action) vs 'contact' (directory → "Contact details").
+    context: 'contact',
+    // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
+    // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
+    isGroup: false,
+    group: { count: 0, blind: false, admin: false, notifications: true, owner: '' },
+    members: [],         // committed roster [{ name, address, avatar, owner }]
+    membersBuf: null,    // accumulator between clearMembers and the settle
   };
 
   /** Resolve a C# avatar arg to an <img> src or null (same rule as the other
@@ -166,9 +192,53 @@
   let lastSig = '';
 
   function buildPanel() {
+    // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
+    // the full member list (owner chip, admin kick/ban) + Leave — no money, no
+    // Message, no nickname override (group rename = a BE ask, no verb exists).
+    // Context is forced to 'chat' for groups ("Group info" — a group is never a
+    // "contact details" surface even from the directory).
+    if (state.isGroup) {
+      return createChatInfo({
+        kind: state.group.kind || 'group',   // #249: 'bot' → members/notifications, no Leave (CI4)
+        context: 'chat',
+        name: state.name,
+        address: state.address,
+        avatar: state.avatarPath,
+        avatarSeed: state.address,
+        memberCount: state.group.count,
+        members: state.members.map((m) => ({
+          name: m.name, address: m.address, avatar: m.avatar,
+          owner: !!(state.group.owner && m.address && m.address !== '[Unknown]' && m.address === state.group.owner),
+        })),
+        blind: state.group.blind,
+        notifications: state.group.notifications,
+        capabilities: { notifications: true, admin: state.group.admin },
+        host: document.body,
+        strings,
+        onBack: () => bridge.send('ixian:back'),
+        // notifications toggle → the group mute verbs (#248 ContactDetails forwards;
+        // fire-and-forget, resolve optimistically — same as the in-chat takeover).
+        onNotifications: (next, ctrl) => {
+          state.group.notifications = next;
+          bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
+          ctrl.done();
+        },
+        // admin kick/ban (#248 forwards); blind-masked rows have no real address —
+        // never emit a verb with a masked payload.
+        onMemberAction: (action, m, ctrl) => {
+          if (m && m.address && m.address !== '[Unknown]' && (action === 'kick' || action === 'ban')) {
+            bridge.send('ixian:' + action + ':' + m.address);
+          }
+          ctrl.done();
+        },
+        onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
+      });
+    }
     return createChatInfo({
       kind: 'contact',
-      context: 'contact',              // see CONTEXT CHOICE — title "Contact details" + Message + both destructive actions
+      // #248: entry-dependent — 'contact' (directory) keeps the Message action +
+      // "Contact details" title; 'chat' (header/row-menu) titles "Chat info".
+      context: state.context,
       name: state.name,
       address: state.address,
       avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
@@ -227,6 +297,14 @@
       address: state.address,
       avatar: state.avatarPath,
       txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
+      // #248: context + group meta/roster affect the rendered panel too. Loop C-6:
+      // signature sorted by address so a re-pushed roster in a different order
+      // never forces a needless rebuild (would drop an open search/sheet).
+      context: state.context,
+      isGroup: state.isGroup,
+      group: state.group,
+      members: state.members.map((m) => [m.address, m.name, m.avatar])
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
     });
   }
   function buildIfChanged() {
@@ -246,6 +324,7 @@
   function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120); }
   function commitAndBuild() {
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
+    if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; }   // #248 roster
     buildIfChanged();
   }
 
@@ -262,6 +341,37 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    // #247: desktop pane hosting — C# pushes '1' (detail slot) or '2' (column beside
+    // the conversation) BEFORE any content push; unset = mobile/full-span takeover.
+    setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
+    // #248: entry-dependent surface — pushed before setAddress in onLoad.
+    setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
+    // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
+    // list so a partial roster never commits.
+    setGroupInfo(count, blind, admin, notifications, owner, kind) {
+      state.isGroup = true;
+      state.group = {
+        count: Number(count) || 0,
+        blind: blind === '1' || blind === 'true' || blind === 'True',
+        admin: admin === '1' || admin === 'true' || admin === 'True',
+        notifications: notifications === '1' || notifications === 'true' || notifications === 'True',
+        owner: owner || '',
+        kind: kind === 'bot' ? 'bot' : 'group',   // #249: bots ride this surface too
+      };
+      scheduleCommit();
+    },
+    clearMembers() { state.membersBuf = []; scheduleCommit(); },
+    addMember(address, nick, avatar, role) {
+      if (state.membersBuf === null) state.membersBuf = [];
+      state.membersBuf.push({
+        address: address || '',
+        name: nick || '',
+        avatar: resolveAvatar(avatar),
+        role: role || '',            // opaque role int (semantics live in Ixian-Core); owner comes from setGroupInfo
+      });
+      scheduleCommit();
+    },
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every

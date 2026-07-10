@@ -385,7 +385,8 @@ namespace SPIXI
                 return;
             }
 
-            pushPageLoaded(new ContactDetails(friend, true));   // load-then-move (N3)
+            // #248: chat-header entry → context 'chat' ("Chat info"/"Group info").
+            pushPageLoaded(new ContactDetails(friend, true, null, true));   // load-then-move (N3)
         }
 
         private void onSendIxi()
@@ -469,12 +470,20 @@ namespace SPIXI
 
         private void loadContacts()
         {
+            // #249: the LOCAL user is a participant too — resolve self from localStorage
+            // (no participant nick / stored contact avatar for one's own address).
+            Address selfAddress = IxianHandler.getWalletStorage().getPrimaryAddress();
             var contacts = friend.users.contacts;
             foreach (var contact in contacts)
             {
                 var contactAddress = contact.Key;
+                bool isSelf = selfAddress != null && contactAddress.SequenceEqual(selfAddress);
                 string address = contactAddress.ToString();
                 string? avatar = IxianHandler.localStorage.getAvatarPath(address);
+                if (avatar == null && isSelf)
+                {
+                    avatar = IxianHandler.localStorage.getOwnAvatarPath();
+                }
                 if (avatar == null)
                 {
                     avatar = "img/spixiavatar.png";
@@ -482,6 +491,10 @@ namespace SPIXI
                 avatar = Utils.imageToDataUri(avatar);   // X1
                 int role = contact.Value.getPrimaryRole();
                 string nick = resolveNick(contact.Value.getNick(), contactAddress);
+                if (string.IsNullOrEmpty(nick) && isSelf)
+                {
+                    nick = IxianHandler.localStorage.nickname;
+                }
                 if (friend.type == FriendType.Group
                     && friend.metaData.botInfo.hideParticipantAddresses)
                 {
@@ -519,6 +532,29 @@ namespace SPIXI
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
             // their bundled dictionary, NOT from addCustomString, so this must be a bridge push.
             Utils.sendUiCommand(this, "setSelfNick", IxianHandler.localStorage.nickname);
+
+            // #248 (Damir item 3): group/bot OWNER address → the shell marks the owner
+            // in member lists ("Owner" chip). NEVER for a blind group — the owner
+            // address would de-anonymize an identity the mode hides.
+            if (friend.bot || friend.type == FriendType.Group)
+            {
+                bool blindGroup = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                if (!blindGroup)
+                {
+                    try
+                    {
+                        var groupOwner = friend.users.getOwner();
+                        if (groupOwner != null)
+                        {
+                            Utils.sendUiCommand(this, "setGroupOwner", groupOwner.ToString());
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("setGroupOwner: " + ex.Message);
+                    }
+                }
+            }
 
             if (homePage != null)
             {

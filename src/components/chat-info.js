@@ -98,7 +98,7 @@ export function createChatInfo({
   avatarSeed = '',               // hue source when it differs from name
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
-  members = [],                  // [{ name, address, admin, relation }]
+  members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
@@ -130,7 +130,9 @@ export function createChatInfo({
     variant: 'view',
     title: context === 'contact'
       ? (strings.contactDetails || 'Contact details')
-      : (strings.chatInfo || (kind === 'group' ? 'Group info' : 'Chat info')),
+      // Quirk-7 fix (#247): the old `strings.chatInfo || (group ? …)` fallback meant a
+      // PRESENT chatInfo key hid the group branch — groups always titled "Chat info".
+      : (kind === 'group' ? (strings.groupInfo || 'Group info') : (strings.chatInfo || 'Chat info')),
     onBack,
   }));
 
@@ -533,7 +535,9 @@ export function createChatInfo({
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
-      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar },
+      // #249 loop C-1: owner/admin ride into the sheet so its identity block can
+      // badge them consistently with the row list.
+      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar, owner: m.owner, admin: m.admin },
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
@@ -543,7 +547,7 @@ export function createChatInfo({
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
       // confirm (ixian:kick:ADDR / ixian:ban:ADDR are irreversible for the peer)
-      actions: capabilities.admin && onMemberAction && !m.admin ? [
+      actions: capabilities.admin && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
         {
           label: strings.kick || 'Kick', glyph: 'circle-x', destructive: true,
           onClick: () => confirmAction({
@@ -599,7 +603,13 @@ export function createChatInfo({
         nm.className = 'c-chat-info__member-name';
         nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
         row.append(nm);
-        if (m.admin) {
+        if (m.owner) {
+          // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
+          // C# users.getOwner(); never marked in blind groups — no owner push).
+          const b = createBadge({ type: 'info', weight: 'tonal', label: strings.owner || 'Owner' });
+          b.classList.add('c-chat-info__member-badge');
+          row.append(b);
+        } else if (m.admin) {
           const b = createBadge({ type: 'info', weight: 'tonal', label: strings.admin || 'Admin' });
           b.classList.add('c-chat-info__member-badge');
           row.append(b);

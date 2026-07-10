@@ -339,6 +339,56 @@ change-password (S7) · backup status (S2).
   fallback → full-span, in-place over HomePage (`op.host == overlayHost` holds) —
   #230/#235 invariants re-verified, no change needed.
 
+### 6e.5 Chat-info as an integrated desktop PANE + #225-M2 resize re-home (unit 6, small C#)
+
+- **Model (★ #221, Damir 2026-07-10 reaffirmed mid-session):** the conversation WebView is
+  WALLED OFF and stays so. Chat-info = the existing **ContactDetails shell**
+  (`contact_details.html`) — its OWN WebView on the shell side of the wall, C#-mediated
+  (`ixian:details` from the conversation → C# hosts the pane; `ixian:details:<addr>` from
+  the home shell). NO JS bridge between the info pane and the conversation pane, ever.
+- **Native host (3rd grid column):** `HomePage.xaml` mainGrid gains `ColumnDefinition
+  Width="0"` (col 2). All `ixian:details` entries route through one
+  `openContactDetails(friend, customChatBtn)`:
+  - **wide + conversation overlay open + room** (`Width − appliedLeftPane − 320 ≥ 280`)
+    → ContactDetails pinned **col 2** (tag `"chatinfo"`, `pane_mode` col '2'); col 2
+    expands to `min(360, Width − leftPane − 320)` (floor 280) only at PRESENT time
+    (new `onOverlayPresented` host hook — the flicker rule: never show an empty strip
+    while the shell loads).
+  - **wide + no conversation** (row-menu Chat info / contacts directory) → pinned
+    **col 1** (the detail slot, `pane_mode` col '1'), no col-2 juggling.
+  - **narrow / no room** → the current full-span takeover, byte-identical behavior.
+  - **Toggle:** re-tapping the chat header while the SAME contact's info pane is open
+    CLOSES it (Telegram grammar); a different contact = tag-replace (seamless swap).
+- **Close audit (info holds no committable edits — the nickname override commits
+  per-action — so direct close is safe):** conversation closes → its info pane closes
+  (`onOverlayClosed(SingleChatPage)`) · switching conversations closes it (`onChat`) ·
+  home tab switch closes it (`ixian:tab:`) · tx detail closes it (`onTransaction`) ·
+  `ixian:back`/hardware back = normal top-overlay close (info is above the chat in the
+  stack) · Account pane stages OVER it (grid-minus-rail) — consistent with the chat.
+- **#225-M2 structural fix (`SpixiContentPage.relayoutPinnedOverlays(bool wide)`):**
+  column-pinned overlay stages (chat col 1, info col 2 — incl. a still-staging
+  `activePreload`) are RE-HOMED on every `OnPageSizeChanged` crossing: narrow → col 0 +
+  full column-span (the overlay becomes the mobile takeover, nothing strands
+  invisible-but-open); wide → back to its pinned column (col 2 width restored while an
+  info pane is open). Attached-property changes only — no re-attach, no WebView repaint.
+  Wide-but-squeezed (divider drag / window shrink leaves `Width − leftPane − 320 < 280`)
+  closes the info pane (honest degrade; read-only surface, one tap re-opens).
+- **Shell (`contact_details.html`):** `setPaneMode(col)` push (pre-present, SettingsPage
+  pattern) → `body[data-pane="1|2"]`; CSS only: content capped 640 centered (col-1 case;
+  inert at 360) + `data-pane="2"` inline-start hairline `outline-neutral-03` (col-1 reuses
+  the home shell's existing right-edge hairline — no double line).
+- **home shell:** row-menu Chat info stub → `ixian:details:<addr>` (quirk-13 fix; the
+  chats-shell `onChatInfo` hook already existed).
+- **Locks/settings invariants untouched:** lock stages full-span zero-margin ADDED LAST →
+  covers col 2; Account pane (grid-minus-rail) covers it too; `pushPageLoaded`'s
+  fail-closed lock guard precedes any staging.
+- **Deferred (logged):** GROUP info stays the in-chat takeover (its data lives in the
+  conversation shell; a shell-side group-info pane needs the roster/admin verbs routed to
+  a separate surface — A5/ContactDetails-repoint class, be-cutover) · shared media/files
+  section in chat-info = **no push contract exists** (be-cutover CI-class ask; FE section
+  lands with the feed, not on a guessed shape) · pane close affordance stays the back
+  arrow (X-icon = Damir dial).
+
 ## 7. Non-goals
 
 Real window-resize reflow between mobile/desktop compositions (the demo IS

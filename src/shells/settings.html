@@ -669,6 +669,14 @@
         state.dirtyAvatar = true;
         avatarPickPending = false;
       } else {
+        // Consume the latch on a non-pick push too (Opus #246): a CANCELED picker
+        // (or a default/empty re-push after cancel) reaches this branch with p===''.
+        // Leaving the latch armed let a later reload push (language reload / account-
+        // delete onLoad re-push, non-empty) false-mark dirtyAvatar → a spurious Save
+        // + exit via ixian:save instead of a clean ixian:back. The pick flow is a
+        // SINGLE non-empty loadAvatar push (the tmp), so clearing here can't drop a
+        // real pick's dirty (that took the if-branch above).
+        avatarPickPending = false;
         state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
       }
       scheduleRebuild();

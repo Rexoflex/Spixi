@@ -191,3 +191,78 @@ switch/chat open → saved (nick survives re-open) · hardware back routes hub/e
 narrow + mobile Account unchanged · Contributors renders (both modes) · divider drag
 280–520 + dbl-click reset + restart persist · delete-wallet confirm lock = FULL-WINDOW
 over the pane, back swallowed · `?pane=1` browser preview.
+
+---
+
+## ✅ VERDICT (Opus #46 loop, 2026-07-10) — PASS
+
+4 read-only adversarial auditors (disjoint scopes A/B/C/D) + a fresh break-my-verdict
+re-review over the 2 highest-risk CLEANs (avatar latch + lock un-dismissability).
+Real files via the Read tool only (#175). **0 MAJOR across the whole batch.**
+
+**★ Security/correctness invariants VERIFIED HOLDING (file:line proof in the agent reports):**
+- **Lock un-dismissability with `stageMargin` in play — HOLDS.** `stageMargin` lives ONLY on
+  `pushPageLoaded` (SpixiContentPage.cs:572); `pushModalLoaded` (:704) has no such param and
+  stages every lock zero-margin, full-column/full-row span (:756-763), added LAST → covers
+  home + pane + divider + rail. The three SettingsPage confirm-locks + the App.OnResume
+  resume lock are the ONLY `pushModalLoaded` callers (no non-lock caller). Fail-closed drop on
+  `modalOverlayOp != null` fires at the top of `pushPageLoaded` before any stage/margin
+  (:585-589). `canShowInPlace` requires `op.host==overlayHost && NavStack.Last==host &&
+  ModalStack.Count==0 && modalOverlayOp==null` (:884-888) → legacy-host resume locks fall to
+  a real un-poppable `PushModalAsync`. `hasModalOverlay()` back-swallow precedes the new
+  settings back-routing in OnBackButtonPressed (:1741-1744 before :1749).
+- **Save-if-dirty close-audit — HOLDS.** tab switch / hardware back / onChat / onTransaction /
+  Account re-tap all route `onExitRequest`/`onBack` through the shell's save path; while the
+  Account pane spans grid-minus-rail the chats list is covered, so no un-routed overlay can
+  stack over settings.
+- **Chat isolation (#221) — HOLDS.** settings.html is a settings-only shell; it links
+  message-bubble/chat-pattern CSS solely for the STATIC chat-appearance preview + writes chat
+  prefs to localStorage for chat.html's own boot — mounts no live chat, reads no chat state,
+  one WebView = one trust domain.
+- **Mobile sheet mode BYTE-IDENTICAL — HOLDS.** `settingsOptionSheet`/`settingsThemeSheet`
+  `inline` logic is fully branch-guarded; non-inline path is the pre-desktop DOM/behavior/latch
+  verbatim (settings-shell.js). No mobile regression; every pane/rail rule is
+  `body[data-pane]` / `:root[data-desktop]` scoped and cannot match a phone-UA boot.
+- **Money / backup — HOLDS.** S15 backup verbs are bare triggers; C# names every path
+  (BackupPage.xaml.cs). S14 apply persists only (no keys/paths/signing). Accent NOT flipped
+  (still aliases brand); blue feeds only `info-*`; no indigo remnant; link role defined both themes.
+
+**FIX LANDED (1, mechanical, shell-only → rides `build-shells`, NO bundle rebuild):**
+- **settings.html `loadAvatar` else-branch now clears `avatarPickPending`** (Auditor B MINOR-1).
+  A canceled picker / default re-push (`p===''`) left the latch armed → a later reload push
+  false-marked `dirtyAvatar` → spurious Save + exit via `ixian:save` instead of a clean
+  `ixian:back`. The pick flow is a SINGLE non-empty push (verified against
+  SettingsPage.onChangeAvatarAsync), so clearing in the else-branch cannot drop a real pick's
+  dirty (that takes the if-branch). Re-reviewed break-my-verdict → HOLDS, no regression.
+
+**LOGGED — Damir's reserved color dials (his hand-picked anchors #241/#244; NOT silently repainted):**
+- 🟡 **Solid info badge AA regression (Auditor D MINOR-1):** `.c-badge[solid][info]` = white 12px
+  bold on `--surface-info` (blue-500 #0b87b4) ≈ **3.96:1** < 4.5 AA (was 4.6 on the pre-#241
+  indigo). Your logged conditional ("IF solid info badges carry small white text, repoint
+  surface-info → info-600") is now CONFIRMED TRUE — `badge.css:25` is the sole `--surface-info`
+  consumer. Remedy: repoint `--surface-info → info-600` (#006588 ≈5.9:1) OR give the solid-info
+  badge its own info-600 background (preserves your #0b87b4 surface anchor). One-line, your call.
+- 🟡 **Sent-bubble ticks contrast (Auditor D MINOR-2):** `--icon-bubble-read/-delivered`
+  (green-300/400) on `--gradient-bubble-sent` now dips <3:1 at the lighter gradient stop after
+  the vivid green re-anchor; the `tokens.css:485` ">=3:1" comment is stale. F5 eyeball — the
+  ticks are intentionally subtle; re-dial to a darker green step if read/delivered are hard to tell apart.
+- 🟡 **Warning surface hue (Auditor D NIT):** `--surface-warning` = orange-600 #884b00 reads
+  brown vs the bright #ef9132 anchor at 400. AA-good (6.65:1), design eyeball only.
+
+**LOGGED — deferred / pre-existing (not fixed, not regressions):**
+- 🟡 **Resume-lock STAGING input-freeze targets the wrong grid for a non-Grid legacy host**
+  (Auditor A M1) → security-review-for-be-engineer.md MINOR. Pre-existing, ≤1.2s input-only, no
+  content exposure; security-flagged C# → human BE gate (#232). Low severity.
+- 🟡 **3 gated-OFF nav rows (onChangePassword/onSecurity/onPrivacy) lack `key:`** (Auditor C
+  MINOR) → add keys when caps S7/§9 light up (adding now forces a bundle rebuild for zero prod
+  benefit — deferred to the cap-enable moment).
+- **Accepted/by-design (no action):** `exiting` latch has no self-heal if C# loses the pop verb
+  (Auditor B MINOR-2, not worse than baseline) · `dirtyLock` shows a spurious Save on toggle-back
+  → harmless no-op `ixian:save` on exit (Auditor B NIT-1, cosmetic, no savedLock baseline) ·
+  divider grip steals the trailing 10px of the chats WebView edge (Auditor A M2, Damir widened
+  6→10 deliberately, desktop-only) · vestigial `capabilities.contributors` gate on a static
+  screen (Auditor C NIT).
+
+**Net: PASS. 1 mechanical fix (settings.html, rides `build-shells`, no bundle rebuild). Color
+findings are your reserved dials; the C# lock-staging edge is BE-gated + pre-existing. No silent
+C# changes; wallet-send untouched; chat wall untouched.**

@@ -305,6 +305,10 @@ export function createSettingsHub({
     actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
   });
   el.append(topbar);
+  // Tag the Save action so setSettingsSaveVisible can address it structurally
+  // (Damir F5 r2: Save shows only while there are unsaved changes).
+  const saveAct = topbar.querySelector('.c-topbar__actions button');
+  if (saveAct) saveAct.dataset.save = '';
 
   // Save-without-pop confirmation (S14, gated OFF today): the shell calls this after
   // an ixian:apply — morph the topbar check to a brief "Saved" state + announce it.
@@ -840,6 +844,15 @@ export function createSettingsHub({
   }
 
   return el;
+}
+
+/* free fn (#44): Save action visibility — Damir F5 r2: the topbar check shows
+   ONLY while there are unsaved changes (nickname edit / picked avatar); a clean
+   hub has no Save. The shell owns dirty-tracking and calls this on every flip.
+   No-op when the hub was built without onSave. */
+export function setSettingsSaveVisible(hub, visible) {
+  const b = hub.querySelector('.c-topbar__actions button[data-save]');
+  if (b) b.hidden = !visible;
 }
 
 /* free fn (#44): live backup-row state — the badge IS the standing nudge */

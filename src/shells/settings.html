@@ -27,6 +27,9 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
+<link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
+<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <style>
   /* Production shell: fill the WebView. Internal views (hub = root · danger /
@@ -41,6 +44,10 @@
   #settings-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #settings-root > * { flex: 1; min-height: 0; }
   #settings-nav { flex: none; }
+  /* Desktop (Damir F5 r2, mirrors home.html): the peer-tab nav renders as the
+     LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
+  :root[data-desktop] body { flex-direction: row; }
+  :root[data-desktop] #settings-nav { order: -1; display: flex; }
 </style>
 </head>
 <body>
@@ -76,9 +83,13 @@
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
+    createChatAppearance, setSettingsSaveVisible,
     createBottomNav, showToast,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
+  // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
+  // bottom bar for the LEFT RAIL + drops the topbar back (rail = the exit).
+  const isDesktop = document.documentElement.hasAttribute('data-desktop');
   const strings = window.SL || {};
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
   // SPIXI_ENV seeds it if the generation step injects one.
@@ -103,6 +114,12 @@
     language: 'en-us',           // setLanguage push (S3) overrides; default until it lands
     dirtyNick: false,            // nick edited since last save → persist on exit (ixian:save pops, §2)
     dirtyAvatar: false,          // avatar-tmp picked → needs promotion on exit (applyAvatar)
+    // r3 (Damir F5: "lock toggle doesn't persist"): ixian:lock:on|off only flips
+    // SettingsPage's in-memory field — Preferences.Set("lockenabled") happens ONLY
+    // in onSaveSettings (:249). So a lock toggle is DIRTY: Save appears and any
+    // exit routes through ixian:save (theme/language persist immediately C#-side,
+    // which is why only lock was lost).
+    dirtyLock: false,
   };
 
   /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
@@ -150,6 +167,26 @@
   // '0' until C#'s setAppearance landed — a light-app/dark-OS boot flip. The C#
   // setAppearance push (onLoad) and user picks still applyTheme + persist below.
 
+  /* —— chat appearance (6e.2 / #147 flag closing) — FE-ONLY prefs, no bridge.
+   * Persisted to localStorage (same Resources/Raw/html origin); the CONSUMER is
+   * chat.html, which reads both keys at boot and sets the root vars (nothing in
+   * THIS document paints a chat canvas — the takeover preview self-sets its own
+   * vars). The stored pattern value is the LIGHT-scale pick (PATTERN_LEVELS);
+   * dark chat derives its intensity as v × 0.36 (0.18/0.5 — keeps the #76
+   * theme-tuned ratio, Standard = both theme defaults). Clamped on read so a
+   * corrupted value can't blow up bubble text. */
+  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale' };
+  function readChatPrefs() {
+    let pattern = 0.5, textScale = 1;   // #76 locked default · scale M
+    try {
+      const p = parseFloat(localStorage.getItem(CHAT_PREFS.pattern));
+      if (!isNaN(p)) pattern = Math.min(1, Math.max(0, p));
+      const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
+      if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
+    } catch (e) {}
+    return { pattern, textScale };
+  }
+
   /* —— exit — the ONLY persist path is ixian:save, which persists nick + promotes
    * avatar-tmp + broadcasts AND pops the page (SettingsPage.onSaveSettings:221).
    * So per-row edits to nickname/avatar are held locally and committed on exit;
@@ -166,7 +203,7 @@
   function exitSettings() {
     if (exiting) return;
     exiting = true;
-    const dirty = state.dirtyNick || state.dirtyAvatar;
+    const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
   }
   // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
@@ -179,8 +216,10 @@
     // today, so we fall through to the frozen-bridge persist-and-pop below.
     if (bridge.cap('settingsApply')) {
       bridge.send('ixian:apply:' + state.name);
-      state.dirtyNick = false; state.dirtyAvatar = false;
+      state.dirtyNick = false; state.dirtyAvatar = false; state.dirtyLock = false;
       if (hubEl && hubEl.showSaved) hubEl.showSaved();
+      // let the "Saved" morph play, then the clean hub hides Save again
+      setTimeout(syncSave, 1700);
       showToast({ text: strings.saved || 'Saved', tone: 'success', host: document.body, strings });
       return;
     }
@@ -209,7 +248,10 @@
                                    // Built + ready; light up when BE adds the open-verbs (be-cutover S-series).
       host: document.body,
       strings,
-      onBack: exitSettings,        // standalone pushed page → back button (esp. desktop, no hardware back)
+      // Mobile: standalone pushed page → topbar back. Desktop (Damir F5 r2): NO
+      // back button — the rail is the exit (any non-Account rail tap routes
+      // through exitSettings, saving held edits on the way out).
+      onBack: isDesktop ? undefined : exitSettings,
 
       // Save (Damir, legacy parity) — explicit commit + pop via the single-fire
       // latch. ixian:save persists nick + language + lock + promotes avatar-tmp,
@@ -220,9 +262,18 @@
       onAbout: showAbout,
       onHowTo: showHowTo,
 
+      // Chat appearance — FE-only takeover (6e.2): pattern intensity + text size,
+      // persisted to localStorage; chat.html applies at boot. Zero-C#.
+      onChatAppearance: showChatAppearance,
+
+      // Share address (6e.2, #148⑤ row beside copy) — OS share sheet where the
+      // WebView exposes it (navigator.share), else clipboard + toast. No bridge
+      // verb exists (§9 wallet-receive precedent) — zero-C# by design.
+      onShare: shareAddress,
+
       // nickname — held local; empty is blocked by the component (legacy ixian:error).
       // Persisted on exit via ixian:save (immediate save would pop the page).
-      onNickname: (nick, ctrl) => { state.name = nick; state.dirtyNick = nick !== state.savedName; ctrl.done(); },
+      onNickname: (nick, ctrl) => { state.name = nick; state.dirtyNick = nick !== state.savedName; ctrl.done(); syncSave(); },
 
       // avatar pick — opens the native C# picker (ixian:avatar → loadAvatar(tmp) push).
       // Close the sheet keeping the current tile; the tmp arrives via loadAvatar and
@@ -232,7 +283,7 @@
       // avatar remove — immediate C#-side (deleteOwnAvatar) → pushes showRemoveAvatar('0') + default loadAvatar.
       // Clear dirtyAvatar: a prior pick left avatar-tmp.jpg on disk; without this, exit would
       // ixian:save → applyAvatar() promotes that leftover tmp and RESURRECTS the removed avatar.
-      onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); },
+      onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); syncSave(); },
 
       // theme — apply locally for instant feedback, then the legacy verb (C# reloads the page).
       onTheme: (index, ctrl) => { applyTheme(index); bridge.send('ixian:appearance:' + index); ctrl.done(); },
@@ -247,7 +298,10 @@
       // and gives NO signal on auth cancel, so the spec's pending-OFF security UX would
       // wedge the spinner. Optimistic-OFF self-heals from the setLockEnabled push / next
       // load. Ideal pending-OFF needs a C# auth-cancel signal (BE gap S6).
-      onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); },
+      // r3: a toggle is only persisted by onSaveSettings → mark dirty (Save shows,
+      // exit saves). OFF still runs the C# LockPage auth first; a canceled auth
+      // leaves the C# field unchanged, so the save is a harmless no-op then.
+      onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); state.dirtyLock = true; syncSave(); },
 
       // backup — SettingsPage:121 PushAsync(BackupPage), which loads the REDESIGNED
       // settings_backup.html shell (built this batch). Fully reachable, zero-C#.
@@ -264,10 +318,17 @@
     });
   }
 
+  // Save shows ONLY with unsaved changes (Damir F5 r2) — dirty lives in the
+  // shell, so every dirty flip routes through here (rebuilds re-derive it too).
+  function syncSave() {
+    if (hubEl) setSettingsSaveVisible(hubEl, !!(state.dirtyNick || state.dirtyAvatar || state.dirtyLock));
+  }
+
   function rebuildHub() {
     const prevBody = hubEl && hubEl.querySelector('.c-settings__body');
     const top = prevBody ? prevBody.scrollTop : 0;
     hubEl = buildHub();
+    syncSave();
     if (currentView === 'hub') {
       root.replaceChildren(hubEl);
       const nb = hubEl.querySelector('.c-settings__body');
@@ -286,7 +347,7 @@
 
   function showHub() {
     currentView = 'hub';
-    if (!hubEl) hubEl = buildHub();
+    if (!hubEl) { hubEl = buildHub(); syncSave(); }
     root.replaceChildren(hubEl);
   }
 
@@ -326,6 +387,43 @@
       host: document.body, strings,
       onBack: showHub,
     }));
+  }
+
+  // Chat appearance — FE-only takeover (6e.2 / #147): live preview + presets.
+  // Picks apply to THIS document instantly and persist for every shell; the
+  // chat shell reads the same keys at boot (no push, no verb).
+  function showChatAppearance() {
+    currentView = 'chatappearance';
+    const prefs = readChatPrefs();
+    root.replaceChildren(createChatAppearance({
+      patternOpacity: prefs.pattern,
+      textScale: prefs.textScale,
+      strings,
+      onBack: showHub,
+      // persist only — chat.html consumes at boot (see CHAT_PREFS note above).
+      // KNOWN FLAG: in dark theme the preview shows the light-scale intensity
+      // (component sets raw v); real dark chat renders v × 0.36 — slightly
+      // brighter preview, logged for Damir's pass.
+      onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
+      onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
+    }));
+  }
+
+  // Share own address (6e.2). navigator.share where the WebView exposes it
+  // (never assumed — WinUI WebView2 may not); fallback = clipboard + "Copied"
+  // toast so the row is never a dead end. Errors (incl. user-cancel) are benign.
+  function shareAddress({ address }) {
+    const addr = address || state.address;
+    if (!addr) return;
+    if (navigator.share) {
+      navigator.share({ text: addr }).catch(() => {});
+      return;
+    }
+    try {
+      navigator.clipboard.writeText(addr).then(
+        () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings }),
+        () => {});
+    } catch (e) {}
   }
 
   showHub();   // render immediately; C# fills it after ixian:onload
@@ -403,12 +501,25 @@
   ];
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'account',
+    // Desktop (Damir F5 r2): same LEFT RAIL as the home shell (logo on top) so
+    // Account reads as a peer pane, not a full-screen mobile takeover — the real
+    // Account-as-pane (column placement) is unit 2, small C#, still queued.
+    variant: isDesktop ? 'rail' : undefined,
+    logo: isDesktop,
     // Leaving Account = pop back to home. Route through exitSettings (NOT a raw
     // ixian:back) so a held-but-uncommitted nickname / picked avatar is saved on
     // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
-    // dropped the edit + let C# delete avatar-tmp). NOTE: there's no verb to land
-    // on the TAPPED tab, so home shows its last tab (S11 BE — home-tab-select).
-    onChange: (id) => { if (id !== 'account') exitSettings(); },
+    // dropped the edit + let C# delete avatar-tmp).
+    // r3 QUIRK fix (Damir: "from Account you always land on whatever tab you left
+    // on"): there's still no C# land-on-tab verb (S11), so the TAPPED tab rides
+    // localStorage (same origin) — home consumes it via the storage event while
+    // it sits under this pushed page (+ a focus fallback). Timestamped so a
+    // stranded key can't switch tabs minutes later.
+    onChange: (id) => {
+      if (id === 'account') return;
+      try { localStorage.setItem('spixi.landtab', id + ':' + Date.now()); } catch (e) {}
+      exitSettings();
+    },
   });
   document.getElementById('settings-nav').append(nav);
 

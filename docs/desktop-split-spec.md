@@ -241,6 +241,73 @@ message-bubble (escape-before-parse, bold/italic/strike/code/blocks/headers/
 quotes/lists/rules/autolink) + dark/light code styles. Logged as its own
 batch — no parity today.
 
+## 6e. PRODUCTION desktop pass (2026-07-10, DECISIONS #232 ④ — fable build brief §3)
+
+The demo above is art-direction (#221/#232: NOT architecture — every production pane =
+its own WebView, C#-mediated). This section specs the zero-C# production units landing
+in the SHIPPED shells. Gate = `:root[data-desktop]` (#228 platform flag, set before
+first paint, constant across resize) — NOT a viewport query, NOT the old `.is-desktop`
+class (`?desktop=1`/`__SPIXI_DESKTOP__` was an interim opt-in; C# never set it).
+
+### 6e.1 Left nav rail (unit 1 — zero-C#)
+
+- **Component variant, not shell CSS:** `createBottomNav({ variant: 'rail' })` adds
+  `c-bottomnav--rail`; all rail styling lives in `bottomnav.css` under that class
+  (additive — base/mobile untouched). Free-fn API unchanged (`setNavActive`/
+  `setNavBadge` query `.c-bottomnav__item`, variant-agnostic).
+- **Dials = the demo's consolidated round-4 state (§6c ①/§6d ③⑭):** 84px column ·
+  item gap 32 · padding-block 24 · resting ink `icon/text-neutral-02` · 22px icons ·
+  pill = the WHOLE item, radius-12, scale 0.9→1 · filled-twin crossfade FADES IN PLACE
+  (`transform: none` both states) · hover = pill-style (`surface-interactive-hover`
+  in the pill layer, item bg transparent) · hairline inline-end, no top border.
+- **Shell (`src/shells/home.html`):** passes `variant:'rail'` when
+  `documentElement.hasAttribute('data-desktop')`; keeps only LAYOUT css under
+  `:root[data-desktop]` (body row-direction, nav `order:-1`, view `min-width:0`,
+  FAB pinned inside the chats column). The old `.is-desktop` block + opt-in boot
+  script are superseded (preview forcing: `?desktop=1` sets / `?mobile=1` clears
+  the `data-desktop` attribute — browser-only affordance, the app never passes query
+  strings).
+- The rail shows on desktop regardless of window width. NOT applied in chat.html
+  (no nav there).
+- **r2 dials (Damir F5 2026-07-10):** width 84→**72** + gap 32→24 + pad-block 16
+  (84 compressed the pane at min-width 384) · **Spixi logo pinned at the rail
+  top** (component `logo:true`, rail-only, aria-hidden) · chats topbar shows a
+  plain **"Chats" title** on desktop (logotype = mobile-only, it moved to the
+  rail) · **FAB hidden on desktop** — new-chat = a topbar icon action beside
+  Contacts (rightmost, TG pencil slot) · **pane hairline**: home body
+  `border-inline-end` `outline-neutral-03` under `data-desktop` (one divider for
+  whatever renders in the right pane) · **settings.html gets the same rail**
+  (logo, Account active; bottom bar = mobile) + topbar back dropped on desktop
+  (rail = the exit) + **Save shows only while dirty** (`setSettingsSaveVisible`
+  free fn; save still pops until S14 — BE). Resizable divider = native
+  (be-cutover **D1**, rides the unit-2/6 small-C# batch).
+
+### 6e.2 Account missing entries (unit 3 — zero-C# rows now)
+
+Diff `src/demo/settings.html` (full hub) vs shipped `src/shells/settings.html`.
+Already landed pre-pass: address/QR (S1) · version (S4) · language current (S3).
+**Zero-C# rows landing NOW:** ① **Share address** (`onShare`, presence-gated row
+beside copy) — `navigator.share` with clipboard fallback, no bridge verb needed ·
+② **Chat appearance** (`onChatAppearance` takeover, FE-only #147) — pattern
+intensity + message text size; persistence = localStorage (`spixi.chat.pattern` /
+`spixi.chat.textscale`, same-origin across shells); chat.html applies both at
+boot; bubble adoption of `--chat-text-scale` = flagged message-bubble.css change
+(the #147 flag closing). **Stay capability-gated OFF (BE):** S14 save-without-pop
+(built, gated) · notifications/privacy/security/payment-auth (§9, no C# home) ·
+downloads/dev/contributors (HomePage-driven pages, no SettingsPage open-verb) ·
+change-password (S7) · backup status (S2).
+
+### 6e.3 Pin chat (unit 5 — zero-C# interim)
+
+- Row-menu **Pin/Unpin** action → FE `pinned` flag (chatlist already sorts
+  pinned-first) + per-address persistence in localStorage
+  (`spixi.pins` — drafts/`myLikes` class), survives re-flush (pin re-applied as
+  rows upsert) + re-open. Durable/roaming persistence = **CH4** at the cutover
+  (localStorage is per-device, wiped with app data — accepted interim).
+- Files: `chats-row-menu.js` (menu row) + `src/shells/home.html` (flag + persist +
+  re-render on model change). Pinned state must survive `clearChats…clearChatsDone`
+  full re-flushes (same pattern as the #193 delete tombstones).
+
 ## 7. Non-goals
 
 Real window-resize reflow between mobile/desktop compositions (the demo IS

@@ -12,10 +12,18 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
-<!-- Desktop split (Approach 1, DECISIONS #208): .is-desktop drops the chat doodle
-     pattern + renders chat-info as a side panel. Set by ?desktop=1 (preview) or
-     window.__SPIXI_DESKTOP__ (C# at cutover). Off by default → mobile untouched. -->
-<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1'||window.__SPIXI_DESKTOP__)document.documentElement.classList.add('is-desktop');}catch(e){}})();</script>
+<!-- Chat appearance prefs (6e.2, FE-only): pattern intensity + message text size
+     picked on the Account screen persist in localStorage (same origin) — applied
+     here pre-paint (AFTER the theme script: dark derives its intensity as the
+     stored light-scale pick × 0.36, keeping the #76 theme-tuned 0.5/0.18 ratio;
+     "Standard" = both theme defaults). Clamped so a corrupted value can't blow
+     up bubble text. -->
+<script>(function(){try{var r=document.documentElement.style,dark=document.documentElement.dataset.theme==='dark',p=parseFloat(localStorage.getItem('spixi.chat.pattern'));if(!isNaN(p)){p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));}var t=parseFloat(localStorage.getItem('spixi.chat.textscale'));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));}catch(e){}})();</script>
+<!-- Desktop chat canvas (#207, re-gated at the desktop pass 6e): pattern-off +
+     grey ground now keys off :root[data-desktop] — the #228 platform flag set
+     above (the old ?desktop=1/.is-desktop opt-in was dead code; C# never set
+     __SPIXI_DESKTOP__). Preview forcing: ?desktop=1 sets / ?mobile=1 clears. -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -77,15 +85,15 @@
   #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   #chat-composer { flex: none; }
-  /* ===== DESKTOP (.is-desktop, DECISIONS #208) — pattern-off + grey ground =====
-     The doodle pattern reads busy in a wide desktop pane, so drop it while KEEPING
-     the gradient wash (the pattern is the ::before layer; the gradient is the
-     element background). Dark desktop deepens the base to grey-1000. Mirrors the
-     demo's .dt-frame rule (#207). .is-desktop is on <html>, same element as
+  /* ===== DESKTOP (:root[data-desktop], #207 re-gated at 6e) — pattern-off + grey
+     ground. The doodle pattern reads busy in a wide desktop pane, so drop it while
+     KEEPING the gradient wash (the pattern is the ::before layer; the gradient is
+     the element background). Dark desktop deepens the base to grey-1000. Mirrors
+     the demo's .dt-frame rule (#207). data-desktop is on <html>, same element as
      data-theme, so the dark rule is a COMPOUND selector (not descendant). The
      info side-panel layout is added in a later stage. Mobile keeps its pattern. */
-  .is-desktop .c-chat-canvas::before { display: none; }
-  html.is-desktop[data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
+  :root[data-desktop] .c-chat-canvas::before { display: none; }
+  html[data-desktop][data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }

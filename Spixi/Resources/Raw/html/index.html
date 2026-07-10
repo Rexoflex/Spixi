@@ -9,11 +9,11 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
-<!-- Desktop split (Approach 1, DECISIONS #208): render the vertical rail + master-detail
-     when .is-desktop. Set by ?desktop=1 (browser preview) or window.__SPIXI_DESKTOP__
-     (C# sets this at the cutover when HomePage goes two-pane at >=700px). Off by default
-     → mobile layout is 100% untouched. -->
-<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1'||window.__SPIXI_DESKTOP__)document.documentElement.classList.add('is-desktop');}catch(e){}})();</script>
+<!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
+     platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
+     superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
+     ?desktop=1 sets / ?mobile=1 clears the attribute (the app passes no query). -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
 <style>
@@ -351,7 +351,9 @@
    DIAL 2 (2026-07-10, Damir post-F5 "smaller, TG/Discord parity"): titles
    20→18, heading-xs 18→16, row names 15→14 (=TG), NEW body-md 16→15
    (bubbles/body — midpoint of TG 14 / Discord 16), NEW label-lg 18→16 +
-   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5).
+   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5). Dial 3
+   considered + RETRACTED same day (Damir: bubble size OK — per-user tuning
+   rides the Chat-appearance text-size pref, --chat-text-scale, 6e.2).
    TRIGGER (#228, Damir): PLATFORM flag `:root[data-desktop]` — set once at
    shell boot (desktop OS detection), NOT a viewport query. Type stays
    constant while the window resizes (TG/Discord behavior; the old
@@ -1546,6 +1548,79 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border-radius: var(--radius-full);
   object-fit: cover;
 }
+
+/* ————————————————————————————————————————————————————————————————————————
+   RAIL VARIANT (desktop-split-spec §6e.1, DECISIONS #232 ④) — the same nav
+   turned into a LEFT column on desktop shells (`createBottomNav({variant:
+   'rail'})`). Dials = the demo's consolidated round-4 state (spec §6c ①/§6d
+   ③⑭): 84px column · gap 32 · quieter resting ink · 22px icons · pill = the
+   whole item at radius-12, gentle scale-in · crossfade fades IN PLACE.
+   Additive — the mobile base above is untouched; free-fn API unaffected.
+   NOT a viewport query: the shell opts in per-platform (:root[data-desktop]
+   is constant across resize, #227/#228). */
+.c-bottomnav--rail {
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  width: 72px;                  /* Damir F5 r2: 84 compressed the pane at min-width — TG-class 72 */
+  gap: var(--spacing-24);       /* r2: tighter with the logo on top (was 32) */
+  padding-block: var(--spacing-16);
+  padding-inline: var(--spacing-4);
+  border-top: 0;
+  /* r3 (Damir): rail↔pane hairline matches the pane↔pane divider (neutral/03) */
+  border-inline-end: var(--outline-width-1) solid var(--outline-neutral-03);
+  position: static;             /* a side column doesn't stick to the bottom */
+}
+/* brand mark pinned at the rail top (desktop; Damir F5 r2 — the topbar shows a
+   plain screen title instead). Decorative: aria-hidden, not a button. */
+.c-bottomnav__logo {
+  display: flex;
+  justify-content: center;
+  color: var(--icon-accent);
+  padding-block: var(--spacing-4) var(--spacing-8);
+}
+/* items size to content and stack from the top (the horizontal flex:1
+   equal-width would become equal-HEIGHT stretching in a column) */
+.c-bottomnav--rail .c-bottomnav__item {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  padding-block: var(--spacing-8);
+  color: var(--icon-neutral-02);            /* quieter resting ink (§6c ①) */
+}
+.c-bottomnav--rail .c-bottomnav__label { color: var(--text-neutral-02); }
+.c-bottomnav--rail .c-bottomnav__icon,
+.c-bottomnav--rail .c-bottomnav__icon--filled { width: 22px; height: 22px; }
+/* selected pill = the WHOLE item (round 4): rounded rect, gentle scale-in */
+.c-bottomnav--rail .c-bottomnav__item::before {
+  border-radius: var(--radius-12);
+  transform: scale(0.9);
+}
+.c-bottomnav--rail .c-bottomnav__item[aria-current]::before { transform: scale(1); }
+/* selected ICON ink — must re-assert over the rail's quieter resting ink: the
+   base [aria-current] rule ties with it on specificity (0,2,0) and the rail
+   section comes LATER in the file, so without this the selected glyph rendered
+   GREY (Damir F5 r3). The selected label already wins via the base (0,3,0) rule. */
+.c-bottomnav--rail .c-bottomnav__item[aria-current] { color: var(--icon-action-default); }
+/* hover rides the PILL layer, not the item background (§6c ①) */
+@media (hover: hover) {
+  .c-bottomnav--rail .c-bottomnav__item:hover { background: transparent; }
+  .c-bottomnav--rail .c-bottomnav__item:not([aria-current]):hover::before {
+    opacity: 1;
+    transform: scale(1);
+    background: var(--surface-interactive-hover);
+  }
+}
+.c-bottomnav--rail .c-bottomnav__item:active { background: transparent; }
+.c-bottomnav--rail .c-bottomnav__item:not([aria-current]):active::before {
+  opacity: 1;
+  transform: scale(1);
+  background: var(--surface-interactive-pressed);
+}
+/* filled-twin crossfade FADES IN PLACE (§6d ③ re-enable + ⑪): transform:none in
+   BOTH states so the twin can't slide against the pill on first paint */
+.c-bottomnav--rail .c-bottomnav__icon--filled,
+.c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
 
 </style>
 <style data-src="../styles/components/avatar.css">
@@ -3949,37 +4024,46 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   }
 
   /* ============================================================================
-     DESKTOP SPLIT — Approach 1 (DECISIONS #208), gated behind .is-desktop.
-     The shared bottom nav becomes a VERTICAL RAIL on the far left; the active
-     view fills beside it. Reuses the c-bottomnav component (turned vertical via
-     CSS, the demo's desktop precedent). EVERYTHING here is under .is-desktop —
-     the mobile layout above is 100% untouched. C# widens col-0 + sets the flag
-     at the cutover; the FE renders identically whatever width it's given. */
-  .is-desktop body { flex-direction: row; }
-  /* nav → vertical rail, first in the row */
-  .is-desktop #chats-nav { order: -1; flex: none; }
-  .is-desktop #chats-nav .c-bottomnav {
-    flex-direction: column;
-    justify-content: flex-start;
-    height: 100%;
-    width: 84px;
-    gap: var(--spacing-16);
-    padding-block: var(--spacing-24);
-    padding-inline: var(--spacing-4);
-    border-top: 0;
-    border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01);
-    background: var(--surface-bottombar);
-  }
-  /* items size to content + group at the top (horizontal nav makes them flex:1
-     equal-width → vertical that becomes equal-HEIGHT and stretches; undo it so the
-     rail reads as a stacked list, not full-height blobs with a tall selected pill) */
-  .is-desktop #chats-nav .c-bottomnav__item { flex: none; padding-block: var(--spacing-8); }
+     DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
+     (#228 platform flag, constant across resize). The nav renders as the
+     component's rail VARIANT (c-bottomnav--rail, all rail styling lives in
+     bottomnav.css); this shell keeps only the LAYOUT: row direction, rail first,
+     FAB pinned inside the chats column. Mobile layout above is 100% untouched. */
+  :root[data-desktop] body { flex-direction: row; }
+  /* nav → far-left column, full height */
+  :root[data-desktop] #chats-nav { order: -1; flex: none; display: flex; }
   /* active view fills the space beside the rail */
-  .is-desktop .view { min-width: 0; }
-  /* FAB pins to the bottom of the CHATS LIST column, not the whole window
-     (fixed-to-viewport would float it over the C# conversation pane) */
-  .is-desktop #chats-view { position: relative; }
-  .is-desktop .fab { position: absolute; bottom: var(--spacing-16); right: var(--spacing-16); }
+  :root[data-desktop] .view { min-width: 0; }
+  /* FAB is a MOBILE affordance — hidden on desktop (Damir F5 r2, TG practice);
+     its new-chat action lives in the chats topbar beside Contacts instead */
+  :root[data-desktop] .fab { display: none; }
+  /* pane boundary (Damir r2/r3): hairline on OUR right edge so every right-pane
+     surface meets the same neutral/03 divider. A body BORDER got painted over by
+     the fixed inset-0 takeovers (contacts/receive, z-30 — Damir r3 finding), so
+     the divider is a fixed 1px strip ABOVE the takeovers (z 31) and still below
+     sheets/scrims (z-40); pointer-events off, so nothing at the edge is blocked. */
+  :root[data-desktop] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-end: 0;
+    width: var(--outline-width-1);
+    background: var(--outline-neutral-03);
+    z-index: 31;                    /* between takeover (z-30) and sheet (z-40) */
+    pointer-events: none;
+  }
+  /* r3 (Damir screenshot): the selected/hover row tint stopped ~6px short of the
+     pane edge — that's the .u-scroll classic scrollbar track + reserved gutter
+     (#41). On desktop the tab scrollers hide the track entirely → full-bleed
+     rows (TG-style); wheel/trackpad/keyboard scrolling is unaffected. DIAL: if a
+     visible thumb is missed, the alternative is an inset-rounded selection. */
+  :root[data-desktop] #chat-scroll,
+  :root[data-desktop] #wallet-scroll,
+  :root[data-desktop] #apps-scroll { scrollbar-gutter: auto; scrollbar-width: none; }
+  :root[data-desktop] #chat-scroll::-webkit-scrollbar,
+  :root[data-desktop] #wallet-scroll::-webkit-scrollbar,
+  :root[data-desktop] #apps-scroll::-webkit-scrollbar { width: 0; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -4953,6 +5037,11 @@ function setTopbarSub(el, text) {
  *   items: [{ id, label, icon: 'messages', avatar: url|null, badge: number }],
  *   active: 'chats',
  *   ariaLabel: 'Main',                 // nav landmark label (SL in shells)
+ *   variant: 'rail',                   // desktop LEFT RAIL (spec 6e.1) — vertical
+ *                                      // column variant, same items/free-fn API
+ *   logo: true,                        // rail only: Spixi logo pinned at the top
+ *                                      // of the column (Damir F5 round 2 — desktop
+ *                                      // brand mark lives on the rail, not the topbar)
  *   onChange: (id) => void
  * })
  * Updates via free functions (button-style API):
@@ -4962,9 +5051,16 @@ function setTopbarSub(el, text) {
 
 
 
-function createBottomNav({ items = [], active, ariaLabel = 'Main', onChange } = {}) {
+function createBottomNav({ items = [], active, ariaLabel = 'Main', variant, logo, onChange } = {}) {
   const el = document.createElement('nav');
-  el.className = 'c-bottomnav';
+  el.className = 'c-bottomnav' + (variant === 'rail' ? ' c-bottomnav--rail' : '');
+  if (variant === 'rail' && logo) {
+    const lg = document.createElement('span');
+    lg.className = 'c-bottomnav__logo';
+    lg.setAttribute('aria-hidden', 'true');       // decorative brand mark
+    lg.append(icon('logo', { size: 28 }));
+    el.append(lg);
+  }
   el.setAttribute('aria-label', ariaLabel);
 
   for (const item of items) {
@@ -5958,11 +6054,29 @@ const URL_RE = new RegExp(
   '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
   'gi');
 /* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
-   (Damir screenshot) — display is middle-truncated past 64 chars; the button
-   carries the FULL url on click/title and the shell's confirm modal shows it
-   in full (never navigate on a hidden target). */
+   (Damir screenshot) — display is truncated past 64 chars; the button carries
+   the FULL url on click/title and the shell's confirm modal shows it in full
+   (never navigate on a hidden target).
+   #235 HARDENING: the label must always SURFACE THE REAL HOST. Two spoofs the
+   old middle-truncate allowed: (1) userinfo — "https://paypal.com@evil.com"
+   reads paypal-leading but navigates to evil.com; (2) a crafted long URL
+   pushing "…@evil.com" out of the elided middle. Now: any URL carrying
+   userinfo is REBUILT host-first (userinfo dropped from the label), and long
+   labels are END-truncated (host is always fully visible at the start; the
+   tail — where a path "@domain" could masquerade as a host — is never shown).
+   Unparseable input (URL_RE makes this near-impossible) also end-truncates. */
 function displayUrl(url) {
-  return url.length <= 64 ? url : url.slice(0, 46) + '…' + url.slice(-14);
+  const MAX = 64;
+  let u = null;
+  try { u = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url); } catch (_) { u = null; }
+  if (!u || !u.host) return url.length <= MAX ? url : url.slice(0, MAX - 1) + '…';
+  const hasUserinfo = !!(u.username || u.password);
+  if (!hasUserinfo && url.length <= MAX) return url;      // short + honest: as typed
+  // rebuild host-first: userinfo stripped, scheme dropped, END-truncated — the
+  // real host is always fully visible at the start of the label
+  const rest = (u.pathname === '/' && !u.search && !u.hash) ? '' : u.pathname + u.search + u.hash;
+  const label = u.host + rest;
+  return label.length <= MAX ? label : label.slice(0, MAX - 1) + '…';
 }
 
 /* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
@@ -6040,7 +6154,15 @@ function appendWithMentions(parent, text, mention) {
   }
   if (last < text.length) parent.append(text.slice(last));
 }
+/* #235 DoS guard: the bare-domain alternation backtracks per start position on
+   a crafted no-TLD token ("a.a.a.a…" ~50KB) → an O(n²) matchAll scan freezes
+   the chat pane (victim-side render DoS; isolated to the chat WebView per §1,
+   but still a freeze). Real chat messages are far below this cap — oversized
+   text skips linkify entirely and renders as plain text (mentions still work;
+   appendWithMentions is a single linear exec pass). */
+const LINKIFY_MAX = 4096;
 function linkifyInto(parent, text, onLinkClick, mention = null) {
+  if (text.length > LINKIFY_MAX) { appendWithMentions(parent, text, mention); return; }
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
@@ -17691,6 +17813,10 @@ function createSettingsHub({
     actions: onSave ? [{ icon: 'check', label: strings.save || 'Save', onClick: () => onSave() }] : [],
   });
   el.append(topbar);
+  // Tag the Save action so setSettingsSaveVisible can address it structurally
+  // (Damir F5 r2: Save shows only while there are unsaved changes).
+  const saveAct = topbar.querySelector('.c-topbar__actions button');
+  if (saveAct) saveAct.dataset.save = '';
 
   // Save-without-pop confirmation (S14, gated OFF today): the shell calls this after
   // an ixian:apply — morph the topbar check to a brief "Saved" state + announce it.
@@ -18228,6 +18354,15 @@ function createSettingsHub({
   return el;
 }
 
+/* free fn (#44): Save action visibility — Damir F5 r2: the topbar check shows
+   ONLY while there are unsaved changes (nickname edit / picked avatar); a clean
+   hub has no Save. The shell owns dirty-tracking and calls this on every flip.
+   No-op when the hub was built without onSave. */
+function setSettingsSaveVisible(hub, visible) {
+  const b = hub.querySelector('.c-topbar__actions button[data-save]');
+  if (b) b.hidden = !visible;
+}
+
 /* free fn (#44): live backup-row state — the badge IS the standing nudge */
 function setBackupStatus(hub, status = {}) {
   const bits = hub._backupBits;
@@ -18727,7 +18862,7 @@ const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76
   { value: 0.5, key: 'patternStandard', label: 'Standard' },
   { value: 0.7, key: 'patternBold', label: 'Bold' },
 ];
-const TEXT_SIZES = [            // --chat-text-scale — adoption wired at chat-shell integration (#147 flag)
+const TEXT_SIZES = [            // --chat-text-scale — bubble adoption LIVE (message-bubble.css, 6e.2)
   { value: 0.9, key: 'textS', label: 'S' },
   { value: 1, key: 'textM', label: 'M' },
   { value: 1.1, key: 'textL', label: 'L' },
@@ -21186,7 +21321,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>
@@ -21262,12 +21397,21 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   const appsView = document.getElementById('apps-view');
   const placeholderView = document.getElementById('placeholder-view');
 
-  /* —— topbar (chats) ——————————————————————————————————————————————————————— */
+  /* —— topbar (chats) ———————————————————————————————————————————————————————
+   * Desktop (Damir F5 r2): the brand mark moved to the rail top, so the topbar
+   * shows a plain "Chats" title (TG-style); the FAB is hidden on desktop and its
+   * new-chat action becomes a topbar icon button beside Contacts. Mobile keeps
+   * the Spixi logotype + the FAB. */
+  const isDesktop = document.documentElement.hasAttribute('data-desktop');
   document.getElementById('chats-topbar').append(createTopbar({
-    variant: 'root', title: 'Spixi', logo: true,
+    variant: 'root', title: isDesktop ? 'Chats' : 'Spixi', logo: !isDesktop,
     // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
     // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
-    actions: [{ icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') }],
+    actions: [
+      { icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') },
+      // desktop replacement for the FAB (rightmost = primary, TG pencil slot)
+      ...(isDesktop ? [{ icon: 'message-plus', label: 'New chat', onClick: () => openContacts('start') }] : []),
+    ],
   }));
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
@@ -21324,6 +21468,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   let activeNav = 'chats';                                 // last real in-page tab (for the account revert)
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'chats',
+    // desktop → left rail (spec 6e.1); flag is set pre-paint (#228), constant across
+    // resize. Logo rides the rail top (Damir F5 r2 — topbar shows "Chats" instead).
+    variant: isDesktop ? 'rail' : undefined,
+    logo: isDesktop,
     onChange: (id) => {
       // Account is NOT an in-page tab — it PUSHES the separate SettingsPage
       // (HomePage.xaml.cs:239: ixian:settings → PushAsync(new SettingsPage) → settings.html).
@@ -21340,6 +21488,35 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   });
   document.getElementById('chats-nav').append(nav);
 
+  /* r3 QUIRK fix (Damir: leaving Account always landed on the tab home was on
+   * BEFORE Account). No C# land-on-tab verb exists (S11) — settings.html writes
+   * the tapped rail/bar tab to localStorage (same origin, timestamped) before
+   * its exit verb; we consume it here via the cross-document storage event
+   * (fires while this WebView sits under the pushed SettingsPage) plus a
+   * visibility/focus fallback for platforms where it doesn't cross WebViews.
+   * Stale keys (>15s) are discarded — a stranded write must never switch tabs
+   * minutes later. S11 (a real verb) remains the clean BE end-state. */
+  function consumeLandTab() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem('spixi.landtab');
+      if (raw) localStorage.removeItem('spixi.landtab');
+    } catch (e) {}
+    if (!raw) return;
+    const sep = raw.lastIndexOf(':');
+    const id = sep > 0 ? raw.slice(0, sep) : raw;
+    const ts = sep > 0 ? Number(raw.slice(sep + 1)) : 0;
+    if (!ts || Date.now() - ts > 15000) return;             // stranded/stale → ignore
+    if (id === 'account' || !NAV_TO_TAB[id]) return;
+    activeNav = id;
+    setNavActive(nav, id);
+    showView(id);
+    bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key === 'spixi.landtab' && e.newValue) consumeLandTab(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeLandTab(); });
+  window.addEventListener('focus', consumeLandTab);
+
   /* —— chats model + list ——————————————————————————————————————————————————
    * Starts empty; C# flushes clearChats → addChat* → clearChatsDone after
    * ixian:onload. Requests are not fed by the current HomePage contract
@@ -21354,6 +21531,18 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
    * contact) still needs the BE verbs — this only removes the row. */
   const deletedChats = new Set();
+  /* Pin chat (6e.3, #232 ⑤): FE interim persistence — localStorage address list
+   * (drafts/myLikes class; per-device, wiped with app data — accepted until CH4
+   * lands the durable persist at the BE cutover). Seeded into addChat because a
+   * structural re-flush REBUILDS every row (clearChats drops the client-only
+   * pinned flag); the component already sorts pinned-first (chats-shell.js). */
+  const PINS_KEY = 'spixi.pins';
+  const pinnedChats = new Set();
+  try {
+    const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
+    if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
+  } catch (e) {}
+  function savePins() { try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {} }
   /* CH2 (Damir): after Accept, hold the "Establishing a quantum-secure handshake…"
    * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
    * otherwise replace it sub-second). While an address is held: clearChats keeps its
@@ -21386,6 +21575,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
+        if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
+      }
+      // 6e.3 pin: applyChatRowAction already toggled chat.pinned — mirror it into
+      // the persisted set so the pin survives re-flushes (addChat re-seeds) + restarts.
+      if (action === 'pin' && chat && chat.address) {
+        if (chat.pinned) pinnedChats.add(chat.address); else pinnedChats.delete(chat.address);
+        savePins();
       }
     },
     // CH2: Accept an incoming contact request. Emit the verb (C# approves + sends
@@ -21421,8 +21617,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       leaveRequestsFilterIfEmpty();
     },
     // Delete ON: the tombstone makes the two-step delete actually stick this session
-    // (CH3 interim). pin/mute/favorites (CH4) stay parked until their persist verbs.
-    capabilities: { pin: false, mute: false, favorites: false, delete: true },
+    // (CH3 interim). Pin ON (6e.3): localStorage interim persist — durable/roaming
+    // = CH4 at the cutover. mute/favorites stay parked until their persist verbs.
+    capabilities: { pin: true, mute: false, favorites: false, delete: true },
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete/mark-read never leaves a stale chip count.
@@ -22089,6 +22286,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // clobber an existing row's timestamp on upsert-merge (audit NIT-1). A
       // brand-new row simply has none until the next good push.
       if (t) chat.timestamp = t;
+      // 6e.3: re-seed the persisted pin — a structural flush rebuilds rows from
+      // scratch, so the client-only flag would otherwise die on every reflush.
+      // Only set when pinned: an undefined key lets upsert-merge keep an existing
+      // row's live state, and an unpin (set removal) wins on the next rebuild.
+      if (pinnedChats.has(wallet)) chat.pinned = true;
       // legacy hides the outgoing tick when there are unread messages
       if (n === 0) {
         const st = statusFromType(type);

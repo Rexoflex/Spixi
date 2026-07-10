@@ -5,6 +5,11 @@
  *   items: [{ id, label, icon: 'messages', avatar: url|null, badge: number }],
  *   active: 'chats',
  *   ariaLabel: 'Main',                 // nav landmark label (SL in shells)
+ *   variant: 'rail',                   // desktop LEFT RAIL (spec 6e.1) — vertical
+ *                                      // column variant, same items/free-fn API
+ *   logo: true,                        // rail only: Spixi logo pinned at the top
+ *                                      // of the column (Damir F5 round 2 — desktop
+ *                                      // brand mark lives on the rail, not the topbar)
  *   onChange: (id) => void
  * })
  * Updates via free functions (button-style API):
@@ -14,9 +19,16 @@ import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
 import { formatCount } from './chatlist-item.js';
 
-export function createBottomNav({ items = [], active, ariaLabel = 'Main', onChange } = {}) {
+export function createBottomNav({ items = [], active, ariaLabel = 'Main', variant, logo, onChange } = {}) {
   const el = document.createElement('nav');
-  el.className = 'c-bottomnav';
+  el.className = 'c-bottomnav' + (variant === 'rail' ? ' c-bottomnav--rail' : '');
+  if (variant === 'rail' && logo) {
+    const lg = document.createElement('span');
+    lg.className = 'c-bottomnav__logo';
+    lg.setAttribute('aria-hidden', 'true');       // decorative brand mark
+    lg.append(icon('logo', { size: 28 }));
+    el.append(lg);
+  }
   el.setAttribute('aria-label', ariaLabel);
 
   for (const item of items) {

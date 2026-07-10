@@ -30,7 +30,7 @@ export const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = 
   { value: 0.5, key: 'patternStandard', label: 'Standard' },
   { value: 0.7, key: 'patternBold', label: 'Bold' },
 ];
-export const TEXT_SIZES = [            // --chat-text-scale — adoption wired at chat-shell integration (#147 flag)
+export const TEXT_SIZES = [            // --chat-text-scale — bubble adoption LIVE (message-bubble.css, 6e.2)
   { value: 0.9, key: 'textS', label: 'S' },
   { value: 1, key: 'textM', label: 'M' },
   { value: 1.1, key: 'textL', label: 'L' },

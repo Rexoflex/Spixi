@@ -58,11 +58,29 @@ const URL_RE = new RegExp(
   '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
   'gi');
 /* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
-   (Damir screenshot) — display is middle-truncated past 64 chars; the button
-   carries the FULL url on click/title and the shell's confirm modal shows it
-   in full (never navigate on a hidden target). */
+   (Damir screenshot) — display is truncated past 64 chars; the button carries
+   the FULL url on click/title and the shell's confirm modal shows it in full
+   (never navigate on a hidden target).
+   #235 HARDENING: the label must always SURFACE THE REAL HOST. Two spoofs the
+   old middle-truncate allowed: (1) userinfo — "https://paypal.com@evil.com"
+   reads paypal-leading but navigates to evil.com; (2) a crafted long URL
+   pushing "…@evil.com" out of the elided middle. Now: any URL carrying
+   userinfo is REBUILT host-first (userinfo dropped from the label), and long
+   labels are END-truncated (host is always fully visible at the start; the
+   tail — where a path "@domain" could masquerade as a host — is never shown).
+   Unparseable input (URL_RE makes this near-impossible) also end-truncates. */
 function displayUrl(url) {
-  return url.length <= 64 ? url : url.slice(0, 46) + '…' + url.slice(-14);
+  const MAX = 64;
+  let u = null;
+  try { u = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url); } catch (_) { u = null; }
+  if (!u || !u.host) return url.length <= MAX ? url : url.slice(0, MAX - 1) + '…';
+  const hasUserinfo = !!(u.username || u.password);
+  if (!hasUserinfo && url.length <= MAX) return url;      // short + honest: as typed
+  // rebuild host-first: userinfo stripped, scheme dropped, END-truncated — the
+  // real host is always fully visible at the start of the label
+  const rest = (u.pathname === '/' && !u.search && !u.hash) ? '' : u.pathname + u.search + u.hash;
+  const label = u.host + rest;
+  return label.length <= MAX ? label : label.slice(0, MAX - 1) + '…';
 }
 
 /* reply-quote kind identifiers (Damir 2026-07-03): glyph per original type,
@@ -140,7 +158,15 @@ function appendWithMentions(parent, text, mention) {
   }
   if (last < text.length) parent.append(text.slice(last));
 }
+/* #235 DoS guard: the bare-domain alternation backtracks per start position on
+   a crafted no-TLD token ("a.a.a.a…" ~50KB) → an O(n²) matchAll scan freezes
+   the chat pane (victim-side render DoS; isolated to the chat WebView per §1,
+   but still a freeze). Real chat messages are far below this cap — oversized
+   text skips linkify entirely and renders as plain text (mentions still work;
+   appendWithMentions is a single linear exec pass). */
+const LINKIFY_MAX = 4096;
 function linkifyInto(parent, text, onLinkClick, mention = null) {
+  if (text.length > LINKIFY_MAX) { appendWithMentions(parent, text, mention); return; }
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     // #231c email/token guard: a scheme-less match glued to a word char, @, dot,

@@ -113,6 +113,34 @@ BE asks → `docs/be-cutover-brief.md`; security-flagged ones BLOCK on human BE 
 - **BE-verify-first:** reply-to (4) — name the carrier + F5 round-trip/persist BEFORE building.
 - **human-BE-review-blocked:** #234 lock fix (2) — Damir/BE sign-off first. Wallet-send = LAST (#232).
 
+## 4a. NEXT BUILD SESSION (queued 2026-07-10 after the r1–r3 F5 rounds; Damir OK'd unit 2)
+
+**Sequencing: Opus adversarial session over `opus-review-brief-desktop-pass-1.md`
+(covers #236–#238) FIRST → then this build session → then the rest of the desktop sweep.**
+
+1. **Unit 2 — Account as a PANE (small C#, Damir-approved as safe; NOT security-flagged).**
+   C#: HomePage hosts SettingsPage's WebView in a grid column via the #225 overlay
+   machinery (column placement like the chat overlay), replacing the full-window push
+   on wide windows; keep `onOverlayClosed` refresh + the rating hook. **Safety
+   invariants (verify in review):** settings stays its OWN WebView (#221 — beside,
+   never inside, the conversation WebView; no JS bridge between panes) · the
+   SettingsPage confirm-locks (delete wallet/account, lock-off → `pushModalLoaded`)
+   must present over the WHOLE window with the #230/#235 host-guard interplay
+   re-checked for an overlay-hosted SettingsPage · back/close audit: no path where
+   closing the pane skips exitSettings' save-if-dirty. Side effect: ixian:save "pop"
+   becomes a pane close (stays on home) — softens S14 (still wanted).
+2. **Settings MASTER-DETAIL inside the pane (pure FE, demo §2.1):** hub list left,
+   picked screen right (empty-state default; back = right pane to empty, not
+   ixian:back). Un-gate **Contributors** (static component — needs no C# verb; it was
+   only gated for lack of an open-verb, which an in-pane/in-shell click doesn't need).
+   Still BE-gated: downloads/dev feeds · change-password (S7) · backup status (S2);
+   backup ACTION keeps the BackupPage push (or gets a routed verb — BE call).
+3. **D1 — resizable left pane divider (native, same HomePage-grid batch):**
+   be-cutover D1 — GridSplitter-equivalent on col 0 (demo grammar 280–520,
+   dbl-click reset) + width persisted.
+4. Then the remaining sweep: unit 6 chat-info pane · #225-M2 resize-strand ·
+   reply-to (STILL BE-verify-first) · wallet-send LAST.
+
 ## 5. End-of-batch — Damir's local command list (fable does NOT run these)
 
 Per the batch's touched files:

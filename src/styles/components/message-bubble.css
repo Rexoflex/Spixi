@@ -64,8 +64,13 @@
   max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
   padding: var(--spacing-8) var(--spacing-12);
   border-radius: var(--radius-16);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
+  /* message TEXT scales with the chat-appearance pick (6e.2 closes the #147
+     flag): --chat-text-scale (tokens.css, default 1) multiplies the body-md
+     role — children that set their own font-size (meta, captions, quotes)
+     deliberately do NOT scale, Telegram-style. Line-height rides along so XL
+     text doesn't cram. */
+  font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
+  line-height: calc(var(--line-height-body-md) * var(--chat-text-scale, 1));
   letter-spacing: var(--tracking-body-md);
   overflow-wrap: break-word;
   word-break: break-word;

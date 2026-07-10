@@ -9,11 +9,11 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
-<!-- Desktop split (Approach 1, DECISIONS #208): render the vertical rail + master-detail
-     when .is-desktop. Set by ?desktop=1 (browser preview) or window.__SPIXI_DESKTOP__
-     (C# sets this at the cutover when HomePage goes two-pane at >=700px). Off by default
-     → mobile layout is 100% untouched. -->
-<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1'||window.__SPIXI_DESKTOP__)document.documentElement.classList.add('is-desktop');}catch(e){}})();</script>
+<!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
+     platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
+     superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
+     ?desktop=1 sets / ?mobile=1 clears the attribute (the app passes no query). -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
 <style>
@@ -110,37 +110,46 @@
   }
 
   /* ============================================================================
-     DESKTOP SPLIT — Approach 1 (DECISIONS #208), gated behind .is-desktop.
-     The shared bottom nav becomes a VERTICAL RAIL on the far left; the active
-     view fills beside it. Reuses the c-bottomnav component (turned vertical via
-     CSS, the demo's desktop precedent). EVERYTHING here is under .is-desktop —
-     the mobile layout above is 100% untouched. C# widens col-0 + sets the flag
-     at the cutover; the FE renders identically whatever width it's given. */
-  .is-desktop body { flex-direction: row; }
-  /* nav → vertical rail, first in the row */
-  .is-desktop #chats-nav { order: -1; flex: none; }
-  .is-desktop #chats-nav .c-bottomnav {
-    flex-direction: column;
-    justify-content: flex-start;
-    height: 100%;
-    width: 84px;
-    gap: var(--spacing-16);
-    padding-block: var(--spacing-24);
-    padding-inline: var(--spacing-4);
-    border-top: 0;
-    border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01);
-    background: var(--surface-bottombar);
-  }
-  /* items size to content + group at the top (horizontal nav makes them flex:1
-     equal-width → vertical that becomes equal-HEIGHT and stretches; undo it so the
-     rail reads as a stacked list, not full-height blobs with a tall selected pill) */
-  .is-desktop #chats-nav .c-bottomnav__item { flex: none; padding-block: var(--spacing-8); }
+     DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
+     (#228 platform flag, constant across resize). The nav renders as the
+     component's rail VARIANT (c-bottomnav--rail, all rail styling lives in
+     bottomnav.css); this shell keeps only the LAYOUT: row direction, rail first,
+     FAB pinned inside the chats column. Mobile layout above is 100% untouched. */
+  :root[data-desktop] body { flex-direction: row; }
+  /* nav → far-left column, full height */
+  :root[data-desktop] #chats-nav { order: -1; flex: none; display: flex; }
   /* active view fills the space beside the rail */
-  .is-desktop .view { min-width: 0; }
-  /* FAB pins to the bottom of the CHATS LIST column, not the whole window
-     (fixed-to-viewport would float it over the C# conversation pane) */
-  .is-desktop #chats-view { position: relative; }
-  .is-desktop .fab { position: absolute; bottom: var(--spacing-16); right: var(--spacing-16); }
+  :root[data-desktop] .view { min-width: 0; }
+  /* FAB is a MOBILE affordance — hidden on desktop (Damir F5 r2, TG practice);
+     its new-chat action lives in the chats topbar beside Contacts instead */
+  :root[data-desktop] .fab { display: none; }
+  /* pane boundary (Damir r2/r3): hairline on OUR right edge so every right-pane
+     surface meets the same neutral/03 divider. A body BORDER got painted over by
+     the fixed inset-0 takeovers (contacts/receive, z-30 — Damir r3 finding), so
+     the divider is a fixed 1px strip ABOVE the takeovers (z 31) and still below
+     sheets/scrims (z-40); pointer-events off, so nothing at the edge is blocked. */
+  :root[data-desktop] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-end: 0;
+    width: var(--outline-width-1);
+    background: var(--outline-neutral-03);
+    z-index: 31;                    /* between takeover (z-30) and sheet (z-40) */
+    pointer-events: none;
+  }
+  /* r3 (Damir screenshot): the selected/hover row tint stopped ~6px short of the
+     pane edge — that's the .u-scroll classic scrollbar track + reserved gutter
+     (#41). On desktop the tab scrollers hide the track entirely → full-bleed
+     rows (TG-style); wheel/trackpad/keyboard scrolling is unaffected. DIAL: if a
+     visible thumb is missed, the alternative is an inset-rounded selection. */
+  :root[data-desktop] #chat-scroll,
+  :root[data-desktop] #wallet-scroll,
+  :root[data-desktop] #apps-scroll { scrollbar-gutter: auto; scrollbar-width: none; }
+  :root[data-desktop] #chat-scroll::-webkit-scrollbar,
+  :root[data-desktop] #wallet-scroll::-webkit-scrollbar,
+  :root[data-desktop] #apps-scroll::-webkit-scrollbar { width: 0; }
 </style>
 </head>
 <body>
@@ -247,12 +256,21 @@
   const appsView = document.getElementById('apps-view');
   const placeholderView = document.getElementById('placeholder-view');
 
-  /* —— topbar (chats) ——————————————————————————————————————————————————————— */
+  /* —— topbar (chats) ———————————————————————————————————————————————————————
+   * Desktop (Damir F5 r2): the brand mark moved to the rail top, so the topbar
+   * shows a plain "Chats" title (TG-style); the FAB is hidden on desktop and its
+   * new-chat action becomes a topbar icon button beside Contacts. Mobile keeps
+   * the Spixi logotype + the FAB. */
+  const isDesktop = document.documentElement.hasAttribute('data-desktop');
   document.getElementById('chats-topbar').append(createTopbar({
-    variant: 'root', title: 'Spixi', logo: true,
+    variant: 'root', title: isDesktop ? 'Chats' : 'Spixi', logo: !isDesktop,
     // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
     // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
-    actions: [{ icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') }],
+    actions: [
+      { icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') },
+      // desktop replacement for the FAB (rightmost = primary, TG pencil slot)
+      ...(isDesktop ? [{ icon: 'message-plus', label: 'New chat', onClick: () => openContacts('start') }] : []),
+    ],
   }));
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
@@ -309,6 +327,10 @@
   let activeNav = 'chats';                                 // last real in-page tab (for the account revert)
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'chats',
+    // desktop → left rail (spec 6e.1); flag is set pre-paint (#228), constant across
+    // resize. Logo rides the rail top (Damir F5 r2 — topbar shows "Chats" instead).
+    variant: isDesktop ? 'rail' : undefined,
+    logo: isDesktop,
     onChange: (id) => {
       // Account is NOT an in-page tab — it PUSHES the separate SettingsPage
       // (HomePage.xaml.cs:239: ixian:settings → PushAsync(new SettingsPage) → settings.html).
@@ -325,6 +347,35 @@
   });
   document.getElementById('chats-nav').append(nav);
 
+  /* r3 QUIRK fix (Damir: leaving Account always landed on the tab home was on
+   * BEFORE Account). No C# land-on-tab verb exists (S11) — settings.html writes
+   * the tapped rail/bar tab to localStorage (same origin, timestamped) before
+   * its exit verb; we consume it here via the cross-document storage event
+   * (fires while this WebView sits under the pushed SettingsPage) plus a
+   * visibility/focus fallback for platforms where it doesn't cross WebViews.
+   * Stale keys (>15s) are discarded — a stranded write must never switch tabs
+   * minutes later. S11 (a real verb) remains the clean BE end-state. */
+  function consumeLandTab() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem('spixi.landtab');
+      if (raw) localStorage.removeItem('spixi.landtab');
+    } catch (e) {}
+    if (!raw) return;
+    const sep = raw.lastIndexOf(':');
+    const id = sep > 0 ? raw.slice(0, sep) : raw;
+    const ts = sep > 0 ? Number(raw.slice(sep + 1)) : 0;
+    if (!ts || Date.now() - ts > 15000) return;             // stranded/stale → ignore
+    if (id === 'account' || !NAV_TO_TAB[id]) return;
+    activeNav = id;
+    setNavActive(nav, id);
+    showView(id);
+    bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key === 'spixi.landtab' && e.newValue) consumeLandTab(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeLandTab(); });
+  window.addEventListener('focus', consumeLandTab);
+
   /* —— chats model + list ——————————————————————————————————————————————————
    * Starts empty; C# flushes clearChats → addChat* → clearChatsDone after
    * ixian:onload. Requests are not fed by the current HomePage contract
@@ -339,6 +390,18 @@
    * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
    * contact) still needs the BE verbs — this only removes the row. */
   const deletedChats = new Set();
+  /* Pin chat (6e.3, #232 ⑤): FE interim persistence — localStorage address list
+   * (drafts/myLikes class; per-device, wiped with app data — accepted until CH4
+   * lands the durable persist at the BE cutover). Seeded into addChat because a
+   * structural re-flush REBUILDS every row (clearChats drops the client-only
+   * pinned flag); the component already sorts pinned-first (chats-shell.js). */
+  const PINS_KEY = 'spixi.pins';
+  const pinnedChats = new Set();
+  try {
+    const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
+    if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
+  } catch (e) {}
+  function savePins() { try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {} }
   /* CH2 (Damir): after Accept, hold the "Establishing a quantum-secure handshake…"
    * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
    * otherwise replace it sub-second). While an address is held: clearChats keeps its
@@ -371,6 +434,13 @@
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
+        if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
+      }
+      // 6e.3 pin: applyChatRowAction already toggled chat.pinned — mirror it into
+      // the persisted set so the pin survives re-flushes (addChat re-seeds) + restarts.
+      if (action === 'pin' && chat && chat.address) {
+        if (chat.pinned) pinnedChats.add(chat.address); else pinnedChats.delete(chat.address);
+        savePins();
       }
     },
     // CH2: Accept an incoming contact request. Emit the verb (C# approves + sends
@@ -406,8 +476,9 @@
       leaveRequestsFilterIfEmpty();
     },
     // Delete ON: the tombstone makes the two-step delete actually stick this session
-    // (CH3 interim). pin/mute/favorites (CH4) stay parked until their persist verbs.
-    capabilities: { pin: false, mute: false, favorites: false, delete: true },
+    // (CH3 interim). Pin ON (6e.3): localStorage interim persist — durable/roaming
+    // = CH4 at the cutover. mute/favorites stay parked until their persist verbs.
+    capabilities: { pin: true, mute: false, favorites: false, delete: true },
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete/mark-read never leaves a stale chip count.
@@ -1074,6 +1145,11 @@
       // clobber an existing row's timestamp on upsert-merge (audit NIT-1). A
       // brand-new row simply has none until the next good push.
       if (t) chat.timestamp = t;
+      // 6e.3: re-seed the persisted pin — a structural flush rebuilds rows from
+      // scratch, so the client-only flag would otherwise die on every reflush.
+      // Only set when pinned: an undefined key lets upsert-merge keep an existing
+      // row's live state, and an unpin (set removal) wins on the next rebuild.
+      if (pinnedChats.has(wallet)) chat.pinned = true;
       // legacy hides the outgoing tick when there are unread messages
       if (n === 0) {
         const st = statusFromType(type);

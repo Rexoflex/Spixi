@@ -325,7 +325,9 @@
    DIAL 2 (2026-07-10, Damir post-F5 "smaller, TG/Discord parity"): titles
    20→18, heading-xs 18→16, row names 15→14 (=TG), NEW body-md 16→15
    (bubbles/body — midpoint of TG 14 / Discord 16), NEW label-lg 18→16 +
-   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5).
+   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5). Dial 3
+   considered + RETRACTED same day (Damir: bubble size OK — per-user tuning
+   rides the Chat-appearance text-size pref, --chat-text-scale, 6e.2).
    TRIGGER (#228, Damir): PLATFORM flag `:root[data-desktop]` — set once at
    shell boot (desktop OS detection), NOT a viewport query. Type stays
    constant while the window resizes (TG/Discord behavior; the old

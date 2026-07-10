@@ -141,3 +141,76 @@
   border-radius: var(--radius-full);
   object-fit: cover;
 }
+
+/* ————————————————————————————————————————————————————————————————————————
+   RAIL VARIANT (desktop-split-spec §6e.1, DECISIONS #232 ④) — the same nav
+   turned into a LEFT column on desktop shells (`createBottomNav({variant:
+   'rail'})`). Dials = the demo's consolidated round-4 state (spec §6c ①/§6d
+   ③⑭): 84px column · gap 32 · quieter resting ink · 22px icons · pill = the
+   whole item at radius-12, gentle scale-in · crossfade fades IN PLACE.
+   Additive — the mobile base above is untouched; free-fn API unaffected.
+   NOT a viewport query: the shell opts in per-platform (:root[data-desktop]
+   is constant across resize, #227/#228). */
+.c-bottomnav--rail {
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  width: 72px;                  /* Damir F5 r2: 84 compressed the pane at min-width — TG-class 72 */
+  gap: var(--spacing-24);       /* r2: tighter with the logo on top (was 32) */
+  padding-block: var(--spacing-16);
+  padding-inline: var(--spacing-4);
+  border-top: 0;
+  /* r3 (Damir): rail↔pane hairline matches the pane↔pane divider (neutral/03) */
+  border-inline-end: var(--outline-width-1) solid var(--outline-neutral-03);
+  position: static;             /* a side column doesn't stick to the bottom */
+}
+/* brand mark pinned at the rail top (desktop; Damir F5 r2 — the topbar shows a
+   plain screen title instead). Decorative: aria-hidden, not a button. */
+.c-bottomnav__logo {
+  display: flex;
+  justify-content: center;
+  color: var(--icon-accent);
+  padding-block: var(--spacing-4) var(--spacing-8);
+}
+/* items size to content and stack from the top (the horizontal flex:1
+   equal-width would become equal-HEIGHT stretching in a column) */
+.c-bottomnav--rail .c-bottomnav__item {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  padding-block: var(--spacing-8);
+  color: var(--icon-neutral-02);            /* quieter resting ink (§6c ①) */
+}
+.c-bottomnav--rail .c-bottomnav__label { color: var(--text-neutral-02); }
+.c-bottomnav--rail .c-bottomnav__icon,
+.c-bottomnav--rail .c-bottomnav__icon--filled { width: 22px; height: 22px; }
+/* selected pill = the WHOLE item (round 4): rounded rect, gentle scale-in */
+.c-bottomnav--rail .c-bottomnav__item::before {
+  border-radius: var(--radius-12);
+  transform: scale(0.9);
+}
+.c-bottomnav--rail .c-bottomnav__item[aria-current]::before { transform: scale(1); }
+/* selected ICON ink — must re-assert over the rail's quieter resting ink: the
+   base [aria-current] rule ties with it on specificity (0,2,0) and the rail
+   section comes LATER in the file, so without this the selected glyph rendered
+   GREY (Damir F5 r3). The selected label already wins via the base (0,3,0) rule. */
+.c-bottomnav--rail .c-bottomnav__item[aria-current] { color: var(--icon-action-default); }
+/* hover rides the PILL layer, not the item background (§6c ①) */
+@media (hover: hover) {
+  .c-bottomnav--rail .c-bottomnav__item:hover { background: transparent; }
+  .c-bottomnav--rail .c-bottomnav__item:not([aria-current]):hover::before {
+    opacity: 1;
+    transform: scale(1);
+    background: var(--surface-interactive-hover);
+  }
+}
+.c-bottomnav--rail .c-bottomnav__item:active { background: transparent; }
+.c-bottomnav--rail .c-bottomnav__item:not([aria-current]):active::before {
+  opacity: 1;
+  transform: scale(1);
+  background: var(--surface-interactive-pressed);
+}
+/* filled-twin crossfade FADES IN PLACE (§6d ③ re-enable + ⑪): transform:none in
+   BOTH states so the twin can't slide against the pill on first paint */
+.c-bottomnav--rail .c-bottomnav__icon--filled,
+.c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }

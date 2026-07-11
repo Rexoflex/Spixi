@@ -107,6 +107,15 @@
 .c-composer__field:focus-within {
   box-shadow: inset 0 0 0 var(--outline-width-2) var(--outline-focus);
 }
+/* Q10b (Damir: desktop active state too loud): on desktop the composer is
+   focused almost permanently (Q10a autofocus), so the full 2px accent ring
+   reads as a standing highlight — half the weight there (1px, same focus
+   token: still a perceivable indicator for keyboard users, WCAG 2.4.7).
+   Mobile keeps the 2px ring. DIAL: if 1px is still loud, next stop is a
+   neutral hairline (--outline-neutral-02). */
+:root[data-desktop] .c-composer__field:focus-within {
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-focus);
+}
 
 .c-composer__attach {
   position: relative; /* hit-area extension below (r2 backlog B6) */
@@ -176,7 +185,10 @@
   cursor: default;
 }
 
-/* —— @-mention autocomplete popover (#210) — anchored above the field —————————— */
+/* —— @-mention autocomplete popover (#210) — anchored above the field ——————————
+   Q15: scrolling rides the shared .u-scroll grammar (#41, set in composer.js) —
+   thin themed thumb, invisible until hover, reserved gutter. The raw
+   overflow-y here is only the belt-and-braces base for a missing utility class. */
 .c-composer__mentions {
   position: absolute;
   left: var(--spacing-12);

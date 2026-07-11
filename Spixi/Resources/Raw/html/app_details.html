@@ -1317,6 +1317,17 @@ img, svg { display: block; max-width: 100%; }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
 
+/* M16 title-state: the wordmark span can carry a LONG connectivity string
+   ("Connecting to Ixian Platform..." and longer in de/fr) — as a flex child it
+   hard-clips at the container edge without its own min-width:0 + ellipsis
+   (the container's text-overflow doesn't reach into flex children). */
+.c-topbar[data-variant="root"] .c-topbar__title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* view variant — secondary screens (app details, add, discover). Hairline below so the
    sticky bar reads against the scrolling content, same language as the chat bar (Damir). */
 .c-topbar[data-variant="view"] {
@@ -4740,7 +4751,7 @@ function wireMentions(el, input, mentionSource, strings) {
   const open = (list) => {
     if (!box) {
       box = document.createElement('div');
-      box.className = 'c-composer__mentions';
+      box.className = 'c-composer__mentions u-scroll';   // Q15: #41 scrollbar grammar
       box.setAttribute('role', 'listbox');
       box.setAttribute('aria-label', strings.mentionMembers || 'Members');
       el.append(box);                              // el is position:relative; box anchors bottom:100%

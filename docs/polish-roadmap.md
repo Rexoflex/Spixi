@@ -25,7 +25,7 @@
 | M13 | Languages apply everywhere, nothing hardcoded | i18n runtime live (#175); inline fallbacks accumulate (groupInfo, settingsSaved, …) | FE pass: run extract-strings → build-locales → pseudo-locale smoke over ALL shells; fix leaks |
 | M14 | Splash screen (light/dark, animated logo) | Not built; lock/launch boot-surface patterns exist (#229/#230) | Design + C# batch: native splash → themed boot surface w/ logo animation; flicker rules apply |
 | M15 | Unread messages bar | FE divider BUILT (#71); no read-boundary signal from C# (A8 deferral) | **BE**: read-boundary (first-unread msg id) push → wire divider |
-| M16 | "Connecting…" as topbar title-state, not banner | DECIDED #59 (topbar title-state; banner = actionable only) — chat wired a banner interim (A7) | FE small batch: connectivity → topbar sub/title swap in chat + chats topbars |
+| M16 | "Connecting…" as topbar title-state, not banner | **✅ #252** — chat: presence-sub swap in place (aria-live-safe) · home: root-title swap + first banner surface (update-available now renders); routing via locale-proof `*SL{}` equality carriers (no §8 param needed) | Damir F5 |
 | M17 | Create group: new design, modal/sheet for name/image/blind | Two-step creation BUILT (#153/#155: multi-select → setup avatar/name/blind) | FE redesign pass vs demo grammar; group avatar/rename verbs for EDIT = CI7 |
 
 ## Quirks
@@ -35,18 +35,18 @@
 | Q1 | Restore: file-set state must be distinct ("Replace file") | FE launch-shell tweak (restore view state machine) — queue next launch batch |
 | Q2 | Create-screen gradients too hot (soften like lock #206⑥) | FE tokens/launch CSS dial — same batch as Q1 |
 | Q3 | Send/receive IXI demo-parity analysis | **GATE — wallet-send LAST (#232)**; analysis doc allowed earlier |
-| Q4 | Incoming chat payment missing "+" / off-component | FE chat.html: route amount through the component's signed-amount path (#187 mapping) — chat polish batch |
+| Q4 | Incoming chat payment missing "+" / off-component | **✅ #252** — received direct payments '+' (title-carrier match, collision-guarded); requests/sent stay bare (matrix canon) |
 | Q5 | New group appears in contacts DIRECTORY (should be chat-only) | FE contacts-shell filter (directory purpose 'directory' excludes groups) — Damir left an "unless you think otherwise": agree, exclude; group management lives in chat info (CI7) |
 | Q6 | Call bubble shows "Call back" while call still active | **BE C4** (addCall carries no live state) — bubble fix rides the C4 batch |
 | Q7 | Group info titled "Chat info" | **✅ FIXED #247** (component fallback bug) |
 | Q8 | Edit group photo/name from chat info (admin) | **BE CI7** — no rename/re-avatar verbs exist |
-| Q9 | Bot topbar tap re-opens channel list instead of closing | FE chat.html toggle guard — chat polish batch |
-| Q10 | Composer autofocus: off on mobile, on on desktop; tone down desktop active state | FE chat.html (`data-desktop` gate) + composer.css — chat polish batch |
+| Q9 | Bot topbar tap re-opens channel list instead of closing | **✅ #252** — title tap toggles closed; #205 focus-restore intact |
+| Q10 | Composer autofocus: off on mobile, on on desktop; tone down desktop active state | **✅ #252** — autofocus desktop-gated; ring 2px→1px desktop-scoped (dial: neutral hairline if still loud) |
 | Q11 | Fulfilled payment request = 2 bubbles | **C10** (logged #207) — request↔payment linking, BE/UX decision |
 | Q12 | Send file then delete → excerpt still "file" | FE home.html/chat delete sync (excerpt recompute on removeMessage) — chats-list polish batch |
 | Q13 | Row menu → Chat info dead | **✅ FIXED #247** (1:1 → details; group → opens chat) |
 | Q14 | Lock screen overlaps at smallest size | FE lock.css responsive floor (min-width 384 window, #231c) — small dial batch |
-| Q15 | @-mention list scrollbar clunky | FE composer.css: adopt `.u-scroll` grammar (#41) on the picker — small dial batch |
+| Q15 | @-mention list scrollbar clunky | **✅ #252** — picker rides `.u-scroll` (#41) |
 | Q16 | Delete account: wipe all data + land on welcome | Verify C# `ixian:delete*` flows actually purge + navigate; likely **BE** (settings danger zone) — add to S-rows after F5 check |
 | Q17 | Restore flow: skip backup nudge; community node when connected | Onboarding tail logic — C# knows restored-vs-created (L-row family); **BE L** amend |
 | Q18 | Reject contact request → row returns with request | **BE CH2 amend**: `declineRequest` removes the friend but the counterpart's pending request re-adds on next contact; needs a decline tombstone/ignore list C#-side |
@@ -57,7 +57,7 @@
    shell-side GROUP info pane w/ owner chip · degrade-to-col-1 · info icon · themed
    empty state · stage-background flicker fix). Group rename/re-avatar (Q8) = CI7 BE;
    media strip (M4) = CI6 BE; open-pane resize flicker = FLOAT dial queued if needed.
-2. **Chat polish FE batch:** Q4 · Q9 · Q10 · M16 (topbar connecting) · Q15.
+2. **✅ #252 Chat polish FE batch:** Q4 · Q9 · Q10 · M16 (topbar connecting) · Q15 — in-session #46 loop CLEAN; pending Damir build+F5+commit.
 3. **Chats-list/contacts FE batch:** Q12 · Q5 · M5.
 4. **Chat appearance + dials FE batch:** M12 (pattern default/levels) · Q14 · Q1+Q2 (launch).
 5. **Desktop overlay grammar:** M6 (sheets→modals/menus) — spec row first.

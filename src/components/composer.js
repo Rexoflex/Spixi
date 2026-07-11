@@ -186,7 +186,7 @@ function wireMentions(el, input, mentionSource, strings) {
   const open = (list) => {
     if (!box) {
       box = document.createElement('div');
-      box.className = 'c-composer__mentions';
+      box.className = 'c-composer__mentions u-scroll';   // Q15: #41 scrollbar grammar
       box.setAttribute('role', 'listbox');
       box.setAttribute('aria-label', strings.mentionMembers || 'Members');
       el.append(box);                              // el is position:relative; box anchors bottom:100%

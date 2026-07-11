@@ -394,6 +394,22 @@ console.log('wallet.html');
     'split-paste sends RAW texts and clears the draft');
   cInput.value = 'unrelated'; cInput.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ok(!comp.querySelector('.c-splitpaste'), 'the offer only appears for the matching paste');
+  // Q15: the @-mention picker rides the shared .u-scroll scrollbar grammar (#41)
+  // jsdom shim: setActive() scrolls the active row into view; jsdom (layout-blind)
+  // has no Element.scrollIntoView → the open would throw as an uncaught page error
+  if (!W2.HTMLElement.prototype.scrollIntoView) W2.HTMLElement.prototype.scrollIntoView = function () {};
+  const mcomp = W2.Spixi.createComposer({
+    placeholder: 'Message',
+    mentionSource: () => [{ name: 'Han Solo', address: 'a1' }, { name: 'Leia', address: 'a2' }],
+  });
+  selHost.append(mcomp);
+  const mInput = mcomp.querySelector('.c-composer__input');
+  mInput.value = '@'; mInput.setSelectionRange(1, 1);
+  mInput.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  const mBox = mcomp.querySelector('.c-composer__mentions');
+  ok(!!mBox && mBox.classList.contains('u-scroll'),
+    'mention picker opens with the .u-scroll grammar (Q15)');
+  mcomp.remove();
   fakeList.remove(); comp.remove();
 }
 
@@ -1451,6 +1467,12 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const compCss = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
   ok(/c-composer__ctx \{[^}]*min-width: 0/.test(compCss),
     'ctx strip has min-width:0 — cancel ✕ stays on-screen (2026-07-05c ③)');
+  // Q10b: desktop composer focus ring is the toned 1px variant (jsdom is
+  // layout-blind → static CSS guard; the 2px mobile rule must stay untouched)
+  ok(/:root\[data-desktop\] \.c-composer__field:focus-within \{[^}]*--outline-width-1/.test(compCss),
+    'desktop-scoped composer focus ring uses outline-width-1 (Q10b)');
+  ok(/\n\.c-composer__field:focus-within \{[^}]*--outline-width-2/.test(compCss),
+    'mobile composer focus ring keeps outline-width-2 (Q10b untouched baseline)');
 }
 
 {
@@ -1545,6 +1567,27 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const tok = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
   ok(/rgba\(132, 108, 200, 0\.22\)/.test(tok),
     'lock: gradient softened/desaturated (bug batch)');
+}
+
+{
+  /* static guards — chat-polish batch (Q4/Q9/Q10a/M16, 2026-07-11). Shell wiring
+     is verified by source markers (shells aren't jsdom-loaded here). */
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/id="sl-payment-received">\*SL\{chat-payment-received\}/.test(chat)
+    && /function displayPaymentAmount/.test(chat) && /return '\+' \+ a;/.test(chat),
+    'Q4: received direct payments signed via the star-SL title carrier');
+  ok(/=== PAY_REQUEST_RECEIVED_TITLE\) return a;/.test(chat),
+    'Q4: translation-collision guard — a request title never signs (audit A-1)');
+  ok(/if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat),
+    'Q9: channel-selector title tap toggles closed');
+  ok(/if \(!document\.documentElement\.hasAttribute\('data-desktop'\)\) return;\s*\n\s*try \{\s*\n\s*const input = composerEl/.test(chat),
+    'Q10a: composer entry autofocus gated to desktop (#228 flag)');
+  ok(/CONNECTIVITY_TEXTS/.test(chat) && /setTopbarSub\(topbarHost, topbarSubText\(/.test(chat),
+    'M16: chat connectivity → topbar sub title-state, updated IN PLACE (aria-live, audit A-2)');
+  ok(/CONNECTIVITY_TEXTS/.test(home) && /setChatsTitleState\(isConn \? t : ''\)/.test(home)
+    && /createWarningBanner\(\{ strings: window\.SL \|\| \{\} \}\)/.test(home),
+    'M16: home connectivity → root title-state; banner reserved for actionable warnings');
 }
 
 console.log('chats.html — contacts flow (Phase 1 #2)');

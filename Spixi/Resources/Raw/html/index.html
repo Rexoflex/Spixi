@@ -1322,6 +1322,17 @@ img, svg { display: block; max-width: 100%; }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
 
+/* M16 title-state: the wordmark span can carry a LONG connectivity string
+   ("Connecting to Ixian Platform..." and longer in de/fr) — as a flex child it
+   hard-clips at the container edge without its own min-width:0 + ellipsis
+   (the container's text-overflow doesn't reach into flex children). */
+.c-topbar[data-variant="root"] .c-topbar__title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* view variant — secondary screens (app details, add, discover). Hairline below so the
    sticky bar reads against the scrolling content, same language as the chat bar (Damir). */
 .c-topbar[data-variant="view"] {
@@ -2391,6 +2402,38 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-delete-chat__opt input:disabled { cursor: default; }
 
 </style>
+<style data-src="../styles/components/banner.css">
+/* c-banner — warning strip under the top bar. Passive status: no scrim/trap.
+   Collapses via max-height (conservative baseline — no 0fr grid animation). */
+
+.c-banner {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  background: var(--surface-warning-inverse);
+  color: var(--text-warning);
+  transition: max-height var(--duration-200) var(--easing-standard),
+              opacity var(--duration-200) var(--easing-standard);
+}
+.c-banner[data-open] {
+  max-height: 96px; /* fits two lines; content is single-line in practice */
+  opacity: 1;
+}
+
+.c-banner__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-16);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+.c-banner__inner svg { flex: none; color: var(--icon-warning); }
+.c-banner__text { min-width: 0; }
+
+</style><!-- M16: actionable warnings (update available) -->
+
 <style data-src="../styles/components/chats-shell.css">
 /* c-chats-shell — Chats flow shell scaffold: list container + empty state.
    The contact-request row is its own component (contact-request.css, step 3).
@@ -3994,6 +4037,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   body { display: flex; flex-direction: column; overflow: hidden; }
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .view[hidden] { display: none; }
+  /* M16: actionable-warning strip pins under the chats topbar (chat.html parity;
+     the wrapper is the flex item — the banner inside needs no flex rule) */
+  #chats-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
@@ -4086,9 +4132,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
+  <!-- C#-LOCALIZED string carriers (M16). generatePage substitutes the star-SL
+       markers with the EXACT strings HomePage later pushes via showWarning, so the
+       connectivity check below is locale-proof; browser preview leaves them raw →
+       the JS reader falls back to en-us. ⚠ #248: markers must stay same-line-closed. -->
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
+    <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+  </div>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
     <div id="chats-topbar"></div>
+    <div id="chats-banner"></div>
     <div id="chats-header"></div>
     <div class="u-scroll" id="chat-scroll"></div>
     <button class="fab" id="fab" aria-label="New chat"></button>
@@ -6740,7 +6795,7 @@ function wireMentions(el, input, mentionSource, strings) {
   const open = (list) => {
     if (!box) {
       box = document.createElement('div');
-      box.className = 'c-composer__mentions';
+      box.className = 'c-composer__mentions u-scroll';   // Q15: #41 scrollbar grammar
       box.setAttribute('role', 'listbox');
       box.setAttribute('aria-label', strings.mentionMembers || 'Members');
       el.append(box);                              // el is position:relative; box anchors bottom:100%
@@ -21425,6 +21480,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
+    createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     mountContacts,                       // Track D: contacts picker/directory takeover
@@ -21478,8 +21534,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * new-chat action becomes a topbar icon button beside Contacts. Mobile keeps
    * the Spixi logotype + the FAB. */
   const isDesktop = document.documentElement.hasAttribute('data-desktop');
-  document.getElementById('chats-topbar').append(createTopbar({
-    variant: 'root', title: isDesktop ? 'Chats' : 'Spixi', logo: !isDesktop,
+  const chatsTitleBase = isDesktop ? 'Chats' : 'Spixi';
+  const chatsTopbarEl = createTopbar({
+    variant: 'root', title: chatsTitleBase, logo: !isDesktop,
     // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
     // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
     actions: [
@@ -21487,7 +21544,46 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // desktop replacement for the FAB (rightmost = primary, TG pencil slot)
       ...(isDesktop ? [{ icon: 'message-plus', label: 'New chat', onClick: () => openContacts('start') }] : []),
     ],
-  }));
+  });
+  document.getElementById('chats-topbar').append(chatsTopbarEl);
+
+  /* —— M16 (#59): connectivity as a topbar TITLE-STATE ————————————————————————
+   * HomePage routes both "Connecting to Ixian Platform..." AND the actionable
+   * "update available" through ONE showWarning verb (xaml:1760/1781; "" clears —
+   * this shell had a dbg stub, so neither ever rendered). Per #59: connectivity
+   * swaps the root TITLE (Telegram grammar — the wordmark/"Chats" becomes the
+   * connecting text, zero layout shift); the banner strip is reserved for
+   * actionable/unrecognized warnings. Locale-proof via the *SL carriers. */
+  function slCarrier(id, fallback) {
+    const MARK = '*SL' + '{';   // runtime-assembled (#248 — never a literal unclosed marker)
+    const el = document.getElementById(id);
+    const t = el ? el.textContent.trim() : '';
+    return (!t || t.indexOf(MARK) !== -1) ? fallback : t;
+  }
+  const CONNECTIVITY_TEXTS = new Set([
+    slCarrier('sl-connecting-s2', ''),
+    slCarrier('sl-connecting-dlt', ''),
+    'Connecting to Ixian S2...',
+    'Connecting to Ixian Platform...',
+  ]);
+  CONNECTIVITY_TEXTS.delete('');
+  // root title node: logo variant wraps the wordmark in a <span>; plain title
+  // (desktop) is the title div's own text — target whichever exists.
+  function setChatsTitleState(text) {
+    const holder = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (!holder) return;
+    const word = holder.querySelector('span') || holder;
+    word.textContent = text || chatsTitleBase;
+  }
+  // announce connectivity swaps to screen readers: the title element PERSISTS
+  // (in-place textContent swap on a long-lived node), so a polite live region
+  // works here — unlike a rebuilt topbar (chat.html audit A-2 lesson).
+  (function () {
+    const t = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (t) t.setAttribute('aria-live', 'polite');
+  })();
+  const homeBanner = createWarningBanner({ strings: window.SL || {} });
+  document.getElementById('chats-banner').append(homeBanner);
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
    * The FAB no longer emits ixian:newchat directly; it opens the picker takeover.
@@ -22612,7 +22708,15 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // empty friend list (loadContacts, xaml:537) → the picker's noContacts state.
     noContacts() { contactsRoster = []; scheduleContactsRender(); },
     selectMenuOption() { dbg('selectMenuOption'); },
-    showWarning() { dbg('showWarning'); },
+    // M16 (#59): connectivity → chats-topbar TITLE-STATE; anything else
+    // (update available = the only other HomePage push, xaml:1760) → banner.
+    // "" clears both (one C#-side warningDisplayed flag → states never coexist).
+    showWarning(text) {
+      const t = String(text || '').trim();
+      const isConn = !!t && CONNECTIVITY_TEXTS.has(t);
+      setChatsTitleState(isConn ? t : '');
+      setWarning(homeBanner, isConn ? '' : (text || ''));
+    },
     showRatingPrompt() { dbg('showRatingPrompt'); },
     toggleAnimatedSlider() { dbg('toggleAnimatedSlider'); },
     updateDebugInfo() { dbg('updateDebugInfo'); },

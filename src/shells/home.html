@@ -37,6 +37,8 @@
 <link rel="stylesheet" href="../styles/components/toast.css">
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
+
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
@@ -62,6 +64,9 @@
   body { display: flex; flex-direction: column; overflow: hidden; }
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .view[hidden] { display: none; }
+  /* M16: actionable-warning strip pins under the chats topbar (chat.html parity;
+     the wrapper is the flex item — the banner inside needs no flex rule) */
+  #chats-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
   .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
@@ -153,9 +158,18 @@
 </style>
 </head>
 <body>
+  <!-- C#-LOCALIZED string carriers (M16). generatePage substitutes the star-SL
+       markers with the EXACT strings HomePage later pushes via showWarning, so the
+       connectivity check below is locale-proof; browser preview leaves them raw →
+       the JS reader falls back to en-us. ⚠ #248: markers must stay same-line-closed. -->
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
+    <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+  </div>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
     <div id="chats-topbar"></div>
+    <div id="chats-banner"></div>
     <div id="chats-header"></div>
     <div class="u-scroll" id="chat-scroll"></div>
     <button class="fab" id="fab" aria-label="New chat"></button>
@@ -209,6 +223,7 @@
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
+    createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     mountContacts,                       // Track D: contacts picker/directory takeover
@@ -262,8 +277,9 @@
    * new-chat action becomes a topbar icon button beside Contacts. Mobile keeps
    * the Spixi logotype + the FAB. */
   const isDesktop = document.documentElement.hasAttribute('data-desktop');
-  document.getElementById('chats-topbar').append(createTopbar({
-    variant: 'root', title: isDesktop ? 'Chats' : 'Spixi', logo: !isDesktop,
+  const chatsTitleBase = isDesktop ? 'Chats' : 'Spixi';
+  const chatsTopbarEl = createTopbar({
+    variant: 'root', title: chatsTitleBase, logo: !isDesktop,
     // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
     // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
     actions: [
@@ -271,7 +287,46 @@
       // desktop replacement for the FAB (rightmost = primary, TG pencil slot)
       ...(isDesktop ? [{ icon: 'message-plus', label: 'New chat', onClick: () => openContacts('start') }] : []),
     ],
-  }));
+  });
+  document.getElementById('chats-topbar').append(chatsTopbarEl);
+
+  /* —— M16 (#59): connectivity as a topbar TITLE-STATE ————————————————————————
+   * HomePage routes both "Connecting to Ixian Platform..." AND the actionable
+   * "update available" through ONE showWarning verb (xaml:1760/1781; "" clears —
+   * this shell had a dbg stub, so neither ever rendered). Per #59: connectivity
+   * swaps the root TITLE (Telegram grammar — the wordmark/"Chats" becomes the
+   * connecting text, zero layout shift); the banner strip is reserved for
+   * actionable/unrecognized warnings. Locale-proof via the *SL carriers. */
+  function slCarrier(id, fallback) {
+    const MARK = '*SL' + '{';   // runtime-assembled (#248 — never a literal unclosed marker)
+    const el = document.getElementById(id);
+    const t = el ? el.textContent.trim() : '';
+    return (!t || t.indexOf(MARK) !== -1) ? fallback : t;
+  }
+  const CONNECTIVITY_TEXTS = new Set([
+    slCarrier('sl-connecting-s2', ''),
+    slCarrier('sl-connecting-dlt', ''),
+    'Connecting to Ixian S2...',
+    'Connecting to Ixian Platform...',
+  ]);
+  CONNECTIVITY_TEXTS.delete('');
+  // root title node: logo variant wraps the wordmark in a <span>; plain title
+  // (desktop) is the title div's own text — target whichever exists.
+  function setChatsTitleState(text) {
+    const holder = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (!holder) return;
+    const word = holder.querySelector('span') || holder;
+    word.textContent = text || chatsTitleBase;
+  }
+  // announce connectivity swaps to screen readers: the title element PERSISTS
+  // (in-place textContent swap on a long-lived node), so a polite live region
+  // works here — unlike a rebuilt topbar (chat.html audit A-2 lesson).
+  (function () {
+    const t = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (t) t.setAttribute('aria-live', 'polite');
+  })();
+  const homeBanner = createWarningBanner({ strings: window.SL || {} });
+  document.getElementById('chats-banner').append(homeBanner);
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
    * The FAB no longer emits ixian:newchat directly; it opens the picker takeover.
@@ -1396,7 +1451,15 @@
     // empty friend list (loadContacts, xaml:537) → the picker's noContacts state.
     noContacts() { contactsRoster = []; scheduleContactsRender(); },
     selectMenuOption() { dbg('selectMenuOption'); },
-    showWarning() { dbg('showWarning'); },
+    // M16 (#59): connectivity → chats-topbar TITLE-STATE; anything else
+    // (update available = the only other HomePage push, xaml:1760) → banner.
+    // "" clears both (one C#-side warningDisplayed flag → states never coexist).
+    showWarning(text) {
+      const t = String(text || '').trim();
+      const isConn = !!t && CONNECTIVITY_TEXTS.has(t);
+      setChatsTitleState(isConn ? t : '');
+      setWarning(homeBanner, isConn ? '' : (text || ''));
+    },
     showRatingPrompt() { dbg('showRatingPrompt'); },
     toggleAnimatedSlider() { dbg('toggleAnimatedSlider'); },
     updateDebugInfo() { dbg('updateDebugInfo'); },

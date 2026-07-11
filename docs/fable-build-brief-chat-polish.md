@@ -72,3 +72,27 @@ flip (#244).
 Component/CSS touched (items 3b/5 guarantee it): `node scripts/build-demo-bundle.mjs`
 → `node scripts/build-shells.mjs` → `node scripts/smoke-test.mjs` → build
 **net10.0-windows** (NOT Rebuild Solution) → F5 the per-item checklist → commit.
+
+---
+
+## VERDICT — BUILT + #46 LOOP CLEAN (2026-07-11, DECISIONS #252)
+
+All 5 items built zero-C#. Key mechanism: **`*SL{}` equality carriers** (hidden
+`#sl-carriers` spans; localizeHtml substitutes the exact app-locale strings C#
+later pushes → locale-proof title/warning matching; kills the #59 §8 param need).
+
+**Loop (the #250 precedent):** 3 read-only Opus auditors (A chat.html+xaml.cs ·
+B home.html+HomePage · C composer.js/css+consumers) → **0 MAJOR** → fix round:
+A-1 payment-title collision guard · A-2 connectivity sub updated IN PLACE
+(rebuilt topbar = new aria-live region → SRs never announce; `topbarSubText()`
+is the single sub composition) · A-3 no-per-peer-reset comment · B-1 wordmark
+ellipsis (topbar.css) · B-3 inert rule trim · C-2 smoke +9 assertions → **fresh
+break-my-verdict re-review = HOLDS / CLEAN** (money path: no false-'+' sequence
+exists; M16: no stale-sub race). Accepted NITs logged in #252.
+
+Files touched: `src/shells/chat.html` · `src/shells/home.html` ·
+`src/components/composer.js` · `src/styles/components/composer.css` ·
+`src/styles/components/topbar.css` · `scripts/smoke-test.mjs` (+ docs).
+Components changed → FULL build (commands above). NOTE: the Q15 jsdom smoke
+assertion passes only AFTER `build-demo-bundle` (stale committed bundle) —
+run the sequence in order.

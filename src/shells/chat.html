@@ -241,6 +241,18 @@
 </style>
 </head>
 <body>
+  <!-- C#-LOCALIZED string carriers (Q4 + M16). generatePage substitutes the star-SL
+       markers from the lang files with the EXACT strings C# later pushes (title /
+       showWarning text), so equality checks below are locale-proof by construction.
+       They live in HTML TEXT nodes (safe for any localized characters); a plain-
+       browser preview leaves the markers raw → the JS reader falls back to en-us.
+       ⚠ #248: every marker here is same-line-closed — never write one that isn't. -->
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <span id="sl-payment-received">*SL{chat-payment-received}</span>
+    <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
+    <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
+    <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+  </div>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
@@ -283,7 +295,7 @@
    *  · All bool args are the .NET "True"/"False" strings.
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    createTopbar, createMessageBubble, createDateSeparator,
+    createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
     setMessageStatus, removeMessage,
     createFileBubble, setFileProgress,
@@ -332,6 +344,38 @@
   /* legacy sends Unix SECONDS; redesigned bubbles compare against Date.now() (ms) */
   const toMs = (t) => { let n = Number(t) || 0; if (n && n < 1e12) n *= 1000; return n; };
 
+  /* —— C#-localized string carriers (the hidden #sl-carriers block) ——————————
+   * Read once; an UNSUBSTITUTED marker (plain-browser preview) falls back to the
+   * en-us string. The marker probe is RUNTIME-ASSEMBLED — a literal unclosed
+   * marker in source crashes the C# line parser at boot (#248). */
+  function slCarrier(id, fallback) {
+    const MARK = '*SL' + '{';   // runtime-assembled, see above
+    const el = document.getElementById(id);
+    const t = el ? el.textContent.trim() : '';
+    return (!t || t.indexOf(MARK) !== -1) ? fallback : t;
+  }
+
+  /* Q4: the DIRECT-payment "received" title — the request-vs-payment signal for
+   * the signed-amount grammar (component canon: received payments show '+',
+   * requests stay bare — src/demo/chat.html states matrix). The request title is
+   * carried too, purely as a COLLISION GUARD (audit A-1): if a locale ever
+   * translated both keys to the identical string, the sign must NOT fire. */
+  const PAY_RECEIVED_TITLE = slCarrier('sl-payment-received', 'Payment Received');
+  const PAY_REQUEST_RECEIVED_TITLE = slCarrier('sl-payment-request-received', 'New Payment Request');
+
+  /* M16 (#59): the two connectivity strings C# routes through showWarning
+   * (SingleChatPage.xaml.cs:1921/1942). These render as a topbar TITLE-STATE
+   * (sub-line swap), NOT a banner; en-us literals double as preview fallbacks
+   * and are harmless duplicates when the substitution ran. */
+  const CONNECTIVITY_TEXTS = new Set([
+    slCarrier('sl-connecting-s2', ''),
+    slCarrier('sl-connecting-dlt', ''),
+    'Connecting to Ixian S2...',
+    'Connecting to Ixian Platform...',
+  ]);
+  CONNECTIVITY_TEXTS.delete('');
+  let connectivitySub = '';   // non-empty while C# reports connecting → overrides the presence sub
+
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
@@ -367,6 +411,15 @@
   let focusTitleAfterRender = false;  // row-select rebuilds the topbar → focus the new title (review MINOR-2)
 
   const topbarHost = document.getElementById('chat-topbar');
+  /* ONE composition for the topbar sub-line — used by the full rebuild AND the
+   * M16 in-place connectivity swap (drift here = two different subs on screen).
+   * M16 (#59): while C# reports connecting, the connectivity text REPLACES the
+   * presence sub (WhatsApp/Telegram grammar); presence returns when it clears. */
+  function topbarSubText(botChannels) {
+    return connectivitySub || (botChannels
+      ? [identityTitle(), identity.sub || ''].filter(Boolean).join(' · ')
+      : (identity.sub || ''));
+  }
   function renderTopbarNow() {
     topbarHost.textContent = '';
     const s = window.SL || {};
@@ -406,9 +459,7 @@
         // bot name/address drops to the sub-line so the identity stays visible.
         // #211: a nameless identity shows its address MIDDLE-TRUNCATED, never in full.
         name: botChannels ? ('# ' + (channelState.name || '')) : identityTitle(),
-        sub: botChannels
-          ? [identityTitle(), identity.sub || ''].filter(Boolean).join(' · ')
-          : (identity.sub || ''),
+        sub: topbarSubText(botChannels),   // M16 connectivity override lives inside
         address: identity.address || identity.name || '',
         online: botChannels ? false : identity.online,
         avatar: identity.avatar || null,
@@ -551,7 +602,12 @@
 
   function openChannelSelector() {
     if (!mode.isBot) return;
-    closeChannelSelector();
+    // Q9: title tap TOGGLES — a second tap while the selector is open closes it
+    // (was: tore down + immediately re-opened, re-firing populateChannelSelector).
+    // closeChannelSelector() runs its normal focus-restore path (#205): with the
+    // pointer tap having landed focus on the title trigger the restore is a no-op
+    // by policy; a trapped-focus (keyboard) close restores to the stored trigger.
+    if (channelDropdown) { closeChannelSelector(); return; }
     channelReturnFocus = document.activeElement;   // the topbar title trigger
     const s = window.SL || {};
     channelList = [];
@@ -986,12 +1042,35 @@
    * sent|received by localSender, so the card renders NO action buttons; the
    * C#-localized `title` is passed verbatim because role alone can't tell a
    * REQUEST from a completed PAYMENT (the C1 enum gap — a best-effort interim). */
+  /* Q4: signed-amount grammar. The component/demo canon (states matrix): a
+   * RECEIVED direct payment shows a leading '+' (tone 'positive' when
+   * completed); requests stay BARE on both sides. Request-vs-payment can only
+   * be told apart by the C#-LOCALIZED title (the C1 enum gap) — matching the
+   * *SL-SUBSTITUTED carrier makes that check hold in whatever locale C# runs.
+   * Money-path safety: sign ONLY on a positive title match + a purely numeric
+   * amount — an unrecognized title (unmapped locale drift), the '?' placeholder
+   * (tx not yet fetched) or an already-signed amount stays bare/untouched
+   * (today's rendering, never a WRONG sign). Display-only: rec.amount is kept
+   * as pushed. Own/sent amounts keep the matrix's bare grammar; formatIxiAmount
+   * (#77) still runs inside createPaymentBubble. */
+  function displayPaymentAmount(rec) {
+    const a = String(rec.amount == null ? '' : rec.amount);
+    if (rec.direction !== 'received') return a;
+    const title = String(rec.title || '').trim();
+    if (title !== PAY_RECEIVED_TITLE) return a;
+    // translation-collision guard (audit A-1): if this locale renders the request
+    // title identically to the payment title, the signal is ambiguous → never sign
+    if (title === PAY_REQUEST_RECEIVED_TITLE) return a;
+    if (!/^[\d,]+(\.\d+)?$/.test(a)) return a;
+    return '+' + a;
+  }
+
   function buildPaymentRow(rec) {
     const canView = rec.enableView && rec.txid;
     return createPaymentBubble({
       role: rec.direction === 'sent' ? 'sent' : 'received',
       title: rec.title || '',
-      amount: rec.amount || '',
+      amount: displayPaymentAmount(rec),
       status: rec.pstatus,
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
@@ -1785,6 +1864,10 @@
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
+      // connectivitySub is intentionally NOT reset here (audit A-3): network
+      // state is page-global, and C#'s warningDisplayed flag persists across
+      // peers on this page instance — it won't re-push until the state CHANGES,
+      // so clearing it here would desync a still-connecting topbar.
       invalidateMentions();                // per-peer reset of the mention name list
       resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       dbg('onChatScreenReady', address);
@@ -2007,8 +2090,32 @@
       if (touched) renderLog();
     },
     showRequestSentModal() { dbg('showRequestSentModal'); },
-    // connectivity strip (xaml:1746/1754/1767) — non-empty opens, "" collapses
-    showWarning(text) { setWarning(warningBanner, text || ''); },
+    // M16 (#59 DECIDED): the two known "Connecting…" strings (matched against
+    // their *SL-substituted carriers — locale-proof) render as a topbar
+    // TITLE-STATE (presence sub swap); the banner is kept for ACTIONABLE /
+    // unrecognized warnings only. Empty text clears BOTH (C# sends "" once
+    // connected — xaml:1929; the same clear also closes any actionable banner,
+    // exactly as before). warningDisplayed is one C#-side flag, so a
+    // connectivity state and a banner never coexist.
+    showWarning(text) {
+      const t = String(text || '').trim();
+      const isConn = !!t && CONNECTIVITY_TEXTS.has(t);
+      const next = isConn ? t : '';
+      if (next !== connectivitySub) {
+        connectivitySub = next;
+        // update the LIVE sub in place (audit A-2): a full topbar rebuild
+        // recreates the aria-live region, and screen readers do not announce
+        // content that ships inside a freshly-inserted live region — mutating
+        // the existing node is what makes "Connecting…" audible. Later rebuilds
+        // (presence/nick pushes) recompose the same text via topbarSubText().
+        if (topbarHost.querySelector('.c-topbar__sub')) {
+          setTopbarSub(topbarHost, topbarSubText(mode.isBot && channelState.has));
+        } else {
+          renderTopbar();   // no sub yet (pre-first-paint edge) → normal rebuild
+        }
+      }
+      setWarning(warningBanner, isConn ? '' : (text || ''));
+    },
   };
 
   bridge.exposeAll(handlers);
@@ -2326,10 +2433,13 @@
     }
   }
 
-  /* Put the caret in the composer so the user can type on entry without tapping
-   * (Damir). Called from onChatScreenLoaded; guarded so a missing input or a
-   * non-focusable state (e.g. a modal open) never throws. */
+  /* Put the caret in the composer so the user can type on entry without tapping.
+   * Q10a (Damir): DESKTOP ONLY — on mobile an entry autofocus pops the soft
+   * keyboard over the fresh conversation; on desktop (physical keyboard, #228
+   * flag) the caret is free. Called from onChatScreenLoaded; guarded so a
+   * missing input or a non-focusable state (e.g. a modal open) never throws. */
   function focusComposer() {
+    if (!document.documentElement.hasAttribute('data-desktop')) return;
     try {
       const input = composerEl && composerEl.querySelector('.c-composer__input');
       if (input) input.focus();

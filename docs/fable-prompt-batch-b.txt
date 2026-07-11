@@ -1,0 +1,50 @@
+You are the fable BUILD session for the Spixi frontend redesign (§5c: you build, Opus
+audits — do NOT self-certify, do NOT run the #46 loop yourself).
+
+Work order: docs/fable-build-brief-missing-bits-batch-b.md — read it FIRST, and read its
+§0 (carried in from the Batch A Opus loop) before you touch anything. Then DECISIONS
+#256 (the locked interview) + #257 (Batch A) + #258 (the loop verdict), then
+docs/handoff-batch-b.md, then CLAUDE.md ground rules.
+
+Scope = MISSING BITS BATCH B (2 of 4), all zero-C#, frozen bridge:
+  B2  chat pattern default + levels (ONE pref key, platform-aware default when unset:
+      desktop Off / mobile Standard; keep the desktop dark ground, drop only the hard
+      pattern-off force; mirror the default in chat.html's pre-paint boot read AND
+      settings.html readChatPrefs)
+  B3  NEW src/shells/wallet_sent.html — the transaction-details shell (Stage-4a drop-in
+      over the legacy filename; view-only, no compose, no signing; desktop-demo detail-card
+      look, NOT the in-page sheet) + an onTx opt on wallet-shell.js + home.html emitting
+      ixian:txdetails:<txid> + the shell added to build-shells.mjs SHELLS + DEFAULT
+  splash boot moment — lock.html-style instant-bg + boot block with the CSS-animated logo
+      on home / settings / launch / empty_detail (reduced-motion respected)
+  B1  downloads — NO FE work (S8 BE route only); just verify the capability gate still holds
+
+Hard contracts from #258 (violating any of these is a build failure):
+  * ★ Every new shell MUST spread ...attachCallUi({bridge, host, strings}) into its expose
+    map and link overlay/call-overlay/callbar/avatar CSS — C# pushes the five call globals
+    as BARE PAGE GLOBALS to whatever WebView is stack-last or being presented, and an
+    undefined global throws a ReferenceError while C# evaluates the ARGUMENT, before
+    executeUiCommand's try/catch can soften it. That includes wallet_sent.html.
+  * build-demo-bundle BEFORE build-shells — always. build-shells now has a fail-loud
+    preflight that exits 1 if a shell destructures a symbol the bundle doesn't export.
+    NEVER work around a skew with a runtime `typeof x === 'function'` guard (ruled against:
+    it silently ships a feature-less app).
+  * Never write a literal NUL byte into source — use String.fromCharCode(0).
+  * #215 verify-first: re-verify the REACHABILITY of every C# claim (not just that a symbol
+    exists) before you build on it. If a claim can't be verified from the app tree, flag it
+    and do NOT build on it (the #215 lesson: a store holding system keys did not prove user
+    reactions were key-agnostic — C8 was built then reverted).
+  * ★ #221 chat isolation · money path untouched (wallet-send stays LAST — B3 is VIEW-ONLY)
+  * #248: every *SL{…} marker opened AND closed on the same line.
+  * New strings: inline English fallback → report the keys (extract-strings sweeps shells
+    now). languagePending from Batch A still needs draft translations if you run that pass.
+
+Environment (#175): the sandbox mount serves STALE/TRUNCATED copies of edited and large
+files to bash/node (chat.html, home.html, spixi.iife.js). Read/Grep/Edit FILE TOOLS are the
+only source of truth — never "confirm" code from a bash cat/node read. Leave the generator
+runs + smoke to Damir; static-verify with file tools and say so.
+
+Exit: build it, statically verify it, update DECISIONS + the specs, and write
+docs/opus-review-brief-missing-bits-b.md as the next Opus session's work order (auditor
+scopes, accepted dials, the edges you want ruled on). Damir runs the FULL build sequence +
+F5 and commits. Do not commit.

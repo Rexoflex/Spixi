@@ -27,6 +27,8 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- payments accordion rows -->
 <link rel="stylesheet" href="../styles/components/chat-info.css">
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
 <style>
@@ -66,7 +68,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -115,6 +122,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createChatInfo, formatIxiAmount,
+    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -179,8 +187,8 @@
   function txDirection(typeText) {
     const t = String(typeText || '').trim().toLowerCase();
     if (!t) return 'out';
-    const recv = (strings.received || 'received').toLowerCase();
-    const sent = (strings.sent || 'sent').toLowerCase();
+    const recv = (strings.received || 'Received').toLowerCase();   // fallback = the dict value (A4 sweep: one key, one English)
+    const sent = (strings.sent || 'Sent').toLowerCase();
     if (t === recv) return 'in';
     if (t === sent) return 'out';
     if (/receiv|empfang|recib|reçu|ricev|получ|recebid|受信|接收/.test(t)) return 'in';
@@ -341,6 +349,15 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    // Batch A: ring overlay + callbar. The viewed contact is the most likely
+    // caller → resolve their name/photo from the page state; anyone else falls
+    // back to the truncated address + the C# pre-composed caller line.
+    ...attachCallUi({
+      bridge, strings,
+      resolveCaller: (addr) => (addr && addr === state.address
+        ? { name: state.name || '', avatar: state.avatarPath || null }
+        : null),
+    }),
     // #247: desktop pane hosting — C# pushes '1' (detail slot) or '2' (column beside
     // the conversation) BEFORE any content push; unset = mobile/full-span takeover.
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },

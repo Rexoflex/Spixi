@@ -37,7 +37,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick (LaunchPage offers the same picker).
+     ?lang= still overrides (demos/tests); in a plain-browser preview the marker stays
+     un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.__SPIXI_LANG__ = new URLSearchParams(location.search).get('lang') || '*SL{language-code}';window.SL = window.SpixiStrings.get(window.__SPIXI_LANG__);</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -125,8 +130,17 @@
     bridge.send('ixian:accept');
   }
 
+  /* —— active locale ————————————————————————————————————————————————————————
+   * A4 (Opus #46 loop): the shell never told launch-shell WHICH locale is active,
+   * so the language pill always showed LAUNCH_LANGS[0] (en-us) no matter what the
+   * account language was — and the hidden-locale fallback row could never engage.
+   * Reuse the boot carrier (window.__SPIXI_LANG__, set beside window.SL above); an
+   * un-substituted marker or ?lang=pseudo fails the shape test → en-us, as before. */
+  const langRaw = String(window.__SPIXI_LANG__ || '');
+  const language = /^[a-z]{2}-[a-z]{2}$/.test(langRaw) ? langRaw : 'en-us';
+
   /* —— per-view wiring ———————————————————————————————————————————————————— */
-  const baseOpts = { view, host, strings };
+  const baseOpts = { view, host, strings, language };
   let opts = baseOpts;
   let handlers = {};
   let readyCmd = null;             // the ready/onload verb this page's C# expects

@@ -24,6 +24,9 @@
 <link rel="stylesheet" href="../styles/components/search-field.css">
 <link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- shared row/group/section grammar -->
 <link rel="stylesheet" href="../styles/components/settings-app.css">
+<link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
 <style>
   /* Production shell: fill the WebView. downloads.html is loaded by the C#
      DownloadsPage (presented MODALLY — back = PopModalAsync). createSettingsDownloads
@@ -51,7 +54,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -75,6 +83,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsDownloads, setDownloads,
+    attachCallUi,   // Batch A: live call UI — this page receives the call state at its own OnAppearing/present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -122,6 +131,10 @@
   }
 
   const handlers = {
+    // Batch A: ring overlay + callbar (addCallAppRequest/clearAppRequests/
+    // displayCallBar/hideCallBar) — no local roster → truncated address + the
+    // C# pre-composed caller line.
+    ...attachCallUi({ bridge, strings }),
     clearFiles() { buf = []; settle(); },
     addFile(name, ctime) {
       if (buf === null) buf = [];

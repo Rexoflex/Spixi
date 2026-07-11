@@ -6,10 +6,14 @@
  * showCallBar (shell duty). All three actions latch (state-changing).
  *
  * showIncomingCall({ host, caller: { name, address, avatar }, sub,
- *                    onAccept, onDecline, onIgnore, strings }) → el
+ *                    onAccept, onDecline, onIgnore, ignore, strings }) → el
  *   sub — line under the name (default "Incoming voice call…")
  *   Ignore = overlay dismisses, ringing continues muted (shell duty);
  *   Esc / scrim tap route to onIgnore too (safe dismiss = quietest action).
+ *   ignore: false — production shells (Batch A, Damir): hide the Ignore action
+ *   AND disable Esc/scrim dismiss — no bridge verb exists for a local dismiss
+ *   (C# keeps ringing), so the only outcomes are Accept / Decline / a remote
+ *   clear via hideIncomingCall. Default true (demo parity).
  * hideIncomingCall(el) — bridge hook (peer hung up before an answer).
  */
 import { getStrings } from './strings-runtime.js';
@@ -24,6 +28,7 @@ export function showIncomingCall({
   onAccept,
   onDecline,
   onIgnore,
+  ignore = true,
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
@@ -78,7 +83,7 @@ export function showIncomingCall({
     actions.append(wrap);
   };
   action('decline', 'phone-end', strings.decline || 'Decline', onDecline);
-  action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
+  if (ignore) action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
   action('accept', 'phone', strings.accept || 'Accept', onAccept);
   // freeze audit: overlay autofocus took the FIRST focusable = Decline — a
   // reflexive Enter while ringing killed the call. APG: focus the safe action.
@@ -86,9 +91,12 @@ export function showIncomingCall({
   el.append(actions);
 
   // Esc / scrim = the QUIETEST outcome (ignore) — never auto-declines.
+  // With ignore:false there is no quiet outcome (no local-dismiss verb), so
+  // Esc/scrim dismiss is disabled — the dialog resolves only via Accept /
+  // Decline / hideIncomingCall (remote clear).
   // data-silent (freeze audit): a REMOTE hang-up must not report onIgnore —
   // that's not a user outcome (shell may log/telemetry the ignore path)
-  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: () => {
+  setOverlayOpts(el, { host, lightDismiss: ignore, escDismiss: ignore, onDismiss: () => {
     if (!acted && el.dataset.silent === undefined) {
       acted = true;
       if (onIgnore) onIgnore();

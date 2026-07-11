@@ -38,6 +38,8 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay (addCallAppRequest) -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip (displayCallBar/hideCallBar) -->
 
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
@@ -197,7 +199,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -237,9 +244,12 @@
     createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
+    attachCallUi,                        // Batch A: live call bridge glue (ring overlay + callbar)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
-  const strings = {};
+  // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
+  // its English fallback even when window.SL carried a real locale.
+  const strings = window.SL || {};
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
   // the Account screen — same Resources/Raw/html origin) so a light/dark pick
@@ -1177,7 +1187,7 @@
   // Apps topbar — root style + an Add action (→ legacy AppNewPage).
   document.getElementById('apps-topbar').append(createTopbar({
     variant: 'root', title: strings.tabApps || 'Apps',
-    actions: [{ icon: 'circle-plus', label: strings.addApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],
+    actions: [{ icon: 'circle-plus', label: strings.addMiniApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],   // key ≠ app_new's addApp 'Add app' (A4 conflict gate)
   }));
 
   const appsScroll = document.getElementById('apps-scroll');
@@ -1274,7 +1284,36 @@
     return 'pending';
   }
 
+  /* —— live call UI (Batch A) ————————————————————————————————————————————————
+   * Shared glue (call-ui.js). home is the PRIMARY call surface: mid-session
+   * call pushes land on the stack-last page = HomePage (OnUpdateUI ticks it
+   * first and it consumes the one-shot refreshAppRequests flag) — so the ring
+   * overlay, the callbar, AND their clears all arrive in THIS WebView. Other
+   * shells get the state at their own present/onLoad passes; the broadcast fix
+   * is BE row C19. Caller identity: chats list, then the contacts roster.
+   * onReturn stays inert until C19 appends the friend address to displayCallBar
+   * — then "return to call" opens that conversation via the existing verb. */
+  const callUi = attachCallUi({
+    bridge,
+    host: document.body,
+    strings,
+    resolveCaller(addr) {
+      if (!addr) return null;
+      const c = (state.chats || []).find((x) => x && x.address === addr);
+      if (c) return { name: c.name || '', avatar: c.avatar || null };
+      const r = (contactsRoster || []).find((x) => x && x.address === addr);
+      return r ? { name: r.name || '', avatar: r.avatar || null } : null;
+    },
+    onReturn: (addr) => bridge.send('ixian:chat:' + addr),
+  });
+
   const handlers = {
+    /* ——— live call UI (Batch A — see callUi above) ——————————————————————— */
+    ...callUi,
+    // 4-arg MINI-APP session request (SpixiContentPage.cs:1368) — deliberately
+    // ignored (legacy parity: spixi.js:247 never rendered it). Distinct from the
+    // chat shell's 13-arg app-invite handler of the same name.
+    addAppRequest() { dbg('addAppRequest: mini-app session request — ignored (legacy parity)'); },
 
     // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
     // appearance pick / HomePage on return from Account). C#-RESOLVED name — never

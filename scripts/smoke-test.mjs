@@ -3289,6 +3289,79 @@ console.log('native bridge adapters (Phase 3 #173, docs/native-bridge-spec.md �
     'bundle order: shells → native core → page adapters (shared-scope resolution)');
 }
 
+console.log('call-ui — live call bridge glue (Batch A: ring overlay + callbar over the components.html bundle)');
+{
+  /* The batch's only NEW component, and the one whose absence from a stale bundle
+     blanked the whole home pane (Damir F5 2026-07-11 — now also gated by the
+     build-shells preflight). Driven directly off the bundle like the native-bridge
+     block above: attachCallUi is pure shell glue, so a synthetic host is enough. */
+  const dom = await load('components.html');
+  const d = dom.window.document, W = dom.window;
+  const S = W.Spixi;
+
+  ok(typeof S.attachCallUi === 'function',
+    'attachCallUi is EXPORTED by the bundle (a missing export lands as undefined in every shell destructure → blank app)');
+
+  const sent = [];
+  const callUi = S.attachCallUi({
+    bridge: { send: (c) => sent.push(c), cap: () => false },
+    host: d.body,
+    resolveCaller: (a) => (a === 'ADDR1' ? { name: 'Han', avatar: null } : null),
+  });
+  ok(typeof callUi.addAppRequest === 'function',
+    'the 4-arg mini-app addAppRequest global EXISTS as a no-op (an undefined page global throws while EVALUATING the executeUiCommand argument — before native.js can soften it)');
+
+  // —— ringing (addCallAppRequest) ——
+  callUi.addCallAppRequest('ADDR1', 'SID1', 'Incoming call - Han');
+  const ring = d.querySelector('.c-callin');
+  ok(!!ring && ring.getAttribute('role') === 'alertdialog',
+    'addCallAppRequest renders the ring overlay as an alertdialog');
+  const kinds = ring ? [...ring.querySelectorAll('.c-callin__circle')].map((b) => b.dataset.kind) : [];
+  ok(kinds.includes('accept') && kinds.includes('decline') && !kinds.includes('ignore'),
+    'the ring offers Accept + Decline ONLY (ignore:false — no local-dismiss verb exists, C# would keep ringing)');
+  if (ring) ring.querySelector('[data-kind="decline"]').click();
+  ok(sent[sent.length - 1] === 'ixian:appReject:ADDR1:SID1',
+    'Decline emits ixian:appReject:<addr>:<sessionId> (intent only — C# rejects, SECURITY.md)');
+  await sleep(500);   // dismissOverlay: transitionend + 400ms fallback
+  ok(!d.querySelector('.c-callin'), 'the answered ring is dismissed');
+
+  // —— callbar: dialing ("0") vs in-call (unix seconds) ——
+  callUi.displayCallBar('SID2', 'Calling Han…', '0');
+  let bar = d.querySelector('.c-callbar');
+  let time = bar && bar.querySelector('.c-callbar__time');
+  ok(!!bar && !!time && time.hidden && time.textContent === '',
+    'displayCallBar(…, "0") = DIALING — the bar shows, no timer ticks (legacy spixi.js:304)');
+  callUi.displayCallBar('SID2', 'Han', Math.floor(Date.now() / 1000) - 65);
+  bar = d.querySelector('.c-callbar');
+  time = bar && bar.querySelector('.c-callbar__time');
+  ok(d.querySelectorAll('.c-callbar').length === 1 && !!time && !time.hidden && /\d+:\d\d/.test(time.textContent),
+    'a real startedSecs flips the SAME bar to in-call with a duration (singleton mutate — no teardown flash)');
+
+  // —— an ACTIVE call drops a live ring ——
+  // (a ring left up on a second surface would still offer Decline → ixian:appReject
+  //  on the now-live session; VoIPManager.rejectCall has no accepted-guard = call killed)
+  callUi.addCallAppRequest('ADDR1', 'SID3', 'Incoming call - Han');
+  ok(!!d.querySelector('.c-callin'), 'a NEW session rings even while a bar is up');
+  callUi.displayCallBar('SID3', 'Han', Math.floor(Date.now() / 1000));
+  await sleep(500);
+  ok(!d.querySelector('.c-callin'),
+    'displayCallBar DROPS the live ring — an active call means no ring can still be valid (and its Decline would kill the call)');
+
+  callUi.hideCallBar();
+  await sleep(500);
+  ok(!d.querySelector('.c-callbar'), 'hideCallBar removes the bar');
+
+  // —— clearAppRequests: the ONLY removal signal for a ringing card (400ms grace) ——
+  callUi.addCallAppRequest('ADDR1', 'SID4', 'Incoming call - Han');
+  ok(!!d.querySelector('.c-callin'), 'a fresh session rings again after the call ended');
+  callUi.clearAppRequests();
+  ok(!!d.querySelector('.c-callin'),
+    'clearAppRequests DEFERS the drop — C#\'s displayAppRequests pass is clear-then-re-add across frames; an immediate drop would flash the card every pass');
+  await sleep(1000);  // 400ms clear grace + 400ms overlay exit fallback (+ margin)
+  ok(!d.querySelector('.c-callin'),
+    'a REAL clear (no re-add inside the grace window — caller hung up) drops the ring');
+}
+
 console.log('avatar-datauri.html');
 {
   // Option A end-to-end (avatar/app-icon data-URI push, DECISIONS #204). The harness

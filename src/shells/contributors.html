@@ -20,7 +20,11 @@
 <link rel="stylesheet" href="../styles/base.css">
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
-<link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- shared body/note/group grammar -->
+<link rel="stylesheet" href="../styles/components/settings-shell.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip --><!-- shared body/note/group grammar -->
 <link rel="stylesheet" href="../styles/components/settings-app.css">
 <style>
   /* Production shell: fill the WebView. contributors.html is loaded by the C#
@@ -49,7 +53,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -63,6 +72,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsContributors,
+    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -83,6 +93,10 @@
 
   const bridge = createNativeBridge();
   installExecuteUiCommand();
+
+  // Batch A: ring overlay + callbar pushes (no local roster → truncated address
+  // + the C# pre-composed caller line).
+  bridge.exposeAll(attachCallUi({ bridge, strings }));
 
   document.getElementById('contrib-root').replaceChildren(createSettingsContributors({
     strings,

@@ -13,8 +13,10 @@
  *   node scripts/build-shells.mjs apps settings
  *
  * Prereq: bundles are current — run build-demo-bundle.mjs + build-strings-iife.mjs first.
+ * This is ENFORCED: a preflight (below) fails the build when a shell references a
+ * window.Spixi symbol the bundle it is about to inline does not export.
  */
-import { writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inlineHtml } from './lib/inline.mjs';
@@ -73,6 +75,135 @@ let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS
 // `launch` alone means the whole launch set (all five drop-in files)
 keys = keys.flatMap((k) => (k === 'launch' && arg.length && !arg.includes('all')) ? LAUNCH_KEYS : [k]);
 keys = [...new Set(keys)];
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * BUNDLE PREFLIGHT — "bundle BEFORE shells", enforced.
+ *
+ * Every shell consumes the component library as a destructure off the IIFE
+ * global:  `const { createTopbar, attachCallUi, … } = window.Spixi;`  (plus the
+ * odd `window.Spixi.x` member access). The bundle is inlined verbatim by the
+ * inliner, so a STALE src/demo/spixi.iife.js — e.g. build-demo-bundle.mjs threw
+ * and nobody noticed — silently yields `undefined` for the new symbols, and the
+ * FIRST call throws while the initial view is still hidden: the app boots BLANK
+ * with only a console error (Damir F5 2026-07-11 — a bundle without attachCallUi
+ * blanked the whole home pane).
+ *
+ * Ruling (#46 loop over Batch A): FAIL LOUD here — never a runtime
+ * `typeof x === 'function'` guard in the shells, which would silently ship a
+ * feature-less app. Verified against the ARTIFACT we are about to inline (not
+ * re-derived from sources) — staleness is exactly what we are hunting.
+ *
+ * False positives are the enemy: an unreadable destructure SKIPS that shell with
+ * a warning instead of failing the build.
+ * ─────────────────────────────────────────────────────────────────────────── */
+const BUNDLE_REL = 'src/demo/spixi.iife.js';
+
+/** Loud stop — generators never ship a half-wired artifact (DECISIONS #46). */
+function die(lines) {
+  console.error('\n✗ build-shells FAILED\n  ' + lines.join('\n  ') + '\n');
+  process.exit(1);
+}
+
+/** Strip JS comments so commented-out code can't fake a reference, and a comment
+ *  inside a destructure can't fake a symbol. `://` in URLs is preserved. */
+function stripJsComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+/** Names the BUILT bundle exposes = its generated `window.Spixi = { a: a, … };` map. */
+function readBundleExports() {
+  let text = '';
+  try {
+    text = readFileSync(join(root, BUNDLE_REL), 'utf8');
+  } catch {
+    die([`${BUNDLE_REL} not found — the shells have no component library to inline.`,
+      'Fix: node scripts/build-demo-bundle.mjs   (bundle BEFORE shells)']);
+  }
+  const maps = [...text.matchAll(/window\.Spixi\s*=\s*\{([^{}]*)\}/g)];
+  const names = new Set();
+  if (maps.length) {
+    for (const part of maps[maps.length - 1][1].split(',')) {
+      const key = part.split(':')[0].trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(key)) names.add(key);
+    }
+  }
+  if (!names.size) {
+    die([`could not read the export map out of ${BUNDLE_REL}.`,
+      'Expected the generated `window.Spixi = { name: name, … };` line — the file looks',
+      'corrupt, truncated or hand-edited, and inlining it would ship a dead app.',
+      'Fix: node scripts/build-demo-bundle.mjs   (bundle BEFORE shells)']);
+  }
+  return names;
+}
+
+/** Bundle symbols a shell SOURCE references. `null` = the destructure is not
+ *  machine-readable here → caller skips this shell (never fail a healthy tree). */
+function shellBundleSymbols(src) {
+  const code = stripJsComments(src);
+  const names = new Set();
+  for (const m of code.matchAll(/(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*window\.Spixi\b/g)) {
+    for (const raw of m[1].split(',')) {
+      const entry = raw.trim();
+      if (!entry) continue;
+      if (entry.startsWith('...')) continue;            // rest element — nothing to verify
+      const name = entry.split(/[:=]/)[0].trim();       // `{ a: b }` / `{ a = fallback }`
+      if (!/^[A-Za-z_$][\w$]*$/.test(name)) return null; // exotic form → skip this shell
+      names.add(name);
+    }
+  }
+  for (const m of code.matchAll(/window\.Spixi\.([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  return names;
+}
+
+{
+  const exposed = readBundleExports();
+  const problems = [];
+  const seen = new Set();
+  for (const key of keys) {
+    const s = SHELLS[key];
+    if (!s || seen.has(s.in)) continue;                 // launch: 5 outputs, ONE source
+    seen.add(s.in);
+    let src;
+    try { src = readFileSync(join(root, s.in), 'utf8'); } catch { continue; } // the build loop reports it
+    if (!src.includes('spixi.iife.js')) continue;       // shell doesn't use the bundle (e.g. empty_detail)
+    const used = shellBundleSymbols(src);
+    if (!used) {
+      console.warn(`  ! ${s.in}: window.Spixi destructure not machine-readable — preflight SKIPPED for this shell`);
+      continue;
+    }
+    const missing = [...used].filter((n) => !exposed.has(n));
+    if (missing.length) problems.push(`${s.in}  →  ${missing.join(', ')}`);
+  }
+  if (problems.length) {
+    die([
+      `these shells reference symbols that ${BUNDLE_REL} does NOT export:`,
+      '',
+      ...problems.map((p) => '    ' + p),
+      '',
+      'The bundle on disk is STALE (or a component export was renamed/removed).',
+      'A missing export lands as `undefined` in the shell\'s `const { … } = window.Spixi;`',
+      'and the first call throws before the view is revealed → the app boots BLANK.',
+      '',
+      'Fix: node scripts/build-demo-bundle.mjs   ← bundle BEFORE shells, then re-run this script.',
+      'Nothing was written.',
+    ]);
+  }
+  console.log(`  · bundle preflight OK — ${exposed.size} exports cover every shell reference`);
+
+  // Soft signal (never fatal): component/bridge source newer than the bundle means
+  // the shells would inline stale component CODE even when every symbol resolves.
+  try {
+    const bundleMs = statSync(join(root, BUNDLE_REL)).mtimeMs;
+    const newest = (dir) => readdirSync(join(root, dir), { withFileTypes: true })
+      .filter((f) => f.isFile() && f.name.endsWith('.js') && !f.name.endsWith('.iife.js'))
+      .reduce((max, f) => Math.max(max, statSync(join(root, dir, f.name)).mtimeMs), 0);
+    if (Math.max(newest('src/components'), newest('src/bridge')) > bundleMs) {
+      console.warn(`  ! WARNING: a component/bridge source is NEWER than ${BUNDLE_REL} — the shells`);
+      console.warn('    would inline STALE component code. Run `node scripts/build-demo-bundle.mjs` first.');
+    }
+  } catch { /* a stat/readdir hiccup must never block a build */ }
+  console.log('');
+}
 
 mkdirSync(OUT_DIR, { recursive: true });
 

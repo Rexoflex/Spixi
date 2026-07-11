@@ -53,6 +53,7 @@ const FILES = [
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',
   'src/components/call-overlay.js',
+  'src/components/call-ui.js',      // Batch A: shared shell glue for the live call bridge (after call-overlay + callbar + avatar)
   'src/components/contact-request.js',
   'src/components/chats-row-menu.js',
   'src/components/chats-swipe.js',
@@ -161,12 +162,17 @@ try {
 /* Integrity (#175): NO binary garbage may reach the artifact. A single NUL byte
  * makes git treat spixi.iife.js — and EVERY built shell that inlines it — as
  * BINARY (undiffable, unreviewable), and a NUL landing in code rather than in a
- * comment kills the bundle at load. A lone surrogate is the same class of IO
- * damage (a UTF-16 pair split by a truncated read/write). No component source
- * contains either, so a hit here means the READ path corrupted the input — fail
- * loudly ("generators fail loudly", DECISIONS #46) instead of shipping it.
+ * comment kills the bundle at load. A lone surrogate is the same class of damage
+ * (a UTF-16 pair split by a truncated read/write).
+ *
+ * TWO causes, and the operator must be pointed at BOTH (2026-07-11): a component
+ * SOURCE can legitimately carry a literal NUL (apps-discover.js used one as a
+ * list separator — every local rebuild then failed HERE, the stale bundle stayed
+ * on disk, build-shells inlined it, and the app booted BLANK), or the mount/IO
+ * corrupted the read. Either way: fail loudly ("generators fail loudly",
+ * DECISIONS #46) instead of shipping it.
  * NB: the NUL needle is BUILT with fromCharCode — this generator must never carry
- * a literal control character itself. */
+ * a literal control character itself, and neither should any component source. */
 const NUL = String.fromCharCode(0);
 /** Offset of the first lone (unpaired) UTF-16 surrogate, or -1. */
 function firstLoneSurrogate(text) {
@@ -180,12 +186,22 @@ function firstLoneSurrogate(text) {
   }
   return -1;
 }
-const CORRUPT_HINT = ' — IO/mount corruption (#175), NOT a source defect (no component source contains it).'
-  + ' Re-run `node scripts/build-demo-bundle.mjs` from a LOCAL terminal on the real files (never a sandboxed mount);'
-  + ' if it reproduces, the source READ is corrupt — reset/re-clone the working tree before rebuilding.';
+const CORRUPT_HINT = ' — IO/mount corruption (#175). Re-run `node scripts/build-demo-bundle.mjs` from a'
+  + ' LOCAL terminal on the real files (never a sandboxed mount); if it reproduces, the READ path is'
+  + ' corrupt — reset/re-clone the working tree before rebuilding.';
+
+/* Check the SOURCE first: this gate has exactly one known false-positive class —
+ * a component that carries a literal NUL on purpose. Never work around it by
+ * relaxing the gate; make the source byte-clean. */
+const NUL_HINT = ' — check the SOURCE first: grep src/** for a literal NUL'
+  + ' (POSIX: `grep -rlP "\\x00" src/`). If a component carries one, it is NOT mount corruption:'
+  + ' replace the literal byte with `String.fromCharCode(0)` — same runtime string, byte-clean source'
+  + ' (a "\\u0000" escape can round-trip back into a literal NUL through some tooling; apps-discover.js'
+  + ' hit exactly this and every rebuild failed here, so the STALE bundle shipped and blanked the app).'
+  + ' If no source contains one, it is ' + CORRUPT_HINT.slice(3);   // slice: drop the leading ' — '
 
 let hit = out.indexOf(NUL);
-if (hit !== -1) throw new Error('bundle contains a NUL byte at offset ' + hit + CORRUPT_HINT);
+if (hit !== -1) throw new Error('bundle contains a NUL byte at offset ' + hit + NUL_HINT);
 hit = firstLoneSurrogate(out);
 if (hit !== -1) throw new Error('bundle contains a lone surrogate at offset ' + hit + CORRUPT_HINT);
 

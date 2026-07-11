@@ -15,6 +15,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const ROOT = argv.includes('--root') ? argv[argv.indexOf('--root') + 1] : join(__dirname, '..');
 const DIR = join(ROOT, 'src', 'components');
+const SHELLS_DIR = join(ROOT, 'src', 'shells');   // A4: shells lint too (window.SL/s./sl. count as clean)
 const SKIP = new Set(['icons.js', 'icons.iife.js']);
 // Never-translated tokens: currency ticker, file-format labels, protocol names.
 const ALLOW = new Set(['IXI', 'GIF', 'QR', 'URL', 'PIN', 'ID']);
@@ -37,8 +38,8 @@ function isCopy(lit) {
 }
 
 const hits = [];
-for (const f of readdirSync(DIR).filter((x) => x.endsWith('.js') && !SKIP.has(x))) {
-  const lines = readFileSync(join(DIR, f), 'utf8').split('\n');
+function lintFile(dir, f) {
+  const lines = readFileSync(join(dir, f), 'utf8').split('\n');
   lines.forEach((line, i) => {
     const t = line.trim();
     if (t.startsWith('*') || t.startsWith('//') || t.startsWith('/*')) return;
@@ -46,13 +47,17 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith('.js') && !SKIP.has(x)
       const m = line.match(s.re);
       if (!m) continue;
       const rhs = m[1].trim();
-      if (/\bstrings\b/.test(rhs)) return;             // flows through strings.* — clean
+      // clean = flows through the dictionary: components use `strings.*`; shells
+      // use `s.* / sl.* / window.SL.*` (A4 — same channel, shell receiver names)
+      if (/\bstrings\b|\bwindow\.SL\b|\bsl?\./.test(rhs)) return;
       // extract the leading string literal from the RHS
       const litm = rhs.match(/^['"](?:[^'"\\]|\\.)*['"]/);
       if (litm && isCopy(litm[0])) hits.push({ f, line: i + 1, sink: s.label, text: litm[0] });
     }
   });
 }
+for (const f of readdirSync(DIR).filter((x) => x.endsWith('.js') && !SKIP.has(x))) lintFile(DIR, f);
+for (const f of readdirSync(SHELLS_DIR).filter((x) => x.endsWith('.html'))) lintFile(SHELLS_DIR, f);
 
 if (!hits.length) {
   console.log('i18n-lint: no hardcoded user-facing strings in direct DOM sinks ✓');

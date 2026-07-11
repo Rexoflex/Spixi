@@ -143,20 +143,44 @@ function hostEl(st) {
 }
 
 // #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
-// overridable via opts.languages, real list ships with i18n (Phase 3)
+// overridable via opts.languages. A4 (Damir, Batch A): locales WITHOUT a shell
+// dictionary (cn-cn/it-it/id-id/ja-jp/lt-lt — build-locales.mjs LANGS) are
+// hidden until translated, matching the Account hub picker — picking one only
+// translated the C# layer and left every shell string English. (The old zh-cn
+// entry was also a WRONG code — SpixiLocalization ships cn-cn.)
 const LAUNCH_LANGS = [
   { code: 'en-us', label: 'English', flag: '🇺🇸' },
-  { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
   { code: 'es-co', label: 'Español', flag: '🇨🇴' },
   { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
   { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
   { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
   { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
   { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
 ];
+
+/* A4 fallback row (settings.html carries the same guard, one grammar).
+ * App.xaml.cs:100-107 auto-detects CultureInfo on FIRST RUN and PERSISTS it when
+ * SpixiLocalization ships the code — it-it/ja-jp/id-id/lt-lt all do. So the very
+ * first screen a user of one of those OS locales sees is THIS one, already on a
+ * hidden locale. Without a row for it the pill/picker showed no selection and any
+ * tap silently moved them off their OS language → when `opts.language` is a code
+ * we don't list, append ONE row for it (endonym + flag). It renders as selected
+ * and is inert (the picker early-returns on value === current), and the sheet
+ * carries a hint that the interface stays English until its dictionary lands.
+ * (cn-cn: .NET reports zh-cn, which C# can't map → those users land on en-us.) */
+const PENDING_LANGS = [
+  { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
+  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
+  { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
+];
+/* list + the current code when it isn't in `base` (unknown → raw-code label) */
+function launchLangList(base, code) {
+  if (!code || base.some((l) => l.code === code)) return base;
+  return base.concat([PENDING_LANGS.find((l) => l.code === code) || { code, label: code, flag: '' }]);
+}
 
 function buildWelcome(st) {
   const { opts } = st;
@@ -171,8 +195,15 @@ function buildWelcome(st) {
   const top = document.createElement('div');
   top.className = 'c-launch__top';
 
-  const languages = (opts.languages && opts.languages.length) ? opts.languages : LAUNCH_LANGS;
-  st.language = opts.language || languages[0].code;
+  const offered = (opts.languages && opts.languages.length) ? opts.languages : LAUNCH_LANGS;
+  st.language = opts.language || offered[0].code;
+  // A4: the saved locale may be one we don't offer (hidden until translated) —
+  // it still gets a row, so the pill reads it and the picker shows it selected.
+  const languages = launchLangList(offered, st.language);
+  const langHint = () => (offered.some((l) => l.code === st.language)
+    ? undefined
+    : (strings.languagePending
+      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.'));
   const langPill = document.createElement('button');
   langPill.type = 'button';
   langPill.className = 'c-launch__pill';
@@ -194,6 +225,7 @@ function buildWelcome(st) {
   langPill.addEventListener('click', () => {
     settingsOptionSheet({
       title: strings.language || 'Language',
+      hint: langHint(),                          // A4: only when the saved locale isn't offered
       options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
       current: st.language,
       host: hostEl(st),

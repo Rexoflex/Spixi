@@ -63,6 +63,8 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css">
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay (addCallAppRequest) -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip (displayCallBar/hideCallBar) -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
   /* Production chat shell: fill the WebView (no demo phone frame). The chat
@@ -262,7 +264,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -301,7 +308,7 @@
     createFileBubble, setFileProgress,
     createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
-    createAppBubble, createSystemNotice,
+    createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
     createModal, openModal, showToast,
     createWarningBanner, setWarning, createContactRequest,
@@ -309,6 +316,7 @@
     createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
+    attachCallUi,                   // Batch A: live call bridge glue (ring overlay + callbar)
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
 
@@ -442,7 +450,9 @@
     const actions = [];
     // start a voice call — revealed by showCallButton (C# gates availability);
     // ixian:call toggles initiate/hang-up (xaml:136).
-    if (callVisible) actions.push({ icon: 'phone', label: s.call || 'Call', onClick: () => bridge.send('ixian:call') });
+    // key is callAction, NOT `call` — the dict's `call` is the history-bubble
+    // label 'Voice call' (A4 sweep: one key, one English — conflict gate).
+    if (callVisible) actions.push({ icon: 'phone', label: s.callAction || 'Call', onClick: () => bridge.send('ixian:call') });
     // #248 (Damir): an EXPLICIT info affordance on EVERY chat — the bare header
     // tap wasn't discoverable. Bot-channel mode already had it (its title became
     // the channel selector); now 1:1 + groups + plain bots get it too.
@@ -636,7 +646,7 @@
     channelSheetBody.className = 'chat-channel-list';
     const empty = document.createElement('p');
     empty.className = 'chat-channel-list__empty';
-    empty.textContent = s.loading || 'Loading…';
+    empty.textContent = s.loading || 'Loading';   // fallback = the dict value (A4 conflict gate)
     channelSheetBody.append(empty);
     panel.append(channelSheetBody);
 
@@ -820,13 +830,17 @@
       const r = model.get(ids[i]);
       const prev = i > 0 ? model.get(ids[i - 1]) : null;
       const next = i < ids.length - 1 ? model.get(ids[i + 1]) : null;
-      const cont = (a, b) => a && b
+      // A3: `bid` = the LATER row's id — a bubble run never continues across the
+      // unread divider (the boundary row restarts its own group, matching the
+      // visual break the divider draws).
+      const cont = (a, b, bid) => a && b
+        && bid !== unreadBoundaryId
         && (a.kind || 'text') === 'text' && (b.kind || 'text') === 'text'
         && a.direction === b.direction
         && (a.senderAddress || '') === (b.senderAddress || '')
         && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
-      const withPrev = cont(prev, r);
-      const withNext = cont(r, next);
+      const withPrev = cont(prev, r, ids[i]);
+      const withNext = cont(r, next, i < ids.length - 1 ? ids[i + 1] : null);
       pos[ids[i]] = !withPrev && !withNext ? 'single'
         : !withPrev && withNext ? 'first'
         : withPrev && withNext ? 'middle'
@@ -1515,6 +1529,9 @@
       const rec = model.get(id);
       const day = new Date(rec.ts).toDateString();
       if (day !== lastDay) { frag.append(createDateSeparator(rec.ts)); lastDay = day; }
+      // A3: the one-shot unread divider sits under any date separator, above the
+      // first still-unread incoming row of this open (scrolls with the content).
+      if (id === unreadBoundaryId) frag.append(createUnreadDivider(window.SL || {}));
       const row = buildRow(rec, pos[id]);
       row.dataset.msgid = id;
       rows.set(id, row);
@@ -1546,6 +1563,67 @@
   let bursting = false;
   let burstSafety = 0;
   let firstRenderDone = false;   // gates the boot spinner → first real paint
+  /* A3 — unread divider (one-shot in place, Damir Batch A interview). The id of
+   * the FIRST incoming row that arrived read="False" during a LOAD BURST. The
+   * signal is real and exactly-once: SingleChatPage pushes the message (:1603)
+   * BEFORE updateMessageReadStatus flips message.read (:1661-65), so the open
+   * burst carries the boundary once and the next open correctly doesn't. Only
+   * burst rows count — a message arriving while the chat is OPEN also pushes
+   * read="False" then flips, and would spawn a divider per message. Survives
+   * session re-renders/re-flushes (the model keeps the id; re-flushed history
+   * arrives read="True" so the boundary is never re-derived); reset per peer in
+   * onChatScreenReady; renderLogNow draws it, positionsFor breaks bubble
+   * grouping at it.
+   *
+   * Derivation is gated on `loadPhase && bursting` — BOTH, and each carries half
+   * the meaning:
+   *   loadPhase — "this is an open/history load, not live traffic". Spans
+   *     clearMessages → onChatScreenLoaded with a GENEROUS 5 s safety, because
+   *     SingleChatPage's OnAppearing → reloadScreen → loadMessages path and the
+   *     bot channel-switch path never push onChatScreenLoaded.
+   *   bursting — "rows are still streaming" (the render coalescer's flag, re-armed
+   *     by every insert, expiring 250 ms after the last one). Needed because on
+   *     those two no-onChatScreenLoaded paths `loadPhase` would otherwise stay
+   *     true for the full 5 s window, and a LIVE message arriving inside it would
+   *     be latched as "unread" in a chat the user is watching (bot channels are
+   *     exactly the high-traffic case).
+   * Consequence, deliberately accepted: if the streamed history ever gaps >250 ms
+   * (cold start, very long history, slow Android EvaluateJavaScriptAsync) the
+   * boundary in the tail rows is not derived → NO divider. That fails safe, in the
+   * same direction as the read===undefined guard; the alternative (loadPhase alone)
+   * fails LOUD, drawing a false divider over a message the user watched arrive.
+   * `boundaryLatched` makes the boundary ONE-SHOT per peer: a later re-flush
+   * (accept, channel re-load, updateMessage storm) must never derive a NEW divider.
+   * All three reset per peer in onChatScreenReady (and per channel in
+   * setSelectedChannel). */
+  let unreadBoundaryId = null;
+  let loadPhase = false;         // A3: inside the open/load stream (clearMessages → onChatScreenLoaded)
+  let boundaryLatched = false;   // A3: the one-shot boundary chance for this peer/channel is spent
+  let loadSafety = 0;            // A3: generous fallback if onChatScreenLoaded never arrives
+  /* Start the A3 load phase. No-op once the boundary chance is spent (one-shot),
+   * so a re-flush cannot re-open derivation. */
+  function beginLoadPhase() {
+    if (boundaryLatched) return;
+    loadPhase = true;
+    clearTimeout(loadSafety);
+    loadSafety = setTimeout(endLoadPhase, 5000);
+  }
+  /* End the A3 load phase and spend the one-shot chance. */
+  function endLoadPhase() {
+    clearTimeout(loadSafety);
+    loadSafety = 0;
+    loadPhase = false;
+    boundaryLatched = true;
+  }
+  /* Full A3 reset — new peer (onChatScreenReady) or new bot channel
+   * (setSelectedChannel, which C# pushes BEFORE its loadMessages()). */
+  function resetUnreadBoundary() {
+    clearTimeout(loadSafety);
+    loadSafety = 0;
+    unreadBoundaryId = null;
+    loadPhase = false;
+    boundaryLatched = false;
+  }
   function beginBurst() {
     bursting = true;
     armBurstSafety();
@@ -1704,12 +1782,43 @@
     renderLog();
   }
 
+  /* —— live call UI (Batch A) ————————————————————————————————————————————————
+   * Shared glue (call-ui.js): ring overlay (addCallAppRequest/clearAppRequests)
+   * + active-call strip (displayCallBar/hideCallBar). This WebView receives the
+   * call state once at overlay-present time (SpixiContentPage.cs:1084-1090) and
+   * whenever its own onLoad consumes the flag (xaml:719-722); MID-session events
+   * land on the stack-last page (home) until the BE broadcast row (C19) lands.
+   * Caller identity: the open 1:1 peer, else the group roster / resolved nicks;
+   * unknown → truncated address + the C# pre-composed text line. */
+  const callUi = attachCallUi({
+    bridge,
+    host: overlayHost,
+    strings: window.SL || {},
+    resolveCaller(addr) {
+      if (!addr) return null;
+      if (!mode.isMulti && identity.address === addr) {
+        return { name: identity.name || '', avatar: identity.avatar };
+      }
+      // BLIND groups key their roster on 'blind:' + nick (C# masks the address to
+      // "[Unknown]"), so an address never hits here for a blind member and the ring
+      // degrades to the truncated address + C#'s pre-composed line. By design — VoIP
+      // is 1:1, a blind-group member can't be the caller identity anyway.
+      const rec = groupRoster.get(addr);
+      if (rec) return { name: rec.name || groupNicks.get(addr) || '', avatar: rec.avatar };
+      const nick = groupNicks.get(addr);
+      return nick ? { name: nick, avatar: null } : null;
+    },
+  });
+
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers — every one a page global (via bridge.exposeAll),
    * because executeUiCommand(fnRef, …) resolves fnRef as a bare page-global.
    * The 1:1 text path is wired; the rest are safe no-op stubs.
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    /* ——— live call UI (Batch A — see callUi above) ——————————————————————— */
+    ...callUi,
+
     /* ——— header + mode (wired) ——————————————————————————————————————————— */
 
     // setChatMode(type, cost, costText, admin, botDescription, notificationsString)
@@ -1783,6 +1892,11 @@
       // (no flicker). We do NOT render here: the boot spinner (or the prior log)
       // stays until the burst finishes, avoiding a blank/notice flash.
       beginBurst();
+      // A3: clearMessages also marks the START of the load phase the unread
+      // boundary is derived from. loadPhase is its OWN flag (the render burst's
+      // 250 ms expiry must not decide "is this an open load"), but derivation
+      // requires loadPhase && bursting — see the A3 docblock.
+      beginLoadPhase();
       dbg('clearMessages', { showMore });
     },
 
@@ -1793,11 +1907,28 @@
         { avatar: resolveAvatar(avatar) });
     },
 
-    // TEXT create — incoming message. Legacy addThem is called with 6 args
-    // (xaml.cs:1460 for !localSender); status flags are irrelevant for received
-    // rows (no ticks rendered). nick/address feed the group sender label/avatar.
-    addThem(id, address, nick, avatar, text, time) {
+    // TEXT create — incoming message. C# pushes the FULL 11-arg shape for both
+    // prefixes (one sendUiCommand, xaml.cs:1603) — the old 6-param declaration
+    // silently DISCARDED the trailing sent/confirmed/read/paid/errorSending
+    // (legacy did the same; roadmap M15's "no read-boundary signal" was wrong).
+    // Ticks still aren't rendered for received rows — `read` is accepted ONLY to
+    // derive the A3 unread boundary from the open burst.
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending) {
       const av = resolveAvatar(avatar);
+      // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
+      // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
+      // by `boundaryLatched` (one-shot per peer/channel). STRICT string test: an old
+      // C# exe pushing the 6-arg shape leaves `read === undefined` → fails safe to
+      // "no divider" rather than dividing on every row.
+      // `bursting` is ANDed in deliberately: a bot CHANNEL SWITCH re-opens the load
+      // phase but C# never pushes onChatScreenLoaded on that path (it lives only in
+      // onLoad), so loadPhase would stay true for the whole 5s safety window — a LIVE
+      // message arriving inside it would be latched as "unread" in an open chat.
+      // loadPhase = "this is an open/history load"; bursting = "rows are still
+      // streaming" (re-armed by every insert, expires 250ms after the last one).
+      if (loadPhase && bursting && !boundaryLatched && unreadBoundaryId === null && read === 'False') {
+        unreadBoundaryId = String(id);
+      }
       upsertText(id, text, 'received', toMs(time), {},
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av });
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
@@ -1864,6 +1995,18 @@
       const wasTail = order.length > 0 && order[order.length - 1] === id;   // Q12: was this the last message?
       if (rec.kind === 'file' && rec.fileid) fileIndex.delete(rec.fileid);
       if (rec.kind === 'payment' && rec.txid) txIndex.delete(rec.txid);
+      // A3: deleting the boundary row would leave the id pointing at a dead row →
+      // the divider silently vanishes for the session and can't be re-derived (the
+      // latch is spent). Re-anchor onto the next RECEIVED row (skipping own rows —
+      // "Unread messages" above your own bubble would be nonsense); none → drop it.
+      if (id === unreadBoundaryId) {
+        unreadBoundaryId = null;
+        const bi = order.indexOf(id);
+        for (let k = bi + 1; bi >= 0 && k < order.length; k++) {
+          const nx = model.get(order[k]);
+          if (nx && nx.direction === 'received') { unreadBoundaryId = order[k]; break; }
+        }
+      }
       model.delete(id);
       order = order.filter((x) => x !== id);
       writeExdelHint(rec, wasTail && localDelete);   // after removal — the order tail IS the new last message
@@ -1900,6 +2043,8 @@
       // so clearing it here would desync a still-connecting topbar.
       invalidateMentions();                // per-peer reset of the mention name list
       resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
+      resetUnreadBoundary();               // A3 per-peer reset (id + loadPhase + boundaryLatched + safety timer)
+                                           // — the next open re-derives (or, normally, doesn't)
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -1911,6 +2056,7 @@
       // for an empty chat: shows the secure notice) — not gated on `bursting`.
       bursting = false;
       clearTimeout(burstSafety);
+      endLoadPhase();                      // A3: the open stream is over — spend the one-shot boundary chance
       renderLogNow();
       box.scrollTop = box.scrollHeight;
       maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
@@ -2066,7 +2212,15 @@
     showCallButton() { callVisible = true; renderTopbar(); },
     // APP invite/session card (chat.js addAppRequest:1174). appStatus ∈
     // {Missing, Minimized, else} — already enum-shaped. Reuses installApp/joinApp.
-    addAppRequest(id, appid, appname, appimage, address, nick, avatar, time, localSender, sent, read, appStatus, appInstallURL) {
+    // ⚠ GLOBAL NAME COLLISION (Batch A): displayAppRequests also pushes a 4-arg
+    // addAppRequest(sessionIdHex, text, ok, cancel) — a MINI-APP session request
+    // (SpixiContentPage.cs:1368), a different message on the same global. Legacy
+    // never rendered it (spixi.js:247 body is a commented-out TODO) → discriminate
+    // by arg count and ignore the short form, or it corrupts the invite renderer.
+    // NOTE: arg 10 is message.confirmed (xaml.cs:1591) — NOT `sent`. Unused today;
+    // named correctly so nobody wires a delivery tick to the wrong flag.
+    addAppRequest(id, appid, appname, appimage, address, nick, avatar, time, localSender, confirmed, read, appStatus, appInstallURL) {
+      if (arguments.length <= 4) { dbg('addAppRequest: 4-arg mini-app session request — ignored (legacy parity)'); return; }
       upsertApp(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
         appid: appid, name: appname, iconUrl: appimage || null,
         astate: appStateFrom(localSender, appStatus),
@@ -2095,6 +2249,12 @@
       channelState.index = Number(index) || 0;
       channelState.icon = icon || '';
       channelState.name = name || '';
+      // A3: a channel switch is a NEW message stream — C# pushes setSelectedChannel
+      // and THEN loadMessages() (clearMessages → burst), on both the initial load and
+      // a switch. onChatScreenReady does NOT re-fire, so without this reset the spent
+      // latch (and a stale boundary id matching no row) would kill the divider in
+      // every channel after the first.
+      resetUnreadBoundary();
       renderTopbar();
     },
     // "true" ⇒ all read; anything else (incl. "") ⇒ unread (legacy chat.js:1345)

@@ -30,6 +30,8 @@
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <style>
@@ -102,7 +104,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -133,6 +140,7 @@
     createChatAppearance, setSettingsSaveVisible,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, showToast,
+    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
@@ -186,22 +194,59 @@
 
   /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
    * .loadLanguage(), so use these exact codes, NOT the demo's variants. FE ships
-   * the list at build time (BE gap §8-4). Flags are emoji stand-ins (SVG later). */
+   * the list at build time (BE gap §8-4). Flags are emoji stand-ins (SVG later).
+   *
+   * A4 (Damir, Batch A interview): cn-cn / it-it / id-id / ja-jp / lt-lt are
+   * HIDDEN until translated — the app ships their legacy lang files, but the
+   * redesigned shells have no dictionary for them (build-locales.mjs LANGS), so
+   * picking one silently rendered English shell copy over a translated C# layer
+   * (a half-translated app). Re-add each code to LANGS the moment its dictionary
+   * lands in src/strings/ (and drop it from PENDING_LANGS below). */
   const LANGS = [
     { code: 'en-us', label: 'English', flag: '🇺🇸' },
-    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
     { code: 'es-co', label: 'Español', flag: '🇨🇴' },
     { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
     { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
     { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
     { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
-    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
     { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
     { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
   ];
+
+  /* —— A4 fallback row (hidden-locale REGRESSION guard) ————————————————————————
+   * App.xaml.cs:100-107 — on FIRST RUN, with no `language` preference, Spixi
+   * auto-detects CultureInfo.CurrentCulture and PERSISTS it if SpixiLocalization
+   * ships that code. it-it / ja-jp / id-id / lt-lt all ship → an Italian /
+   * Japanese / Indonesian / Lithuanian OS user LANDS on a hidden locale without
+   * ever opening a picker. With no row for it the picker showed NO selection:
+   * the user couldn't see their current language, and tapping ANY visible row
+   * silently moved them off their OS language.
+   *
+   * So: when the CURRENT code isn't in LANGS, append ONE row for it (endonym +
+   * flag) — it renders as the selected option and stays inert (the component
+   * early-returns on a click whose value === current, settings-shell.js:142).
+   * A hint line says the interface stays English until its dictionary lands.
+   * (cn-cn is listed for completeness; .NET reports zh-cn, which C# can't map,
+   * so Chinese OS users fall back to en-us and never reach this row.) */
+  const PENDING_LANGS = [
+    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
+    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
+    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
+    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
+  ];
+  const langIsHidden = (code) => !!code && !LANGS.some((l) => l.code === code);
+  /* The list handed to the hub AND to every picker — LANGS, plus the current
+   * code when it's a hidden one (unknown codes degrade to the raw code label). */
+  function langList(code) {
+    if (!langIsHidden(code)) return LANGS;
+    return LANGS.concat([PENDING_LANGS.find((l) => l.code === code) || { code, label: code, flag: '' }]);
+  }
+  const langHint = (code) => (langIsHidden(code)
+    ? (strings.languagePending
+      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.')
+    : undefined);
+  const langOptions = (code) => langList(code).map((l) => ({ value: l.code, label: l.label, flag: l.flag }));
 
   /* —— theme —————————————————————————————————————————————————————————————————
    * The redesign swaps the token theme via data-theme (no page reload needed),
@@ -353,7 +398,7 @@
       avatarSrc: state.avatarSrc,
       hasCustomAvatar: state.hasCustomAvatar,
       theme: state.theme,
-      languages: LANGS,
+      languages: langList(state.language),   // A4: + the fallback row when the OS put us on a hidden locale
       language: state.language,
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
@@ -409,11 +454,33 @@
       // #242/#243 (Damir): in the pane, Theme/Language open as SUBLEVEL screens
       // like every other row — the sheets stay for mobile.
       onThemeNav: () => { if (!paneMode) return false; showTheme(); return true; },
-      onLanguageNav: () => { if (!paneMode) return false; showLanguage(); return true; },
-      // language — persists + reloads C#-side. i18n gap: the reloaded shell reads its
-      // OWN bundled dictionary (en-us here), so the settings UI won't re-render in the
-      // picked locale until the holistic i18n live-locale pass (CLAUDE.md). The choice
-      // DOES persist app-wide and translates the legacy/native surfaces. (BE gap S5)
+      // A4: mobile keeps the SHEET, but the hub's own sheet call carries no hint
+      // (settings-shell.js:732) — so when the fallback row is present we open the
+      // same sheet here, with the pending-translation hint. Otherwise: unchanged.
+      onLanguageNav: () => {
+        if (paneMode) { showLanguage(); return true; }
+        const hint = langHint(state.language);
+        if (!hint) return false;               // normal case → the component's sheet
+        settingsOptionSheet({
+          title: strings.language || 'Language',
+          hint,
+          options: langOptions(state.language),
+          current: state.language,
+          host: document.body,
+          strings,
+          commit: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+          // C# reloads the page on the verb; rebuild anyway so the row value is
+          // never stale (we bypassed the component's own onPicked repaint).
+          onPicked: (o) => { if (o) scheduleRebuild(); },
+        });
+        return true;
+      },
+      // language — persists + reloads C#-side. A4: the reloaded shell now resolves
+      // its dictionary from the SL language-code carrier (see the boot line), so the
+      // settings UI DOES come back in the picked locale (was: en-us in every locale).
+      // NOTE: no live *SL marker in this comment — the C# substituter is text-based
+      // and would rewrite it here too. Locales without
+      // a shell dictionary stay hidden — see the LANGS/PENDING_LANGS note above.
       onLanguage: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
 
       // app lock — ON optimistic; OFF also optimistic here (matches legacy): the frozen
@@ -565,7 +632,8 @@
       case 'language': return pickerScreen(strings.language || 'Language',
         settingsOptionSheet({
           title: strings.language || 'Language',
-          options: LANGS.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
+          hint: langHint(state.language),      // A4: only when the fallback row is present
+          options: langOptions(state.language),
           current: state.language, strings, inline: true,
           // C# persists + RELOADS settings.html on this verb — the fresh page
           // re-lands on the hub with the new current (S5 i18n note applies).
@@ -619,7 +687,7 @@
       return;
     }
     const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
-    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Could not copy', tone: 'error', host: document.body, strings }); };
+    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: document.body, strings }); };   // fallback = the dict value (A4 conflict gate)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(addr).then(ok, fail);
@@ -635,6 +703,10 @@
    * ixian:avatar picker. All coalesce into one hub rebuild.
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    // Batch A: ring overlay + callbar (no roster here → truncated address + the
+    // C# pre-composed caller line).
+    ...attachCallUi({ bridge, strings }),
+
     // setNickname(nick) — SettingsPage.onLoad:43
     setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
 

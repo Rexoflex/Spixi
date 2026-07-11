@@ -23,6 +23,10 @@
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- c-encpass + password fields -->
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
 <style>
   /* Production shell: fill the WebView. settings_encryption.html is loaded by the
      C# EncryptionPassword page (PUSHED). createEncPassScreen provides its own
@@ -50,7 +54,12 @@
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
-<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || 'en-us');</script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. Before this, production resolved
+     'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
+     preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -77,6 +86,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     mountEncPassPage,
+    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -98,6 +108,10 @@
   /* —— bridge transport ———————————————————————————————————————————————————— */
   installExecuteUiCommand();                     // defines window.executeUiCommand for C# (§9 pre-wires)
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
+
+  // Batch A: ring overlay + callbar pushes. The password fields are scrubbed by
+  // the shell's own lifecycle (§5) — the call UI never reads them.
+  bridge.exposeAll(attachCallUi({ bridge, strings }));
 
   /* mountEncPassPage appends the screen, exposes the §9 handlers AND fires
    * bridge.ready() — so mount on the window LOAD event (#177 load-timing

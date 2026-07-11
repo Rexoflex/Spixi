@@ -6,6 +6,9 @@
  * (single- or double-quoted, and multi-line `+`-concatenated fallbacks), plus
  * the dynamic `strings['<prefix>' + var]` families whose keys come from data
  * tables (resolved from a small curated map below — enumerable and bounded).
+ * A4: ALSO sweeps src/shells/*.html for the shell-inline receiver forms
+ * (`s.key || '…'` / `sl.key || '…'` / `window.SL.key || '…'`) — these keys
+ * were never extracted, so they could never be translated in any locale.
  * It then:
  *   - emits the canonical en-us dictionary (src/strings/en-us.js + .json),
  *   - infers a render CONTEXT per key (component, kind, length) for translators,
@@ -26,6 +29,7 @@ const CHECK_ONLY = argv.includes('--check');
 const ROOT = rootArg ? rootArg : join(__dirname, '..');
 
 const COMPONENTS_DIR = join(ROOT, 'src', 'components');
+const SHELLS_DIR = join(ROOT, 'src', 'shells');   // A4: shell-inline keys were NEVER swept → untranslatable in every locale
 const LEGACY_TXT = join(ROOT, 'Spixi', 'Resources', 'Raw', 'lang', 'en-us.txt');
 const OUT_JS = join(ROOT, 'src', 'strings', 'en-us.js');
 const OUT_JSON = join(ROOT, 'src', 'strings', 'en-us.json');
@@ -220,6 +224,32 @@ for (const f of files) {
   let d;
   while ((d = red.exec(src))) dynamicSites.push({ expr: d[1].trim(), file: f, line: lineOf(src, d.index) });
 }
+
+/* —— A4: shell sweep (src/shells/*.html) ————————————————————————————————————
+ * Shells read the dictionary as `const s = window.SL || {}` / `const sl = …` /
+ * direct `window.SL.key` (incl. the `window.SL && window.SL.key` guard form),
+ * so the component regex never saw them. Only FALLBACK-CARRYING sites are
+ * recorded (a bare `s.foo` in a shell is usually a local variable, not a
+ * string ref — no bareRefs noise); an empty-string fallback is skipped (state
+ * defaults, not copy). The fallback may sit after ONE closing paren:
+ * `(window.SL && window.SL.image) || 'Image'`. */
+const shellFiles = readdirSync(SHELLS_DIR).filter((f) => f.endsWith('.html')).sort();
+for (const f of shellFiles) {
+  const src = readFileSync(join(SHELLS_DIR, f), 'utf8');
+  const re = /(?:window\.SL(?:\s*&&\s*window\.SL)?|\b(?:s|sl|strings))\.([A-Za-z_$][\w$]*)/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const key = m[1];
+    let j = skipWs(src, re.lastIndex);
+    if (src[j] === ')') j = skipWs(src, j + 1);       // the guarded-window.SL paren form
+    if (src[j] !== '|' || src[j + 1] !== '|') continue;
+    j = skipWs(src, j + 2);
+    const fb = parseFallback(src, j);
+    if (!fb || !fb.value) continue;                   // no literal / empty → not copy
+    record(key, fb.value, f, lineOf(src, m.index), kindAround(src, m.index));
+    re.lastIndex = fb.end;
+  }
+}
 for (const [key, value] of Object.entries(DYNAMIC)) {
   const prefix = Object.keys(DYNAMIC_SOURCES).find((p) => key.startsWith(p)) || '';
   const comp = (DYNAMIC_SOURCES[prefix] || 'dynamic').split(' ')[0];
@@ -317,7 +347,7 @@ if (!CHECK_ONLY) {
   writeFileSync(OUT_DOC, md);
 }
 
-console.log(`extract-strings: swept ${files.length} components`);
+console.log(`extract-strings: swept ${files.length} components + ${shellFiles.length} shells`);
 console.log(`  ${keys.length} keys (${keys.length - Object.keys(DYNAMIC).filter((k) => dict.get(k) && dict.get(k).dynamic).length} static + ${Object.keys(DYNAMIC).filter((k) => dict.get(k) && dict.get(k).dynamic).length} dynamic-only)`);
 console.log(`  ${mapped} mapped to legacy SL ids · ${keys.length - mapped} new · legacy dict ${legacyCount} ids`);
 console.log(`  ${conflicts.length} fallback conflicts · ${[...bareRefs.keys()].filter((k) => !dict.has(k)).length} no-fallback refs · ${dynamicSites.length} dynamic sites`);

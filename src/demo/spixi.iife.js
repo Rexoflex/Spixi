@@ -391,16 +391,17 @@ function createIndicators({ count = 0, mention = false, muted = false, strings =
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
-  request: 'user-plus',   // M5 outgoing contact request — degrades to text until the B2 export lands
+  request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
-  // Guard on registry membership: a glyph not yet exported (e.g. `heart` awaiting
-  // Damir's Tabler export) degrades to clean text — no empty 16px box, no per-render
-  // console.warn from icon(). Appears automatically once the icon is registered.
+  // Registry membership is a SAFETY NET, not a degrade path: every glyph mapped
+  // above ships in icons.js today. If a future type is added before its icon is
+  // exported, the row degrades to clean text — no empty 16px box, no per-render
+  // console.warn from icon() — and lights up automatically once it's registered.
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
   if (sender) {
@@ -1670,6 +1671,9 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
  *
  * showCallBar({ text, startedAt = Date.now(), onReturn, onHangUp,
  *               host = document.body, strings }) → el
+ *   startedAt: null — DIALING state (bridge displayCallBar sends "0" while
+ *   dialing, legacy spixi.js:304): the timer is hidden, no ticking. A later
+ *   re-push with a real startedAt flips it on in place (singleton mutate).
  * hideCallBar(host) (#44 free fns)
  */
 
@@ -1697,8 +1701,9 @@ function showCallBar({
   if (existing) {
     existing.startedAt = startedAt;
     existing.el.querySelector('.c-callbar__text').textContent = text;
-    existing.el.querySelector('.c-callbar__time').textContent =
-      formatCallDuration(Date.now() - startedAt);
+    const timeEl = existing.el.querySelector('.c-callbar__time');
+    timeEl.hidden = startedAt == null;   // dialing → in-call flips it on in place
+    timeEl.textContent = startedAt == null ? '' : formatCallDuration(Date.now() - startedAt);
     return existing.el;
   }
 
@@ -1718,7 +1723,8 @@ function showCallBar({
 
   const time = document.createElement('span');
   time.className = 'c-callbar__time u-tabular';
-  time.textContent = formatCallDuration(Date.now() - startedAt);
+  time.hidden = startedAt == null;   // dialing: text only, no timer
+  time.textContent = startedAt == null ? '' : formatCallDuration(Date.now() - startedAt);
   main.append(time);
   if (onReturn) main.addEventListener('click', onReturn);
   el.append(main);
@@ -1739,6 +1745,8 @@ function showCallBar({
 
   const entry = { el, startedAt, timer: 0 };
   entry.timer = setInterval(() => {
+    if (entry.startedAt == null) return;   // dialing — nothing to tick
+    time.hidden = false;                   // an in-place flip to in-call re-reveals it
     time.textContent = formatCallDuration(Date.now() - entry.startedAt);
   }, 1000);
   callBars.set(host, entry);
@@ -4402,10 +4410,14 @@ function openMediaViewer({
  * showCallBar (shell duty). All three actions latch (state-changing).
  *
  * showIncomingCall({ host, caller: { name, address, avatar }, sub,
- *                    onAccept, onDecline, onIgnore, strings }) → el
+ *                    onAccept, onDecline, onIgnore, ignore, strings }) → el
  *   sub — line under the name (default "Incoming voice call…")
  *   Ignore = overlay dismisses, ringing continues muted (shell duty);
  *   Esc / scrim tap route to onIgnore too (safe dismiss = quietest action).
+ *   ignore: false — production shells (Batch A, Damir): hide the Ignore action
+ *   AND disable Esc/scrim dismiss — no bridge verb exists for a local dismiss
+ *   (C# keeps ringing), so the only outcomes are Accept / Decline / a remote
+ *   clear via hideIncomingCall. Default true (demo parity).
  * hideIncomingCall(el) — bridge hook (peer hung up before an answer).
  */
 
@@ -4420,6 +4432,7 @@ function showIncomingCall({
   onAccept,
   onDecline,
   onIgnore,
+  ignore = true,
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
@@ -4474,7 +4487,7 @@ function showIncomingCall({
     actions.append(wrap);
   };
   action('decline', 'phone-end', strings.decline || 'Decline', onDecline);
-  action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
+  if (ignore) action('ignore', 'bell-off', strings.ignore || 'Ignore', onIgnore);
   action('accept', 'phone', strings.accept || 'Accept', onAccept);
   // freeze audit: overlay autofocus took the FIRST focusable = Decline — a
   // reflexive Enter while ringing killed the call. APG: focus the safe action.
@@ -4482,9 +4495,12 @@ function showIncomingCall({
   el.append(actions);
 
   // Esc / scrim = the QUIETEST outcome (ignore) — never auto-declines.
+  // With ignore:false there is no quiet outcome (no local-dismiss verb), so
+  // Esc/scrim dismiss is disabled — the dialog resolves only via Accept /
+  // Decline / hideIncomingCall (remote clear).
   // data-silent (freeze audit): a REMOTE hang-up must not report onIgnore —
   // that's not a user outcome (shell may log/telemetry the ignore path)
-  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: () => {
+  setOverlayOpts(el, { host, lightDismiss: ignore, escDismiss: ignore, onDismiss: () => {
     if (!acted && el.dataset.silent === undefined) {
       acted = true;
       if (onIgnore) onIgnore();
@@ -4499,6 +4515,158 @@ function showIncomingCall({
 function hideIncomingCall(el) {
   el.dataset.silent = '';
   dismissOverlay(el);
+}
+
+/* ---- src/components/call-ui.js ---- */
+/**
+ * call-ui — shared shell glue for the LIVE call bridge (Batch A: the redesigned
+ * app had NO call UI at all — the shells never defined the C# push globals, so
+ * every call push died on an undefined identifier).
+ *
+ * Bridge contract (verified, SpixiContentPage.cs — the pushes live on the BASE
+ * class so every page/WebView can receive them):
+ *   C#→JS  addCallAppRequest(address, sessionIdHex, text)   — ringing (:1387)
+ *          addAppRequest(sessionIdHex, text, ok, cancel)    — 4-arg MINI-APP
+ *            session request (:1368) — IGNORED here (legacy parity: the
+ *            spixi.js:247 body is a commented-out TODO). chat.html guards its
+ *            OWN 13-arg app-invite handler against this collision by arg count.
+ *          clearAppRequests()                               — precedes every
+ *            displayAppRequests pass (:1355); the ONLY signal that removes a
+ *            ringing card (caller hang-up sends no dedicated clear).
+ *          displayCallBar(sessionIdHex, text, startedSecs)  — active call
+ *            (:1333); text is C#-localized + pre-composed; startedSecs is unix
+ *            SECONDS, "0" while dialing → no timer (legacy spixi.js:304).
+ *          hideCallBar()                                    — call ended (:1345).
+ *   JS→C#  ixian:appAccept:<addr>:<sessionId> · ixian:appReject:<addr>:<sessionId>
+ *          · ixian:hangUp:<sessionId> — all on onNavigatingGlobal (:1449-1462),
+ *          so they work from ANY page. Accept routes through C# (VoIPManager
+ *          .acceptCall) — the WebView only ever emits intent (SECURITY.md).
+ *
+ * DELIVERY REALITY (verified — sharper than the docs): UIHelpers
+ * .refreshAppRequests is a GLOBAL one-shot flag consumed by the FIRST ticked
+ * page; HomePage.OnUpdateUI ticks NavigationStack.Last() (= HomePage under the
+ * #225 overlay nav) BEFORE the top overlay → mid-session call events land in
+ * home.html's WebView only. Overlay pages get the CURRENT state once at present
+ * time (SpixiContentPage.cs:1084-1090). A broadcast fix is a BE ask (be-cutover
+ * C19) — this glue is wired into every shell now, ready for it.
+ *
+ * attachCallUi({ bridge, host, resolveCaller, onReturn, strings }) → handlers
+ *   Spread the returned map into the shell's bridge.exposeAll(handlers) object.
+ *   resolveCaller(address) → { name, avatar } | null — shell-local identity
+ *     lookup (chats list / roster); falls back to the truncated address + the
+ *     C# pre-composed text line.
+ *   onReturn(friendAddress) — wired ONLY when C# starts appending the friend
+ *     address to displayCallBar (BE arg-append ask C19; additive last arg per
+ *     be-cutover rules). Absent today → the bar shows text + timer + hang-up.
+ */
+
+
+
+
+
+/* clearAppRequests → re-add grace: C#'s displayAppRequests pass is
+ * clear-then-re-add across SEPARATE EvaluateJavaScriptAsync calls (frames
+ * apart) — dropping the card on the clear and re-creating it on the re-add
+ * would flash the overlay on every pass. The clear defers the drop; a same-
+ * session re-add inside the window cancels it. A REAL clear (caller hung up
+ * while ringing — no re-add follows) lands within the window. */
+const CLEAR_GRACE_MS = 400;
+
+function attachCallUi({
+  bridge,
+  host = document.body,
+  resolveCaller,
+  onReturn,
+  strings = getStrings(),
+} = {}) {
+  const call = {
+    ringEl: null,      // live incoming-call overlay (singleton per shell)
+    ringSession: '',   // sessionIdHex of the live ring
+    clearTimer: 0,     // pending deferred drop (see CLEAR_GRACE_MS)
+    barSession: '',    // sessionIdHex of the active call (hang-up target)
+    friendAddr: '',    // C19 arg-append: the call peer (return-to-call target)
+  };
+
+  function dropRing() {
+    clearTimeout(call.clearTimer);
+    call.clearTimer = 0;
+    if (!call.ringEl) return;
+    const el = call.ringEl;
+    call.ringEl = null;
+    call.ringSession = '';
+    hideIncomingCall(el);   // SILENT dismiss — never reports an ignore outcome
+  }
+
+  return {
+    /* ringing — 3-arg push (SpixiContentPage.cs:1387). Re-pushed on every
+     * displayAppRequests pass; the same session keeps the live overlay. */
+    addCallAppRequest(address, sessionId, text) {
+      const addr = String(address || '');
+      const sid = String(sessionId || '');
+      clearTimeout(call.clearTimer);            // a re-add cancels a pending clear
+      call.clearTimer = 0;
+      if (call.ringEl && call.ringSession === sid) return;   // same ring — keep it
+      dropRing();                               // different session → replace
+      const known = (resolveCaller && resolveCaller(addr)) || null;
+      const name = (known && known.name) || '';
+      call.ringSession = sid;
+      call.ringEl = showIncomingCall({
+        host,
+        ignore: false,   // Damir (Batch A interview): Accept/Decline only — no
+                         // local-dismiss verb exists (C# would keep ringing)
+        caller: {
+          name: name || (addr ? truncateAddressMiddle(addr) : ''),
+          address: addr,
+          avatar: (known && known.avatar) || null,
+        },
+        // no shell-local identity → the C# pre-composed localized line
+        // ("Incoming call - Nick") carries the caller name instead
+        sub: name ? '' : String(text || ''),
+        onAccept: () => {
+          call.ringEl = null; call.ringSession = '';
+          bridge.send('ixian:appAccept:' + addr + ':' + sid);
+        },
+        onDecline: () => {
+          call.ringEl = null; call.ringSession = '';
+          bridge.send('ixian:appReject:' + addr + ':' + sid);
+        },
+        strings,
+      });
+    },
+
+    /* the only removal signal for a ringing card (see CLEAR_GRACE_MS). Never
+     * touches the callbar — that has its own hideCallBar verb. */
+    clearAppRequests() {
+      if (!call.ringEl) return;
+      const sid = call.ringSession;
+      clearTimeout(call.clearTimer);
+      call.clearTimer = setTimeout(() => {
+        call.clearTimer = 0;
+        if (call.ringEl && call.ringSession === sid) dropRing();
+      }, CLEAR_GRACE_MS);
+    },
+
+    /* active call strip. startedSecs = unix SECONDS; "0" while dialing → no
+     * timer (legacy spixi.js:304). The component is a singleton per host and
+     * mutates in place on re-pushes (dialing → in-call flips the timer on). */
+    displayCallBar(sessionId, text, startedSecs, friendAddress) {
+      call.barSession = String(sessionId || '');
+      call.friendAddr = String(friendAddress || '');   // C19 — empty today
+      const t = Number(startedSecs) || 0;
+      showCallBar({
+        host,
+        text: String(text || ''),
+        startedAt: t > 0 ? t * 1000 : null,
+        onHangUp: () => bridge.send('ixian:hangUp:' + call.barSession),
+        onReturn: onReturn
+          ? () => { if (call.friendAddr) onReturn(call.friendAddr); }
+          : undefined,
+        strings,
+      });
+    },
+
+    hideCallBar() { hideCallBar(host); },
+  };
 }
 
 /* ---- src/components/contact-request.js ---- */
@@ -4999,8 +5167,10 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getSt
  *
  * Model shapes:
  *   chat:    { name, address, online, pinned, muted, favorite, type,
- *              timestamp, status, unread, mention, handshaking,
+ *              timestamp, status, unread, mention, handshaking, request,
  *              excerpt:{type,text,sender} }
+ *              // request = M5: OUR outgoing, not-yet-accepted contact request
+ *              // (shell flag; rides the Requests chip beside the incoming cards)
  *   request: { name, address, avatar, timestamp }   // normalized 'pending' entry
  *   state:   { chats:[], requests:[], filter:'all', query:'' }
  *   filter ∈ 'all' | 'unread' | 'favorites' | 'groups' | 'requests'
@@ -6566,6 +6736,13 @@ function showAppRemoved({ host, strings = getStrings() } = {}) {
 
 const APP_CATEGORIES = ['All', 'AI', 'Games', 'IoT', 'Tools', 'Dev Tools'];
 
+/* Unlikely-separator for comparing label lists. Built with fromCharCode — this file
+ * used to carry two LITERAL 0x00 bytes here, which made build-demo-bundle's #255
+ * integrity gate fail every bundle build ("bundle contains a NUL byte", the gate's
+ * one false positive). NO source file may contain a literal NUL byte (or a
+ * backslash-u escape that an editor/tool might decode into one). */
+const LIST_SEP = String.fromCharCode(0);
+
 function chipRow(categories, strings, onPick) {
   const cats = document.createElement('div');
   cats.className = 'c-apps-discover__cats';
@@ -6712,7 +6889,7 @@ function setDiscoverFeed(el, feed, { strings = getStrings(), onCategory, onOpen 
   if (feed.categories && feed.categories.length) {
     const current = el.querySelector('.c-apps-discover__cats');
     const shown = current ? [...current.querySelectorAll('.c-chip')].map((c) => c.textContent) : [];
-    if (shown.join(' ') !== feed.categories.join(' ')) {
+    if (shown.join(LIST_SEP) !== feed.categories.join(LIST_SEP)) {
       const fresh = chipRow(feed.categories, strings, (cat) => {
         renderLive(el, el._feed, cat, { strings, onOpen });
         el._category = cat;
@@ -11889,11 +12066,16 @@ function pickerRow(c, st) {
   name.className = 'c-contacts__name';
   name.textContent = displayName(c);
   col.append(name);
+  // C9 (a11y): a row DISABLED in multi-select must say WHY on its sub-line — bots
+  // ("can't be added to groups") and pending contacts ("can't be added until they
+  // accept") both. Browse mode is unchanged: the sub-line stays the identity line.
+  const blockedReason = !blocked ? ''
+    : (c.type === 2 ? (strings.noGroupCapability || 'Can’t be added to groups')
+      : (c.pending ? (strings.noGroupPending || 'Can’t be added until they accept') : ''));
   const sub = document.createElement('span');
   sub.className = 'c-contacts__sub';
-  sub.textContent = blocked && c.type === 2
-    ? (strings.noGroupCapability || 'Can’t be added to groups')
-    : (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
+  sub.textContent = blockedReason
+    || (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
@@ -11903,9 +12085,12 @@ function pickerRow(c, st) {
     row.append(badge);
     // F16: the badge's plain text would otherwise fold into the row's flattened
     // accessible name in visual order (ambiguous) — an explicit label states the
-    // pending state distinctly without repeating it twice.
+    // pending state distinctly without repeating it twice. C9: in multi-select the
+    // row is also disabled, so the label carries the reason too (a disabled control
+    // is otherwise announced with no explanation).
     const pendingSuffix = strings.contactPendingLabel || 'request sent';
-    row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix);
+    const pendingReason = blocked && blockedReason ? ', ' + blockedReason : '';
+    row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix + pendingReason);
   }
 
   if (multi && !blocked) {
@@ -15783,15 +15968,16 @@ function hostEl(st) {
 }
 
 // #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
-// overridable via opts.languages, real list ships with i18n (Phase 3)
+// overridable via opts.languages. A4 (Damir, Batch A): locales WITHOUT a shell
+// dictionary (cn-cn/it-it/id-id/ja-jp/lt-lt — build-locales.mjs LANGS) are
+// hidden until translated, matching the Account hub picker — picking one only
+// translated the C# layer and left every shell string English. (The old zh-cn
+// entry was also a WRONG code — SpixiLocalization ships cn-cn.)
 const LAUNCH_LANGS = [
   { code: 'en-us', label: 'English', flag: '🇺🇸' },
-  { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
   { code: 'es-co', label: 'Español', flag: '🇨🇴' },
   { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
   { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
   { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
   { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
@@ -17149,5 +17335,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, attachCallUi: attachCallUi, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

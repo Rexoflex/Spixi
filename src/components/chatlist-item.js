@@ -68,15 +68,17 @@ export function createIndicators({ count = 0, mention = false, muted = false, st
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
+  request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
 };
 export function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
   el.dataset.type = type;
-  // Guard on registry membership: a glyph not yet exported (e.g. `heart` awaiting
-  // Damir's Tabler export) degrades to clean text — no empty 16px box, no per-render
-  // console.warn from icon(). Appears automatically once the icon is registered.
+  // Registry membership is a SAFETY NET, not a degrade path: every glyph mapped
+  // above ships in icons.js today. If a future type is added before its icon is
+  // exported, the row degrades to clean text — no empty 16px box, no per-render
+  // console.warn from icon() — and lights up automatically once it's registered.
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
   if (sender) {

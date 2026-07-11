@@ -7,9 +7,10 @@
  *
  * Exposed names are derived from `export function/const` declarations in each
  * source (no manual list to drift). The build FAILS on: residual import/export
- * lines the stripper can't handle, cross-file top-level symbol collisions, and
+ * lines the stripper can't handle, cross-file top-level symbol collisions,
  * imports from icons.js other than `icon`/`ICONS` (only those are aliased in
- * the wrapper — anything else would be undefined at runtime).
+ * the wrapper — anything else would be undefined at runtime), and a corrupt
+ * emitted artifact (NUL byte / lone surrogate / truncated write — #175).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -157,5 +158,51 @@ try {
   throw new Error('bundle failed syntax check (stripping artifact?): ' + e.message);
 }
 
-writeFileSync(join(root, 'src/demo/spixi.iife.js'), out);
+/* Integrity (#175): NO binary garbage may reach the artifact. A single NUL byte
+ * makes git treat spixi.iife.js — and EVERY built shell that inlines it — as
+ * BINARY (undiffable, unreviewable), and a NUL landing in code rather than in a
+ * comment kills the bundle at load. A lone surrogate is the same class of IO
+ * damage (a UTF-16 pair split by a truncated read/write). No component source
+ * contains either, so a hit here means the READ path corrupted the input — fail
+ * loudly ("generators fail loudly", DECISIONS #46) instead of shipping it.
+ * NB: the NUL needle is BUILT with fromCharCode — this generator must never carry
+ * a literal control character itself. */
+const NUL = String.fromCharCode(0);
+/** Offset of the first lone (unpaired) UTF-16 surrogate, or -1. */
+function firstLoneSurrogate(text) {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF) {                  // high half — must be followed by a low half
+      const n = text.charCodeAt(i + 1);
+      if (!(n >= 0xDC00 && n <= 0xDFFF)) return i;
+      i++;                                             // valid pair — skip its low half
+    } else if (c >= 0xDC00 && c <= 0xDFFF) return i;   // low half with no high half
+  }
+  return -1;
+}
+const CORRUPT_HINT = ' — IO/mount corruption (#175), NOT a source defect (no component source contains it).'
+  + ' Re-run `node scripts/build-demo-bundle.mjs` from a LOCAL terminal on the real files (never a sandboxed mount);'
+  + ' if it reproduces, the source READ is corrupt — reset/re-clone the working tree before rebuilding.';
+
+let hit = out.indexOf(NUL);
+if (hit !== -1) throw new Error('bundle contains a NUL byte at offset ' + hit + CORRUPT_HINT);
+hit = firstLoneSurrogate(out);
+if (hit !== -1) throw new Error('bundle contains a lone surrogate at offset ' + hit + CORRUPT_HINT);
+
+const outPath = join(root, 'src/demo/spixi.iife.js');
+writeFileSync(outPath, out);
+
+// Post-write read-back: the in-memory string was verified clean, so anything wrong
+// on disk came from the WRITE path — the same class that truncates files on the
+// corrupted mount. Catches both a NUL byte and a short/truncated write.
+const written = readFileSync(outPath);
+const expectedBytes = Buffer.byteLength(out, 'utf8');
+if (written.includes(0)) {
+  throw new Error('bundle WRITE corrupted: NUL byte at offset ' + written.indexOf(0)
+    + ' on disk (the generated string was clean)' + CORRUPT_HINT);
+}
+if (written.length !== expectedBytes) {
+  throw new Error('bundle WRITE truncated: ' + written.length + ' bytes on disk, expected ' + expectedBytes + CORRUPT_HINT);
+}
+
 console.log('bundle written:', out.length, 'bytes,', expose.length, 'exports:', expose.join(', '));

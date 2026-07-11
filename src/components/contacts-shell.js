@@ -109,11 +109,16 @@ function pickerRow(c, st) {
   name.className = 'c-contacts__name';
   name.textContent = displayName(c);
   col.append(name);
+  // C9 (a11y): a row DISABLED in multi-select must say WHY on its sub-line — bots
+  // ("can't be added to groups") and pending contacts ("can't be added until they
+  // accept") both. Browse mode is unchanged: the sub-line stays the identity line.
+  const blockedReason = !blocked ? ''
+    : (c.type === 2 ? (strings.noGroupCapability || 'Can’t be added to groups')
+      : (c.pending ? (strings.noGroupPending || 'Can’t be added until they accept') : ''));
   const sub = document.createElement('span');
   sub.className = 'c-contacts__sub';
-  sub.textContent = blocked && c.type === 2
-    ? (strings.noGroupCapability || 'Can’t be added to groups')
-    : (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
+  sub.textContent = blockedReason
+    || (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
@@ -123,9 +128,12 @@ function pickerRow(c, st) {
     row.append(badge);
     // F16: the badge's plain text would otherwise fold into the row's flattened
     // accessible name in visual order (ambiguous) — an explicit label states the
-    // pending state distinctly without repeating it twice.
+    // pending state distinctly without repeating it twice. C9: in multi-select the
+    // row is also disabled, so the label carries the reason too (a disabled control
+    // is otherwise announced with no explanation).
     const pendingSuffix = strings.contactPendingLabel || 'request sent';
-    row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix);
+    const pendingReason = blocked && blockedReason ? ', ' + blockedReason : '';
+    row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix + pendingReason);
   }
 
   if (multi && !blocked) {

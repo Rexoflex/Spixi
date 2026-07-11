@@ -51,6 +51,28 @@ Surfaced during the DESKTOP PASS 2 lock scrutiny; **NOT introduced by #240–#24
 
 `SingleChatPage.xaml.cs:344` runs `WebUtility.HtmlDecode` on the link **after** the FE confirm modal already showed the pre-decode URL, then `Browser.OpenAsync`. `https://paypal.com&commat;evil.example.com/login` displays paypal-leading but opens host `evil.example.com`. Defeats the #231c "the modal shows the true target" mitigation. Fix (C#): don't HtmlDecode a URL for OpenAsync (or decode before showing) + add an http/https scheme allowlist at the sink. Details: be-cutover C15.
 
+### ⚠ MAJOR #4 — the shells' localStorage may be readable by third-party MINI-APP code (Opus #46 loop over #253; DECISIONS #254; PRE-EXISTING, FE mitigated one key)
+
+**The finding.** The redesigned shells are loaded from a bare local path — `SPlatformUtils.getHtmlBaseUrl()` returns `Config.spixiUserFolder + "/html/"` on Windows/iOS/Mac/Android (`Platforms/*/SPlatformUtils.cs:30-40`) → the WebView resolves it as a **`file://`** document. **Mini-apps** — third-party, publisher-supplied HTML/JS — are loaded as `"file://" + app_entry_point` (`Pages/MiniApps/MiniAppPage.xaml.cs:58`). In **Chromium-based WebViews (WebView2, Android WebView) all `file://` documents share ONE localStorage partition**; WKWebView likewise shares the default `WKWebsiteDataStore` across WebViews in a process unless explicitly given its own. If that holds on our platforms, **mini-app code can read every `spixi.*` key the shells write** — a non-chat, untrusted surface reading chat-derived data (SECURITY.md §1 / ★ #221 class).
+
+**What's in there today** (FE-side state the redesign persists, all same-origin localStorage — the #238 `spixi.landtab` precedent):
+
+| Key | Contents | Class |
+|---|---|---|
+| `spixi.draft.<addr>` | the user's **own composed message plaintext** (CH7) | ⚠ own message text |
+| `spixi.exdel.<addr>` | deleted-tail excerpt hint (Q12) | **text DROPPED — now `{del, t, kind}` only, DECISIONS #254** |
+| `spixi.likes.*` / `spixi.mentions.seen.*` / `spixi.pins` / `spixi.app.declined.*` / `spixi.exdel.*` (keys) | contact **addresses** + interaction metadata | ⚠ metadata / address disclosure |
+| `spixi.chat.pattern` / `.textscale` / `landtab` / theme | UI prefs | benign |
+
+**What the FE did (zero-C#):** the Q12 hint was about to persist a capped line of **counterpart-authored** message text; the loop **dropped the field** rather than widen the exposure (#254). Text tails degrade to an empty excerpt. Reversible if you confirm isolation.
+
+**BE ask (the actual fix — C#/platform, not FE):**
+1. **Confirm or refute the shared partition**, per platform, on-device (#215 lesson — don't assume): can a mini-app page read `localStorage.getItem('spixi.pins')`? A 5-line test mini-app answers it.
+2. If shared → **give the mini-app WebView its own storage partition** (WebView2: a distinct `UserDataFolder`/environment; iOS/Mac: `WKWebViewConfiguration.WebsiteDataStore = WKWebsiteDataStore.NonPersistent()` or a per-app store; Android: a separate WebView data dir / `WebStorage` scoping). That closes the whole family at once — including the pre-existing **drafts plaintext**.
+3. Until then, treat `spixi.draft.*` as the open item: it predates this batch and persists own message text in the same store.
+
+Nothing here signs, moves money, or crosses the chat wall in the FE — the Q12 handshake is same-origin localStorage only, and after #254 its payload carries **no chat content at all**.
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|

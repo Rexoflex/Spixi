@@ -14,7 +14,7 @@
 | M2 | Incoming-call overlay | Not built; `addCall` is lossy (no direction/state/call-back verb — C4) | **BE C4 first**, then FE overlay (c-callbar grammar exists) |
 | M3 | In-call banner | c-callbar BUILT (#57) + legacy call banner noted (N2) | **BE C4/N2** state pushes, then wire |
 | M4 | Chat info in right column + shared media/files | **✅ #247 pane** (1:1). Media/files = **CI6** (no push contract) | BE CI6 feed → FE section lands (designed, demo-fed) |
-| M5 | "Request sent" chip on outgoing contact request | Outgoing request stays a plain chat row today (CH2 kept outgoing as localSender rows) | FE chats-list batch: style outgoing-request rows (excerpt/status chip); pairs CH2 |
+| M5 | "Request sent" chip on outgoing contact request | **✅ #253 (round 2)** — real signal = the unapproved-state `chat-waiting-for-response` override (carrier) + direction guard (localSender status-type); row rides the **Requests chip** (count + filter + leave-guard), excerpt = "Request sent" (`request` type; `user-plus` **ships today** — icons.js:81, the registry check is a safety net, corrected by the #255 loop), contacts-picker **pending badge** lit via requestAddrs | Damir F5; dials: pill weight · rows also stay under All · **row menu still deletes/pins an outgoing request (#255 dial)** |
 | M6 | Desktop: sheets → modals / context menus | Decision noted; overlay/sheet components are mobile-grammar everywhere | FE cross-cutting batch: desktop presentation variant in overlay.js/sheet.js (`data-desktop`), per-surface pick |
 | M7 | Add app → desktop subpane | `AppNewPage` full-window push today | C# batch: pin to detail column via #225/#247 machinery |
 | M8 | Add contact → desktop subpane | `ContactNewPage` full-window push today | C# batch: same machinery (pairs M7 — one "form pages as panes" batch) |
@@ -36,14 +36,14 @@
 | Q2 | Create-screen gradients too hot (soften like lock #206⑥) | FE tokens/launch CSS dial — same batch as Q1 |
 | Q3 | Send/receive IXI demo-parity analysis | **GATE — wallet-send LAST (#232)**; analysis doc allowed earlier |
 | Q4 | Incoming chat payment missing "+" / off-component | **✅ #252** — received direct payments '+' (title-carrier match, collision-guarded); requests/sent stay bare (matrix canon) |
-| Q5 | New group appears in contacts DIRECTORY (should be chat-only) | FE contacts-shell filter (directory purpose 'directory' excludes groups) — Damir left an "unless you think otherwise": agree, exclude; group management lives in chat info (CI7) |
+| Q5 | New group appears in contacts DIRECTORY (should be chat-only) | **✅ #253** — filtered from BOTH takeover purposes (directory + 'start' picker; dial if 'start' should keep them) via CH1-kind set + group-avatar sentinel; residual zero-message custom-avatar group edge → §9 type-arg ask |
 | Q6 | Call bubble shows "Call back" while call still active | **BE C4** (addCall carries no live state) — bubble fix rides the C4 batch |
 | Q7 | Group info titled "Chat info" | **✅ FIXED #247** (component fallback bug) |
 | Q8 | Edit group photo/name from chat info (admin) | **BE CI7** — no rename/re-avatar verbs exist |
 | Q9 | Bot topbar tap re-opens channel list instead of closing | **✅ #252** — title tap toggles closed; #205 focus-restore intact |
 | Q10 | Composer autofocus: off on mobile, on on desktop; tone down desktop active state | **✅ #252** — autofocus desktop-gated; ring 2px→1px desktop-scoped (dial: neutral hairline if still loud) |
 | Q11 | Fulfilled payment request = 2 bubbles | **C10** (logged #207) — request↔payment linking, BE/UX decision |
-| Q12 | Send file then delete → excerpt still "file" | FE home.html/chat delete sync (excerpt recompute on removeMessage) — chats-list polish batch |
+| Q12 | Send file then delete → excerpt still "file" | **✅ #253 + Opus loop #254/#255** — verified NO C# re-push on local delete → `spixi.exdel.<addr>` localStorage handshake (#238 trio), addChat fold-in + ts-equality expiry. Loop changes: hint shape = **`{del,t,kind}`, NO message text** (★ #254 security ruling — mini-apps share the `file://` localStorage partition) · writer **latched to LOCAL deletes** (remote `msgDelete` never mutates core → be-cutover **C16**) · typing/reaction precedence + orphan-key prune. Text tails degrade to a blank excerpt until the next push |
 | Q13 | Row menu → Chat info dead | **✅ FIXED #247** (1:1 → details; group → opens chat) |
 | Q14 | Lock screen overlaps at smallest size | FE lock.css responsive floor (min-width 384 window, #231c) — small dial batch |
 | Q15 | @-mention list scrollbar clunky | **✅ #252** — picker rides `.u-scroll` (#41) |
@@ -58,7 +58,7 @@
    empty state · stage-background flicker fix). Group rename/re-avatar (Q8) = CI7 BE;
    media strip (M4) = CI6 BE; open-pane resize flicker = FLOAT dial queued if needed.
 2. **✅ #252 Chat polish FE batch:** Q4 · Q9 · Q10 · M16 (topbar connecting) · Q15 — in-session #46 loop CLEAN; pending Damir build+F5+commit.
-3. **Chats-list/contacts FE batch:** Q12 · Q5 · M5.
+3. **✅ #253 Chats-list/contacts FE batch:** Q12 · Q5 · M5 — built + smoke green, Damir F5-passed. **Opus #46 loop RAN 2026-07-11 → CLEAN (#254 security ruling + #255 verdict; 1 MAJOR + 6 fixes landed).** Pending: Damir's FULL rebuild + F5 → commit #253+#254+#255 as ONE batch. New backlog from the loop: wallet-send roster filter (money, pre-req of the wallet batch) · be-cutover **C16** (remote delete not persisted) + **C17** (addContact state arg) · dial: gate the row menu on outgoing-request rows.
 4. **Chat appearance + dials FE batch:** M12 (pattern default/levels) · Q14 · Q1+Q2 (launch).
 5. **Desktop overlay grammar:** M6 (sheets→modals/menus) — spec row first.
 6. **Form-pages-as-panes C# batch:** M7 + M8 (+ M10 tx-detail pane spec).

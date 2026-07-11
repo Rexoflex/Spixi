@@ -1212,7 +1212,19 @@
       if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
       return;
     }
-    if (action === 'delete') { bridge.send('ixian:contextAction:deleteMessage:' + id); return; }
+    if (action === 'delete') {
+      // Q12 (A-1): latch — only a LOCAL delete may write an exdel hint. Not latched for
+      // bots (SingleChatPage:1152 gates the core delete on !friend.bot → no echo ever
+      // arrives), and the latch SELF-EXPIRES: an id C# never echoes (e.g. friend.deleteMessage
+      // returned false) must not be consumed later by a REMOTE delete of the same id.
+      if (!mode.isBot) {
+        const lid = String(id);
+        pendingLocalDeletes.add(lid);
+        setTimeout(() => pendingLocalDeletes.delete(lid), 10000);
+      }
+      bridge.send('ixian:contextAction:deleteMessage:' + id);
+      return;
+    }
     if (action === 'report') { bridge.send('ixian:contextAction:report:' + id); return; }
     if (action === 'tip') { openTipForMessage(rec); return; }
     // reply/edit are capability-gated off → never reached in v1
@@ -1572,6 +1584,10 @@
     const rec = existing || { id, kind: 'text', direction, senderNick: '', senderAddress: '' };
     if (text !== undefined && text !== null) rec.text = String(text);
     if (direction) rec.direction = direction;
+    // Q12 (A-3): a robustness-created row carries a WALL-CLOCK ts (tsSynthetic) that C#
+    // can never push back. A DIFFERENT ts arriving here is a real C#-pushed one (updateMessage
+    // re-passes the existing ts, so it can't clear the flag) → the row is hint-safe again.
+    if (ts && rec.tsSynthetic && ts !== rec.ts) rec.tsSynthetic = false;
     if (ts) rec.ts = ts;
     if (extra) {
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
@@ -1798,10 +1814,16 @@
     // messages flipped to 'received' while delivery lagged, Damir F5 2026-07-08).
     // Only a robustness-create of an unseen row uses it as a best-guess direction.
     updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
-      const existing = model.get(String(id));
+      const key = String(id);
+      const existing = model.get(key);
       const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
-      upsertText(id, message, dir, existing ? existing.ts : Date.now(),
+      upsertText(key, message, dir, existing ? existing.ts : Date.now(),
         { sent, confirmed, read, paid, errorSending });
+      // Q12 (A-3): the robustness-create above stamps a WALL-CLOCK ts C# can never
+      // push back as a lastMessage ts → an exdel hint built on it could never expire.
+      // Mark the row so writeExdelHint fails safe (writes nothing) if it's later
+      // deleted as the tail.
+      if (!existing) { const fresh = model.get(key); if (fresh) fresh.tsSynthetic = true; }
     },
 
 
@@ -1831,15 +1853,20 @@
       if (typeof updateMentionFab === 'function') updateMentionFab();
     },
 
-    // Remove a row and re-render so #63 grouping repairs around the gap.
+    // Remove a row and re-render so #63 grouping repairs around the gap. C# pushes
+    // the SAME command for a local menu delete and a remote (peer-initiated) one —
+    // the row goes either way; only the Q12 hint is latched to local deletes (A-1).
     deleteMessage(id) {
       id = String(id);
       const rec = model.get(id);
+      const localDelete = pendingLocalDeletes.delete(id);   // consume the latch (this is the only ack)
       if (!rec) { dbg('deleteMessage: unknown', id); return; }
+      const wasTail = order.length > 0 && order[order.length - 1] === id;   // Q12: was this the last message?
       if (rec.kind === 'file' && rec.fileid) fileIndex.delete(rec.fileid);
       if (rec.kind === 'payment' && rec.txid) txIndex.delete(rec.txid);
       model.delete(id);
       order = order.filter((x) => x !== id);
+      writeExdelHint(rec, wasTail && localDelete);   // after removal — the order tail IS the new last message
       renderLog();
     },
 
@@ -1861,6 +1888,9 @@
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
+      pendingLocalDeletes.clear();         // Q12 per-peer reset: a never-echoed local delete (e.g. the bot
+                                           // branch, SingleChatPage:1152 gates on !friend.bot) must not leak
+                                           // its id into the next peer and mis-latch a remote delete there
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
@@ -2275,6 +2305,57 @@
     if (!input || input.value) return;          // don't overwrite in-progress typing
     input.value = saved;
     input.dispatchEvent(new Event('input'));    // grow + action sync; isTrusted=false → no spurious ixian:typing
+  }
+
+  /* —— Q12: deleted-tail excerpt hint (shared contract with home.html, which
+   * reads spixi.exdel.<addr>). Deleting the LAST message leaves the chats list
+   * stale: the delete path never re-pushes HomePage (SingleChatPage:1150-1159
+   * pushes only THIS WebView), and C#'s friend.metaData.lastMessage may keep the
+   * deleted message (Ixian-Core is outside this tree — unverifiable, #215; the
+   * hint self-expires if C# turns out to correct itself). So on a delete of the
+   * tail row we write a per-address hint home.html folds into the row.
+   *
+   * LOCAL DELETES ONLY (A-1). C# pushes the IDENTICAL deleteMessage(id) command
+   * for both paths, but only the local menu delete mutates core (SingleChatPage:
+   * 1146/1154 → friend.deleteMessage); the REMOTE msgDelete path (StreamProcessor:
+   * 459-462 → UIHelpers.deleteMessage:69-77 → SingleChatPage:1727) just drops the
+   * bubble — core keeps the message, so C# keeps pushing the same lastMessage ts
+   * (hint could never expire) while the next open re-shows the row. Hence the
+   * writer is latched: onMenuAction registers the id in pendingLocalDeletes and
+   * the deleteMessage handler consumes it. Remote deletes still remove the row —
+   * they just write no hint.
+   *
+   * Shape: { del: ms ts of the C#-VISIBLE lastMessage (max over sequential tail
+   * deletes — C#'s stale lastMessage keeps the newest ts it ever saw), t: ms ts of
+   * the new tail or 0, kind }. NO message text (DECISIONS #254 security ruling:
+   * shells + mini-apps share the file:// storage partition, so untrusted publisher
+   * code may read localStorage — we never widen it with counterpart-authored text).
+   * home expires the hint when C# pushes a lastMessage ts ≠ del. Crosses the #221
+   * wall via same-origin localStorage ONLY (the #238 landtab precedent) — no shared
+   * JS, no bridge. SKIPPED: bots (lastMessage may live in another channel than the
+   * visible order[], accepted edge) · rows with a synthetic wall-clock ts (A-3) ·
+   * deletes arriving mid-load-burst, where order[] is still partial (A-6). */
+  const EXDEL_PREFIX = 'spixi.exdel.';
+  const pendingLocalDeletes = new Set();   // ids sent by the local delete menu, awaiting C#'s echo
+  function writeExdelHint(deletedRec, wasTail) {
+    if (!wasTail || !identity.address || mode.isBot) return;
+    if (bursting) return;                              // A-6: partial log mid-load-burst → tail is not final
+    if (deletedRec.tsSynthetic) return;                // A-3: wall-clock ts C# can't push → hint could never expire
+    const k = EXDEL_PREFIX + identity.address;
+    let del = deletedRec.ts || 0;
+    try {   // sequential tail deletes: keep the NEWEST ts C# ever saw as lastMessage
+      const prev = JSON.parse(localStorage.getItem(k) || 'null');
+      if (prev && prev.del) del = Math.max(del, prev.del);
+    } catch (_) {}
+    if (!del) return;                                  // no comparable ts → no safe hint
+    const tailId = order[order.length - 1];
+    const tail = tailId ? model.get(tailId) : null;
+    const hint = {
+      del,
+      t: tail ? (tail.ts || 0) : 0,
+      kind: tail ? tail.kind : '',
+    };
+    try { localStorage.setItem(k, JSON.stringify(hint)); } catch (_) {}
   }
 
   /* —— own-reaction persistence (C5 interim). The bridge's addReactions re-emit

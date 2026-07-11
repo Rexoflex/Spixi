@@ -165,6 +165,7 @@
   <div id="sl-carriers" hidden aria-hidden="true">
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+    <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
   </div>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
@@ -310,6 +311,27 @@
     'Connecting to Ixian Platform...',
   ]);
   CONNECTIVITY_TEXTS.delete('');
+  /* M5 (corrected mechanism — see DECISIONS #253 amend): outgoing pending
+   * contact request. For ANY unapproved non-bot friend the helper OVERRIDES the
+   * excerpt to _SL(chat-waiting-for-response) (xaml:1273-1279) — that is the
+   * ONLY string an outgoing pending row ever carries (the requestAdd/
+   * index-excerpt branch sits inside the Approved-state else and never reaches
+   * a chat row). The sender row exists because ContactNewPage:203 adds a LOCAL
+   * requestAddSent marker (localSender) → its pushed status-type arg is
+   * NON-EMPTY (read/confirmed/pending/default, xaml:1360-1378); the rare
+   * INCOMING unapproved fall-through (#219 MINOR: a follow-up message before
+   * accept — same override string) pushes type='' → the direction guard below
+   * keeps it a plain text row, never a false "Request sent". Locale-proof via
+   * the carrier; a user literally typing the same string is the accepted CH6
+   * false-positive class. Once accepted, the excerpt becomes a real message →
+   * falls through to text and the request state clears everywhere. */
+  const REQUEST_SENT_TEXT = slCarrier('sl-waiting-response', 'Waiting for response');
+  /** True when a chats push is the OUTGOING pending-request marker row. */
+  function isRequestSentPush(raw, statusType) {
+    if (!statusType || statusType === 'typing') return false;   // outgoing markers always carry a localSender tick type
+    const trimmed = decodeEntities(raw || '').trim();
+    return !!trimmed && trimmed === REQUEST_SENT_TEXT;
+  }
   // root title node: logo variant wraps the wordmark in a <span>; plain title
   // (desktop) is the title div's own text — target whichever exists.
   function setChatsTitleState(text) {
@@ -348,6 +370,25 @@
   let contactsRoster = [];
   let contactsView = null;           // open takeover controller ({ close, setContacts }) or null
   let contactsRenderTimer = 0;
+  /* Q5: groups/bots stay OUT of the contacts takeover (both purposes — group
+   * management lives in chat info, CI7; and the 'start' picker means "pick a
+   * PERSON"). The directory push carries NO type arg (addContact 5-arg,
+   * xaml:1182), so groups are recognized two ways: (a) addresses the CHATS model
+   * flagged group/bot via the CH1 kind arg (groupAddrs, fed in addChat — every
+   * group with a chat row lands there; loadChats runs before loadContacts,
+   * xaml:1743-1744), and (b) the C# default group-avatar sentinel (X1 passes
+   * `img/` sentinels through un-encoded, xaml:1177). Residual invisible edge: a
+   * zero-message group with a CUSTOM avatar — closed by the §9 type-arg ask. */
+  const groupAddrs = new Set();
+  /* M5: addresses whose chat row is the OUTGOING pending-request marker (fed in
+   * addChat, raw-based so a draft can't mask it; cleared when the excerpt stops
+   * being the waiting-for-response marker = accepted/settled). Lights the
+   * contacts-picker `pending` badge ("request sent", #153 grammar) — the
+   * addContact push itself carries no state flag (§9). */
+  const requestAddrs = new Set();
+  const directoryRoster = () => contactsRoster
+    .filter((c) => c && !c.isGroup && !groupAddrs.has(c.address))
+    .map((c) => (requestAddrs.has(c.address) ? Object.assign({}, c, { pending: true }) : c));
   // RE-ARMING debounce (not rAF): clearContacts→addContact×N arrive as separate
   // eval frames within one C# tick, so a plain rAF can fire BETWEEN the clear and
   // the row pushes → the open takeover flashes its "No contacts" empty state for a
@@ -356,7 +397,7 @@
   function scheduleContactsRender() {
     clearTimeout(contactsRenderTimer);
     contactsRenderTimer = setTimeout(() => {
-      if (contactsView) contactsView.setContacts(contactsRoster);
+      if (contactsView) contactsView.setContacts(directoryRoster());   // Q5: groups filtered
     }, 80);
   }
 
@@ -367,7 +408,7 @@
     if (contactsView) contactsView.close();       // onClose nulls the handle
     contactsView = mountContacts({
       host: document.body, bridge, strings, purpose,
-      getRoster: () => contactsRoster,
+      getRoster: () => directoryRoster(),               // Q5: groups filtered (both purposes)
       onClose: () => { contactsView = null; },
     });
   }
@@ -496,7 +537,14 @@
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
         deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
+        dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
         if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
+        // B-3: deleting the LAST outgoing "Request sent" row (M5) can empty the
+        // Requests filter — the chip then hides at count 0 and there's no chip left
+        // to escape the empty view. The row is already out of state.chats
+        // (applyChatRowAction removes it BEFORE onPersist), so the guard sees the
+        // final model; it bails unless the filter is 'requests' and nothing is left.
+        leaveRequestsFilterIfEmpty();
       }
       // 6e.3 pin: applyChatRowAction already toggled chat.pinned — mirror it into
       // the persisted set so the pin survives re-flushes (addChat re-seeds) + restarts.
@@ -604,7 +652,8 @@
     return {
       unread: chats.filter(isUnreadChat).length,
       groups: chats.filter((c) => c.type === 'group' && isUnreadChat(c)).length,
-      requests: (state.requests || []).filter(Boolean).length,
+      // M5: incoming request CARDS + outgoing "Request sent" ROWS share the chip
+      requests: (state.requests || []).filter(Boolean).length + chats.filter(isRequestRow).length,
     };
   }
   function renderChatsNow() {
@@ -616,8 +665,11 @@
   // is active, the chip hides (setChatsHeaderCounts) — so leaving the user on an empty
   // 'requests' view with no chip to escape it. Fall back to 'all' + sync the header chip
   // selection (the chips' own click handler didn't fire on this programmatic switch).
+  function isRequestRow(c) { return !!(c && (c.request || (c.excerpt && c.excerpt.type === 'request'))); }
   function leaveRequestsFilterIfEmpty() {
-    if (state.filter !== 'requests' || (state.requests || []).length) return;
+    if (state.filter !== 'requests'
+      || (state.requests || []).length
+      || (state.chats || []).some(isRequestRow)) return;   // M5: outgoing rows hold the filter open too
     setChatsFilter(list, state, 'all', opts);
     for (const chip of header.querySelectorAll('.c-chip[data-filter]')) {
       setChipSelected(chip, chip.dataset.filter === 'all');
@@ -755,6 +807,10 @@
     const trimmed = (decoded || '').trim();
     const kind = EXCERPT_CANON[trimmed];
     if (kind) return { type: kind, text: trimmed };
+    // M5: outgoing pending contact request → styled "Request sent" row. Carrier
+    // match + DIRECTION guard: only a localSender push (non-empty statusType)
+    // qualifies — see REQUEST_SENT_TEXT above. ('typing' already returned.)
+    if (statusType && trimmed && trimmed === REQUEST_SENT_TEXT) return { type: 'request', text: (window.SL && window.SL.requestSent) || 'Request sent' };
     if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
@@ -777,6 +833,91 @@
     if (draft) return { type: 'draft', text: draft };
     return excerptFromRaw(raw, statusType);
   }
+
+  /* —— Q12: deleted-tail excerpt hints (shared contract with chat.html). Deleting
+   * the LAST message leaves this list stale: the local-delete path never re-pushes
+   * HomePage (SingleChatPage:1150-1159 pushes only the chat WebView;
+   * UIHelpers.deleteMessage:69 fires for REMOTE deletes only, and only while
+   * HomePage is top-of-stack) and C#'s friend.metaData.lastMessage may keep the
+   * deleted message. chat.html writes spixi.exdel.<addr> on a LOCALLY-initiated,
+   * C#-CONFIRMED delete of its tail row — { del: ms ts of the C#-visible
+   * lastMessage, t: ms ts of the new tail or 0, kind }. NO MESSAGE TEXT is
+   * persisted (DECISIONS #254): the shells load from a bare local path (file://)
+   * and mini-apps load from file://<app_entry_point> (MiniAppPage.xaml.cs:58), so
+   * third-party publisher code shares this storage partition — counterpart-authored
+   * text must never be cached here. We fold the hint into the row LIVE via the
+   * storage event (+ focus/visibility fallback — the #238 landtab trio) and on
+   * every addChat, and EXPIRE it when C# pushes a lastMessage timestamp ≠ del (a
+   * new message arrived, or C# corrected itself → its excerpt is authoritative
+   * again). Crosses the #221 wall via same-origin localStorage only — no shared
+   * JS, no bridge. */
+  const EXDEL_PREFIX = 'spixi.exdel.';
+  function getExdelHint(addr) {
+    if (!addr) return null;
+    try {
+      const h = JSON.parse(localStorage.getItem(EXDEL_PREFIX + addr) || 'null');
+      return (h && typeof h === 'object' && h.del) ? h : null;
+    } catch (_) { return null; }
+  }
+  function dropExdelHint(addr) { try { localStorage.removeItem(EXDEL_PREFIX + addr); } catch (_) {} }
+  /** hint → chatlist excerpt. The hint carries only { del, t, kind } — no message
+   *  text is persisted (see the ruling above), so the NON-text kinds map to the
+   *  chatlist grammar and a TEXT tail degrades to an EMPTY excerpt: the row still
+   *  shows the correct new timestamp, and the next real C# push heals the line. */
+  function excerptFromExdel(h) {
+    const sl = window.SL || {};
+    if (h.kind === 'file') return { type: 'file', text: sl.file || 'File' };
+    if (h.kind === 'call') return { type: 'call', text: sl.voiceCall || 'Voice call' };
+    if (h.kind === 'payment') return { type: 'payment', text: sl.payment || 'Payment' };
+    if (h.kind === 'app') return { type: 'app-invite', text: sl.appInvite || 'App invite' };
+    return { type: 'text', text: '' };               // text tail (no text cached) / chat emptied
+  }
+  /** B-7: drop orphan hints. A contact removed NATIVELY never gets another addChat,
+   *  so its hint would never expire (only the row-menu delete sheds one, onPersist).
+   *  At the end of a full flush the chats model is authoritative → any
+   *  spixi.exdel.<addr> with no row is dead metadata. Snapshot the keys first (never
+   *  mutate localStorage while iterating it); fail-soft — nothing here may throw
+   *  during a flush. Also bounds how long hint metadata is retained. */
+  function pruneExdelHints() {
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(EXDEL_PREFIX) === 0) keys.push(k);
+      }
+      if (!keys.length) return;
+      const live = new Set();
+      for (const c of (state.chats || [])) if (c && c.address) live.add(c.address);
+      for (const k of keys) if (!live.has(k.slice(EXDEL_PREFIX.length))) localStorage.removeItem(k);
+    } catch (_) {}
+  }
+  /** Re-apply hints over the live model (storage/focus path). No fresh C# push here,
+   *  so no expiry judgment — addChat owns expiry (it sees the pushed ts). Precedence
+   *  mirrors addChat EXACTLY: draft > reaction > hint > pushed excerpt.
+   *  - draft (CH7) and a live `typing` excerpt outrank the hint. Typing matters: a
+   *    typing event sets shouldRefreshContacts (StreamProcessor:548) → a full flush
+   *    whose addChat carries the UNCHANGED stale lastMessage ts, so the hint has NOT
+   *    expired and would otherwise clobber the typing line (audit B-1).
+   *  - a held #109 handshake row renders as typing too → skip it as well.
+   *  - a CH8 sticky reaction excerpt is NEWER info and wins over the hint (audit B-2). */
+  function applyExdelHints() {
+    let changed = false;
+    for (const c of (state.chats || [])) {
+      if (!c || !c.address) continue;
+      if (c.excerpt && (c.excerpt.type === 'draft' || c.excerpt.type === 'typing')) continue;
+      if (c.handshaking || handshakeHold.has(c.address)) continue;
+      if (reactionExcerpts.has(c.address)) continue;
+      const h = getExdelHint(c.address);
+      if (!h) continue;
+      c.excerpt = excerptFromExdel(h);
+      if (h.t) c.timestamp = h.t;
+      changed = true;
+    }
+    if (changed) scheduleChatsRender();
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(EXDEL_PREFIX) === 0 && e.newValue) applyExdelHints(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) applyExdelHints(); });
+  window.addEventListener('focus', applyExdelHints);
 
   /* —————————————————————————————————————————————————————————————————————————
    * WALLET (tab2). Balance hero + transaction list. C# drives it once the user
@@ -1176,6 +1317,14 @@
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
     addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention) {
+      // Q5: remember group/bot addresses (CH1 kind, 9th arg) for the contacts-
+      // directory filter — BEFORE the tombstone gate, so a session-deleted group
+      // chat still filters out of the directory takeover.
+      if (kind === 'group' || kind === 'bot' || kind === 'True') groupAddrs.add(wallet);
+      // M5: track outgoing pending-request rows — also BEFORE the tombstone gate
+      // (the CONTACT stays pending in the picker even if its row was deleted).
+      const isReqRow = isRequestSentPush(excerpt_msg, type);
+      if (isReqRow) requestAddrs.add(wallet); else requestAddrs.delete(wallet);
       // Deleted this session (CH3 tombstone): a STRUCTURAL flush must keep it gone;
       // a LONE addChat (a real new-message event) RESURRECTS it (they messaged you).
       if (deletedChats.has(wallet)) {
@@ -1211,6 +1360,10 @@
       // clobber an existing row's timestamp on upsert-merge (audit NIT-1). A
       // brand-new row simply has none until the next good push.
       if (t) chat.timestamp = t;
+      // M5: flag the row itself (chatMatchesFilter 'requests' reads it — the
+      // flag survives a draft-masked excerpt; falsy otherwise so upsert-merge
+      // clears a settled request via the fresh object).
+      chat.request = isReqRow;
       // 6e.3: re-seed the persisted pin — a structural flush rebuilds rows from
       // scratch, so the client-only flag would otherwise die on every reflush.
       // Only set when pinned: an undefined key lets upsert-merge keep an existing
@@ -1220,6 +1373,24 @@
       if (n === 0) {
         const st = statusFromType(type);
         if (st) chat.status = st;
+      }
+      // Q12: a confirmed delete of the chat's tail message left C#'s lastMessage
+      // stale. While the pushed timestamp still equals the recorded deleted one,
+      // show the hint's replacement excerpt (+ its timestamp so ordering/time
+      // track the real tail); ANY other pushed timestamp means C# moved on (a
+      // new message, or a corrected lastMessage) → the hint expires for good.
+      // Draft keeps priority; a sticky reaction (below) is newer info and wins.
+      // A LIVE `typing` push also outranks the hint (audit B-1): typing triggers a
+      // full flush (shouldRefreshContacts, StreamProcessor:548) that re-pushes the
+      // UNCHANGED stale lastMessage ts — so the hint hasn't expired and would
+      // otherwise overwrite the "typing…" line. Mirrored in applyExdelHints.
+      const dh = getExdelHint(wallet);
+      if (dh) {
+        if (t && t !== dh.del) dropExdelHint(wallet);
+        else if (chat.excerpt.type !== 'draft' && chat.excerpt.type !== 'typing') {
+          chat.excerpt = excerptFromExdel(dh);
+          if (dh.t) chat.timestamp = dh.t;
+        }
       }
       // CH8: re-apply a sticky reaction excerpt (see reactionExcerpts above);
       // read chats / newer real messages clear it, drafts keep priority.
@@ -1242,6 +1413,15 @@
     // Batch complete: leave flushing mode, render once, re-apply any selection.
     clearChatsDone() {
       chatsFlushing = false;
+      // B-7: the model is authoritative now → drop hints for addresses that no
+      // longer have a row (contact removed natively — no addChat ever expires it).
+      pruneExdelHints();
+      // B-3: an OUTGOING request row can settle on this very re-flush (the peer
+      // accepted → the excerpt is no longer the "request sent" carrier), which can
+      // empty the Requests filter with no chip left to escape it. Run the guard on
+      // the completed model, BEFORE the authoritative render (setChatsFilter does
+      // its own render; renderChatsNow then re-applies the selection highlight).
+      leaveRequestsFilterIfEmpty();
       renderChatsNow();
     },
 
@@ -1442,6 +1622,10 @@
       contactsRoster.push({
         address,
         name: nickname || '',
+        // Q5: the C# default group avatar is a reliable group marker — checked
+        // BEFORE resolveAvatar (which maps sentinels to null); custom-avatar
+        // groups are caught by groupAddrs (CH1 kind via the chats flush).
+        isGroup: avatar === 'img/spixi-group-avatar.png',
         avatar: resolveAvatar(avatar),
         online: online === 'true' || online === 'True',
         // type/pending absent from the HomePage roster (§9) → normal row, no badge

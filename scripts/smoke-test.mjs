@@ -1590,6 +1590,162 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'M16: home connectivity → root title-state; banner reserved for actionable warnings');
 }
 
+console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
+{
+  /* static guards — shell wiring isn't jsdom-loaded; verify source markers. */
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  // Q12 writer (chat side): hint written on a C#-confirmed delete of the tail row,
+  // AFTER the row is removed (order tail = the new last message); bots skipped; and
+  // ONLY for a LOCALLY-initiated delete (C# pushes the IDENTICAL deleteMessage(id)
+  // for a remote msgDelete, which never mutates core → such a hint could never expire).
+  ok(/const EXDEL_PREFIX = 'spixi\.exdel\.';/.test(chat)
+    && /const wasTail = order\.length > 0 && order\[order\.length - 1\] === id;/.test(chat)
+    && /writeExdelHint\(rec, wasTail && localDelete\);/.test(chat)
+    && /if \(!wasTail \|\| !identity\.address \|\| mode\.isBot\) return;/.test(chat),
+    'Q12: chat.html writes the deleted-tail hint (post-removal, tail-only, bots skipped, LOCAL deletes only)');
+  // Q12 local-delete latch (A-1): registered where the delete verb is SENT, consumed
+  // in the deleteMessage bridge handler (the only ack), cleared per peer. NOT latched for
+  // bots (no core delete → no echo) and SELF-EXPIRING (R-4: an id C# never echoes must not
+  // be consumed later by a REMOTE delete of the same id → a hint that could never expire).
+  ok(/const pendingLocalDeletes = new Set\(\);/.test(chat)
+    && /if \(!mode\.isBot\) \{[\s\S]{0,240}?pendingLocalDeletes\.add\(lid\);/.test(chat)
+    && /setTimeout\(\(\) => pendingLocalDeletes\.delete\(lid\), \d+\);/.test(chat)
+    && /bridge\.send\('ixian:contextAction:deleteMessage:' \+ id\);/.test(chat)
+    && /const localDelete = pendingLocalDeletes\.delete\(id\);/.test(chat)
+    && /pendingLocalDeletes\.clear\(\);/.test(chat),
+    'Q12: local-delete latch — the hint writer fires only for deletes THIS shell initiated (remote msgDelete writes none), bot-skipped + self-expiring');
+  // Q12 (A-3/R-5): a robustness-created row carries a wall-clock ts C# can never push →
+  // marked tsSynthetic (writer fails safe); a real C#-pushed ts clears the mark.
+  ok(/fresh\.tsSynthetic = true;/.test(chat)
+    && /if \(ts && rec\.tsSynthetic && ts !== rec\.ts\) rec\.tsSynthetic = false;/.test(chat)
+    && /if \(deletedRec\.tsSynthetic\) return;/.test(chat),
+    'Q12: synthetic-ts rows write no hint (and the mark clears once a real C# ts lands)');
+  // ★ SECURITY (DECISIONS #254): the hint shape is { del, t, kind } — NO message text.
+  // The shells and third-party mini-apps share the file:// localStorage partition, so
+  // counterpart-authored text must never be persisted there. Guard the writer's body.
+  const wxBody = (chat.match(/function writeExdelHint\([\s\S]*?\n  \}/) || [''])[0];
+  ok(wxBody.length > 0
+    && !/\btext\s*:/.test(wxBody)
+    && !/\.slice\(0,\s*\d+\)/.test(wxBody)
+    && /kind: tail \? tail\.kind : '',/.test(wxBody),
+    'Q12/#254: the exdel hint persists { del, t, kind } ONLY — no counterpart message TEXT in the shared file:// storage partition');
+  // Q12 reader (home side): fold-in on addChat with ts-equality expiry + the
+  // #238 live trio (storage event + focus/visibility fallback).
+  ok(/const EXDEL_PREFIX = 'spixi\.exdel\.';/.test(home)
+    && /if \(t && t !== dh\.del\) dropExdelHint\(wallet\);/.test(home)
+    && /e\.key\.indexOf\(EXDEL_PREFIX\) === 0 && e\.newValue\) applyExdelHints\(\)/.test(home)
+    && /window\.addEventListener\('focus', applyExdelHints\)/.test(home),
+    'Q12: home.html folds the hint in (addChat expiry on a different pushed ts + live storage/focus trio)');
+  // ★ #254 reader half: no `.text` is read back — a TEXT tail degrades to an EMPTY
+  // excerpt (row keeps the corrected timestamp; the next real push heals the line).
+  const exBody = (home.match(/function excerptFromExdel\([\s\S]*?\n  \}/) || [''])[0];
+  ok(exBody.length > 0
+    && !/h\.text/.test(exBody)
+    && /return \{ type: 'text', text: '' \};/.test(exBody),
+    'Q12/#254: excerptFromExdel reads { kind } only — a text tail degrades to an empty excerpt (nothing cached to read)');
+  // Q12 precedence (audit B-1/B-2): the hint must not clobber a live typing line
+  // (a typing event re-flushes the UNCHANGED stale lastMessage ts → hint not expired)
+  // nor a CH8 sticky reaction excerpt (newer info).
+  const apBody = (home.match(/function applyExdelHints\([\s\S]*?\n  \}/) || [''])[0];
+  ok(apBody.length > 0
+    && /c\.excerpt\.type === 'draft' \|\| c\.excerpt\.type === 'typing'\)\) continue;/.test(apBody)
+    && /if \(reactionExcerpts\.has\(c\.address\)\) continue;/.test(apBody),
+    'Q12: applyExdelHints yields to draft/typing rows and to a CH8 sticky reaction excerpt (audit B-1/B-2)');
+  // Q12/M5 flush-done path: orphan-hint prune (B-7, a natively removed contact never
+  // gets another addChat to expire its hint) + the Requests-filter leave guard (B-3),
+  // both BEFORE the authoritative render.
+  const doneBody = (home.match(/clearChatsDone\(\) \{[\s\S]*?\n    \},/) || [''])[0];
+  ok(/function pruneExdelHints\(\)/.test(home)
+    && doneBody.length > 0
+    && /pruneExdelHints\(\);/.test(doneBody)
+    && /leaveRequestsFilterIfEmpty\(\);/.test(doneBody)
+    && /renderChatsNow\(\);/.test(doneBody),
+    'Q12/M5: flush-done prunes orphan hints (B-7) + runs the Requests leave guard (B-3) before the authoritative render');
+  // Q12/M5 onPersist delete path: the deleted row sheds its hint, and deleting the
+  // LAST outgoing request row re-runs the leave guard (the chip hides at 0).
+  const persistBody = (home.match(/onPersist: \(action, chat, detail\) => \{[\s\S]*?\n    \},/) || [''])[0];
+  ok(persistBody.length > 0
+    && /dropExdelHint\(chat\.address\);/.test(persistBody)
+    && /leaveRequestsFilterIfEmpty\(\);/.test(persistBody),
+    'Q12/M5: a row delete sheds its exdel hint + re-runs the Requests leave guard (onPersist)');
+  // Q5: the contacts takeover consumes the FILTERED roster at BOTH hand-off
+  // points; groups recognized via CH1 kind (chats model) + the C# avatar sentinel.
+  ok(/contactsView\.setContacts\(directoryRoster\(\)\)/.test(home)
+    && /getRoster: \(\) => directoryRoster\(\)/.test(home)
+    && /groupAddrs\.add\(wallet\)/.test(home)
+    && /isGroup: avatar === 'img\/spixi-group-avatar\.png'/.test(home),
+    'Q5: directory/picker roster filters groups (CH1 kind set + group-avatar sentinel)');
+  // M5 (corrected round 2, Damir F5): the real outgoing-request signal is the
+  // unapproved-state chat-waiting-for-response override (xaml:1273-1279), NOT
+  // index-excerpt-contact-request (Approved-state else — never reaches a row).
+  // Carrier same-line-closed (#248) + DIRECTION guard (statusType non-empty =
+  // localSender marker; the incoming fall-through pushes '').
+  ok(/<span id="sl-waiting-response">\*SL\{chat-waiting-for-response\}<\/span>/.test(home)
+    && !/\*SL\{index-excerpt-contact-request\}/.test(home)
+    && /if \(statusType && trimmed && trimmed === REQUEST_SENT_TEXT\) return \{ type: 'request'/.test(home),
+    'M5: outgoing request = waiting-for-response carrier + direction guard (first-cut carrier removed)');
+  // M5: outgoing rows ride the Requests chip (count + filter + leave-guard) and
+  // light the contacts-picker pending badge via requestAddrs.
+  ok(/const isReqRow = isRequestSentPush\(excerpt_msg, type\);/.test(home)
+    && /chat\.request = isReqRow;/.test(home)
+    && /chats\.filter\(isRequestRow\)\.length/.test(home)
+    && /\(state\.chats \|\| \[\]\)\.some\(isRequestRow\)\) return;/.test(home)
+    && /requestAddrs\.has\(c\.address\) \? Object\.assign\(\{\}, c, \{ pending: true \}\) : c/.test(home),
+    'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker');
+}
+
+console.log('chatlist-item / chats-shell — M5 request grammar');
+{
+  const dom = await load('chats.html');
+  const W = dom.window;
+  const ex = W.Spixi.createExcerpt({ type: 'request', text: 'Request sent' });
+  ok(ex.dataset.type === 'request'
+    && ex.querySelector('.c-excerpt__text').textContent === 'Request sent'
+    && !!ex.querySelector('svg'),
+    'createExcerpt renders the request type with the user-plus glyph (registered — icons.js)');
+  // outgoing request rows match the Requests chip; plain chats don't; the old
+  // 'requests → no chats' short-circuit in orderedChats is gone.
+  ok(W.Spixi.chatMatchesFilter({ request: true }, 'requests') === true
+    && W.Spixi.chatMatchesFilter({ excerpt: { type: 'request', text: 'Request sent' } }, 'requests') === true
+    && W.Spixi.chatMatchesFilter({ excerpt: { type: 'text', text: 'hi' } }, 'requests') === false,
+    'chatMatchesFilter: request rows (flag or excerpt-type) ride the Requests chip');
+  const reqState = {
+    filter: 'requests', query: '',
+    chats: [{ address: 'A1', name: 'Pending Pete', request: true, excerpt: { type: 'request', text: 'Request sent' }, timestamp: 2 },
+            { address: 'A2', name: 'Normal Nora', excerpt: { type: 'text', text: 'yo' }, timestamp: 3 }],
+    requests: [],
+  };
+  const visible = W.Spixi.orderedChats(reqState);
+  ok(visible.length === 1 && visible[0].address === 'A1',
+    'orderedChats surfaces ONLY the outgoing-request row under the Requests filter');
+
+  // What dropping the 'requests' short-circuit actually BUYS: the filter renders BOTH
+  // surfaces at once — the incoming request CARDS and the outgoing "Request sent" ROWS
+  // — each exactly once, with plain chats excluded (no double-render, no leakage).
+  const mixed = {
+    filter: 'requests', query: '',
+    chats: [
+      { address: 'A1', name: 'Pending Pete', request: true, excerpt: { type: 'request', text: 'Request sent' }, timestamp: 2 },
+      { address: 'A2', name: 'Normal Nora', excerpt: { type: 'text', text: 'yo' }, timestamp: 3 },
+    ],
+    requests: [{ address: 'R1', name: 'Incoming Ida', timestamp: 1 }],
+  };
+  const mixedList = W.Spixi.createChatsList(mixed, { strings: {}, rowMenu: false });
+  const cards = mixedList.querySelectorAll('.c-contact-request');
+  const rows = mixedList.querySelectorAll('.c-chatlist-item');
+  ok(cards.length === 1 && rows.length === 1
+    && rows[0].querySelector('.c-excerpt').dataset.type === 'request'
+    && !mixedList.textContent.includes('Normal Nora'),
+    'Requests filter renders ONE incoming card + ONE outgoing request row (no double-render; plain chats excluded)');
+
+  const emptyReq = W.Spixi.createChatsList({ filter: 'requests', query: '', chats: [], requests: [] }, { strings: {}, rowMenu: false });
+  ok(!!emptyReq.querySelector('.c-chats-empty')
+    && emptyReq.querySelector('.c-chats-empty').textContent === 'No pending requests'
+    && !emptyReq.querySelector('.c-chatlist-item') && !emptyReq.querySelector('.c-contact-request'),
+    'Requests filter: the empty state still renders when neither cards nor request rows exist');
+}
+
 console.log('chats.html — contacts flow (Phase 1 #2)');
 {
   const dom = await load('chats.html');

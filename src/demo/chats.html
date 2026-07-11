@@ -91,7 +91,7 @@
   const {
     createButton, createTopbar, createBottomNav, setNavBadge,
     createChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
-    createChatsHeader, attachChatsCollapse, renderChatsList,
+    createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, renderChatsList,
     acceptContactRequest, completeHandshake, setRequestAccepting,
     startTimestampTicker, refreshTimestamps,
     showToast,
@@ -188,6 +188,23 @@
 
   const state = { chats: CHATS, requests: REQUESTS, filter: 'all', query: '' };
   const strings = {};
+  const SL = window.SL || {};
+
+  // Chip counts — mirrors home.html (chatsHeaderCounts): Unread = unread
+  // CONVERSATIONS (muted excluded), Groups = unread groups, Requests = incoming
+  // request CARDS + outgoing "Request sent" ROWS (M5). The Requests chip HIDES
+  // itself at 0 (chats-header.js:51), so the demo must feed counts or M5 has no
+  // surface here. Re-synced on every model change (row-menu delete/accept too).
+  const isUnreadChat = (c) => !c.muted && ((Math.max(0, c.unread || 0) > 0) || !!c.mention);
+  const isRequestRow = (c) => !!(c && (c.request || (c.excerpt && c.excerpt.type === 'request')));
+  function chatsHeaderCounts() {
+    const chats = (state.chats || []).filter(Boolean);
+    return {
+      unread: chats.filter(isUnreadChat).length,
+      groups: chats.filter((c) => c.type === 'group' && isUnreadChat(c)).length,
+      requests: (state.requests || []).filter(Boolean).length + chats.filter(isRequestRow).length,
+    };
+  }
   // capability flags — parkable BE-gated features (#67/§8). Demo defaults pin/mute
   // ON so the swipe is testable; the toolbar "Park pin/mute" button flips them OFF
   // to prove the feature parks (swipe + menu items vanish) until BE ships.
@@ -215,7 +232,10 @@
     onHandshakeBlocked: (c) => showToast({ text: 'Still establishing a secure handshake with ' + (c.name || c.address) + '…', tone: 'info', host: phone }),
     onRequestDecline: (r) => showToast({ text: 'Decline ' + (r.name || r.address) + ' — demo only', tone: 'info', host: phone }),
     onChatInfo: (c) => showToast({ text: 'Chat info: ' + (c.name || c.address) + ' — pane coming later', tone: 'info', host: phone }),
-    onModelChange: (s) => setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)),
+    onModelChange: (s) => {
+      setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats));
+      setChatsHeaderCounts(header, chatsHeaderCounts());   // chip counts never go stale (delete/accept/decline)
+    },
     onPersist: (action) => showToast({ text: action + ' → bridge intent (mock; C# persists when BE ships)', tone: 'info', host: phone }),
   };
 
@@ -225,6 +245,7 @@
 
   const header = createChatsHeader({
     activeFilter: 'all', strings, favorites: caps.favorites,
+    counts: chatsHeaderCounts(),          // seeds the Unread/Groups numbers + reveals the Requests chip
     onFilter: (f) => setChatsFilter(list, state, f, opts),
     onQuery: (q) => setChatsQuery(list, state, q, opts),
   });
@@ -283,9 +304,19 @@
     // for address-less rows.
     let chat = state.chats.find((x) => (c.address ? x.address === c.address : (c.name && x.name === c.name)));
     if (!chat) {
+      // M5: an OUTGOING, not-yet-accepted request is a chat ROW with the shipped
+      // grammar — `request: true` (shell flag) + a 'request' excerpt (user-plus
+      // glyph + toned text). It rides the Requests chip beside the incoming cards.
+      // Only a truly pending contact gets it: the add-contact flow passes
+      // pending:true, the roster carries it per contact, and the profile's Message
+      // action passes pending:false.
+      const pending = !!c.pending;
       chat = {
         name: c.name || '', address: c.address, timestamp: Date.now(), status: 'sent',
-        excerpt: { type: 'text', text: c.pending !== false ? 'Contact request sent — waiting for accept' : '' },
+        request: pending,
+        excerpt: pending
+          ? { type: 'request', text: SL.requestSent || 'Request sent' }
+          : { type: 'text', text: '' },
       };
       state.chats.unshift(chat);
       renderChatsList(list, state, opts);

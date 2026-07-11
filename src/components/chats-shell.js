@@ -10,8 +10,10 @@
  *
  * Model shapes:
  *   chat:    { name, address, online, pinned, muted, favorite, type,
- *              timestamp, status, unread, mention, handshaking,
+ *              timestamp, status, unread, mention, handshaking, request,
  *              excerpt:{type,text,sender} }
+ *              // request = M5: OUR outgoing, not-yet-accepted contact request
+ *              // (shell flag; rides the Requests chip beside the incoming cards)
  *   request: { name, address, avatar, timestamp }   // normalized 'pending' entry
  *   state:   { chats:[], requests:[], filter:'all', query:'' }
  *   filter ∈ 'all' | 'unread' | 'favorites' | 'groups' | 'requests'
@@ -43,7 +45,10 @@ export function chatMatchesFilter(chat, filter) {
     case 'unread': return (chat.unread || 0) > 0 || !!chat.mention;
     case 'favorites': return !!chat.favorite;          // BE-gated (§8) — empty until then
     case 'groups': return chat.type === 'group';
-    case 'requests': return false;                     // requests are not chats
+    // M5: OUTGOING pending-request rows ride the Requests chip beside the
+    // incoming request CARDS (orderedRequests). `chat.request` = shell flag
+    // (raw-based, survives a draft-masked excerpt); excerpt-type = demo/data path.
+    case 'requests': return !!(chat.request || (chat.excerpt && chat.excerpt.type === 'request'));
     case 'all':
     default: return true;
   }
@@ -71,9 +76,10 @@ export function orderedRequests(state) {
 }
 
 /** Visible chats: filtered by chip + query, then pinned-first, then newest-first.
- *  Array#sort is stable (ES2019+), so equal keys keep source order. */
+ *  Array#sort is stable (ES2019+), so equal keys keep source order.
+ *  (M5: no 'requests' short-circuit — chatMatchesFilter admits outgoing
+ *  pending-request ROWS there, beside the incoming cards.) */
 export function orderedChats(state) {
-  if (state.filter === 'requests') return [];
   return (state.chats || [])
     .filter(Boolean)                                    // harden against null entries from a bridge feed
     .filter((c) => chatMatchesFilter(c, state.filter) && chatMatchesQuery(c, state.query))
@@ -88,9 +94,9 @@ export function orderedChats(state) {
 /** Combined All-list order: **pinned chats stay on top**, then pending requests
  *  and unpinned chats **interleave by recency** (newest first). A request sits at
  *  its arrival time (not pinned to the top); an accepted chat (timestamp = now)
- *  slides to the top of the unpinned flow. In the 'requests' filter orderedChats
- *  is empty, so this yields just the requests, newest-first. Returns a flat list
- *  of `{ kind: 'chat' | 'request', item }`. */
+ *  slides to the top of the unpinned flow. In the 'requests' filter this yields
+ *  the incoming request cards + outgoing "Request sent" rows (M5), newest-first.
+ *  Returns a flat list of `{ kind: 'chat' | 'request', item }`. */
 export function orderedTimeline(state) {
   const reqs = orderedRequests(state);
   const chats = orderedChats(state);

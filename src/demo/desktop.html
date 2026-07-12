@@ -769,7 +769,7 @@
           }, 2600);
         }, 900);
       },
-      onDecline: () => { reqRow.remove(); toast('Request declined'); },   // confirm modal is built into the row
+      onDecline: () => { reqRow.remove(); toast('Request declined'); },   // ⑩/#266: single-click, no confirm — the card is spent + dropped
     });
     rowsHost.prepend(reqRow);                          // requests sit at the top (most recent)
   }

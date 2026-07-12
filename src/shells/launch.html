@@ -4,6 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spixi</title>
+<!-- #228 platform type flag (queued for launch at its next rebuild — this batch):
+     desktop OS → compact desktop type/density (tokens.css :root[data-desktop]);
+     set BEFORE first paint, constant across window resize. iPad (Macintosh UA +
+     touch) counts as mobile. -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<style>
+  /* The launch flow is a FIXED-DARK brand surface in BOTH themes (--gradient-
+     launch, lock.html precedent #160): paint a deep dark IMMEDIATELY — launch
+     previously had NO instant-bg at all, so a slow load flashed default-white. */
+  html { background: #13171b; }
+  /* Splash boot moment (Batch B, #256 ⑭) — dark-pinned variant (lock grammar):
+     pulsing brand logo in white over the deep surface, dropped at window load. */
+  .app-boot {
+    position: fixed; inset: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center;
+    background: #13171b; transition: opacity var(--duration-200, 200ms) ease-out;
+    /* never intercept input — see home.html app-boot note (audit B-1). */
+    pointer-events: none;
+  }
+  .app-boot__logo { width: 64px; height: 64px; color: #ffffff; animation: app-boot-pulse 1.4s ease-in-out infinite; }
+  .app-boot__logo svg { width: 100%; height: 100%; display: block; }
+  @keyframes app-boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .app-boot__logo { animation: none; } .app-boot { transition: none; } }
+</style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
@@ -33,9 +57,15 @@
 </style>
 </head>
 <body>
+  <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
+       dropped in signalReady (window load). -->
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
   <div id="launch-root"></div>
 
 <script src="../components/icons.iife.js"></script>
+<!-- Splash boot logo — injected the moment the (small) icon registry is parsed,
+     well before the ~1MB bundle; fail-soft if the registry is missing. -->
+<script>(function(){try{var h=document.getElementById('app-boot-logo');if(h&&window.SpixiIcons&&window.SpixiIcons.icon)h.append(window.SpixiIcons.icon('logo',{size:64}));}catch(e){}})();</script>
 <script src="../demo/strings.iife.js"></script>
 <!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
      load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
@@ -242,8 +272,21 @@
 
   /* —— page ready — fire the page's ready verb on window LOAD (#177 load-timing
    *    invariant): firing during parse races C#'s first push. Restore/retry/tail
-   *    have no C# onload handler, so they send nothing. ——————————————————————— */
-  function signalReady() { if (readyCmd) bridge.send(readyCmd); }
+   *    have no C# onload handler, so they send nothing (the boot cover still
+   *    drops for them — signalReady runs on every view). ————————————————————— */
+  // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
+  // transitionend + timeout fallback (the #29 morph pattern).
+  function dropAppBoot() {
+    var b = document.getElementById('app-boot');
+    if (!b) return;
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce) { b.remove(); return; }
+    b.style.opacity = '0';
+    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+  }
+
+  function signalReady() { dropAppBoot(); if (readyCmd) bridge.send(readyCmd); }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

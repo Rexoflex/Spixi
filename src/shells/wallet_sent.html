@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). Same recipe as every redesigned shell. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<!-- #228 platform type flag: desktop OS → compact desktop type/density (tokens.css
+     :root[data-desktop]); set BEFORE first paint, constant across window resize
+     (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Transaction</title>
+<style>
+  /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme). */
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/avatar.css"><!-- contact avatar in the detail head + the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/badge.css"><!-- status badge (confirmed/pending/failed/unknown) -->
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet chrome for the ghost-lift builder (never visible) -->
+<link rel="stylesheet" href="../styles/components/wallet-shell.css"><!-- .c-txsheet detail-card grammar -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
+<style>
+  /* Production shell: fill the WebView. wallet_sent.html is loaded by the C#
+     WalletSentPage BOTH as a pushed page (narrow: back = ixian:dismiss) and
+     swapped into HomePage.rightContent (wide pane: C# pushes hideBackButton).
+     Layout = the desktop demo's detail grammar (§2.2): full-width title bar,
+     content capped + centered below it, the openTxSheet builder's .c-txsheet
+     as the card (NOT a bottom sheet). */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  #tx-topbar { flex: none; }
+  #tx-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* demo dt-cap grammar: cap + center the detail card (desktop.html:264 / #detail-wallet cap) */
+  .tx-cap { width: 100%; max-width: 560px; margin-inline: auto; }
+  .tx-cap .c-txsheet { padding: var(--spacing-16) var(--spacing-24) var(--spacing-32); }
+  /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
+     parse / before the first C# data burst; the first render swaps it out. */
+  .boot { min-height: 60vh; display: flex; align-items: center; justify-content: center; }
+  .boot__spinner {
+    width: 28px; height: 28px; border-radius: var(--radius-full);
+    border: 3px solid var(--outline-neutral-02);
+    border-top-color: var(--icon-action-default, var(--surface-action-default));
+    animation: boot-spin var(--duration-700, 700ms) linear infinite;
+  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+</style>
+</head>
+<body>
+  <!-- C#-LOCALIZED string carriers (#252 mechanism): generatePage substitutes the
+       star-SL markers with the EXACT "unknown counterparty" strings WalletSentPage
+       pushes as the username (xaml.cs:164/:201), so the shell can locale-proof
+       detect a no-contact tx and show the direction glyph instead of personalizing
+       a gradient avatar from "Unknown Recipient". Browser preview leaves them raw
+       → the reader ignores them (en-us literals below back them up).
+       ⚠ #248: markers must stay same-line-closed. -->
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <span id="sl-unknown-recipient">*SL{wallet-unknown-recipient}</span>
+    <span id="sl-unknown-sender">*SL{wallet-unknown-sender}</span>
+  </div>
+
+  <div id="tx-topbar"></div>
+  <div class="u-scroll" id="tx-scroll"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
+     load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
+     dictionary follows the Settings language pick. ?lang= still overrides (demos/
+     tests); in a plain-browser preview the marker stays un-substituted →
+     SpixiStrings.get() falls back to en-us. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production Transaction-details shell (B3, #256) — the redesigned tx detail
+   * wired to the REAL C# MAUI bridge (native.js in the bundle). Loaded by
+   * WalletSentPage. ZERO C# change, frozen bridge. Spec: docs/wallet-shell-spec.md
+   * §detail + fable-build-brief-missing-bits.md §3 B3.
+   *
+   * Contract (Pages/Wallet/WalletSentPage.xaml.cs — verified):
+   *   C#→JS: clearEntries() — starts every checkTransaction pass; ⚠ ALSO pushed
+   *            alone on a re-poll whose status hasn't changed (:110 precedes the
+   *            :118 early-return) → it resets the BUFFER ONLY, never the rendered
+   *            card (legacy parity: the legacy clearEntries body is empty).
+   *          setReceivedMode() — received tx, precedes addEntry.
+   *          addEntry(address, username, avatar, amount, fiat, time, type,
+   *            confirmed) — ONE counterparty entry (C# breaks after the first;
+   *            multi-recipient is a C#-side TODO). amount/fiat pre-formatted
+   *            UN-grouped; time = pre-formatted human string (verbatim, never
+   *            parsed); type 'send'|'receive'; confirmed 'true'|'false'|
+   *            'unknown'|'error'.
+   *          setData(amount, fee, time, txid, confirmed) — closes the burst →
+   *            the shell renders HERE (one paint per pass). fee = IxiNumber
+   *            string (full precision — NOT #77-truncated: fees are sub-0.01).
+   *          hideBackButton() — pane-hosted (wide: HomePage rightContent); the
+   *            title bar drops its back affordance.
+   *   JS→C#: ixian:onload (ready; C# then runs checkTransaction) ·
+   *          ixian:dismiss (narrow: pops the page) ·
+   *          ixian:viewexplorer (TX-SCOPED explorer URL — ?p=transaction&id=…).
+   *   LIVE STATUS: updateScreen() re-polls until Final → a fresh burst lands on
+   *   every status change; the card re-renders in place (badge/status flips).
+   *
+   * ★ VIEW-ONLY (SECURITY.md): no compose, no signing, no money math beyond
+   *   display grouping. The money path stays C#'s; wallet-send is a later batch.
+   * X1 note: WalletSentPage is NOT in the #217 imageToDataUri wrap set (it was
+   *   "legacy — do at repoint"; the repoint is THIS shell) → the avatar arrives
+   *   as a raw local path: resolves on WinUI (#190), degrades to the gradient
+   *   elsewhere via createAvatar onerror. Wrap ask logged in be-cutover (X1).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    createTopbar, openTxSheet, closeSheet,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme fallback (standard block): only re-derive if the head-top script
+  // somehow didn't run.
+  (function () {
+    if (document.documentElement.dataset.theme) return;
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  const bridge = createNativeBridge();
+  installExecuteUiCommand();
+
+  const scroll = document.getElementById('tx-scroll');
+  const topbarHost = document.getElementById('tx-topbar');
+
+  /* —— title bar: back = ixian:dismiss (narrow); hideBackButton (pane) rebuilds
+   *    it without the back affordance — the pane has no pop to offer. ————————— */
+  function buildTopbar(withBack) {
+    topbarHost.replaceChildren(createTopbar({
+      variant: 'view',
+      title: strings.txDetails || 'Transaction details',
+      backLabel: strings.back || 'Back',
+      onBack: withBack ? () => bridge.send('ixian:dismiss') : null,
+    }));
+  }
+  buildTopbar(true);
+
+  /* —— helpers ——————————————————————————————————————————————————————————————— */
+  // Display grouping only (legacy wallet_sent.html:175 amountWithCommas) — the
+  // detail is the authoritative record, so decimals stay VERBATIM (no 2dp clamp).
+  function amountWithCommas(n) {
+    const parts = String(n).split('.');
+    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
+  }
+  // 'true'→confirmed · 'false'→pending · 'unknown'→unknown · anything else→failed
+  // (mirrors the legacy enum + home.html walletStatus).
+  function statusFrom(confirmed) {
+    const c = String(confirmed || '').toLowerCase();
+    return c === 'true' ? 'confirmed' : c === 'false' ? 'pending' : c === 'unknown' ? 'unknown' : 'failed';
+  }
+  // Counterparty avatar: C# pushes a raw path — normalize Windows separators
+  // (#206 canon); the `img/…` WebView-relative sentinel (spixiavatar.png = "no
+  // avatar stored") degrades to the deterministic gradient like every other
+  // redesigned surface (#206 ⑦).
+  function resolveAvatar(path) {
+    const p = String(path || '').replace(/\\/g, '/');
+    if (!p || p.indexOf('img/') === 0) return null;
+    return p;
+  }
+  // Unknown-counterparty detection (#252 equality carriers): C# sends the
+  // LOCALIZED "Unknown Recipient/Sender" as the username when there is no
+  // friend record — match it so we don't personalize a gradient from it.
+  function carrierText(id) {
+    const el = document.getElementById(id);
+    const t = el ? el.textContent.trim() : '';
+    return (!t || t.indexOf('*SL' + '{') !== -1) ? '' : t;   // raw marker (preview) → unusable
+  }
+  const UNKNOWN_NAMES = [
+    carrierText('sl-unknown-recipient'), carrierText('sl-unknown-sender'),
+    'Unknown Recipient', 'Unknown Sender',   // en-us literals back up the raw-marker preview
+  ].filter(Boolean);
+
+  /* —— buffered model: one render per C# burst (at setData) ————————————————— */
+  const model = { entries: [], received: false, data: null };
+  let rendered = false;
+
+  function buildTx() {
+    const e = model.entries[0] || {};
+    const d = model.data || {};
+    const status = d.status || e.status || 'unknown';
+    const dirIn = model.received || e.direction === 'in';
+    const sign = status === 'failed' ? '' : (dirIn ? '+' : '-');
+    const unknown = !e.name || UNKNOWN_NAMES.indexOf(e.name) !== -1;
+    return {
+      txid: d.txid || '',
+      direction: dirIn ? 'in' : 'out',
+      status,
+      // unknown counterparty → NO name/contact (title stays "Sent"/"Received",
+      // the direction circle carries the identity slot, the address row still
+      // shows the raw address). Data-honest — never a gradient of "Unknown".
+      name: unknown ? '' : e.name,
+      contact: !unknown,
+      address: e.address || '',
+      avatar: unknown ? null : e.avatar,
+      amount: (e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : '',
+      fiat: (e.fiat != null && e.fiat !== '') ? sign + '$' + amountWithCommas(e.fiat) : '',
+      fee: (d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : '',
+      timeText: e.timeText || d.time || '',
+    };
+  }
+
+  /* Detail card = the openTxSheet builder LIFTED out of a ghost sheet (the
+   * desktop demo's §2.2 recipe, desktop.html:1628 — same card, pane host, no
+   * bottom sheet). The ghost never paints: it mounts detached and is dismissed
+   * synchronously; the lifted .c-txsheet is reparented before the overlay's
+   * 400ms removal fallback touches it. Explorer keeps its one-shot latch —
+   * a status re-render re-arms it (sheet parity). */
+  function render() {
+    const tx = buildTx();
+    const ghost = document.createElement('div');
+    const sheet = openTxSheet({
+      tx, host: ghost, strings,
+      // TX-SCOPED explorer (the page's own verb — C# opens ?p=transaction&id=<txid>).
+      onExplorer: () => bridge.send('ixian:viewexplorer'),
+    });
+    const detail = sheet.querySelector('.c-txsheet');
+    closeSheet(sheet);
+    const cap = document.createElement('div');
+    cap.className = 'tx-cap';
+    cap.append(detail);
+    // Re-review MINOR-1: a live status re-render replaces the card in place — if
+    // keyboard focus sits inside the outgoing card it would drop to <body>.
+    // Re-home it onto the same control (class + index) in the fresh card, else
+    // the first focusable there.
+    const active = document.activeElement;
+    let restoreSel = '', restoreIdx = -1;
+    if (active && scroll.contains(active) && active.className) {
+      try {
+        restoreSel = '.' + String(active.className).trim().split(/\s+/).join('.');
+        restoreIdx = Array.prototype.indexOf.call(scroll.querySelectorAll(restoreSel), active);
+      } catch (e) { restoreSel = ''; }
+    }
+    scroll.replaceChildren(cap);
+    if (restoreSel && restoreIdx >= 0) {
+      let next = null;
+      try { next = cap.querySelectorAll(restoreSel)[restoreIdx] || null; } catch (e) {}
+      if (!next) next = cap.querySelector('button, [href], input, [tabindex]:not([tabindex="-1"])');
+      if (next && next.focus) next.focus({ preventScroll: true });
+    }
+    rendered = true;
+  }
+
+  const handlers = {
+    // Q4-③ (#270): the #258 §0 "every shell exposes the call globals" contract is
+    // RETIRED — calls present on the ONE native CallPage; no shell receives call
+    // pushes anymore (the C# broadcasts route to the surface, not to pages).
+
+    // Buffer reset ONLY — never clears the rendered card (C# pushes a lone
+    // clearEntries on every unchanged re-poll; see the contract docblock).
+    clearEntries() { model.entries = []; model.received = false; },
+    setReceivedMode() { model.received = true; },
+    addEntry(address, username, avatar, amount, fiat, time, type, confirmed) {
+      model.entries.push({
+        address: address || '',
+        name: username || '',
+        avatar: resolveAvatar(avatar),
+        amount: amount || '',
+        fiat: fiat || '',
+        timeText: time || '',
+        direction: type === 'receive' ? 'in' : 'out',
+        status: statusFrom(confirmed),
+      });
+    },
+    // Closes every burst → the one render/re-render point (live status flips).
+    setData(amount, fee, time, txid, confirmed) {
+      model.data = {
+        amount: amount || '', fee: fee || '', time: time || '',
+        txid: txid || '', status: statusFrom(confirmed),
+      };
+      render();
+    },
+    // Pane-hosted (wide): drop the back affordance — C# owns the pane lifecycle.
+    hideBackButton() { buildTopbar(false); },
+    // #251 defense: theme re-push lands as a bare global — accept it.
+    setTheme(name) {
+      if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
+    },
+  };
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177). ————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

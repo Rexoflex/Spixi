@@ -1,4 +1,5 @@
-﻿using Microsoft.Maui.Controls;
+﻿using IXICore.Meta;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Spixi;
 using System;
@@ -58,22 +59,45 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:open:"))
             {
-                string file_name = current_url.Substring("ixian:open:".Length);
-                string path = Path.Combine(TransferManager.downloadsPath, file_name);
-                if (File.Exists(path))
+                // Q1-② (#267): traversal guard — the WebView supplies a NAME only;
+                // resolveDownloadPath rejects anything that escapes the Downloads
+                // root (security-review MAJOR, user-reachable since #264/S8).
+                string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:open:");
+                string path = TransferManager.resolveDownloadPath(file_name);
+                if (path != null && File.Exists(path))
                 {
-                    SFileOperations.open(path);
+                    // Q1 review (#266/#267 loop): an in-use / permission-denied file must not
+                    // throw out of the navigation handler.
+                    try
+                    {
+                        SFileOperations.open(path);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("Exception while opening a download: " + ex);
+                    }
                 }
             }
             else if (current_url.StartsWith("ixian:delete:"))
             {
-                string file_name = current_url.Substring("ixian:delete:".Length);
-                string path = Path.Combine(TransferManager.downloadsPath, file_name);
-                if(File.Exists(path))
+                string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:delete:");
+                string path = TransferManager.resolveDownloadPath(file_name);
+                if (path != null && File.Exists(path))
                 {
-                    File.Delete(path);
-                    onLoad();
+                    // Q1 review (#266/#267 loop): a locked / read-only file threw out of the
+                    // navigation handler.
+                    try
+                    {
+                        File.Delete(path);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("Exception while deleting a download: " + ex);
+                    }
                 }
+                // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
+                // failed delete previously left the list stale and silent.
+                onLoad();
             }
             else
             {
@@ -89,9 +113,46 @@ namespace SPIXI
             // Deprecated due to WPF, use onLoad
         }
 
+        // Q1 review (#266/#267 loop): the download file name is PEER-SUPPLIED. onNavigating
+        // decodes the url with HttpUtility.UrlDecode, which is FORM decoding: a literal '+'
+        // becomes a space, and a percent-escaped decoy ("report%2Epdf") decodes onto a
+        // DIFFERENT real file ("report.pdf") — Open/Delete would then act on a file the
+        // confirm dialog never named. Take the name off the RAW url with
+        // Uri.UnescapeDataString (%xx only). Fall back to the decoded url if a platform hands
+        // back an already-normalized url without the raw prefix. The traversal guard
+        // (TransferManager.resolveDownloadPath) still runs on the result, so "..%2f" stays
+        // rejected (fail-closed). Mirrors SettingsPage.downloadNameFromUrl.
+        // ★ CONTRACT (Q1 re-review): the shell percent-encodes the name (downloads.html:
+        // encodeURIComponent) — that is the OTHER half of this fix. Decode EXACTLY ONCE.
+        private static string downloadNameFromUrl(string raw_url, string decoded_url, string prefix)
+        {
+            if (raw_url != null && raw_url.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                try
+                {
+                    return Uri.UnescapeDataString(raw_url.Substring(prefix.Length));
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("Could not unescape a download file name: " + ex);
+                }
+            }
+            return decoded_url.Substring(prefix.Length);
+        }
+
         private void loadFiles()
         {
             Utils.sendUiCommand(this, "clearFiles");
+
+            // Q1 review (#266/#267 loop): Directory.Exists guard — mirrors
+            // SettingsPage.loadDownloads. Nothing in the tree creates the Downloads folder,
+            // so on a device that never completed an incoming transfer EnumerateFiles threw
+            // DirectoryNotFoundException out of OnAppearing (DownloadsPage is the only
+            // downloads path on mobile / an old exe). The shell just shows its empty state.
+            if (!Directory.Exists(TransferManager.downloadsPath))
+            {
+                return;
+            }
 
             foreach (var path in Directory.EnumerateFiles(TransferManager.downloadsPath))
             {
@@ -115,7 +176,11 @@ namespace SPIXI
 
         private void onBack()
         {
-            Navigation.PopModalAsync();
+            // #264 (S8): DownloadsPage is now presented via pushPageLoaded from the
+            // Account hub (overlay/pinned pane) — popPageAsync routes an overlay's
+            // back to closeOverlay and a nav-pushed page to PopAsync. (No modal
+            // presentation remains — both presenter branches use pushPageLoaded.)
+            popPageAsync();
         }
 
         protected override bool OnBackButtonPressed()

@@ -103,19 +103,12 @@
   padding-inline-end: var(--spacing-12);
   transition: box-shadow var(--duration-100) var(--easing-standard);
 }
-/* focus ring lives on the FIELD (audit: input outline:none had no replacement) */
-.c-composer__field:focus-within {
-  box-shadow: inset 0 0 0 var(--outline-width-2) var(--outline-focus);
-}
-/* Q10b (Damir: desktop active state too loud): on desktop the composer is
-   focused almost permanently (Q10a autofocus), so the full 2px accent ring
-   reads as a standing highlight — half the weight there (1px, same focus
-   token: still a perceivable indicator for keyboard users, WCAG 2.4.7).
-   Mobile keeps the 2px ring. DIAL: if 1px is still loud, next stop is a
-   neutral hairline (--outline-neutral-02). */
-:root[data-desktop] .c-composer__field:focus-within {
-  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-focus);
-}
+/* #265 (Damir ⑩, supersedes Q10b): NO focus ring on the composer at all, BOTH
+   platforms — the caret is the focus indicator (Telegram grammar); the filled
+   --surface-input pill still separates the field from the bar. WCAG 2.4.7
+   note (accepted dial): the caret + the OS text-cursor are the visible focus
+   for a text input; every non-text control in the bar keeps its ring. */
+.c-composer__field:focus-within { box-shadow: none; }
 
 .c-composer__attach {
   position: relative; /* hit-area extension below (r2 backlog B6) */

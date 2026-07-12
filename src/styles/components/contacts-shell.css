@@ -164,6 +164,16 @@
   line-height: var(--line-height-body-md);
 }
 
+/* #265: multi-select rule line — says WHY the topbar ✓ is inert below 2 members
+   (the picker's own footer CTA was retired; the confirm lives in the topbar). */
+.c-contacts__minhint {
+  margin: 0 0 var(--spacing-8);
+  padding-inline: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
 /* —— footer CTA (outside the scroll body — always visible) —— */
 .c-contacts__footer {
   flex: none;

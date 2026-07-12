@@ -230,7 +230,15 @@
       }, 650);
     },
     onHandshakeBlocked: (c) => showToast({ text: 'Still establishing a secure handshake with ' + (c.name || c.address) + '…', tone: 'info', host: phone }),
-    onRequestDecline: (r) => showToast({ text: 'Decline ' + (r.name || r.address) + ' — demo only', tone: 'info', host: phone }),
+    // Q1 review (#267 loop): mirror the SHIPPED optimistic drop (home.html
+    // onRequestDecline) — the card goes away. Toasting only left a spent card
+    // sitting in the list, teaching a grammar the app doesn't have.
+    onRequestDecline: (r) => {
+      state.requests = (state.requests || []).filter((x) => x !== r);
+      renderChatsList(list, state, opts);   // re-render → the card is gone
+      opts.onModelChange(state);            // renderChatsList doesn't fire it — keep the chip counts honest
+      showToast({ text: 'Decline ' + (r.name || r.address) + ' — demo only', tone: 'info', host: phone });
+    },
     onChatInfo: (c) => showToast({ text: 'Chat info: ' + (c.name || c.address) + ' — pane coming later', tone: 'info', host: phone }),
     onModelChange: (s) => {
       setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats));

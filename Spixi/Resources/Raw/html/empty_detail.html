@@ -13,6 +13,22 @@
   /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark). */
   html { background: #f9fafb; }
   html[data-theme="dark"] { background: #13171b; }
+  /* Splash boot moment (Batch B, #256 ⑭) — uniform boot grammar. This page is
+     static/inline so the cover drops almost immediately at window load; over a
+     content block that itself centers the same logo it reads as the mark
+     settling in, and it still masks any font/late-style pop. */
+  .app-boot {
+    position: fixed; inset: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb; transition: opacity var(--duration-200, 200ms) ease-out;
+    /* never intercept input — see home.html app-boot note (audit B-1). */
+    pointer-events: none;
+  }
+  html[data-theme="dark"] .app-boot { background: #13171b; }
+  .app-boot__logo { width: 64px; height: 64px; color: var(--icon-accent, #1892ce); animation: app-boot-pulse 1.4s ease-in-out infinite; }
+  .app-boot__logo svg { width: 100%; height: 100%; display: block; }
+  @keyframes app-boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .app-boot__logo { animation: none; } .app-boot { transition: none; } }
 </style>
 <style data-src="../styles/tokens.css">
 /* ==========================================================================
@@ -802,12 +818,17 @@
      a violet-ink 200° base. The 5 layers + alphas are Damir's dials; if he
      converges the lock onto this recipe, retire --gradient-lock into it.
      Raw rgba sanctioned (gradients = code-only tokens). */
+  /* #264 (Damir: "soften like the lock" — the #206⑥ recipe applied to launch):
+     halved blob alphas + hues muted toward grey + wider radial falloff (feathered
+     edges) + compressed base lightness spread. Launch keeps its violet identity;
+     the same four dials as the lock (alphas / extents / stops / base) — Damir
+     art-directs live. Pre-soften values in git history. */
   --gradient-launch:
-    radial-gradient(120% 85% at 50% -25%, rgba(124, 88, 255, 0.50) 0%, rgba(124, 88, 255, 0) 60%),
-    radial-gradient(70% 50% at 90% 16%, rgba(233, 78, 168, 0.15) 0%, rgba(233, 78, 168, 0) 62%),
-    radial-gradient(85% 60% at 6% 84%, rgba(43, 118, 255, 0.28) 0%, rgba(43, 118, 255, 0) 58%),
-    radial-gradient(60% 42% at 86% 98%, rgba(56, 224, 211, 0.12) 0%, rgba(56, 224, 211, 0) 55%),
-    linear-gradient(200deg, #1a1240 0%, #10102e 45%, #05060f 100%);
+    radial-gradient(150% 100% at 50% -25%, rgba(126, 100, 224, 0.25) 0%, rgba(126, 100, 224, 0) 70%),
+    radial-gradient(90% 65% at 90% 16%, rgba(200, 118, 178, 0.08) 0%, rgba(200, 118, 178, 0) 72%),
+    radial-gradient(105% 75% at 6% 84%, rgba(78, 116, 200, 0.14) 0%, rgba(78, 116, 200, 0) 70%),
+    radial-gradient(75% 55% at 86% 98%, rgba(88, 178, 172, 0.06) 0%, rgba(88, 178, 172, 0) 68%),
+    linear-gradient(200deg, #1b163c 0%, #131230 45%, #0b0c1a 100%);
 
   /* chat canvas (Damir 2026-07-03): doodle pattern tile + themed gradient.
      PREMIUM TREATMENT (2026-07-03): pattern renders as a data-URI MASK
@@ -1150,6 +1171,9 @@ img, svg { display: block; max-width: 100%; }
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
+  <!-- Splash boot cover (Batch B) — logo injected in the script below; dropped at
+       window load. -->
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
   <main class="empty">
     <div class="empty__icon" id="empty-icon" aria-hidden="true"></div>
     <h1 class="empty__title t-heading-sm" id="empty-title">*SL{empty-state-title}</h1>
@@ -1292,6 +1316,10 @@ function iconFactory(ICONS) {
       var host = document.getElementById('empty-icon');
       if (host && window.SpixiIcons && window.SpixiIcons.icon) host.append(window.SpixiIcons.icon('logo', { size: 56 }));
     } catch (e) {}
+    try {
+      var boot = document.getElementById('app-boot-logo');
+      if (boot && window.SpixiIcons && window.SpixiIcons.icon) boot.append(window.SpixiIcons.icon('logo', { size: 64 }));
+    } catch (e) {}
   })();
 
   /* #251 (Damir F5: pane stayed DARK after a dark→light theme pick): C# re-themes
@@ -1310,7 +1338,17 @@ function iconFactory(ICONS) {
 
   /* Page ready — window load (#177 timing invariant). EmptyDetail.onLoad is a
    * no-op, but the signal keeps the page on the standard shell lifecycle. */
-  function signalReady() { try { location.href = 'ixian:onload'; } catch (e) {} }
+  // Splash boot cover teardown (Batch B): short fade (reduced motion: instant).
+  function dropAppBoot() {
+    var b = document.getElementById('app-boot');
+    if (!b) return;
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce) { b.remove(); return; }
+    b.style.opacity = '0';
+    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+  }
+  function signalReady() { dropAppBoot(); try { location.href = 'ixian:onload'; } catch (e) {} }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

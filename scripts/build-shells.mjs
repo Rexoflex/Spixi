@@ -52,6 +52,10 @@ const SHELLS = {
   'launch-retry':  { in: 'src/shells/launch.html', out: 'intro_retry.html',   page: 'LaunchRetryPage (retry)',     bootView: 'retry'   },
   'launch-tail':   { in: 'src/shells/launch.html', out: 'onboarding.html',    page: 'OnboardPage (tail)',          bootView: 'tail'    },
   payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
+  // B3 (#256): transaction details — Stage-4a drop-in over the legacy filename.
+  // VIEW-ONLY (no compose/signing — the money path stays C#'s); loaded BOTH as a
+  // pushed page (narrow) and swapped into HomePage.rightContent (wide pane).
+  wallet_sent: { in: 'src/shells/wallet_sent.html', out: 'wallet_sent.html', page: 'WalletSentPage' },
   // Track C (#186+): scan + lock are now dedicated bridge-wired shells (adapters
   // scan-page.js / lock-page.js in the bundle). Drop in over the legacy filenames
   // the C# ScanPage / LockPage already load — ZERO C# change, frozen bridge.
@@ -60,6 +64,9 @@ const SHELLS = {
   // #248: desktop right-pane resting state (EmptyDetail) — replaces the always-dark
   // legacy page that clashed with light mode. Static, *SL{}-localized.
   empty_detail: { in: 'src/shells/empty_detail.html', out: 'empty_detail.html', page: 'EmptyDetail' },
+  // Q4-③ (#270): THE native call surface (ring full-window / in-call top strip),
+  // hosted by the new CallPage — the per-pane call-ui broadcasts are gone.
+  call: { in: 'src/shells/call.html', out: 'call.html', page: 'CallPage' },
   // contacts still lives INSIDE the chats demo (takeover pattern) — needs a
   // dedicated src/shells/ entry (native.js + setRoute), not a demo drop-in.
 };
@@ -69,7 +76,7 @@ const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry'
 
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
   'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors',
-  'empty_detail'];   // bridge-wired shells (real C# data)
+  'empty_detail', 'wallet_sent', 'call'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
 // `launch` alone means the whole launch set (all five drop-in files)
@@ -189,6 +196,35 @@ function shellBundleSymbols(src) {
     ]);
   }
   console.log(`  · bundle preflight OK — ${exposed.size} exports cover every shell reference`);
+
+  /* STRINGS-IIFE PREFLIGHT (Q3 review, #269 loop) — "build-strings-iife BEFORE shells".
+   * The shells inline src/demo/strings.iife.js verbatim, and the DOCUMENT LOCALE is set
+   * there (SpixiStrings.get → setDocLang → document.documentElement.lang), which is what
+   * timestamp.js docLocale() reads for every Intl/toLocale* call. A stale strings IIFE
+   * therefore ships silently: correct translated copy, but en-US weekday/month names and
+   * 12-hour clocks in every locale — the exact class of bug this loop just fixed, and it
+   * fails INVISIBLY (no missing symbol, no console error). Fail loud instead. */
+  const STRINGS_REL = 'src/demo/strings.iife.js';
+  try {
+    const stringsIife = readFileSync(join(root, STRINGS_REL), 'utf8');
+    if (!/setDocLang/.test(stringsIife)) {
+      die([
+        `${STRINGS_REL} is STALE — it does not carry setDocLang (the document-locale side effect).`,
+        '',
+        'The shells inline it verbatim, so the built app would keep <html lang="en"> and render',
+        'en-US dates/times in EVERY locale (timestamp.js docLocale reads documentElement.lang).',
+        'This ships silently: the copy translates, the dates do not.',
+        '',
+        'Fix: node scripts/build-strings-iife.mjs   ← before this script. Nothing was written.',
+      ]);
+    }
+    console.log('  · strings-iife preflight OK — the document-locale side effect is present');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      die([`${STRINGS_REL} is MISSING. Fix: node scripts/build-strings-iife.mjs`, 'Nothing was written.']);
+    }
+    throw e;
+  }
 
   // Soft signal (never fatal): component/bridge source newer than the bundle means
   // the shells would inline stale component CODE even when every symbol resolves.

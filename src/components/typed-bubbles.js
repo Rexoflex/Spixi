@@ -186,7 +186,13 @@ export function createPaymentBubble({
   }
 
   if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
+    // #264 (no-dead-buttons canon, the #214 End-session precedent): Decline renders
+    // ONLY when the host wires a decline path. On the frozen bridge the shell has
+    // no in-chat decline verb — Pay routes to the NATIVE review page (C# signs;
+    // the user can still back out there), so a dead Decline would be a lie.
+    const decline = onDecline
+      ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' })
+      : null;
     const pay = status === 'failed'
       ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
       : status === 'processing'
@@ -194,7 +200,7 @@ export function createPaymentBubble({
         // processing the check goes away and the label says what's happening
         ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
         : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
-    el.append(actionsRow(decline, pay));
+    el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
@@ -333,7 +339,10 @@ export function createCallBubble({
   title = '',              // optional verbatim override — the native bridge sends a
                            // fully-localized call label ("No answer" vs "Missed" vs
                            // "Outgoing"/"Incoming") the shell can't reconstruct from
-                           // the missed flag alone; when present it wins
+                           // the missed flag alone; when present it wins.
+                           // #265: the loud "Tap to call back" sub-button is retired —
+                           // missed calls use the same quiet Call-back link as answered
+                           // ones, and the card hugs its content.
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
@@ -347,6 +356,9 @@ export function createCallBubble({
       : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
     timestamp, 'call', gutter);
   if (missed && !declined) row.dataset.missed = '';
+  // #264 (Damir ③): outcome marker for the file-bubble-style medallion tint —
+  // declined rows previously carried NO marker at all (only data-missed).
+  row.dataset.callOutcome = declined ? 'declined' : missed ? 'missed' : 'ok';
   const head = el.querySelector('.c-tcard__title');
   head.insertAdjacentElement('afterbegin',
     icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
@@ -360,13 +372,16 @@ export function createCallBubble({
       el.append(meta);
     }
   } else if (missed) {
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.className = 'c-tcard__call-back';
-    sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
-    if (cb) sub.addEventListener('click', cb);
-    el.append(sub);
+    // #265 (Damir ⑪): the loud "Tap to call back" sub-button is gone — missed
+    // calls use the SAME quiet Call-back link as answered ones (consistent,
+    // compact). directionLabel meta keeps the context when present.
+    if (directionLabel) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = directionLabel;
+      el.append(meta);
+    }
+    if (onCallBack) el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
   } else {
     // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
     // an answered call with neither label nor duration must not leave an empty div

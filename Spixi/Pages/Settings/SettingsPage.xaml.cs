@@ -72,7 +72,11 @@ namespace SPIXI
             // #243: + backupInline — ixian:backupAccount/backupWallet are forwarded
             // below, so the pane renders Backup as a SUBLEVEL instead of pushing
             // BackupPage over itself.
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline");
+            // Q1-② (#267, S16a): + downloadsInline — the downloads list/open/delete
+            // verbs are dispatched HERE (loadDownloads/openDownload/deleteDownload),
+            // so the pane renders Downloads as a true hub SUBLEVEL instead of the
+            // #265 full-window DownloadsPage takeover. Mobile keeps the takeover.
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline");
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -174,18 +178,85 @@ namespace SPIXI
                 // SettingsPage — logged as be-cutover S15.
                 pushPageLoaded(new BackupPage(), 4000, null, paneMode ? 1 : -1);   // load-then-move (N3)
             }
-            else if (current_url.Contains("ixian:save:"))
+            else if (current_url.Equals("ixian:downloads", StringComparison.Ordinal))
             {
-                string[] split = current_url.Split(new string[] { "ixian:save:" }, StringSplitOptions.None);
-                string nick = split[1];
+                // S8 LANDED (#264) · #265 Damir F5 fix: the col-1 pin covered only the
+                // DETAIL region — the hub stayed tappable and its sublevels rendered
+                // UNDERNEATH the downloads pane ("account unresponsive"). Downloads is
+                // a SEPARATE page (own WebView, data pushed by DownloadsPage), so it
+                // presents as a FULL-WINDOW takeover in both modes — its back reveals
+                // the Account exactly where it was. A true in-pane sublevel needs the
+                // list/open/delete verbs routed through SettingsPage (be-cutover S16,
+                // WITH the traversal guard — the filesystem side stays a BE item).
+                pushPageLoaded(new DownloadsPage());
+            }
+            else if (current_url.Equals("ixian:loadDownloads", StringComparison.Ordinal))
+            {
+                // Q1-② (#267, S16a): the pane's Downloads SUBLEVEL requests the list
+                // into THIS WebView (clearFiles + addFile per file, DownloadsPage
+                // parity). Re-pushed after every deleteDownload so the shell list
+                // converges on the filesystem truth.
+                loadDownloads();
+            }
+            else if (current_url.StartsWith("ixian:openDownload:", StringComparison.Ordinal))
+            {
+                // Named openDownload/deleteDownload (NOT DownloadsPage's open:/delete:)
+                // so a prefix match can never collide with this page's delete-account
+                // family. resolveDownloadPath = the ..-traversal guard (security-review
+                // MAJOR): WebView supplies a NAME; C# resolves + rejects escapes.
+                string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:openDownload:");
+                string path = TransferManager.resolveDownloadPath(file_name);
+                if (path != null && File.Exists(path))
+                {
+                    // Q1 review (#266/#267 loop): an in-use / permission-denied file must not
+                    // throw out of the navigation handler.
+                    try
+                    {
+                        SFileOperations.open(path);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("Exception while opening a download: " + ex);
+                    }
+                }
+            }
+            else if (current_url.StartsWith("ixian:deleteDownload:", StringComparison.Ordinal))
+            {
+                string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:deleteDownload:");
+                string path = TransferManager.resolveDownloadPath(file_name);
+                if (path != null && File.Exists(path))
+                {
+                    // Q1 review (#266/#267 loop): a locked / read-only file threw out of the
+                    // navigation handler.
+                    try
+                    {
+                        File.Delete(path);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("Exception while deleting a download: " + ex);
+                    }
+                }
+                // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
+                // failed delete previously left the shell list stale and silent.
+                loadDownloads();
+            }
+            else if (current_url.StartsWith("ixian:save:", StringComparison.Ordinal))
+            {
+                // Q1 review (#266/#267 loop): StartsWith, not Contains. Contains matched the
+                // literal anywhere in the url — it only failed to swallow a peer-supplied
+                // download name because the download branches happen to sit above it, and a
+                // NICKNAME containing "ixian:save:" sent via ixian:apply: hit this branch
+                // first (self-injection → an unexpected page pop).
+                string nick = current_url.Substring("ixian:save:".Length);
                 onSaveSettings(nick);
             }
-            else if (current_url.Contains("ixian:apply:"))
+            else if (current_url.StartsWith("ixian:apply:", StringComparison.Ordinal))
             {
                 // #242 (S14): persist WITHOUT popping — the Save button stays on the
                 // Account pane; the shell shows the "Saved" morph + toast.
-                string[] split = current_url.Split(new string[] { "ixian:apply:" }, StringSplitOptions.None);
-                onApplySettings(split[1]);
+                // Q1 review (#266/#267 loop): StartsWith, not Contains (see above).
+                onApplySettings(current_url.Substring("ixian:apply:".Length));
             }
             else if (current_url.Equals("ixian:backupAccount", StringComparison.Ordinal))
             {
@@ -444,6 +515,55 @@ namespace SPIXI
         {
             FriendList.deleteEntireHistory();
             displaySpixiAlert(SpixiLocalization._SL("settings-deletedh-title"), SpixiLocalization._SL("settings-deletedh-text"), SpixiLocalization._SL("global-dialog-ok"));
+        }
+
+        // Q1 review (#266/#267 loop): the download file name is PEER-SUPPLIED (TransferManager
+        // composes downloadsPath + transfer.fileName). onNavigating decodes the url with
+        // HttpUtility.UrlDecode, which is FORM decoding: a literal '+' becomes a space, and a
+        // percent-escaped decoy ("report%2Epdf") decodes onto a DIFFERENT real file
+        // ("report.pdf") — Open/Delete would then act on a file the confirm dialog never
+        // named. Take the name off the RAW url with Uri.UnescapeDataString (%xx only). Fall
+        // back to the decoded url if a platform hands back an already-normalized url without
+        // the raw prefix. The traversal guard (TransferManager.resolveDownloadPath) still runs
+        // on the result, so "..%2f" stays rejected (fail-closed).
+        // ★ CONTRACT (Q1 re-review): the shell percent-encodes the name
+        // (settings.html / downloads.html: encodeURIComponent) — that is the OTHER half of
+        // this fix. UnescapeDataString alone only kills the '+' case; the decoy case is
+        // closed only because a literal '%' arrives as '%25' and round-trips exactly.
+        // If the shell ever stops encoding, the decoy is back. Decode EXACTLY ONCE here.
+        private static string downloadNameFromUrl(string raw_url, string decoded_url, string prefix)
+        {
+            if (raw_url != null && raw_url.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                try
+                {
+                    return Uri.UnescapeDataString(raw_url.Substring(prefix.Length));
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("Could not unescape a download file name: " + ex);
+                }
+            }
+            return decoded_url.Substring(prefix.Length);
+        }
+
+        // Q1-② (#267, S16a): push the downloads list into THIS page's WebView —
+        // DownloadsPage.loadFiles parity (name + locale-opaque creation time).
+        // Directory.Exists guard: a fresh install has no Downloads folder yet
+        // (EnumerateFiles would throw) — the shell just shows the empty state.
+        private void loadDownloads()
+        {
+            Utils.sendUiCommand(this, "clearFiles");
+
+            if (!Directory.Exists(TransferManager.downloadsPath))
+            {
+                return;
+            }
+
+            foreach (var path in Directory.EnumerateFiles(TransferManager.downloadsPath))
+            {
+                Utils.sendUiCommand(this, "addFile", Path.GetFileName(path), File.GetCreationTime(path).ToString());
+            }
         }
 
         public void onDeleteDownloads()

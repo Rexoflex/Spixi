@@ -25,8 +25,7 @@
 <link rel="stylesheet" href="../styles/components/contacts-shell.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. contact_new.html is loaded by the C#
      ContactNewPage (PUSHED, not a home tab) — the c-contacts-add panel provides
@@ -91,7 +90,6 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createAddContact, setAddContactAddress,
-    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -156,9 +154,7 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
-    // Batch A: ring overlay + callbar (no local roster → truncated address +
-    // the C# pre-composed caller line).
-    ...attachCallUi({ bridge, strings }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     // constructor preset (ContactNewPage(wal_id)) + QR-scan result → prefill +
     // re-run live validation (setAddContactAddress no-ops during an in-flight send).
     setAddress(address) { setAddContactAddress(addEl, address || ''); },

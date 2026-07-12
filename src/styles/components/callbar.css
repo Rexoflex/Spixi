@@ -20,6 +20,20 @@
 }
 .c-callbar[data-open] { transform: translateY(0); }
 
+/* #264 desktop: a full-width strip across a wide window reads like a system
+   alert — cap + center it as a floating pill under the top edge. Same DOM,
+   same z, presentation only (C18 delivery gaps unchanged). */
+:root[data-desktop] .c-callbar {
+  left: 50%;
+  right: auto;
+  top: var(--spacing-8);
+  width: min(560px, calc(100% - 2 * var(--spacing-16)));
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  transform: translate(-50%, calc(-100% - var(--spacing-8)));
+}
+:root[data-desktop] .c-callbar[data-open] { transform: translate(-50%, 0); }
+
 .c-callbar__main {
   flex: 1;
   min-width: 0;

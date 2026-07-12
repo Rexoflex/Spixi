@@ -192,6 +192,9 @@ export function attachChatRowMenu(row, opts = {}) {
   row.addEventListener('pointerdown', (e) => {
     fired = false;                              // any new gesture resets suppression (audit r4)
     if (e.button !== 0) return;                 // right button → contextmenu path
+    // #265 (Damir ①): long-press = TOUCH-only; a held MOUSE button never pops a
+    // menu on desktop (right-click does). Touch-screen desktops keep it (MINOR-7).
+    if (document.documentElement.hasAttribute('data-desktop') && e.pointerType !== 'touch') return;
     startX = e.clientX; startY = e.clientY;
     cancel();
     timer = setTimeout(() => {

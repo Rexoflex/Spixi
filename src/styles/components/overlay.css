@@ -89,3 +89,69 @@
   margin-block-start: var(--spacing-24);
 }
 .c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+
+/* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
+   Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three
+   surfaces stay contextual (the demo grammar, desktop.html:205-237/:302-305/
+   :320-328, Damir-approved 2026-07-06c/d): the bot channel selector (chat.html's
+   hand-rolled top-anchored panel — NOT a c-sheet, already matches), right-click
+   context menus ([data-dt-anchor="menu"], positioned by desktop-anchors.js at the
+   pointer/source row) and the composer ⊕ attach grid ([data-dt-anchor="up"],
+   popover above the trigger). PRESENTATION-ONLY: the #56 stack/host/dismissal
+   grammar, the #205 a11y wiring and the money sheet's JS-side locks
+   (lightDismiss/escDismiss:false) are untouched. Modals need no change. */
+:root[data-desktop] .c-sheet {
+  left: 50%; right: auto; top: 50%; bottom: auto;
+  width: min(480px, 92%);
+  max-height: 76%;
+  overflow-y: auto;
+  border-radius: var(--radius-24);
+  /* the top 8px was the drag-handle's seat — a dialog title needs real air */
+  padding: var(--spacing-24);
+  padding-bottom: var(--spacing-24);   /* drop the mobile safe-area pad */
+  transform: translate(-50%, calc(-50% + var(--spacing-16)));
+  opacity: 0;
+  transition: transform var(--duration-200) var(--easing-accelerate),
+              opacity var(--duration-200) var(--easing-accelerate);
+}
+:root[data-desktop] .c-sheet[data-open] {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition-timing-function: var(--easing-decelerate);
+}
+:root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
+/* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
+   nothing can visually "arrive from" anywhere (06d). Inline left/top/bottom/
+   width are set by desktop-anchors.js (or a shell) at open. */
+:root[data-desktop] .c-sheet[data-dt-anchor] {
+  right: auto; bottom: auto; margin: 0;
+  min-width: 320px;
+  border-radius: 0 0 var(--radius-16) var(--radius-16);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-16);  /* dropdowns stay tighter than dialogs */
+  transform: none;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+  /* Q2 review (#268 loop): with the wash gone (below), elevation was the ONLY
+     separation — and in LIGHT mode --surface-menu == --surface-screen (both
+     neutral-10), so a white dropdown over the white chats list read as loose
+     text. A hairline restores the edge; dark mode never needed it (menu-700 on
+     screen-900). Art dial: drop the border and re-dial the elevation instead. */
+  border: 1px solid var(--outline-neutral-03);
+}
+:root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
+/* right-click context menu: rounded on all corners, source row highlighted */
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+:root[data-desktop] [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+/* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
+:root[data-desktop] .c-sheet[data-dt-anchor="up"] {
+  right: auto; top: auto; margin: 0;
+  border-radius: var(--radius-16);
+  transform: none;
+}
+:root[data-desktop] .c-sheet[data-dt-anchor="up"][data-open] { transform: none; }
+/* #268 (Damir 2026-07-12): anchored CONTEXTUAL menus (right-click dropdown +
+   composer ⊕ popover) get NO backdrop wash on desktop — the menu + source-row
+   highlight are the affordance; a full-viewport dim reads modal. desktop-anchors.js
+   tags the sheet's own scrim [data-dt-clear]; the ELEMENT stays (outside-click
+   dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
+   Centered sheets-as-dialogs and modals keep their wash. */
+:root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }

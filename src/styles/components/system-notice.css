@@ -1,6 +1,7 @@
-/* c-sysnotice — secure-chat notice (#86/#91, restyled round 6: Damir wanted
-   it sexier). Success-inverse card + solid success medallion — reads
-   "protected", distinct from every bubble surface on the canvas. */
+/* c-sysnotice — secure-chat notice (#86/#91; recolored #264, Damir spec:
+   "background neutral-02 · border action default · link action-default ·
+   icon background accent"). Neutral card + action border + accent medallion —
+   still distinct from every bubble surface on the canvas. */
 
 .c-sysnotice {
   display: flex;
@@ -15,8 +16,8 @@
   max-width: min(85%, calc(var(--layout-bubble-max) + 40px));
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-12);
   border-radius: var(--radius-16);
-  border: var(--outline-width-1) solid var(--outline-success-inverse);
-  background: var(--surface-success-inverse);
+  /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
+  background: var(--surface-neutral-02);
   box-shadow: var(--elevation-1);
   text-align: center;
 }
@@ -27,7 +28,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-success);
+  background: var(--surface-accent);
   color: var(--icon-neutral-on-action); /* badge solid-ink convention (#54) */
   margin-bottom: var(--spacing-4);
 }
@@ -51,7 +52,7 @@
   font: inherit;
   font-weight: var(--font-weight-semibold);
   text-decoration: underline;
-  color: var(--text-success);
+  color: var(--text-action-default);   /* #264 Damir spec (was text-success) */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }

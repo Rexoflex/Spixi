@@ -28,10 +28,41 @@ export function html5QrcodeCamera(win) {
     start(feedEl, onText, ctrl) {
       if (!feedEl.id) feedEl.id = 'spixi-scan-feed'; // Html5Qrcode mounts by element id
       instance = new w.Html5Qrcode(feedEl.id, { formatsToSupport: [0] }); // 0 = QR_CODE
-      instance
-        .start({ facingMode: 'environment' }, { fps: 10 }, (decodedText) => onText(decodedText))
-        .then(() => ctrl.done())
-        .catch(() => ctrl.fail());               // permission denied / no camera
+      const inst = instance;
+      const go = (source) => inst.start(source, { fps: 10 }, (decodedText) => onText(decodedText));
+      // #263 (Damir F5: desktop "Allow" → BLACK feed): a bare
+      // { facingMode: 'environment' } on a LAPTOP can rank a virtual/IR/depth
+      // device first (Windows Hello etc.) — permission succeeds, the stream
+      // renders black. On desktop ENUMERATE and pick the first real-looking
+      // camera by deviceId (getCameras() itself raises the permission prompt);
+      // fall back to facingMode 'user' (laptop webcams are user-facing).
+      // Mobile keeps environment-first with a user fallback (front-only
+      // devices). Every failure now logs the REAL error (was swallowed —
+      // F12-diagnosable if a black feed persists).
+      const desktop = (w.document || document).documentElement.hasAttribute('data-desktop');
+      const fail = (label) => (err) => {
+        try { console.error('scan camera start failed (' + label + ')', err); } catch (e2) { /* console gone */ }
+        ctrl.fail();
+      };
+      if (desktop) {
+        w.Html5Qrcode.getCameras()
+          .then((cams) => {
+            const real = (cams || []).filter((c) => !/ir camera|infrared|depth|virtual/i.test(c.label || ''));
+            const pick = real[0] || (cams || [])[0];
+            return go(pick ? { deviceId: { exact: pick.id } } : { facingMode: 'user' });
+          })
+          .then(() => ctrl.done())
+          .catch((e1) => {
+            // enumerate/deviceId path failed → last-resort plain user-facing ask
+            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('desktop user-facing fallback; first error: ' + e1));
+          });
+      } else {
+        go({ facingMode: 'environment' })
+          .then(() => ctrl.done())
+          .catch((e1) => {
+            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('mobile user-facing fallback; first error: ' + e1));
+          });
+      }
     },
     stop() {
       const inst = instance;

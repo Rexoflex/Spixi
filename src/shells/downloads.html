@@ -24,12 +24,11 @@
 <link rel="stylesheet" href="../styles/components/search-field.css">
 <link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- shared row/group/section grammar -->
 <link rel="stylesheet" href="../styles/components/settings-app.css">
-<link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. downloads.html is loaded by the C#
-     DownloadsPage (presented MODALLY — back = PopModalAsync). createSettingsDownloads
+     DownloadsPage (#264/S8: presented via pushPageLoaded from the Account hub —
+     desktop: detail-column pane · mobile: takeover). createSettingsDownloads
      provides its own topbar (variant 'view') with a back button. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
@@ -73,7 +72,7 @@
    *          a LOCALE-OPAQUE string → displayed verbatim, never parsed.
    *          NOTE: OnAppearing calls onLoad() directly, so pushes can arrive
    *          before ixian:onload.
-   *   JS→C#: ixian:onload · ixian:back (PopModalAsync) · ixian:open:<name>
+   *   JS→C#: ixian:onload · ixian:back (popPageAsync, #264) · ixian:open:<name>
    *          (fire-and-forget; C# opens/previews via the OS) · ixian:delete:<name>
    *          (C# deletes then re-pushes the whole list) · ixian:deleted (clear all).
    *
@@ -83,7 +82,6 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsDownloads, setDownloads,
-    attachCallUi,   // Batch A: live call UI — this page receives the call state at its own OnAppearing/present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -112,8 +110,12 @@
   const dlEl = createSettingsDownloads({
     files: [], host: document.body, strings,
     onBack: () => bridge.send('ixian:back'),
-    onOpenFile: (name) => bridge.send('ixian:open:' + name),          // fire-and-forget
-    onDeleteFile: (name, ctrl) => { bridge.send('ixian:delete:' + name); ctrl.done(); }, // C# re-pushes the list
+    // Q1 review (#267 loop, MAJOR — same fix as the settings.html sublevel): the name
+    // is PEER-SUPPLIED and rides an URL → encode it. Unencoded, a decoy named
+    // `invoice%2Epdf` survives canonicalization and C#'s UnescapeDataString resolves it
+    // onto `invoice.pdf` — a wrong-file open, and a wrong-file DELETE. `%25` round-trips.
+    onOpenFile: (name) => bridge.send('ixian:open:' + encodeURIComponent(name)),          // fire-and-forget
+    onDeleteFile: (name, ctrl) => { bridge.send('ixian:delete:' + encodeURIComponent(name)); ctrl.done(); }, // C# re-pushes the list
     // NOTE: no onClearAll — DownloadsPage has NO bulk-delete verb (`ixian:deleted`
     // is a SettingsPage verb, dead here → a silent no-op destructive button). Omit
     // the row until the §5 SettingsPage-absorb repoint gives downloads that verb.
@@ -131,10 +133,7 @@
   }
 
   const handlers = {
-    // Batch A: ring overlay + callbar (addCallAppRequest/clearAppRequests/
-    // displayCallBar/hideCallBar) — no local roster → truncated address + the
-    // C# pre-composed caller line.
-    ...attachCallUi({ bridge, strings }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     clearFiles() { buf = []; settle(); },
     addFile(name, ctime) {
       if (buf === null) buf = [];

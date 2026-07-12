@@ -5,7 +5,7 @@
  * the tx-detail BOTTOM SHEET (Damir) and the missing-tx explainer sheet.
  *
  * Model tx: { txid, direction:'in'|'out', status:'confirmed'|'pending'|'failed'|'unknown',
- *             name, contact?, address?, timestamp, amount, fiat, fee? }
+ *             name, contact?, address?, avatar?, timestamp, amount, fiat, fee? }
  *   status mirrors the legacy confirmation enum (true→confirmed / false→pending /
  *   error→failed / unknown). amount/fiat/fee arrive PRE-FORMATTED (#55/#77); rows
  *   render only when the field is present (data-honest — addPaymentActivity carries
@@ -20,6 +20,9 @@
  * opts.onExplorer(txOrNull). Naming follows the legacy lang keys ("Explorer").
  *
  * createWalletTxList(state, opts) / renderWalletTxList(listEl, state, opts)
+ *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
+ *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
+ *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
@@ -88,7 +91,13 @@ export function renderWalletTxList(listEl, state, opts = {}) {
   for (const tx of txs) {
     listEl.append(createTxItem({
       ...tx, strings,
-      onClick: () => openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
+      // B3 (#256): opts.onTx routes a row tap to the host (production: the
+      // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
+      // page/pane). A txid-less row keeps the in-page sheet — the detail page is
+      // keyed by txid. Default (demos): the tx-detail bottom sheet, unchanged.
+      onClick: () => (opts.onTx && tx.txid)
+        ? opts.onTx(tx)
+        : openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
     }));
   }
   if (!txs.length) listEl.append(walletEmpty(state, strings));
@@ -323,7 +332,10 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
   const head = document.createElement('div');
   head.className = 'c-txsheet__head';
   if (isContact) {
-    head.append(createAvatar({ name: tx.name, address: tx.address, size: 48 }));
+    // B3: thread a real avatar when the bridge provides one (WalletSentPage
+    // addEntry carries the counterparty avatar path/data-URI; #204/X1 family —
+    // createAvatar's onerror degrades to the deterministic gradient).
+    head.append(createAvatar({ name: tx.name, address: tx.address, src: tx.avatar || null, size: 48 }));
   } else {
     const dir = document.createElement('span');
     dir.className = 'c-txsheet__dir';

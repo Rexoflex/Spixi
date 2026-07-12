@@ -16,6 +16,20 @@
      there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
   html { background: #f9fafb; }
   html[data-theme="dark"] { background: #13171b; }
+  /* Splash boot moment (Batch B, #256 ⑭) — home.html grammar: pulsing brand
+     logo over the instant-bg for the bundle-parse gap, dropped at window load. */
+  .app-boot {
+    position: fixed; inset: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb; transition: opacity var(--duration-200, 200ms) ease-out;
+    /* never intercept input — see home.html app-boot note (audit B-1). */
+    pointer-events: none;
+  }
+  html[data-theme="dark"] .app-boot { background: #13171b; }
+  .app-boot__logo { width: 64px; height: 64px; color: var(--icon-accent, #1892ce); animation: app-boot-pulse 1.4s ease-in-out infinite; }
+  .app-boot__logo svg { width: 100%; height: 100%; display: block; }
+  @keyframes app-boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .app-boot__logo { animation: none; } .app-boot { transition: none; } }
 </style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -30,8 +44,7 @@
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <style>
@@ -99,10 +112,16 @@
 </style>
 </head>
 <body>
+  <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
+       dropped in signalReady (window load). -->
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
   <div id="settings-root"></div>
   <div id="settings-nav"></div>
 
 <script src="../components/icons.iife.js"></script>
+<!-- Splash boot logo — injected the moment the (small) icon registry is parsed,
+     well before the ~1MB bundle; fail-soft if the registry is missing. -->
+<script>(function(){try{var h=document.getElementById('app-boot-logo');if(h&&window.SpixiIcons&&window.SpixiIcons.icon)h.append(window.SpixiIcons.icon('logo',{size:64}));}catch(e){}})();</script>
 <script src="../demo/strings.iife.js"></script>
 <!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
      load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
@@ -137,10 +156,10 @@
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
     createSettingsContributors, createSettingsBackup,
+    createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, showToast,
-    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
@@ -160,6 +179,32 @@
    * → changing ONLY the photo never showed Save. Track the pick explicitly: set
    * on ixian:avatar, consumed by the NEXT loadAvatar push, cleared on remove. */
   let avatarPickPending = false;
+  // Q1-② (#267): the mounted Downloads sublevel (pane-only; null otherwise).
+  // clearFiles/addFile bursts land on whichever instance is current.
+  let downloadsEl = null;
+  let dlBuf = null, dlTimer = 0;
+  function dlSettle() {
+    clearTimeout(dlTimer);
+    dlTimer = setTimeout(() => {
+      dlTimer = 0;
+      // Q1 review (#267 loop): the burst can settle AFTER the user left the
+      // sublevel (a late C# push, or a push that raced the leave) — renderLayout
+      // has already replaced the children, so downloadsEl is DETACHED. Painting
+      // into it is a no-op that only retains a dead node; bail and release.
+      if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
+      if (dlBuf !== null) { setDownloads(downloadsEl, dlBuf); dlBuf = null; }
+    }, 80);
+  }
+  /* Q1 review (#267 loop): leaving the Downloads sublevel RELEASES it. renderLayout
+   * replaces the detail/root children, so a retained downloadsEl is a detached node
+   * plus a pending settle timer for a screen the user is no longer on. Called on
+   * every render that isn't 'downloads' (incl. showHub); re-entry is IDENTICAL —
+   * buildScreen('downloads') re-assigns downloadsEl and re-emits ixian:loadDownloads,
+   * whose clearFiles re-seeds the buffer. No verb changes. */
+  function releaseDownloads() {
+    clearTimeout(dlTimer); dlTimer = 0;
+    downloadsEl = null; dlBuf = null;
+  }
   const strings = window.SL || {};
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
   // SPIXI_ENV seeds it if the generation step injects one.
@@ -284,7 +329,10 @@
    * corrupted value can't blow up bubble text. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale' };
   function readChatPrefs() {
-    let pattern = 0.5, textScale = 1;   // #76 locked default · scale M
+    // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
+    // mobile Standard (0.5, the #76 locked value). Mirrors chat.html's pre-paint
+    // boot read so the Chat-appearance radio pre-selects what the chat shows.
+    let pattern = document.documentElement.hasAttribute('data-desktop') ? 0 : 0.5, textScale = 1;   // · scale M
     try {
       const p = parseFloat(localStorage.getItem(CHAT_PREFS.pattern));
       if (!isNaN(p)) pattern = Math.min(1, Math.max(0, p));
@@ -380,6 +428,11 @@
 
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    // Q1 review (#267 loop): every render that isn't the Downloads sublevel drops
+    // the mounted screen — the children are about to be replaced (both branches),
+    // so keeping downloadsEl/dlBuf/dlTimer alive would retain a detached node and
+    // let the 80ms settle paint into it. Re-entry rebuilds + re-requests the list.
+    if (currentView !== 'downloads') releaseDownloads();
     if (!hubEl) { hubEl = buildHub(); syncSave(); }
     if (paneMode) {
       if (hubEl.parentNode !== masterWrap) masterWrap.replaceChildren(hubEl);
@@ -403,12 +456,24 @@
       lockEnabled: state.lockEnabled,
       backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
       version: appVersion,         // S4: setVersion push → hub Version row (spec §8-3)
-      // Gates: downloads/dev/change-password + notifications/privacy/security/
-      // payment rows stay OFF (no SettingsPage verb — be-cutover S-series).
+      // Gates: dev/change-password + notifications/privacy/security/payment rows
+      // stay OFF (no SettingsPage verb — be-cutover S-series).
       // Contributors UN-GATED (#240): the screen is STATIC component data — the
       // S10 open-verb was only ever needed to reach the separate ContributorsPage,
       // which an in-shell view doesn't touch.
-      capabilities: { contributors: true },
+      // Downloads UN-GATED (#264, S8 LANDED): SettingsPage now dispatches
+      // ixian:downloads → the redesigned DownloadsPage/downloads.html shell,
+      // presented like Backup (pane: pinned to the detail column; else takeover).
+      capabilities: { contributors: true, downloads: true },
+      // Q1-② (#267, S16 option a): in the PANE, Downloads is a true in-hub
+      // SUBLEVEL — the list/open/delete verbs are routed through SettingsPage
+      // (cap 'downloadsInline'), no second WebView, no pane-stacking (the #264
+      // col-1 pin left the hub tappable underneath — the bug Damir reported).
+      // Mobile (and an old exe) keeps the DownloadsPage takeover via the verb.
+      onDownloads: () => {
+        if (paneMode && bridge.cap('downloadsInline')) { showDownloads(); return; }
+        bridge.send('ixian:downloads');
+      },
       host: document.body,
       strings,
       // Mobile: standalone pushed page → topbar back. Desktop (Damir F5 r2): NO
@@ -556,6 +621,7 @@
   function showTheme() { currentView = 'theme'; renderLayout(); }          // #242/#243: pane-mode sublevels (hub routes them)
   function showLanguage() { currentView = 'language'; renderLayout(); }
   function showBackup() { currentView = 'backup'; renderLayout(); }        // #243: pane + backupInline cap only
+  function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267): pane + downloadsInline cap only
 
   // #242: detail-screen chrome for the inline pickers — same view topbar + body
   // grammar as the component screens; back = showHub (split: empties the detail).
@@ -655,6 +721,31 @@
         onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
         strings,
       });
+      // Q1-② (#267, S16a): Downloads as a pane sublevel — the SAME
+      // c-settings-downloads screen the standalone downloads.html shell mounts,
+      // fed by SettingsPage's OWN clearFiles/addFile pushes (verb ixian:loadDownloads;
+      // per-file open/delete = ixian:openDownload:/deleteDownload: — renamed from
+      // DownloadsPage's open:/delete: so they can't collide with SettingsPage's
+      // delete-account family; BOTH hosts now run the C# traversal guard).
+      // File names are UNTRUSTED → the component renders textContent only.
+      case 'downloads': {
+        downloadsEl = createSettingsDownloads({
+          files: [], host: document.body, strings,
+          onBack: showHub,
+          // Q1 review (#267 loop, MAJOR): the name is PEER-SUPPLIED (TransferManager
+          // writes transfer.fileName verbatim) and rides an URL — it MUST be encoded.
+          // Unencoded, a decoy file literally named `invoice%2Epdf` survives Chromium's
+          // canonicalization as a valid-looking escape and C#'s UnescapeDataString
+          // resolves it onto `invoice.pdf` — a wrong-file open, and a wrong-file DELETE.
+          // encodeURIComponent → `%25` round-trips exactly (C# unescapes ONCE).
+          onOpenFile: (name) => bridge.send('ixian:openDownload:' + encodeURIComponent(name)),   // fire-and-forget
+          onDeleteFile: (name, ctrl) => { bridge.send('ixian:deleteDownload:' + encodeURIComponent(name)); ctrl.done(); },  // C# re-pushes the list
+          // no onClearAll: same #264 audit rationale as downloads.html — the only
+          // bulk verb (ixian:deleted) lives on the DANGER screen with its confirm.
+        });
+        bridge.send('ixian:loadDownloads');   // request the list into THIS WebView
+        return downloadsEl;
+      }
     }
     // unknown view (unreachable — all setters are controlled): degrade safely.
     // NEVER hand hubEl to the detail region (it would steal it from the master).
@@ -703,9 +794,7 @@
    * ixian:avatar picker. All coalesce into one hub rebuild.
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
-    // Batch A: ring overlay + callbar (no roster here → truncated address + the
-    // C# pre-composed caller line).
-    ...attachCallUi({ bridge, strings }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
 
     // setNickname(nick) — SettingsPage.onLoad:43
     setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
@@ -810,6 +899,18 @@
       });
     },
 
+    // Q1-② (#267): downloads list pushed by SettingsPage itself (ixian:loadDownloads
+    // → clearFiles + addFile per file; re-pushed after a delete). Same settle-buffer
+    // as downloads.html — one EvaluateJavaScriptAsync frame per file, so buffer
+    // between the clear and an 80ms settle so a partial list never paints.
+    // ctime is a LOCALE-OPAQUE DateTime.ToString() → displayed verbatim, never parsed.
+    clearFiles() { dlBuf = []; dlSettle(); },
+    addFile(name, ctime) {
+      if (dlBuf === null) dlBuf = [];
+      dlBuf.push({ name: name || '', time: ctime || '' });
+      dlSettle();
+    },
+
     // onBack() — hardware back, routed by HomePage while this page is an overlay
     // (#240; SettingsPage.OnBackButtonPressed when pushed). In any screen (danger /
     // about / how-to / …) back returns to the hub (split: empties the detail);
@@ -858,7 +959,19 @@
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push, arriving empty until
    *    a manual refresh. ———————————————————————————————————————————————————————— */
-  function signalReady() { bridge.ready(); }
+  // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
+  // transitionend + timeout fallback (the #29 morph pattern).
+  function dropAppBoot() {
+    var b = document.getElementById('app-boot');
+    if (!b) return;
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce) { b.remove(); return; }
+    b.style.opacity = '0';
+    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+  }
+
+  function signalReady() { dropAppBoot(); bridge.ready(); }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

@@ -39,6 +39,19 @@
   gap: var(--spacing-16);
 }
 .c-lock__spacer { flex: 0.7 1 0; min-height: var(--spacing-16); }
+/* #264 (Q14, Damir: "lock overlaps at the smallest size"): at short viewports
+   (desktop min-window 384px wide can be SHORT too, #231c) the fixed zone
+   ratios ran the brand into the form. Below 560px height: the whole surface
+   SCROLLS instead of squeezing (flex zones stop absorbing), the brand block
+   compresses (smaller glow, tighter gaps) and nothing can overlap. */
+@media (max-height: 560px) {
+  .c-lock { overflow-y: auto; justify-content: flex-start; }
+  .c-lock__brand { flex: none; padding-block: var(--spacing-16); gap: var(--spacing-8); }
+  .c-lock__brand svg { width: 40px; height: 40px; }
+  .c-lock__logo { margin-bottom: 0; }
+  .c-lock__spacer { flex: none; min-height: var(--spacing-8); }
+  .c-lock__form { margin-top: var(--spacing-8); }
+}
 .c-lock__tail {
   flex: none;
   width: 100%;

@@ -196,12 +196,41 @@ function renderPickerList(st) {
   list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
+function pickerNext(st) {
+  if (!st.opts.onNext) return;
+  // F2 belt-and-braces: drop any falsy address that reached the Set anyway
+  const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
+  if (sel.length < GROUP_MIN_MEMBERS) return;   // MAJOR-6: the action is disabled below 2
+  st.opts.onNext(sel);
+}
+
+/* #265 (Damir ⑤): the multi-select CONFIRM lives in the TOPBAR (top-trailing —
+ * the Signal/iOS-Messages grammar for "select then confirm"); the old full-width
+ * bottom "Next" button is retired. The topbar title carries the live count, so
+ * the action stays a single compact affordance. */
+// A group needs at least TWO members (C# rejects fewer — Opus review MAJOR-6).
+const GROUP_MIN_MEMBERS = 2;
+
 function syncNext(st) {
   const n = st.selected.size;
-  const btn = st.els.nextBtn;
-  btn.disabled = n === 0;
-  const label = btn.querySelector('.c-button__label');   // F20: defensive null-check
-  if (label) label.textContent = (st.opts.strings.next || 'Next') + (n ? ' (' + n + ')' : '');
+  const { strings } = st.opts;
+  if (st.els.nextAction) {
+    st.els.nextAction.disabled = n < GROUP_MIN_MEMBERS;
+    st.els.nextAction.setAttribute('aria-label',
+      (strings.next || 'Next') + (n ? ' (' + n + ')' : ''));
+  }
+  const title = st.els.topbar && st.els.topbar.querySelector('.c-topbar__title');
+  if (title) {
+    title.textContent = n
+      ? ((strings.selectedCount || '{n} selected').split('{n}').join(String(n)))
+      : (strings.selectMembers || 'Select members');
+  }
+  // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
+  // isn't focusable, so SR users got nothing). State the rule in the sub-line.
+  if (st.els.minHint) {
+    st.els.minHint.hidden = n >= GROUP_MIN_MEMBERS;
+    st.els.minHint.textContent = strings.groupNeedsTwo || 'Select at least 2 people to create a group.';
+  }
 }
 
 function renderPickerChrome(st) {
@@ -215,11 +244,16 @@ function renderPickerChrome(st) {
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
+    actions: multi
+      ? [{ icon: 'check', label: strings.next || 'Next', onClick: () => pickerNext(st) }]
+      : [],
   });
   st.els.topbar.replaceWith(topbar);
   st.els.topbar = topbar;
+  // the topbar renders actions as icon-buttons in a trailing wrap
+  st.els.nextAction = multi ? topbar.querySelector('.c-topbar__actions button') : null;
   st.els.actions.hidden = multi;
-  st.els.footer.hidden = !multi;
+  if (st.els.minHint) st.els.minHint.hidden = !multi;   // the ≥2 rule only applies in multi
   if (multi) syncNext(st);
 }
 
@@ -271,6 +305,14 @@ export function createContactsPicker({
   st.els.actions = actions;
   body.append(actions);
 
+  // multi-select rule line (review MINOR-2): says WHY the confirm is inert at <2.
+  const minHint = document.createElement('p');
+  minHint.className = 'c-contacts__minhint';
+  minHint.setAttribute('role', 'status');
+  minHint.hidden = true;
+  st.els.minHint = minHint;
+  body.append(minHint);
+
   const search = createSearchField({
     placeholder: strings.searchContacts || 'Search contacts',
     onInput: (q) => { st.query = q; renderPickerList(st); },
@@ -297,22 +339,8 @@ export function createContactsPicker({
 
   el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
-  footer.hidden = true;
-  const nextBtn = createButton({
-    label: strings.next || 'Next', size: 56, width: 'full', disabled: true,
-    onClick: () => {
-      if (!onNext) return;
-      // F2 belt-and-braces: drop any falsy address that reached the Set anyway
-      const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
-      onNext(sel);
-    },
-  });
-  st.els.nextBtn = nextBtn;
-  footer.append(nextBtn);
-  st.els.footer = footer;
-  el.append(footer);
+  // #265: the bottom "Next" bar is retired — the confirm is the TOPBAR action
+  // (renderPickerChrome). No footer element remains.
 
   renderPickerList(st);
   return el;

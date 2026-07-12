@@ -46,6 +46,22 @@
 @media (prefers-reduced-motion: reduce) {
   .c-callin__avatar::before { animation: none; opacity: 0.6; transform: none; }
 }
+
+/* ═════ DESKTOP presentation (#264, Damir: "optimize the call UI on desktop") —
+   FE half only: the ring still covers just THIS WebView (one pane's DOM cannot
+   cover another — ★ #221); TRUE full-viewport coverage rides the C18(a)
+   broadcast (every visible pane rings at once). Here: the phone-shaped
+   halves composition reads stretched in a wide pane → compress the identity/
+   actions into a centered COLUMN card rhythm with a width cap. */
+:root[data-desktop] .c-callin { justify-content: center; }
+:root[data-desktop] .c-callin__identity {
+  flex: 0 0 auto;
+  padding-bottom: var(--spacing-32, 32px);
+}
+:root[data-desktop] .c-callin__actions {
+  flex: 0 0 auto;
+  width: min(420px, 100%);
+}
 .c-callin__name {
   font-family: var(--font-primary);
   font-size: var(--font-size-heading-sm);

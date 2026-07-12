@@ -47,6 +47,14 @@ A distinct lock bypass, found by the break-my-verdict re-audit: `App.OnResume` s
 
 Surfaced during the DESKTOP PASS 2 lock scrutiny; **NOT introduced by #240–#245** (App.OnResume + `pushModalLoaded` both predate it). Distinct from MAJOR #2 (which was fixed): the *presentation* is safe — `canShowInPlace` requires `op.host == overlayHost` AND `NavigationStack.Last == op.host`, so a resume lock over a pushed legacy page always falls through to a real `PushModalAsync` (un-poppable). The narrow gap is the ≤1.2s **staging** window BEFORE present: `pushModalLoaded` freezes `hostGrid.InputTransparent` (`SpixiContentPage.cs:777-778`), but when the calling legacy page's `Content` is **not a Grid** the staging falls back to the overlay-host (HomePage) grid (`:723-732`) and freezes THAT — while the visible, on-top legacy page stays input-live for the staging window. Impact: input-only (no content exposure — the lock covers the page on present); reachable only for a legacy page with non-Grid `Content`, backgrounded then resumed (rare — most legacy pages have Grid content and freeze correctly). Fix (C#, your call): in the non-Grid fallback, also freeze the *actual visible* page's input during staging (or freeze both). Security-flagged → gated on your review (#232); low severity, no rush.
 
+### ⚠ MAJOR #5 — the call RING could cover the LOCK, and a call event could POP the lock (Opus #46 loop over #270; DECISIONS #272; **FIXED in review** — please sanity-check)
+
+Introduced by the Q4 native call surface (#270) and caught before it shipped. `CallPage` presents in place inside HomePage's Grid (ZIndex 100, under the lock's 200) — but when a **legacy page is pushed above the host** it falls back to a real `PushModalAsync`, and MAUI's **ModalStack sits above the entire page tree, i.e. above the lock stage**. Three consequences, none exotic: **(a)** a call arriving while the app was locked painted the **caller's nickname + avatar** and offered **Accept/Decline over the lock** (pre-#270 the DOM ring rendered *under* the lock — this was a new exposure); **(b)** `LockPage.performUnlock`'s `PopModalAsync()` pops the **top** modal → a successful unlock popped the **ring**, leaving the lock up; **(c)** worst: with a lock pushed *above* a modal ring (legacy page on top → background >5s → resume; `App.OnResume`'s `CurrentPage` check cannot see a modal), the call's own teardown — `CallPage.hideSurface` → `PopModalAsync` (**pop-the-top**) — **popped the LOCK** on the next remote hang-up or the 45s ring timeout, and `App.isLockScreenActive` stays latched ⇒ **no lock for the rest of the session**.
+
+**FIX LANDED (FE-side C#, presentation only — no auth logic touched):** the lock and the call surface are now **mutually exclusive and the lock wins** — `CallPage.lockUp()` (in-place · pushed-modal · boot/root · **staging**, via the new derived `SpixiContentPage.isLockStaging()`) makes `ensureSurface` refuse to present, and `App.OnResume` tears any existing call surface down **before** staging the resume lock, so nothing can ever be modal-above a lock. `hideSurface` additionally pops **only** when the call page is the top of the modal stack (fail-closed, with a `Logging.error` tripwire). The call keeps running and **ringing audibly** while locked; the ring/bar re-presents within one UI tick of the unlock.
+
+**BE asks:** (1) sanity-check the fix; (2) **product call** — is "rings audibly, no ring UI, appears on unlock" the behaviour you want, or should an incoming call be answerable from the lock screen (that needs a deliberate, native design, not a fallback side-effect)? (3) **Class-wide, logged not fixed:** `PopModalAsync` is *pop-the-top* at **every** call site in the tree (`LockPage:122/171`, `HomePage:1299`, `OnboardPage`, `DevPage`, `ContributorsPage`) — safe only because nothing stacks modals today. Any future second modal re-opens this whole class → a `popModal(page)` helper that refuses when the page is not top. (4) Related: `SpixiContentPage.OnDisappearing → Dispose()` is guarded only by `NavigationStack.Contains(this)`, **not** `ModalStack` — a modal covered by another modal has its WebView torn down. Unreachable today; not widened because MAUI's Disappearing-vs-pop ordering can't be verified from the tree (#215) and a wrong guard would leak every popped modal's WebView.
+
 ### ⚠ MAJOR #3 — chat link-open confirm modal is spoofable (Opus re-audit #235; C#/BE, be-cutover **C15**)
 
 `SingleChatPage.xaml.cs:344` runs `WebUtility.HtmlDecode` on the link **after** the FE confirm modal already showed the pre-decode URL, then `Browser.OpenAsync`. `https://paypal.com&commat;evil.example.com/login` displays paypal-leading but opens host `evil.example.com`. Defeats the #231c "the modal shows the true target" mitigation. Fix (C#): don't HtmlDecode a URL for OpenAsync (or decode before showing) + add an http/https scheme allowlist at the sink. Details: be-cutover C15.
@@ -73,6 +81,23 @@ Surfaced during the DESKTOP PASS 2 lock scrutiny; **NOT introduced by #240–#24
 
 Nothing here signs, moves money, or crosses the chat wall in the FE — the Q12 handshake is same-origin localStorage only, and after #254 its payload carries **no chat content at all**.
 
+### ✅ CLOSED #267 — Downloads `..`-traversal on `ixian:open/delete:<name>` (was: MINOR→escalated at #264 S8)
+
+**The guard LANDED with the S16 downloads-sublevel work (quirks-final ②, DECISIONS
+#267), sanctioned by the work order ("★ the C# `..`-traversal guard must land with
+it"):** `TransferManager.resolveDownloadPath(file_name)` — ONE shared, fail-closed
+resolver (rejects empty / `..` / any separator / rooted input, then re-checks the
+canonical full path stays under the Downloads root; rejects log via `Logging.error`)
+— now runs on **all four** verb sites: the shipped `DownloadsPage` `ixian:open:` /
+`ixian:delete:` pair AND the new SettingsPage `ixian:openDownload:` /
+`ixian:deleteDownload:` pair. **BE: review the resolver** (TransferManager.cs, next
+to `downloadsPath`) rather than re-deriving it.
+
+**Residual, same class, DIFFERENT entry point (still open):** `TransferManager.cs:542`
+composes `Path.Combine(downloadsPath, transfer.fileName)` from a **REMOTE-PEER-supplied**
+file name at receive time — a hostile peer's `..\` name is a write-time traversal.
+Verify + sanitize at the transfer-accept boundary (be-cutover S16 residual).
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|
@@ -86,7 +111,7 @@ Pre-existing wallet/security bugs (NOT caused by our C#; high value for a securi
 - **L6** restore mutates state (wipes onboarding/lock flags, overwrites stored `walletpass`) BEFORE verifying the password → wrong password = lockout + data loss. Verify-then-mutate.
 - **L8 / §9.1** the wallet password is stored in PLAINTEXT `Preferences["walletpass"]`, and is never cleared (all removal sites use the misspelled key `"waletpass"`) — a plaintext secret lingers even after wallet deletion. Move to SecureStorage.
 - **L2 / §9.2** passwords ride navigation URLs and are `UrlDecode`d differently on create vs unlock → a `+`/space/`%xx`/`<nick>:` in a password silently locks the user out. One canonical decode-safe capture.
-- **§9.1** `ixian:open/delete:<file>` (downloads) do no filename sanitisation (path traversal in principle).
+- **§9.1** ~~`ixian:open/delete:<file>` (downloads) do no filename sanitisation~~ ✅ CLOSED #267 (`TransferManager.resolveDownloadPath`, both hosts); residual = the receive-time `transfer.fileName` write path (TransferManager.cs:542).
 
 ## 3. Standing rule — C# work AVOIDS the risky parts
 Any C#/bridge change we make must NOT:

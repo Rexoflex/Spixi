@@ -112,6 +112,11 @@ export function attachMessageMenu(row, opts = {}) {
     // (no click event follows), which swallowed the next right-click (audit r4)
     fired = false;
     if (e.button !== 0) return; // right button → contextmenu path
+    // #265 (Damir ①): long-press is a TOUCH gesture — on desktop a held MOUSE
+    // button must not pop a menu (right-click is the one desktop path). A
+    // touch-screen desktop keeps long-press (Opus review MINOR-7: gating on the
+    // platform flag alone would strip the menu from a finger entirely).
+    if (document.documentElement.hasAttribute('data-desktop') && e.pointerType !== 'touch') return;
     startX = e.clientX;
     startY = e.clientY;
     cancel();

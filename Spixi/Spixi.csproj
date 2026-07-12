@@ -138,6 +138,9 @@
 		<PackageReference Include="NAudio" Version="2.3.0" />
 	</ItemGroup>
 	<ItemGroup>
+		<MauiXaml Update="Pages\Call\CallPage.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</MauiXaml>
 		<MauiXaml Update="Pages\Chat\SingleChatPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>

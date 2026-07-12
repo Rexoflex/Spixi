@@ -785,12 +785,17 @@
      a violet-ink 200° base. The 5 layers + alphas are Damir's dials; if he
      converges the lock onto this recipe, retire --gradient-lock into it.
      Raw rgba sanctioned (gradients = code-only tokens). */
+  /* #264 (Damir: "soften like the lock" — the #206⑥ recipe applied to launch):
+     halved blob alphas + hues muted toward grey + wider radial falloff (feathered
+     edges) + compressed base lightness spread. Launch keeps its violet identity;
+     the same four dials as the lock (alphas / extents / stops / base) — Damir
+     art-directs live. Pre-soften values in git history. */
   --gradient-launch:
-    radial-gradient(120% 85% at 50% -25%, rgba(124, 88, 255, 0.50) 0%, rgba(124, 88, 255, 0) 60%),
-    radial-gradient(70% 50% at 90% 16%, rgba(233, 78, 168, 0.15) 0%, rgba(233, 78, 168, 0) 62%),
-    radial-gradient(85% 60% at 6% 84%, rgba(43, 118, 255, 0.28) 0%, rgba(43, 118, 255, 0) 58%),
-    radial-gradient(60% 42% at 86% 98%, rgba(56, 224, 211, 0.12) 0%, rgba(56, 224, 211, 0) 55%),
-    linear-gradient(200deg, #1a1240 0%, #10102e 45%, #05060f 100%);
+    radial-gradient(150% 100% at 50% -25%, rgba(126, 100, 224, 0.25) 0%, rgba(126, 100, 224, 0) 70%),
+    radial-gradient(90% 65% at 90% 16%, rgba(200, 118, 178, 0.08) 0%, rgba(200, 118, 178, 0) 72%),
+    radial-gradient(105% 75% at 6% 84%, rgba(78, 116, 200, 0.14) 0%, rgba(78, 116, 200, 0) 70%),
+    radial-gradient(75% 55% at 86% 98%, rgba(88, 178, 172, 0.06) 0%, rgba(88, 178, 172, 0) 68%),
+    linear-gradient(200deg, #1b163c 0%, #131230 45%, #0b0c1a 100%);
 
   /* chat canvas (Damir 2026-07-03): doodle pattern tile + themed gradient.
      PREMIUM TREATMENT (2026-07-03): pattern renders as a data-URI MASK

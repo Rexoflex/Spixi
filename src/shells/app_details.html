@@ -29,8 +29,7 @@
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- copy-URL toast -->
 <link rel="stylesheet" href="../styles/components/apps-icon.css">
 <link rel="stylesheet" href="../styles/components/apps-details.css">
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. app_details.html is loaded by the C#
      AppDetailsPage (PUSHED). A back-only topbar sits above a scrolling details
@@ -108,7 +107,6 @@
     // the modal fn and skip the handler's re-render (audit MAJOR, Batch 4).
     createAppDetails, showAppRemoved: showAppRemovedModal,
     createTopbar,
-    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -195,9 +193,7 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
-    // Batch A: ring overlay + callbar (no local roster → truncated address +
-    // the C# pre-composed caller line).
-    ...attachCallUi({ bridge, strings }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     // init(...) — 14 positional args → the `app` model consumed by createAppDetails.
     init(name, iconPath, publisher, description, version, url, humanSize,
          capabilities, appId, hasSingleUser, hasMultiUser, installed, verified /*, _hardcodedTrue */) {

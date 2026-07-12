@@ -13,6 +13,22 @@
   /* Paint the screen surface IMMEDIATELY (mirrors --surface-screen light/dark). */
   html { background: #f9fafb; }
   html[data-theme="dark"] { background: #13171b; }
+  /* Splash boot moment (Batch B, #256 ⑭) — uniform boot grammar. This page is
+     static/inline so the cover drops almost immediately at window load; over a
+     content block that itself centers the same logo it reads as the mark
+     settling in, and it still masks any font/late-style pop. */
+  .app-boot {
+    position: fixed; inset: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb; transition: opacity var(--duration-200, 200ms) ease-out;
+    /* never intercept input — see home.html app-boot note (audit B-1). */
+    pointer-events: none;
+  }
+  html[data-theme="dark"] .app-boot { background: #13171b; }
+  .app-boot__logo { width: 64px; height: 64px; color: var(--icon-accent, #1892ce); animation: app-boot-pulse 1.4s ease-in-out infinite; }
+  .app-boot__logo svg { width: 100%; height: 100%; display: block; }
+  @keyframes app-boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .app-boot__logo { animation: none; } .app-boot { transition: none; } }
 </style>
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
@@ -40,6 +56,9 @@
 </style>
 </head>
 <body>
+  <!-- Splash boot cover (Batch B) — logo injected in the script below; dropped at
+       window load. -->
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
   <main class="empty">
     <div class="empty__icon" id="empty-icon" aria-hidden="true"></div>
     <h1 class="empty__title t-heading-sm" id="empty-title">*SL{empty-state-title}</h1>
@@ -71,6 +90,10 @@
       var host = document.getElementById('empty-icon');
       if (host && window.SpixiIcons && window.SpixiIcons.icon) host.append(window.SpixiIcons.icon('logo', { size: 56 }));
     } catch (e) {}
+    try {
+      var boot = document.getElementById('app-boot-logo');
+      if (boot && window.SpixiIcons && window.SpixiIcons.icon) boot.append(window.SpixiIcons.icon('logo', { size: 64 }));
+    } catch (e) {}
   })();
 
   /* #251 (Damir F5: pane stayed DARK after a dark→light theme pick): C# re-themes
@@ -89,7 +112,17 @@
 
   /* Page ready — window load (#177 timing invariant). EmptyDetail.onLoad is a
    * no-op, but the signal keeps the page on the standard shell lifecycle. */
-  function signalReady() { try { location.href = 'ixian:onload'; } catch (e) {} }
+  // Splash boot cover teardown (Batch B): short fade (reduced motion: instant).
+  function dropAppBoot() {
+    var b = document.getElementById('app-boot');
+    if (!b) return;
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce) { b.remove(); return; }
+    b.style.opacity = '0';
+    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+  }
+  function signalReady() { dropAppBoot(); try { location.href = 'ixian:onload'; } catch (e) {} }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

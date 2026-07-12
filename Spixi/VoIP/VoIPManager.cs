@@ -63,10 +63,13 @@ namespace SPIXI.VoIP
 
             var sm = StreamProcessor.sendAppRequest(friend, "spixi.voip", currentCallSessionId, Encoding.UTF8.GetBytes(codecs), "spixi.voip");
             Node.addMessageWithType(currentCallSessionId, FriendMessageType.voiceCall, friend.walletAddress, 0, "", true, null, 0, false);
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).displayCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-dialing") + " " + friend.nickname + "...", 0);
+            // C18/C19 (#265): BROADCAST — stack-last is HomePage under the #225 overlay
+            // model, so an outgoing call started FROM A CHAT showed no bar at all.
+            SpixiContentPage.broadcastCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-dialing") + " " + friend.nickname + "...", 0);
             
             aquirePowerLocks();
             SPlatformUtils.startDialtone(DialtoneType.dialing);
+            startRingTimeout();   // #265: an unanswered call must not ring forever
         }
 
         public static bool onReceivedCall(Friend friend, byte[] session_id, byte[] data)
@@ -107,6 +110,7 @@ namespace SPIXI.VoIP
             }
             aquirePowerLocks();
             SPlatformUtils.startRinging();
+            startRingTimeout();   // #265: the incoming overlay auto-clears on the SAME budget
             return true;
         }
 
@@ -249,7 +253,7 @@ namespace SPIXI.VoIP
             {
                 Logging.error("Exception occured in endVoIPSession 3: " + e);
             }
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).hideCallBar();
+            SpixiContentPage.broadcastHideCallBar();   // C18 (#265): every surface drops bar + ring
         }
 
         public static void acceptCall(byte[] session_id)
@@ -271,7 +275,10 @@ namespace SPIXI.VoIP
             startVoIPSession();
             if (currentCallContact != null)
             {
-                ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).displayCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-in-call") + " - " + currentCallContact.nickname, currentCallStartedTime);
+                // C18 (#265): broadcast — every surface that rang swaps its ring for the
+                // bar (the FE drops the local ring on displayCallBar), so no stale
+                // Decline survives to kill the live call (C18b(a)).
+                SpixiContentPage.broadcastCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-in-call") + " - " + currentCallContact.nickname, currentCallStartedTime);
             }
         }
 
@@ -292,13 +299,23 @@ namespace SPIXI.VoIP
             startVoIPSession();
             if (currentCallContact == null)
                 return;
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).displayCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-in-call") + " - " + currentCallContact.nickname, currentCallStartedTime);
+            SpixiContentPage.broadcastCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-in-call") + " - " + currentCallContact.nickname, currentCallStartedTime);   // C18
         }
 
         public static void rejectCall(byte[] session_id)
         {
             if (!hasSession(session_id))
             {
+                return;
+            }
+            // C18b(a) (#265): NEVER reject an ALREADY-ACCEPTED call. A surface that rang
+            // and missed the answer (pre-C18 delivery gap, or a page presented mid-ring)
+            // could still fire ixian:appReject → this method tore down the LIVE call.
+            // Now a decline on an accepted session is ignored; the FE also drops its ring
+            // on displayCallBar, so both halves of the hazard are closed.
+            if (currentCallAccepted && currentCallCalleeAccepted)
+            {
+                Logging.warn("rejectCall ignored: the call is already accepted (stale UI).");
                 return;
             }
             StreamProcessor.sendAppRequestReject(currentCallContact, session_id);
@@ -312,7 +329,7 @@ namespace SPIXI.VoIP
                 return;
             }
             SPlatformUtils.startDialtone(DialtoneType.busy);
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).hideCallBar();
+            SpixiContentPage.broadcastHideCallBar();   // C18
             endVoIPSession();
         }
 
@@ -321,6 +338,15 @@ namespace SPIXI.VoIP
             if (session_id == null)
             {
                 session_id = currentCallSessionId;
+            }
+            // C18b(b) (#265): a STALE call bar's Hang-up used to run with no session —
+            // sendAppEndSession(currentCallContact = null, …) on a dead call. Guard it:
+            // no live session → just make sure every surface drops its bar.
+            if (session_id == null || !hasSession(session_id))
+            {
+                Logging.warn("hangupCall ignored: no live session (stale UI) — clearing the bars.");
+                SpixiContentPage.broadcastHideCallBar();
+                return;
             }
             if (error)
             {
@@ -331,7 +357,7 @@ namespace SPIXI.VoIP
                 SPlatformUtils.stopDialtone();
             }
             StreamProcessor.sendAppEndSession(currentCallContact, session_id);
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).hideCallBar();
+            SpixiContentPage.broadcastHideCallBar();   // C18
             endVoIPSession();
         }
 
@@ -342,7 +368,7 @@ namespace SPIXI.VoIP
                 return;
             }
             SPlatformUtils.stopDialtone();
-            ((SpixiContentPage)Application.Current.MainPage.Navigation.NavigationStack.Last()).hideCallBar();
+            SpixiContentPage.broadcastHideCallBar();   // C18
             endVoIPSession();
         }
 
@@ -389,6 +415,76 @@ namespace SPIXI.VoIP
                 lastPacketReceivedCheckThread.IsBackground = true;
                 lastPacketReceivedCheckThread.Start();
             }
+        }
+
+        /* ————— #265 (Damir): RING TIMEOUT ————————————————————————————————————————
+         * An unanswered call used to ring FOREVER on both ends (his F5: "the incoming
+         * call overlay persists"). Industry practice is ~45s (Telegram/WhatsApp), and
+         * BOTH ends must use the SAME budget so the caller's "No answer" and the
+         * callee's "Missed call" land together.
+         *   caller (initiator) → hangupCall → end-session packet + "No answer" log
+         *   callee            → endVoIPSession ONLY (no reject packet — the call was
+         *                       MISSED, not declined; the caller's own timeout is what
+         *                       tells them) → the ring clears, the message logs missed.
+         * The thread self-exits the moment the call connects (currentCallStartedTime),
+         * is answered, or the session ends. */
+        public const int RING_TIMEOUT_SECONDS = 45;
+        static Thread? ringTimeoutThread = null;
+
+        private static void startRingTimeout()
+        {
+            byte[]? sid = currentCallSessionId;
+            if (sid == null)
+            {
+                return;
+            }
+            ringTimeoutThread = new Thread(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        Thread.Sleep(1000);
+                        byte[]? live = currentCallSessionId;
+                        if (live == null || !live.SequenceEqual(sid))
+                        {
+                            return;                      // session ended or replaced
+                        }
+                        if (currentCallStartedTime != 0)
+                        {
+                            return;                      // connected — the media watchdog owns it now
+                        }
+                        if (Clock.getTimestamp() - currentCallInitiated < RING_TIMEOUT_SECONDS)
+                        {
+                            continue;
+                        }
+                        Logging.info("VoIP ring timeout ({0}s) — ending the unanswered call.", RING_TIMEOUT_SECONDS);
+                        if (currentCallInitiator)
+                        {
+                            hangupCall(sid);             // tells the peer + logs "No answer"
+                        }
+                        else
+                        {
+                            // review MINOR-3 (TOCTOU): re-check under the same rule
+                            // hangupCall uses — the session could have ended (and a NEW
+                            // call been accepted) between the snapshot and here.
+                            if (!hasSession(sid))
+                            {
+                                return;
+                            }
+                            endVoIPSession();            // missed, NOT declined (no reject packet)
+                        }
+                        return;
+                    }
+                }
+                catch (ThreadInterruptedException) { }
+                catch (Exception e)
+                {
+                    Logging.error("Exception in ring timeout: " + e);
+                }
+            });
+            ringTimeoutThread.IsBackground = true;
+            ringTimeoutThread.Start();
         }
 
         private static void lastPacketReceivedCheck()

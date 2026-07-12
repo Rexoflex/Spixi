@@ -10,6 +10,20 @@
   color: var(--text-bubble-received);
   box-shadow: var(--elevation-1);
 }
+/* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
+   below) carry the same 2px outgoing-colour border as sent media tiles
+   (media-bubble.css:130) — "yours" at a glance. */
+.c-bubble-row[data-direction="sent"] .c-tcard,
+.c-bubble-row[data-direction="sent"] .c-fbubble {
+  border: 2px solid var(--surface-bubble-sent);
+}
+/* #265 (Damir ⑪): call cards HUG their content — a two-line event read
+   oversized at full bubble width. */
+.c-tcard[data-kind="call"] {
+  width: fit-content;
+  min-width: 220px;
+  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+}
 
 .c-tcard__head {
   display: flex;
@@ -145,6 +159,23 @@
 /* call card */
 .c-bubble-row[data-missed] .c-tcard__title { color: var(--text-error); }
 .c-bubble-row[data-missed] .c-tcard__title svg { color: var(--icon-error); }
+/* #264 (Damir ③): call cards adopt the FILE-BUBBLE medallion grammar — the
+   outcome glyph (phone / phone-off missed / phone-x declined) sits in a tonal
+   disc like the file icon; missed/declined tint the disc destructive. Marker
+   set by createCallBubble (data-call-outcome). */
+.c-bubble-row[data-call-outcome] .c-tcard__title svg {
+  box-sizing: content-box;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+}
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__title svg,
+.c-bubble-row[data-call-outcome="declined"] .c-tcard__title svg {
+  background: var(--surface-destructive-tonal-default);
+  color: var(--icon-error);
+}
 .c-tcard__call-meta {
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);

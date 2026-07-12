@@ -219,6 +219,12 @@ public partial class App : Application
     {
         isLockScreenActive = false;
         unlockedDate = DateTime.Now;
+        // Q4-③ review (MAJOR-1): the call surface is suppressed while locked. Re-assert
+        // the current VoIP state on the next UI tick — a call that survived the lock
+        // (still ringing, or still connected) gets its ring/bar back; no call = no-op.
+        // If the lock page has not finished popping yet, ensureSurface re-arms the flag
+        // and the following tick retries.
+        UIHelpers.refreshAppRequests = true;
     }
 
     // #229 fail-closed (reviewer MINOR-5): a LOCK that failed to PRESENT must clear
@@ -248,6 +254,15 @@ public partial class App : Application
             // Show the lock screen
             isLockScreenActive = true;
             OfflinePushMessages.resetCooldown();
+            // ★ Q4-③ review (MAJOR-1/2): the lock ALWAYS wins over the call surface.
+            // A RING presented via CallPage's modal fallback (a legacy page was on top)
+            // sits on the ModalStack — the lock would then be pushed ABOVE it, and the
+            // call's own teardown (PopModalAsync pops the TOP modal) would have popped
+            // the LOCK on the next remote hang-up / 45s timeout, un-authing the app.
+            // Drop the surface first: nothing can ever be modal-above a lock. The call
+            // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
+            // ring/bar re-presents on the first UI tick after the unlock.
+            CallPage.hideSurface();
             var lockPage = new LockPage(true);
             lockPage.authSucceeded += onUnlock;
             // #229: load-then-present — stage the lock's WebView hidden on the current

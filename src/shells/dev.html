@@ -24,8 +24,7 @@
 <link rel="stylesheet" href="../styles/components/settings-app.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. dev.html is loaded by the C# DevPage
      (presented MODALLY — back = PopModalAsync). createSettingsDev provides its
@@ -78,7 +77,6 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsDev, setDevLog,
-    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -111,9 +109,7 @@
   root.replaceChildren(devEl);
 
   const handlers = {
-    // Batch A: ring overlay + callbar (no local roster → truncated address +
-    // the C# pre-composed caller line).
-    ...attachCallUi({ bridge, strings }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     setLog(text) { setDevLog(devEl, text || ''); },
   };
   bridge.exposeAll(handlers);

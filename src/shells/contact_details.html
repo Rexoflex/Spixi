@@ -27,8 +27,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- payments accordion rows -->
 <link rel="stylesheet" href="../styles/components/chat-info.css">
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
 <style>
@@ -122,7 +121,6 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createChatInfo, formatIxiAmount,
-    attachCallUi,   // Batch A: live call UI — receives the call state at its own present pass
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -349,15 +347,8 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
-    // Batch A: ring overlay + callbar. The viewed contact is the most likely
-    // caller → resolve their name/photo from the page state; anyone else falls
-    // back to the truncated address + the C# pre-composed caller line.
-    ...attachCallUi({
-      bridge, strings,
-      resolveCaller: (addr) => (addr && addr === state.address
-        ? { name: state.name || '', avatar: state.avatarPath || null }
-        : null),
-    }),
+    // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage
+    // (identity comes from C#'s Friend, so the roster resolve is obsolete too).
     // #247: desktop pane hosting — C# pushes '1' (detail slot) or '2' (column beside
     // the conversation) BEFORE any content push; unset = mobile/full-span takeover.
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },

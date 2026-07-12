@@ -389,6 +389,22 @@ change-password (S7) · backup status (S2).
   lands with the feed, not on a guessed shape) · pane close affordance stays the back
   arrow (X-icon = Damir dial).
 
+### 6e.6 Desktop overlay grammar + form panes (Batch C, DECISIONS #261 — M6/M7/M8)
+
+**M6 — sheets → centered dialogs (ZERO-C#, the demo grammar promoted to production):**
+
+| Piece | Where | Rule |
+|---|---|---|
+| Central CSS switch | `overlay.css` `:root[data-desktop]` block | every `c-sheet` presents as a centered dialog (min(480px,92%) · max-height 76% + scroll · radius-24 · 24 padding · fade+settle; handle hidden). Modals unchanged. Verbatim port of the demo's `.dt-frame` rules — which the production selectors now OUT-SPECIFY inside `desktop.html` (same values → no visual change there). |
+| Anchored exceptions | `[data-dt-anchor]` / `="menu"` / `="up"` + `[data-dt-ctx-source]` in the same block | dropdowns fade IN PLACE (06d), tighter padding; positions set inline at open. |
+| Anchoring JS | NEW `src/components/desktop-anchors.js` (`attachContextMenuAnchors` — the demo's 600ms MutationObserver recipe; `anchorSheetAbove`) | no-ops without `data-desktop`. chat.html anchors right-clicked **message menus** (`.c-bubble-row`); home.html anchors **chat-row menus** (`.c-chatlist-item`); both menus share `.c-msgmenu` content so ONE detector covers them. Long-press/keyboard opens keep the centered dialog (deliberate). chat.html's attach grid rises from the composer ⊕ (`anchorSheetAbove`). |
+| Channel selector | chat.html hand-rolled top-anchored panel | already matches the desktop exception grammar (NOT a c-sheet) — untouched. |
+| Money sheet | wallet-send.js | `lightDismiss/escDismiss:false` are JS-side — the CSS switch cannot weaken them (re-verified). |
+| a11y | #205 machinery | untouched (presentation-only). Known APG nit stands: a right-click dropdown still announces `role=dialog` (menu semantics = a later dial). |
+
+**M7/M8 — add-app + add-contact as detail-column panes (SMALL C#, presentation-only routing):**
+`HomePage` `ixian:newcontact`/`ixian:newapp` → `pushPageLoaded(page, 4000, "formpane", wide ? 1 : -1)` — the #247 pinned-overlay machinery; shared tag `"formpane"` makes the two forms tag-replace each other; narrow keeps the full takeover; `relayoutPinnedOverlays` re-homes on breakpoint crossings for free. Close-audit: tab switch / chat open / tx open call `closeFormPaneOverlays()` (mirrors `closeContactDetailsOverlays`). ⚠ Dial: a direct close discards typed-but-unsubmitted input (one-field forms). The ScanPage QR hand-off rides the ROOT nav and returns to the pane via C# (`processQRResult` → `setAddress`) — verified. Install-confirm (`AppDetailsPage`) stays a full presentation per #256 ("stays a MODAL" = the FE confirm modal grammar; no pane routing).
+
 ## 7. Non-goals
 
 Real window-resize reflow between mobile/desktop compositions (the demo IS

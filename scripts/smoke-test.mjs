@@ -106,16 +106,10 @@ console.log('app-frame.html');
   await sleep(500);
   ok(!d.querySelector('.c-sheet'), 'back hook closed the sheet');
   ok(!d.querySelector('[data-overlay-open]'), 'host scroll lock released');
-
-  // standalone confirm flow (Decline button)
-  decline.click();
-  const modal = d.querySelector('.c-modal[role="alertdialog"]');
-  ok(!!modal, 'Decline opens alertdialog modal');
-  await sleep(50);
-  ok(d.activeElement && d.activeElement.textContent.trim() === 'Cancel', 'initial focus on safe action');
-  [...modal.querySelectorAll('.c-button')].find((b) => b.textContent.trim() === 'Cancel').click();
-  await sleep(500);
-  ok(!d.querySelector('.c-modal'), 'Cancel action closes modal');
+  // NOTE: `decline` above is app-frame's HAND-ROLLED demo button (not the shipped
+  // c-contact-request) — it is a modal HOST here, nothing more. The ⑩/#266
+  // single-click + one-shot grammar is asserted against the real component in the
+  // "chatlist-item / chats-shell" block below.
 }
 
 console.log('components.html');
@@ -1467,12 +1461,14 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const compCss = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
   ok(/c-composer__ctx \{[^}]*min-width: 0/.test(compCss),
     'ctx strip has min-width:0 — cancel ✕ stays on-screen (2026-07-05c ③)');
-  // Q10b: desktop composer focus ring is the toned 1px variant (jsdom is
-  // layout-blind → static CSS guard; the 2px mobile rule must stay untouched)
-  ok(/:root\[data-desktop\] \.c-composer__field:focus-within \{[^}]*--outline-width-1/.test(compCss),
-    'desktop-scoped composer focus ring uses outline-width-1 (Q10b)');
-  ok(/\n\.c-composer__field:focus-within \{[^}]*--outline-width-2/.test(compCss),
-    'mobile composer focus ring keeps outline-width-2 (Q10b untouched baseline)');
+  // #265 ⑩ (SUPERSEDES Q10b, Damir): the composer has NO focus ring at all, on
+  // EITHER platform — the caret is the indicator (Telegram grammar). The old
+  // guards demanded the 1px-desktop / 2px-mobile ring that no longer exists.
+  ok(/\.c-composer__field:focus-within \{ box-shadow: none; \}/.test(compCss),
+    '#265 ⑩: the composer focus ring is gone — the caret is the indicator (both platforms)');
+  ok(!/--outline-width-[12]/.test(
+    (compCss.match(/\.c-composer__field:focus-within \{[^}]*\}/g) || []).join('')),
+    '#265 ⑩: no residual outline-width ring rule on the composer field');
 }
 
 {
@@ -1677,14 +1673,27 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
     && /isGroup: avatar === 'img\/spixi-group-avatar\.png'/.test(home),
     'Q5: directory/picker roster filters groups (CH1 kind set + group-avatar sentinel)');
   // M5 (corrected round 2, Damir F5): the real outgoing-request signal is the
-  // unapproved-state chat-waiting-for-response override (xaml:1273-1279), NOT
-  // index-excerpt-contact-request (Approved-state else — never reaches a row).
-  // Carrier same-line-closed (#248) + DIRECTION guard (statusType non-empty =
-  // localSender marker; the incoming fall-through pushes '').
+  // unapproved-state chat-waiting-for-response override (HomePage.xaml.cs:1606-1612),
+  // NOT index-excerpt-contact-request. Carrier same-line-closed (#248) + DIRECTION
+  // guard (statusType non-empty = localSender marker; the incoming fall-through
+  // pushes '').
+  //
+  // ⚠ The original third clause asserted `index-excerpt-contact-request` was ABSENT
+  // from home.html — the first-cut M5 carrier had been removed as dead. The Q2-④
+  // canon (#268/#271) then RE-ADDED that same _SL key, deliberately and for a
+  // different purpose: it is one of the 12 excerpt-canon carriers (→ request /
+  // user-plus glyph). Both belong there, and a bare grep for the key cannot tell the
+  // two uses apart — so the negative clause was stale by construction and had to go.
+  // It is replaced by the assertion that actually matters: the key is wired ONLY into
+  // the canon (canonEntry), and M5's own path keys on REQUEST_SENT_TEXT.
+  //
+  // (For the record, the old comment's premise was also wrong: the C# branch is
+  // `state == Approved && !friend.approved` — reachable for an OUTGOING request the
+  // peer accepted, before any real message arrives. So the key CAN reach a row.)
   ok(/<span id="sl-waiting-response">\*SL\{chat-waiting-for-response\}<\/span>/.test(home)
-    && !/\*SL\{index-excerpt-contact-request\}/.test(home)
+    && /canonEntry\('sl-ex-contact-request', 'Contact Request', 'request'\);/.test(home)
     && /if \(statusType && trimmed && trimmed === REQUEST_SENT_TEXT\) return \{ type: 'request'/.test(home),
-    'M5: outgoing request = waiting-for-response carrier + direction guard (first-cut carrier removed)');
+    'M5: outgoing request = waiting-for-response carrier + direction guard (contact-request key belongs to the Q2 canon, not to M5)');
   // M5: outgoing rows ride the Requests chip (count + filter + leave-guard) and
   // light the contacts-picker pending badge via requestAddrs.
   ok(/const isReqRow = isRequestSentPush\(excerpt_msg, type\);/.test(home)
@@ -1744,6 +1753,63 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
     && emptyReq.querySelector('.c-chats-empty').textContent === 'No pending requests'
     && !emptyReq.querySelector('.c-chatlist-item') && !emptyReq.querySelector('.c-contact-request'),
     'Requests filter: the empty state still renders when neither cards nor request rows exist');
+
+  /* ⑩ (#266) + Q1 review (#267 loop) — the SHIPPED c-contact-request grammar:
+   * · Decline is SINGLE-CLICK (the confirm modal is gone — declines are reversible);
+   * · each action ONE-SHOTS (a list re-flush can't double-emit the verb);
+   * · either action SPENDS THE WHOLE CARD — after Decline (ixian:undorequest →
+   *   removeFriend) a stray Accept would fire ixian:accept → sendAcceptAdd on a
+   *   friend C# already deleted, and vice-versa.
+   * These run against the CHECKED-IN bundle → only valid after a rebuild
+   * (Damir's order: build-demo-bundle → build-shells → smoke-test). */
+  const d = W.document;
+  ok(typeof W.Spixi.createContactRequest === 'function',
+    'createContactRequest is on the bundle export map');
+  if (typeof W.Spixi.createContactRequest === 'function') {
+    let declines = 0, accepts = 0;
+    const card = W.Spixi.createContactRequest({
+      name: 'Pending Pete', address: 'A1', timestamp: Date.now(), strings: {},
+      onDecline: () => { declines += 1; },
+      onAccept: () => { accepts += 1; },
+    });
+    d.body.append(card);
+    const cDecline = card.querySelector('[data-decline]');
+    const cAccept = card.querySelector('[data-accept]');
+    ok(!!cDecline && !!cAccept, 'contact-request card renders both actions');
+    if (cDecline && cAccept) {
+      cDecline.click();
+      await sleep(50);                                   // a confirm modal would have opened by now
+      ok(declines === 1 && !d.querySelector('.c-modal[role="alertdialog"]'),
+        'Decline fires onDecline ONCE and opens NO confirm modal (single-click, #266)');
+      cDecline.click();
+      ok(declines === 1 && cDecline.disabled === true,
+        'Decline one-shots — a second click (stale row after a re-flush) cannot double-emit the verb');
+      cAccept.click();
+      ok(accepts === 0 && cAccept.disabled === true,
+        'Decline SPENDS the card — Accept is disabled and cannot fire ixian:accept on the removed friend');
+    }
+    card.remove();
+
+    // mirror case: a FRESH card — Accept fires once and spends Decline too.
+    let declines2 = 0, accepts2 = 0;
+    const card2 = W.Spixi.createContactRequest({
+      name: 'Pending Pat', address: 'A2', timestamp: Date.now(), strings: {},
+      onDecline: () => { declines2 += 1; },
+      onAccept: () => { accepts2 += 1; },
+    });
+    d.body.append(card2);
+    const c2Decline = card2.querySelector('[data-decline]');
+    const c2Accept = card2.querySelector('[data-accept]');
+    if (c2Decline && c2Accept) {
+      c2Accept.click();
+      await sleep(50);
+      ok(accepts2 === 1, 'Accept fires onAccept ONCE');
+      c2Decline.click();
+      ok(declines2 === 0 && c2Decline.disabled === true,
+        'Accept SPENDS the card — Decline is disabled and cannot fire ixian:undorequest afterwards');
+    }
+    card2.remove();
+  }
 }
 
 console.log('chats.html — contacts flow (Phase 1 #2)');
@@ -1795,8 +1861,11 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   // —— Create group → multi-select ——
   const actionsCard = picker.querySelector('.c-contacts__action').closest('.c-contacts__group');
   [...picker.querySelectorAll('.c-contacts__action')][1].click();
-  ok(picker.querySelector('.c-contacts__footer').hidden === false && actionsCard.hidden === true,
-    'multi mode: footer Next appears, top actions hide');
+  // #265 (Damir ⑤): the confirm moved from a bottom footer bar to a TOPBAR action
+  // (Signal/iOS grammar). The footer element no longer exists.
+  const topNext = () => picker.querySelector('.c-topbar__actions button');
+  ok(!!topNext() && actionsCard.hidden === true,
+    'multi mode: the TOPBAR confirm action appears, top actions hide (#265)');
   const mrows = [...picker.querySelectorAll('.c-contacts__row')];
   const rowByNameM = (n) => mrows.find((r) => r.querySelector('.c-contacts__name').textContent === n);
   // F3: assert the SPECIFIC rows, not just a count of 2 — the pending row (Ben
@@ -1806,8 +1875,8 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   ok(!!rowByNameM('Ben Kenobi').disabled, 'the pending row specifically is disabled in multi-select');
   ok(!!rowByNameM('Ixian News').disabled, 'the type-2 bot row specifically is disabled in multi-select');
   ok(!rowByNameM('Han Solo').disabled, 'a normal contact row is NOT disabled in multi-select');
-  const nextBtn = picker.querySelector('.c-contacts__footer .c-button');
-  ok(nextBtn.disabled, 'Next disabled at 0 selected');
+  const nextBtn = topNext();
+  ok(nextBtn.disabled, 'confirm disabled at 0 selected');
   const rowByName = rowByNameM;
   // F4: multi-select rows are role=checkbox / aria-checked (idiomatic mapping for
   // an independent multi-select roster), not role=button + aria-pressed.
@@ -1816,7 +1885,9 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
     'unselected multi-select row: role=checkbox, aria-checked=false (F4)');
   hanRow.click();
   rowByName('Sarah Jo').click();
-  ok(!nextBtn.disabled && nextBtn.textContent.includes('(2)'), 'Next counts the selection');
+  // the topbar action is an icon button — the count rides its aria-label + the title
+  ok(!topNext().disabled && /\(2\)/.test(topNext().getAttribute('aria-label') || ''),
+    'confirm enables + counts the selection (#265: ≥2 required for a group)');
   ok(hanRow.getAttribute('aria-checked') === 'true', 'selecting a row flips aria-checked (F4)');
   ok(!!hanRow.querySelector('.c-contacts__check')
     && W.getComputedStyle(hanRow.querySelector('.c-contacts__check')).backgroundColor !== '',
@@ -1843,16 +1914,18 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   ok(!!f2RowByName('Bare One').disabled && !!f2RowByName('Bare Two').disabled,
     'F2: address-less contacts are blocked (disabled) in multi-select, not co-selectable');
   f2RowByName('Alice').click();
-  const f2Next = f2Picker.querySelector('.c-contacts__footer .c-button');
-  ok(!f2Next.disabled && f2Next.textContent.includes('(1)'),
-    'F2: only the real-address contact counts toward the selection');
+  const f2Next = f2Picker.querySelector('.c-topbar__actions button');
+  // #265 MAJOR-6: a group needs ≥2 members — one selected keeps the confirm DISABLED
+  // (C# rejects a 1-member payload and only logs → Create would silently do nothing).
+  ok(f2Next.disabled && /\(1\)/.test(f2Next.getAttribute('aria-label') || ''),
+    'F2: only the real-address contact counts; a 1-member selection cannot confirm (#265)');
   f2Next.click();
-  ok(Array.isArray(f2Selection) && f2Selection.length === 1 && f2Selection[0].address === 'f2-alice-addr',
-    'F2: onNext payload never carries a falsy address — no ghost co-selection');
+  ok(f2Selection === null,
+    'F2: a below-minimum selection never emits onNext (no falsy address, no 1-member group)');
   f2Picker.remove();
 
   // —— group setup ——
-  nextBtn.click();
+  topNext().click();
   const setup = d.querySelector('.demo-panel .c-contacts-group');
   ok(!!setup, 'Next opens group setup');
   ok(setup.querySelector('.c-contacts-group__members-head').textContent.includes('2')
@@ -1900,7 +1973,9 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   setup.querySelector('.c-topbar .c-button').click();
   ok(!d.querySelector('.demo-panel .c-contacts-group'), 'setup back returns to the picker');
   picker.querySelector('.c-topbar .c-button').click();
-  ok(picker.querySelector('.c-contacts__footer').hidden === true, 'picker back exits multi-select first (not the picker)');
+  ok(!picker.querySelector('.c-topbar__actions button')
+    && picker.querySelector('.c-contacts__action').closest('.c-contacts__group').hidden === false,
+    'picker back exits multi-select first (topbar confirm gone, actions back) — not the picker (#265)');
   [...picker.querySelectorAll('.c-contacts__row')]
     .find((r) => r.querySelector('.c-contacts__name').textContent === 'Han Solo').click();
   ok(!d.querySelector('.demo-panel .c-contacts'), 'tapping a contact opens the chat — picker closes');
@@ -2572,9 +2647,13 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(!!pill && pill.textContent.includes('English'), 'language pill shows the current language');
   pill.click();
   const langSheet = d.querySelector('.c-settings__opts');
-  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length >= 10
+  // #256/#257 (Batch A): the 5 dictionary-less locales (cn/it/id/ja/lt) are HIDDEN
+  // from the pickers until translated → LAUNCH_LANGS ships 8 (was 13; the old
+  // `>= 10` here was stale test drift the #258 loop missed). ≥ 8 still fails
+  // loud on an empty/broken picker; re-adding a translated locale needs no edit.
+  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length >= 8
     && !!langSheet.querySelector('.c-settings__opt-flag'),
-    'language pill opens the settings option sheet (#148⑥ — flags leading, long list scrolls)');
+    'language pill opens the settings option sheet (#148⑥ — flags leading, 8 shipped locales post-#256)');
   W.Spixi.dismissTopOverlay();
   await sleep(400);
   d.querySelector('.c-launch__pill--icon').click();
@@ -3289,77 +3368,116 @@ console.log('native bridge adapters (Phase 3 #173, docs/native-bridge-spec.md �
     'bundle order: shells → native core → page adapters (shared-scope resolution)');
 }
 
-console.log('call-ui — live call bridge glue (Batch A: ring overlay + callbar over the components.html bundle)');
+console.log('native call surface (Q4-③/#270) — call.html contract + the call-ui removal');
 {
-  /* The batch's only NEW component, and the one whose absence from a stale bundle
-     blanked the whole home pane (Damir F5 2026-07-11 — now also gated by the
-     build-shells preflight). Driven directly off the bundle like the native-bridge
-     block above: attachCallUi is pure shell glue, so a synthetic host is enough. */
+  /* The per-shell call glue (call-ui.js) is DELETED: calls present on the ONE
+     native CallPage hosting src/shells/call.html. Components stay (call.html +
+     the demos drive them directly) — exercise them off the bundle, and statically
+     guard the new shell's contract + the removal from every other shell. */
   const dom = await load('components.html');
   const d = dom.window.document, W = dom.window;
   const S = W.Spixi;
 
-  ok(typeof S.attachCallUi === 'function',
-    'attachCallUi is EXPORTED by the bundle (a missing export lands as undefined in every shell destructure → blank app)');
+  ok(typeof S.attachCallUi !== 'function',
+    'attachCallUi is GONE from the bundle (call-ui.js deleted — no shell wires per-pane call UI anymore)');
+  ok(typeof S.showIncomingCall === 'function' && typeof S.showCallBar === 'function',
+    'call-overlay + callbar components stay exported (call.html + demos consume them directly)');
 
-  const sent = [];
-  const callUi = S.attachCallUi({
-    bridge: { send: (c) => sent.push(c), cap: () => false },
-    host: d.body,
-    resolveCaller: (a) => (a === 'ADDR1' ? { name: 'Han', avatar: null } : null),
+  // —— ring component: Accept/Decline-only grammar (ignore:false, call.html) ——
+  let accepted = 0;
+  const ring = S.showIncomingCall({
+    host: d.body, ignore: false,
+    caller: { name: 'Han', address: 'ADDR1', avatar: null },
+    onAccept: () => { accepted++; },
+    onDecline: () => {},
   });
-  ok(typeof callUi.addAppRequest === 'function',
-    'the 4-arg mini-app addAppRequest global EXISTS as a no-op (an undefined page global throws while EVALUATING the executeUiCommand argument — before native.js can soften it)');
-
-  // —— ringing (addCallAppRequest) ——
-  callUi.addCallAppRequest('ADDR1', 'SID1', 'Incoming call - Han');
-  const ring = d.querySelector('.c-callin');
-  ok(!!ring && ring.getAttribute('role') === 'alertdialog',
-    'addCallAppRequest renders the ring overlay as an alertdialog');
-  const kinds = ring ? [...ring.querySelectorAll('.c-callin__circle')].map((b) => b.dataset.kind) : [];
+  const kinds = [...ring.querySelectorAll('.c-callin__circle')].map((b) => b.dataset.kind);
   ok(kinds.includes('accept') && kinds.includes('decline') && !kinds.includes('ignore'),
     'the ring offers Accept + Decline ONLY (ignore:false — no local-dismiss verb exists, C# would keep ringing)');
-  if (ring) ring.querySelector('[data-kind="decline"]').click();
-  ok(sent[sent.length - 1] === 'ixian:appReject:ADDR1:SID1',
-    'Decline emits ixian:appReject:<addr>:<sessionId> (intent only — C# rejects, SECURITY.md)');
-  await sleep(500);   // dismissOverlay: transitionend + 400ms fallback
-  ok(!d.querySelector('.c-callin'), 'the answered ring is dismissed');
+  ring.querySelector('[data-kind="accept"]').click();
+  ring.querySelector('[data-kind="accept"]').click();
+  ok(accepted === 1, 'ring actions LATCH — one outcome per ring');
+  await sleep(500);
+  ok(!d.querySelector('.c-callin'), 'an answered ring dismisses itself');
 
-  // —— callbar: dialing ("0") vs in-call (unix seconds) ——
-  callUi.displayCallBar('SID2', 'Calling Han…', '0');
+  // —— callbar: dialing (null startedAt) vs in-call, singleton mutate ——
+  S.showCallBar({ host: d.body, text: 'Calling Han…', startedAt: null, onHangUp: () => {} });
   let bar = d.querySelector('.c-callbar');
   let time = bar && bar.querySelector('.c-callbar__time');
   ok(!!bar && !!time && time.hidden && time.textContent === '',
-    'displayCallBar(…, "0") = DIALING — the bar shows, no timer ticks (legacy spixi.js:304)');
-  callUi.displayCallBar('SID2', 'Han', Math.floor(Date.now() / 1000) - 65);
+    'startedAt:null = DIALING — the bar shows, no timer ticks (legacy spixi.js:304)');
+  S.showCallBar({ host: d.body, text: 'Han', startedAt: Date.now() - 65000, onHangUp: () => {} });
   bar = d.querySelector('.c-callbar');
   time = bar && bar.querySelector('.c-callbar__time');
   ok(d.querySelectorAll('.c-callbar').length === 1 && !!time && !time.hidden && /\d+:\d\d/.test(time.textContent),
-    'a real startedSecs flips the SAME bar to in-call with a duration (singleton mutate — no teardown flash)');
-
-  // —— an ACTIVE call drops a live ring ——
-  // (a ring left up on a second surface would still offer Decline → ixian:appReject
-  //  on the now-live session; VoIPManager.rejectCall has no accepted-guard = call killed)
-  callUi.addCallAppRequest('ADDR1', 'SID3', 'Incoming call - Han');
-  ok(!!d.querySelector('.c-callin'), 'a NEW session rings even while a bar is up');
-  callUi.displayCallBar('SID3', 'Han', Math.floor(Date.now() / 1000));
-  await sleep(500);
-  ok(!d.querySelector('.c-callin'),
-    'displayCallBar DROPS the live ring — an active call means no ring can still be valid (and its Decline would kill the call)');
-
-  callUi.hideCallBar();
-  await sleep(500);
+    'a real startedAt flips the SAME bar to in-call with a duration (singleton mutate — no teardown flash)');
+  S.hideCallBar(d.body);
   ok(!d.querySelector('.c-callbar'), 'hideCallBar removes the bar');
 
-  // —— clearAppRequests: the ONLY removal signal for a ringing card (400ms grace) ——
-  callUi.addCallAppRequest('ADDR1', 'SID4', 'Incoming call - Han');
-  ok(!!d.querySelector('.c-callin'), 'a fresh session rings again after the call ended');
-  callUi.clearAppRequests();
-  ok(!!d.querySelector('.c-callin'),
-    'clearAppRequests DEFERS the drop — C#\'s displayAppRequests pass is clear-then-re-add across frames; an immediate drop would flash the card every pass');
-  await sleep(1000);  // 400ms clear grace + 400ms overlay exit fallback (+ margin)
-  ok(!d.querySelector('.c-callin'),
-    'a REAL clear (no re-add inside the grace window — caller hung up) drops the ring');
+  // —— static contract guards (call.html isn't jsdom-loaded — source markers) ——
+  const callShell = readFileSync(join(root, 'src/shells/call.html'), 'utf8');
+  ok(/setCallUi\(kind, name, avatar, text, startedSecs, sessionId, address\)/.test(callShell),
+    'call.html registers the ONE replayable setCallUi push (CallPage contract)');
+  ok(/ixian:appAccept:/.test(callShell) && /ixian:appReject:/.test(callShell) && /ixian:hangUp:/.test(callShell),
+    'call.html emits ONLY the existing global call verbs (intent — C# owns the call, SECURITY.md)');
+  ok(/ignore: false/.test(callShell),
+    'call.html ring is Accept/Decline-only (no local-dismiss verb exists)');
+  const buildShellsSrc = readFileSync(join(root, 'scripts/build-shells.mjs'), 'utf8');
+  ok(/call: \{ in: 'src\/shells\/call\.html', out: 'call\.html', page: 'CallPage' \}/.test(buildShellsSrc)
+    && /'wallet_sent', 'call'\]/.test(buildShellsSrc),
+    'build-shells maps call.html → CallPage + includes it in DEFAULT');
+  // no shell but call.html touches call UI anymore
+  for (const shell of ['home', 'chat', 'settings', 'wallet_sent', 'downloads', 'contact_details',
+    'contact_new', 'app_details', 'app_new', 'dev', 'contributors', 'settings_backup', 'settings_encryption']) {
+    const src = readFileSync(join(root, 'src/shells/' + shell + '.html'), 'utf8');
+    ok(!/attachCallUi/.test(src) && !/addCallAppRequest/.test(src) && !/displayCallBar/.test(src),
+      'call-ui removal: ' + shell + '.html carries no per-pane call wiring (#270)');
+  }
+
+  /* ————— Opus #46 loop over Q4: the fixed invariants ————————————————————————— */
+  const callPage = readFileSync(join(root, 'Spixi/Pages/Call/CallPage.xaml.cs'), 'utf8');
+  const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const app = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+
+  // ★ MAJOR-1: a call surface is NEVER presented while the app is locked (the modal
+  // fallback would sit ABOVE the lock — ModalStack is above the whole page tree).
+  ok(/private static bool lockUp\(INavigation\? rootNav\)/.test(callPage)
+    && /ModalStack\.Any\(p => p is LockPage\)/.test(callPage)
+    && /NavigationStack\.LastOrDefault\(\) is LockPage/.test(callPage),
+    '★ lockUp() sees all three lock shapes (in-place · modal · boot/root)');
+  ok(/hasModalOverlay\(\) \|\| isLockStaging\(\)/.test(callPage)
+    && /public static bool isLockStaging\(\)/.test(scp),
+    '★ lockUp ALSO sees a lock that is STAGING (pushModalLoaded, ~1.3s) — a ring admitted there would land UNDER the lock as an unpoppable modal');
+  ok(/if \(lockUp\(rootNav\)\)\s*\{\s*UIHelpers\.refreshAppRequests = true;\s*return null;/.test(callPage),
+    '★ ensureSurface refuses to present over a lock, and re-arms the refresh flag so the ring returns after the unlock');
+  ok(/CallPage\.hideSurface\(\);\s*\n\s*var lockPage = new LockPage\(true\);/.test(app),
+    '★ App.OnResume tears the call surface down BEFORE staging the resume lock (no modal can sit above a lock)');
+  ok(/UIHelpers\.refreshAppRequests = true;/.test(app.slice(app.indexOf('public void onUnlock'), app.indexOf('public void onLockPresentFailed'))),
+    '★ onUnlock re-asserts the call state (a call that survived the lock gets its ring/bar back)');
+
+  // ★ MAJOR-2: PopModalAsync pops the TOP modal — never pop a page we do not own.
+  ok(/if \(rootNav\.ModalStack\.LastOrDefault\(\) == page\)/.test(callPage),
+    '★ hideSurface only pops the modal when the CALL page is the top of the modal stack (a lock above must never be popped by a call event)');
+  // MAJOR-4: state cleared synchronously; the modal→in-place hand-off re-asserts.
+  ok(callPage.indexOf('lock (callLock)') < callPage.indexOf('MainThread.BeginInvokeOnMainThread(async () =>')
+    && /hideSurface\(\);\s*\n\s*return;/.test(callPage)
+    && /SpixiContentPage\.broadcastCallState\(\);\s*\n\s*return;/.test(callPage),
+    'MAJOR-4: hideSurface clears state synchronously and re-asserts after the modal pops (answering a modal-fallback ring lands the strip)');
+  // MINOR-5: the bar strip is sized, not margin-derived from an unmeasured grid.
+  ok(/stage\.HeightRequest = barHeightDip;/.test(callPage) && !/h - barHeightDip/.test(callPage),
+    'MINOR-5: the bar stage is SIZED, not margin-derived from an unmeasured grid height (which collapsed to a full-window input blocker)');
+  // ★ the inbound mini-app gate survives the removal of the (now dead) enumerator.
+  ok(!/public static List<SpixiContentPage> getLivePages/.test(scp)
+    && /public virtual bool acceptsCallPushes => true;/.test(scp)
+    && (scp.match(/acceptsCallPushes/g) || []).length >= 4,
+    '★ #221: the dead getLivePages enumerator is gone, the INBOUND acceptsCallPushes gate is NOT (appAccept/appReject/hangUp still refuse a mini-app)');
+  // the FE half: hang-up is one-shot per session; an unknown kind paints nothing.
+  ok(/const hungUp = new Set\(\)/.test(callShell) && /hungUp\.has\(sid\) \? '' : sid/.test(callShell),
+    'call.html: hang-up is ONE-SHOT per session (a re-assert cannot re-arm it)');
+  ok(/if \(ringEl && !ringEl\.isConnected\)/.test(callShell),
+    'call.html: a self-dismissed ring clears its latch (no blank full-window cover on a re-assert)');
+  ok(/:root\[data-desktop\] body\[data-mode="bar"\] \.c-callbar/.test(callShell),
+    'call.html: the desktop #264 floating-pill rule is overridden in bar mode (the stage IS the strip — no clipped pill)');
 }
 
 console.log('avatar-datauri.html');
@@ -3380,6 +3498,89 @@ console.log('avatar-datauri.html');
   ok(memberImg && memberImg.getAttribute('src').startsWith('data:image/png'), 'createChatInfo member row renders the per-sender data-URI photo');
   const appImg = d.querySelector('.c-tcard__app-icon img');
   ok(appImg && appImg.getAttribute('src').startsWith('data:image/png'), 'app-invite bubble renders the data-URI icon');
+}
+
+console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell · splash boot (#259)');
+{
+  /* static guards — shell wiring isn't jsdom-loaded; verify source markers. */
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const settings = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const launch = readFileSync(join(root, 'src/shells/launch.html'), 'utf8');
+  const emptyDetail = readFileSync(join(root, 'src/shells/empty_detail.html'), 'utf8');
+  const txShell = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
+  const buildShells = readFileSync(join(root, 'scripts/build-shells.mjs'), 'utf8');
+  // B2: hard-force gone, platform-aware default, forcing script ordered above the pattern read
+  ok(!/:root\[data-desktop\] \.c-chat-canvas::before \{ display: none; \}/.test(chat),
+    'B2: the #207 desktop pattern hard-force is DELETED from chat.html');
+  ok(/html\[data-desktop\]\[data-theme="dark"\] \.c-chat-canvas \{ --chat-canvas-base: var\(--neutral-1000\); \}/.test(chat),
+    'B2: the desktop dark grey-1000 ground rule is KEPT');
+  ok(/if\(isNaN\(p\)\)p=de\?0:0\.5;/.test(chat),
+    'B2: chat boot pattern default is platform-aware (desktop 0 / mobile 0.5)');
+  ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('isNaN(p))p=de?0:0.5'),
+    'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives');
+  ok(/hasAttribute\('data-desktop'\) \? 0 : 0\.5/.test(settings),
+    'B2: settings readChatPrefs mirrors the platform-aware default');
+  // B3: tx tap routed to the detail page; shell contract markers present
+  ok(/onTx: \(tx\) => bridge\.send\('ixian:txdetails:' \+ tx\.txid\)/.test(home),
+    'B3: home wallet tab routes a tx tap to ixian:txdetails:<txid>');
+  ok(/addEntry\(address, username, avatar, amount, fiat, time, type, confirmed\)/.test(txShell)
+    && /setData\(amount, fee, time, txid, confirmed\)/.test(txShell)
+    && /hideBackButton\(\) \{ buildTopbar\(false\); \}/.test(txShell),
+    'B3: wallet_sent.html carries the WalletSentPage contract (#270: the #258 §0 attachCallUi spread is RETIRED)');
+  ok(/clearEntries\(\) \{ model\.entries = \[\]; model\.received = false; \}/.test(txShell),
+    'B3: a lone clearEntries resets the BUFFER only (never blanks the rendered card)');
+  ok(/wallet_sent: \{ in: 'src\/shells\/wallet_sent\.html'/.test(buildShells)
+    && /'empty_detail', 'wallet_sent'/.test(buildShells),
+    'B3: build-shells maps wallet_sent + includes it in DEFAULT');
+  // splash: boot cover on all four shells, input-transparent, dropped in signalReady
+  for (const [name, src] of [['home', home], ['settings', settings], ['launch', launch], ['empty_detail', emptyDetail]]) {
+    ok(/id="app-boot"/.test(src) && /pointer-events: none;/.test(src)
+      && /function dropAppBoot\(\)/.test(src) && /prefers-reduced-motion/.test(src),
+      'splash: ' + name + ' has the input-transparent boot cover + reduced-motion-aware teardown');
+  }
+  ok(/html \{ background: #13171b; \}/.test(launch) && /data-desktop/.test(launch),
+    'splash: launch gained the dark instant-bg + the #228 platform flag');
+}
+
+console.log('missing-bits Batch C — desktop overlay grammar + form panes (M6/M7/M8)');
+{
+  /* static guards — presentation CSS + shell wiring (jsdom is layout-blind). */
+  const overlayCss = readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8');
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/:root\[data-desktop\] \.c-sheet \{/.test(overlayCss)
+    && /width: min\(480px, 92%\);/.test(overlayCss)
+    && /:root\[data-desktop\] \.c-sheet \.c-sheet__handle \{ display: none; \}/.test(overlayCss),
+    'M6: overlay.css presents sheets as centered dialogs under :root[data-desktop]');
+  ok(/\.c-sheet\[data-dt-anchor="menu"\]/.test(overlayCss) && /\.c-sheet\[data-dt-anchor="up"\]/.test(overlayCss)
+    && /\[data-dt-ctx-source\]/.test(overlayCss),
+    'M6: anchored dropdown/popover variants + source-row highlight exist');
+  ok(/attachContextMenuAnchors\(\{ host: overlayHost, rows: '\.c-bubble-row' \}\)/.test(chat),
+    'M6: chat shell anchors right-clicked message menus');
+  ok(/attachContextMenuAnchors\(\{ host: document\.body, rows: '\.c-chatlist-item' \}\)/.test(home),
+    'M6: home shell anchors right-clicked chat-row menus');
+  ok(/anchorSheetAbove\(sheet, composerEl && composerEl\.querySelector\('\.c-composer__attach'\)/.test(chat),
+    'M6: the attach grid rises from the composer ⊕ on desktop');
+  // M6 component behavior over the components.html bundle (window.Spixi is live there)
+  const anchors = readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8');
+  ok(/isDesktopPresentation\(\)/.test(anchors) && /return \(\) => \{\};/.test(anchors),
+    'M6: desktop-anchors no-ops without data-desktop (mobile untouched)');
+  ok(/CTX_FRESH_MS = 600/.test(anchors) && /\.c-msgmenu/.test(anchors),
+    'M6: only a just-right-clicked .c-msgmenu sheet anchors (long-press keeps the dialog)');
+  // Q2 review (#268 loop): the no-scrim change rests on ONE unasserted invariant in a
+  // DIFFERENT file — desktop-anchors tags the sheet's scrim by previousElementSibling,
+  // which is only the scrim because overlay.js appends `scrim, el` in that order. If
+  // anyone ever wraps the sheet, appends the scrim last, or portals it, the wash
+  // silently returns with nothing failing. Pin all three halves together.
+  const overlayJs = readFileSync(join(root, 'src/components/overlay.js'), 'utf8');
+  ok(/host\.append\(scrim, el\)/.test(overlayJs)
+    && /previousElementSibling/.test(anchors)
+    && /\.c-scrim\[data-dt-clear\]/.test(overlayCss),
+    '#268: clearScrimFor depends on the scrim being the sheet PREVIOUS SIBLING (overlay.js append order)');
+  // The scrim must stay CLICKABLE while transparent (outside-click dismissal, #56 stack).
+  ok(!/\.c-scrim\[data-dt-clear\][^{]*\{[^}]*pointer-events\s*:\s*none/.test(overlayCss),
+    '#268: a transparent scrim still catches the outside click (no pointer-events:none)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

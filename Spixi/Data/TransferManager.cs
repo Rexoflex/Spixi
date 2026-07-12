@@ -183,6 +183,51 @@ namespace SPIXI
 
         public static string downloadsPath = "Downloads";
 
+        // Q1-② (#267) + security-review MAJOR (`..`-traversal on downloads open/
+        // delete): resolve a WEBVIEW-SUPPLIED file NAME against the Downloads root.
+        // Returns the full path only when the name is a plain leaf that stays
+        // inside the root; anything else (empty, separators, "..", rooted input,
+        // or a canonical path escaping the root) → null. Shared by SettingsPage
+        // (openDownload/deleteDownload) and DownloadsPage (open/delete) so the
+        // guard lives ONCE. C# names its own paths (CLAUDE.md ground rule).
+        public static string resolveDownloadPath(string file_name)
+        {
+            if (string.IsNullOrEmpty(file_name)) return null;
+            // Q1 review (#266/#267 loop): the name must be a plain LEAF. Two cheap additions
+            // to the existing rejects: (a) it must be its own Path.GetFileName (any directory
+            // part at all → reject), and (b) it must contain no invalid file-name character —
+            // on Windows that set includes ':', which kills an alternate-data-stream name
+            // ("file.txt:secret") that the separator checks alone would let through. Both are
+            // fail-closed and cannot reject a name that a real download could carry.
+            if (file_name.Contains("..")
+                || file_name.IndexOfAny(new char[] { '/', '\\' }) != -1
+                || Path.IsPathRooted(file_name)
+                || !string.Equals(Path.GetFileName(file_name), file_name, StringComparison.Ordinal)
+                || file_name.IndexOfAny(Path.GetInvalidFileNameChars()) != -1)
+            {
+                Logging.error("Rejected download file name from WebView: '{0}'", file_name);
+                return null;
+            }
+            try
+            {
+                // Q1 review (#266/#267 loop): anchor the root without a trailing separator — a
+                // downloadsPath that ends in one would make the root + separator re-check below
+                // reject every legitimate file.
+                string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(downloadsPath));
+                string full = Path.GetFullPath(Path.Combine(root, file_name));
+                if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    Logging.error("Rejected download path escaping the Downloads root: '{0}'", file_name);
+                    return null;
+                }
+                return full;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         public static void start()
         {
             if (running)

@@ -13,9 +13,11 @@ using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Maui.Devices;
 using Microsoft.Maui.Storage;
 using Spixi;
+using SPIXI.Interfaces;   // #265: SpixiImageData (the in-shell group-avatar pick)
 using SPIXI.Lang;
 using SPIXI.Meta;
 using SPIXI.MiniApps;
+using SPIXI.VoIP;   // #265: the missed-call excerpt derivation uses VoIPManager.hasSession
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -384,13 +386,73 @@ namespace SPIXI
             {
                 newChat();
             }
+            else if (current_url.Equals("ixian:groupreset", StringComparison.Ordinal))
+            {
+                // #265 (Opus MAJOR-3): the in-shell group SETUP opened — drop any
+                // abandoned temp photo from a previous, cancelled attempt so it can
+                // never be promoted onto this group (and shipped to its members).
+                // Mirrors the legacy picker's delete-on-load (WalletRecipientPage:47).
+                clearGroupAvatarTemp();
+            }
+            else if (current_url.Equals("ixian:groupavatar", StringComparison.Ordinal))
+            {
+                // #265 (Damir ⑤): the IN-SHELL group setup's avatar picker. Writes the
+                // SAME temp file HandlePickSucceeded promotes onto the new group
+                // (WalletRecipientPage.temporaryImagePath) — one convention, no new
+                // filesystem surface (C# names the path; the WebView never does).
+#pragma warning disable CS4014
+                onGroupAvatarAsync();
+#pragma warning restore CS4014
+            }
+            else if (current_url.StartsWith("ixian:creategroup:", StringComparison.Ordinal))
+            {
+                // #265 (Damir ⑤): create the group from the REDESIGNED in-shell flow
+                // (contacts picker multi-select → setup sheet). Payload mirrors the
+                // legacy WalletRecipientPage `ixian:select:` grammar 1:1 —
+                //   ixian:creategroup:<'1'|'0' blind><name>:|<addr>|<addr>…
+                // — and feeds the SAME HandlePickSucceeded core (GroupChat.CreateGroup
+                // + avatar promotion + createGroup message). No money picker involved.
+                string payload = current_url.Substring("ixian:creategroup:".Length);
+                string[] parts = payload.Split(new string[] { ":|" }, StringSplitOptions.None);
+                if (parts.Length > 1 && parts[0].Length > 1)
+                {
+                    bool blindMode = parts[0][0] == '1';
+                    string groupName = parts[0].Substring(1);
+                    List<ExtendedAddress> addresses = new();
+                    foreach (string a in parts[1].Split('|'))
+                    {
+                        if (string.IsNullOrWhiteSpace(a))
+                        {
+                            continue;
+                        }
+                        try { addresses.Add(new ExtendedAddress(a)); }
+                        catch (Exception ex) { Logging.error("creategroup: bad address: " + ex); }
+                    }
+                    if (addresses.Count > 1)
+                    {
+                        HandlePickSucceeded(this, addresses, groupName, blindMode, false);   // in-shell: nothing to pop
+                    }
+                    else
+                    {
+                        Logging.error("creategroup: fewer than 2 valid members.");
+                    }
+                }
+            }
             else if (current_url.Equals("ixian:newcontact", StringComparison.Ordinal))
             {
-                pushPageLoaded(new ContactNewPage());   // load-then-move (N3)
+                // Batch C (#256 M8): WIDE → the add-contact form pins to the detail
+                // column (the #247 pinned-overlay machinery; presentation-only routing,
+                // the page's own verbs/contract untouched). Narrow keeps the full
+                // takeover. The shared "formpane" tag makes newcontact ↔ newapp
+                // replace each other seamlessly (same-tag swap, like "chat").
+                closeContactDetailsOverlays();   // loop B-MINOR-1: the form takes the detail region — no col-1 stacking
+                pushPageLoaded(new ContactNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:newapp", StringComparison.Ordinal))
             {
-                pushPageLoaded(new AppNewPage());   // load-then-move (N3, round 2)
+                // Batch C (#256 M7): same routing as newcontact above.
+                closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
+                pushPageLoaded(new AppNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3, round 2)
             }
             else if (current_url.Equals("ixian:sendixi", StringComparison.Ordinal))
             {
@@ -399,6 +461,27 @@ namespace SPIXI
             else if (current_url.Equals("ixian:receiveixi", StringComparison.Ordinal))
             {
                 onReceiveIxi(null);
+            }
+            else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
+            {
+                // Q2-⑥ (#268, W8 LANDED): the Receive takeover's "request from a
+                // contact" strip. Lifted from WalletReceivePage:93-155 (parse +
+                // validate) + onRequest:185-196 — the sanctioned "same page, new
+                // host" pattern, minus its popPageAsync (this page must NOT pop).
+                // ★ A REQUEST is a chat message (requestFunds), not a payment —
+                // nothing is signed here (SECURITY.md).
+                //
+                // DELIBERATE DEVIATION from the verbatim lift (#268 audit, FIX 4):
+                // legacy used Contains(). That was safe only on WalletReceivePage,
+                // which carries no other data-carrying verbs. On HomePage this
+                // branch sits AHEAD of ixian:chat:/details:/chatinfo:/txdetails:/
+                // startApp:/appDetails:/uninstall:/acceptRequest: …, so a Contains()
+                // match could hijack any payload that ever embedded the literal
+                // substring into the money-adjacent handler. Every verb added since
+                // #216 uses StartsWith(..., Ordinal); this one now does too. The
+                // handler's payload grammar (Split on the prefix, then the legacy
+                // '|'-separated addr:amount list) is UNCHANGED.
+                onSendRequest(current_url);
             }
             else if (current_url.Equals("ixian:avatar", StringComparison.Ordinal))
             {
@@ -488,6 +571,8 @@ namespace SPIXI
                 // #247: the chat-info pane belongs to the chats context — leaving it
                 // closes the pane (direct close is safe: its edits commit per-action).
                 closeContactDetailsOverlays();
+                closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
+                closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
                 if (currentTab == "tab2")
                 {
                     loadTransactions(true);
@@ -499,7 +584,11 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:downloads", StringComparison.Ordinal))
             {
-                Navigation.PushModalAsync(new DownloadsPage());
+                // #264 (S8): dead legacy branch (no shell emits ixian:downloads at
+                // HomePage — the live entry is the Account hub → SettingsPage), but
+                // aligned to the overlay presenter so DownloadsPage.onBack's
+                // popPageAsync (no longer PopModalAsync) works from EVERY presenter.
+                pushPageLoaded(new DownloadsPage());
             }
             else if (current_url.Equals("ixian:contributors", StringComparison.Ordinal))
             {
@@ -595,7 +684,7 @@ namespace SPIXI
                 string appId = current_url.Substring("ixian:startAppMulti:".Length);
                 onStartAppMulti(appId);
             }
-            else if (current_url.StartsWith("ixian:appDetails"))
+            else if (current_url.StartsWith("ixian:appDetails:"))   // Q1 review (#266/#267 loop): the colon was missing — a colon-less "ixian:appDetails" threw ArgumentOutOfRangeException on the Substring below
             {
                 string appId = current_url.Substring("ixian:appDetails:".Length);
                 onAppDetails(appId);
@@ -676,6 +765,128 @@ namespace SPIXI
             Navigation.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);
         }
 
+        // Q2-⑥ (#268, W8 LANDED): `ixian:sendrequest:` on the home shell — the
+        // Receive takeover's "request from a contact" strip. Parse + validate +
+        // dispatch lifted VERBATIM from WalletReceivePage.onNavigating:93-155 and
+        // onRequest:185-196; the ONLY deltas are (a) no popPageAsync (HomePage
+        // stays), (b) no e.Cancel plumbing (the caller cancels unconditionally).
+        // ★ SECURITY.md: requestFunds is a CHAT MESSAGE (an ask) — nothing is
+        // signed or broadcast here; the payer later reviews in the native flow.
+        private void onSendRequest(string current_url)
+        {
+            try
+            {
+                string[] split = current_url.Split(new string[] { "ixian:sendrequest:" }, StringSplitOptions.None);
+
+                // Extract all addresses and amounts
+                string[] addresses_split = split[1].Split(new string[] { "|" }, StringSplitOptions.None);
+
+                foreach (var address_amount in addresses_split)
+                {
+                    if (address_amount == "")
+                    {
+                        continue;
+                    }
+
+                    string[] split_address_amount = address_amount.Split(':');
+                    if (split_address_amount.Count() < 2)
+                        continue;
+
+                    string recipient = split_address_amount[0];
+                    string amount = split_address_amount[1];
+                    if (!ExtendedAddress.Validate(recipient))
+                    {
+                        displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        return;
+                    }
+                    string[] amount_split = amount.Split(new string[] { "." }, StringSplitOptions.None);
+                    if (amount_split.Length > 2)
+                    {
+                        displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amountdecimal-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        return;
+                    }
+
+                    // Add decimals if none found
+                    if (amount_split.Length == 1)
+                        amount = String.Format("{0}.0", amount);
+
+                    IxiNumber _amount = amount;
+
+                    if (_amount == 0 || _amount < (long)0)
+                    {
+                        displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amount-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        return;
+                    }
+
+                    Address recipient_address = new Address(recipient);
+                    Friend? request_friend = FriendList.getFriend(recipient_address);
+
+                    // #268 audit FIX 1/2/3 — RECIPIENT GUARD. A deliberate,
+                    // documented DEVIATION from the verbatim lift: legacy
+                    // WalletReceivePage.onRequest:185-196 guarded only
+                    // `friend != null && amount > 0` and silently did nothing
+                    // otherwise (its own `// else error?` at :196 flags the hole).
+                    //
+                    // The frontend recipient list is NOT a security boundary, and
+                    // it cannot even see every bad case:
+                    //  · an INCOMING, not-yet-accepted request is routed out of the
+                    //    chats list into the Requests feed (loadChats), so that
+                    //    contact has no chat row, is never flagged "pending" in the
+                    //    shell, and DOES render in the money strip;
+                    //  · a group/bot with a custom avatar and no chat row slips past
+                    //    the shell's avatar-sentinel + CH1 "kind" heuristics.
+                    // Composing a requestFunds toward a peer who has not accepted us
+                    // (or toward a group/bot) is the ⑪ "delivery lie" class on a
+                    // money surface: the shell latches "Request sent ✓" for a message
+                    // that cannot arrive. So: FAIL CLOSED here, and always surface
+                    // the rejection (FIX 3 — no more silent no-op).
+                    //
+                    // FAIL-CLOSED on type: only FriendType.Normal is a 1:1 person;
+                    // anything else (Group / Payment / Temporary / any future member
+                    // added in Ixian-Core) is rejected rather than allowed.
+                    //
+                    // ★ BOTH handshake flags are checked, deliberately (Q2 re-review):
+                    // `approved` means "I approved THEM" (its only writes are the two
+                    // accept handlers — HomePage.onAcceptRequest and
+                    // SingleChatPage.onAcceptFriendRequest), so a contact *I* added who
+                    // has NOT accepted me yet can still be `approved` — the exact
+                    // outgoing-pending recipient this guard exists to reject. The app's
+                    // canonical "we are connected" test is `state == Approved`: a friend
+                    // that is not Approved has its chat-list excerpt forced to
+                    // "waiting for response" (getFriendMessageHelper) and gets NO call
+                    // button (SingleChatPage:667). Checking both covers both directions
+                    // and cannot reject a contact that shows a normal chat row today.
+                    if (request_friend == null
+                        || !request_friend.approved
+                        || request_friend.state != FriendState.Approved
+                        || request_friend.type != FriendType.Normal
+                        || request_friend.bot)
+                    {
+                        Logging.warn("sendrequest: rejected recipient " + recipient
+                            + " (known: " + (request_friend != null)
+                            + ", approved: " + (request_friend != null ? request_friend.approved.ToString() : "n/a")
+                            + ", state: " + (request_friend != null ? request_friend.state.ToString() : "n/a")
+                            + ", type: " + (request_friend != null ? request_friend.type.ToString() : "n/a")
+                            + ", bot: " + (request_friend != null ? request_friend.bot.ToString() : "n/a") + ")");
+                        displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        return;
+                    }
+
+                    if (_amount > 0)
+                    {
+                        FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.requestFunds, request_friend.walletAddress, 0, amount, true);
+
+                        StreamProcessor.transactionRequest(friend_message.id, request_friend, _amount, null, null);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.error("Exception occurent for sendrequest action: " + ex);
+                displaySpixiAlert(SpixiLocalization._SL("wallet-request-error-title"), SpixiLocalization._SL("wallet-request-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+            }
+        }
+
         public void onContactDetails(Friend friend)
         {
             // Chat header entry (via SingleChatPage) → context 'chat' (#248).
@@ -718,6 +929,12 @@ namespace SPIXI
                 }
 
                 infoPaneCol2Pending = false;
+                // Batch C loop B-MINOR-1: a lingering add-contact/add-app pane would sit
+                // STACKED under a col-1 info pane and resurface when it closes — the
+                // detail region navigates to the info surface, so the form yields
+                // (same close-audit rule as tab/chat/tx navigation).
+                closeFormPaneOverlays();
+                closeTxDetailOverlays();   // #263 review NIT-1: same stacking class, defense-in-depth
                 bool wide = rightContent.IsVisible;
                 // #249 (Damir F5 r3): the BESIDE-the-conversation column is ONLY for the
                 // OPEN conversation's own info — any other target (a contact from the
@@ -784,6 +1001,37 @@ namespace SPIXI
             }
         }
 
+        // Batch C (#256 M7/M8): close an open add-contact/add-app form pane when the
+        // user navigates the detail region elsewhere (tab switch / chat open / tx
+        // open) — same close-audit the chat-info pane gets. ⚠ DIRECT close discards
+        // typed-but-unsubmitted form input (an address / app URL) — accepted: the
+        // user chose to navigate away, and the forms are one-field short. Damir dial.
+        private void closeFormPaneOverlays()
+        {
+            foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+            {
+                // Q1-① (#267): AppDetailsPage now rides the same "formpane" slot
+                // (Get-app / apps-tab ⋮ → App details) → same close-audit.
+                if (p is ContactNewPage || p is AppNewPage || p is AppDetailsPage)
+                {
+                    removePage(p);   // #225: removing an open overlay = closeOverlay
+                }
+            }
+        }
+
+        // #263: same close-audit for the tx-detail overlay ("txdetail", pinned col 1
+        // on wide) — leaving the wallet context closes it. View-only, no held state.
+        private void closeTxDetailOverlays()
+        {
+            foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+            {
+                if (p is WalletSentPage)
+                {
+                    removePage(p);   // #225: removing an open overlay = closeOverlay
+                }
+            }
+        }
+
         public void onConfirmPaymentRequest(FriendMessage msg, Friend friend, string amount, string date_text)
         {
             Navigation.PushAsync(new WalletContactRequestPage(msg, friend, amount, date_text), Config.defaultXamarinAnimations);
@@ -842,12 +1090,85 @@ namespace SPIXI
             Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
         }
 
+        // #265 (Damir ⑤): the in-shell group setup's avatar pick — same temp-file
+        // convention the legacy picker used, so HandlePickSucceeded promotes it onto
+        // the created group unchanged. C# owns the path; the WebView only says "pick".
+        // ★ Opus review MAJOR-2: WalletRecipientPage.temporaryImagePath is only made
+        // ABSOLUTE inside that page's ctor (it initializes to the bare relative
+        // "avatar-tmp.jpg"). The in-shell flow never constructs that page, so writing
+        // to it would hit the process CWD — silently failing on a packaged build (and
+        // "working" only on an unpackaged dev run). Resolve the real path ourselves,
+        // through the same storage root, every time.
+        private static string groupAvatarTempPath()
+        {
+            return Path.Combine(IxianHandler.localStorage.avatarsPath, "avatar-tmp.jpg");
+        }
+
+        // MAJOR-3: an ABANDONED pick (photo chosen, then the user backs out) would be
+        // promoted onto the NEXT group created — and shipped to its members. The legacy
+        // picker deleted the temp file when it opened; do the same at every entry to the
+        // in-shell group flow.
+        private void clearGroupAvatarTemp()
+        {
+            try
+            {
+                string p = groupAvatarTempPath();
+                if (File.Exists(p))
+                {
+                    File.Delete(p);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("clearGroupAvatarTemp: " + ex);
+            }
+        }
+
+        private async Task onGroupAvatarAsync()
+        {
+            SpixiImageData? spixi_img_data = await SFilePicker.PickImageAsync();
+            if (spixi_img_data == null || spixi_img_data.stream == null)
+            {
+                // MINOR-6: a CANCELLED pick must release the shell's one-shot latch,
+                // else the avatar button stays dead for the panel's life.
+                Utils.sendUiCommand(this, "loadGroupAvatar", "");
+                return;
+            }
+            try
+            {
+                byte[]? image_bytes;
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    spixi_img_data.stream.CopyTo(ms);
+                    spixi_img_data.stream.Close();
+                    image_bytes = SFilePicker.ResizeImage(ms.ToArray(), 960, 960, 80);
+                    if (image_bytes == null)
+                    {
+                        Utils.sendUiCommand(this, "loadGroupAvatar", "");
+                        return;
+                    }
+                }
+                string path = groupAvatarTempPath();
+                File.WriteAllBytes(path, image_bytes);
+                // keep the legacy static in sync — HandlePickSucceeded promotes from it
+                WalletRecipientPage.temporaryImagePath = path;
+                Utils.sendUiCommand(this, "loadGroupAvatar", Utils.imageToDataUri(path));   // X1
+            }
+            catch (Exception ex)
+            {
+                Logging.error("onGroupAvatarAsync: " + ex);
+                Utils.sendUiCommand(this, "loadGroupAvatar", "");   // release the latch
+            }
+        }
+
         private async void HandlePickSucceeded(object? sender, EventArgs<(List<ExtendedAddress>, string?, bool)> e)
         {
             HandlePickSucceeded(sender, e.Value.Item1, e.Value.Item2, e.Value.Item3);
         }
 
-        private async void HandlePickSucceeded(object? sender, List<ExtendedAddress> addresses, string? groupName, bool blindMode)
+        // popFirst=false: the in-shell create-group flow (#265) has NO pushed page to
+        // pop — popPageAsync() there would pop HomePage itself off the nav stack.
+        private async void HandlePickSucceeded(object? sender, List<ExtendedAddress> addresses, string? groupName, bool blindMode, bool popFirst = true)
         {
             if (addresses.Count == 0)
             {
@@ -871,7 +1192,14 @@ namespace SPIXI
                 var g = GroupChat.CreateGroup(new Address(IxianHandler.getWalletStorage().getPrimaryPublicKey()), contacts, groupName, hideParticipantAddresses);
                 if (g != null)
                 {
+                    // MAJOR-2: never trust the legacy static's default (a RELATIVE
+                    // "avatar-tmp.jpg" until WalletRecipientPage's ctor runs) — resolve
+                    // the real storage path when it isn't absolute.
                     string avatarPath = WalletRecipientPage.temporaryImagePath;
+                    if (!Path.IsPathRooted(avatarPath))
+                    {
+                        avatarPath = groupAvatarTempPath();
+                    }
                     if (File.Exists(avatarPath))
                     {
                         var avatar = File.ReadAllBytes(avatarPath);
@@ -881,6 +1209,14 @@ namespace SPIXI
                     }
                     var cgm = new SpixiMessage(SpixiMessageCode.createGroup, new CreateGroupMessage(g.metaData.botInfo.randomId, groupName, contacts, new(), hideParticipantAddresses).getBytes());
                     CoreStreamProcessor.sendSpixiMessage(g, cgm);
+                }
+                else
+                {
+                    // pre-existing (review housekeeping): `address = g.walletAddress` sat
+                    // OUTSIDE this guard → NRE in an async void if CreateGroup returned
+                    // null. The in-shell flow is a new caller — fail loud, don't crash.
+                    Logging.error("Group creation failed (CreateGroup returned null).");
+                    return;
                 }
                 address = g.walletAddress;
             }
@@ -896,7 +1232,10 @@ namespace SPIXI
 
             try
             {
-                popPageAsync();
+                if (popFirst)
+                {
+                    popPageAsync();
+                }
                 onChat(address, null);
             }
             catch (Exception ex)
@@ -1050,7 +1389,9 @@ namespace SPIXI
             }
         }
 
-        public async void onTransaction(byte[] txid, WebNavigatingEventArgs e)
+        // #263: no longer async — the old rightContent swap awaited FadeTo; the
+        // overlay route stages/presents on its own thread machinery.
+        public void onTransaction(byte[] txid, WebNavigatingEventArgs e)
         {
             var activity = Node.activityStorage.getActivityById(txid, null, true);
             if (activity == null)
@@ -1059,37 +1400,26 @@ namespace SPIXI
                 return;
             }
 
-            // Unit 2 (#240): a tx detail renders in rightContent, UNDER an open
+            // Unit 2 (#240): a tx detail renders in the detail region, UNDER an open
             // Account pane pinned to the same column — dismiss the pane first
             // (save-if-dirty through the shell) so the detail is actually visible.
             requestSettingsOverlayExit();
             closeContactDetailsOverlays();   // #247: same reasoning for the info pane
+            closeFormPaneOverlays();         // Batch C: the tx detail takes the column
 
             if (rightContent.IsVisible)
             {
-                try
-                {
-                    await rightContent.Content.FadeTo(0, 50);
-                }
-                catch (Exception ex)
-                {
-                    Logging.warn("Exception: " + ex);
-                }
-                removeDetailContent(false);
-                detailContent = new WalletSentPage(activity.transaction, true, this);
-                rightContent.Content.BackgroundColor = ThemeManager.getSurfaceColor();   // theme-aware (N1)
-
-                rightContent.Content.Opacity = 0;
-                rightContent.Content = detailContent.Content;
-                try
-                {
-                    await rightContent.Content.FadeTo(1, 150);
-                }
-                catch (Exception ex)
-                {
-                    Logging.warn("Exception: " + ex);
-                }
-
+                // #263 (Damir F5: "multipane tx tap does NOTHING"): the old rightContent
+                // SWAP put WalletSentPage UNDER the #225 pinned overlays — an open
+                // conversation is a stage pinned OVER col 1, so the detail landed
+                // beneath it, invisible. Route through the SAME overlay machinery
+                // everything else uses: pinned col 1, tag "txdetail" (a new tx tap
+                // tag-replaces the previous detail). Constructed WITHOUT the home ref
+                // → hideBackButton is never pushed → the shell keeps its back button,
+                // whose ixian:dismiss pops the overlay (popPageAsync is overlay-aware)
+                // and reveals whatever sat beneath (conversation / empty detail).
+                // Live status holds: OnUpdateUI ticks the TOP overlay every second.
+                pushPageLoaded(new WalletSentPage(activity.transaction), 4000, "txdetail", 1);
                 Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());
                 return;
             }
@@ -1130,6 +1460,8 @@ namespace SPIXI
                 // #247: an open info pane belongs to the PREVIOUS conversation —
                 // close it before the new chat stages (direct close is safe).
                 closeContactDetailsOverlays();
+                closeFormPaneOverlays();   // Batch C: the conversation takes the column
+                closeTxDetailOverlays();   // #263: same — a new conversation covers col 1
 
                 // #225: conversations open as OVERLAYS — loaded + painted off-screen,
                 // then shown in place (wide window: pinned over the detail column,
@@ -1269,6 +1601,7 @@ namespace SPIXI
 
             // Generate the excerpt depending on message type
             string excerpt = lastmsg.message;
+            bool skipSelfPrefix = false;   // #265: "You: No answer" reads wrong (see below)
 
             if (friend.state != FriendState.Approved)
             {
@@ -1329,10 +1662,26 @@ namespace SPIXI
                 }
                 else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
                 {
+                    // #265 (Damir): the row said "Voice Call" for EVERY call — a missed
+                    // call is the one you most need to see in the list. Derive the same
+                    // way the chat bubble does (SingleChatPage:1616-1630): an EMPTY
+                    // message on an ended/session-less call = never connected →
+                    // "Missed call" (incoming) / "No answer" (outgoing). A duration
+                    // means it connected → the plain call label.
                     excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
+                    if (lastmsg.message == ""
+                        && (lastmsg.type == FriendMessageType.voiceCallEnd || !VoIPManager.hasSession(lastmsg.id)))
+                    {
+                        excerpt = lastmsg.localSender
+                            ? SpixiLocalization._SL("chat-call-no-answer")
+                            : SpixiLocalization._SL("chat-call-missed");
+                        // review NIT: "You: No answer" reads wrong — the label already
+                        // says whose side it was. Skip the self-prefix for this one.
+                        skipSelfPrefix = true;
+                    }
                 }
 
-                if (lastmsg.localSender)
+                if (lastmsg.localSender && !skipSelfPrefix)
                 {
                     excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
                 }
@@ -1825,6 +2174,20 @@ namespace SPIXI
                 {
                     return;
                 }
+
+                // C18 (#265, Opus review MINOR-5): consume the global refresh flag HERE.
+                // Nine pages override updateScreen() WITHOUT calling base (MiniApp,
+                // ContactDetails, WalletSent, Downloads, Dev, Contributors, Apps,
+                // AppNew, AppDetails) — with one of those stack-last AND another as the
+                // top overlay, nothing consumed the flag and the ring never rendered
+                // anywhere. HomePage always ticks, so this is the reliable consumer;
+                // flag cleared FIRST, then a single broadcast to every call-capable
+                // WebView (base.updateScreen keeps working for the present-time path).
+                if (UIHelpers.refreshAppRequests)
+                {
+                    UIHelpers.refreshAppRequests = false;
+                    SpixiContentPage.broadcastCallState();
+                }
                 Page page = Navigation.NavigationStack.Last();
                 if (page is not null and SpixiContentPage)
                 {
@@ -1992,6 +2355,13 @@ namespace SPIXI
             // #230: while a lock is shown in place, HomePage is still the CurrentPage —
             // swallow back entirely (the lock's own OnBackButtonPressed never runs).
             if (SpixiContentPage.hasModalOverlay())
+            {
+                return true;
+            }
+            // Q4-③ (#270): while the native call RING covers the window, back must
+            // not navigate the app underneath — Accept/Decline/timeout are the
+            // exits (the in-call BAR strip does NOT swallow back; the app is live).
+            if (CallPage.isRingPresented())
             {
                 return true;
             }
@@ -2266,13 +2636,22 @@ namespace SPIXI
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                pushPageLoaded(new AppDetailsPage(app, null, true, friendOrGroup));   // load-then-move (N3)
+                // Q1-① (#267): app details land in the DETAIL column on wide windows
+                // (Damir F5: "Get app opened full screen"). Same routing + the same
+                // "formpane" tag as newcontact/newapp, so add-app → app-details
+                // tag-REPLACES cleanly (the #264-review dial). Narrow keeps the
+                // full-span takeover. The install CONFIRM inside AppDetailsPage
+                // stays a modal (#256 lock) — only the page presentation changes.
+                closeContactDetailsOverlays();   // loop B-MINOR-1: no col-1 stacking
+                pushPageLoaded(new AppDetailsPage(app, null, true, friendOrGroup), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
             });
         }
 
         private void onAppDetails(string appId)
         {
-            pushPageLoaded(new AppDetailsPage(appId));   // load-then-move (N3)
+            // Q1-① (#267): same detail-column routing as onInstallApp above.
+            closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
+            pushPageLoaded(new AppDetailsPage(appId), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
         }
 
         private void onAcceptRequest(string address)

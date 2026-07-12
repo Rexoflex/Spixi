@@ -403,22 +403,21 @@
   reqBody.append(reqName, reqSub);
   const reqActions = document.createElement('div');
   reqActions.className = 'contact-request__actions';
-  reqActions.append(
-    createButton({
-      label: 'Decline', type: 'outline', size: 32,
-      onClick: () => openModal(createModal({
-        title: 'Decline request?',
-        body: '425H…5CQen won’t be notified, and can send another request later.',
-        role: 'alertdialog',
-        host: chatsPhone,
-        actions: [
-          { label: 'Cancel', type: 'text', autofocus: true }, // safe action gets focus
-          { label: 'Decline', type: 'fill', intent: 'destructive', onClick: () => {} },
-        ],
-      })),
-    }),
-    createButton({ label: 'Accept', type: 'fill', size: 32, icon: icon('check', { size: 16 }) }),
-  );
+  // Q1 review (#267 loop): this hand-rolled block must teach the SHIPPED grammar —
+  // Decline is SINGLE-CLICK (⑩/#266 dropped the confirm modal: a decline is
+  // reversible), and either action SPENDS the whole card (both buttons disabled),
+  // as c-contact-request does. The block keeps its demo-local DOM/classes.
+  let reqDecline, reqAccept;
+  const spendRequest = () => {
+    if (reqDecline) reqDecline.disabled = true;
+    if (reqAccept) reqAccept.disabled = true;
+  };
+  reqDecline = createButton({ label: 'Decline', type: 'outline', size: 32, onClick: spendRequest });
+  reqAccept = createButton({
+    label: 'Accept', type: 'fill', size: 32, icon: icon('check', { size: 16 }),
+    onClick: spendRequest,
+  });
+  reqActions.append(reqDecline, reqAccept);
   reqBody.append(reqActions);
   req.append(reqBody);
   const reqTime = document.createElement('span');

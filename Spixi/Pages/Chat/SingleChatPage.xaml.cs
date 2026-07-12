@@ -1906,6 +1906,14 @@ namespace SPIXI
                 else if(friend.state == FriendState.RequestSent || friend.state == FriendState.RequestReceived)
                 {
                     Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-waiting-for-response"));
+                    // Q1 review (#266/#267 loop): latch on EITHER pending state, not just the
+                    // outgoing one set at onLoad. This turns the Approved branch above into a
+                    // general "was pending → is now Approved" edge detector, so the composer
+                    // unlock (showRequestSentModal "0") is pushed exactly once on EVERY accept
+                    // path — including an incoming request accepted from the chats-list card
+                    // on desktop, and an accept while the freshly-approved peer is OFFLINE
+                    // (where no presence text is pushed either).
+                    _waitingForContactConfirmation = true;
                 }
 
             }

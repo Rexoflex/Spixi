@@ -354,6 +354,25 @@ namespace SPIXI
             }
         }
 
+        /** ★ Q4-③ re-review (#270 loop r2): TRUE while a LOCK is STAGING via
+         *  pushModalLoaded — loaded invisibly, not presented yet (≤ timeout + 120ms).
+         *  hasModalOverlay()/ModalStack/NavigationStack are all still BLIND in that
+         *  window, so CallPage.lockUp() would have let a ring present: with a legacy
+         *  page on top that ring takes the MODAL fallback, the lock is then pushed
+         *  ABOVE it, and hideSurface (which may only ever pop the TOP modal) can no
+         *  longer remove the call modal — a dead, back-swallowing page is left on the
+         *  ModalStack under the lock and surfaces when the lock pops. Derived state
+         *  only (activePreload is always cleared by presentPreload/cancelPreload), so
+         *  this can never latch on and suppress the call UI. */
+        public static bool isLockStaging()
+        {
+            lock (preloadLock)
+            {
+                PreloadOp? op = activePreload;
+                return op != null && op.modalMode && op.target is LockPage;
+            }
+        }
+
         /** Close an in-place-presented modal (the lock, after auth). Returns false if
          *  this page was not presented that way — caller falls back to PopModalAsync. */
         public static bool closeModalOverlay(SpixiContentPage page)
@@ -387,6 +406,10 @@ namespace SPIXI
                     Logging.error("Modal overlay close failed: " + ex);
                 }
             });
+            // Q4-③ review (MAJOR-1): a call surface is never presented while a lock is up
+            // — re-assert the VoIP state now the lock is going away (ring/bar returns on
+            // the next UI tick; no live call = no-op).
+            UIHelpers.refreshAppRequests = true;
             return true;
         }
 
@@ -415,6 +438,19 @@ namespace SPIXI
                     (Application.Current as App)?.onLockPresentFailed();
                 }
             }
+            // Q4-③ review (MINOR-7): the native call stage is parented to the OLD host's
+            // grid — a re-created host would strand it (invisible, and `current` non-null
+            // forever ⇒ no ring/bar for this call OR any later one until restart). Tear it
+            // down and re-assert: a live call re-stages onto the new host on the next tick.
+            try
+            {
+                CallPage.hideSurface();
+                UIHelpers.refreshAppRequests = true;
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("setOverlayHost (call surface): " + ex);
+            }
             // A re-created host (HomePage singleton reset) orphans previous overlays —
             // tear their WebViews down defensively.
             foreach (PreloadOp op in stale)
@@ -431,6 +467,16 @@ namespace SPIXI
             }
         }
 
+        /** Q4-③ (#270): the registered overlay host (HomePage) — the grid the
+         *  native call surface stages into. Null until HomePage registers. */
+        public static SpixiContentPage? getOverlayHost()
+        {
+            lock (preloadLock)
+            {
+                return overlayHost;
+            }
+        }
+
         // For Utils.getChatPage / reloadAllPages: overlay pages are live surfaces but
         // are not in the NavigationStack.
         public static List<SpixiContentPage> getOverlayPages()
@@ -444,6 +490,86 @@ namespace SPIXI
                 }
                 return pages;
             }
+        }
+
+        /* ★ SECURITY GATE (Opus review of #265, MAJOR-1; still load-bearing under Q4).
+         * Call state must NEVER reach an UNTRUSTED WebView, and an untrusted WebView must
+         * never be able to ACT on a call. MiniAppPage hosts third-party publisher code in
+         * a SpixiContentPage — and it IS on the NavigationStack — so the old broadcast
+         * would have handed it the caller's wallet address + the live VoIP session id,
+         * which `onNavigatingGlobal` would then accept back as appAccept/appReject/hangUp
+         * (i.e. a mini-app could answer or kill your calls).
+         *
+         * Q4-③ (#270) closed the OUTBOUND half structurally: there is no broadcast left at
+         * all — call state is pushed to exactly ONE WebView, CallPage's own (see
+         * CallPage.pushState). This flag now gates the INBOUND half: onAppAccept /
+         * onAppReject / onNavigatingGlobal's hangUp all refuse a surface that returns
+         * false. MiniAppPage overrides it to false; keep it that way. (The Q4 review
+         * removed the now-dead getLivePages() enumerator this flag used to filter — the
+         * gate itself must NOT be removed with it.) */
+        public virtual bool acceptsCallPushes => true;
+
+        /* Q4-③ (#270): the C18 per-WebView broadcast is GONE — Damir's F5 showed
+         * its endpoint (N rings, N bars, roster-less identities). The three
+         * broadcast entry points KEEP their names/callers (VoIPManager +
+         * HomePage are untouched) but now present/dismiss the ONE native call
+         * surface (CallPage). No shell receives any call push anymore — the
+         * call-ui.js wirings were removed with this change (dead code). The
+         * ★ #221 wall is intact: CallPage is its own WebView; the inbound
+         * appAccept/appReject/hangUp verbs keep their acceptsCallPushes gates
+         * (mini-apps still see nothing and can still act on nothing). */
+
+        /** Assert the CURRENT VoIP state onto the native call surface —
+         *  ring (incoming, unanswered) / bar (dialing, in-call) / dismissed.
+         *  Idempotent; safe from any thread (CallPage marshals). */
+        public static void broadcastCallState()
+        {
+            try
+            {
+                // Review MINOR-9: snapshot the VoIP state ONCE. endVoIPSession clears
+                // currentCallContact on another thread, so re-reading it per branch could
+                // NRE mid-teardown — and the catch below would then swallow it and leave a
+                // STALE surface up. A torn-down (or half-torn-down) call = hide.
+                byte[]? sid = VoIPManager.currentCallSessionId;
+                Friend? contact = VoIPManager.currentCallContact;
+                if (!VoIPManager.isInitiated() || sid == null || contact == null)
+                {
+                    CallPage.hideSurface();
+                }
+                else if (VoIPManager.currentCallAccepted)
+                {
+                    if (VoIPManager.currentCallCalleeAccepted)
+                    {
+                        CallPage.showBar(sid, SpixiLocalization._SL("global-call-in-call") + " - " + contact.nickname, VoIPManager.currentCallStartedTime);
+                    }
+                    else
+                    {
+                        CallPage.showBar(sid, SpixiLocalization._SL("global-call-dialing") + " " + contact.nickname + "...", 0);
+                    }
+                }
+                else
+                {
+                    CallPage.showRing(contact, sid);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("broadcastCallState: " + e);
+            }
+        }
+
+        /** Active-call / dialing bar → the native surface's top strip. */
+        public static void broadcastCallBar(byte[] session_id, string text, long call_started_time)
+        {
+            try { CallPage.showBar(session_id, text, call_started_time); }
+            catch (Exception e) { Logging.warn("broadcastCallBar: " + e); }
+        }
+
+        /** Call over (any path) → dismiss the native surface. */
+        public static void broadcastHideCallBar()
+        {
+            try { CallPage.hideSurface(); }
+            catch (Exception e) { Logging.warn("broadcastHideCallBar: " + e); }
         }
 
         // Hardware/host back: close the top overlay if one is open. Returns true when handled.
@@ -725,6 +851,24 @@ namespace SPIXI
                     BackgroundColor = target.pageSurfaceColor,
                 };
 
+                // Q1 review (#266/#267 loop, ① formpane): a CHAINED push INHERITS the slot of
+                // the overlay it replaces when the caller left the defaults. AppNewPage /
+                // AppDetailsPage cannot see the host's column state, so their replaces: pushes
+                // fell back to column = -1 (full span) — picking a file/URL in the col-1
+                // add-app pane blew the details screen up into a full-window takeover, exactly
+                // the quirk ① was meant to kill. Presentation-only; a non-overlay caller (no
+                // matching op in the stack) keeps the -1 default.
+                if (replaces != null && tag == null && column < 0)
+                {
+                    PreloadOp? prev;
+                    lock (preloadLock) { prev = overlayStack.Find(o => o.target == replaces); }
+                    if (prev != null)
+                    {
+                        tag = prev.tag;
+                        column = prev.column;
+                    }
+                }
+
                 PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
                 op.overlayMode = overlayMode;
                 op.tag = tag;
@@ -842,6 +986,9 @@ namespace SPIXI
                     InputTransparent = true,
                     CascadeInputTransparent = true,
                     BackgroundColor = target.pageSurfaceColor,   // #248: themed resize backing (lock = its own dark)
+                    // Q4-③ (#270): a LOCK must cover EVERYTHING, including a live
+                    // call's native ring/bar stage (Z_CALL_SURFACE = 100).
+                    ZIndex = CallPage.Z_CALL_SURFACE * 2,
                 };
 
                 PreloadOp op = new PreloadOp(hostPage, target, stage, targetContent, hostGrid);
@@ -1047,12 +1194,19 @@ namespace SPIXI
                         // Same-tag replacement (chat switching): close the previous
                         // overlay of this tag only AFTER the new one is visible —
                         // a seamless swap with no intermediate frame.
+                        // Q1 re-review (#267 loop): the op REPLACES is excluded from the
+                        // tag sweep — since a chained push now INHERITS the replaced
+                        // overlay's tag, it would otherwise match here, be removed from
+                        // overlayStack, and then miss the `replaces` lookup below → the
+                        // fallback `removePage` would fire on a page that is no longer an
+                        // overlay (spurious exception log + a Dispose racing the fade).
+                        // The `replaces` branch is the ONE owner of that teardown.
                         if (op.tag != null)
                         {
                             List<PreloadOp> stale;
                             lock (preloadLock)
                             {
-                                stale = overlayStack.FindAll(o => o != op && o.tag == op.tag);
+                                stale = overlayStack.FindAll(o => o != op && o.target != op.replaces && o.tag == op.tag);
                             }
                             foreach (PreloadOp s in stale)
                             {
@@ -1322,79 +1476,27 @@ namespace SPIXI
             return null;
         }
 
-        public void displayCallBar(byte[] session_id, string text, long call_started_time)
-        {
-            if (_webView == null)
-            {
-                return;
-            }
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Utils.sendUiCommand(this, "displayCallBar", Crypto.hashToString(session_id), text, call_started_time.ToString());
-            });
-        }
-
-        public void hideCallBar()
-        {
-            if (_webView == null)
-            {
-                return;
-            }
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Utils.sendUiCommand(this, "hideCallBar");
-            });
-        }
-
-        public void displayAppRequests()
-        {
-            if (_webView == null)
-            {
-                return;
-            }
-            Utils.sendUiCommand(this, "clearAppRequests");
-            var app_pages = Node.MiniAppManager.getAppPages();
-            lock (app_pages)
-            {
-                foreach (MiniAppPage page in app_pages.Values)
-                {
-                    if (page.accepted)
-                    {
-                        continue;
-                    }
-                    Friend f = page.friendOrGroup;
-                    MiniApp app = Node.MiniAppManager.getApp(page.appId);
-                    string text = string.Format(SpixiLocalization._SL("global-app-wants-to-use"), f.nickname, app.name);
-                    Utils.sendUiCommand(this, "addAppRequest", Crypto.hashToString(page.sessionId), text, SpixiLocalization._SL("global-app-accept"), SpixiLocalization._SL("global-app-reject"));
-                }
-                if (VoIPManager.isInitiated())
-                {
-                    if (VoIPManager.currentCallAccepted)
-                    {
-                        if (VoIPManager.currentCallCalleeAccepted)
-                        {
-                            displayCallBar(VoIPManager.currentCallSessionId, SpixiLocalization._SL("global-call-in-call") + " - " + VoIPManager.currentCallContact.nickname, VoIPManager.currentCallStartedTime);
-                        }
-                        else
-                        {
-                            displayCallBar(VoIPManager.currentCallSessionId, SpixiLocalization._SL("global-call-dialing") + " " + VoIPManager.currentCallContact.nickname + "...", 0);
-                        }
-                    }
-                    else
-                    {
-                        Friend f = VoIPManager.currentCallContact;
-                        string text = SpixiLocalization._SL("global-call-incoming") + " - " + f.nickname;
-                        Utils.sendUiCommand(this, "addCallAppRequest", f.walletAddress.ToString(), Crypto.hashToString(VoIPManager.currentCallSessionId), text);
-                    }
-                }
-            }
-        }
+        /* Q4-③ (#270): the per-page displayCallBar / hideCallBar / displayAppRequests
+         * pushes are GONE — call state presents on the ONE native CallPage surface
+         * (see broadcastCallState above), and the 4-arg MINI-APP session-request
+         * card was dead traffic: legacy never rendered it (spixi.js:247 is a
+         * commented-out TODO) and every redesigned shell no-op'd it — the push
+         * existed only to not throw. Mini-app session-request UX is a pre-existing
+         * gap either way, now logged in the audit inventory instead of shipping
+         * as invisible pushes into 13 WebViews per updateScreen tick. */
 
         public void onAppAccept(Address sender_address, string session_id)
         {
             byte[] b_session_id = Crypto.stringToHash(session_id);
             if (VoIPManager.hasSession(b_session_id))
             {
+                // ★ review MINOR-1: a surface that receives no call state cannot ANSWER
+                // a call either (the mini-app WebView must never touch the call surface).
+                if (!acceptsCallPushes)
+                {
+                    Logging.warn("Ignoring a call-accept verb from a surface that receives no call state.");
+                    return;
+                }
                 VoIPManager.acceptCall(b_session_id);
                 return;
             }
@@ -1410,6 +1512,15 @@ namespace SPIXI
             byte[] b_session_id = Crypto.stringToHash(session_id);
             if (VoIPManager.hasSession(b_session_id))
             {
+                // ★ review MINOR-1 (defense-in-depth, MAJOR-1's inbound twin): a surface
+                // that never RECEIVES call state must not be able to ACT on it either —
+                // a mini-app WebView can't see a session id, but it must not be able to
+                // spam call teardown verbs at all.
+                if (!acceptsCallPushes)
+                {
+                    Logging.warn("Ignoring a call-reject verb from a surface that receives no call state.");
+                    return;
+                }
                 VoIPManager.rejectCall(b_session_id);
                 return;
             }
@@ -1420,8 +1531,13 @@ namespace SPIXI
         {
             if (UIHelpers.refreshAppRequests)
             {
-                displayAppRequests();
+                // C18 (#265): `refreshAppRequests` is a GLOBAL one-shot flag and the
+                // FIRST page ticked (HomePage, stack-last under #225) used to consume
+                // it — so an incoming ring never reached the conversation the user was
+                // actually looking at. Clear the flag FIRST (re-entrancy: the broadcast
+                // ticks other pages), then push the state to EVERY live WebView.
                 UIHelpers.refreshAppRequests = false;
+                broadcastCallState();
             }
         }
 
@@ -1458,6 +1574,13 @@ namespace SPIXI
             }
             else if (url.StartsWith("ixian:hangUp:"))
             {
+                // ★ review MINOR-1: same inbound gate as onAppReject — a surface that
+                // receives no call state (mini-app WebView) cannot end calls either.
+                if (!acceptsCallPushes)
+                {
+                    Logging.warn("Ignoring a hang-up verb from a surface that receives no call state.");
+                    return true;
+                }
                 string session_id = url.Substring("ixian:hangUp:".Length);
                 VoIPManager.hangupCall(Crypto.stringToHash(session_id));
             }

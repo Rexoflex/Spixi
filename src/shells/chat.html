@@ -12,18 +12,22 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- Preview forcing for the platform flag (?desktop=1 sets / ?mobile=1 clears;
+     the app passes no query). MUST run BEFORE the pattern-pref script below —
+     since B2 the pattern DEFAULT is platform-aware, so the flag has to be final
+     when the default is derived. -->
+<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
 <!-- Chat appearance prefs (6e.2, FE-only): pattern intensity + message text size
      picked on the Account screen persist in localStorage (same origin) — applied
      here pre-paint (AFTER the theme script: dark derives its intensity as the
-     stored light-scale pick × 0.36, keeping the #76 theme-tuned 0.5/0.18 ratio;
-     "Standard" = both theme defaults). Clamped so a corrupted value can't blow
-     up bubble text. -->
-<script>(function(){try{var r=document.documentElement.style,dark=document.documentElement.dataset.theme==='dark',p=parseFloat(localStorage.getItem('spixi.chat.pattern'));if(!isNaN(p)){p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));}var t=parseFloat(localStorage.getItem('spixi.chat.textscale'));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));}catch(e){}})();</script>
-<!-- Desktop chat canvas (#207, re-gated at the desktop pass 6e): pattern-off +
-     grey ground now keys off :root[data-desktop] — the #228 platform flag set
-     above (the old ?desktop=1/.is-desktop opt-in was dead code; C# never set
-     __SPIXI_DESKTOP__). Preview forcing: ?desktop=1 sets / ?mobile=1 clears. -->
-<script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
+     stored light-scale pick × 0.36, keeping the #76 theme-tuned 0.5/0.18 ratio).
+     B2 (#256): ONE pref key, PLATFORM-AWARE DEFAULT when unset — desktop 0 (Off),
+     mobile 0.5 (Standard) — replacing the #207 hard-forced desktop pattern-off,
+     so an explicit user pick now works on BOTH platforms. The unset-mobile value
+     matches chat-pattern.css's own defaults (0.5 light / 0.18 dark = ×0.36), so
+     mobile is unchanged by construction. #76 ink values untouched. Clamped so a
+     corrupted value can't blow up bubble text. -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),dark=document.documentElement.dataset.theme==='dark',p=NaN,t=NaN;try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));}catch(e){}if(isNaN(p))p=de?0:0.5;p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -63,8 +67,7 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css">
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay (addCallAppRequest) -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip (displayCallBar/hideCallBar) -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
 <style>
   /* Production chat shell: fill the WebView (no demo phone frame). The chat
@@ -76,6 +79,22 @@
   #chat-topbar { flex: none; }
   .c-banner { flex: none; }              /* connectivity strip pins under the topbar */
   .chat-request-pane { flex: none; }     /* incoming-request pane pins above the composer */
+  /* ⑪ pending-outgoing composer lock: while our contact request awaits the peer's
+     accept, the composer is REPLACED by this quiet strip (nothing to type into —
+     a locally-"sent" message would show delivered/read ticks the peer never sees).
+     Same slot as the composer (#chat-composer child), so layout is unchanged. */
+  .chat-pending-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--spacing-3, 12px);
+    padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+    background: var(--surface-neutral-02, var(--surface-neutral-01, #fff));
+    border-top: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
+  }
+  .chat-pending-strip__text {
+    color: var(--text-neutral-02, #666);
+    font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm);
+    min-width: 0; overflow-wrap: anywhere;
+  }
   .c-chat-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   /* Messages sit at the BOTTOM (adjacent to the composer) and grow upward — the
      natural chat flow. The secure notice floats CENTERED in the free space above
@@ -87,14 +106,13 @@
   #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   #chat-composer { flex: none; }
-  /* ===== DESKTOP (:root[data-desktop], #207 re-gated at 6e) — pattern-off + grey
-     ground. The doodle pattern reads busy in a wide desktop pane, so drop it while
-     KEEPING the gradient wash (the pattern is the ::before layer; the gradient is
-     the element background). Dark desktop deepens the base to grey-1000. Mirrors
-     the demo's .dt-frame rule (#207). data-desktop is on <html>, same element as
-     data-theme, so the dark rule is a COMPOUND selector (not descendant). The
-     info side-panel layout is added in a later stage. Mobile keeps its pattern. */
-  :root[data-desktop] .c-chat-canvas::before { display: none; }
+  /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
+     the base to grey-1000 (#207); data-desktop is on <html>, same element as
+     data-theme, so the dark rule is a COMPOUND selector (not descendant).
+     B2 (#256): the #207 HARD-FORCED `::before{display:none}` pattern-off is GONE —
+     desktop now defaults to pattern Off via the pre-paint pref script above
+     (--chat-pattern-opacity: 0 when unset), and an explicit Chat-appearance pick
+     turns the doodle pattern on/off on desktop too. Gradient wash unchanged. */
   html[data-desktop][data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
@@ -110,6 +128,25 @@
   /* avatar flash guard: keep the topbar avatar invisible (slot reserved) until the
      identity lands, so the boot gradient never flashes before the real avatar. */
   .c-topbar.is-avatar-pending .c-avatar { visibility: hidden; }
+  /* #264 ⑤: connection-event chip — a centered quiet pill replacing the clumsy
+     "XYZ has accepted your contact request" BUBBLE (worst with a bare address;
+     the subject renders via the #211 truncation canon). */
+  .chat-event { display: flex; justify-content: center; padding: var(--spacing-8) var(--spacing-16); }
+  .chat-event__chip {
+    display: flex; align-items: center; gap: var(--spacing-8);
+    max-width: min(85%, 480px);
+    padding: var(--spacing-8) var(--spacing-16);
+    border-radius: var(--radius-full);
+    /* #265 (Damir ⑦): the tonal wash vanished on the light-blue canvas — ride
+       the received-bubble surface + elevation instead (white pops on the
+       gradient, the dark bubble surface reads in dark mode). */
+    background: var(--surface-bubble-received);
+    box-shadow: var(--elevation-1);
+    color: var(--text-neutral-01);
+    font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm);
+    text-align: center;
+  }
+  .chat-event__chip svg { flex: none; color: var(--icon-accent); }
   /* attach → App-invite picker (inside a c-sheet) */
   .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
   .chat-app-picker__item {
@@ -153,6 +190,10 @@
     opacity: 0; transition: opacity var(--duration-200, 200ms) var(--easing-standard, ease);
   }
   .chat-channel-overlay.is-open .chat-channel-overlay__scrim { opacity: 1; }
+  /* #268 (Damir): desktop contextual menus carry no backdrop wash — the channel
+     selector is the chat's third contextual dropdown (beside the right-click menu
+     + ⊕ popover, overlay.css). Scrim element stays: outside-click still closes. */
+  html[data-desktop] .chat-channel-overlay__scrim { background: transparent; }
   .chat-channel-panel {
     position: absolute; left: 0; right: 0;   /* top set inline = topbar height */
     max-height: 60vh; overflow-y: auto;
@@ -252,8 +293,11 @@
   <div id="sl-carriers" hidden aria-hidden="true">
     <span id="sl-payment-received">*SL{chat-payment-received}</span>
     <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
+    <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+    <span id="sl-request-accepted">*SL{global-friend-request-accepted}</span>
+    <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
   </div>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
@@ -310,13 +354,13 @@
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
-    createModal, openModal, showToast,
+    createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
     createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
-    attachCallUi,                   // Batch A: live call bridge glue (ring overlay + callbar)
+    attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
 
@@ -370,6 +414,34 @@
    * translated both keys to the identical string, the sign must NOT fire. */
   const PAY_RECEIVED_TITLE = slCarrier('sl-payment-received', 'Payment Received');
   const PAY_REQUEST_RECEIVED_TITLE = slCarrier('sl-payment-request-received', 'New Payment Request');
+  const PAY_REQUEST_SENT_TITLE = slCarrier('sl-payment-request-sent', 'Payment Request Sent');
+  const isRequestTitle = (t) => t === PAY_REQUEST_RECEIVED_TITLE || t === PAY_REQUEST_SENT_TITLE;
+
+  /* #264 (Damir nice-to-have ⑤): "{0} has accepted your contact request" arrives
+   * as a PLAIN TEXT message (StreamProcessor:337/:354, string.Format over the
+   * localized template) — as a chat bubble it reads clumsy, worst when {0} is a
+   * bare base58 address. Detect it locale-proof via the template carrier
+   * (prefix/suffix around the {0} slot) and render a centered EVENT CHIP instead:
+   * same localized sentence, the subject swapped for the nick-or-TRUNCATED-address
+   * canon (#211). Fail-soft: no carrier / no {0} → normal bubble. */
+  /* ⑪ "Waiting for response" is pushed (updateScreen, PRE-burst) for BOTH pending
+   * friend states — it closes the open-to-burst window before the specific
+   * signal (showRequestSentModal / showContactRequest) lands. Locale-proof. */
+  const WAITING_RESPONSE_TEXT = slCarrier('sl-waiting-response', 'Waiting for response');
+
+  const ACCEPTED_TPL = slCarrier('sl-request-accepted', '{0} has accepted your contact request.');
+  const ACCEPTED_PARTS = (() => {
+    const i = ACCEPTED_TPL.indexOf('{0}');
+    return i === -1 ? null : [ACCEPTED_TPL.slice(0, i), ACCEPTED_TPL.slice(i + 3)];
+  })();
+  function acceptedEventSubject(text) {
+    if (!ACCEPTED_PARTS) return null;
+    const t = String(text || '');
+    const [p, s] = ACCEPTED_PARTS;
+    if (t.length <= p.length + s.length) return null;
+    if (!t.startsWith(p) || !t.endsWith(s)) return null;
+    return t.slice(p.length, t.length - s.length);
+  }
 
   /* M16 (#59): the two connectivity strings C# routes through showWarning
    * (SingleChatPage.xaml.cs:1921/1942). These render as a topbar TITLE-STATE
@@ -787,7 +859,11 @@
   }
   function showTyping() {
     if (!typingRow) {
-      typingRow = createTypingIndicator(mode.isMulti && identity.name ? { name: identity.name } : {});
+      // #264: in a MULTI chat the pill stays GENERIC ("typing…") — showUserTyping
+      // carries no sender, and the old `{ name: identity.name }` would have
+      // captioned it with the GROUP's name, misattributing the typist. Sender
+      // attribution = a BE arg-append ask (be-cutover C21).
+      typingRow = createTypingIndicator({});
     }
     typingActive = true;
     box.append(typingRow);
@@ -835,6 +911,7 @@
       // visual break the divider draws).
       const cont = (a, b, bid) => a && b
         && bid !== unreadBoundaryId
+        && !a.eventChip && !b.eventChip   // #264 ⑤: event chips stand alone — never group
         && (a.kind || 'text') === 'text' && (b.kind || 'text') === 'text'
         && a.direction === b.direction
         && (a.senderAddress || '') === (b.senderAddress || '')
@@ -854,6 +931,7 @@
     if (rec.kind === 'app') return buildAppRow(rec);
     if (rec.kind === 'payment') return buildPaymentRow(rec);
     if (rec.kind === 'call') return buildCallRow(rec);
+    if (rec.eventChip) return buildEventRow(rec);   // #264 ⑤: accepted-request event chip
     // A text message that is JUST a remote image/GIF URL → media tile (Damir
     // 2026-07-07: legacy parity, reopens #82 for remote media). The model stays
     // kind 'text' (menu/reactions still work — attachMessageMenu targets
@@ -1079,8 +1157,62 @@
     return '+' + a;
   }
 
+  /* #264 ⑤: centered connection-event chip — the localized accepted-request
+   * sentence with the subject swapped for the #211 canon (nick stays; a bare
+   * base58 address renders middle-truncated). textContent-only (the subject is
+   * counterpart-controlled). */
+  function buildEventRow(rec) {
+    const subject = acceptedEventSubject(rec.text) || '';
+    const looksAddr = /^[a-zA-Z0-9]{24,}$/.test(subject);
+    const display = looksAddr ? truncateAddressMiddle(subject) : subject;
+    const row = document.createElement('div');
+    row.className = 'chat-event';
+    const chip = document.createElement('div');
+    chip.className = 'chat-event__chip';
+    try {
+      if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon('heart-handshake', { size: 16 }));
+    } catch (e) { /* glyph optional */ }
+    const line = document.createElement('span');
+    line.textContent = ACCEPTED_PARTS ? (ACCEPTED_PARTS[0] + display + ACCEPTED_PARTS[1]) : rec.text;
+    chip.append(line);
+    row.append(chip);
+    return row;
+  }
+
   function buildPaymentRow(rec) {
-    const canView = rec.enableView && rec.txid;
+    /* #264 ①: the viewPayment ARG is the MESSAGE id, not the tx id —
+     * C# onViewPayment (xaml:897-899) resolves the message by
+     * Crypto.stringToHash(arg); sending rec.txid (a REAL tx id on paid cards)
+     * found no message and silently NRE'd — the old Details link was dead on
+     * every paid/sent card. rec.id IS the message-id hex (arg 1 of the push).
+     * #264 ②: an INCOMING PENDING REQUEST is now ACTIONABLE (Damir F5: "can't
+     * action on it as I could in legacy"): role 'request-in' + Pay → the SAME
+     * ixian:viewPayment verb — for an unpaid incoming requestFunds C# routes it
+     * to WalletContactRequestPage (xaml:927-930), the NATIVE review/confirm
+     * page (C# signs; SECURITY.md intact — the WebView only emits intent).
+     * That page IS the mistake-proof confirmation UX. No onDecline (no in-chat
+     * decline verb on the frozen bridge → the component hides Decline; the
+     * review page is where the user backs out). Detection is locale-proof via
+     * the existing Q4 title carrier; the pending shape is txid=""+enableView
+     * (xaml:1375-1382; paid=":"-prefixed → txid set · declined="::" →
+     * enableView=false). The oneShot Pay latch resets on return (OnAppearing →
+     * loadMessages re-flush rebuilds the card — the #72 shell contract). */
+    const view = (rec.enableView && rec.id) ? () => bridge.send('ixian:viewPayment:' + rec.id) : null;
+    const pendingIncomingRequest = rec.direction === 'received'
+      && rec.title === PAY_REQUEST_RECEIVED_TITLE
+      && rec.enableView && !rec.txid;
+    if (pendingIncomingRequest && view) {
+      return createPaymentBubble({
+        role: 'request-in',
+        status: 'actionable',
+        title: rec.title || '',
+        amount: displayPaymentAmount(rec),
+        timestamp: rec.ts,
+        gutter: mode.isMulti,
+        onPay: view,           // → native review page (Pay ≙ "review & confirm")
+        strings: window.SL || {},
+      });
+    }
     return createPaymentBubble({
       role: rec.direction === 'sent' ? 'sent' : 'received',
       title: rec.title || '',
@@ -1088,7 +1220,8 @@
       status: rec.pstatus,
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
-      onDetails: canView ? () => bridge.send('ixian:viewPayment:' + rec.txid) : null,
+      onDetails: view,
+      strings: window.SL || {},
     });
   }
 
@@ -1160,6 +1293,11 @@
    * selected immediately (C#'s addReactions re-emit lands the authoritative
    * count next). Shared by the context-menu React action AND tapping a pill. */
   function reactToMessage(id) {
+    // ⑪ Q1 re-review: no outbound stream traffic while the contact is PENDING. A
+    // pending-outgoing chat still renders ONE row (the empty `requestAddSent`
+    // marker falls through insertMessage's requestAdd special-case, xaml:1306-1322),
+    // so its pill/menu were reachable — a reaction to a non-contact never arrives.
+    if (composerLock) return;
     id = String(id);
     myLikes.add(id);
     saveLikes();                                       // persist own-state across re-flushes (C5 interim)
@@ -1193,6 +1331,10 @@
    * Reply/Edit are §8-gated behind a capability flag (OFF until BE), so they
    * never render today. Non-text cards keep their own inline actions in v1. */
   const overlayHost = document.body;
+  // Batch C (M6): on desktop, a RIGHT-CLICKED message menu presents as an anchored
+  // dropdown at the pointer with the source row highlighted (demo 06c ⑩/⑰ grammar);
+  // long-press keeps the centered dialog. No-op on mobile (data-desktop absent).
+  attachContextMenuAnchors({ host: overlayHost, rows: '.c-bubble-row' });
   function wireMenu(rec, row) {
     // Enable the context menu on CONTENT rows. Text gets copy/edit; file/payment/
     // app cards get react + tip + delete too (Damir: "file/payment can't react or
@@ -1203,6 +1345,11 @@
     // their own call-back affordance.
     const kind = rec.kind || 'text';
     if (kind === 'call') return;
+    if (rec.eventChip) return;   // #264 ⑤: a connection event isn't menuable (react/copy/delete are nonsensical)
+    // ⑪ Q1 re-review: don't ATTACH the menu while the contact is pending — an opened
+    // menu whose actions are all gated would be a dead menu (#214). onMenuAction keeps
+    // its own guard for the (harmless) case of a row wired before the lock landed.
+    if (composerLock) return;
     const isSent = rec.direction === 'sent';
     attachMessageMenu(row, {
       host: overlayHost,
@@ -1221,6 +1368,10 @@
 
   function onMenuAction(action, rec) {
     const id = rec.id;
+    // ⑪ Q1 re-review: the menu is the last non-composer outbound surface — react/tip
+    // both emit to a peer that hasn't accepted us. Copy/delete are local-only, but the
+    // whole menu is gated for one grammar: nothing leaves this chat while pending.
+    if (composerLock) return;
     if (action === 'react') { reactToMessage(id); return; }
     if (action === 'copy') {
       if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
@@ -1426,7 +1577,7 @@
    * App-invite tile is hidden (no SingleChatPage invite verb); Pay/Request are
    * hidden in groups/bots (C# rejects them there). */
   function openAttach() {
-    openAttachSheet({
+    const sheet = openAttachSheet({
       host: overlayHost,
       media: bridge.cap('media'),   // Photo/GIF appear only when the BE image standard lands (#81)
       apps: !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
@@ -1440,6 +1591,9 @@
         else if (id === 'app') openAppPicker();
       },
     });
+    // Batch C (M6): desktop presents the share grid as a POPOVER rising from the
+    // composer ⊕ (demo 06d ① grammar); no-op on mobile / when the ⊕ isn't found.
+    anchorSheetAbove(sheet, composerEl && composerEl.querySelector('.c-composer__attach'), { host: overlayHost });
   }
 
   /* App-invite picker (legacy parity): the attach "App invite" tile opens a
@@ -1478,9 +1632,30 @@
    * is sent (no identity), so we populate from the header identity. Accept →
    * ixian:accept (onAcceptFriendRequest); Decline → ixian:undorequest (the only
    * decline path SingleChatPage offers — removes the pending friend + leaves).
-   * Sits above the composer; C#'s re-flush after accept clears it (clearMessages). */
+   * Sits above the composer.
+   * Q1 review (#267 loop): the old claim "C#'s re-flush after accept clears it"
+   * was FALSE — onAcceptFriendRequest (xaml:886-895) only flips friend.approved +
+   * sendAcceptAdd; it pushes NO UI command and never calls loadMessages, so the
+   * clearMessages → removeRequestPane path never fires on accept. The pane stayed
+   * armed over a live composer, and its Decline (undorequest → removeFriend) then
+   * DELETED the contact the user had just accepted. Accept now resolves the
+   * request FE-side (markRequestResolved: drop the pane + unlock + latch). */
   let requestPane = null;
+  let requestResolved = false;   // ⑪ per-peer latch: this peer's request is settled for this page-load
   function removeRequestPane() { if (requestPane) { requestPane.remove(); requestPane = null; } }
+  /* Q1 review (#267 loop): the request is settled (accepted here, from the
+   * chats-list card, or on the peer's side — C#'s updateScreen pushes
+   * showRequestSentModal("0") for BOTH pending states now). Terminal for this
+   * peer/page-load: the still-arriving 1 Hz "Waiting for response" heartbeat and
+   * a late showContactRequest must not re-lock the composer or re-arm the pane
+   * behind the user's back (legacy did the same — chat.js:1880-1883 hid the pane
+   * and re-enabled the chat bar on the accept click). NOT called on cancel/decline
+   * (those pop the page). Reset per-peer in onChatScreenReady. */
+  function markRequestResolved() {
+    requestResolved = true;
+    setComposerLock(null);
+    removeRequestPane();
+  }
   function showRequestPane() {
     removeRequestPane();
     requestPane = document.createElement('div');
@@ -1488,10 +1663,74 @@
     requestPane.append(createContactRequest({
       name: identity.name || '', address: identity.address || '',
       timestamp: Date.now(), host: overlayHost, strings: window.SL || {},
-      onAccept: () => bridge.send('ixian:accept'),
+      // Accept → optimistic resolve: emit the verb, then drop the pane + unlock +
+      // latch. C# gives us nothing back on accept (see the docblock above), so the
+      // pane's removal is OURS to do; the latch makes it stick against the pending
+      // heartbeat that keeps ticking until the next updateScreen.
+      onAccept: () => { bridge.send('ixian:accept'); markRequestResolved(); },
       onDecline: () => bridge.send('ixian:undorequest'),
     }));
     document.getElementById('chat-composer').before(requestPane);
+    // ⑪ same-class hazard as the outgoing lock: pre-accept the handshake isn't
+    // done — a composed message would be locally "sent" (ticks) and never arrive.
+    // The pane's Accept/Decline are the only affordances until the accept lands.
+    setComposerLock('incoming');
+  }
+
+  /* ⑪ ★ COMPOSER LOCK (pending contact states) — DECISIONS #266.
+   * THE BUG: after sending a contact request the composer stayed live; a typed
+   * message was written to the LOCAL store, rendered with delivered+read ticks
+   * (updateMessage echoes the local record's flags — not a real ack), and the
+   * peer NEVER received it. The app lied about delivery.
+   * THE SIGNAL (was a dbg stub): SingleChatPage.onLoad:648-652 pushes
+   * showRequestSentModal("1") when friend.state == RequestSent; updateScreen
+   * :1900-1904 pushes "0" the moment the state flips to Approved — an EXPLICIT
+   * unlock, chosen over inferring from the accepted-system-message or the
+   * showCallButton side-channel (states, not messages; codec-independent).
+   * THE CANCEL: ixian:undorequest (xaml:353 — removeFriend + pop + clear detail
+   * pane; already the incoming-decline verb). No confirm on Cancel: it's
+   * reversible (re-send the request) and ⑩ just made Decline single-click —
+   * one grammar for both request-flow exits. C# pops the page after cancel;
+   * the chats-list "Request sent" row + picker pending badge clear on the
+   * shouldRefreshContacts re-flush (HomePage:1945-1949) — no FE mirror needed.
+   * States: null (live) · 'outgoing' (waiting strip + Cancel) · 'incoming'
+   * (request pane is the affordance; composer hidden, no strip). */
+  let composerLock = null;
+  let pendingStrip = null;
+  function pendingStripText() {
+    const tpl = (window.SL && window.SL.waitingForAccept) || 'Waiting for {name} to accept your request';
+    return tpl.replace('{name}', identityTitle() || '');
+  }
+  function refreshPendingStrip() {
+    if (!pendingStrip) return;
+    const t = pendingStrip.querySelector('.chat-pending-strip__text');
+    if (t) t.textContent = pendingStripText();
+  }
+  function setComposerLock(kind) {
+    if (composerLock === kind) { refreshPendingStrip(); return; }
+    composerLock = kind;
+    if (pendingStrip) { pendingStrip.remove(); pendingStrip = null; }
+    if (composerEl) composerEl.hidden = !!kind;
+    if (kind === 'outgoing') {
+      pendingStrip = document.createElement('div');
+      pendingStrip.className = 'chat-pending-strip';
+      const txt = document.createElement('span');
+      txt.className = 'chat-pending-strip__text';
+      txt.textContent = pendingStripText();
+      // polite live region: the strip appears/disappears with the request state
+      pendingStrip.setAttribute('role', 'status');
+      const cancel = createButton({
+        label: (window.SL && window.SL.cancelRequest) || 'Cancel request',
+        type: 'text', size: 32, intent: 'destructive',
+        onClick: (e) => {
+          // one-shot: C# pops the page; a second tap on a dead friend must not re-fire
+          e.currentTarget.disabled = true;
+          bridge.send('ixian:undorequest');
+        },
+      });
+      pendingStrip.append(txt, cancel);
+      document.getElementById('chat-composer').append(pendingStrip);
+    }
   }
 
   /* secure-chat / privacy notice — ALWAYS the first item in the log, mirroring
@@ -1523,9 +1762,26 @@
     const frag = document.createDocumentFragment();
     rows.clear();
     frag.append(createSecureNotice());   // privacy note pinned at the top of history
-    const pos = positionsFor(order);
+    /* #265 (Damir ③ / C10 FE-side): a FULFILLED payment request is TWO C#
+     * messages — the original requestFunds (flips to ":"+txid → Completed) AND
+     * a separate sentFunds direct-payment message carrying the SAME txid. One
+     * event, ONE card: suppress the direct-payment card when a REQUEST card
+     * owns its txid (the request card carries the fuller story — who asked,
+     * Completed badge, working Details). Titles matched via the locale-proof
+     * carriers; unfulfilled requests (txid="") and standalone direct payments
+     * are untouched. The model keeps both recs (updates still land). */
+    const requestTxids = new Set();
+    for (const oid of order) {
+      const r = model.get(oid);
+      if (r && r.kind === 'payment' && r.txid && isRequestTitle(r.title)) requestTxids.add(r.txid);
+    }
+    const ids = !requestTxids.size ? order : order.filter((oid) => {
+      const r = model.get(oid);
+      return !(r && r.kind === 'payment' && r.txid && !isRequestTitle(r.title) && requestTxids.has(r.txid));
+    });
+    const pos = positionsFor(ids);
     let lastDay = null;
-    for (const id of order) {
+    for (const id of ids) {
       const rec = model.get(id);
       const day = new Date(rec.ts).toDateString();
       if (day !== lastDay) { frag.append(createDateSeparator(rec.ts)); lastDay = day; }
@@ -1660,7 +1916,12 @@
     id = String(id);
     const existing = model.get(id);
     const rec = existing || { id, kind: 'text', direction, senderNick: '', senderAddress: '' };
-    if (text !== undefined && text !== null) rec.text = String(text);
+    if (text !== undefined && text !== null) {
+      rec.text = String(text);
+      // #264 ⑤: recompute on every text change (updateMessage edits included) —
+      // an accepted-request line renders as a centered event chip, not a bubble.
+      rec.eventChip = !!acceptedEventSubject(rec.text);
+    }
     if (direction) rec.direction = direction;
     // Q12 (A-3): a robustness-created row carries a WALL-CLOCK ts (tsSynthetic) that C#
     // can never push back. A DIFFERENT ts arriving here is a real C#-pushed one (updateMessage
@@ -1750,7 +2011,19 @@
       if (extra.title !== undefined) rec.title = extra.title || '';
       if (extra.amount !== undefined) rec.amount = extra.amount;
       if (extra.pstatus !== undefined) rec.pstatus = extra.pstatus;
-      if (extra.txid !== undefined) { rec.txid = extra.txid || ''; if (rec.txid) txIndex.set(rec.txid, id); }
+      if (extra.txid !== undefined) {
+        rec.txid = extra.txid || '';
+        // #265 (Opus MINOR-8): a fulfilled request has TWO recs on the same txid (the
+        // request card + the suppressed direct-payment card). The txid must resolve to
+        // the card the user actually SEES — the REQUEST — or updateTransactionStatus
+        // would patch the hidden rec and leave the visible one stale.
+        if (rec.txid) {
+          const owner = txIndex.get(rec.txid);
+          const ownerRec = owner ? model.get(owner) : null;
+          const ownerIsRequest = !!(ownerRec && isRequestTitle(ownerRec.title));
+          if (!ownerIsRequest || isRequestTitle(rec.title)) txIndex.set(rec.txid, id);
+        }
+      }
       if (extra.enableView !== undefined) rec.enableView = extra.enableView;
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
@@ -1782,33 +2055,10 @@
     renderLog();
   }
 
-  /* —— live call UI (Batch A) ————————————————————————————————————————————————
-   * Shared glue (call-ui.js): ring overlay (addCallAppRequest/clearAppRequests)
-   * + active-call strip (displayCallBar/hideCallBar). This WebView receives the
-   * call state once at overlay-present time (SpixiContentPage.cs:1084-1090) and
-   * whenever its own onLoad consumes the flag (xaml:719-722); MID-session events
-   * land on the stack-last page (home) until the BE broadcast row (C19) lands.
-   * Caller identity: the open 1:1 peer, else the group roster / resolved nicks;
-   * unknown → truncated address + the C# pre-composed text line. */
-  const callUi = attachCallUi({
-    bridge,
-    host: overlayHost,
-    strings: window.SL || {},
-    resolveCaller(addr) {
-      if (!addr) return null;
-      if (!mode.isMulti && identity.address === addr) {
-        return { name: identity.name || '', avatar: identity.avatar };
-      }
-      // BLIND groups key their roster on 'blind:' + nick (C# masks the address to
-      // "[Unknown]"), so an address never hits here for a blind member and the ring
-      // degrades to the truncated address + C#'s pre-composed line. By design — VoIP
-      // is 1:1, a blind-group member can't be the caller identity anyway.
-      const rec = groupRoster.get(addr);
-      if (rec) return { name: rec.name || groupNicks.get(addr) || '', avatar: rec.avatar };
-      const nick = groupNicks.get(addr);
-      return nick ? { name: nick, avatar: null } : null;
-    },
-  });
+  /* Q4-③ (#270): the Batch-A call-ui glue is GONE — calls (ring + bar) present
+   * on the ONE native CallPage surface spanning every pane; C# pushes identity
+   * from the Friend, so the shell roster resolve is obsolete. No call push
+   * reaches this WebView anymore. */
 
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers — every one a page global (via bridge.exposeAll),
@@ -1816,9 +2066,6 @@
    * The 1:1 text path is wired; the rest are safe no-op stubs.
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
-    /* ——— live call UI (Batch A — see callUi above) ——————————————————————— */
-    ...callUi,
-
     /* ——— header + mode (wired) ——————————————————————————————————————————— */
 
     // setChatMode(type, cost, costText, admin, botDescription, notificationsString)
@@ -1848,6 +2095,7 @@
     setNickname(nick) {
       identity.name = nick || '';
       invalidateMentions();                // 1:1 peer nick feeds the mention list
+      refreshPendingStrip();               // ⑪ the waiting strip names the peer — nick may land after the lock
       renderTopbar();
     },
 
@@ -1867,6 +2115,25 @@
       identity.sub = status || '';
       const s = (status || '').toLowerCase();
       identity.online = !mode.isMulti && /online/.test(s);
+      // ⑪ presence doubles as the pending-state heartbeat: "Waiting for response"
+      // (carrier-matched, locale-proof) arrives BEFORE the load burst for both
+      // pending states → early generic lock; any OTHER presence text while the
+      // generic/incoming lock holds means the state left pending (e.g. accepted
+      // from the chats-list card on desktop) → unlock. The 'outgoing' lock is
+      // NEVER cleared here — its explicit unlock is showRequestSentModal("0").
+      // Q1 review (#267 loop): (1) `!requestResolved` — the heartbeat keeps
+      // ticking at 1 Hz until C#'s next updateScreen, so an accepted request must
+      // not be re-locked behind the user's back. (2) `!mode.isMulti` — the waiting
+      // branch is the `else` of `if (friend.bot)` (xaml:1873-1909), so it also
+      // covers GROUPS: a non-approved group would take the lock with NO strip
+      // ('outgoing'-only) and NO request pane (a group has no requestAdd message)
+      // = a chat you can't type in with zero affordance. setChatMode (xaml:600-636)
+      // lands before the first updateScreen (:644), so `mode` is already known.
+      if ((status || '') === WAITING_RESPONSE_TEXT) {
+        if (!composerLock && !requestResolved && !mode.isMulti) setComposerLock('incoming');
+      } else if (composerLock === 'incoming') {
+        setComposerLock(null);
+      }
       renderTopbar();
     },
 
@@ -1883,7 +2150,9 @@
       // must keep my own-reaction state, else the pill reverts to un-selected
       // while the heart+count survive (Damir 2026-07-07). myLikes is (re)loaded
       // per-peer from storage in onChatScreenReady; peer-switch resets it there.
-      removeRequestPane();   // a re-flush after accept clears the request pane
+      removeRequestPane();   // Q1 review (#267 loop): a re-flush drops the pane; a STILL-pending peer
+                             // re-arms it via its own showContactRequest push (accept no longer relies
+                             // on this path — C# doesn't re-flush on accept; see markRequestResolved)
       order = [];
       hideTyping();
       typingRow = null;
@@ -2037,6 +2306,13 @@
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
+      removeRequestPane();                 // ⑪ per-peer reset: peer A's request pane must not survive into B
+      setComposerLock(null);               // ⑪ per-peer reset: this peer's pending state re-locks via its own
+                                           //    pushes (setOnlineStatus waiting / showRequestSentModal / showContactRequest)
+      requestResolved = false;             // Q1 review (#267 loop): the accept latch is per-peer/page-load — a
+                                           //    re-opened, still-pending chat must re-lock from its own pushes
+      callVisible = false;                 // Q1 review (#267 loop): the last per-peer flag missing from this block —
+                                           //    fail-safe, so a call action can't leak into a pending peer on reuse
       // connectivitySub is intentionally NOT reset here (audit A-3): network
       // state is page-global, and C#'s warningDisplayed flag persists across
       // peers on this page instance — it won't re-push until the state CHANGES,
@@ -2206,8 +2482,11 @@
       groupOwner = String(address || '');
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
-    // incoming contact request (xaml:1196) → accept/decline pane above composer
-    showContactRequest() { showRequestPane(); },
+    // incoming contact request (xaml:1196) → accept/decline pane above composer.
+    // Q1 review (#267 loop): terminal once accepted — a late push (C# re-evaluates
+    // the pending state on its own schedule) must not re-arm the pane over a
+    // composer the user just unlocked.
+    showContactRequest() { if (requestResolved) return; showRequestPane(); },
     // reveal the topbar call action (C# gates when a call is possible, xaml:583)
     showCallButton() { callVisible = true; renderTopbar(); },
     // APP invite/session card (chat.js addAppRequest:1174). appStatus ∈
@@ -2279,7 +2558,22 @@
       }
       if (touched) renderLog();
     },
-    showRequestSentModal() { dbg('showRequestSentModal'); },
+    // ⑪ pending-outgoing lock (was a dbg stub — the push died and the composer
+    // stayed live). "1" on load while RequestSent; "0" from updateScreen the
+    // moment the peer accepts (state → Approved). See the setComposerLock docblock.
+    // Q1 review (#267 loop): "0" is now the UNIVERSAL unlock — C#'s updateScreen
+    // sets _waitingForContactConfirmation in BOTH pending branches, so any
+    // pending→Approved transition pushes it exactly once, whoever accepted and
+    // wherever (in-chat, the chats-list card, or the peer's side). It therefore
+    // clears ANY lock (not just 'outgoing'), drops the request pane, and latches —
+    // it was clearing only 'outgoing', so an 'incoming' lock accepted from the
+    // desktop chats list stayed hidden behind a stale pane for the whole session
+    // (updateScreen pushes NOTHING for a freshly-approved OFFLINE peer, xaml:1884).
+    showRequestSentModal(flag) {
+      const on = String(flag) === '1' || asBool(flag);
+      if (on) { setComposerLock('outgoing'); return; }
+      markRequestResolved();
+    },
     // M16 (#59 DECIDED): the two known "Connecting…" strings (matched against
     // their *SL-substituted carriers — locale-proof) render as a topbar
     // TITLE-STATE (presence sub swap); the banner is kept for ACTIONABLE /
@@ -2631,12 +2925,20 @@
     voice: false,
     onSend: (text) => {
       if (!text) return;
+      if (composerLock) return;   // ⑪ belt-and-braces: no compose path while pending
       bridge.send('ixian:chat:' + encodeURIComponent(text));
       clearDraft();                                   // sent → drop the saved draft (CH7)
       // composer already clears its own field on send; this is belt-and-braces.
     },
     onTyping: () => {
-      if (mode.isMulti) return;                       // legacy: no typing in groups
+      // #264 (Damir: "no typing indicator in groups"): legacy suppressed typing in
+      // EVERY multi chat; the receive side (showUserTyping) is generic and C#'s
+      // handleFriendIsTyping resolves the envelope friend (= the group), so
+      // un-gate GROUPS. BOTS stay suppressed — a busy channel would rebroadcast
+      // typing to thousands. ⚠ on-device 2-client F5 verifies the group relay
+      // actually forwards msgTyping (IXICore — unverifiable in-tree, #215);
+      // fail-soft either way (an unrelayed signal is simply never shown).
+      if (mode.isBot || composerLock) return;   // ⑪ no typing signal while pending either
       const now = Date.now();
       if (now - lastTypingSent > 1000) {              // >1s throttle (chat.js:423)
         lastTypingSent = now;

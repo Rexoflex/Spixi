@@ -35,6 +35,7 @@ const FILES = [
   'src/components/overlay.js',
   'src/components/sheet.js',
   'src/components/modal.js',
+  'src/components/desktop-anchors.js', // Batch C (#256 M6): desktop overlay anchoring (no imports — pure DOM)
   'src/components/banner.js',
   'src/components/toast.js',
   'src/components/callbar.js',
@@ -53,7 +54,8 @@ const FILES = [
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',
   'src/components/call-overlay.js',
-  'src/components/call-ui.js',      // Batch A: shared shell glue for the live call bridge (after call-overlay + callbar + avatar)
+  // Q4-③ (#270): call-ui.js DELETED — the per-shell call glue is dead; calls
+  // present on the native CallPage (call.html uses call-overlay + callbar directly).
   'src/components/contact-request.js',
   'src/components/chats-row-menu.js',
   'src/components/chats-swipe.js',
@@ -123,6 +125,27 @@ for (const f of FILES) {
     }
     declaredIn.set(name, f);
   }
+
+  /* PRE-STRIP GATE (#265, after a build failure that surfaced only as a cryptic
+   * "Unexpected identifier 'as'"): the stripper below is a SINGLE-LINE regex with
+   * no alias support, so two source forms silently corrupt the bundle —
+   *   1. a MULTI-LINE import: line 1 is stripped, its tail (`x, y,` / `} from '…';`)
+   *      survives as garbage. The post-strip guard can't see it (the tail doesn't
+   *      start with `import`), so it only blew up in the syntax check.
+   *   2. an ALIASED import (`x as y`): the alias rides into the shared scope.
+   * Catch both HERE, with the file + the offending line. Keep imports one-line
+   * and un-aliased; if the bundle ever needs either, teach the stripper first. */
+  raw.split('\n').forEach((line, i) => {
+    if (!/^\s*import\b/.test(line)) return;
+    // compare on CODE only — a trailing `// note` after the semicolon is fine
+    const code = line.replace(/\/\/.*$/, '').replace(/\/\*.*$/, '').trim();
+    if (!/;$/.test(code) || !/\bfrom\b/.test(code)) {
+      throw new Error(`${f}:${i + 1}: MULTI-LINE import — the stripper is single-line (/^import .*$/gm) and would leave the tail behind. Put it on one line:\n  ${line.trim()}`);
+    }
+    if (/\bas\b/.test(code)) {
+      throw new Error(`${f}:${i + 1}: ALIASED import (\`x as y\`) — not supported by the bundle stripper; import the plain name and assign a local const:\n  ${line.trim()}`);
+    }
+  });
 
   const src = raw
     .replace(/^import .*$/gm, '')          // deps resolved in shared scope

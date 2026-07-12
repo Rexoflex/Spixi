@@ -403,6 +403,12 @@ namespace SPIXI
             updateScreen();
         }
 
+        // ★ #265 (Opus review MAJOR-1): this WebView runs THIRD-PARTY publisher code —
+        // it must never receive call/app-request pushes (they carry the caller's wallet
+        // address + the live VoIP session id, which onNavigatingGlobal would accept back
+        // as appAccept/appReject/hangUp). Opt OUT of the C18 broadcast.
+        public override bool acceptsCallPushes => false;
+
         // Executed every second
         public override void updateScreen()
         {

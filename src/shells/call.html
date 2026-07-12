@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
+     light<->dark flip). The body-tail theme block is now redundant but harmless. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
+<!-- #228 platform type flag: desktop OS → compact desktop type/density (tokens.css
+     :root[data-desktop]); set BEFORE first paint, constant across window resize. -->
+<script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Call</title>
+<style>
+  html { background: #f9fafb; }
+  html[data-theme="dark"] { background: #13171b; }
+</style>
+<link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/components/button.css">
+<link rel="stylesheet" href="../styles/components/avatar.css">
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-callin rides the overlay stack -->
+<link rel="stylesheet" href="../styles/components/call-overlay.css">
+<link rel="stylesheet" href="../styles/components/callbar.css">
+<style>
+  /* Q4-③ (#270): THE native call surface — loaded ONLY by CallPage, the one
+     C#-presented cover that replaced the per-pane call-ui broadcasts (Damir F5:
+     N rings/N bars on desktop, roster-less identities). Two modes, one document:
+       ring    — CallPage presents this WebView FULL-WINDOW; the c-callin overlay
+                 renders over the themed body (its own scrim included).
+       bar     — CallPage re-margins the stage to a TOP STRIP: this viewport IS
+                 the strip (~64dip, --call-bar-h must match CallPage.barHeightDip),
+                 and the callbar pins to its top edge.
+     Identity (nick + avatar data-URI, X1) is pushed by C# — always right.
+     SECURITY: this page emits ONLY the existing global call verbs
+     (ixian:appAccept/appReject/hangUp) — intent only, C# owns the call. */
+  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  body { overflow: hidden; }
+  :root { --call-bar-h: 64px; }
+  /* bar mode: the strip fills the (short) viewport; hairline under it so the
+     strip reads as a shelf over whatever pane sits beneath the native stage. */
+  body[data-mode="bar"] .c-callbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--call-bar-h);
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
+  }
+  /* Review MAJOR (Q4 loop): callbar.css's #264 DESKTOP rule (:root[data-desktop]
+     .c-callbar, specificity 0-3-0) OUT-SPECIFIES the rule above (0-2-1) — and this
+     shell sets data-desktop on every desktop UA. It floats the bar as a centered
+     560px pill offset 8px from the top… inside a stage viewport that is EXACTLY
+     --call-bar-h tall with overflow:hidden ⇒ the pill's bottom 8px (and its radius)
+     were CLIPPED, with the rest of the opaque native stage showing as a band around
+     it. The floating pill is a DOM-overlay grammar; this stage IS the strip, so the
+     production call surface takes the strip back on desktop too (the demos keep the
+     pill — callbar.css is untouched). Damir: art dial. */
+  :root[data-desktop] body[data-mode="bar"] .c-callbar {
+    left: 0; right: 0; width: auto;
+    top: 0;
+    border-radius: 0;
+    transform: translateY(-100%);
+  }
+  :root[data-desktop] body[data-mode="bar"] .c-callbar[data-open] {
+    transform: translateY(0);
+  }
+  /* ring mode: c-callin + its scrim render over the themed full-window body.
+     Desktop (#264): the ring reads as a centered card — call-overlay.css owns it. */
+</style>
+</head>
+<body>
+
+<script src="../components/icons.iife.js"></script>
+<script src="../demo/strings.iife.js"></script>
+<!-- A4: C#-substituted locale carrier — the dictionary follows the Settings pick;
+     ?lang= still overrides (demos/tests); un-substituted → en-us fallback. -->
+<script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
+<script src="../demo/spixi.iife.js"></script>
+<script>
+  /* —————————————————————————————————————————————————————————————————————————
+   * Production CALL shell — the one native call surface (CallPage, Q4-③/#270).
+   *
+   * Contract (CallPage.xaml.cs):
+   *   C#→JS  setCallUi(kind, name, avatar, text, startedSecs, sessionId, address)
+   *          kind ∈ 'ring' | 'dialing' | 'incall'. Re-pushed on EVERY state
+   *          change and re-asserted after ixian:onload (the shell holds no
+   *          state C# can't replay). avatar = data URI (X1) or a sentinel path
+   *          (→ gradient fallback). startedSecs = unix SECONDS, 0 ⇒ no timer.
+   *   JS→C#  ixian:appAccept:<addr>:<sid> · ixian:appReject:<addr>:<sid> ·
+   *          ixian:hangUp:<sid> — the existing global verbs (onNavigatingGlobal;
+   *          VoIPManager routes them; ★ mini-apps still can't reach any of this —
+   *          acceptsCallPushes gates are untouched).
+   *   Dismissal is NATIVE: C# tears the surface down on accept-elsewhere /
+   *   decline / remote hang-up / the #265 ring timeout — this shell never
+   *   self-dismisses (no local verb exists; a hidden-but-ringing call would lie).
+   * ————————————————————————————————————————————————————————————————————————— */
+  const {
+    showIncomingCall, hideIncomingCall,
+    showCallBar, hideCallBar,
+    createNativeBridge, installExecuteUiCommand,
+  } = window.Spixi;
+  const strings = window.SL || {};
+
+  // Boot theme fallback (head-top script normally resolved it already).
+  (function () {
+    if (document.documentElement.dataset.theme) return;
+    var a = ''; try { a = localStorage.getItem('spixi.appearance') || ''; } catch (e) {}
+    if (a === '1') document.documentElement.dataset.theme = 'light';
+    else if (a === '2') document.documentElement.dataset.theme = 'dark';
+    else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  })();
+
+  const bridge = createNativeBridge();
+  installExecuteUiCommand();
+
+  // C# pushes sentinels/paths through un-encoded (X1) — anything that isn't a
+  // data/http(s) URI can't resolve in this self-contained shell → gradient.
+  function resolveAvatar(v) {
+    const s = String(v || '');
+    return /^(data:image\/|https?:\/\/)/.test(s) ? s : null;
+  }
+
+  let ringEl = null;        // live c-callin (singleton)
+  let ringSession = '';
+  let barSession = '';      // hang-up target while the bar is up
+  const hungUp = new Set(); // sessions this surface already hung up (one-shot per call)
+
+  function dropRing() {
+    if (!ringEl) return;
+    const el = ringEl;
+    ringEl = null;
+    ringSession = '';
+    hideIncomingCall(el);
+  }
+
+  function renderRing(name, avatar, text, sid, addr) {
+    // Review MINOR: call-overlay.js DISMISSES the ring itself when an action latches
+    // (Accept/Decline), but nothing reset our identity latch — so between the tap and
+    // C#'s next push the shell believed a ring for `sid` was live while the DOM was
+    // empty. A re-assert in that window (any page's OnAppearing → broadcastCallState)
+    // then rendered NOTHING behind a full-window, back-swallowing cover. Treat a
+    // detached ring as gone.
+    if (ringEl && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
+    if (ringEl && ringSession === sid) return;    // same ring — keep it (no restart/refocus)
+    dropRing();
+    ringSession = sid;
+    ringEl = showIncomingCall({
+      host: document.body,
+      ignore: false,       // Accept/Decline only — no local-dismiss verb exists (C# keeps ringing)
+      caller: { name: name || '', address: addr || '', avatar: resolveAvatar(avatar) },
+      sub: text || '',     // C#-localized "Incoming call" line
+      onAccept: () => bridge.send('ixian:appAccept:' + addr + ':' + sid),
+      onDecline: () => bridge.send('ixian:appReject:' + addr + ':' + sid),
+      strings,
+    });
+  }
+
+  function renderBar(text, startedSecs, sid) {
+    dropRing();
+    // Review MINOR: a re-assert (dialing → in-call, or any page's OnAppearing →
+    // broadcastCallState) used to RE-ARM the hang-up latch after the user had already
+    // hung up — a second tap then re-fired ixian:hangUp on a session C# was tearing
+    // down. Hang-up is one-shot per session, for the life of this surface.
+    barSession = hungUp.has(sid) ? '' : sid;
+    const t = Number(startedSecs) || 0;
+    showCallBar({
+      host: document.body,
+      text: String(text || ''),
+      startedAt: t > 0 ? t * 1000 : null,        // 0 ⇒ dialing, no timer (spixi.js:304)
+      // no onReturn: this surface can't navigate the app (return-to-call =
+      // logged follow-up — needs a C#-routed verb); the main region renders
+      // INERT (callbar.js #257 grammar), hang-up is the live action.
+      onHangUp: () => {
+        const target = barSession;
+        if (!target) return;                     // already ended — idempotent
+        barSession = '';
+        hungUp.add(target);
+        bridge.send('ixian:hangUp:' + target);   // C# tears the surface down
+      },
+      strings,
+    });
+  }
+
+  const handlers = {
+    /* the ONE push — full current state, replayable (see contract above) */
+    setCallUi(kind, name, avatar, text, startedSecs, sessionId, address) {
+      const k = String(kind || '');
+      const sid = String(sessionId || '');
+      const addr = String(address || '');
+      if (k === 'ring') {
+        document.body.dataset.mode = 'ring';
+        hideCallBar(document.body);
+        barSession = '';
+        renderRing(name, avatar, text, sid, addr);
+      } else if (k === 'dialing' || k === 'incall') {
+        document.body.dataset.mode = 'bar';
+        renderBar(text, startedSecs, sid);
+      }
+      // any other kind: leave the surface exactly as it is (an unknown kind used to
+      // fall into 'bar' mode and paint an empty opaque strip).
+    },
+  };
+  bridge.exposeAll(handlers);
+
+  /* —— page ready — fire ixian:onload on the window LOAD event (#177): C# then
+   *    (re)pushes setCallUi and reveals the stage. ————————————————————————————— */
+  function signalReady() { bridge.ready(); }
+  if (document.readyState === 'complete') signalReady();
+  else window.addEventListener('load', signalReady, { once: true });
+</script>
+</body>
+</html>

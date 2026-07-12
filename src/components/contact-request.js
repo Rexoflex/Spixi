@@ -1,8 +1,13 @@
 /**
  * c-contact-request — incoming contact-request row in the Chats list (step 3;
  * spec §5). Promotes the app-frame inline block into a real component. Rendered
- * at the top of the list for pending requests. Decline routes through the
- * c-modal confirm (Cancel autofocused, APG); Accept fires onAccept(row). The
+ * at the top of the list for pending requests. Decline fires onDecline
+ * SINGLE-CLICK (⑩/#266 — the confirm modal was dropped: declines are
+ * reversible, confirms are for the irreversible); Accept fires onAccept(row).
+ * EITHER action SPENDS the whole card (Q1 review, #267 loop): both buttons are
+ * disabled before the callback runs, so a card that survives its own verb (the
+ * chat shell's pane outlives the async C# page-pop) can't fire the OTHER verb on
+ * a friend the first one already resolved/removed. The
  * #109 STAGED HANDSHAKE (step 6): the caller latches the Accept button via
  * setRequestAccepting(row) — "Accepting…" loading — then transitions the request
  * into a handshaking chat; entry unblocks only on the bridge handshake-complete
@@ -15,7 +20,6 @@
 import { getStrings } from './strings-runtime.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
-import { createModal, openModal } from './modal.js';
 import { formatChatTimestamp } from './timestamp.js';
 import { icon } from './icons.js';
 
@@ -55,23 +59,34 @@ export function createContactRequest({ name = '', nick = '', address = '', avata
   actions.className = 'c-contact-request__actions';
   const declineLabel = strings.decline || 'Decline';
   const acceptLabel = strings.accept || 'Accept';
-  const decline = createButton({
+  // ⑩ (#266): Decline is SINGLE-CLICK — the confirm modal is gone. Damir F5'd
+  // the two-step as a bug; a decline is reversible (the peer can simply send
+  // another request), and confirms are reserved for actions that can't be
+  // undone (delete-chat/-contact keep theirs). One-shot: disable on fire so a
+  // list re-flush can't double-emit the verb from a stale row.
+  // Q1 review (#267 loop): the ONE-SHOT is CARD-WIDE, not button-wide. Disabling
+  // only the button that fired left the other one live on a card that survives
+  // the verb (the chat shell's request pane isn't removed until C# pops the page,
+  // asynchronously) — a Decline (ixian:undorequest → removeFriend) followed by a
+  // tap on the still-live Accept fired ixian:accept → sendAcceptAdd on a friend
+  // that no longer exists, and vice-versa. Either action now SPENDS the card.
+  let decline, accept;
+  const spend = () => {
+    if (decline) decline.disabled = true;
+    if (accept) accept.disabled = true;
+  };
+  decline = createButton({
     label: declineLabel, type: 'outline', size: 32,
-    onClick: () => openModal(createModal({
-      title: strings.declineTitle || 'Decline request?',
-      body: (strings.declineBody || '{name} won’t be notified, and can send another request later.').split('{name}').join(display),
-      role: 'alertdialog', host,
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-        { label: declineLabel, type: 'fill', intent: 'destructive', onClick: () => { if (onDecline) onDecline(); } },
-      ],
-    })),
+    onClick: () => { spend(); if (onDecline) onDecline(); },
   });
   decline.dataset.decline = '';
   decline.setAttribute('aria-label', declineLabel + ' ' + display);
-  const accept = createButton({
+  accept = createButton({
     label: acceptLabel, type: 'fill', size: 32, icon: icon('check', { size: 16 }),
-    onClick: () => { if (onAccept) onAccept(row); },
+    // spend BEFORE the callback: onAccept may synchronously call setRequestAccepting,
+    // whose setLoading() sees an already-disabled button, keeps it disabled (button.js
+    // only restores what IT disabled) and still paints the "Accepting…" spinner.
+    onClick: () => { spend(); if (onAccept) onAccept(row); },
   });
   accept.dataset.accept = '';
   accept.setAttribute('aria-label', acceptLabel + ' ' + display);

@@ -1538,6 +1538,113 @@ function createModal({
 function openModal(el) { openOverlay(el); }
 function closeModal(el) { dismissOverlay(el); }
 
+/* ---- src/components/desktop-anchors.js ---- */
+/**
+ * Desktop overlay anchoring (Batch C, #256 M6) — the desktop demo's PROVEN
+ * recipe (desktop.html:1127-1162 context menus · :1244-1258 attach popover)
+ * promoted to a shared component so the production shells get the same
+ * grammar without forking the demo layer.
+ *
+ * PRESENTATION-ONLY: the #56 overlay stack / host / dismissal grammar and the
+ * #205 a11y wiring (focus trap, focus restore, Esc, scrim) are untouched — we
+ * only TAG ([data-dt-anchor]) and inline-POSITION a sheet the moment it mounts;
+ * overlay.css's :root[data-desktop] block carries the visual variants. The
+ * money sheet's locks are JS-side (lightDismiss/escDismiss) and unaffected.
+ *
+ * Everything NO-OPS when :root[data-desktop] is absent — mobile untouched.
+ *
+ * attachContextMenuAnchors({ host, rows }) → detach()
+ *   Right-click (contextmenu) on an element matching `rows` records the
+ *   pointer; the NEXT `.c-sheet` mounting into `host` that contains a
+ *   `.c-msgmenu` (message menu AND chats-row menu both use it) within 600ms is
+ *   tagged [data-dt-anchor="menu"], positioned at the pointer / source-row
+ *   bottom edge, and the source row highlights ([data-dt-ctx-source]) until
+ *   the sheet leaves the DOM. A menu opened any OTHER way (long-press,
+ *   keyboard) has no recent contextmenu → presents as the centered dialog,
+ *   deliberately (the demo's 600ms rule).
+ *
+ * anchorSheetAbove(sheet, trigger, { host, width }) → sheet
+ *   Tags an already-open sheet as [data-dt-anchor="up"] — a popover rising
+ *   from a trigger (the composer ⊕ attach grid), left-aligned with it.
+ */
+function isDesktopPresentation() {
+  return document.documentElement.hasAttribute('data-desktop');
+}
+
+const CTX_FRESH_MS = 600;   // demo rule: only a just-right-clicked menu anchors
+const CTX_MENU_W = 300;     // demo dropdown width (desktop.html:1150)
+
+/* Damir 2026-07-12 (#268): desktop CONTEXTUAL menus (right-click dropdown ·
+ * composer ⊕ popover) carry NO backdrop wash — the anchored menu + the source
+ * highlight are the affordance; a full-viewport dim reads modal. The scrim
+ * ELEMENT stays (outside-click dismissal, the #56 stack/a11y grammar, Esc —
+ * all untouched): overlay.js mounts it as the sheet's previous sibling, we
+ * only TAG it and overlay.css makes it transparent. Centered dialogs/modals
+ * keep their wash. */
+function clearScrimFor(sheet) {
+  const prev = sheet.previousElementSibling;
+  if (prev && prev.classList && prev.classList.contains('c-scrim')) prev.dataset.dtClear = '';
+}
+
+function attachContextMenuAnchors({ host = document.body, rows = '.c-bubble-row, .c-chatlist-item' } = {}) {
+  if (!isDesktopPresentation()) return () => {};
+  let ctx = null;    // { x, y, row, at } — recorded at contextmenu time (capture)
+  let open = null;   // { sheet, row } — the open dropdown + its highlighted source row
+
+  const onCtx = (e) => {
+    const row = e.target.closest(rows);
+    if (row) ctx = { x: e.clientX, y: e.clientY, row, at: Date.now() };
+  };
+  host.addEventListener('contextmenu', onCtx, true);
+
+  const mo = new MutationObserver((muts) => {
+    for (const m of muts) {
+      for (const n of m.removedNodes) {
+        if (open && n === open.sheet) {
+          delete open.row.dataset.dtCtxSource;
+          open = null;
+        }
+      }
+      for (const n of m.addedNodes) {
+        if (!n.classList || !n.classList.contains('c-sheet')
+          || !n.querySelector || !n.querySelector('.c-msgmenu')) continue;
+        if (!ctx || Date.now() - ctx.at > CTX_FRESH_MS) continue;   // not pointer-opened → centered dialog
+        n.dataset.dtAnchor = 'menu';
+        clearScrimFor(n);                                           // #268: no backdrop wash on anchored menus
+        const fr = host.getBoundingClientRect();
+        const rr = ctx.row.getBoundingClientRect();
+        n.style.width = CTX_MENU_W + 'px';
+        n.style.left = Math.round(Math.max(8, Math.min(ctx.x - fr.left, (fr.width || 1e4) - CTX_MENU_W - 8))) + 'px';
+        // adjacent to the SOURCE — dropping from the row's bottom edge (06d ②)
+        n.style.top = Math.round(Math.max(8, Math.min((rr.bottom || ctx.y) - fr.top + 4, (fr.height || 1e4) - 420))) + 'px';
+        ctx.row.dataset.dtCtxSource = '';
+        open = { sheet: n, row: ctx.row };
+        ctx = null;
+      }
+    }
+  });
+  mo.observe(host, { childList: true });
+
+  return () => {
+    host.removeEventListener('contextmenu', onCtx, true);
+    mo.disconnect();
+    if (open) { delete open.row.dataset.dtCtxSource; open = null; }
+  };
+}
+
+function anchorSheetAbove(sheet, trigger, { host = document.body, width = 380 } = {}) {
+  if (!isDesktopPresentation() || !sheet || !trigger) return sheet;
+  sheet.dataset.dtAnchor = 'up';
+  clearScrimFor(sheet);                                             // #268: no backdrop wash on the ⊕ popover
+  const fr = host.getBoundingClientRect();
+  const r = trigger.getBoundingClientRect();
+  sheet.style.left = Math.max(8, r.left - fr.left) + 'px';
+  sheet.style.top = 'auto';
+  sheet.style.bottom = Math.max(8, (fr.bottom || 0) - r.top + 8) + 'px';
+  sheet.style.width = width + 'px';
+  return sheet;
+}
+
 /* ---- src/components/banner.js ---- */
 /**
  * c-banner — warning/status strip (bridge: showWarning(text); empty clears —
@@ -1674,6 +1781,9 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
  *   startedAt: null — DIALING state (bridge displayCallBar sends "0" while
  *   dialing, legacy spixi.js:304): the timer is hidden, no ticking. A later
  *   re-push with a real startedAt flips it on in place (singleton mutate).
+ *   onReturn — OPTIONAL. Wired → the main region is a real button. Omitted →
+ *   it renders inert (no button role/aria-label/focus/hover), never a dead
+ *   control (audit #257). Hang-up is always the live action.
  * hideCallBar(host) (#44 free fns)
  */
 
@@ -1710,10 +1820,24 @@ function showCallBar({
   const el = document.createElement('div');
   el.className = 'c-callbar';
 
-  const main = document.createElement('button');
-  main.type = 'button';
+  /* the main region is a CONTROL only when a return-to-call target is wired.
+   * Without onReturn (11 of the 12 shells today — C# doesn't send the friend
+   * address yet, be-cutover C19) a <button aria-label="Return to call"> would be
+   * a focusable, SR-announced control that does nothing (audit #257). Then it
+   * renders as an inert <div>: no button semantics, no aria-label, not
+   * focusable, and pointer-events:none so the CSS :hover/:active affordance on
+   * .c-callbar__main can't fire either. Visuals are identical — the class (and
+   * every layout/typography rule on it) is unchanged. */
+  const interactive = typeof onReturn === 'function';
+  const main = document.createElement(interactive ? 'button' : 'div');
   main.className = 'c-callbar__main';
-  main.setAttribute('aria-label', strings.returnToCall || 'Return to call');
+  if (interactive) {
+    main.type = 'button';
+    main.setAttribute('aria-label', strings.returnToCall || 'Return to call');
+  } else {
+    main.dataset.static = '';          // styling hook, should the affordance ever move to CSS
+    main.style.pointerEvents = 'none'; // kills cursor:pointer + :hover/:active
+  }
   main.append(icon('phone', { size: 20 }));
 
   const label = document.createElement('span');
@@ -1726,7 +1850,7 @@ function showCallBar({
   time.hidden = startedAt == null;   // dialing: text only, no timer
   time.textContent = startedAt == null ? '' : formatCallDuration(Date.now() - startedAt);
   main.append(time);
-  if (onReturn) main.addEventListener('click', onReturn);
+  if (interactive) main.addEventListener('click', onReturn);
   el.append(main);
 
   const hangup = document.createElement('button');
@@ -2848,7 +2972,13 @@ function createPaymentBubble({
   }
 
   if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    const decline = createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' });
+    // #264 (no-dead-buttons canon, the #214 End-session precedent): Decline renders
+    // ONLY when the host wires a decline path. On the frozen bridge the shell has
+    // no in-chat decline verb — Pay routes to the NATIVE review page (C# signs;
+    // the user can still back out there), so a dead Decline would be a lie.
+    const decline = onDecline
+      ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' })
+      : null;
     const pay = status === 'failed'
       ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
       : status === 'processing'
@@ -2856,7 +2986,7 @@ function createPaymentBubble({
         // processing the check goes away and the label says what's happening
         ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
         : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
-    el.append(actionsRow(decline, pay));
+    el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
@@ -2995,7 +3125,10 @@ function createCallBubble({
   title = '',              // optional verbatim override — the native bridge sends a
                            // fully-localized call label ("No answer" vs "Missed" vs
                            // "Outgoing"/"Incoming") the shell can't reconstruct from
-                           // the missed flag alone; when present it wins
+                           // the missed flag alone; when present it wins.
+                           // #265: the loud "Tap to call back" sub-button is retired —
+                           // missed calls use the same quiet Call-back link as answered
+                           // ones, and the card hugs its content.
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // "Outgoing" / "Incoming" (SL)
   duration = '',           // "4:12"
@@ -3009,6 +3142,9 @@ function createCallBubble({
       : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
     timestamp, 'call', gutter);
   if (missed && !declined) row.dataset.missed = '';
+  // #264 (Damir ③): outcome marker for the file-bubble-style medallion tint —
+  // declined rows previously carried NO marker at all (only data-missed).
+  row.dataset.callOutcome = declined ? 'declined' : missed ? 'missed' : 'ok';
   const head = el.querySelector('.c-tcard__title');
   head.insertAdjacentElement('afterbegin',
     icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
@@ -3022,13 +3158,16 @@ function createCallBubble({
       el.append(meta);
     }
   } else if (missed) {
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.className = 'c-tcard__call-back';
-    sub.textContent = strings.tapToCallBack || 'Tap to call back';
-    const cb = reentryGuard(onCallBack); // repeatable — guard re-entry only
-    if (cb) sub.addEventListener('click', cb);
-    el.append(sub);
+    // #265 (Damir ⑪): the loud "Tap to call back" sub-button is gone — missed
+    // calls use the SAME quiet Call-back link as answered ones (consistent,
+    // compact). directionLabel meta keeps the context when present.
+    if (directionLabel) {
+      const meta = document.createElement('div');
+      meta.className = 'c-tcard__call-meta u-tabular';
+      meta.textContent = directionLabel;
+      el.append(meta);
+    }
+    if (onCallBack) el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
   } else {
     // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
     // an answered call with neither label nor duration must not leave an empty div
@@ -3597,6 +3736,11 @@ function attachMessageMenu(row, opts = {}) {
     // (no click event follows), which swallowed the next right-click (audit r4)
     fired = false;
     if (e.button !== 0) return; // right button → contextmenu path
+    // #265 (Damir ①): long-press is a TOUCH gesture — on desktop a held MOUSE
+    // button must not pop a menu (right-click is the one desktop path). A
+    // touch-screen desktop keeps long-press (Opus review MINOR-7: gating on the
+    // platform flag alone would strip the menu from a finger entirely).
+    if (document.documentElement.hasAttribute('data-desktop') && e.pointerType !== 'touch') return;
     startX = e.clientX;
     startY = e.clientY;
     cancel();
@@ -4517,164 +4661,17 @@ function hideIncomingCall(el) {
   dismissOverlay(el);
 }
 
-/* ---- src/components/call-ui.js ---- */
-/**
- * call-ui — shared shell glue for the LIVE call bridge (Batch A: the redesigned
- * app had NO call UI at all — the shells never defined the C# push globals, so
- * every call push died on an undefined identifier).
- *
- * Bridge contract (verified, SpixiContentPage.cs — the pushes live on the BASE
- * class so every page/WebView can receive them):
- *   C#→JS  addCallAppRequest(address, sessionIdHex, text)   — ringing (:1387)
- *          addAppRequest(sessionIdHex, text, ok, cancel)    — 4-arg MINI-APP
- *            session request (:1368) — IGNORED here (legacy parity: the
- *            spixi.js:247 body is a commented-out TODO). chat.html guards its
- *            OWN 13-arg app-invite handler against this collision by arg count.
- *          clearAppRequests()                               — precedes every
- *            displayAppRequests pass (:1355); the ONLY signal that removes a
- *            ringing card (caller hang-up sends no dedicated clear).
- *          displayCallBar(sessionIdHex, text, startedSecs)  — active call
- *            (:1333); text is C#-localized + pre-composed; startedSecs is unix
- *            SECONDS, "0" while dialing → no timer (legacy spixi.js:304).
- *          hideCallBar()                                    — call ended (:1345).
- *   JS→C#  ixian:appAccept:<addr>:<sessionId> · ixian:appReject:<addr>:<sessionId>
- *          · ixian:hangUp:<sessionId> — all on onNavigatingGlobal (:1449-1462),
- *          so they work from ANY page. Accept routes through C# (VoIPManager
- *          .acceptCall) — the WebView only ever emits intent (SECURITY.md).
- *
- * DELIVERY REALITY (verified — sharper than the docs): UIHelpers
- * .refreshAppRequests is a GLOBAL one-shot flag consumed by the FIRST ticked
- * page; HomePage.OnUpdateUI ticks NavigationStack.Last() (= HomePage under the
- * #225 overlay nav) BEFORE the top overlay → mid-session call events land in
- * home.html's WebView only. Overlay pages get the CURRENT state once at present
- * time (SpixiContentPage.cs:1084-1090). A broadcast fix is a BE ask (be-cutover
- * C19) — this glue is wired into every shell now, ready for it.
- *
- * attachCallUi({ bridge, host, resolveCaller, onReturn, strings }) → handlers
- *   Spread the returned map into the shell's bridge.exposeAll(handlers) object.
- *   resolveCaller(address) → { name, avatar } | null — shell-local identity
- *     lookup (chats list / roster); falls back to the truncated address + the
- *     C# pre-composed text line.
- *   onReturn(friendAddress) — wired ONLY when C# starts appending the friend
- *     address to displayCallBar (BE arg-append ask C19; additive last arg per
- *     be-cutover rules). Absent today → the bar shows text + timer + hang-up.
- */
-
-
-
-
-
-/* clearAppRequests → re-add grace: C#'s displayAppRequests pass is
- * clear-then-re-add across SEPARATE EvaluateJavaScriptAsync calls (frames
- * apart) — dropping the card on the clear and re-creating it on the re-add
- * would flash the overlay on every pass. The clear defers the drop; a same-
- * session re-add inside the window cancels it. A REAL clear (caller hung up
- * while ringing — no re-add follows) lands within the window. */
-const CLEAR_GRACE_MS = 400;
-
-function attachCallUi({
-  bridge,
-  host = document.body,
-  resolveCaller,
-  onReturn,
-  strings = getStrings(),
-} = {}) {
-  const call = {
-    ringEl: null,      // live incoming-call overlay (singleton per shell)
-    ringSession: '',   // sessionIdHex of the live ring
-    clearTimer: 0,     // pending deferred drop (see CLEAR_GRACE_MS)
-    barSession: '',    // sessionIdHex of the active call (hang-up target)
-    friendAddr: '',    // C19 arg-append: the call peer (return-to-call target)
-  };
-
-  function dropRing() {
-    clearTimeout(call.clearTimer);
-    call.clearTimer = 0;
-    if (!call.ringEl) return;
-    const el = call.ringEl;
-    call.ringEl = null;
-    call.ringSession = '';
-    hideIncomingCall(el);   // SILENT dismiss — never reports an ignore outcome
-  }
-
-  return {
-    /* ringing — 3-arg push (SpixiContentPage.cs:1387). Re-pushed on every
-     * displayAppRequests pass; the same session keeps the live overlay. */
-    addCallAppRequest(address, sessionId, text) {
-      const addr = String(address || '');
-      const sid = String(sessionId || '');
-      clearTimeout(call.clearTimer);            // a re-add cancels a pending clear
-      call.clearTimer = 0;
-      if (call.ringEl && call.ringSession === sid) return;   // same ring — keep it
-      dropRing();                               // different session → replace
-      const known = (resolveCaller && resolveCaller(addr)) || null;
-      const name = (known && known.name) || '';
-      call.ringSession = sid;
-      call.ringEl = showIncomingCall({
-        host,
-        ignore: false,   // Damir (Batch A interview): Accept/Decline only — no
-                         // local-dismiss verb exists (C# would keep ringing)
-        caller: {
-          name: name || (addr ? truncateAddressMiddle(addr) : ''),
-          address: addr,
-          avatar: (known && known.avatar) || null,
-        },
-        // no shell-local identity → the C# pre-composed localized line
-        // ("Incoming call - Nick") carries the caller name instead
-        sub: name ? '' : String(text || ''),
-        onAccept: () => {
-          call.ringEl = null; call.ringSession = '';
-          bridge.send('ixian:appAccept:' + addr + ':' + sid);
-        },
-        onDecline: () => {
-          call.ringEl = null; call.ringSession = '';
-          bridge.send('ixian:appReject:' + addr + ':' + sid);
-        },
-        strings,
-      });
-    },
-
-    /* the only removal signal for a ringing card (see CLEAR_GRACE_MS). Never
-     * touches the callbar — that has its own hideCallBar verb. */
-    clearAppRequests() {
-      if (!call.ringEl) return;
-      const sid = call.ringSession;
-      clearTimeout(call.clearTimer);
-      call.clearTimer = setTimeout(() => {
-        call.clearTimer = 0;
-        if (call.ringEl && call.ringSession === sid) dropRing();
-      }, CLEAR_GRACE_MS);
-    },
-
-    /* active call strip. startedSecs = unix SECONDS; "0" while dialing → no
-     * timer (legacy spixi.js:304). The component is a singleton per host and
-     * mutates in place on re-pushes (dialing → in-call flips the timer on). */
-    displayCallBar(sessionId, text, startedSecs, friendAddress) {
-      call.barSession = String(sessionId || '');
-      call.friendAddr = String(friendAddress || '');   // C19 — empty today
-      const t = Number(startedSecs) || 0;
-      showCallBar({
-        host,
-        text: String(text || ''),
-        startedAt: t > 0 ? t * 1000 : null,
-        onHangUp: () => bridge.send('ixian:hangUp:' + call.barSession),
-        onReturn: onReturn
-          ? () => { if (call.friendAddr) onReturn(call.friendAddr); }
-          : undefined,
-        strings,
-      });
-    },
-
-    hideCallBar() { hideCallBar(host); },
-  };
-}
-
 /* ---- src/components/contact-request.js ---- */
 /**
  * c-contact-request — incoming contact-request row in the Chats list (step 3;
  * spec §5). Promotes the app-frame inline block into a real component. Rendered
- * at the top of the list for pending requests. Decline routes through the
- * c-modal confirm (Cancel autofocused, APG); Accept fires onAccept(row). The
+ * at the top of the list for pending requests. Decline fires onDecline
+ * SINGLE-CLICK (⑩/#266 — the confirm modal was dropped: declines are
+ * reversible, confirms are for the irreversible); Accept fires onAccept(row).
+ * EITHER action SPENDS the whole card (Q1 review, #267 loop): both buttons are
+ * disabled before the callback runs, so a card that survives its own verb (the
+ * chat shell's pane outlives the async C# page-pop) can't fire the OTHER verb on
+ * a friend the first one already resolved/removed. The
  * #109 STAGED HANDSHAKE (step 6): the caller latches the Accept button via
  * setRequestAccepting(row) — "Accepting…" loading — then transitions the request
  * into a handshaking chat; entry unblocks only on the bridge handshake-complete
@@ -4684,7 +4681,6 @@ function attachCallUi({
  *                        onAccept, onDecline }) → row element
  * setRequestAccepting(row, strings) — latch Accept to "Accepting…" (loading).
  */
-
 
 
 
@@ -4727,23 +4723,34 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
   actions.className = 'c-contact-request__actions';
   const declineLabel = strings.decline || 'Decline';
   const acceptLabel = strings.accept || 'Accept';
-  const decline = createButton({
+  // ⑩ (#266): Decline is SINGLE-CLICK — the confirm modal is gone. Damir F5'd
+  // the two-step as a bug; a decline is reversible (the peer can simply send
+  // another request), and confirms are reserved for actions that can't be
+  // undone (delete-chat/-contact keep theirs). One-shot: disable on fire so a
+  // list re-flush can't double-emit the verb from a stale row.
+  // Q1 review (#267 loop): the ONE-SHOT is CARD-WIDE, not button-wide. Disabling
+  // only the button that fired left the other one live on a card that survives
+  // the verb (the chat shell's request pane isn't removed until C# pops the page,
+  // asynchronously) — a Decline (ixian:undorequest → removeFriend) followed by a
+  // tap on the still-live Accept fired ixian:accept → sendAcceptAdd on a friend
+  // that no longer exists, and vice-versa. Either action now SPENDS the card.
+  let decline, accept;
+  const spend = () => {
+    if (decline) decline.disabled = true;
+    if (accept) accept.disabled = true;
+  };
+  decline = createButton({
     label: declineLabel, type: 'outline', size: 32,
-    onClick: () => openModal(createModal({
-      title: strings.declineTitle || 'Decline request?',
-      body: (strings.declineBody || '{name} won’t be notified, and can send another request later.').split('{name}').join(display),
-      role: 'alertdialog', host,
-      actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-        { label: declineLabel, type: 'fill', intent: 'destructive', onClick: () => { if (onDecline) onDecline(); } },
-      ],
-    })),
+    onClick: () => { spend(); if (onDecline) onDecline(); },
   });
   decline.dataset.decline = '';
   decline.setAttribute('aria-label', declineLabel + ' ' + display);
-  const accept = createButton({
+  accept = createButton({
     label: acceptLabel, type: 'fill', size: 32, icon: icon('check', { size: 16 }),
-    onClick: () => { if (onAccept) onAccept(row); },
+    // spend BEFORE the callback: onAccept may synchronously call setRequestAccepting,
+    // whose setLoading() sees an already-disabled button, keeps it disabled (button.js
+    // only restores what IT disabled) and still paints the "Accepting…" spinner.
+    onClick: () => { spend(); if (onAccept) onAccept(row); },
   });
   accept.dataset.accept = '';
   accept.setAttribute('aria-label', acceptLabel + ' ' + display);
@@ -4969,6 +4976,9 @@ function attachChatRowMenu(row, opts = {}) {
   row.addEventListener('pointerdown', (e) => {
     fired = false;                              // any new gesture resets suppression (audit r4)
     if (e.button !== 0) return;                 // right button → contextmenu path
+    // #265 (Damir ①): long-press = TOUCH-only; a held MOUSE button never pops a
+    // menu on desktop (right-click does). Touch-screen desktops keep it (MINOR-7).
+    if (document.documentElement.hasAttribute('data-desktop') && e.pointerType !== 'touch') return;
     startX = e.clientX; startY = e.clientY;
     cancel();
     timer = setTimeout(() => {
@@ -7154,7 +7164,7 @@ function setWalletHeroCompact(el, compact) {
  * the tx-detail BOTTOM SHEET (Damir) and the missing-tx explainer sheet.
  *
  * Model tx: { txid, direction:'in'|'out', status:'confirmed'|'pending'|'failed'|'unknown',
- *             name, contact?, address?, timestamp, amount, fiat, fee? }
+ *             name, contact?, address?, avatar?, timestamp, amount, fiat, fee? }
  *   status mirrors the legacy confirmation enum (true→confirmed / false→pending /
  *   error→failed / unknown). amount/fiat/fee arrive PRE-FORMATTED (#55/#77); rows
  *   render only when the field is present (data-honest — addPaymentActivity carries
@@ -7169,6 +7179,9 @@ function setWalletHeroCompact(el, compact) {
  * opts.onExplorer(txOrNull). Naming follows the legacy lang keys ("Explorer").
  *
  * createWalletTxList(state, opts) / renderWalletTxList(listEl, state, opts)
+ *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
+ *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
+ *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
@@ -7237,7 +7250,13 @@ function renderWalletTxList(listEl, state, opts = {}) {
   for (const tx of txs) {
     listEl.append(createTxItem({
       ...tx, strings,
-      onClick: () => openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
+      // B3 (#256): opts.onTx routes a row tap to the host (production: the
+      // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
+      // page/pane). A txid-less row keeps the in-page sheet — the detail page is
+      // keyed by txid. Default (demos): the tx-detail bottom sheet, unchanged.
+      onClick: () => (opts.onTx && tx.txid)
+        ? opts.onTx(tx)
+        : openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
     }));
   }
   if (!txs.length) listEl.append(walletEmpty(state, strings));
@@ -7472,7 +7491,10 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
   const head = document.createElement('div');
   head.className = 'c-txsheet__head';
   if (isContact) {
-    head.append(createAvatar({ name: tx.name, address: tx.address, size: 48 }));
+    // B3: thread a real avatar when the bridge provides one (WalletSentPage
+    // addEntry carries the counterparty avatar path/data-URI; #204/X1 family —
+    // createAvatar's onerror degrades to the deterministic gradient).
+    head.append(createAvatar({ name: tx.name, address: tx.address, src: tx.avatar || null, size: 48 }));
   } else {
     const dir = document.createElement('span');
     dir.className = 'c-txsheet__dir';
@@ -12153,12 +12175,41 @@ function renderPickerList(st) {
   list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
+function pickerNext(st) {
+  if (!st.opts.onNext) return;
+  // F2 belt-and-braces: drop any falsy address that reached the Set anyway
+  const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
+  if (sel.length < GROUP_MIN_MEMBERS) return;   // MAJOR-6: the action is disabled below 2
+  st.opts.onNext(sel);
+}
+
+/* #265 (Damir ⑤): the multi-select CONFIRM lives in the TOPBAR (top-trailing —
+ * the Signal/iOS-Messages grammar for "select then confirm"); the old full-width
+ * bottom "Next" button is retired. The topbar title carries the live count, so
+ * the action stays a single compact affordance. */
+// A group needs at least TWO members (C# rejects fewer — Opus review MAJOR-6).
+const GROUP_MIN_MEMBERS = 2;
+
 function syncNext(st) {
   const n = st.selected.size;
-  const btn = st.els.nextBtn;
-  btn.disabled = n === 0;
-  const label = btn.querySelector('.c-button__label');   // F20: defensive null-check
-  if (label) label.textContent = (st.opts.strings.next || 'Next') + (n ? ' (' + n + ')' : '');
+  const { strings } = st.opts;
+  if (st.els.nextAction) {
+    st.els.nextAction.disabled = n < GROUP_MIN_MEMBERS;
+    st.els.nextAction.setAttribute('aria-label',
+      (strings.next || 'Next') + (n ? ' (' + n + ')' : ''));
+  }
+  const title = st.els.topbar && st.els.topbar.querySelector('.c-topbar__title');
+  if (title) {
+    title.textContent = n
+      ? ((strings.selectedCount || '{n} selected').split('{n}').join(String(n)))
+      : (strings.selectMembers || 'Select members');
+  }
+  // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
+  // isn't focusable, so SR users got nothing). State the rule in the sub-line.
+  if (st.els.minHint) {
+    st.els.minHint.hidden = n >= GROUP_MIN_MEMBERS;
+    st.els.minHint.textContent = strings.groupNeedsTwo || 'Select at least 2 people to create a group.';
+  }
 }
 
 function renderPickerChrome(st) {
@@ -12172,11 +12223,16 @@ function renderPickerChrome(st) {
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
+    actions: multi
+      ? [{ icon: 'check', label: strings.next || 'Next', onClick: () => pickerNext(st) }]
+      : [],
   });
   st.els.topbar.replaceWith(topbar);
   st.els.topbar = topbar;
+  // the topbar renders actions as icon-buttons in a trailing wrap
+  st.els.nextAction = multi ? topbar.querySelector('.c-topbar__actions button') : null;
   st.els.actions.hidden = multi;
-  st.els.footer.hidden = !multi;
+  if (st.els.minHint) st.els.minHint.hidden = !multi;   // the ≥2 rule only applies in multi
   if (multi) syncNext(st);
 }
 
@@ -12228,6 +12284,14 @@ function createContactsPicker({
   st.els.actions = actions;
   body.append(actions);
 
+  // multi-select rule line (review MINOR-2): says WHY the confirm is inert at <2.
+  const minHint = document.createElement('p');
+  minHint.className = 'c-contacts__minhint';
+  minHint.setAttribute('role', 'status');
+  minHint.hidden = true;
+  st.els.minHint = minHint;
+  body.append(minHint);
+
   const search = createSearchField({
     placeholder: strings.searchContacts || 'Search contacts',
     onInput: (q) => { st.query = q; renderPickerList(st); },
@@ -12254,22 +12318,8 @@ function createContactsPicker({
 
   el.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-contacts__footer';
-  footer.hidden = true;
-  const nextBtn = createButton({
-    label: strings.next || 'Next', size: 56, width: 'full', disabled: true,
-    onClick: () => {
-      if (!onNext) return;
-      // F2 belt-and-braces: drop any falsy address that reached the Set anyway
-      const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
-      onNext(sel);
-    },
-  });
-  st.els.nextBtn = nextBtn;
-  footer.append(nextBtn);
-  st.els.footer = footer;
-  el.append(footer);
+  // #265: the bottom "Next" bar is retired — the confirm is the TOPBAR action
+  // (renderPickerChrome). No footer element remains.
 
   renderPickerList(st);
   return el;
@@ -12765,15 +12815,17 @@ function setGroupAvatar(el, src) {
  * home.html's internals leaks in beyond { host, bridge, strings, getRoster,
  * onClose }, so a later standalone Contacts shell mounts the same call unchanged.
  *
- * Bridge mapping (HomePage — all existing verbs, ZERO C# change):
+ * Bridge mapping (HomePage):
  *   Add contact   → ixian:newcontact        (push ContactNewPage; audit :248/:529)
- *   Create group  → ixian:newchat           (push WalletRecipientPage multi-picker;
- *                                             audit :247). The in-shell createGroupSetup
- *                                             multi-select is DEFERRED: its result verb
- *                                             ixian:select is a WalletRecipientPage verb,
- *                                             NOT a HomePage one (audit :530) — HomePage
- *                                             can't receive it, so group assembly stays
- *                                             with the native multi-picker for v1.
+ *   Create group  → IN-SHELL (#265, Damir ⑤): the picker flips to multi-select
+ *                   (confirm = the TOPBAR action) → createGroupSetup (name / photo /
+ *                   blind) → `ixian:creategroup:<blind><name>:|addr|addr…` + the
+ *                   photo pick via `ixian:groupavatar`. Both are NEW HomePage verbs
+ *                   (#265, small C#) feeding the SAME HandlePickSucceeded core the
+ *                   legacy picker used — so the redesign NEVER drops a shell over
+ *                   wallet_recipient.html (the page shared with the MONEY recipient
+ *                   picker, #232/#256). The legacy multi-picker is no longer used
+ *                   for groups; `ixian:newchat` stays available but unwired here.
  *   Open chat     → ixian:chat:<address>     (start; audit :259)
  *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
  *
@@ -12783,15 +12835,24 @@ function setGroupAvatar(el, src) {
  * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
  * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
  * a navigation verb for back (the .chat-info-takeover pattern from chat.html).
- * Open chat / create group close the takeover first (opening a chat should not
- * leave the picker behind). Add contact AND view contact (directory) leave it open
+ * Open chat AND create group close the takeover (C# opens the conversation over
+ * home; leaving the setup panel mounted underneath let a user back out onto a
+ * re-armed Create → duplicate group, Opus review of #265). Add contact AND view contact (directory) leave it open
  * UNDERNEATH the pushed C# page: back-from-ContactNewPage lands on the picker, and
  * back-from-ContactDetails lands on the DIRECTORY — not the chats list. Closing the
  * directory overlay before ixian:details would drop the user on tab1 on pop (the
  * bug this fixes). A successful add-request has C# chain pickSucceeded → the
  * conversation over the top.
  */
+// ⚠ build-demo-bundle strips imports with a SINGLE-LINE regex (/^import .*$/gm)
+// and has no alias support — so every import here must be ONE line with plain
+// names (a multi-line import leaves its tail behind; an `x as y` alias survives
+// into the bundle → "Unexpected identifier 'as'"). Both fail the syntax gate.
 
+
+// local handle so the returned controller can expose its own `setGroupAvatar`
+// method without shadowing the component fn it delegates to.
+const paintGroupAvatar = setGroupAvatar;
 
 function mountContacts({
   host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
@@ -12807,6 +12868,43 @@ function mountContacts({
     if (onClose) onClose();
   };
 
+  /* #265 ⑤ — step 2: group setup (name / photo / blind) over the picker. The
+   * avatar pick round-trips through C# (ixian:groupavatar → native picker →
+   * loadGroupAvatar push, resolved by the shell's pending ctrl). Create emits
+   * ixian:creategroup:… — C# builds the group and opens the conversation, which
+   * tears this takeover down anyway; we close on the C# ack path via done(). */
+  let groupCtrl = null;         // pending avatar-pick ctrl (one at a time)
+  let groupPanel = null;
+  const openGroupSetup = (members) => {
+    // Opus MAJOR-6: a group needs ≥2 members — C# rejects a 1-member payload and
+    // only LOGS, so Create would silently do nothing forever. Guard at the gate.
+    if (!members || members.length < 2) return;
+    bridge.send('ixian:groupreset');          // MAJOR-3: drop any abandoned temp photo
+    groupPanel = createGroupSetup({
+      members,
+      strings,
+      onBack: () => {                         // back to the multi-select, selection intact
+        groupPanel.remove();
+        groupPanel = null;
+        if (groupCtrl) { groupCtrl.fail(); groupCtrl = null; }   // release a pending pick
+        picker.hidden = false;
+      },
+      onPickAvatar: (ctrl) => { groupCtrl = ctrl; bridge.send('ixian:groupavatar'); },
+      onCreate: ({ name, blind, addresses }, ctrl) => {
+        if (addresses.length < 2) { ctrl.fail(strings.groupNeedsTwo || 'Pick at least two people.'); return; }
+        // grammar mirrors the legacy ixian:select payload 1:1 (HomePage parses it)
+        bridge.send('ixian:creategroup:' + (blind ? '1' : '0') + name + ':|' + addresses.join('|'));
+        ctrl.done();
+        // Opus MAJOR-5: close the takeover — C# opens the new conversation over the
+        // home shell; leaving the setup panel mounted underneath let a user back out
+        // of the chat onto a re-armed Create button (duplicate group).
+        close();
+      },
+    });
+    picker.hidden = true;                     // keep it mounted: back restores the selection
+    overlay.append(groupPanel);
+  };
+
   const picker = createContactsPicker({
     contacts: getRoster ? getRoster() : [],
     purpose,
@@ -12814,10 +12912,10 @@ function mountContacts({
     onBack: close,                         // close the takeover — never an ixian: nav verb
     // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
     onAddContact: () => bridge.send('ixian:newcontact'),
-    // Create group → native multi-picker (in-shell group setup deferred, see docblock).
-    // createContactsPicker flips to multi-select first; we close over it in the SAME
-    // synchronous click (no paint between) so that transient mode never shows.
-    onCreateGroup: () => { close(); bridge.send('ixian:newchat'); },
+    // Create group → IN-SHELL multi-select (the picker flips itself; the topbar
+    // action confirms) → onNext → the group setup panel above (#265).
+    onCreateGroup: () => {},
+    onNext: (selected) => openGroupSetup(selected),
     // start: tap opens the 1:1 conversation.
     onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
     // directory: tap opens contact details (accepted → chat-info; pending → minimal).
@@ -12835,6 +12933,13 @@ function mountContacts({
     close,
     /** Refresh the roster while the takeover is open (bridge clearContacts/addContact re-flush). */
     setContacts(contacts) { setPickerContacts(picker, contacts); },
+    /** C# loadGroupAvatar push (#265): resolve the pending avatar-pick ctrl. */
+    setGroupAvatar(src) {
+      if (groupPanel && src) paintGroupAvatar(groupPanel, src);
+      if (groupCtrl) { groupCtrl.done(src); groupCtrl = null; }
+    },
+    /** Reset to browse mode (defensive; used if a flow is abandoned). */
+    resetMode() { setPickerMode(picker, 'browse'); },
   };
 }
 
@@ -15984,6 +16089,29 @@ const LAUNCH_LANGS = [
   { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
 ];
 
+/* A4 fallback row (settings.html carries the same guard, one grammar).
+ * App.xaml.cs:100-107 auto-detects CultureInfo on FIRST RUN and PERSISTS it when
+ * SpixiLocalization ships the code — it-it/ja-jp/id-id/lt-lt all do. So the very
+ * first screen a user of one of those OS locales sees is THIS one, already on a
+ * hidden locale. Without a row for it the pill/picker showed no selection and any
+ * tap silently moved them off their OS language → when `opts.language` is a code
+ * we don't list, append ONE row for it (endonym + flag). It renders as selected
+ * and is inert (the picker early-returns on value === current), and the sheet
+ * carries a hint that the interface stays English until its dictionary lands.
+ * (cn-cn: .NET reports zh-cn, which C# can't map → those users land on en-us.) */
+const PENDING_LANGS = [
+  { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
+  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
+  { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
+];
+/* list + the current code when it isn't in `base` (unknown → raw-code label) */
+function launchLangList(base, code) {
+  if (!code || base.some((l) => l.code === code)) return base;
+  return base.concat([PENDING_LANGS.find((l) => l.code === code) || { code, label: code, flag: '' }]);
+}
+
 function buildWelcome(st) {
   const { opts } = st;
   const strings = st.strings;
@@ -15997,8 +16125,15 @@ function buildWelcome(st) {
   const top = document.createElement('div');
   top.className = 'c-launch__top';
 
-  const languages = (opts.languages && opts.languages.length) ? opts.languages : LAUNCH_LANGS;
-  st.language = opts.language || languages[0].code;
+  const offered = (opts.languages && opts.languages.length) ? opts.languages : LAUNCH_LANGS;
+  st.language = opts.language || offered[0].code;
+  // A4: the saved locale may be one we don't offer (hidden until translated) —
+  // it still gets a row, so the pill reads it and the picker shows it selected.
+  const languages = launchLangList(offered, st.language);
+  const langHint = () => (offered.some((l) => l.code === st.language)
+    ? undefined
+    : (strings.languagePending
+      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.'));
   const langPill = document.createElement('button');
   langPill.type = 'button';
   langPill.className = 'c-launch__pill';
@@ -16020,6 +16155,7 @@ function buildWelcome(st) {
   langPill.addEventListener('click', () => {
     settingsOptionSheet({
       title: strings.language || 'Language',
+      hint: langHint(),                          // A4: only when the saved locale isn't offered
       options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
       current: st.language,
       host: hostEl(st),
@@ -17180,10 +17316,41 @@ function html5QrcodeCamera(win) {
     start(feedEl, onText, ctrl) {
       if (!feedEl.id) feedEl.id = 'spixi-scan-feed'; // Html5Qrcode mounts by element id
       instance = new w.Html5Qrcode(feedEl.id, { formatsToSupport: [0] }); // 0 = QR_CODE
-      instance
-        .start({ facingMode: 'environment' }, { fps: 10 }, (decodedText) => onText(decodedText))
-        .then(() => ctrl.done())
-        .catch(() => ctrl.fail());               // permission denied / no camera
+      const inst = instance;
+      const go = (source) => inst.start(source, { fps: 10 }, (decodedText) => onText(decodedText));
+      // #263 (Damir F5: desktop "Allow" → BLACK feed): a bare
+      // { facingMode: 'environment' } on a LAPTOP can rank a virtual/IR/depth
+      // device first (Windows Hello etc.) — permission succeeds, the stream
+      // renders black. On desktop ENUMERATE and pick the first real-looking
+      // camera by deviceId (getCameras() itself raises the permission prompt);
+      // fall back to facingMode 'user' (laptop webcams are user-facing).
+      // Mobile keeps environment-first with a user fallback (front-only
+      // devices). Every failure now logs the REAL error (was swallowed —
+      // F12-diagnosable if a black feed persists).
+      const desktop = (w.document || document).documentElement.hasAttribute('data-desktop');
+      const fail = (label) => (err) => {
+        try { console.error('scan camera start failed (' + label + ')', err); } catch (e2) { /* console gone */ }
+        ctrl.fail();
+      };
+      if (desktop) {
+        w.Html5Qrcode.getCameras()
+          .then((cams) => {
+            const real = (cams || []).filter((c) => !/ir camera|infrared|depth|virtual/i.test(c.label || ''));
+            const pick = real[0] || (cams || [])[0];
+            return go(pick ? { deviceId: { exact: pick.id } } : { facingMode: 'user' });
+          })
+          .then(() => ctrl.done())
+          .catch((e1) => {
+            // enumerate/deviceId path failed → last-resort plain user-facing ask
+            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('desktop user-facing fallback; first error: ' + e1));
+          });
+      } else {
+        go({ facingMode: 'environment' })
+          .then(() => ctrl.done())
+          .catch((e1) => {
+            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('mobile user-facing fallback; first error: ' + e1));
+          });
+      }
     },
     stop() {
       const inst = instance;
@@ -17335,5 +17502,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, attachCallUi: attachCallUi, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

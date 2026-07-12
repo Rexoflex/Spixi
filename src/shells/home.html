@@ -21,6 +21,26 @@
      there's no light<->dark flip while tokens.css + the ~1MB bundle load). */
   html { background: #f9fafb; }
   html[data-theme="dark"] { background: #13171b; }
+  /* Splash boot moment (Batch B, #256 ⑭): instant-bg + a pulsing brand logo
+     cover the bundle-parse/boot gap (lock.html grammar, upgraded spinner→logo);
+     dropped with a short fade once the shell is built at window load. Sits above
+     every shell surface — nothing else can be open during boot (pushes queue
+     until ixian:onload). The OS splash itself stays native (be-cutover
+     [SPLASH-ART]). Fallback hexes cover the pre-tokens first frame. */
+  .app-boot {
+    position: fixed; inset: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb; transition: opacity var(--duration-200, 200ms) ease-out;
+    /* never intercept input: nothing sits behind the cover while it's up (pushes
+       queue until ixian:onload), and during the ~400ms fade-out teardown a
+       cold-start call overlay (z-60) must stay clickable (audit B-1). */
+    pointer-events: none;
+  }
+  html[data-theme="dark"] .app-boot { background: #13171b; }
+  .app-boot__logo { width: 64px; height: 64px; color: var(--icon-accent, #1892ce); animation: app-boot-pulse 1.4s ease-in-out infinite; }
+  .app-boot__logo svg { width: 100%; height: 100%; display: block; }
+  @keyframes app-boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .app-boot__logo { animation: none; } .app-boot { transition: none; } }
 </style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -38,8 +58,7 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
-<link rel="stylesheet" href="../styles/components/call-overlay.css"><!-- Batch A: incoming-call overlay (addCallAppRequest) -->
-<link rel="stylesheet" href="../styles/components/callbar.css"><!-- Batch A: active-call strip (displayCallBar/hideCallBar) -->
+<!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
@@ -160,6 +179,9 @@
 </style>
 </head>
 <body>
+  <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
+       dropped in signalReady (window load). -->
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
   <!-- C#-LOCALIZED string carriers (M16). generatePage substitutes the star-SL
        markers with the EXACT strings HomePage later pushes via showWarning, so the
        connectivity check below is locale-proof; browser preview leaves them raw →
@@ -168,6 +190,27 @@
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
+    <!-- Q2-④ (#268): the EXCERPT CANON phrases (getFriendMessageHelper) — carried
+         so the reverse-map is LOCALE-PROOF (was English-literal, CH6 best-effort;
+         a non-en locale lost every excerpt glyph). One span per _SL key. -->
+    <span id="sl-ex-file">*SL{index-excerpt-file}</span>
+    <span id="sl-ex-call">*SL{index-excerpt-voice-call}</span>
+    <span id="sl-ex-call-noanswer">*SL{chat-call-no-answer}</span>
+    <span id="sl-ex-call-missed">*SL{chat-call-missed}</span>
+    <span id="sl-ex-pay-req-sent">*SL{index-excerpt-payment-request-sent}</span>
+    <span id="sl-ex-pay-req-recv">*SL{index-excerpt-payment-request-received}</span>
+    <span id="sl-ex-pay-sent">*SL{index-excerpt-payment-sent}</span>
+    <span id="sl-ex-pay-recv">*SL{index-excerpt-payment-received}</span>
+    <span id="sl-ex-app-sent">*SL{chat-app-invite-sent}</span>
+    <span id="sl-ex-app-recv">*SL{chat-app-invite-received}</span>
+    <span id="sl-ex-contact-accepted">*SL{index-excerpt-contact-accepted}</span>
+    <span id="sl-ex-contact-request">*SL{index-excerpt-contact-request}</span>
+    <!-- The OWN-message excerpt prefix ("You:"). C# prepends it + " " to the canon
+         phrase for a localSender last-message (HomePage.xaml.cs:1670-1673), so the
+         reverse-map must be able to strip it before the lookup. EMPTY in en-us (a
+         bare leading space) — but NOT in id-id ("Saya:"), and any locale may fill
+         it in, which would silently kill every outgoing event glyph. -->
+    <span id="sl-ex-self">*SL{index-excerpt-self}</span>
   </div>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
@@ -198,6 +241,9 @@
   <div id="chats-nav"></div>
 
 <script src="../components/icons.iife.js"></script>
+<!-- Splash boot logo — injected the moment the (small) icon registry is parsed,
+     well before the ~1MB bundle; fail-soft if the registry is missing. -->
+<script>(function(){try{var h=document.getElementById('app-boot-logo');if(h&&window.SpixiIcons&&window.SpixiIcons.icon)h.append(window.SpixiIcons.icon('logo',{size:64}));}catch(e){}})();</script>
 <script src="../demo/strings.iife.js"></script>
 <!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
      load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
@@ -244,7 +290,7 @@
     createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
-    attachCallUi,                        // Batch A: live call bridge glue (ring overlay + callbar)
+    attachContextMenuAnchors,            // Batch C (M6): desktop sheet grammar (no-op on mobile)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -269,6 +315,11 @@
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
+  // Batch C (M6): on desktop, a RIGHT-CLICKED chat-row menu presents as an
+  // anchored dropdown at the pointer with the source row highlighted (demo
+  // 06c ⑩/⑰); long-press keeps the centered dialog. No-op on mobile.
+  attachContextMenuAnchors({ host: document.body, rows: '.c-chatlist-item' });
+
   /* —— nav ↔ legacy tab id mapping ————————————————————————————————————————
    * The redesigned bottom nav uses semantic ids; the legacy C# home surface
    * (HomePage.xaml.cs, home.js) speaks tab1..tab4. We translate in both
@@ -288,15 +339,17 @@
    * new-chat action becomes a topbar icon button beside Contacts. Mobile keeps
    * the Spixi logotype + the FAB. */
   const isDesktop = document.documentElement.hasAttribute('data-desktop');
-  const chatsTitleBase = isDesktop ? 'Chats' : 'Spixi';
+  // Q3-⑦ (#269): "Chats"/action labels were hardcoded English (the mobile
+  // 'Spixi' wordmark is BRAND, not copy — stays). Keys existed; newChat is new.
+  const chatsTitleBase = isDesktop ? (strings.chats || 'Chats') : 'Spixi';
   const chatsTopbarEl = createTopbar({
     variant: 'root', title: chatsTitleBase, logo: !isDesktop,
     // Contacts action → the DIRECTORY takeover (purpose 'directory'): tap a row →
     // contact details (ixian:details). Add contact → ixian:newcontact. (Track D)
     actions: [
-      { icon: 'users', label: 'Contacts', onClick: () => openContacts('directory') },
+      { icon: 'users', label: strings.contacts || 'Contacts', onClick: () => openContacts('directory') },
       // desktop replacement for the FAB (rightmost = primary, TG pencil slot)
-      ...(isDesktop ? [{ icon: 'message-plus', label: 'New chat', onClick: () => openContacts('start') }] : []),
+      ...(isDesktop ? [{ icon: 'message-plus', label: strings.newChat || 'New chat', onClick: () => openContacts('start') }] : []),
     ],
   });
   document.getElementById('chats-topbar').append(chatsTopbarEl);
@@ -361,12 +414,14 @@
   document.getElementById('chats-banner').append(homeBanner);
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
-   * The FAB no longer emits ixian:newchat directly; it opens the picker takeover.
-   * Tap a row → open the 1:1 (ixian:chat). Add contact → ixian:newcontact. Create
-   * group → ixian:newchat (native multi-picker; in-shell group setup deferred —
-   * see contacts-page.js). */
+   * The FAB opens the picker takeover. Tap a row → open the 1:1 (ixian:chat).
+   * Add contact → ixian:newcontact. Create group → IN-SHELL (#265): multi-select
+   * with a topbar confirm → group setup → ixian:creategroup / ixian:groupavatar
+   * (see contacts-page.js). The legacy native multi-picker is no longer used. */
   document.getElementById('fab').append(icon('message-plus'));
   document.getElementById('fab').addEventListener('click', () => openContacts('start'));
+  // Q3-⑦ (#269): the static markup's aria-label is English — re-label from the dict.
+  document.getElementById('fab').setAttribute('aria-label', strings.newChat || 'New chat');
 
   /* —— contacts DIRECTORY roster (loadContacts flush) ————————————————————————
    * HomePage pushes the FRIEND roster as clearContacts → addContact×N (→
@@ -424,11 +479,13 @@
   }
 
   /* —— bottom nav —————————————————————————————————————————————————————————— */
+  // Q3-⑦ (#269): labels were hardcoded English (settings.html's twin nav already
+  // localized them — this shell was the outlier; bottomnav renders labels verbatim).
   const NAV_ITEMS = [
-    { id: 'chats', label: 'Chats', icon: 'messages' },
-    { id: 'apps', label: 'Apps', icon: 'apps' },
-    { id: 'wallet', label: 'Wallet', icon: 'wallet' },
-    { id: 'account', label: 'Account', icon: 'user-circle' },
+    { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
+    { id: 'apps', label: strings.apps || 'Apps', icon: 'apps' },
+    { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
+    { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
   ];
   let activeNav = 'chats';                                 // last real in-page tab (for the account revert)
   const nav = createBottomNav({
@@ -743,21 +800,83 @@
    * KIND over the frozen bridge (that's the BE end-state, CH6), so we reverse-match
    * the known ENGLISH phrases back to a chatlist-item excerpt kind → the canon glyph
    * (📄 File · phone · wallet · apps). A localSender message is prefixed with
-   * `index-excerpt-self` + " " — that key is EMPTY in en-us (a bare leading space,
-   * en-us.txt:305), so we trim before matching. Unknown / non-en-us → plain text
-   * (graceful degrade). missed-vs-answered call can't be split — C# collapses both
-   * to `index-excerpt-voice-call`. Coincidental exact matches (a user literally
-   * types "File") are an accepted best-effort false-positive. */
-  const EXCERPT_CANON = {
-    'File': 'file',                          // index-excerpt-file
-    'Voice Call': 'call',                    // index-excerpt-voice-call (missed+answered collapsed)
-    'Payment Request Sent': 'payment',       // index-excerpt-payment-request-sent
-    'Payment Request Received': 'payment',   // index-excerpt-payment-request-received
-    'Payment Sent': 'payment',               // index-excerpt-payment-sent
-    'Payment Received': 'payment',           // index-excerpt-payment-received
-    'Invite Sent': 'app-invite',             // chat-app-invite-sent
-    'Invite Received': 'app-invite',         // chat-app-invite-received
-  };
+   * `index-excerpt-self` + " " — EMPTY in en-us (a bare leading space, en-us.txt:305)
+   * but NOT in every locale, so the lookup retries with that prefix stripped
+   * (SELF_PREFIX / selfStrippedKey below). Unknown → plain text (graceful
+   * degrade). Coincidental exact matches (a user literally types "File") are an
+   * accepted best-effort false-positive.
+   * Q2-④ (#268): the canon is now built from the #sl-carriers block → LOCALE-PROOF
+   * (the English literals were CH6's best-effort; every non-en locale lost its
+   * glyphs — exactly the item-⑦ bug class). The en-us fallback stays registered
+   * beside the carrier value as a safety net (plain-browser preview / stale shell
+   * against a newer lang file). #265's no-answer/missed strings are mapped (they
+   * fell through as glyph-less text — Damir's "call excerpts have no icon"), and
+   * the two contact-request phrases get the user-plus treatment for completeness. */
+  // Prototype-LESS map: the keys are arbitrary user/bridge text, so a plain {} let a
+  // message of literally "toString"/"constructor" resolve to an INHERITED function —
+  // a truthy "kind" that would have been handed to the chatlist item as an excerpt
+  // type. Object.create(null) has no prototype chain → a miss is a miss.
+  const EXCERPT_CANON = Object.create(null);
+  /* Register text → kind, REFUSING to type an ambiguous phrase. The old shape was
+   * asymmetric (carrier last-wins / fallback first-wins): a carrier value could
+   * silently CLOBBER an entry of a DIFFERENT kind, so one translation collision
+   * (or a future canon key) could render e.g. a payment excerpt with a call glyph.
+   * #252 (chat.html audit A-1) precedent: when a translation collision makes a
+   * signal ambiguous, do NOT act on it. A `null` entry degrades cleanly — the
+   * `if (kind)` gate in excerptFromRaw falls through to plain text. Same-kind
+   * repeats are no-ops, so the shipped en-us set is unchanged (no collision today,
+   * all 13 lang files verified). */
+  function setCanonKind(text, kind) {
+    if (!text) return;
+    if (!(text in EXCERPT_CANON)) { EXCERPT_CANON[text] = kind; return; }
+    if (EXCERPT_CANON[text] === kind) return;
+    EXCERPT_CANON[text] = null;                       // ambiguous → no glyph (#252 posture)
+  }
+  function canonEntry(id, fallback, kind) {
+    setCanonKind(slCarrier(id, fallback), kind);      // the LIVE locale phrase
+    setCanonKind(fallback, kind);                     // en-us safety net (preview / stale shell)
+  }
+  canonEntry('sl-ex-file', 'File', 'file');                                     // index-excerpt-file
+  canonEntry('sl-ex-call', 'Voice Call', 'call');                               // index-excerpt-voice-call (answered/connected)
+  canonEntry('sl-ex-call-noanswer', 'No answer', 'call-missed');                // chat-call-no-answer (#265, outgoing unanswered)
+  canonEntry('sl-ex-call-missed', 'Missed call', 'call-missed');                // chat-call-missed (#265, incoming missed)
+  canonEntry('sl-ex-pay-req-sent', 'Payment Request Sent', 'payment');          // index-excerpt-payment-request-sent
+  canonEntry('sl-ex-pay-req-recv', 'Payment Request Received', 'payment');      // index-excerpt-payment-request-received
+  canonEntry('sl-ex-pay-sent', 'Payment Sent', 'payment');                      // index-excerpt-payment-sent
+  canonEntry('sl-ex-pay-recv', 'Payment Received', 'payment');                  // index-excerpt-payment-received
+  canonEntry('sl-ex-app-sent', 'Invite Sent', 'app-invite');                    // chat-app-invite-sent
+  canonEntry('sl-ex-app-recv', 'Invite Received', 'app-invite');                // chat-app-invite-received
+  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request');          // index-excerpt-contact-accepted
+  canonEntry('sl-ex-contact-request', 'Contact Request', 'request');            // index-excerpt-contact-request
+  /* OWN-message prefix (`index-excerpt-self` + " ", HomePage.xaml.cs:1670-1673).
+   * It wraps SEVEN of the canon phrases (file · voice-call · payment-request-sent ·
+   * payment-sent · app-invite-sent · contact-accepted · contact-request), so a
+   * locale that fills the key in pushes e.g. "Saya: Berkas" — which never equals
+   * the carrier "Berkas" → the canon misses → EVERY outgoing event row loses its
+   * glyph (the exact bug ④ exists to kill). EMPTY in en-us (bare leading space,
+   * en-us.txt:305 → trims to ''), NON-empty in id-id ("Saya:", id-id.txt:305), and
+   * a landmine in the other 11 locales the moment a translator fills it in.
+   * `selfStrippedKey` below removes it from the LOOKUP KEY only — the DISPLAYED
+   * text stays exactly as C# sent it (dropping "You:" from the display would be a
+   * copy change, not a fix — noted as a dial, not done). */
+  const SELF_PREFIX = slCarrier('sl-ex-self', '');
+  /* Own-message canon key, or '' when the prefix doesn't apply. SAFETY POSTURE: we
+   * only strip when the STRIPPED key hits a canon entry, so a counterpart message
+   * that merely starts with the same word can never have its text altered (a miss
+   * changes nothing at all). This is deliberately NOT gated on the statusType
+   * direction signal: statusType is non-empty ⇒ own, but NOT the converse — an own
+   * voiceCallEnd (a connected call that ended) pushes type="" (xaml:1695) while C#
+   * still prefixes its excerpt, so a direction gate would keep losing that glyph.
+   * The canon-hit guard covers every own push, including that one. A counterpart
+   * literally typing "Saya: Berkas" is the accepted CH6 false-positive class (same
+   * as one typing "File"), and even then only the GLYPH changes, never the text. */
+  function selfStrippedKey(trimmed) {
+    if (!SELF_PREFIX || !trimmed) return '';
+    if (trimmed.slice(0, SELF_PREFIX.length) !== SELF_PREFIX) return '';
+    const rest = trimmed.slice(SELF_PREFIX.length);
+    if (!/^\s/.test(rest)) return '';                 // C# joins with " " — require the boundary
+    return rest.trim();
+  }
   // Lone GIF URL → "GIF" chip (keeps a raw tenor/giphy link out of the list).
   // GIF-ONLY: chatlist-item has no image glyph, so a .png/.jpg link would be
   // mislabelled "GIF" — leave those as plain text. Whole-excerpt-is-a-URL only.
@@ -815,8 +934,15 @@
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
     const trimmed = (decoded || '').trim();
-    const kind = EXCERPT_CANON[trimmed];
+    let kind = EXCERPT_CANON[trimmed];
     if (kind) return { type: kind, text: trimmed };
+    // Own-message push in a locale with a non-empty "You:" prefix → retry the canon
+    // with the prefix stripped from the KEY. The displayed text keeps the prefix.
+    if (!(trimmed in EXCERPT_CANON)) {               // an AMBIGUOUS (null) hit stays a miss
+      const selfKey = selfStrippedKey(trimmed);
+      kind = selfKey ? EXCERPT_CANON[selfKey] : undefined;
+      if (kind) return { type: kind, text: trimmed };
+    }
     // M5: outgoing pending contact request → styled "Request sent" row. Carrier
     // match + DIRECTION guard: only a localSender push (non-empty statusType)
     // qualifies — see REQUEST_SENT_TEXT above. ('typing' already returned.)
@@ -938,6 +1064,29 @@
    * set (#52 boundary). ————————————————————————————————————————————————————————— */
   const walletState = { txs: [], filter: 'all', query: '' };
 
+  /* —— GLOBAL HIDE (#263, Damir): hiding the balance hides the whole money surface —
+   * every tx row's amount + fiat + counterparty mask too (shoulder-surfing mode).
+   * One flag, driven by BOTH ends of the existing mechanism: the C# `setHideBalance`
+   * push (persisted `hidebalance` Preference, re-pushed on every load → RESTART
+   * PERSISTENCE comes free) and the hero eye toggle (which also emits
+   * ixian:balance:hide|show so C# persists the flip). Rows keep their REAL values
+   * in tx._raw and swap display fields — status/timestamps stay (pattern-of-life
+   * is visible anyway; the MONEY and the WHO are what a bystander reads). While
+   * hidden, name-search is deliberately dead (masked names don't match); txid
+   * search still works. The tx DETAIL page stays unmasked — opening it is an
+   * explicit reveal action (Damir dial). */
+  let walletHidden = false;
+  const WALLET_MASK = '••••••';
+  function applyWalletVisibility() {
+    for (const tx of walletState.txs) {
+      if (!tx._raw) continue;
+      tx.amount = walletHidden ? WALLET_MASK : tx._raw.amount;
+      tx.fiat = walletHidden ? '' : tx._raw.fiat;
+      tx.name = walletHidden ? WALLET_MASK : tx._raw.name;
+    }
+    scheduleWalletRender();
+  }
+
   /* Own receiving address (setAddress push, HomePage:673-674) + the RAW (un-grouped)
    * balance (setBalance) — captured for the Receive/Send takeovers below. The hero
    * shows the grouped string; the Send compose needs the raw numeric for money math. */
@@ -985,14 +1134,48 @@
 
   // Explorer copy is address-scoped (only `ixian:explorer` exists — BE gap W3);
   // the per-tx sheet button must not imply tx-specificity.
-  const walletStrings = { viewExplorer: 'View address in Explorer' };
+  // Q3-⑦ (#269): walletStrings was a ONE-KEY object passed as `strings:` — it
+  // OVERRODE every component's getStrings() default, so the whole Wallet tab
+  // (hero / tx list / chips / search) rendered English under any locale. Now:
+  // the LIVE dict + the deliberate address-scoped explorer override, itself a
+  // localizable key (viewExplorerAddress) instead of a hardcoded literal.
+  /* …but NOT via Object.assign: under `?lang=pseudo` window.SL is a PROXY with only
+   * a `get` trap (build-strings-iife.mjs), and Object.assign copies only OWN
+   * ENUMERABLE keys — the proxy target is {} and there is no ownKeys trap, so the
+   * copy came out EMPTY and the whole tab fell back to its English literals. That is
+   * exactly the bug this fix removes, and it made the one manual leak gate BLIND to
+   * this surface. So: delegate, never copy — a live view over window.SL with the
+   * overrides layered on top. Safe because no component enumerates or spreads its
+   * `strings` argument (verified across src/components: no ...strings / Object.keys /
+   * Object.assign({}, strings / for..in), and getStrings() passes the dict through
+   * untouched) — they only READ keys, which a get trap serves. Reading window.SL
+   * inside the trap (not captured) also keeps a runtime setStrings() swap live. */
+  function slWith(overrides) {
+    return new Proxy({}, {
+      get: (_t, k) => (Object.prototype.hasOwnProperty.call(overrides, k)
+        ? overrides[k]
+        : (window.SL || {})[k]),
+      has: (_t, k) => Object.prototype.hasOwnProperty.call(overrides, k) || (k in (window.SL || {})),
+    });
+  }
+  const walletStrings = slWith({
+    viewExplorer: strings.viewExplorerAddress || 'View address in Explorer',
+  });
 
   const walletOpts = {
     strings: walletStrings, host: document.body,
     // Only address-level `ixian:explorer` exists today → the tx passed by the sheet is
     // ignored; opens the user's address on explorer.ixian.io (C# Browser.OpenAsync).
-    // tx-level explorer = BE gap W3.
+    // tx-level explorer = W3, now served by the wallet_sent detail page below.
     onExplorer: () => bridge.send('ixian:explorer'),
+    // B3 (#256): tx tap → the FULL-PARITY detail page (redesigned wallet_sent.html).
+    // HomePage:473 `ixian:txdetails:<txid>` routes wide → WalletSentPage in the
+    // rightContent pane (+ a selectTx echo this shell already renders) / narrow →
+    // a pushed page. Fee + address + live confirmation live THERE (data the
+    // addPaymentActivity row push doesn't carry) → the partial in-page sheet is
+    // demo-only now (wallet-shell.js keeps it when onTx is absent, and for the
+    // rare txid-less row). Makes be-cutover W2–W4 optional.
+    onTx: (tx) => bridge.send('ixian:txdetails:' + tx.txid),
   };
 
   /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
@@ -1001,14 +1184,33 @@
    * legacy wallet_request format the component builds), an honest copy morph, the
    * request-an-amount reveal (re-encodes the QR to `address:send:amount` CLIENT-SIDE —
    * no bridge), and Share. Own back closes it — never an ixian: nav verb.
-   * NOTE: the "send request to a contact" strip is intentionally NOT wired here —
-   * its `ixian:sendrequest` verb belongs to WalletReceivePage, NOT HomePage (dead on
-   * this tab → a false "sent"), so onSendRequest is omitted and the component hides
-   * the strip (audit MAJOR, Batch 6). Request-to-contact from the home wallet tab
-   * needs a HomePage-dispatched verb (be-cutover W8).
+   * Q2-⑥ (#268, W8 LANDED): the "send request to a contact" strip is NOW WIRED —
+   * HomePage dispatches `ixian:sendrequest:` (lifted verbatim from WalletReceivePage,
+   * the sanctioned same-page-new-host pattern), so the component's contact picker +
+   * per-contact ✓ morph light up. A request is a CHAT MESSAGE (requestFunds) — no
+   * signing in the WebView (SECURITY.md). Contacts = the Q5-filtered directory MINUS
+   * every NOT-YET-ACCEPTED contact, in BOTH directions (see requestableContacts) — a
+   * request to an unapproved contact is the ⑪ lie class: composed, latched with a ✓,
+   * never delivered. NOTE the Q5 filter only removes groups/bots that the CHATS model
+   * flagged (groupAddrs) or that carry the default group-avatar sentinel — a
+   * zero-message group with a custom avatar is the known residual edge (§9 type-arg
+   * ask), so this is the UX half only; the recipient guard on the C# side is the
+   * security boundary.
    * FALLBACK: if setAddress hasn't arrived yet (address empty), delegate to the native
    * WalletReceivePage so Receive is never broken. */
   let walletTakeover = null;                                  // one Receive/Send takeover open at a time
+  /* Money-strip roster: people you can actually reach. `pending` only covers the
+   * OUTGOING marker (requestAddrs, fed from the "Request sent" chat row) — an
+   * INCOMING, not-yet-accepted request is routed by C# OUT of the chats list into the
+   * requests FEED (HomePage.loadChats), so that contact has NO chat row, is never
+   * flagged pending, and used to render here: tapping it latched a ✓ and announced
+   * "Request sent" for a requestFunds message that cannot arrive (⑪ delivery-lie
+   * class, on a money surface). Exclude the feed too. UX half only — the C# recipient
+   * guard (reject unapproved/group/bot) is the security boundary. */
+  function requestableContacts() {
+    const incoming = new Set((state.requests || []).map((r) => r && r.address).filter(Boolean));
+    return directoryRoster().filter((c) => c && !c.pending && !incoming.has(c.address));
+  }
   function mountWalletReceive() {
     if (walletTakeover) return;                               // double-open guard
     const addr = cleanReceiveAddress(walletOwnAddress);
@@ -1017,16 +1219,21 @@
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = () => { over.remove(); walletTakeover = null; };
-    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    // walletStrings IS the live dict + the explorer override (slWith) — the old
+    // Object.assign({}, window.SL, walletStrings) re-merge was redundant AND
+    // proxy-hostile. Title keys: `receiveTitle`/`sendTitle` NEVER EXISTED, so both
+    // takeovers were hardcoded English on the very surface Q3 declares localized
+    // (a de-de user taps "Empfangen" and lands on a screen titled "Receive"). Use
+    // the SAME keys as the hero buttons that open them: receive / send.
     over.append(createTopbar({
-      variant: 'view', title: tkStrings.receiveTitle || 'Receive',
-      backLabel: tkStrings.back || 'Back', onBack: close,
+      variant: 'view', title: walletStrings.receive || 'Receive',
+      backLabel: walletStrings.back || 'Back', onBack: close,
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
     body.append(createWalletReceive({
       address: addr,
-      strings: tkStrings, host: document.body,
+      strings: walletStrings, host: document.body,
       // No native share bridge verb exists (§9 ask). Use the Web Share API where the
       // WebView provides it; otherwise degrade to a clipboard copy of the payload —
       // never invent a verb. (The component also has its own address-copy affordance.)
@@ -1034,7 +1241,15 @@
         if (navigator.share) { navigator.share({ text: value }).catch(() => {}); }
         else if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(value); }
       },
-      // onSendRequest OMITTED — see docblock (no HomePage ixian:sendrequest verb).
+      // Q2-⑥ (#268): people-only roster, minus pending in BOTH directions (see
+      // requestableContacts). Fire-and-forget — the component's ✓ morph is the ack;
+      // C# validates again and composes the requestFunds chat message (legacy
+      // payload: `address:amount`).
+      contacts: requestableContacts(),
+      onSendRequest: ({ contact, amount }) => {
+        if (!contact || !contact.address || !amount) return;
+        bridge.send('ixian:sendrequest:' + contact.address + ':' + amount);
+      },
     }));
     over.append(body);
     document.body.append(over);
@@ -1054,10 +1269,11 @@
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = () => { over.remove(); walletTakeover = null; };
-    const tkStrings = Object.assign({}, window.SL || {}, walletStrings);   // localized + explorer override
+    // See mountWalletReceive: walletStrings is the live dict (slWith); `sendTitle`
+    // never existed → use the hero button's key (`send`).
     over.append(createTopbar({
-      variant: 'view', title: tkStrings.sendTitle || 'Send',
-      backLabel: tkStrings.back || 'Back', onBack: close,
+      variant: 'view', title: walletStrings.send || 'Send',
+      backLabel: walletStrings.back || 'Back', onBack: close,
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
@@ -1065,7 +1281,7 @@
       contacts: contactsRoster,
       balance: walletRawBalance || 0,    // RAW numeric from setBalance (money math needs un-grouped)
       fee: WALLET_FEE_ESTIMATE,          // placeholder — no home-tab fee push (BE ask)
-      strings: tkStrings, host: document.body,
+      strings: walletStrings, host: document.body,
       onQuickScan: () => bridge.send('ixian:quickscan'),   // scan-result routing wired with the composeSend BE work
       // review Confirm → the NEW §8 signed handoff verb (does NOT exist yet). C# signs
       // the pre-composed tx and takes over the native confirm/broadcast → fire-and-forget,
@@ -1086,8 +1302,14 @@
     onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
     onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
     onScan: () => bridge.send('ixian:quickscan'),
-    // hero toggles its own state, then reports it → persist server-side (home.js toggleBalance)
-    onToggleHidden: (hidden) => bridge.send('ixian:balance:' + (hidden ? 'hide' : 'show')),
+    // hero toggles its own state, then reports it → persist server-side (home.js
+    // toggleBalance). #263 global hide: the rows follow the eye IMMEDIATELY (the
+    // C# verb only persists — it doesn't echo a setHideBalance back).
+    onToggleHidden: (hidden) => {
+      walletHidden = !!hidden;
+      applyWalletVisibility();
+      bridge.send('ixian:balance:' + (hidden ? 'hide' : 'show'));
+    },
   });
   document.getElementById('wallet-hero').append(hero);
 
@@ -1284,36 +1506,12 @@
     return 'pending';
   }
 
-  /* —— live call UI (Batch A) ————————————————————————————————————————————————
-   * Shared glue (call-ui.js). home is the PRIMARY call surface: mid-session
-   * call pushes land on the stack-last page = HomePage (OnUpdateUI ticks it
-   * first and it consumes the one-shot refreshAppRequests flag) — so the ring
-   * overlay, the callbar, AND their clears all arrive in THIS WebView. Other
-   * shells get the state at their own present/onLoad passes; the broadcast fix
-   * is BE row C19. Caller identity: chats list, then the contacts roster.
-   * onReturn stays inert until C19 appends the friend address to displayCallBar
-   * — then "return to call" opens that conversation via the existing verb. */
-  const callUi = attachCallUi({
-    bridge,
-    host: document.body,
-    strings,
-    resolveCaller(addr) {
-      if (!addr) return null;
-      const c = (state.chats || []).find((x) => x && x.address === addr);
-      if (c) return { name: c.name || '', avatar: c.avatar || null };
-      const r = (contactsRoster || []).find((x) => x && x.address === addr);
-      return r ? { name: r.name || '', avatar: r.avatar || null } : null;
-    },
-    onReturn: (addr) => bridge.send('ixian:chat:' + addr),
-  });
+  /* Q4-③ (#270): the Batch-A call-ui glue is GONE — calls (ring + bar) present
+   * on the ONE native CallPage surface spanning every pane (identity pushed by
+   * C# from the Friend). No call push reaches this WebView anymore; the C#
+   * broadcasts route to the surface, not to pages. */
 
   const handlers = {
-    /* ——— live call UI (Batch A — see callUi above) ——————————————————————— */
-    ...callUi,
-    // 4-arg MINI-APP session request (SpixiContentPage.cs:1368) — deliberately
-    // ignored (legacy parity: spixi.js:247 never rendered it). Distinct from the
-    // chat shell's 13-arg app-invite handler of the same name.
-    addAppRequest() { dbg('addAppRequest: mini-app session request — ignored (legacy parity)'); },
 
     // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
     // appearance pick / HomePage on return from Account). C#-RESOLVED name — never
@@ -1563,8 +1761,12 @@
     },
 
     // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).
+    // #263 global hide: the persisted flag (re-pushed on every load) drives the hero
+    // AND the tx-row masking → hide state survives an app restart for the whole tab.
     setHideBalance(hide) {
-      setBalanceHidden(hero, hide === 'True' || hide === 'true' || hide === true);
+      walletHidden = hide === 'True' || hide === 'true' || hide === true;
+      setBalanceHidden(hero, walletHidden);
+      applyWalletVisibility();
     },
 
     // Batch start: reset tx model + sync the active filter chip. Render (empty) next frame.
@@ -1593,9 +1795,12 @@
         txid: txid || '',
         direction: dirIn ? 'in' : 'out',
         status,
-        name: counterparty || '',   // nickname OR raw address (ambiguous — BE gap W4)
-        amount: amt,
-        fiat: ft,
+        // display fields honor the CURRENT hide flag (#263 global hide); the real
+        // values live in _raw and swap back via applyWalletVisibility().
+        name: walletHidden ? WALLET_MASK : (counterparty || ''),   // nickname OR raw address (ambiguous — BE gap W4)
+        amount: walletHidden ? WALLET_MASK : amt,
+        fiat: walletHidden ? '' : ft,
+        _raw: { amount: amt, fiat: ft, name: counterparty || '' },
         timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
         // no address / fee in this payload → the detail sheet omits those rows (data-honest, BE gap W2)
       });
@@ -1637,6 +1842,11 @@
       });
       scheduleAppsRender();
     },
+
+    // #265 ⑤: the in-shell group setup's photo pick — C# writes the temp avatar
+    // (the same file HandlePickSucceeded promotes onto the new group) and pushes it
+    // back as a data-URI. Resolves the panel's pending ctrl.
+    loadGroupAvatar(src) { if (contactsView && contactsView.setGroupAvatar) contactsView.setGroupAvatar(src || ''); },
 
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback
@@ -1699,7 +1909,20 @@
    *    could arrive empty and only a manual refresh fixed it. Deferring to the
    *    window 'load' event makes C# receive the ready signal at the right time,
    *    so real chats populate on first entry. ———————————————————————————————— */
+  // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
+  // transitionend + timeout fallback (the #29 morph pattern).
+  function dropAppBoot() {
+    var b = document.getElementById('app-boot');
+    if (!b) return;
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce) { b.remove(); return; }
+    b.style.opacity = '0';
+    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+  }
+
   function signalReady() {
+    dropAppBoot();   // shell chrome is built — reveal it (Batch B splash boot)
     // Fix #8 — boot to the chats tab. HomePage keeps `currentTab` on its persistent
     // instance and echoes selectTab(currentTab) on EVERY reload, including the
     // regenerate-index.html reload after SettingsPage pops (HomePage.xaml.cs:667). If

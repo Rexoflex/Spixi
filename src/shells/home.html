@@ -846,7 +846,17 @@
   canonEntry('sl-ex-pay-recv', 'Payment Received', 'payment');                  // index-excerpt-payment-received
   canonEntry('sl-ex-app-sent', 'Invite Sent', 'app-invite');                    // chat-app-invite-sent
   canonEntry('sl-ex-app-recv', 'Invite Received', 'app-invite');                // chat-app-invite-received
-  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request');          // index-excerpt-contact-accepted
+  /* #273: 'request-done' NOT 'request' — "Contact Accepted" is a SETTLED event
+   * (C# emits it only when friend.approved, HomePage.xaml.cs:1650-1652). The
+   * excerpt kind doubles as the Requests-filter/chip predicate (isRequestRow +
+   * chatMatchesFilter key on type==='request'), so typing this phrase 'request'
+   * dragged every long-settled legacy contact whose LAST message is still the
+   * requestAdd event into the Requests filter + count (Damir F5: 21 phantom
+   * "requests" on a legacy account). Same user-plus glyph + tint via
+   * chatlist-item (EXCERPT_GLYPHS + CSS carry both kinds); only the pending
+   * semantics differ. 'Contact Request' stays 'request' — C# emits it only
+   * when !approved (:1654-1656), i.e. genuinely pending. */
+  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request-done');     // index-excerpt-contact-accepted
   canonEntry('sl-ex-contact-request', 'Contact Request', 'request');            // index-excerpt-contact-request
   /* OWN-message prefix (`index-excerpt-self` + " ", HomePage.xaml.cs:1670-1673).
    * It wraps SEVEN of the canon phrases (file · voice-call · payment-request-sent ·

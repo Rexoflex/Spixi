@@ -98,9 +98,12 @@ export function backupStatusParts(status = {}, strings = getStrings()) {
 export function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
-  // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
-  // search joins here later when the list outgrows scanning (chat-list grammar)
-  if (options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
+  // #148⑥: long pickers (language) — in the SHEET the list scrolls inside a
+  // TALLER capped sheet (56vh/480px). #274: INLINE (pane detail screen) that
+  // sheet cap CLIPPED the list mid-column with an invisible-until-hover thumb
+  // (Damir F5: languages cut off) — inline, the pickerScreen body
+  // (.c-settings__body.u-scroll) owns the scrolling, so the list just flows.
+  if (!inline && options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
   wrap.setAttribute('role', 'radiogroup');
   wrap.setAttribute('aria-label', title);
   if (hint) {

@@ -389,7 +389,29 @@
    *   peer pane (data-pane): hub = the LIST-column slot, sublevel = the DETAIL
    *     region ('hub' = detail empty; a sublevel's back EMPTIES the detail).
    * Screens are stateless builders. */
+  /* #274: ixian:language makes C# RELOAD settings.html (SettingsPage:289 loadPage)
+   * — in the pane the fresh boot landed on hub + EMPTY detail (Damir F5: a
+   * language pick "resets the panel to the Account empty state"). Persist the
+   * open picker across that ONE reload — same localStorage-handshake class as
+   * #238 spixi.landtab (15s staleness guard, consumed on read). Only 'language'
+   * is ever stashed/restored: it is the only verb left that reloads the page
+   * (theme applies live since the flicker round, SettingsPage:318-327).
+   * SECURITY (#254 premise): the stash is a VIEW NAME only — no user data. */
+  const VIEW_RESUME_KEY = 'spixi.settings.view';
+  function stashViewForReload() {
+    try { localStorage.setItem(VIEW_RESUME_KEY, JSON.stringify({ v: currentView, t: Date.now() })); } catch (e) {}
+  }
+  function takeResumeView() {
+    try {
+      const raw = localStorage.getItem(VIEW_RESUME_KEY);
+      if (!raw) return null;
+      localStorage.removeItem(VIEW_RESUME_KEY);          // one-shot, always consumed
+      const o = JSON.parse(raw);
+      return (o && o.v === 'language' && o.t && Date.now() - o.t < 15000) ? o.v : null;
+    } catch (e) { return null; }
+  }
   let hubEl = null, currentView = 'hub';
+  currentView = takeResumeView() || 'hub';
 
   const masterWrap = document.createElement('div');
   masterWrap.className = 'sd-master';
@@ -438,6 +460,11 @@
       if (hubEl.parentNode !== masterWrap) masterWrap.replaceChildren(hubEl);
       if (masterWrap.parentNode !== root) root.replaceChildren(masterWrap, detailWrap);
       detailWrap.replaceChildren(currentView === 'hub' ? getEmpty() : buildScreen(currentView));
+      // #274: remember which language the picker was BUILT with — a restored
+      // picker renders before the onLoad burst lands (state.language still the
+      // default), so rebuildHub refreshes it when the pushed current differs.
+      if (currentView === 'language') detailWrap.dataset.langBuilt = state.language;
+      else delete detailWrap.dataset.langBuilt;
       markSelected(currentView === 'hub' ? null : currentView);
     } else {
       root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
@@ -592,6 +619,15 @@
       // the hub column is always mounted; keep the open sublevel + its selection
       masterWrap.replaceChildren(hubEl);
       markSelected(currentView === 'hub' ? null : currentView);
+      // #274: the language picker is a STATELESS state-keyed builder — refresh
+      // it when the pushed current differs from the one it was built with (the
+      // restored-across-reload boot builds it before setLanguage lands). Every
+      // other sublevel keeps its live node (downloads buffers, backup flow —
+      // the original "keep the sublevel" rule).
+      if (currentView === 'language' && detailWrap.dataset.langBuilt !== state.language) {
+        detailWrap.replaceChildren(buildScreen('language'));
+        detailWrap.dataset.langBuilt = state.language;
+      }
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'hub') {
@@ -701,9 +737,11 @@
           hint: langHint(state.language),      // A4: only when the fallback row is present
           options: langOptions(state.language),
           current: state.language, strings, inline: true,
-          // C# persists + RELOADS settings.html on this verb — the fresh page
-          // re-lands on the hub with the new current (S5 i18n note applies).
-          commit: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+          // C# persists + RELOADS settings.html on this verb — #274: stash the
+          // open picker first so the reloaded pane re-lands HERE (the fresh boot
+          // consumes the stash; the setLanguage push repaints the check via
+          // rebuildHub's picker refresh) instead of the empty Account detail.
+          commit: (code, ctrl) => { state.language = code; stashViewForReload(); bridge.send('ixian:language:' + code); ctrl.done(); },
         }));
       // #243: Backup as a pane sublevel — the SAME c-settings-backup screen the
       // standalone settings_backup.html shell mounts, with SettingsPage now

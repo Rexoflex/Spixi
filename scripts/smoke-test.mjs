@@ -1754,6 +1754,40 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
     && !emptyReq.querySelector('.c-chatlist-item') && !emptyReq.querySelector('.c-contact-request'),
     'Requests filter: the empty state still renders when neither cards nor request rows exist');
 
+  // #273: "Contact Accepted" is a SETTLED event — canon kind 'request-done', which
+  // keeps the user-plus glyph but MUST NOT ride the Requests filter/chip (the
+  // Damir F5 legacy-account bug: 21 phantom "requests", all accepted years ago).
+  const done = W.Spixi.createExcerpt({ type: 'request-done', text: 'Contact Accepted' });
+  ok(done.dataset.type === 'request-done' && !!done.querySelector('svg')
+    && W.Spixi.chatMatchesFilter({ excerpt: { type: 'request-done', text: 'Contact Accepted' } }, 'requests') === false,
+    '#273: request-done keeps the glyph but is EXCLUDED from the Requests filter');
+  const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/canonEntry\('sl-ex-contact-accepted', 'Contact Accepted', 'request-done'\);/.test(homeSrc)
+    && /canonEntry\('sl-ex-contact-request', 'Contact Request', 'request'\);/.test(homeSrc),
+    '#273: canon types Contact Accepted as request-done; Contact Request stays request (genuinely pending)');
+
+  // #274a: the inline (pane sublevel) option picker must NOT carry the sheet's
+  // 56vh/480px cap — the pickerScreen body owns scrolling there; the mobile
+  // SHEET keeps the cap (asserted by the settings.html jsdom block above).
+  const inlineOpts = W.Spixi.settingsOptionSheet({
+    title: 'Language', inline: true, current: 'en-us',
+    options: Array.from({ length: 10 }, (_, i) => ({ value: 'l' + i, label: 'Lang ' + i })),
+    commit: () => {},
+  });
+  ok(!inlineOpts.classList.contains('c-settings__opts--scroll'),
+    '#274a: inline option picker has NO sheet max-height cap (pane list was clipped at 480px)');
+
+  // #274b: language pick in the pane stashes the open picker across the C# page
+  // reload; boot consumes the stash (language-only, 15s guard) + rebuildHub
+  // refreshes a stale restored picker once setLanguage lands.
+  const setSrc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/const VIEW_RESUME_KEY = 'spixi\.settings\.view';/.test(setSrc)
+    && /stashViewForReload\(\); bridge\.send\('ixian:language:' \+ code\)/.test(setSrc)
+    && /currentView = takeResumeView\(\) \|\| 'hub';/.test(setSrc)
+    && /o\.v === 'language'/.test(setSrc)
+    && /detailWrap\.dataset\.langBuilt !== state\.language/.test(setSrc),
+    '#274b: language pick survives the C# settings reload (view stash + restored-picker refresh)');
+
   /* ⑩ (#266) + Q1 review (#267 loop) — the SHIPPED c-contact-request grammar:
    * · Decline is SINGLE-CLICK (the confirm modal is gone — declines are reversible);
    * · each action ONE-SHOTS (a list re-flush can't double-emit the verb);

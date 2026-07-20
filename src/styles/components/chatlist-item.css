@@ -133,9 +133,13 @@
 .c-excerpt__sender { flex: none; }
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
-/* M5 outgoing contact request — "Request sent" reads as a status, typing tone */
-.c-excerpt[data-type="request"] .c-excerpt__text { color: var(--text-action-default); }
-.c-excerpt[data-type="request"] svg { color: var(--icon-action-default); }
+/* M5 outgoing contact request — "Request sent" reads as a status, typing tone.
+   #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
+   semantics differ (filter/chip exclude it via the distinct excerpt kind). */
+.c-excerpt[data-type="request"] .c-excerpt__text,
+.c-excerpt[data-type="request-done"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="request"] svg,
+.c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
 .c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }

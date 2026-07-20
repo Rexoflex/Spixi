@@ -230,6 +230,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 - [x] **★ FROZEN + COMMITTED + TAGGED `audit-baseline` (2026-07-12).** Q1–Q4 (#266–#270) + both Opus #46 loops (#271, #272) shipped. **NEXT SESSION: read `docs/handoff-post-freeze.md` FIRST** — the project has changed shape (build → test/BE/platform), and that doc says which phase you're in and what NOT to do. Order: desktop testing (Damir) → Android → iOS → **BE cutover** (`docs/be-cutover-brief.md` + `docs/security-review-for-be-engineer.md`, walk the engineer through the security doc first) → **only then** refactor. **The refactor is explicitly DEFERRED** (zero user value; makes platform bugs ambiguous; the smoke suite is grep-only over the shells a sweep would target → behavioural shell coverage is its prerequisite). Wallet-send stays LAST; reply-to stays BE-blocked.
 
+- [x] **PHASE B OPENED — Mac bring-up session 1 (2026-07-20).** First non-Windows build+launch ever: net10.0-maccatalyst compiles and WKWebView renders the launch shell (fonts/icons/layout OK). BLOCKED at boot on RocksDB: the public RocksDbSharp wrapper misdetects MacCatalyst as Windows (no OSX match -> kernel32 probing) - needs the dev's custom RocksDB-Sharp, same as Android/iOS. Dev asked for `RocksDB.0.0.42.nupkg` (-> `local-nuget/` feed, wired) + optional maccatalyst xcframework slice. csproj: Windows TFM now OS-conditional; catalyst NativeReference shim (gitignored). Details + next steps: `docs/mac-bringup-log.md` + `docs/handoff-2026-07-20-pc-next.md`. Next: PC/Android once the nupkg lands; iOS Simulator on the Mac same-day after that.
+
 ## Conventions (to firm up as we build)
 
 - Source in `src/` at repo root; built output committed to `Spixi/Resources/Raw/html`.

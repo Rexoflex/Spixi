@@ -1,7 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<DefineConstants>$(DefineConstants);__MOBILE__</DefineConstants>
-		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+		<!-- Windows target only when building ON Windows (NETSDK1100 guard for Mac bring-up, 2026-07-20) -->
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 		<!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
 		<!-- <TargetFrameworks>$(TargetFrameworks);net10.0-tizen</TargetFrameworks> -->
 		<!-- Note for MacCatalyst:
@@ -60,6 +62,13 @@
 		</AndroidNativeLibrary>
 	</ItemGroup>
 
+	<ItemGroup Condition="$(TargetFramework.Contains('-maccatalyst'))">
+		<!-- Mac bring-up (2026-07-20): vtool-restamped copy of the NuGet osx-arm64 rocksdb dylib (macOS-&gt;maccatalyst platform tag); local shim, NOT committed - proper fix is a maccatalyst slice in the dev's RocksDB.xcframework -->
+		<NativeReference Include="Platforms/MacCatalyst/NativeLibraries/librocksdb.dylib">
+			<Kind>Dynamic</Kind>
+			<SmartLink>false</SmartLink>
+		</NativeReference>
+	</ItemGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 		<ProvisioningType>manual</ProvisioningType>
 		<CodesignKey>iPhone Developer</CodesignKey>

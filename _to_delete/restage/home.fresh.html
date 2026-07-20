@@ -1801,26 +1801,18 @@
       const ftN = fiat ? amountWithCommas(fiat) : '';
       const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
       const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
-      // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4
-      // ambiguity) — an address-shaped one renders MIDDLE-TRUNCATED (Damir F5:
-      // tx rows showed full base58). The raw value is kept as `address` so
-      // search-by-pasted-address still matches (txMatchesQuery reads it).
-      const cp = counterparty || '';
-      const cpIsAddr = looksLikeAddress(cp);
-      const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
       walletState.txs.push({
         txid: txid || '',
         direction: dirIn ? 'in' : 'out',
         status,
         // display fields honor the CURRENT hide flag (#263 global hide); the real
         // values live in _raw and swap back via applyWalletVisibility().
-        name: walletHidden ? WALLET_MASK : cpDisplay,
-        address: cpIsAddr ? cp : '',
+        name: walletHidden ? WALLET_MASK : (counterparty || ''),   // nickname OR raw address (ambiguous — BE gap W4)
         amount: walletHidden ? WALLET_MASK : amt,
         fiat: walletHidden ? '' : ft,
-        _raw: { amount: amt, fiat: ft, name: cpDisplay },
+        _raw: { amount: amt, fiat: ft, name: counterparty || '' },
         timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
-        // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
+        // no address / fee in this payload → the detail sheet omits those rows (data-honest, BE gap W2)
       });
       scheduleWalletRender();
     },

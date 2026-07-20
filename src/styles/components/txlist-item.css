@@ -52,10 +52,14 @@
 }
 
 .c-txlist-item__name {
-  font-size: var(--font-size-label-lg);
-  line-height: var(--line-height-label-lg);
-  letter-spacing: var(--tracking-label-lg);
-  font-weight: var(--font-weight-semibold);
+  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
+     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
+     names moved to body-lg (14px), and the always-semibold weight made
+     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
+     label-lg semibold as the row's money emphasis (dial if too loud). */
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  letter-spacing: var(--tracking-body-lg);
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;

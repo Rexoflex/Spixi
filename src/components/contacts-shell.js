@@ -33,7 +33,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
@@ -62,7 +62,16 @@ function disc(hue, glyph) {
 
 const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, opts, els }
 
-function displayName(c) { return c.name || c.address || ''; }
+/* #276 (#211 canon sweep): a nick wins; a nameless row — or one whose "nick" is
+ * really its address echoed back (C# addContact sends nickname = address for
+ * contacts without one) — shows the address MIDDLE-TRUNCATED, never in full
+ * (Damir F5: directory rows rendered full base58 titles). Same guard as
+ * chatlist-item.js:134. Full address stays on the profile's address FIELD. */
+function hasNick(c) { return !!c.name && c.name !== c.address; }
+function displayName(c) {
+  if (hasNick(c)) return c.name;
+  return c.address ? truncateAddressMiddle(c.address, 9, 6) : (c.name || '');
+}
 
 // List-row identity subline (spec §7①: no usernames in Spixi — a named row shows
 // the Ixian address beneath the nickname). Middle-truncate so it reads as an
@@ -118,7 +127,9 @@ function pickerRow(c, st) {
   const sub = document.createElement('span');
   sub.className = 'c-contacts__sub';
   sub.textContent = blockedReason
-    || (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
+    // #276: name === address (C# echo) is NOT a nick — those rows title as the
+    // truncated address, so the sub must not repeat it; they read "Address-only".
+    || (hasNick(c) ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
@@ -757,9 +768,13 @@ export function createPendingContact({
   hero.append(createAvatar({ src: avatar, name, address, size: 80 }));
   const nameEl = document.createElement('p');
   nameEl.className = 'c-contacts-pending__name';
-  nameEl.textContent = name || address;
+  // #276: nameless (or address-echo) profile titles as the TRUNCATED address;
+  // the full address moves to the addr line below — the profile's sanctioned
+  // full-address FIELD (#211 canon), now shown for nameless contacts too.
+  const heroNick = !!name && name !== address;
+  nameEl.textContent = heroNick ? name : (address ? truncateAddressMiddle(address, 9, 6) : (name || ''));
   hero.append(nameEl);
-  if (name) {
+  if (address) {
     const addrEl = document.createElement('p');
     addrEl.className = 'c-contacts-pending__addr';
     addrEl.textContent = address;

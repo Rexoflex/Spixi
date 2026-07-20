@@ -118,6 +118,7 @@
   const {
     createTopbar, openTxSheet, closeSheet,
     createNativeBridge, installExecuteUiCommand,
+    truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -195,6 +196,12 @@
     const dirIn = model.received || e.direction === 'in';
     const sign = status === 'failed' ? '' : (dirIn ? '+' : '-');
     const unknown = !e.name || UNKNOWN_NAMES.indexOf(e.name) !== -1;
+    // #276 (#211 canon sweep): C# sends the RAW ADDRESS as `username` when the
+    // counterparty isn't a contact — the "Sent to {name}" title rendered full
+    // base58 (Damir F5). Address-shaped names render MIDDLE-TRUNCATED; the full
+    // address stays on the copyable address row below (the sanctioned field).
+    // Same token shape as home.html's looksLikeAddress (base58, 20–128, ≥1 digit).
+    const nameIsAddr = !unknown && /^[1-9A-HJ-NP-Za-km-z]{20,128}$/.test(e.name) && /\d/.test(e.name);
     return {
       txid: d.txid || '',
       direction: dirIn ? 'in' : 'out',
@@ -202,7 +209,7 @@
       // unknown counterparty → NO name/contact (title stays "Sent"/"Received",
       // the direction circle carries the identity slot, the address row still
       // shows the raw address). Data-honest — never a gradient of "Unknown".
-      name: unknown ? '' : e.name,
+      name: unknown ? '' : (nameIsAddr ? truncateAddressMiddle(e.name) : e.name),
       contact: !unknown,
       address: e.address || '',
       avatar: unknown ? null : e.avatar,

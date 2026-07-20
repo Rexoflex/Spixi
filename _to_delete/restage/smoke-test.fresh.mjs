@@ -3577,39 +3577,6 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     'splash: launch gained the dark instant-bg + the #228 platform flag');
 }
 
-console.log('#275 composer lock (legacy states) · #276 address-truncation sweep');
-{
-  /* static guards — C# + shell wiring (jsdom-blind surfaces). */
-  const scp = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
-  ok(/friend\.state != FriendState\.Approved && friend\.state != FriendState\.RequestReceived/.test(scp),
-    '#275: onLoad locks the composer for ANY non-approved 1:1 (legacy states included)');
-  const home276 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  ok(/const cpIsAddr = looksLikeAddress\(cp\);/.test(home276)
-    && /const cpDisplay = cpIsAddr \? truncateAddressMiddle\(cp\) : cp;/.test(home276)
-    && /address: cpIsAddr \? cp : ''/.test(home276),
-    '#276: wallet tx rows truncate an address-shaped counterparty (raw kept for search)');
-  const txShell276 = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
-  ok(/nameIsAddr \? truncateAddressMiddle\(e\.name\) : e\.name/.test(txShell276),
-    '#276: tx detail title truncates an address-shaped counterparty (full address stays on the copy row)');
-  const contactsSrc = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
-  ok(/function hasNick\(c\) \{ return !!c\.name && c\.name !== c\.address; \}/.test(contactsSrc)
-    && /truncateAddressMiddle\(c\.address, 9, 6\)/.test(contactsSrc),
-    '#276: contacts rows title nameless/echo contacts as the truncated address');
-  // #277: tx-row title = chat-row parity (body-lg regular); amount keeps label-lg semibold.
-  const txCss = readFileSync(join(root, 'src/styles/components/txlist-item.css'), 'utf8');
-  ok(/\.c-txlist-item__name \{[^}]*var\(--font-size-body-lg\)/s.test(txCss)
-    && !/\.c-txlist-item__name \{[^}]*font-weight/s.test(txCss)
-    && /\.c-txlist-item__amount \{[^}]*var\(--font-size-label-lg\)/s.test(txCss),
-    '#277: tx-row name rides body-lg regular (chat-row parity); amount keeps its emphasis');
-  // #278: misstx pill collapses by MEASUREMENT (pane-width aware), not viewport only.
-  const walletJs = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
-  const walletCss = readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8');
-  ok(/typeof ResizeObserver === 'function'/.test(walletJs)
-    && /row\.dataset\.compact = ''/.test(walletJs)
-    && /\.c-wallet-filters\[data-compact\] \.c-wallet-misstx__label \{ display: none; \}/.test(walletCss),
-    '#278: Missing-a-transaction pill collapses to the info glyph when the ROW overflows (desktop pane)');
-}
-
 console.log('missing-bits Batch C — desktop overlay grammar + form panes (M6/M7/M8)');
 {
   /* static guards — presentation CSS + shell wiring (jsdom is layout-blind). */

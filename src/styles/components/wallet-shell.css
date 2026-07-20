@@ -57,9 +57,11 @@
 @media (hover: hover) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
 .c-wallet-misstx:active { background: var(--surface-action-tonal-pressed); }
 /* #98 ①: narrow phones — the pill collapses to the ⓘ glyph (aria-label carries the name).
-   NB viewport query only — a <360px PANE in the #89 desktop split-view won't trigger it;
-   container queries are off the conservative baseline (#4), revisit at desktop build. */
+   NB viewport query only — kept as the no-ResizeObserver belt; #278 added the
+   width-aware collapse (data-compact, set by measurement in createWalletFilters)
+   which also covers a narrow PANE inside a wide desktop window. */
 @media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
+.c-wallet-filters[data-compact] .c-wallet-misstx__label { display: none; }
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }

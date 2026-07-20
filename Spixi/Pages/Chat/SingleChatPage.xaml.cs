@@ -645,7 +645,13 @@ namespace SPIXI
 
             if (!friend.bot)
             {
-                if (friend.state == FriendState.RequestSent)
+                // #275: lock for ANY non-approved 1:1, not just RequestSent — legacy
+                // accounts carry other non-Approved states; the chats list already
+                // labels ALL of them "Request sent" (HomePage:1606 keys on
+                // state != Approved), so the chat must refuse to compose for the same
+                // set (⑪ delivery-lie: a message "sent" here never reaches the peer).
+                // RequestReceived stays out: the incoming request pane is its affordance.
+                if (friend.state != FriendState.Approved && friend.state != FriendState.RequestReceived)
                 {
                     _waitingForContactConfirmation = true;
                     Utils.sendUiCommand(this, "showRequestSentModal", "1");
@@ -1903,7 +1909,9 @@ namespace SPIXI
                         Utils.sendUiCommand(this, "showRequestSentModal", "0");
                     }
                 }
-                else if(friend.state == FriendState.RequestSent || friend.state == FriendState.RequestReceived)
+                else   // #275: any non-Approved state — legacy states must get the waiting
+                       // presence + the accept→unlock edge-detector too, matching the
+                       // chats-list pending predicate (HomePage:1606, state != Approved).
                 {
                     Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-waiting-for-response"));
                     // Q1 review (#266/#267 loop): latch on EITHER pending state, not just the

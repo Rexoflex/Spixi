@@ -175,10 +175,28 @@ export function createWalletFilters(state, opts = {}) {
   mlabel.textContent = strings.missingTx || 'Missing a transaction?';
   miss.append(mlabel);
   miss.setAttribute('aria-label', strings.missingTx || 'Missing a transaction?');
+  miss.title = strings.missingTx || 'Missing a transaction?';   // #278: desktop hover keeps the wording when compacted
   miss.addEventListener('click', () => openMissingTxSheet({
     host: opts.host, strings, onExplorer: opts.onExplorer,
   }));
   row.append(miss);
+  // #278 (Damir F5: pill cut off in the desktop pane): the 360px viewport query
+  // can't see PANE width (the window is wide, the wallet column isn't) and
+  // container queries are off the conservative baseline (#4) — so collapse by
+  // MEASUREMENT: when the row overflows with the label visible, drop to the
+  // ⓘ-only chip (data-compact; aria-label + title carry the name). RO callbacks
+  // run before paint and toggling the label never changes the row's own border-
+  // box (nowrap flex row, width from the container) → no observer loop, no
+  // flicker. No ResizeObserver (older WebView) → the media query stays the belt.
+  if (typeof ResizeObserver === 'function') {
+    const fit = () => {
+      delete row.dataset.compact;                      // measure at natural width
+      if (row.scrollWidth > row.clientWidth) row.dataset.compact = '';
+    };
+    const ro = new ResizeObserver(fit);
+    ro.observe(row);
+    requestAnimationFrame(fit);                        // first layout (RO fires late on some engines)
+  }
   return row;
 }
 

@@ -2757,6 +2757,7 @@ const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
+  'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
@@ -9699,10 +9700,28 @@ function createWalletFilters(state, opts = {}) {
   mlabel.textContent = strings.missingTx || 'Missing a transaction?';
   miss.append(mlabel);
   miss.setAttribute('aria-label', strings.missingTx || 'Missing a transaction?');
+  miss.title = strings.missingTx || 'Missing a transaction?';   // #278: desktop hover keeps the wording when compacted
   miss.addEventListener('click', () => openMissingTxSheet({
     host: opts.host, strings, onExplorer: opts.onExplorer,
   }));
   row.append(miss);
+  // #278 (Damir F5: pill cut off in the desktop pane): the 360px viewport query
+  // can't see PANE width (the window is wide, the wallet column isn't) and
+  // container queries are off the conservative baseline (#4) — so collapse by
+  // MEASUREMENT: when the row overflows with the label visible, drop to the
+  // ⓘ-only chip (data-compact; aria-label + title carry the name). RO callbacks
+  // run before paint and toggling the label never changes the row's own border-
+  // box (nowrap flex row, width from the container) → no observer loop, no
+  // flicker. No ResizeObserver (older WebView) → the media query stays the belt.
+  if (typeof ResizeObserver === 'function') {
+    const fit = () => {
+      delete row.dataset.compact;                      // measure at natural width
+      if (row.scrollWidth > row.clientWidth) row.dataset.compact = '';
+    };
+    const ro = new ResizeObserver(fit);
+    ro.observe(row);
+    requestAnimationFrame(fit);                        // first layout (RO fires late on some engines)
+  }
   return row;
 }
 
@@ -14406,7 +14425,16 @@ function disc(hue, glyph) {
 
 const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, opts, els }
 
-function displayName(c) { return c.name || c.address || ''; }
+/* #276 (#211 canon sweep): a nick wins; a nameless row — or one whose "nick" is
+ * really its address echoed back (C# addContact sends nickname = address for
+ * contacts without one) — shows the address MIDDLE-TRUNCATED, never in full
+ * (Damir F5: directory rows rendered full base58 titles). Same guard as
+ * chatlist-item.js:134. Full address stays on the profile's address FIELD. */
+function hasNick(c) { return !!c.name && c.name !== c.address; }
+function displayName(c) {
+  if (hasNick(c)) return c.name;
+  return c.address ? truncateAddressMiddle(c.address, 9, 6) : (c.name || '');
+}
 
 // List-row identity subline (spec §7①: no usernames in Spixi — a named row shows
 // the Ixian address beneath the nickname). Middle-truncate so it reads as an
@@ -14421,8 +14449,11 @@ function shortAddress(a) {
 
 function sortedContacts(contacts) {
   // named A–Z first, address-only (no name) after, by address (spec §3a)
-  const named = contacts.filter((c) => c.name);
-  const bare = contacts.filter((c) => !c.name);
+  // #279: "named" = hasNick, NOT truthy c.name — an echo contact (name === address,
+  // the C# echo class from #276) DISPLAYS as a truncated address, so sorting it
+  // among the real names would scatter address-looking rows through the A–Z block.
+  const named = contacts.filter((c) => hasNick(c));
+  const bare = contacts.filter((c) => !hasNick(c));
   named.sort((a, b) => a.name.localeCompare(b.name));
   bare.sort((a, b) => (a.address || '').localeCompare(b.address || ''));
   return named.concat(bare);
@@ -14462,7 +14493,9 @@ function pickerRow(c, st) {
   const sub = document.createElement('span');
   sub.className = 'c-contacts__sub';
   sub.textContent = blockedReason
-    || (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
+    // #276: name === address (C# echo) is NOT a nick — those rows title as the
+    // truncated address, so the sub must not repeat it; they read "Address-only".
+    || (hasNick(c) ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
@@ -15101,9 +15134,13 @@ function createPendingContact({
   hero.append(createAvatar({ src: avatar, name, address, size: 80 }));
   const nameEl = document.createElement('p');
   nameEl.className = 'c-contacts-pending__name';
-  nameEl.textContent = name || address;
+  // #276: nameless (or address-echo) profile titles as the TRUNCATED address;
+  // the full address moves to the addr line below — the profile's sanctioned
+  // full-address FIELD (#211 canon), now shown for nameless contacts too.
+  const heroNick = !!name && name !== address;
+  nameEl.textContent = heroNick ? name : (address ? truncateAddressMiddle(address, 9, 6) : (name || ''));
   hero.append(nameEl);
-  if (name) {
+  if (address) {
     const addrEl = document.createElement('p');
     addrEl.className = 'c-contacts-pending__addr';
     addrEl.textContent = address;
@@ -16059,9 +16096,12 @@ function backupStatusParts(status = {}, strings = getStrings()) {
 function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
-  // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
-  // search joins here later when the list outgrows scanning (chat-list grammar)
-  if (options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
+  // #148⑥: long pickers (language) — in the SHEET the list scrolls inside a
+  // TALLER capped sheet (56vh/480px). #274: INLINE (pane detail screen) that
+  // sheet cap CLIPPED the list mid-column with an invisible-until-hover thumb
+  // (Damir F5: languages cut off) — inline, the pickerScreen body
+  // (.c-settings__body.u-scroll) owns the scrolling, so the list just flows.
+  if (!inline && options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
   wrap.setAttribute('role', 'radiogroup');
   wrap.setAttribute('aria-label', title);
   if (hint) {

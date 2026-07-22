@@ -1889,9 +1889,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-excerpt__sender { flex: none; }
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
-/* M5 outgoing contact request — "Request sent" reads as a status, typing tone */
-.c-excerpt[data-type="request"] .c-excerpt__text { color: var(--text-action-default); }
-.c-excerpt[data-type="request"] svg { color: var(--icon-action-default); }
+/* M5 outgoing contact request — "Request sent" reads as a status, typing tone.
+   #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
+   semantics differ (filter/chip exclude it via the distinct excerpt kind). */
+.c-excerpt[data-type="request"] .c-excerpt__text,
+.c-excerpt[data-type="request-done"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="request"] svg,
+.c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
 .c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }
@@ -3095,10 +3099,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 .c-txlist-item__name {
-  font-size: var(--font-size-label-lg);
-  line-height: var(--line-height-label-lg);
-  letter-spacing: var(--tracking-label-lg);
-  font-weight: var(--font-weight-semibold);
+  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
+     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
+     names moved to body-lg (14px), and the always-semibold weight made
+     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
+     label-lg semibold as the row's money emphasis (dial if too loud). */
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  letter-spacing: var(--tracking-body-lg);
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3363,9 +3371,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 @media (hover: hover) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
 .c-wallet-misstx:active { background: var(--surface-action-tonal-pressed); }
 /* #98 ①: narrow phones — the pill collapses to the ⓘ glyph (aria-label carries the name).
-   NB viewport query only — a <360px PANE in the #89 desktop split-view won't trigger it;
-   container queries are off the conservative baseline (#4), revisit at desktop build. */
+   NB viewport query only — kept as the no-ResizeObserver belt; #278 added the
+   width-aware collapse (data-compact, set by measurement in createWalletFilters)
+   which also covers a narrow PANE inside a wide desktop window. */
 @media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
+.c-wallet-filters[data-compact] .c-wallet-misstx__label { display: none; }
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }
@@ -4862,6 +4872,7 @@ const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
+  'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
 function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
@@ -11804,10 +11815,28 @@ function createWalletFilters(state, opts = {}) {
   mlabel.textContent = strings.missingTx || 'Missing a transaction?';
   miss.append(mlabel);
   miss.setAttribute('aria-label', strings.missingTx || 'Missing a transaction?');
+  miss.title = strings.missingTx || 'Missing a transaction?';   // #278: desktop hover keeps the wording when compacted
   miss.addEventListener('click', () => openMissingTxSheet({
     host: opts.host, strings, onExplorer: opts.onExplorer,
   }));
   row.append(miss);
+  // #278 (Damir F5: pill cut off in the desktop pane): the 360px viewport query
+  // can't see PANE width (the window is wide, the wallet column isn't) and
+  // container queries are off the conservative baseline (#4) — so collapse by
+  // MEASUREMENT: when the row overflows with the label visible, drop to the
+  // ⓘ-only chip (data-compact; aria-label + title carry the name). RO callbacks
+  // run before paint and toggling the label never changes the row's own border-
+  // box (nowrap flex row, width from the container) → no observer loop, no
+  // flicker. No ResizeObserver (older WebView) → the media query stays the belt.
+  if (typeof ResizeObserver === 'function') {
+    const fit = () => {
+      delete row.dataset.compact;                      // measure at natural width
+      if (row.scrollWidth > row.clientWidth) row.dataset.compact = '';
+    };
+    const ro = new ResizeObserver(fit);
+    ro.observe(row);
+    requestAnimationFrame(fit);                        // first layout (RO fires late on some engines)
+  }
   return row;
 }
 
@@ -16511,7 +16540,16 @@ function disc(hue, glyph) {
 
 const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, opts, els }
 
-function displayName(c) { return c.name || c.address || ''; }
+/* #276 (#211 canon sweep): a nick wins; a nameless row — or one whose "nick" is
+ * really its address echoed back (C# addContact sends nickname = address for
+ * contacts without one) — shows the address MIDDLE-TRUNCATED, never in full
+ * (Damir F5: directory rows rendered full base58 titles). Same guard as
+ * chatlist-item.js:134. Full address stays on the profile's address FIELD. */
+function hasNick(c) { return !!c.name && c.name !== c.address; }
+function displayName(c) {
+  if (hasNick(c)) return c.name;
+  return c.address ? truncateAddressMiddle(c.address, 9, 6) : (c.name || '');
+}
 
 // List-row identity subline (spec §7①: no usernames in Spixi — a named row shows
 // the Ixian address beneath the nickname). Middle-truncate so it reads as an
@@ -16526,8 +16564,11 @@ function shortAddress(a) {
 
 function sortedContacts(contacts) {
   // named A–Z first, address-only (no name) after, by address (spec §3a)
-  const named = contacts.filter((c) => c.name);
-  const bare = contacts.filter((c) => !c.name);
+  // #279: "named" = hasNick, NOT truthy c.name — an echo contact (name === address,
+  // the C# echo class from #276) DISPLAYS as a truncated address, so sorting it
+  // among the real names would scatter address-looking rows through the A–Z block.
+  const named = contacts.filter((c) => hasNick(c));
+  const bare = contacts.filter((c) => !hasNick(c));
   named.sort((a, b) => a.name.localeCompare(b.name));
   bare.sort((a, b) => (a.address || '').localeCompare(b.address || ''));
   return named.concat(bare);
@@ -16567,7 +16608,9 @@ function pickerRow(c, st) {
   const sub = document.createElement('span');
   sub.className = 'c-contacts__sub';
   sub.textContent = blockedReason
-    || (c.name ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
+    // #276: name === address (C# echo) is NOT a nick — those rows title as the
+    // truncated address, so the sub must not repeat it; they read "Address-only".
+    || (hasNick(c) ? shortAddress(c.address) : (strings.addressOnly || 'Address-only contact'));
   col.append(sub);
   row.append(col);
 
@@ -17206,9 +17249,13 @@ function createPendingContact({
   hero.append(createAvatar({ src: avatar, name, address, size: 80 }));
   const nameEl = document.createElement('p');
   nameEl.className = 'c-contacts-pending__name';
-  nameEl.textContent = name || address;
+  // #276: nameless (or address-echo) profile titles as the TRUNCATED address;
+  // the full address moves to the addr line below — the profile's sanctioned
+  // full-address FIELD (#211 canon), now shown for nameless contacts too.
+  const heroNick = !!name && name !== address;
+  nameEl.textContent = heroNick ? name : (address ? truncateAddressMiddle(address, 9, 6) : (name || ''));
   hero.append(nameEl);
-  if (name) {
+  if (address) {
     const addrEl = document.createElement('p');
     addrEl.className = 'c-contacts-pending__addr';
     addrEl.textContent = address;
@@ -18164,9 +18211,12 @@ function backupStatusParts(status = {}, strings = getStrings()) {
 function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
-  // #148⑥: long pickers (language) — the list scrolls inside a TALLER sheet;
-  // search joins here later when the list outgrows scanning (chat-list grammar)
-  if (options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
+  // #148⑥: long pickers (language) — in the SHEET the list scrolls inside a
+  // TALLER capped sheet (56vh/480px). #274: INLINE (pane detail screen) that
+  // sheet cap CLIPPED the list mid-column with an invisible-until-hover thumb
+  // (Damir F5: languages cut off) — inline, the pickerScreen body
+  // (.c-settings__body.u-scroll) owns the scrolling, so the list just flows.
+  if (!inline && options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
   wrap.setAttribute('role', 'radiogroup');
   wrap.setAttribute('aria-label', title);
   if (hint) {
@@ -22570,7 +22620,17 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   canonEntry('sl-ex-pay-recv', 'Payment Received', 'payment');                  // index-excerpt-payment-received
   canonEntry('sl-ex-app-sent', 'Invite Sent', 'app-invite');                    // chat-app-invite-sent
   canonEntry('sl-ex-app-recv', 'Invite Received', 'app-invite');                // chat-app-invite-received
-  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request');          // index-excerpt-contact-accepted
+  /* #273: 'request-done' NOT 'request' — "Contact Accepted" is a SETTLED event
+   * (C# emits it only when friend.approved, HomePage.xaml.cs:1650-1652). The
+   * excerpt kind doubles as the Requests-filter/chip predicate (isRequestRow +
+   * chatMatchesFilter key on type==='request'), so typing this phrase 'request'
+   * dragged every long-settled legacy contact whose LAST message is still the
+   * requestAdd event into the Requests filter + count (Damir F5: 21 phantom
+   * "requests" on a legacy account). Same user-plus glyph + tint via
+   * chatlist-item (EXCERPT_GLYPHS + CSS carry both kinds); only the pending
+   * semantics differ. 'Contact Request' stays 'request' — C# emits it only
+   * when !approved (:1654-1656), i.e. genuinely pending. */
+  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request-done');     // index-excerpt-contact-accepted
   canonEntry('sl-ex-contact-request', 'Contact Request', 'request');            // index-excerpt-contact-request
   /* OWN-message prefix (`index-excerpt-self` + " ", HomePage.xaml.cs:1670-1673).
    * It wraps SEVEN of the canon phrases (file · voice-call · payment-request-sent ·
@@ -23515,18 +23575,26 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const ftN = fiat ? amountWithCommas(fiat) : '';
       const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
       const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
+      // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4
+      // ambiguity) — an address-shaped one renders MIDDLE-TRUNCATED (Damir F5:
+      // tx rows showed full base58). The raw value is kept as `address` so
+      // search-by-pasted-address still matches (txMatchesQuery reads it).
+      const cp = counterparty || '';
+      const cpIsAddr = looksLikeAddress(cp);
+      const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
       walletState.txs.push({
         txid: txid || '',
         direction: dirIn ? 'in' : 'out',
         status,
         // display fields honor the CURRENT hide flag (#263 global hide); the real
         // values live in _raw and swap back via applyWalletVisibility().
-        name: walletHidden ? WALLET_MASK : (counterparty || ''),   // nickname OR raw address (ambiguous — BE gap W4)
+        name: walletHidden ? WALLET_MASK : cpDisplay,
+        address: cpIsAddr ? cp : '',
         amount: walletHidden ? WALLET_MASK : amt,
         fiat: walletHidden ? '' : ft,
-        _raw: { amount: amt, fiat: ft, name: counterparty || '' },
+        _raw: { amount: amt, fiat: ft, name: cpDisplay },
         timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
-        // no address / fee in this payload → the detail sheet omits those rows (data-honest, BE gap W2)
+        // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
       });
       scheduleWalletRender();
     },

@@ -448,7 +448,7 @@ Summary: **664** keys · **128** map to a legacy id · **536** new · legacy dic
 | `joinSkip` | Not now | label | short |  | `index-backup-prompt-not-now` |
 | `joinTitle` | Join the Spixi community | text | medium |  | — |
 | `language` | Language | aria/title/label/text | short |  | `settings-account-language-edit` |
-| `languagePending` | Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way. | text | long |  | — |
+| `languagePending` | Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way. | text/label | long |  | — |
 | `newTooShort` | The password needs at least {n} characters. | error | medium | {n} | — |
 | `nickColon` | Nicknames can’t contain “:”. | error | medium |  | — |
 | `nickEmpty` | Pick a nickname. | error | short |  | — |

@@ -93,6 +93,31 @@ namespace Spixi
                     completionHandler(options);
                 }
             }
+
+            // #281 (root cause of iOS-5/7/9, from the guarded-run log): OneSignal's swizzling MOVES
+            // the original delegate implementation to a "onesignal"-prefixed selector and invokes
+            // that. The .NET registrar only maps the standard selectors, so the runtime died at
+            // lookup ("Failed to lookup the required marshalling information") BEFORE any managed
+            // body ran — which is why the #280 guard alone couldn't catch it. Exporting the
+            // prefixed selectors registers them with the managed runtime; OneSignal's forwarder
+            // lands here and we route to the real handlers.
+            [Export("onesignalUserNotificationCenter:willPresentNotification:withCompletionHandler:")]
+            public void OneSignalWillPresentNotification(
+                UNUserNotificationCenter center,
+                UNNotification notification,
+                Action<UNNotificationPresentationOptions> completionHandler)
+            {
+                WillPresentNotification(center, notification, completionHandler);
+            }
+
+            [Export("onesignalUserNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:")]
+            public void OneSignalDidReceiveNotificationResponse(
+                UNUserNotificationCenter center,
+                UNNotificationResponse response,
+                Action completionHandler)
+            {
+                DidReceiveNotificationResponse(center, response, completionHandler);
+            }
         }
 
         public static void initialize()

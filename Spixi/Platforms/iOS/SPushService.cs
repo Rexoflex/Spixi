@@ -59,27 +59,38 @@ namespace Spixi
                 UNNotification notification,
                 Action<UNNotificationPresentationOptions> completionHandler)
             {
-                var userInfo = notification.Request.Content.UserInfo;
-                bool showAlert = false;
-
-                if (userInfo.ContainsKey((NSString)"alert"))
+                // iOS bring-up 2026-07-22 (sim crashes iOS-5/7/9): OneSignal's swizzling forwards
+                // every foreground presentation through this callback; a managed exception escaping
+                // it becomes an uncaught NSException -> abort. Same guard pattern as
+                // DidReceiveNotificationResponse above (which had it; this one did not).
+                var options = UNNotificationPresentationOptions.List;
+                try
                 {
-                    var alertValue = userInfo[(NSString)"alert"];
-                    if (alertValue != null && bool.TryParse(alertValue.ToString(), out bool alertBool))
+                    var userInfo = notification.Request.Content.UserInfo;
+                    bool showAlert = false;
+
+                    if (userInfo.ContainsKey((NSString)"alert"))
                     {
-                        showAlert = alertBool;
+                        var alertValue = userInfo[(NSString)"alert"];
+                        if (alertValue != null && bool.TryParse(alertValue.ToString(), out bool alertBool))
+                        {
+                            showAlert = alertBool;
+                        }
+                    }
+
+                    if (showAlert)
+                    {
+                        // Show the notification even when the app is in the foreground
+                        options = UNNotificationPresentationOptions.Banner | UNNotificationPresentationOptions.Sound | UNNotificationPresentationOptions.List;
                     }
                 }
-
-                if (showAlert)
+                catch (Exception ex)
                 {
-                    // Show the notification even when the app is in the foreground
-                    completionHandler(UNNotificationPresentationOptions.Banner | UNNotificationPresentationOptions.Sound | UNNotificationPresentationOptions.List);
+                    Logging.error("Exception occured in WillPresentNotification: {0}", ex);
                 }
-                else
+                finally
                 {
-                    // Only show in notification center (List), no banner or sound
-                    completionHandler(UNNotificationPresentationOptions.List);
+                    completionHandler(options);
                 }
             }
         }

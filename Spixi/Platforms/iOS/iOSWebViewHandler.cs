@@ -15,15 +15,25 @@ namespace Spixi.Platforms.iOS
         
         public override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
         {
-            var url = navigationAction.Request.Url?.AbsoluteString ?? "";
-            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            // iOS bring-up 2026-07-22 (sim crash, 20:37 report): a managed exception escaping this
+            // WebKit callback is an uncaught NSException -> abort. Guard + log; fail closed (Cancel).
+            try
             {
-                decisionHandler(WKNavigationActionPolicy.Cancel);
-                return;
-            }
+                var url = navigationAction.Request.Url?.AbsoluteString ?? "";
+                if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    decisionHandler(WKNavigationActionPolicy.Cancel);
+                    return;
+                }
 
-            base.DecidePolicy(webView, navigationAction, decisionHandler);
+                base.DecidePolicy(webView, navigationAction, decisionHandler);
+            }
+            catch (Exception ex)
+            {
+                IXICore.Meta.Logging.error("Exception occured in DecidePolicy for '{0}': {1}", navigationAction?.Request?.Url?.AbsoluteString, ex);
+                try { decisionHandler(WKNavigationActionPolicy.Cancel); } catch { /* handler may already have been invoked */ }
+            }
         }
     }
 

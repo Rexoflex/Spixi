@@ -41,7 +41,20 @@
 	<PropertyGroup>
 		<MtouchLink>SdkOnly</MtouchLink>
 	</PropertyGroup>
-	<ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
+	<!-- iOS bring-up (2026-07-22): default Debug iOS builds (no explicit RID) to the Simulator on
+	     Apple Silicon, so the RID-conditioned NativeReferences below pick the matching RocksDB
+	     slice at evaluation time. An explicit -p:RuntimeIdentifier=ios-arm64 (device) overrides this. -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(RuntimeIdentifier)' == '' and '$(Configuration)' != 'Release'">
+		<RuntimeIdentifier>iossimulator-arm64</RuntimeIdentifier>
+	</PropertyGroup>
+	<ItemGroup Condition="$(TargetFramework.Contains('-ios')) and $(RuntimeIdentifier.Contains('iossimulator'))">
+		<NativeReference Include="Platforms/iOS/NativeLibraries/RocksDB.xcframework/ios-arm64_x86_64-simulator/librocksdb_full.a">
+			<Kind>Static</Kind>
+			<ForceLoad>true</ForceLoad>
+			<IsCxx>true</IsCxx>
+		</NativeReference>
+	</ItemGroup>
+	<ItemGroup Condition="$(TargetFramework.Contains('-ios')) and !$(RuntimeIdentifier.Contains('iossimulator'))">
 		<NativeReference Include="Platforms/iOS/NativeLibraries/RocksDB.xcframework/ios-arm64/librocksdb_full.a">
 			<Kind>Static</Kind>
 			<ForceLoad>true</ForceLoad>

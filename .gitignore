@@ -223,6 +223,8 @@ PublishScripts/
 
 # NuGet Packages
 *.nupkg
+# except the repo-local NuGet feed (dev custom RocksDB-Sharp — every clone needs it)
+!local-nuget/*.nupkg
 # NuGet Symbol Packages
 *.snupkg
 # The packages folder can be ignored because of Package Restore

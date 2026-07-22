@@ -22,3 +22,4 @@ worked on first contact.
 Context: account-creation hang from earlier in the evening was the FULL DISK
 (51.5GB of duplicate simulator runtimes since removed), not an app bug — creation
 succeeded immediately on a healthy disk.
+| iOS-7 | **CRASH**: app quits when RECEIVING a contact request (sim, iPhone 17 Pro) — core Stage-5 flow | Unknown yet — receive path spans network parse → friend/roster update → UI event → possibly local-notification presentation (SPushService/UNUserNotificationCenter is a suspect class on sim). Crash report + console capture wanted | OPEN — crash log wanted |

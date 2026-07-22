@@ -86,8 +86,11 @@ function shortAddress(a) {
 
 function sortedContacts(contacts) {
   // named A–Z first, address-only (no name) after, by address (spec §3a)
-  const named = contacts.filter((c) => c.name);
-  const bare = contacts.filter((c) => !c.name);
+  // #279: "named" = hasNick, NOT truthy c.name — an echo contact (name === address,
+  // the C# echo class from #276) DISPLAYS as a truncated address, so sorting it
+  // among the real names would scatter address-looking rows through the A–Z block.
+  const named = contacts.filter((c) => hasNick(c));
+  const bare = contacts.filter((c) => !hasNick(c));
   named.sort((a, b) => a.name.localeCompare(b.name));
   bare.sort((a, b) => (a.address || '').localeCompare(b.address || ''));
   return named.concat(bare);

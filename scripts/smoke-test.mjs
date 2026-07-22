@@ -1858,7 +1858,9 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   const rows = [...picker.querySelectorAll('.c-contacts__row')];
   ok(rows.length === 10, 'roster renders 10 rows');
   ok(rows[0].querySelector('.c-contacts__name').textContent === 'Baracuda'
-    && rows[rows.length - 1].querySelector('.c-contacts__name').textContent === '335Hxq21abcd5OP32KpR8mWzD2cF6JuEwA1vBq',
+    // #279: address-only rows title as the TRUNCATED address (#276 canon) — the
+    // pre-#276 expectation here checked the full address and went stale.
+    && rows[rows.length - 1].querySelector('.c-contacts__name').textContent === '335Hxq21a…wA1vBq',
     'named contacts A–Z first, address-only after (spec §3a)');
   const pendingRow = rows.find((r) => r.dataset.pending !== undefined);
   ok(!!pendingRow && !!pendingRow.querySelector('.c-badge') && !pendingRow.disabled,

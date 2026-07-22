@@ -446,3 +446,7 @@ Spixi/Platforms/MacCatalyst/NativeLibraries/
 # session-sandbox delete-quarantine (Cowork VM cannot delete files; trash this folder manually)
 _to_delete/
 _to_delete_index.lock*
+
+# session-local diagnostics (Mac)
+_crash/
+ios-build.log

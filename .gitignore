@@ -442,3 +442,7 @@ Thumbs.db
 
 **/Properties/launchSettings.json
 Spixi/Platforms/MacCatalyst/NativeLibraries/
+
+# session-sandbox delete-quarantine (Cowork VM cannot delete files; trash this folder manually)
+_to_delete/
+_to_delete_index.lock*

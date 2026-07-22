@@ -58,3 +58,29 @@ dev's machine (not on nuget.org; csproj comment "use custom built RocksDB-Sharp"
 (full generator sequence must leave a clean git tree) → Safari pass over
 `src/demo/*.html` (Safari = WebKit = same engine family as WKWebView; cheap
 early warning for iOS-class CSS/JS quirks).
+
+## 2026-07-22 — session 2 (RocksDB nupkg lands · first iOS run)
+
+**Gate cleared:** `RocksDB.0.0.42.nupkg` arrived from the BE dev → committed to the
+repo-local feed (`local-nuget/`, sha512-verified, + `.gitignore` exception so it
+survives the blanket `*.nupkg` rule). Restore clean — the android/ios NU1603
+warning is GONE. Node 26.5.0 installed (owed item); full generator pipeline run on
+the Mac ends in a clean tree; smoke run caught one stale pre-#276 assertion →
+#279 fix pair (sort canon = display canon, `hasNick`). Artifacts rebuilt +
+committed (#273–#279) — the owed home-PC rebuild step is closed.
+
+**★ First-ever iOS run of the redesign.** `net10.0-ios` / `iossimulator-arm64`
+builds (RID-aware NativeReference picks the simulator xcframework slice; default
+Debug RID pinned to iossimulator-arm64). App installs + launches on the iPad Air
+11-inch (M4) simulator (iOS 26.5): splash → launch shell → Create-your-account,
+fonts/icons/gradients all render in WKWebView. **No RocksDbSharp TypeInitializer
+crash** — the custom wrapper + static xcframework path works on iOS, storage
+initializes. The `-t:Run` target needs the app pre-built once (mlaunch
+args-before-build quirk); plain `dotnet build` then `-t:Run` or `simctl
+install/launch` works.
+
+**Still open on this track:** iPhone-class simulator pass + Stage-4 first-run
+checklist (theme, Deutsch locale/dates, lock, feel) · Safari pass over
+`src/demo/*.html` · #273–#278 F5 visual checks (fold into sim/Windows passes) ·
+Opus #46 audit loop over #273–#279 (owed) · MacCatalyst still blocked on a
+Catalyst slice + wrapper support (optional ask #2).

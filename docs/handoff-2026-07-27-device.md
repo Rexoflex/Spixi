@@ -50,7 +50,11 @@ table (**iOS-26…iOS-31**). Everything is committed + pushed; Damir continues o
    side-inset suspect; measure in Inspector).
 6. **iOS-26 — groups back into contacts + people/groups filter** (Damir REVERTED the
    removal decision: history-delete orphans groups). Product batch row, not a quick fix.
-7. **Windows cross-checks still owed** (07-22 PC handoff is STILL live): F5 #273–#279
+7. **iOS-32 — thermals/battery (STANDING REQUIREMENT: parity with legacy Spixi is a
+   ship gate — Damir).** Measure before fixing: unplugged battery share → Release/AOT
+   build re-measure → only then profile tick loops / polling / background suspend.
+   Side-by-side against legacy from the App Store on the same phone.
+8. **Windows cross-checks still owed** (07-22 PC handoff is STILL live): F5 #273–#279
    + now #283's XPLAT rows (iOS-8/11 fix, iOS-16 ticks, iOS-17 media, iOS-19 stamp,
    iOS-24/25 deletes) on WebView2.
 

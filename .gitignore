@@ -450,3 +450,6 @@ _to_delete_index.lock*
 # session-local diagnostics (Mac)
 _crash/
 ios-build.log
+
+# throwaway Xcode signing project (2026-07-27 device bring-up)
+spixi-test/

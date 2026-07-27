@@ -1243,6 +1243,13 @@ namespace SPIXI
                 {
                     friend.metaData.unreadMessageCount = 0;
                     friend.saveMetaData();
+                    // iOS-8 (#283): announce the zeroed count to the chats list NOW.
+                    // updateMessageReadStatus pushes setContactStatus only when it marks a
+                    // markable message read — and it deliberately skips requestAdd — so a chat
+                    // whose unread consisted of a requestAdd (the accepted-request row) kept its
+                    // stale row/tab badge until the next structural flush (cross-platform, seen
+                    // on iOS + suspected on Windows). Display-only push; no message flags touched.
+                    UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.getUnreadMessageCount(), "", 0);
                 }
                 foreach (FriendMessage message in messages)
                 {

@@ -515,7 +515,12 @@
   /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
      green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
   --icon-bubble-read: var(--success-300);
-  --icon-bubble-delivered: var(--success-400); /* Damir: delivered = muted green vs read; light stays >=3:1 (#80 amended) */
+  /* iOS-16 (#283, amends #80): delivered was success-400 — one green shade off
+     read's success-300, indistinguishable at 16px on the vivid bubble (Damir:
+     "hard to tell states apart"). WhatsApp grammar instead: sent ✓ and
+     delivered ✓✓ share the NEUTRAL meta ink (shape carries the difference);
+     read ✓✓ ALONE goes green — color = "they've seen it", nothing else. */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
   --icon-bubble-failed: var(--error-200);
 
   /* icon */
@@ -681,7 +686,7 @@
   /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
      old 700/800 values were tuned for the pale primary-400 bubble). */
   --icon-bubble-read: var(--success-300);
-  --icon-bubble-delivered: var(--success-400);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta); /* iOS-16 (#283): neutral like sent — see light-mode note */
   --icon-bubble-failed: var(--error-200);
 
   /* icon */

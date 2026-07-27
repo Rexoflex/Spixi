@@ -522,7 +522,12 @@
   /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
      green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
   --icon-bubble-read: var(--success-300);
-  --icon-bubble-delivered: var(--success-400); /* Damir: delivered = muted green vs read; light stays >=3:1 (#80 amended) */
+  /* iOS-16 (#283, amends #80): delivered was success-400 — one green shade off
+     read's success-300, indistinguishable at 16px on the vivid bubble (Damir:
+     "hard to tell states apart"). WhatsApp grammar instead: sent ✓ and
+     delivered ✓✓ share the NEUTRAL meta ink (shape carries the difference);
+     read ✓✓ ALONE goes green — color = "they've seen it", nothing else. */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
   --icon-bubble-failed: var(--error-200);
 
   /* icon */
@@ -688,7 +693,7 @@
   /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
      old 700/800 values were tuned for the pale primary-400 bubble). */
   --icon-bubble-read: var(--success-300);
-  --icon-bubble-delivered: var(--success-400);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta); /* iOS-16 (#283): neutral like sent — see light-mode note */
   --icon-bubble-failed: var(--error-200);
 
   /* icon */
@@ -4408,6 +4413,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-bubble-row[data-direction="sent"] .c-mbubble {
   border: 2px solid var(--surface-bubble-sent);
 }
+
+/* iOS-17 (#283): the tile can now be NARROWER than the anchor (media-bubble.js
+   fitTile caps width at the natural/height-capped size — no more letterbox).
+   The anchor keeps its definite width (audit r4), so hug the tile to the row's
+   outer edge on the sent side; received stays at the inline start. The overlap
+   reaction pills already pin to the same edges (reactions.css inset-inline),
+   so they keep landing ON the tile. */
+.c-bubble-row[data-direction="sent"] .c-mbubble { margin-inline-start: auto; }
 
 </style><!-- GIF/image tiles (remote media URLs) -->
 <style data-src="../styles/components/media-viewer.css">
@@ -8761,7 +8774,26 @@ function createMediaBubble({
   el.type = 'button';
   el.className = 'c-mbubble';
   el.dataset.kind = kind;
-  if (width > 0 && height > 0) el.style.aspectRatio = width + ' / ' + height; // sanctioned: runtime geometry from sender dims
+
+  /* iOS-17 (#283): size the tile to the MEDIA, not the rail. Two "extra space"
+   * sources (Damir): a small GIF was upscaled to the full 320 bubble rail, and
+   * height-capped media (CSS max-height min(320,45vh)) kept the full rail width
+   * → object-fit:contain letterboxed the sides. Fix: alongside the aspect,
+   * cap the tile's WIDTH at (a) the natural/sender width — never upscale past
+   * 1:1 — and (b) the width the height cap allows at this aspect, so contain
+   * fills the tile edge-to-edge. `min(100%, Npx)`: the % arm resolves against
+   * the anchor's DEFINITE width (audit r4 — no cyclic %-vs-fit-content), the px
+   * arm is the media cap. Floor at the 96px min-height's worth of width so a
+   * tiny sticker still makes a tappable tile (CSS min-height parity). */
+  const fitTile = (w, h) => {
+    if (!(w > 0 && h > 0)) return;
+    const ar = Math.max(w / h, 0.75);          // portrait clamp (Damir F5 2026-07-08)
+    el.style.aspectRatio = String(ar);
+    const maxH = Math.min(320, Math.round((window.innerHeight || 640) * 0.45));
+    const wPx = Math.round(Math.min(Math.max(w, 96 * ar), maxH * ar));
+    el.style.width = 'min(100%, ' + wPx + 'px)';
+  };
+  if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
 
   if (preview) {
     const pv = document.createElement('img');
@@ -8820,9 +8852,8 @@ function createMediaBubble({
     // an unbounded tall aspect-ratio can defeat the CSS max-height on device
     // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
     // under the composer (Damir F5 2026-07-08).
-    if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      const ar = img.naturalWidth / img.naturalHeight;
-      el.style.aspectRatio = String(Math.max(ar, 0.75));
+    if (!(width > 0 && height > 0)) {
+      fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
     setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest
@@ -20984,12 +21015,30 @@ const ILLOS = {
     + '</svg>',
 };
 
-function illoSlot(name) {
+function illoSlot(name, src) {
   const slot = document.createElement('div');
   slot.className = 'c-launch__illo';
   slot.dataset.illo = name;                      // illustrations-plan naming
-  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
+  if (src) {
+    // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
+    // nudge + Account→Backup pane, images/backup.svg). Join-step <img> grammar;
+    // load error → the token-styled placeholder below, so a missing asset
+    // degrades to the old look, never a blank slot.
+    const img = document.createElement('img');
+    img.className = 'c-launch__illo-img';
+    img.src = src;
+    img.alt = '';                                // decorative — copy carries meaning
+    img.draggable = false;
+    img.addEventListener('error', () => {
+      img.remove();
+      slot.dataset.placeholder = 'true';
+      slot.innerHTML = ILLOS[name] || '';
+    }, { once: true });
+    slot.append(img);
+    return slot;
+  }
+  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.innerHTML = ILLOS[name] || '';
   return slot;
 }
@@ -21829,7 +21878,7 @@ function buildTail(st) {
   // the standing settings-row state takes over from there)
   const backupStep = document.createElement('div');
   backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup'));
+  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.svg'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
   bTitle.textContent = strings.backupHeadline || 'One file protects everything';
@@ -25135,6 +25184,49 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       if (input) input.focus();
     } catch (_) {}
   }
+
+  /* —— iOS-6 keyboard viewport (#283) ——————————————————————————————————————
+   * WKWebView does NOT resize the layout viewport when the soft keyboard shows —
+   * it PANS the document (programmatic scrollView contentOffset) to reveal the
+   * focused input, shoving the sticky topbar + secure notice above the screen
+   * top (ios-sim-findings iOS-6, post-#282 screenshot confirms the pan). The
+   * redesigned shell never inherited legacy chat.js's iosFixer, so nothing
+   * corrected it. Fix: while the keyboard is up, size <body> to
+   * visualViewport.height (the flex column then FITS the visible area — topbar
+   * stays, composer lifts above the keyboard) and undo the pan with
+   * window.scrollTo(0,0) — the reset the legacy iosFixer proved against
+   * WKWebView. No-op by construction wherever the keyboard already resizes the
+   * viewport (Android adjustResize, Windows WebView2 → delta ≈ 0) and skipped
+   * on desktop; guarded so a missing visualViewport (old engines) changes
+   * nothing. Keyboard-open threshold 60px separates real keyboards from
+   * browser-chrome/jitter resizes. */
+  (function keyboardViewport() {
+    const vv = window.visualViewport;
+    if (!vv || document.documentElement.hasAttribute('data-desktop')) return;
+    let kbOpen = false;
+    function apply() {
+      // innerHeight tracks the LAYOUT viewport (constant under WKWebView's
+      // keyboard); vv.height shrinks by the keyboard overlap.
+      const delta = window.innerHeight - vv.height;
+      const open = delta > 60;
+      const stick = nearBottom();          // read BEFORE the height change
+      if (open) {
+        document.body.style.height = Math.round(vv.height) + 'px';
+        kbOpen = true;
+      } else if (kbOpen) {
+        document.body.style.height = '';   // restore html/body 100%
+        kbOpen = false;
+      }
+      // undo WKWebView's focus pan (fires before AND after our resize — the
+      // vv 'scroll' listener below catches the late pan too)
+      if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
+      if (open && stick) box.scrollTop = box.scrollHeight;
+    }
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    // belt: any stray document pan while the keyboard is up gets reset
+    window.addEventListener('scroll', () => { if (kbOpen) window.scrollTo(0, 0); }, { passive: true });
+  })();
 
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it

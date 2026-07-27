@@ -117,8 +117,26 @@
 
   const root = document.getElementById('backup-root');
 
+  /* iOS-19 (#283): local backup stamp — the settings hub (settings.html, same
+   * file:// localStorage origin) reads this to retire the standing "Action
+   * needed" nudge. Marks the share-sheet LAUNCH (no completion signal exists —
+   * S2); timestamp only, no user data (#254 storage rule). */
+  const BACKUP_STAMP_KEY = 'spixi.backup.last';
+  function stampBackup() {
+    try { localStorage.setItem(BACKUP_STAMP_KEY, String(Date.now())); } catch (e) { /* private mode */ }
+  }
+  function backupStatus() {
+    try {
+      const t = Number(localStorage.getItem(BACKUP_STAMP_KEY));
+      if (t > 0) {
+        return { last: new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
+      }
+    } catch (e) { /* fall through */ }
+    return {};
+  }
+
   root.replaceChildren(createSettingsBackup({
-    status: {},                                  // S2: no backup-status push → standing "Action needed"
+    status: backupStatus(),                      // iOS-19 (#283): local stamp (was: standing "Action needed", S2)
     illustration: 'images/backup.svg',          // Damir: build-shells copies src/demo/images → …/html/images
     host: document.body,
     strings,
@@ -126,10 +144,10 @@
 
     // ixian:backupAccount — C# zips + encrypts (stored walletpass) + OS-shares.
     // No password arg, no completion callback → optimistic done (see realities #1/#2).
-    onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },
+    onBackup: (_payload, ctrl) => { stampBackup(); bridge.send('ixian:backupAccount'); ctrl.done(); },
 
     // ixian:backupWallet — raw wallet.ixi OS share. Same optimistic done.
-    onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
+    onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
   }));
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing

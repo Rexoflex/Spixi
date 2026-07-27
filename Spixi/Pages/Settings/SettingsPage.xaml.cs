@@ -76,7 +76,11 @@ namespace SPIXI
             // verbs are dispatched HERE (loadDownloads/openDownload/deleteDownload),
             // so the pane renders Downloads as a true hub SUBLEVEL instead of the
             // #265 full-window DownloadsPage takeover. Mobile keeps the takeover.
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline");
+            // iOS-20 (#283, S7 LANDED): + encpass — ixian:encpass is dispatched below
+            // (→ EncryptionPassword, the redesigned settings_encryption.html lock
+            // shell), so the hub shows the Change-wallet-password row. An old exe
+            // never pushes the cap → the row stays hidden (no dead tap).
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass");
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -168,6 +172,14 @@ namespace SPIXI
             else if (current_url.Equals("ixian:deleted", StringComparison.Ordinal))
             {
                 onDeleteDownloads();
+            }
+            else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
+            {
+                // iOS-20 (#283, S7 LANDED): Change wallet password from the Account hub —
+                // the redesigned settings_encryption.html shell on EncryptionPassword
+                // (HomePage:517 precedent). Backup's presentation grammar: pinned to the
+                // detail column while the Account is a pane, full takeover on mobile.
+                pushPageLoaded(new EncryptionPassword(), 4000, null, paneMode ? 1 : -1);   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
@@ -514,6 +526,12 @@ namespace SPIXI
         public void onDeleteHistory()
         {
             FriendList.deleteEntireHistory();
+            // iOS-25 (#283): nothing flagged the chats list dirty — the wiped rows stayed
+            // painted until some OTHER event set shouldRefreshContacts, so returning to
+            // Chats briefly (sometimes longer) showed dead conversations. Flag it now:
+            // the first HomePage updateScreen tick after this re-flushes, and rows whose
+            // history is gone drop out (getFriendMessageHelper returns null on empty).
+            UIHelpers.shouldRefreshContacts = true;
             displaySpixiAlert(SpixiLocalization._SL("settings-deletedh-title"), SpixiLocalization._SL("settings-deletedh-text"), SpixiLocalization._SL("global-dialog-ok"));
         }
 

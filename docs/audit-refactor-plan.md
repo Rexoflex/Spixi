@@ -152,6 +152,17 @@ Per issue, in this order:
 
 ---
 
+## 6b. Pre-seeded inventory rows (found before the audit started)
+
+These go straight into the phase-3 inventory when it opens — logged here so they
+don't get lost in the meantime. Same rules apply (characterize first, #46 loop).
+
+| ID | Category | What | Why | Impact | Effort | Notes |
+|---|---|---|---|---|---|---|
+| PRE-1 | Duplicated payload / size | **De-dupe the inlined component bundle across shells.** Every one of the 17 shells inlines the full ~700 KB `spixi.iife.js` (+ fonts/icons) → `Resources/Raw/html` = 38 MB, ~20 MB of it the same bytes 17×. Legacy assets were ~6 MB total. Fix: shells load ONE co-located `<script src="js/spixi.iife.js">` (the #203 `html5-qrcode` precedent); `build-shells.mjs` keeps everything else inlined. | −20 MB installed on every platform; likely FASTER boot (WebKit's bytecode cache reuses a same-URL script across WebViews; 17 distinct inline copies re-parse on every page load) | HIGH | M | **Flicker-safe by construction (Damir asked 2026-07-27):** the ready signal is tied to window `load` (#177), which waits for external scripts — C# still presents only fully-built pages. ★ Constraints: (1) the tiny PRE-PAINT inline snippets stay inline (theme/instant-bg, `data-desktop`, chat-pattern boot — the #227/#228/#259 flash class); (2) fail-LOUD boot guard — a missing/renamed bundle file must show a visible error, not a blank shell (extends the #258 preflight to runtime); (3) `*SL{}` carriers + per-shell inline logic untouched — ONLY the shared bundle externalizes; (4) mini-app WebViews must not gain reach they don't have today (a co-located script is already `file://`-readable — no change, but state it in the phase-2 security pass). Accepted cost: a shell file stops being a self-contained inspectable artifact. |
+
+---
+
 ## 7. Deliverables checklist
 
 - [ ] `docs/audit/architecture-map.md` (phase 1) — **Damir approves before phase 2**

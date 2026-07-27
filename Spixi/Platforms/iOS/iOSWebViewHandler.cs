@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using Microsoft.Maui.ApplicationModel;   // MainThread + Browser (iOS-10 handoff)
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using UIKit;
@@ -23,6 +24,22 @@ namespace Spixi.Platforms.iOS
                 if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                     url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
+                    // iOS-10 (#283): http/https NEVER loads in-WebView (unchanged invariant),
+                    // but a REAL link tap now hands off to the OS browser — parity with
+                    // Windows/redesigned flows, which route external links through
+                    // Browser.OpenAsync (ixian:openLink / HomePage guide-about links).
+                    // Gated on LinkActivated: only a user-gesture anchor tap qualifies —
+                    // programmatic redirects, scripted location changes and subframe loads
+                    // stay Cancel-blocked with no handoff (no silent IP-leak vector).
+                    if (navigationAction.NavigationType == WKNavigationType.LinkActivated)
+                    {
+                        var external = url;
+                        MainThread.BeginInvokeOnMainThread(async () =>
+                        {
+                            try { await Browser.Default.OpenAsync(new Uri(external)); }
+                            catch (Exception oex) { IXICore.Meta.Logging.error("Browser handoff failed for '{0}': {1}", external, oex); }
+                        });
+                    }
                     decisionHandler(WKNavigationActionPolicy.Cancel);
                     return;
                 }

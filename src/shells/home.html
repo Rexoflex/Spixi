@@ -101,9 +101,12 @@
   #placeholder-view { align-items: center; justify-content: center; text-align: center; padding: var(--spacing-24); }
   .placeholder__title { color: var(--text-neutral-01); margin-bottom: var(--spacing-8); }
   .placeholder__note { color: var(--text-neutral-02); max-width: 32ch; }
-  /* FAB — overlays the scroll region, sits above the bottom nav */
+  /* FAB — overlays the scroll region, sits above the bottom nav.
+     iOS-12 (#283): c-bottomnav GREW by env(safe-area-inset-bottom) in #282
+     (edge-to-edge) but this offset didn't — the FAB sat half-behind the nav.
+     Add the same inset; env() = 0 on Windows/Android/desktop. */
   .fab {
-    position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+    position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16) + env(safe-area-inset-bottom, 0px));
     width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
     background: var(--surface-action-default); color: var(--text-neutral-on-action);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -577,6 +580,16 @@
    * excerpt — so the reaction excerpt is remembered here and re-applied on addChat
    * until the chat is read (unread 0) or a newer real message lands. */
   const reactionExcerpts = new Map();
+  /* iOS-11 (#283): the Chats tab badge is FE-computed (onModelChange overwrites
+   * every setUnreadIndicator push at flush end) — but chatsUnreadTotal() reads
+   * CHAT ROWS only, and a pending contact request is routed OUT of the chat rows
+   * into the requests feed (CH2b). Net effect: an incoming request raised NO tab
+   * badge (C#'s total, which counts the request friend, was pushed and then
+   * immediately overwritten by the FE recompute). Count pending requests in —
+   * each pending card = 1, the same weight the Requests chip gives it.
+   * (Defined BEFORE opts: createChatsList may fire onModelChange synchronously.) */
+  const navUnreadTotal = () => chatsUnreadTotal(state.chats)
+    + (state.requests || []).filter(Boolean).length;
   const opts = {
     strings,
     host: document.body,
@@ -659,7 +672,7 @@
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete/mark-read never leaves a stale chip count.
-    onModelChange: (s) => { setNavBadge(nav, 'chats', chatsUnreadTotal(s.chats)); setChatsHeaderCounts(header, chatsHeaderCounts()); },
+    onModelChange: () => { setNavBadge(nav, 'chats', navUnreadTotal()); setChatsHeaderCounts(header, chatsHeaderCounts()); },
   };
 
   const scroller = document.getElementById('chat-scroll');
@@ -678,7 +691,7 @@
   document.getElementById('chats-header').append(header);
   attachChatsCollapse(header, scroller);
 
-  setNavBadge(nav, 'chats', chatsUnreadTotal(state.chats));
+  setNavBadge(nav, 'chats', navUnreadTotal());
 
   /* —— chats render pipeline ————————————————————————————————————————————————
    * C# drives the list two ways:
@@ -1182,10 +1195,16 @@
     // HomePage:473 `ixian:txdetails:<txid>` routes wide → WalletSentPage in the
     // rightContent pane (+ a selectTx echo this shell already renders) / narrow →
     // a pushed page. Fee + address + live confirmation live THERE (data the
-    // addPaymentActivity row push doesn't carry) → the partial in-page sheet is
-    // demo-only now (wallet-shell.js keeps it when onTx is absent, and for the
-    // rare txid-less row). Makes be-cutover W2–W4 optional.
-    onTx: (tx) => bridge.send('ixian:txdetails:' + tx.txid),
+    // addPaymentActivity row push doesn't carry).
+    // iOS-13 (#283): DESKTOP ONLY — B3 unconditionally rerouted the tap and
+    // silently replaced MOBILE's built in-page bottom sheet with a full pushed
+    // page (Damir: regression, the sheet is the intended mobile presentation).
+    // Omitting onTx restores it: wallet-shell.js opens the sheet when onTx is
+    // absent. Trade-off (accepted): the mobile sheet shows the row's partial
+    // data (no fee/address — addPaymentActivity doesn't carry them, W2–W4).
+    ...(document.documentElement.hasAttribute('data-desktop')
+      ? { onTx: (tx) => bridge.send('ixian:txdetails:' + tx.txid) }
+      : {}),
   };
 
   /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
@@ -1744,7 +1763,11 @@
       scheduleChatsRender();
     },
 
-    // Chats nav badge — C# already computes the unread total (#42 semantics).
+    // Chats nav badge — C#'s total (#42 semantics). Only pushed inside loadChats
+    // (before clearChats), and the flush's final render → onModelChange →
+    // navUnreadTotal() overwrites it — so this is a transient early paint, not
+    // the source of truth (iOS-11 note at navUnreadTotal). Kept: it bridges the
+    // gap between flush start and clearChatsDone on a slow flush.
     setUnreadIndicator(n) {
       setNavBadge(nav, 'chats', Number(n) || 0);
     },

@@ -130,3 +130,11 @@
 .c-bubble-row[data-direction="sent"] .c-mbubble {
   border: 2px solid var(--surface-bubble-sent);
 }
+
+/* iOS-17 (#283): the tile can now be NARROWER than the anchor (media-bubble.js
+   fitTile caps width at the natural/height-capped size — no more letterbox).
+   The anchor keeps its definite width (audit r4), so hug the tile to the row's
+   outer edge on the sent side; received stays at the inline start. The overlap
+   reaction pills already pin to the same edges (reactions.css inset-inline),
+   so they keep landing ON the tile. */
+.c-bubble-row[data-direction="sent"] .c-mbubble { margin-inline-start: auto; }

@@ -98,12 +98,30 @@ const ILLOS = {
     + '</svg>',
 };
 
-function illoSlot(name) {
+function illoSlot(name, src) {
   const slot = document.createElement('div');
   slot.className = 'c-launch__illo';
   slot.dataset.illo = name;                      // illustrations-plan naming
-  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
+  if (src) {
+    // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
+    // nudge + Account→Backup pane, images/backup.svg). Join-step <img> grammar;
+    // load error → the token-styled placeholder below, so a missing asset
+    // degrades to the old look, never a blank slot.
+    const img = document.createElement('img');
+    img.className = 'c-launch__illo-img';
+    img.src = src;
+    img.alt = '';                                // decorative — copy carries meaning
+    img.draggable = false;
+    img.addEventListener('error', () => {
+      img.remove();
+      slot.dataset.placeholder = 'true';
+      slot.innerHTML = ILLOS[name] || '';
+    }, { once: true });
+    slot.append(img);
+    return slot;
+  }
+  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.innerHTML = ILLOS[name] || '';
   return slot;
 }
@@ -943,7 +961,7 @@ function buildTail(st) {
   // the standing settings-row state takes over from there)
   const backupStep = document.createElement('div');
   backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup'));
+  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.svg'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
   bTitle.textContent = strings.backupHeadline || 'One file protects everything';

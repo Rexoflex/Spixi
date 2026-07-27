@@ -340,6 +340,16 @@ namespace SPIXI
             if(friend.deleteHistory())
             {
                 UIHelpers.shouldRefreshContacts = true;
+                // iOS-24 (#283): the OPEN conversation kept rendering the wiped history —
+                // deleteHistory() clears storage + the in-memory list but the chat WebView's
+                // DOM was never told, so the messages only disappeared on the next chat
+                // entry (loadMessages). Re-render the live chat page now: clearMessages +
+                // the (empty) reload paints the emptied conversation immediately.
+                var chat_page = Utils.getChatPage(friend);
+                if (chat_page != null)
+                {
+                    chat_page.loadMessages();
+                }
                 displaySpixiAlert(SpixiLocalization._SL("contact-details-deletedhistory-title"), SpixiLocalization._SL("contact-details-deletedhistory-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
         }

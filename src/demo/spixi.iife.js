@@ -3845,7 +3845,26 @@ function createMediaBubble({
   el.type = 'button';
   el.className = 'c-mbubble';
   el.dataset.kind = kind;
-  if (width > 0 && height > 0) el.style.aspectRatio = width + ' / ' + height; // sanctioned: runtime geometry from sender dims
+
+  /* iOS-17 (#283): size the tile to the MEDIA, not the rail. Two "extra space"
+   * sources (Damir): a small GIF was upscaled to the full 320 bubble rail, and
+   * height-capped media (CSS max-height min(320,45vh)) kept the full rail width
+   * → object-fit:contain letterboxed the sides. Fix: alongside the aspect,
+   * cap the tile's WIDTH at (a) the natural/sender width — never upscale past
+   * 1:1 — and (b) the width the height cap allows at this aspect, so contain
+   * fills the tile edge-to-edge. `min(100%, Npx)`: the % arm resolves against
+   * the anchor's DEFINITE width (audit r4 — no cyclic %-vs-fit-content), the px
+   * arm is the media cap. Floor at the 96px min-height's worth of width so a
+   * tiny sticker still makes a tappable tile (CSS min-height parity). */
+  const fitTile = (w, h) => {
+    if (!(w > 0 && h > 0)) return;
+    const ar = Math.max(w / h, 0.75);          // portrait clamp (Damir F5 2026-07-08)
+    el.style.aspectRatio = String(ar);
+    const maxH = Math.min(320, Math.round((window.innerHeight || 640) * 0.45));
+    const wPx = Math.round(Math.min(Math.max(w, 96 * ar), maxH * ar));
+    el.style.width = 'min(100%, ' + wPx + 'px)';
+  };
+  if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
 
   if (preview) {
     const pv = document.createElement('img');
@@ -3904,9 +3923,8 @@ function createMediaBubble({
     // an unbounded tall aspect-ratio can defeat the CSS max-height on device
     // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
     // under the composer (Damir F5 2026-07-08).
-    if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      const ar = img.naturalWidth / img.naturalHeight;
-      el.style.aspectRatio = String(Math.max(ar, 0.75));
+    if (!(width > 0 && height > 0)) {
+      fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
     setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest
@@ -16068,12 +16086,30 @@ const ILLOS = {
     + '</svg>',
 };
 
-function illoSlot(name) {
+function illoSlot(name, src) {
   const slot = document.createElement('div');
   slot.className = 'c-launch__illo';
   slot.dataset.illo = name;                      // illustrations-plan naming
-  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
+  if (src) {
+    // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
+    // nudge + Account→Backup pane, images/backup.svg). Join-step <img> grammar;
+    // load error → the token-styled placeholder below, so a missing asset
+    // degrades to the old look, never a blank slot.
+    const img = document.createElement('img');
+    img.className = 'c-launch__illo-img';
+    img.src = src;
+    img.alt = '';                                // decorative — copy carries meaning
+    img.draggable = false;
+    img.addEventListener('error', () => {
+      img.remove();
+      slot.dataset.placeholder = 'true';
+      slot.innerHTML = ILLOS[name] || '';
+    }, { once: true });
+    slot.append(img);
+    return slot;
+  }
+  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
   slot.innerHTML = ILLOS[name] || '';
   return slot;
 }
@@ -16913,7 +16949,7 @@ function buildTail(st) {
   // the standing settings-row state takes over from there)
   const backupStep = document.createElement('div');
   backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup'));
+  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.svg'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
   bTitle.textContent = strings.backupHeadline || 'One file protects everything';

@@ -63,7 +63,26 @@ export function createMediaBubble({
   el.type = 'button';
   el.className = 'c-mbubble';
   el.dataset.kind = kind;
-  if (width > 0 && height > 0) el.style.aspectRatio = width + ' / ' + height; // sanctioned: runtime geometry from sender dims
+
+  /* iOS-17 (#283): size the tile to the MEDIA, not the rail. Two "extra space"
+   * sources (Damir): a small GIF was upscaled to the full 320 bubble rail, and
+   * height-capped media (CSS max-height min(320,45vh)) kept the full rail width
+   * → object-fit:contain letterboxed the sides. Fix: alongside the aspect,
+   * cap the tile's WIDTH at (a) the natural/sender width — never upscale past
+   * 1:1 — and (b) the width the height cap allows at this aspect, so contain
+   * fills the tile edge-to-edge. `min(100%, Npx)`: the % arm resolves against
+   * the anchor's DEFINITE width (audit r4 — no cyclic %-vs-fit-content), the px
+   * arm is the media cap. Floor at the 96px min-height's worth of width so a
+   * tiny sticker still makes a tappable tile (CSS min-height parity). */
+  const fitTile = (w, h) => {
+    if (!(w > 0 && h > 0)) return;
+    const ar = Math.max(w / h, 0.75);          // portrait clamp (Damir F5 2026-07-08)
+    el.style.aspectRatio = String(ar);
+    const maxH = Math.min(320, Math.round((window.innerHeight || 640) * 0.45));
+    const wPx = Math.round(Math.min(Math.max(w, 96 * ar), maxH * ar));
+    el.style.width = 'min(100%, ' + wPx + 'px)';
+  };
+  if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
 
   if (preview) {
     const pv = document.createElement('img');
@@ -122,9 +141,8 @@ export function createMediaBubble({
     // an unbounded tall aspect-ratio can defeat the CSS max-height on device
     // WebViews (flex-item auto-min-size vs aspect-ratio) → the tile grew half
     // under the composer (Damir F5 2026-07-08).
-    if (!(width > 0 && height > 0) && img.naturalWidth && img.naturalHeight) {
-      const ar = img.naturalWidth / img.naturalHeight;
-      el.style.aspectRatio = String(Math.max(ar, 0.75));
+    if (!(width > 0 && height > 0)) {
+      fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
     setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest

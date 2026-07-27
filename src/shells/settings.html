@@ -410,6 +410,48 @@
       return (o && o.v === 'language' && o.t && Date.now() - o.t < 15000) ? o.v : null;
     } catch (e) { return null; }
   }
+  /* iOS-19 (#283) — backup status via a LOCAL stamp. There is still no C#
+   * backup-status push (S2), so the hub's Backup row showed "Action needed"
+   * FOREVER, even right after a successful backup (Damir: "remove it or fix
+   * it"). Interim zero-C# fix: stamp localStorage when a backup share is
+   * fired — from the inline pane sublevel here AND from the standalone
+   * settings_backup.html shell (same file:// localStorage origin). Honest
+   * caveat (accepted): the stamp marks the share-sheet LAUNCH — a user who
+   * cancels the share sheet still clears the nudge until S2 lands with the
+   * real signal. The stamp carries a timestamp only (no addresses/content —
+   * #254 storage-partition rule). dirtyCount stays 0 (unknowable FE-side). */
+  const BACKUP_STAMP_KEY = 'spixi.backup.last';
+  function stampBackup() {
+    try {
+      const v = String(Date.now());
+      localStorage.setItem(BACKUP_STAMP_KEY, v);
+      seenBackupStamp = v;                   // our own write — don't re-fire on focus
+    } catch (e) { /* private mode */ }
+    scheduleRebuild();                       // hub Backup row re-derives its status
+  }
+  // Mobile path: the stamp is written by the standalone settings_backup.html shell
+  // (BackupPage takeover, its own WebView) — the storage event + a focus fallback
+  // (the #238 landtab grammar; WKWebView doesn't reliably fire cross-WebView
+  // storage events) refresh this hub when it comes back into view. Guarded on an
+  // ACTUAL stamp change so a mere focus never rebuilds under a mid-edit nickname.
+  let seenBackupStamp = (() => { try { return localStorage.getItem(BACKUP_STAMP_KEY); } catch (e) { return null; } })();
+  function refreshBackupStampIfChanged() {
+    let cur = null;
+    try { cur = localStorage.getItem(BACKUP_STAMP_KEY); } catch (e) { return; }
+    if (cur !== seenBackupStamp) { seenBackupStamp = cur; scheduleRebuild(); }
+  }
+  window.addEventListener('storage', (e) => { if (e.key === BACKUP_STAMP_KEY) refreshBackupStampIfChanged(); });
+  window.addEventListener('focus', refreshBackupStampIfChanged);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshBackupStampIfChanged(); });
+  function backupStatus() {
+    try {
+      const t = Number(localStorage.getItem(BACKUP_STAMP_KEY));
+      if (t > 0) {
+        return { last: new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
+      }
+    } catch (e) { /* fall through */ }
+    return {};
+  }
   let hubEl = null, currentView = 'hub';
   currentView = takeResumeView() || 'hub';
 
@@ -481,9 +523,9 @@
       languages: langList(state.language),   // A4: + the fallback row when the OS put us on a hidden locale
       language: state.language,
       lockEnabled: state.lockEnabled,
-      backup: {},                  // S2: no backup-status signal → standing "Action needed" nudge (spec §8-1)
+      backup: backupStatus(),      // iOS-19 (#283): local stamp — see backupStatus()
       version: appVersion,         // S4: setVersion push → hub Version row (spec §8-3)
-      // Gates: dev/change-password + notifications/privacy/security/payment rows
+      // Gates: dev + notifications/privacy/security/payment rows
       // stay OFF (no SettingsPage verb — be-cutover S-series).
       // Contributors UN-GATED (#240): the screen is STATIC component data — the
       // S10 open-verb was only ever needed to reach the separate ContributorsPage,
@@ -491,7 +533,11 @@
       // Downloads UN-GATED (#264, S8 LANDED): SettingsPage now dispatches
       // ixian:downloads → the redesigned DownloadsPage/downloads.html shell,
       // presented like Backup (pane: pinned to the detail column; else takeover).
-      capabilities: { contributors: true, downloads: true },
+      // Change password UN-GATED behind the C# cap (iOS-20 #283, S7 LANDED):
+      // SettingsPage pushes setCaps(...'encpass') + dispatches ixian:encpass →
+      // EncryptionPassword (the redesigned lock shell). Old exe: cap absent →
+      // row hidden, exactly as before.
+      capabilities: { contributors: true, downloads: true, changePassword: bridge.cap('encpass') },
       // Q1-② (#267, S16 option a): in the PANE, Downloads is a true in-hub
       // SUBLEVEL — the list/open/delete verbs are routed through SettingsPage
       // (cap 'downloadsInline'), no second WebView, no pane-stacking (the #264
@@ -748,15 +794,15 @@
       // forwarding the two verbs (cap 'backupInline'; the flow is fire-and-forget,
       // C# owns file paths + the share sheet — S12/S2 notes apply unchanged).
       case 'backup': return createSettingsBackup({
-        status: {},                          // S2: no backup-status push → conservative default
+        status: backupStatus(),              // iOS-19 (#283): local stamp (see backupStatus)
         host: document.body,
         // #245b (Damir): the ONE backup illustration everywhere — same asset the
         // create-account/onboarding tail + backup nudge use (build-shells copies
         // src/demo/images → html/images; fail-soft to the shield placeholder).
         illustration: 'images/backup.svg',
         onBack: showHub,
-        onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },
-        onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
+        onBackup: (_payload, ctrl) => { stampBackup(); bridge.send('ixian:backupAccount'); ctrl.done(); },
+        onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
         strings,
       });
       // Q1-② (#267, S16a): Downloads as a pane sublevel — the SAME
@@ -935,6 +981,10 @@
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
+      // iOS-20 (#283): the hub's Change-password row visibility reads
+      // bridge.cap('encpass') at BUILD time — if the hub happened to render
+      // before this push landed (boot ordering), rebuild so the row appears.
+      scheduleRebuild();
     },
 
     // Q1-② (#267): downloads list pushed by SettingsPage itself (ixian:loadDownloads

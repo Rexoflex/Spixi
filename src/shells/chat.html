@@ -2989,6 +2989,49 @@
     } catch (_) {}
   }
 
+  /* —— iOS-6 keyboard viewport (#283) ——————————————————————————————————————
+   * WKWebView does NOT resize the layout viewport when the soft keyboard shows —
+   * it PANS the document (programmatic scrollView contentOffset) to reveal the
+   * focused input, shoving the sticky topbar + secure notice above the screen
+   * top (ios-sim-findings iOS-6, post-#282 screenshot confirms the pan). The
+   * redesigned shell never inherited legacy chat.js's iosFixer, so nothing
+   * corrected it. Fix: while the keyboard is up, size <body> to
+   * visualViewport.height (the flex column then FITS the visible area — topbar
+   * stays, composer lifts above the keyboard) and undo the pan with
+   * window.scrollTo(0,0) — the reset the legacy iosFixer proved against
+   * WKWebView. No-op by construction wherever the keyboard already resizes the
+   * viewport (Android adjustResize, Windows WebView2 → delta ≈ 0) and skipped
+   * on desktop; guarded so a missing visualViewport (old engines) changes
+   * nothing. Keyboard-open threshold 60px separates real keyboards from
+   * browser-chrome/jitter resizes. */
+  (function keyboardViewport() {
+    const vv = window.visualViewport;
+    if (!vv || document.documentElement.hasAttribute('data-desktop')) return;
+    let kbOpen = false;
+    function apply() {
+      // innerHeight tracks the LAYOUT viewport (constant under WKWebView's
+      // keyboard); vv.height shrinks by the keyboard overlap.
+      const delta = window.innerHeight - vv.height;
+      const open = delta > 60;
+      const stick = nearBottom();          // read BEFORE the height change
+      if (open) {
+        document.body.style.height = Math.round(vv.height) + 'px';
+        kbOpen = true;
+      } else if (kbOpen) {
+        document.body.style.height = '';   // restore html/body 100%
+        kbOpen = false;
+      }
+      // undo WKWebView's focus pan (fires before AND after our resize — the
+      // vv 'scroll' listener below catches the late pan too)
+      if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
+      if (open && stick) box.scrollTop = box.scrollHeight;
+    }
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    // belt: any stray document pan while the keyboard is up gets reset
+    window.addEventListener('scroll', () => { if (kbOpen) window.scrollTo(0, 0); }, { passive: true });
+  })();
+
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it
    *    synchronously during parse raced C#'s conversation push: the first entry

@@ -587,7 +587,22 @@ namespace SPIXI
                 if (mode == "bar")
                 {
                     stage.VerticalOptions = LayoutOptions.Start;
-                    stage.HeightRequest = barHeightDip;
+                    double stripHeight = barHeightDip;
+#if IOS
+                    // iOS edge-to-edge: the host grid now starts at the SCREEN top (the
+                    // native inset padding is gone) — grow the strip by the status-bar
+                    // inset so the 64dip content row lands below it. call.html mirrors
+                    // this with padding-top: env(safe-area-inset-top) on the bar.
+                    var win = UIKit.UIApplication.SharedApplication.ConnectedScenes
+                        .OfType<UIKit.UIWindowScene>()
+                        .SelectMany(s => s.Windows)
+                        .FirstOrDefault(w => w.IsKeyWindow);
+                    if (win != null)
+                    {
+                        stripHeight += win.SafeAreaInsets.Top;
+                    }
+#endif
+                    stage.HeightRequest = stripHeight;
                 }
                 else
                 {

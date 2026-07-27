@@ -41,7 +41,12 @@
      strip reads as a shelf over whatever pane sits beneath the native stage. */
   body[data-mode="bar"] .c-callbar {
     position: fixed; top: 0; left: 0; right: 0;
-    height: var(--call-bar-h);
+    /* iOS edge-to-edge: the strip's native stage starts at the SCREEN top, so the
+       bar surface paints under the status bar and the content row sits below it
+       (CallPage grows the stage by the same inset — barHeightDip + safe top).
+       env() = 0 on Windows/Android, where the stage keeps its 64dip. */
+    height: calc(var(--call-bar-h) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
     box-sizing: border-box;
     border-bottom: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
   }

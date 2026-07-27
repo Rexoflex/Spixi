@@ -32,7 +32,10 @@ namespace SPIXI
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
             webView.Opacity = 0;
-            Content.BackgroundColor = ThemeManager.getBackgroundColor();
+            // #259 redesigned shell (instant-bg = --surface-screen): the pre-paint
+            // backing must match it, not the legacy launch-blue (N1/N3 class; fixed
+            // with the edge-to-edge batch alongside the stale surfaceColorFor entry).
+            Content.BackgroundColor = ThemeManager.getSurfaceColor();
 
             transaction = tx;
 

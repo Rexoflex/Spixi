@@ -33,8 +33,10 @@
   /* gradient inherited from .c-launch now (one continuous surface) */
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-16);
   /* #160b⑧ precedent: the gradient bleeds under the OS statusbar (LaunchPage
-     owns the whole screen) — content stays clear of the inset, paint doesn't */
+     owns the whole screen) — content stays clear of the inset, paint doesn't.
+     Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
   padding-top: max(var(--spacing-16), env(safe-area-inset-top));
+  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */
 .c-launch__top {
@@ -275,6 +277,8 @@
   flex-direction: column;
   gap: var(--spacing-12);
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
+  /* commit CTA clears the iOS home indicator (edge-to-edge; env = 0 elsewhere) */
+  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
 }
 /* consent line sits directly above the commit button (create/restore) */
 .c-launch__footer .c-launch__fineprint { padding-top: 0; }
@@ -421,6 +425,9 @@
   flex-direction: column;
   overflow-y: auto;
   padding: var(--spacing-24);
+  /* onboarding CTAs clear the iOS home indicator (top inset is handled by the
+     shell's #launch-root .c-launch__tail padding-top rule) */
+  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
 }
 .c-launch__tail-step {
   margin: auto 0;                   /* vertical centering that still scrolls short */

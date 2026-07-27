@@ -13,8 +13,10 @@
   background: var(--gradient-lock);
   padding: var(--spacing-24);
   /* #160b⑧: the gradient BLEEDS under the OS statusbar (LockPage owns the
-     whole screen) — content stays clear of the notch/inset, paint doesn't */
+     whole screen) — content stays clear of the notch/inset, paint doesn't.
+     Bottom: the hatch/cancel footer clears the home indicator the same way. */
   padding-top: max(var(--spacing-24), env(safe-area-inset-top));
+  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
 }
 /* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
    cluster lands in the lower half (form top ≈ 63% of free space with the

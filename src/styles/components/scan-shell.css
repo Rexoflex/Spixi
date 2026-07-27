@@ -47,7 +47,8 @@
 .c-scan__hint {
   position: absolute;
   inset-inline: var(--spacing-24);
-  bottom: var(--spacing-24);
+  /* + home-indicator inset on iOS (edge-to-edge; the camera bed bleeds under it) */
+  bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
   margin: 0;
   text-align: center;
   color: #ffffff;                   /* sanctioned: on-camera ink */
@@ -58,7 +59,7 @@
 /* torch toggle — translucent chip on the feed; pressed = lit */
 .c-scan__torch {
   position: absolute;
-  bottom: calc(var(--spacing-24) + 40px); /* sanctioned: clears the hint line */
+  bottom: calc(var(--spacing-24) + 40px + env(safe-area-inset-bottom, 0px)); /* sanctioned: clears the hint line (+iOS inset with it) */
   inset-inline: 0;
   margin-inline: auto;              /* symmetric center — RTL-safe, no transform */
   width: 48px;                      /* sanctioned: touch target */

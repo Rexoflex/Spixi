@@ -64,10 +64,12 @@ namespace SPIXI
                 case "wallet_recipient.html":
                 case "wallet_request.html":
                 case "wallet_send_2.html":
-                case "wallet_sent.html":
                 case "wallet_contact_request.html":
                 case "address.html":
                     return ThemeManager.getBackgroundColor();
+                // wallet_sent.html left this list at #259 (B3 redesigned shell,
+                // instant-bg = --surface-screen) — stale legacy-blue entry fixed with
+                // the edge-to-edge batch (pre-paint frame now matches the shell).
                 default:
                     return ThemeManager.getSurfaceColor();
             }
@@ -186,6 +188,30 @@ namespace SPIXI
             }
         }
 
+        // The REMAINING legacy pages (Raw/html files with NO viewport-fit=cover meta and
+        // no env(safe-area-inset-*) CSS). These keep the historical native inset padding
+        // on iOS — dropping it would slide their content under the notch. Every
+        // redesigned shell handles the insets itself (edge-to-edge, iOS-1/3/4).
+        // Keep this list in sync with the viewport-fit=cover detector:
+        //   for f in Spixi/Resources/Raw/html/*.html; do grep -L 'viewport-fit=cover' $f; done
+        private static bool hasLegacyPageChrome(string html_file_name)
+        {
+            switch (html_file_name)
+            {
+                case "address.html":
+                case "apps.html":
+                case "settings_lock.html":
+                case "wallet_contact_request.html":
+                case "wallet_recipient.html":
+                case "wallet_request.html":
+                case "wallet_send.html":
+                case "wallet_send_2.html":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         // Platform page chrome (safe-area padding + themed page background). Called at
         // the historical point (webViewNavigated → checkIfPageLoaded) AND re-applied
         // after a load-then-move present: for a preloaded page the historical call runs
@@ -194,10 +220,21 @@ namespace SPIXI
         internal void applyPlatformPageChrome()
         {
 #if IOS || MACCATALYST
-            var insets = this.On<iOS>().SafeAreaInsets();
-
-            // Apply padding to the page itself
-            this.Padding = new Thickness(0, insets.Top, 0, 10);
+            // iOS-1/3/4 edge-to-edge: redesigned shells draw under the status bar + home
+            // indicator (viewport-fit=cover is in every shell; fixed chrome pads itself
+            // via env(safe-area-inset-*), which WKWebView populates live per WebView —
+            // including after a load-then-move present, with no M2-style re-read race).
+            // The themed page background stays: it is the pre-paint frame (N1/N3) and
+            // the transition/keyboard backing. Legacy pages keep the native inset.
+            if (hasLegacyPageChrome(loadedHtmlFileName ?? ""))
+            {
+                var insets = this.On<iOS>().SafeAreaInsets();
+                this.Padding = new Thickness(0, insets.Top, 0, 10);
+            }
+            else
+            {
+                this.Padding = new Thickness(0);
+            }
 
             this.BackgroundColor = pageSurfaceColor;
 #endif

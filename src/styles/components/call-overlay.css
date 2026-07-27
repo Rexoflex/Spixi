@@ -10,6 +10,10 @@
   flex-direction: column;
   align-items: center;
   padding-inline: var(--spacing-24);
+  /* iOS edge-to-edge: the full-window ring (CallPage) bleeds under the status bar +
+     home indicator — keep identity/actions clear of both. env() = 0 elsewhere. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface-scrim); /* + overlay scrim ⇒ near-black stage */
 }
 

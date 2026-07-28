@@ -3588,8 +3588,9 @@ console.log('#275 composer lock (legacy states) · #276 address-truncation sweep
   const home276 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
   ok(/const cpIsAddr = looksLikeAddress\(cp\);/.test(home276)
     && /const cpDisplay = cpIsAddr \? truncateAddressMiddle\(cp\) : cp;/.test(home276)
-    && /address: cpIsAddr \? cp : ''/.test(home276),
-    '#276: wallet tx rows truncate an address-shaped counterparty (raw kept for search)');
+    && /address: walletHidden \? '' : \(cpIsAddr \? cp : ''\)/.test(home276)
+    && /tx\.address = walletHidden \? '' : \(tx\._raw\.address \|\| ''\)/.test(home276),
+    '#276: wallet tx rows truncate an address-shaped counterparty (raw kept for search while visible; masked under global hide — #273-#281 review)');
   const txShell276 = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
   ok(/nameIsAddr \? truncateAddressMiddle\(e\.name\) : e\.name/.test(txShell276),
     '#276: tx detail title truncates an address-shaped counterparty (full address stays on the copy row)');

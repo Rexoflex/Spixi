@@ -44,7 +44,9 @@
 	<!-- iOS bring-up (2026-07-22): default Debug iOS builds (no explicit RID) to the Simulator on
 	     Apple Silicon, so the RID-conditioned NativeReferences below pick the matching RocksDB
 	     slice at evaluation time. An explicit -p:RuntimeIdentifier=ios-arm64 (device) overrides this. -->
-	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(RuntimeIdentifier)' == '' and '$(Configuration)' != 'Release'">
+	<!-- #273-#281 review D1: opt-in on Debug exactly — '!= Release' would force the SIMULATOR
+	     slice onto custom device configurations (Ad-Hoc / AppStore / Enterprise). -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(RuntimeIdentifier)' == '' and '$(Configuration)' == 'Debug'">
 		<RuntimeIdentifier>iossimulator-arm64</RuntimeIdentifier>
 	</PropertyGroup>
 	<ItemGroup Condition="$(TargetFramework.Contains('-ios')) and $(RuntimeIdentifier.Contains('iossimulator'))">
@@ -75,7 +77,10 @@
 		</AndroidNativeLibrary>
 	</ItemGroup>
 
-	<ItemGroup Condition="$(TargetFramework.Contains('-maccatalyst'))">
+	<!-- #273-#281 review D2: the dylib is a machine-local shim (gitignored) — gate on Exists so a
+	     clean clone still builds the other TFMs; catalyst then fails at RocksDB init (documented in
+	     mac-bringup-log.md) instead of dying at link time on a missing file. -->
+	<ItemGroup Condition="$(TargetFramework.Contains('-maccatalyst')) and Exists('Platforms/MacCatalyst/NativeLibraries/librocksdb.dylib')">
 		<!-- Mac bring-up (2026-07-20): vtool-restamped copy of the NuGet osx-arm64 rocksdb dylib (macOS-&gt;maccatalyst platform tag); local shim, NOT committed - proper fix is a maccatalyst slice in the dev's RocksDB.xcframework -->
 		<NativeReference Include="Platforms/MacCatalyst/NativeLibraries/librocksdb.dylib">
 			<Kind>Dynamic</Kind>

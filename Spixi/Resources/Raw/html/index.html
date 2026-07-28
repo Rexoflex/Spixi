@@ -22922,7 +22922,8 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
    * ixian:balance:hide|show so C# persists the flip). Rows keep their REAL values
    * in tx._raw and swap display fields — status/timestamps stay (pattern-of-life
    * is visible anyway; the MONEY and the WHO are what a bystander reads). While
-   * hidden, name-search is deliberately dead (masked names don't match); txid
+   * hidden, name- and address-search are deliberately dead (masked values don't
+   * match — the tx-sheet address row also empties, #276 review); txid
    * search still works. The tx DETAIL page stays unmasked — opening it is an
    * explicit reveal action (Damir dial). */
   let walletHidden = false;
@@ -22933,6 +22934,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       tx.amount = walletHidden ? WALLET_MASK : tx._raw.amount;
       tx.fiat = walletHidden ? '' : tx._raw.fiat;
       tx.name = walletHidden ? WALLET_MASK : tx._raw.name;
+      tx.address = walletHidden ? '' : (tx._raw.address || '');   // #276 review: mask the WHO too
     }
     scheduleWalletRender();
   }
@@ -23654,7 +23656,9 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4
       // ambiguity) — an address-shaped one renders MIDDLE-TRUNCATED (Damir F5:
       // tx rows showed full base58). The raw value is kept as `address` so
-      // search-by-pasted-address still matches (txMatchesQuery reads it).
+      // search-by-pasted-address still matches (txMatchesQuery reads it) — while
+      // VISIBLE: global hide (#263) masks address too (see applyWalletVisibility),
+      // so address-search is deliberately dead when hidden, same dial as name.
       const cp = counterparty || '';
       const cpIsAddr = looksLikeAddress(cp);
       const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
@@ -23665,10 +23669,13 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         // display fields honor the CURRENT hide flag (#263 global hide); the real
         // values live in _raw and swap back via applyWalletVisibility().
         name: walletHidden ? WALLET_MASK : cpDisplay,
-        address: cpIsAddr ? cp : '',
+        // #276 review MINOR: the raw counterparty address rides the hide flag too —
+        // pre-#276 the tx sheet had no address row at all, so global hide (#263)
+        // must keep masking the WHO end-to-end (empty → openTxSheet omits the row).
+        address: walletHidden ? '' : (cpIsAddr ? cp : ''),
         amount: walletHidden ? WALLET_MASK : amt,
         fiat: walletHidden ? '' : ft,
-        _raw: { amount: amt, fiat: ft, name: cpDisplay },
+        _raw: { amount: amt, fiat: ft, name: cpDisplay, address: cpIsAddr ? cp : '' },
         timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
         // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
       });

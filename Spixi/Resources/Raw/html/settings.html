@@ -21822,9 +21822,16 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // default), so rebuildHub refreshes it when the pushed current differs.
       if (currentView === 'language') detailWrap.dataset.langBuilt = state.language;
       else delete detailWrap.dataset.langBuilt;
+      delete root.dataset.langBuilt;               // #274 re-review R5: clear the other mode's key
       markSelected(currentView === 'hub' ? null : currentView);
     } else {
       root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+      // #274 review MINOR-2: track the built language for the NON-pane mount too — a
+      // restored picker can boot before setPaneMode/setLanguage land (or the window
+      // narrowed across the reload); rebuildHub refreshes it either way.
+      if (currentView === 'language') root.dataset.langBuilt = state.language;
+      else delete root.dataset.langBuilt;
+      delete detailWrap.dataset.langBuilt;         // #274 re-review R5: clear the other mode's key
     }
   }
 
@@ -21995,6 +22002,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       root.replaceChildren(hubEl);
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
+    } else if (currentView === 'language' && root.dataset.langBuilt !== state.language) {
+      // #274 review MINOR-2: refresh a mounted NON-pane language picker when the
+      // pushed current differs from the one it was built with (stale check).
+      root.replaceChildren(buildScreen('language'));
+      root.dataset.langBuilt = state.language;
     }
   }
 
@@ -22009,7 +22021,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
 
   // View switches — one-liners into the mode-aware renderer (#240). showHub as a
   // screen's onBack = "detail → empty" in split mode, "takeover → hub" otherwise.
-  function showHub() { currentView = 'hub'; renderLayout(); }
+  // #274 review MINOR-3: user nav drops an un-consumed reload stash — if the language
+  // reload never happened (old exe / failed send), the stale key must not re-open the
+  // picker on the next Account boot inside the 15 s window.
+  function showHub() { try { localStorage.removeItem(VIEW_RESUME_KEY); } catch (e) {} currentView = 'hub'; renderLayout(); }
   function showDanger() { currentView = 'danger'; renderLayout(); }
   function showAbout() { currentView = 'about'; renderLayout(); }
   function showHowTo() { currentView = 'howto'; renderLayout(); }
@@ -22185,7 +22200,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     } catch (e) { fail(); }
   }
 
-  showHub();   // render immediately; C# fills it after ixian:onload
+  // #274 review MAJOR-1: renderLayout, NOT showHub — showHub() re-set currentView to
+  // 'hub', clobbering the just-restored takeResumeView() value and making the whole
+  // restore dead code (the pane landed on the empty detail after every language
+  // pick — Damir's "NOT fixed" F5). currentView is already correct here.
+  renderLayout();   // render immediately; C# fills it after ixian:onload
 
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers — page globals (executeUiCommand resolves bare

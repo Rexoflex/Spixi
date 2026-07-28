@@ -532,6 +532,14 @@ namespace SPIXI
             // the first HomePage updateScreen tick after this re-flushes, and rows whose
             // history is gone drop out (getFriendMessageHelper returns null on empty).
             UIHelpers.shouldRefreshContacts = true;
+            // #283 review MINOR (desktop split-pane): flagging the LIST dirty never told an
+            // OPEN conversation — the wiped pane kept rendering its messages until re-entered.
+            // Re-render every live chat surface now (loadMessages pushes clearMessages first
+            // even on an emptied history).
+            foreach (var chat_page in Utils.getChatPages())
+            {
+                chat_page.loadMessages();
+            }
             displaySpixiAlert(SpixiLocalization._SL("settings-deletedh-title"), SpixiLocalization._SL("settings-deletedh-text"), SpixiLocalization._SL("global-dialog-ok"));
         }
 

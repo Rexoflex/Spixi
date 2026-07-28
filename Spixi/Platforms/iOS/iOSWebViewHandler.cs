@@ -18,6 +18,12 @@ namespace Spixi.Platforms.iOS
         {
             // iOS bring-up 2026-07-22 (sim crash, 20:37 report): a managed exception escaping this
             // WebKit callback is an uncaught NSException -> abort. Guard + log; fail closed (Cancel).
+            // #273-#281 review C1: WebKit raises a NATIVE NSException when a decision handler
+            // runs twice, and the managed catch cannot intercept that — track whether a
+            // decision was already delivered so the fail-closed Cancel never double-fires
+            // (base.DecidePolicy may have decided before throwing).
+            bool decided = false;
+            Action<WKNavigationActionPolicy> decide = policy => { if (decided) return; decided = true; decisionHandler(policy); };
             try
             {
                 var url = navigationAction.Request.Url?.AbsoluteString ?? "";
@@ -40,16 +46,16 @@ namespace Spixi.Platforms.iOS
                             catch (Exception oex) { IXICore.Meta.Logging.error("Browser handoff failed for '{0}': {1}", external, oex); }
                         });
                     }
-                    decisionHandler(WKNavigationActionPolicy.Cancel);
+                    decide(WKNavigationActionPolicy.Cancel);
                     return;
                 }
 
-                base.DecidePolicy(webView, navigationAction, decisionHandler);
+                base.DecidePolicy(webView, navigationAction, decide);
             }
             catch (Exception ex)
             {
-                IXICore.Meta.Logging.error("Exception occured in DecidePolicy for '{0}': {1}", navigationAction?.Request?.Url?.AbsoluteString, ex);
-                try { decisionHandler(WKNavigationActionPolicy.Cancel); } catch { /* handler may already have been invoked */ }
+                try { IXICore.Meta.Logging.error("Exception occured in DecidePolicy for '{0}': {1}", navigationAction?.Request?.Url?.AbsoluteString, ex); } catch { }
+                if (!decided) { try { decide(WKNavigationActionPolicy.Cancel); } catch { } }   // C1 (re-review R3): route through the one-shot — a deferred base continuation can no longer double-fire
             }
         }
     }

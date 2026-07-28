@@ -24346,9 +24346,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // must keep my own-reaction state, else the pill reverts to un-selected
       // while the heart+count survive (Damir 2026-07-07). myLikes is (re)loaded
       // per-peer from storage in onChatScreenReady; peer-switch resets it there.
-      removeRequestPane();   // Q1 review (#267 loop): a re-flush drops the pane; a STILL-pending peer
-                             // re-arms it via its own showContactRequest push (accept no longer relies
-                             // on this path — C# doesn't re-flush on accept; see markRequestResolved)
+      // Q1 review (#267 loop): a re-flush drops the pane; a STILL-pending peer
+      // re-arms it via its own showContactRequest push (accept no longer relies
+      // on this path — C# doesn't re-flush on accept; see markRequestResolved).
+      // #283-fix re-review R2: EXCEPT while the 'incoming' lock holds — the empty
+      // reload after a history wipe (clearMessages, zero rows) has no requestAdd
+      // left to re-arm from, and dropping the pane then leaves a locked chat with
+      // no Accept/Decline affordance. markRequestResolved still drops it on accept.
+      if (composerLock !== 'incoming') removeRequestPane();
       order = [];
       hideTyping();
       typingRow = null;
@@ -24767,7 +24772,12 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     // (updateScreen pushes NOTHING for a freshly-approved OFFLINE peer, xaml:1884).
     showRequestSentModal(flag) {
       const on = String(flag) === '1' || asBool(flag);
-      if (on) { setComposerLock('outgoing'); return; }
+      // #275 review A1 (belt): never take the 'outgoing' lock for a group/bot —
+      // mirrors the heartbeat lock's !mode.isMulti guard. A non-approved GROUP
+      // reaching this push would show "Waiting for {group}…" + a Cancel that fires
+      // ixian:undorequest → removeFriend WITHOUT sendLeave. C# now excludes
+      // FriendType.Group from the push too; this is defense-in-depth.
+      if (on) { if (!mode.isMulti) setComposerLock('outgoing'); return; }
       markRequestResolved();
     },
     // M16 (#59 DECIDED): the two known "Connecting…" strings (matched against

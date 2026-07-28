@@ -639,11 +639,21 @@ namespace SPIXI
             unreadIndicatorDisplayed = false;
             setNickname = "";
             setOnlineStatus = false;
+            // #275 re-review R1: reset the pending latch on EVERY load — onLoad re-fires on
+            // a WebView reload of a LIVE page (desktop pane re-home #225/#247, WKWebView
+            // process reload) and the shell re-arms itself UNLOCKED (onChatScreenReady →
+            // setComposerLock(null)); a stale latch would gate the re-push below and leave
+            // a pending contact with a live composer. updateScreen() re-pushes + re-latches
+            // on this same tick, so the one-shot anti-churn behavior is preserved.
+            _waitingForContactConfirmation = false;
 
             // Execute timer-related functionality immediately
             updateScreen();
 
-            if (!friend.bot)
+            // #275 review A1: groups are FriendType.Group with bot == false — they must
+            // never take the outgoing-request lock (the shell strip's Cancel fires
+            // ixian:undorequest → removeFriend WITHOUT sendLeave). 1:1 only.
+            if (!friend.bot && friend.type != FriendType.Group)
             {
                 // #275: lock for ANY non-approved 1:1, not just RequestSent — legacy
                 // accounts carry other non-Approved states; the chats list already
@@ -651,7 +661,10 @@ namespace SPIXI
                 // state != Approved), so the chat must refuse to compose for the same
                 // set (⑪ delivery-lie: a message "sent" here never reaches the peer).
                 // RequestReceived stays out: the incoming request pane is its affordance.
-                if (friend.state != FriendState.Approved && friend.state != FriendState.RequestReceived)
+                // #275 review A3/A5: updateScreen() (:644 above) already pushed the lock on
+                // the pending edge; this stays as a belt, latch-guarded against a double push.
+                if (!_waitingForContactConfirmation
+                    && friend.state != FriendState.Approved && friend.state != FriendState.RequestReceived)
                 {
                     _waitingForContactConfirmation = true;
                     Utils.sendUiCommand(this, "showRequestSentModal", "1");
@@ -1224,6 +1237,11 @@ namespace SPIXI
             if (messages == null
                 || messages.Count == 0)
             {
+                // iOS-24/25 (#283 review MAJOR-1): a just-wiped history IS this empty state —
+                // returning before the clearMessages push left an open conversation rendering
+                // deleted messages until re-entered. Tell the WebView to clear first (no
+                // load-more); the shell's 250 ms burst fallback paints the emptied log.
+                Utils.sendUiCommand(this, "clearMessages", "false");
                 return;
             }
 
@@ -1914,21 +1932,46 @@ namespace SPIXI
                     {
                         _waitingForContactConfirmation = false;
                         Utils.sendUiCommand(this, "showRequestSentModal", "0");
+                        // #275 review A4: the sub-line still reads "Waiting for response" and
+                        // the OFFLINE accept pushes no presence above (setOnlineStatus is
+                        // false) — clear it explicitly. The online case already pushed
+                        // chat-online this same tick.
+                        if (!friend.online)
+                        {
+                            Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-offline"));
+                        }
                     }
                 }
-                else   // #275: any non-Approved state — legacy states must get the waiting
+                else if (friend.type != FriendType.Group)
+                       // #275: any non-Approved state — legacy states must get the waiting
                        // presence + the accept→unlock edge-detector too, matching the
                        // chats-list pending predicate (HomePage:1606, state != Approved).
+                       // #275 review A1: groups excluded — see the onLoad guard.
                 {
-                    Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-waiting-for-response"));
-                    // Q1 review (#266/#267 loop): latch on EITHER pending state, not just the
-                    // outgoing one set at onLoad. This turns the Approved branch above into a
-                    // general "was pending → is now Approved" edge detector, so the composer
-                    // unlock (showRequestSentModal "0") is pushed exactly once on EVERY accept
-                    // path — including an incoming request accepted from the chats-list card
-                    // on desktop, and an accept while the freshly-approved peer is OFFLINE
-                    // (where no presence text is pushed either).
-                    _waitingForContactConfirmation = true;
+                    if (!_waitingForContactConfirmation)
+                    {
+                        // #275 review A5: push ONCE on the pending edge, not at 1 Hz — the
+                        // presence push tears down + rebuilds the shell topbar every second
+                        // (chat.html renderTopbar), killing keyboard focus on topbar actions
+                        // and churning the aria-live sub region.
+                        Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-waiting-for-response"));
+                        // #275 review A3: symmetric lock edge — a chat that regresses into a
+                        // pending state MID-SESSION locks now, not only at onLoad.
+                        // RequestReceived keeps the request-pane affordance (its generic
+                        // 'incoming' lock derives shell-side from the waiting presence).
+                        if (friend.state != FriendState.RequestReceived)
+                        {
+                            Utils.sendUiCommand(this, "showRequestSentModal", "1");
+                        }
+                        // Q1 review (#266/#267 loop): latch on EITHER pending state, not just the
+                        // outgoing one set at onLoad. This turns the Approved branch above into a
+                        // general "was pending → is now Approved" edge detector, so the composer
+                        // unlock (showRequestSentModal "0") is pushed exactly once on EVERY accept
+                        // path — including an incoming request accepted from the chats-list card
+                        // on desktop, and an accept while the freshly-approved peer is OFFLINE.
+                        _waitingForContactConfirmation = true;
+                        setOnlineStatus = false;   // #275 review A4: re-arm the presence push for the next Approved tick
+                    }
                 }
 
             }

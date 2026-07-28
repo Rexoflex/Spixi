@@ -187,6 +187,16 @@ namespace SPIXI
                     chatPages.Add((SingleChatPage)item);
                 }
             }
+            // Desktop split-pane: the open conversation lives as HomePage DETAIL CONTENT,
+            // outside the NavigationStack — getChatPage() covers that surface but this
+            // enumerator didn't, so page-wide sweeps (onLowMemory eviction exclusion,
+            // reloadScreen-all, delete-all history) missed the most-visible desktop chat.
+            if (HomePage.Instance() != null
+                && HomePage.Instance().getDetailContent() is SingleChatPage detailChat
+                && !chatPages.Contains(detailChat))
+            {
+                chatPages.Add(detailChat);
+            }
             foreach (var overlay in SpixiContentPage.getOverlayPages())   // #225
             {
                 if (overlay is SingleChatPage overlayChat && !chatPages.Contains(overlayChat))

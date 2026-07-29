@@ -3,6 +3,7 @@ using IXICore.Activity;
 using IXICore.Meta;
 using IXICore.Streaming;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Storage;               // Preferences (hidebalance, #285)
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using SPIXI.Lang;
@@ -58,6 +59,13 @@ namespace SPIXI
             }
             else
             {
+                // #285 (#263/#276 hide leg, F5 2026-07-29): the detail page previously
+                // stayed unmasked ("explicit reveal" dial — designed for the mobile
+                // sheet→Details flow). On desktop a row tap opens THIS page directly in
+                // the pane, leaking amount/fiat/name/address next to a masked list.
+                // Push the persisted flag BEFORE the burst so the first render is
+                // already masked; the shell offers a per-view reveal eye.
+                Utils.sendUiCommand(this, "setHideBalance", Preferences.Default.Get("hidebalance", false).ToString());
                 checkTransaction();
             }
             if (homePage != null)

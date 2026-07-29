@@ -40,6 +40,8 @@
   /* demo dt-cap grammar: cap + center the detail card (desktop.html:264 / #detail-wallet cap) */
   .tx-cap { width: 100%; max-width: 560px; margin-inline: auto; }
   .tx-cap .c-txsheet { padding: var(--spacing-16) var(--spacing-24) var(--spacing-32); }
+  /* #285: the per-view reveal eye — centered, breathing room under the head. */
+  .tx-reveal { display: flex; justify-content: center; margin-top: var(--spacing-8); }
   /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
      parse / before the first C# data burst; the first render swaps it out. */
   .boot { min-height: 60vh; display: flex; align-items: center; justify-content: center; }
@@ -102,6 +104,8 @@
    *            string (full precision — NOT #77-truncated: fees are sub-0.01).
    *          hideBackButton() — pane-hosted (wide: HomePage rightContent); the
    *            title bar drops its back affordance.
+   *          setHideBalance(hide) — #285: the persisted #263 global hide flag
+   *            ("True"/"False"); masks money+who, per-view reveal eye un-masks.
    *   JS→C#: ixian:onload (ready; C# then runs checkTransaction) ·
    *          ixian:dismiss (narrow: pops the page) ·
    *          ixian:viewexplorer (TX-SCOPED explorer URL — ?p=transaction&id=…).
@@ -119,6 +123,7 @@
     createTopbar, openTxSheet, closeSheet,
     createNativeBridge, installExecuteUiCommand,
     truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
+    createButton,                        // #285: the per-view reveal button
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -189,6 +194,18 @@
   const model = { entries: [], received: false, data: null };
   let rendered = false;
 
+  /* —— #285 (#263/#276 hide leg): the detail follows the GLOBAL hide flag.
+   *    C# (WalletSentPage.onLoad) pushes the persisted flag before the burst.
+   *    The old "detail stays unmasked = explicit reveal" dial was designed for
+   *    the mobile sheet→Details flow; on desktop a row tap opens THIS page
+   *    directly, leaking money+who next to a masked list. Reveal is explicit
+   *    again via the per-view eye (revealed drops on every hide re-push).
+   *    Masking parity with home.html: money + who; status/date/txid stay
+   *    (pattern-of-life dial). ————————————————————————————————————————————— */
+  let walletHidden = false;
+  let revealed = false;
+  const WALLET_MASK = '••••••';
+
   function buildTx() {
     const e = model.entries[0] || {};
     const d = model.data || {};
@@ -202,6 +219,11 @@
     // address stays on the copyable address row below (the sanctioned field).
     // Same token shape as home.html's looksLikeAddress (base58, 20–128, ≥1 digit).
     const nameIsAddr = !unknown && /^[1-9A-HJ-NP-Za-km-z]{20,128}$/.test(e.name) && /\d/.test(e.name);
+    // #285: mask = global hide minus the per-view reveal. Money + who mask
+    // (amount/fiat/fee/name/address/avatar); status/date/txid stay visible —
+    // home.html applyWalletVisibility parity ("pattern-of-life is visible
+    // anyway; the MONEY and the WHO are what a bystander reads").
+    const masked = walletHidden && !revealed;
     return {
       txid: d.txid || '',
       direction: dirIn ? 'in' : 'out',
@@ -209,13 +231,13 @@
       // unknown counterparty → NO name/contact (title stays "Sent"/"Received",
       // the direction circle carries the identity slot, the address row still
       // shows the raw address). Data-honest — never a gradient of "Unknown".
-      name: unknown ? '' : (nameIsAddr ? truncateAddressMiddle(e.name) : e.name),
-      contact: !unknown,
-      address: e.address || '',
-      avatar: unknown ? null : e.avatar,
-      amount: (e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : '',
-      fiat: (e.fiat != null && e.fiat !== '') ? sign + '$' + amountWithCommas(e.fiat) : '',
-      fee: (d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : '',
+      name: masked ? WALLET_MASK : (unknown ? '' : (nameIsAddr ? truncateAddressMiddle(e.name) : e.name)),
+      contact: masked ? false : !unknown,
+      address: masked ? '' : (e.address || ''),
+      avatar: (masked || unknown) ? null : e.avatar,
+      amount: masked ? WALLET_MASK : ((e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : ''),
+      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? sign + '$' + amountWithCommas(e.fiat) : ''),
+      fee: masked ? '' : ((d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : ''),
       timeText: e.timeText || d.time || '',
     };
   }
@@ -239,6 +261,24 @@
     const cap = document.createElement('div');
     cap.className = 'tx-cap';
     cap.append(detail);
+    // #285 per-view reveal: masked → an explicit eye under the amount block
+    // reveals THIS view only (the global flag is untouched; the next
+    // setHideBalance flip re-masks). Sits inside the card, under the head.
+    if (walletHidden && !revealed) {
+      const revealHost = document.createElement('div');
+      revealHost.className = 'tx-reveal';
+      revealHost.append(createButton({
+        label: strings.revealAmounts || 'Show amounts',
+        // NOTE: createButton takes an icon ELEMENT, not a name — a string here
+        // threw inside the fail-soft dispatcher = eternal boot spinner (F5
+        // 2026-07-29). Text-only: the bundle does not export icon(); not worth
+        // a bundle rebuild for a glyph.
+        type: 'outline', size: 32,
+        onClick: () => { revealed = true; render(); },
+      }));
+      const head = detail.querySelector('.c-txsheet__head');
+      if (head) head.after(revealHost); else detail.prepend(revealHost);
+    }
     // Re-review MINOR-1: a live status re-render replaces the card in place — if
     // keyboard focus sits inside the outgoing card it would drop to <body>.
     // Re-home it onto the same control (class + index) in the fresh card, else
@@ -292,6 +332,15 @@
     },
     // Pane-hosted (wide): drop the back affordance — C# owns the pane lifecycle.
     hideBackButton() { buildTopbar(false); },
+    // #285: the persisted #263 hide flag (bool.ToString() → "True"/"False" —
+    // home.html setHideBalance parity). Any flip drops the per-view reveal.
+    setHideBalance(hide) {
+      const h = hide === 'True' || hide === 'true' || hide === true;
+      if (h === walletHidden) return;
+      walletHidden = h;
+      revealed = false;
+      if (rendered) render();
+    },
     // #251 defense: theme re-push lands as a bare global — accept it.
     setTheme(name) {
       if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;

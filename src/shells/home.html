@@ -1097,8 +1097,11 @@
    * is visible anyway; the MONEY and the WHO are what a bystander reads). While
    * hidden, name- and address-search are deliberately dead (masked values don't
    * match — the tx-sheet address row also empties, #276 review); txid
-   * search still works. The tx DETAIL page stays unmasked — opening it is an
-   * explicit reveal action (Damir dial). */
+   * search still works. #285 supersedes the old "detail stays unmasked" dial:
+   * the tx DETAIL page (wallet_sent.html) masks under the same flag now, with
+   * a per-view reveal eye — on desktop a row tap opened the detail DIRECTLY
+   * in the pane, so the "explicit reveal action" premise only ever held for
+   * the mobile sheet→Details flow (Damir F5 2026-07-29). */
   let walletHidden = false;
   const WALLET_MASK = '••••••';
   function applyWalletVisibility() {

@@ -89,9 +89,11 @@
    *
    * Contract (Pages/Wallet/WalletSentPage.xaml.cs — verified):
    *   C#→JS: clearEntries() — starts every checkTransaction pass; ⚠ ALSO pushed
-   *            alone on a re-poll whose status hasn't changed (:110 precedes the
-   *            :118 early-return) → it resets the BUFFER ONLY, never the rendered
-   *            card (legacy parity: the legacy clearEntries body is empty).
+   *            alone on a re-poll whose status hasn't changed (:121 precedes the
+   *            :129-132 early-return) → it resets the STAGING buffer only, never the
+   *            committed model and never the rendered card (legacy parity: the legacy
+   *            clearEntries body is empty). See the staging docblock below — this is
+   *            the #288 F5 bug.
    *          setReceivedMode() — received tx, precedes addEntry.
    *          addEntry(address, username, avatar, amount, fiat, time, type,
    *            confirmed) — ONE counterparty entry (C# breaks after the first;
@@ -192,6 +194,26 @@
 
   /* —— buffered model: one render per C# burst (at setData) ————————————————— */
   const model = { entries: [], received: false, data: null };
+  /* #288 F5 (Damir: "hidden balance → open detail → Show amounts doesn't show amounts").
+   * checkTransaction pushes `clearEntries` as its FIRST act and then early-returns when
+   * the activity status is unchanged (WalletSentPage:121 / :129-133), and updateScreen
+   * re-polls at 1 Hz for as long as !isConfirmedDisplayed — which is only ever set for an
+   * Activity.Final tx (:137). So on ANY pending/unknown transaction the buffer is empty
+   * one second after open, while the painted card still shows the last good burst.
+   * That was safe while setData was render()'s ONLY caller. #285's per-view reveal added
+   * a SECOND caller, so revealing rebuilt the card from {} → blank amount/name/fiat: the
+   * chrome intact with no money in it. (`received` reset too, but that sign flip is NOT
+   * observable — an empty entry renders no amount at all, so no sign is emitted. Audit
+   * correction; recognise a recurrence by the BLANK card, not by a wrong sign.) NOT a
+   * layout bug — a CONFIRMED tx stops polling and reveals fine, which is why it looked
+   * narrow-only. The buffer can also be empty AT open, not just one second later: onLoad's
+   * own checkTransaction takes the early return whenever the 1 Hz tick already ran a pass,
+   * which it can — pageLoaded is the readyState poll, not ixian:onload. The burst now STAGES here and is COMMITTED at setData, so render() is
+   * idempotent for every caller and the documented "buffer reset only, never clears the
+   * rendered card" contract finally holds for re-renders too.
+   * Push order is safe: clearEntries (:121) → setReceivedMode (:208) → addEntry
+   * (:187/:225) → setData (:236). */
+  const staging = { entries: [], received: false };
   let rendered = false;
 
   /* —— #285 (#263/#276 hide leg): the detail follows the GLOBAL hide flag.
@@ -199,11 +221,30 @@
    *    The old "detail stays unmasked = explicit reveal" dial was designed for
    *    the mobile sheet→Details flow; on desktop a row tap opens THIS page
    *    directly, leaking money+who next to a masked list. Reveal is explicit
-   *    again via the per-view eye (revealed drops on every hide re-push).
+   *    again via the per-view eye (a hide re-push that CHANGES the flag drops the
+   *    reveal; an unchanged-value re-push preserves it — HomePage's balance-toggle
+   *    broadcast depends on exactly that, #288).
    *    Masking parity with home.html: money + who; status/date/txid stay
    *    (pattern-of-life dial). ————————————————————————————————————————————— */
   let walletHidden = false;
+  // #288 review: the mask was fail-OPEN — the shell rendered money before it knew the
+  // flag, so a lost/late setHideBalance push (older exe, stranded queue, or a 1 Hz
+  // checkTransaction tick landing between pageLoaded and ixian:onload) painted the card
+  // fully unmasked with the preference ON. Mask until the flag has actually arrived.
+  let hideKnown = false;
   let revealed = false;
+  /* #288 F5 audit R10: ONE source of truth — the two call sites (buildTx and the eye)
+   * had the predicate inline and duplicated; two edits from disagreeing, and a
+   * disagreement means either a masked card with no way to reveal, or an unmasked card
+   * that still offers one. */
+  function isMasked() { return (walletHidden || !hideKnown) && !revealed; }
+  /* #288 F5 audit R1: the eye must NOT be offered during the fail-closed unknown
+   * window. It used to render there, and the first setHideBalance push — which is
+   * always treated as actionable, even when its value matches the masked default —
+   * unconditionally clears `revealed`, silently undoing a tap the user had just made.
+   * The window is sub-millisecond (readyState complete → load), but the fix is free:
+   * no flag, no eye. The card stays masked either way, so nothing leaks. */
+  function canReveal() { return hideKnown && walletHidden && !revealed; }
   const WALLET_MASK = '••••••';
 
   function buildTx() {
@@ -223,7 +264,7 @@
     // (amount/fiat/fee/name/address/avatar); status/date/txid stay visible —
     // home.html applyWalletVisibility parity ("pattern-of-life is visible
     // anyway; the MONEY and the WHO are what a bystander reads").
-    const masked = walletHidden && !revealed;
+    const masked = isMasked();
     return {
       txid: d.txid || '',
       direction: dirIn ? 'in' : 'out',
@@ -264,7 +305,7 @@
     // #285 per-view reveal: masked → an explicit eye under the amount block
     // reveals THIS view only (the global flag is untouched; the next
     // setHideBalance flip re-masks). Sits inside the card, under the head.
-    if (walletHidden && !revealed) {
+    if (canReveal()) {
       const revealHost = document.createElement('div');
       revealHost.className = 'tx-reveal';
       revealHost.append(createButton({
@@ -308,10 +349,12 @@
 
     // Buffer reset ONLY — never clears the rendered card (C# pushes a lone
     // clearEntries on every unchanged re-poll; see the contract docblock).
-    clearEntries() { model.entries = []; model.received = false; },
-    setReceivedMode() { model.received = true; },
+    // #288 F5: resets the STAGING buffer — the committed model survives until the next
+    // setData, so a later render() (reveal, status flip) still has real data.
+    clearEntries() { staging.entries = []; staging.received = false; },
+    setReceivedMode() { staging.received = true; },
     addEntry(address, username, avatar, amount, fiat, time, type, confirmed) {
-      model.entries.push({
+      staging.entries.push({
         address: address || '',
         name: username || '',
         avatar: resolveAvatar(avatar),
@@ -323,7 +366,10 @@
       });
     },
     // Closes every burst → the one render/re-render point (live status flips).
+    // #288 F5: COMMIT the staged burst before rendering (see the staging docblock).
     setData(amount, fee, time, txid, confirmed) {
+      model.entries = staging.entries.slice();
+      model.received = staging.received;
       model.data = {
         amount: amount || '', fee: fee || '', time: time || '',
         txid: txid || '', status: statusFrom(confirmed),
@@ -333,10 +379,18 @@
     // Pane-hosted (wide): drop the back affordance — C# owns the pane lifecycle.
     hideBackButton() { buildTopbar(false); },
     // #285: the persisted #263 hide flag (bool.ToString() → "True"/"False" —
-    // home.html setHideBalance parity). Any flip drops the per-view reveal.
+    // home.html setHideBalance parity). A flip that CHANGES the value drops the
+    // per-view reveal; an unchanged-value re-push early-returns and PRESERVES it —
+    // which is what makes HomePage's balance-toggle broadcast to open panes safe
+    // (#288). Do not "simplify" the early return away.
     setHideBalance(hide) {
       const h = hide === 'True' || hide === 'true' || hide === true;
-      if (h === walletHidden) return;
+      // #288 review: the FIRST push must always render, even when its value matches the
+      // (masked-by-default) initial state — otherwise "False" on a visible balance would
+      // early-return and leave the card masked forever.
+      const firstKnown = !hideKnown;
+      hideKnown = true;
+      if (h === walletHidden && !firstKnown) return;
       walletHidden = h;
       revealed = false;
       if (rendered) render();

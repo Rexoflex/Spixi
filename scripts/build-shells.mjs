@@ -74,11 +74,25 @@ const SHELLS = {
 // `launch` shorthand expands to all five launch filenames (build them as a set).
 const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
 
+// #288 review (MAJOR, SECOND occurrence): the five launch drop-ins were not in DEFAULT,
+// so every routine `node scripts/build-shells.mjs` left them inlining a STALE artifact —
+// #285 and #287 both shipped them one dictionary behind (664 keys vs 665), i.e. English
+// copy in the launch language picker for a translated user. The previous review caught the
+// identical miss one batch earlier and fixed it by hand; hand-discipline did not hold, so
+// the set now builds by DEFAULT. Their five output filenames (intro*/onboarding.html)
+// collide with nothing else in the list.
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
   'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors',
-  'empty_detail', 'wallet_sent', 'call'];   // bridge-wired shells (real C# data)
+  'empty_detail', 'wallet_sent', 'call',    // bridge-wired shells (real C# data)
+  ...LAUNCH_KEYS];
 const arg = process.argv.slice(2);
-let keys = arg.length === 0 ? DEFAULT : arg.includes('all') ? Object.keys(SHELLS) : arg;
+// #288 review: `all` used to include the two still-LEGACY demo drop-ins — apps.html and
+// wallet_send.html, the MONEY page — silently overwriting them with demo markup (#284 had
+// to restore both from HEAD). They stay buildable when named explicitly; `all` skips them.
+const LEGACY_DEMO_KEYS = ['apps', 'payments'];
+let keys = arg.length === 0 ? DEFAULT
+  : arg.includes('all') ? Object.keys(SHELLS).filter((k) => !LEGACY_DEMO_KEYS.includes(k))
+  : arg;
 // `launch` alone means the whole launch set (all five drop-in files)
 keys = keys.flatMap((k) => (k === 'launch' && arg.length && !arg.includes('all')) ? LAUNCH_KEYS : [k]);
 keys = [...new Set(keys)];

@@ -92,6 +92,10 @@
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
+  /* #288 review: as a flex child its automatic minimum size is its full min-content
+     width, so it never shrinks — the #286 overflow:hidden belt on __meta then CLIPS it
+     mid-glyph and the text-overflow below can never fire. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

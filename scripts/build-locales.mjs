@@ -57,7 +57,11 @@ for (const code of LANGS) {
   for (const k of KEYS) {
     const id = keyToId[k];
     const leg = id ? legacy.get(id) : null;
-    if (leg && leg.trim()) { out[k] = leg; stats.reused++; continue; }
+    // #288 review: a legacy value byte-identical to the ENGLISH is not a translation. It
+    // was shadowing a good draft AND counting itself as "reused", so the fill silently did
+    // not land (#285 drafted "developer": "Entwickler"; de-de shipped "Developer") and the
+    // english-fallback stat under-reported the real leak.
+    if (leg && leg.trim() && norm(leg) !== norm(enUS[k])) { out[k] = leg; stats.reused++; continue; }
     if (drafted[k] && drafted[k].trim()) { out[k] = drafted[k]; stats.drafted++; continue; }
     out[k] = enUS[k]; stats.english++; todo[k] = enUS[k];         // needs a draft
   }

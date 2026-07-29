@@ -310,9 +310,22 @@ namespace SPIXI
                     // enumeration as the #284 delete-all leg). Other detail pages
                     // (tx details, downloads) regenerate localized on next open.
                     HomePage.Instance()?.reloadShell();
+                    // #288 review: the resting desktop welcome pane (EmptyDetail) is in
+                    // NEITHER collection — reloadShell deliberately skips removeDetailContent
+                    // and getChatPages only yields conversations — so it kept the OLD language
+                    // for the rest of the session. Exactly the gap #251 closed for THEME, and
+                    // the same idiom. (reloadAllPages is deliberately NOT used here: it would
+                    // reload this settings page a second time and eat the one-shot #274
+                    // picker-restore stash.)
+                    HomePage.Instance()?.reloadDefaultDetail();
+                    // #288 review: one throwing page must not strand every LATER page in the
+                    // old language, nor propagate out of a WebView Navigating handler. This is
+                    // the first sweep that calls the WebView-touching reload() — OnDisappearing
+                    // nulls that field, and the staging page is in the enumeration too.
                     foreach (var chat_page in Utils.getChatPages())
                     {
-                        chat_page.reload();
+                        try { chat_page.reload(); }
+                        catch (Exception ex) { Logging.warn("language reload (chat page): " + ex.Message); }
                     }
                 }
                 else

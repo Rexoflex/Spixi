@@ -3465,8 +3465,19 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
     'call.html ring is Accept/Decline-only (no local-dismiss verb exists)');
   const buildShellsSrc = readFileSync(join(root, 'scripts/build-shells.mjs'), 'utf8');
   ok(/call: \{ in: 'src\/shells\/call\.html', out: 'call\.html', page: 'CallPage' \}/.test(buildShellsSrc)
-    && /'wallet_sent', 'call'\]/.test(buildShellsSrc),
+    && /'wallet_sent', 'call',/.test(buildShellsSrc),
     'build-shells maps call.html → CallPage + includes it in DEFAULT');
+  // #288 review (MAJOR, SECOND occurrence): the five launch drop-ins were NOT in DEFAULT,
+  // so every routine build left them inlining a STALE artifact — #285 and #287 both shipped
+  // them one dictionary behind (664 keys vs 665 = English copy in the launch language
+  // picker for a translated user). The previous loop caught the identical miss and fixed it
+  // by hand; hand-discipline did not hold, so the set now builds by DEFAULT.
+  ok(/const LAUNCH_KEYS = \['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'\]/.test(buildShellsSrc)
+    && /\.\.\.LAUNCH_KEYS\]/.test(buildShellsSrc),
+    '#288: the five launch drop-ins build by DEFAULT (stale-artifact guard)');
+  ok(/const LEGACY_DEMO_KEYS = \['apps', 'payments'\]/.test(buildShellsSrc)
+    && /filter\(\(k\) => !LEGACY_DEMO_KEYS\.includes\(k\)\)/.test(buildShellsSrc),
+    "#288: build-shells 'all' no longer overwrites the legacy apps/wallet_send drop-ins");
   // no shell but call.html touches call UI anymore
   for (const shell of ['home', 'chat', 'settings', 'wallet_sent', 'downloads', 'contact_details',
     'contact_new', 'app_details', 'app_new', 'dev', 'contributors', 'settings_backup', 'settings_encryption']) {
@@ -3618,6 +3629,46 @@ console.log('#275 composer lock (legacy states) · #276 address-truncation sweep
     && /row\.dataset\.compact = ''/.test(walletJs)
     && /\.c-wallet-filters\[data-compact\] \.c-wallet-misstx__label \{ display: none; \}/.test(walletCss),
     '#278: Missing-a-transaction pill collapses to the info glyph when the ROW overflows (desktop pane)');
+
+  /* ————— #288 (Opus #46 review of #284–#287) — regression pins ————————————————— */
+  // MAJOR: toggling global hide left an OPEN desktop tx-detail pane rendering amount /
+  // fiat / fee / counterparty and the FULL base58 address + copy button. #285 only closed
+  // hide-THEN-open. THIRD regression of this class (mobile sheet → #284, desktop pane →
+  // #285, live pane → #288), so both halves get pinned: the C# re-push and the shell's
+  // fail-SAFE default.
+  const homeCs288 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const balIdx288 = homeCs288.indexOf('ixian:balance:');
+  const balBranch288 = balIdx288 >= 0 ? homeCs288.slice(balIdx288, balIdx288 + 1800) : '';
+  ok(/getOverlayPages\(\)/.test(balBranch288)
+    && /is WalletSentPage/.test(balBranch288)
+    && /"setHideBalance"/.test(balBranch288),
+    '#288: the balance toggle re-pushes setHideBalance to every OPEN tx-detail overlay');
+  const txShell288 = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
+  ok(/function isMasked\(\) \{ return \(walletHidden \|\| !hideKnown\) && !revealed; \}/.test(txShell288)
+    && /function canReveal\(\) \{ return hideKnown && walletHidden && !revealed; \}/.test(txShell288)
+    && /const firstKnown = !hideKnown;/.test(txShell288)
+    && /if \(h === walletHidden && !firstKnown\) return;/.test(txShell288),
+    '#288: the tx-detail mask is fail-SAFE — masked until the hide flag actually arrives');
+  // #288 F5: a lone clearEntries (every unchanged 1 Hz re-poll on a NON-Final tx) must not
+  // empty the committed model — otherwise the per-view reveal re-renders a blank card.
+  ok(/const staging = \{ entries: \[\], received: false \};/.test(txShell288)
+    && /clearEntries\(\) \{ staging\.entries = \[\]; staging\.received = false; \}/.test(txShell288)
+    && /setReceivedMode\(\) \{ staging\.received = true; \}/.test(txShell288)
+    && /model\.entries = staging\.entries\.slice\(\);/.test(txShell288)
+    && /model\.received = staging\.received;/.test(txShell288),
+    '#288: the tx burst STAGES and commits at setData — render() is idempotent for every caller');
+  // The pending strip / request card REPLACE the composer, so they are the chat's
+  // bottom-most chrome and must own the iOS home-indicator inset (#282 edge-to-edge).
+  const chat288 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/padding-block-end: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\);/.test(chat288)
+    && /\.chat-request-pane > \.c-contact-request \{/.test(chat288),
+    '#288: the pending strip + request card own the iOS home-indicator inset');
+  // The #286 wrap escalation latched data-compact from the PRE-wrap measurement, so a
+  // wrapped pill rendered a lone ⓘ with its line otherwise blank (the affordance's NAME
+  // invisible — the whole point of #98).
+  const walletJs288 = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+  ok(/row\.dataset\.wrap = '';[\s\S]{0,700}?delete row\.dataset\.compact;[\s\S]{0,120}?row\.dataset\.compact = ''/.test(walletJs288),
+    '#288: fit() restores the misstx label once the pill wraps onto its own line');
 }
 
 console.log('missing-bits Batch C — desktop overlay grammar + form panes (M6/M7/M8)');

@@ -63,6 +63,9 @@ namespace SPIXI
         // ixian:tab:tab1 (shell Fix #8) does not run the #240 overlay-exit sweep
         // and tear down the settings pane the language pick lives in.
         private bool suppressNextTabOverlayExit = false;
+        // #288 review (break-my-verdict): epochs reloadShell so a belt started by an
+        // EARLIER reload cannot clear a suppression flag armed by a LATER one.
+        private int reloadShellGen = 0;
         private bool hideBalance = false;
 
         private bool running = false;
@@ -383,6 +386,21 @@ namespace SPIXI
                     hideBalance = split[1] == "hide";
                 }
                 Preferences.Default.Set("hidebalance", hideBalance);
+                // #288 (Opus #46 review of #284–#287) — MAJOR: the flag was persisted and
+                // pushed to NOBODY. On desktop the tx detail is a LIVE overlay pinned to
+                // col 1 BESIDE the wallet list (#263, onTransaction), so toggling the eye
+                // masked the list while the pane kept rendering amount / fiat / fee /
+                // counterparty and the FULL base58 address + copy button, indefinitely.
+                // #285 closed hide-THEN-open; this closes open-THEN-hide. Idempotent by
+                // construction: the shell's setHideBalance early-returns on an unchanged
+                // value, so a redundant push cannot clobber a deliberate per-view reveal.
+                foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+                {
+                    if (p is WalletSentPage)
+                    {
+                        Utils.sendUiCommand(p, "setHideBalance", hideBalance.ToString());
+                    }
+                }
                 e.Cancel = true;
                 return;
             }
@@ -568,10 +586,17 @@ namespace SPIXI
             else if (current_url.Contains("ixian:tab:"))
             {
                 currentTab = current_url.Split(new string[] { "ixian:tab:" }, StringSplitOptions.None)[1];
-                if (suppressNextTabOverlayExit)
+                if (suppressNextTabOverlayExit && currentTab == "tab1")
                 {
                     // #285: this is the reloaded shell's own boot-time tab1 echo
                     // (Fix #8), not a user tab switch — skip the exit sweep ONCE.
+                    // #288 review: keyed on tab1, because a REAL tab tap inside the reload
+                    // window used to EAT the flag — and then the boot echo, arriving with
+                    // the flag already clear, ran the sweep and tore down the very Account
+                    // pane this exists to protect. reloadShell's belt also clears it
+                    // unconditionally, so a shell that never boots cannot latch it into the
+                    // next genuine switch (which would silently skip the Account pane's
+                    // save-if-dirty exit and drop a held nickname / avatar / lock edit).
                     suppressNextTabOverlayExit = false;
                 }
                 else
@@ -2517,6 +2542,12 @@ namespace SPIXI
         public void reloadShell()
         {
             suppressNextTabOverlayExit = true;
+            // #288 review (break-my-verdict): two language picks inside the ~5 s belt
+            // window are ONE TAP apart — the #274 stash returns the user straight back
+            // ONTO the Language picker. Without this epoch, belt #1's clear disarms pick
+            // #2's flag, its boot echo runs the exit sweep, and the Account pane is torn
+            // down mid-pick: exactly the #285 round-2 bug this flag exists to prevent.
+            int gen = ++reloadShellGen;
             base.reload();
             // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE
             // Navigated→readyState flush; on WinUI that can race the fresh document
@@ -2532,7 +2563,16 @@ namespace SPIXI
                 {
                     // must run on the UI thread: webViewNavigated → applyPlatformPageChrome
                     // touches native layout properties.
-                    MainThread.BeginInvokeOnMainThread(() => { try { webViewNavigated(this, null); } catch { } });
+                    // #288 review: re-check the latch INSIDE the lambda (the page can finish
+                    // loading in the marshalling gap → a second webViewNavigated on an
+                    // already-booted page) and LOG the failure — a silent catch here means
+                    // the empty-shell symptom this belt exists to rescue comes back with no
+                    // diagnostic whatsoever.
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try { if (!pageLoaded) { webViewNavigated(this, null); } }
+                        catch (Exception ex) { Logging.error("reloadShell belt re-drive failed: " + ex.Message); }
+                    });
                     await System.Threading.Tasks.Task.Delay(500);
                 }
                 UIHelpers.shouldRefreshContacts = true;
@@ -2540,6 +2580,14 @@ namespace SPIXI
                 Node.changedSettings = true;   // re-push avatar on the next tick
                 await System.Threading.Tasks.Task.Delay(3500);
                 UIHelpers.shouldRefreshContacts = true;   // second pass if the first raced the boot
+                // #288 review: the tab1-echo suppression must never outlive this window. A
+                // shell that failed to boot emits no echo, and a latched flag would make the
+                // NEXT genuine tab switch skip the whole exit sweep. Epoch-guarded (see the
+                // gen capture above) so this clear can only ever disarm ITS OWN reload.
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (gen == reloadShellGen) { suppressNextTabOverlayExit = false; }
+                });
             });
         }
 

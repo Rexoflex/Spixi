@@ -199,7 +199,17 @@ export function createWalletFilters(state, opts = {}) {
       // Reads force a sync reflow, so the post-compact measurement is accurate;
       // the height change re-fires the RO once, fit() recomputes to the same
       // state and settles (no loop — attrs end where the last paint left them).
-      if (row.scrollWidth > row.clientWidth) row.dataset.wrap = '';
+      if (row.scrollWidth > row.clientWidth) {
+        row.dataset.wrap = '';
+        // #288 review: once wrapped, the pill owns a full-width line where the label fits
+        // again — but data-compact stayed latched from the PRE-wrap measurement, so the row
+        // rendered a lone ⓘ with the rest of the line blank and the affordance's NAME
+        // invisible (which is the whole point of #98). Re-measure without it and only
+        // re-compact if it STILL overflows. Terminates: the second measurement is taken in
+        // the wrapped layout, and the attributes end where the last paint left them.
+        delete row.dataset.compact;
+        if (row.scrollWidth > row.clientWidth) row.dataset.compact = '';
+      }
     };
     const ro = new ResizeObserver(fit);
     ro.observe(row);

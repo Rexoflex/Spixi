@@ -1903,6 +1903,19 @@ namespace SPIXI
 
             if (friend.bot)
             {
+                // #288 review: the unlock edge lives ONLY in the non-bot branch below. A
+                // friend that BECOMES a bot while the pending latch is set (joinBot creates
+                // the group-chat friend as RequestSent with bot == false; the bot metadata
+                // lands later) would never receive showRequestSentModal("0") — a dead
+                // composer + "Waiting for response…" + a Cancel-request strip on a chat the
+                // user has already joined, until they back out and re-enter (onLoad resets
+                // the latch). Bots are never pending-locked by design, so releasing is
+                // unconditionally safe here.
+                if (_waitingForContactConfirmation)
+                {
+                    _waitingForContactConfirmation = false;
+                    Utils.sendUiCommand(this, "showRequestSentModal", "0");
+                }
                 long userCount = 0;
                 if(friend.metaData != null && friend.metaData.botInfo != null)
                 {

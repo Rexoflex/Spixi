@@ -79,6 +79,14 @@
   #chat-topbar { flex: none; }
   .c-banner { flex: none; }              /* connectivity strip pins under the topbar */
   .chat-request-pane { flex: none; }     /* incoming-request pane pins above the composer */
+  /* #288 review: in the 'incoming' lock the composer is HIDDEN, so the request card is
+     the chat's bottom-most chrome and owns the iOS home-indicator inset — otherwise
+     Accept/Decline sit under the indicator. Break-my-verdict correction: the inset goes
+     on the PAINTED child, not the wrapper — the wrapper has no background, so padding
+     there would open a --surface-screen band under a --surface-neutral-02 card. */
+  .chat-request-pane > .c-contact-request {
+    padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+  }
   /* ⑪ pending-outgoing composer lock: while our contact request awaits the peer's
      accept, the composer is REPLACED by this quiet strip (nothing to type into —
      a locally-"sent" message would show delivered/read ticks the peer never sees).
@@ -87,6 +95,11 @@
     display: flex; align-items: center;
     gap: var(--spacing-12);
     padding: var(--spacing-12) var(--spacing-16);
+    /* #288 review: this strip REPLACES the composer (composerEl.hidden), so it is the
+       chat's bottom-most chrome and must own the iOS home-indicator inset the way
+       composer.css does — otherwise Cancel request, the ONLY escape from a locked
+       chat, sits under the indicator. env() resolves to 0 off-iOS. */
+    padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
     background: var(--surface-neutral-02);
     border-top: var(--outline-width-1) solid var(--outline-neutral-01);   /* composer hairline parity */
   }
@@ -165,16 +178,16 @@
   }
   .chat-event__chip svg { flex: none; color: var(--icon-accent); }
   /* attach → App-invite picker (inside a c-sheet) */
-  .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
+  .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-4); }
   .chat-app-picker__item {
-    display: flex; align-items: center; gap: var(--spacing-3, 12px);
-    padding: var(--spacing-3, 12px); border: 0; border-radius: var(--radius-md, 12px);
+    display: flex; align-items: center; gap: var(--spacing-12);
+    padding: var(--spacing-12); border: 0; border-radius: var(--radius-12);
     background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
     text-align: start; cursor: pointer; width: 100%;
   }
-  .chat-app-picker__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
+  .chat-app-picker__item:hover { background: var(--surface-interactive-hover); }
   .chat-app-picker__name { font-weight: 600; }
-  .chat-app-picker__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
+  .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
   /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
      z-30 sits ABOVE the bars/composer (z-20) but BELOW the sheets (z-40) + modal
      (z-50) it spawns, so its member sheet + kick/ban/leave confirms render on top.
@@ -191,7 +204,7 @@
      (NOT the old under-topbar bar, NOT a bottom sheet). The trailing ⓘ opens the
      chat-info takeover. */
   .c-topbar.is-bot-channels .c-topbar__name {
-    display: inline-flex; align-items: center; gap: var(--spacing-1, 4px);
+    display: inline-flex; align-items: center; gap: var(--spacing-4);
   }
   .chat-channel-chev { flex: none; color: var(--icon-neutral-02, currentColor); }
   .chat-channel-unread-dot {
@@ -218,7 +231,7 @@
     border-bottom-left-radius: var(--radius-16, 16px);
     border-bottom-right-radius: var(--radius-16, 16px);
     box-shadow: var(--elevation-3, 0 8px 24px rgba(0,0,0,0.24));
-    padding: var(--spacing-3, 12px);
+    padding: var(--spacing-12);
     transform: translateY(-100%);
     transition: transform var(--duration-200, 200ms) var(--easing-emphasized, ease);
   }
@@ -230,13 +243,13 @@
     font-size: var(--font-size-label-sm, 13px);
     font-weight: var(--font-weight-semibold, 600);
     color: var(--text-neutral-02, #666);
-    padding: var(--spacing-1, 4px) var(--spacing-2, 8px) var(--spacing-2, 8px);
+    padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
   }
   /* channel list (rows shared by the panel) */
-  .chat-channel-list { display: flex; flex-direction: column; gap: var(--spacing-1, 4px); }
+  .chat-channel-list { display: flex; flex-direction: column; gap: var(--spacing-4); }
   .chat-channel-list__item {
-    display: flex; align-items: center; gap: var(--spacing-2, 8px);
-    width: 100%; padding: var(--spacing-3, 12px); border: 0; border-radius: var(--radius-md, 12px);
+    display: flex; align-items: center; gap: var(--spacing-8);
+    width: 100%; padding: var(--spacing-12); border: 0; border-radius: var(--radius-12);
     background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
     text-align: start; cursor: pointer;
   }
@@ -246,8 +259,8 @@
   }
   .chat-channel-list__item[data-selected] { background: var(--surface-action-tonal-default, rgba(24,146,206,0.12)); }
   .chat-channel-list__item[data-selected] .chat-channel-list__name { font-weight: var(--font-weight-semibold, 600); }
-  .chat-channel-list__item:hover { background: var(--interactive-hover, rgba(128,128,128,0.12)); }
-  .chat-channel-list__empty { padding: var(--spacing-4, 16px); text-align: center; color: var(--text-neutral-03, #888); }
+  .chat-channel-list__item:hover { background: var(--surface-interactive-hover); }
+  .chat-channel-list__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
 
   /* @ jump-to-mention FAB (#8). Hidden until an unseen mention of the local user
      exists. It occupies the PRIMARY bottom slot by default (when the scroll-to-latest
@@ -1716,7 +1729,9 @@
   let pendingStrip = null;
   function pendingStripText() {
     const tpl = (window.SL && window.SL.waitingForAccept) || 'Waiting for {name} to accept your request';
-    return tpl.replace('{name}', identityTitle() || '');
+    // #288 review: String.replace expands $&, $`, $' and $n in the REPLACEMENT, so a
+    // peer nickname containing "$&" rendered mangled. split/join is the codebase canon.
+    return tpl.split('{name}').join(identityTitle() || '');
   }
   function refreshPendingStrip() {
     if (!pendingStrip) return;

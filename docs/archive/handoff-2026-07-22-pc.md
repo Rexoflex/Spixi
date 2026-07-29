@@ -27,6 +27,11 @@ DECISIONS.md.
 
 ## Desktop PC — do in this order
 
+> **STATUS 2026-07-29 (#286 session): steps 1–4 CLOSED.** Windows F5 residue #273/#276–#279 all
+> PASS; iOS-8 cross-check does NOT reproduce on Windows (badges clear — logged in
+> ios-sim-findings iOS-8/iOS-31). Two narrow-pane wallet finds fixed as DECISIONS #286
+> (badge overlap + clipped misstx pill). Remaining live here: **step 5 Android bring-up**.
+
 1. **Pull.** Everything is committed; tree should be clean. (If the Mac push didn't
    happen, ping Damir — the Mac was N commits ahead at session close.)
 2. **Windows sanity F5** (`net10.0-windows10.0.19041.0`, F5 not Rebuild): confirm the

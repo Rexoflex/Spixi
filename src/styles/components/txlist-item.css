@@ -71,6 +71,18 @@
   align-items: center;
   gap: var(--spacing-8);
   min-width: 0;
+  /* #286: belt — a non-shrinking child must never paint into the amounts column */
+  overflow: hidden;
+}
+/* #286 (Damir F5, narrow desktop pane): the status badge's default min-width:auto
+   made it refuse to shrink below its label — it painted over the fiat amount.
+   Let it shrink; the label ellipsizes (icon + tint keep carrying the status,
+   and the full wording lives on the detail sheet). */
+.c-txlist-item__meta .c-badge { min-width: 0; }
+.c-txlist-item__meta .c-badge__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .c-txlist-item__time {

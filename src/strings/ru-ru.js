@@ -493,7 +493,7 @@ export const ruru = {
   retryCopy: "Не удалось разблокировать кошелёк сохранённым паролем. Введите его, чтобы продолжить.",
   retryTitle: "Разблокируйте кошелёк",
   returnToCall: "Вернуться к вызову",
-  revealAmounts: "Show amounts",
+  revealAmounts: "Показать суммы",
   reviewSend: "Проверить",
   reviewTitle: "Проверьте платёж",
   runsSecurely: "Безопасно работает внутри Spixi — ничего не покидает ваше устройство без вашего разрешения.",

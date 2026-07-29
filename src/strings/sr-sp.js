@@ -493,7 +493,7 @@ export const srsp = {
   retryCopy: "Vaš novčanik nije mogao biti otključan sačuvanom lozinkom. Unesite je da biste nastavili.",
   retryTitle: "Otključajte svoj novčanik",
   returnToCall: "Vrati se na poziv",
-  revealAmounts: "Show amounts",
+  revealAmounts: "Prikaži iznose",
   reviewSend: "Pregledaj",
   reviewTitle: "Pregledaj uplatu",
   runsSecurely: "Bezbedno se pokreće unutar aplikacije Spixi — ništa ne napušta vaš uređaj bez vaše dozvole.",

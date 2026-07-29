@@ -537,5 +537,6 @@
   "tabAccount": "Cuenta",
   "tabApps": "Apps",
   "tabNotReady": "Esta sección aún no hace parte del rediseño.",
-  "wallet": "Monedero"
+  "wallet": "Monedero",
+  "revealAmounts": "Mostrar montos"
 }

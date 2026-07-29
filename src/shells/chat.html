@@ -84,15 +84,32 @@
      a locally-"sent" message would show delivered/read ticks the peer never sees).
      Same slot as the composer (#chat-composer child), so layout is unchanged. */
   .chat-pending-strip {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: var(--spacing-3, 12px);
-    padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
-    background: var(--surface-neutral-02, var(--surface-neutral-01, #fff));
-    border-top: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
+    display: flex; align-items: center;
+    gap: var(--spacing-12);
+    padding: var(--spacing-12) var(--spacing-16);
+    background: var(--surface-neutral-02);
+    border-top: var(--outline-width-1) solid var(--outline-neutral-01);   /* composer hairline parity */
   }
+  /* #287 (#275 polish backlog): pending medallion — avatar-32 tonal disc +
+     user-plus (the "Request sent" glyph family, #253), #117 handshake-pulse
+     cadence; decorative (the strip text carries the meaning). Token-exact:
+     the old block referenced non-existent --spacing-3/-4 (numeric naming is
+     --spacing-12/-16) and rode the px fallbacks. */
+  .chat-pending-strip__disc {
+    flex: none;
+    width: var(--size-avatar-32); height: var(--size-avatar-32);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--surface-action-tonal-default);
+    color: var(--icon-action-default);
+    animation: chat-pending-pulse 1.4s var(--easing-standard) infinite;
+  }
+  @keyframes chat-pending-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  @media (prefers-reduced-motion: reduce) { .chat-pending-strip__disc { animation: none; } }
   .chat-pending-strip__text {
-    color: var(--text-neutral-02, #666);
-    font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm);
+    flex: 1;
+    color: var(--text-neutral-02);
+    font-size: var(--font-size-body-md); line-height: var(--line-height-body-md);
     min-width: 0; overflow-wrap: anywhere;
   }
   .c-chat-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -1728,7 +1745,11 @@
           bridge.send('ixian:undorequest');
         },
       });
-      pendingStrip.append(txt, cancel);
+      const disc = document.createElement('span');
+      disc.className = 'chat-pending-strip__disc';
+      disc.setAttribute('aria-hidden', 'true');   // decorative; the text is the status
+      if (window.SpixiIcons && window.SpixiIcons.icon) disc.append(window.SpixiIcons.icon('user-plus', { size: 18 }));
+      pendingStrip.append(disc, txt, cancel);
       document.getElementById('chat-composer').append(pendingStrip);
     }
   }

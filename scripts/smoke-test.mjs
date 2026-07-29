@@ -2665,7 +2665,7 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   const dots = [...d.querySelectorAll('.c-launch__dot')];
   ok(d.querySelectorAll('.c-launch__slide').length === 4 && dots.length === 4,
     'carousel: 4 slides + 4 dots (the SHIPPED legacy tour, step1–4 reused)');
-  const arts = [...d.querySelectorAll('.c-launch__illo-img')];
+  const arts = [...d.querySelectorAll('.c-launch__slide .c-launch__illo-img')];
   ok(arts.length === 4 && arts.every((im) => /images\/onboarding\/step[1-4]\.svg$/.test(im.getAttribute('src'))),
     'slides carry the legacy step1–4 art (dark set — welcome is pinned dark)');
   ok(dots[0].getAttribute('aria-selected') === 'true', 'dot 1 selected at rest (roving tabindex)');
@@ -2675,8 +2675,13 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'dot click drives the track (and retires autoplay — the user took control)');
   d.querySelector('.c-launch__dots').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   ok(dots[1].getAttribute('aria-selected') === 'true', '←/→ arrows page the carousel');
-  ok(d.querySelectorAll('.c-launch__illo[data-placeholder="true"]').length === 1,
-    'ONE placeholder slot remains (backup nudge — nano-banana #6 pending)');
+  // iOS-2 (#283/#284): the backup nudge now ships the REAL asset (images/backup.svg,
+  // the #245b canon); data-placeholder survives only as the img-error fallback.
+  const backupIllo = d.querySelector('.c-launch__illo[data-illo="backup"] .c-launch__illo-img');
+  ok(!!backupIllo && /images\/backup\.svg$/.test(backupIllo.getAttribute('src')),
+    'iOS-2: the backup nudge carries the REAL backup.svg (join-step img grammar)');
+  ok(d.querySelectorAll('.c-launch__illo[data-placeholder="true"]').length === 0,
+    'NO placeholder slots remain (placeholder = img-error fallback only, iOS-2 shipped)');
 
   // —— premium pickers: the SETTINGS sheets (one grammar app-wide) ——
   const pill = d.querySelector('.c-launch__pill');
@@ -3500,7 +3505,9 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
     && /SpixiContentPage\.broadcastCallState\(\);\s*\n\s*return;/.test(callPage),
     'MAJOR-4: hideSurface clears state synchronously and re-asserts after the modal pops (answering a modal-fallback ring lands the strip)');
   // MINOR-5: the bar strip is sized, not margin-derived from an unmeasured grid.
-  ok(/stage\.HeightRequest = barHeightDip;/.test(callPage) && !/h - barHeightDip/.test(callPage),
+  // #282: the bar strip grows by the iOS status-bar inset — the assignment rides
+  // stripHeight (barHeightDip + inset); still SIZED directly, never margin-derived.
+  ok(/double stripHeight = barHeightDip;/.test(callPage) && /stage\.HeightRequest = stripHeight;/.test(callPage) && !/h - barHeightDip/.test(callPage),
     'MINOR-5: the bar stage is SIZED, not margin-derived from an unmeasured grid height (which collapsed to a full-window input blocker)');
   // ★ the inbound mini-app gate survives the removal of the (now dead) enumerator.
   ok(!/public static List<SpixiContentPage> getLivePages/.test(scp)

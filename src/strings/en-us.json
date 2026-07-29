@@ -492,6 +492,7 @@
   "retryCopy": "Your wallet couldn’t be unlocked with the saved password. Enter it to continue.",
   "retryTitle": "Unlock your wallet",
   "returnToCall": "Return to call",
+  "revealAmounts": "Show amounts",
   "reviewSend": "Review",
   "reviewTitle": "Review payment",
   "runsSecurely": "Runs securely inside Spixi — nothing leaves your device without your permission.",

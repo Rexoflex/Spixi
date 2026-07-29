@@ -59,6 +59,10 @@ namespace SPIXI
         private ushort transactionFilter = 0; // 0-All 1-Sent 2-Received
 
         private string currentTab = "tab1";
+        // #285 one-shot: set by reloadShell() so the reloaded shell's boot-time
+        // ixian:tab:tab1 (shell Fix #8) does not run the #240 overlay-exit sweep
+        // and tear down the settings pane the language pick lives in.
+        private bool suppressNextTabOverlayExit = false;
         private bool hideBalance = false;
 
         private bool running = false;
@@ -564,15 +568,24 @@ namespace SPIXI
             else if (current_url.Contains("ixian:tab:"))
             {
                 currentTab = current_url.Split(new string[] { "ixian:tab:" }, StringSplitOptions.None)[1];
-                // Unit 2 (#240): switching home tab closes an open Account pane —
-                // routed THROUGH the shell so held edits are saved (never a silent
-                // teardown around a dirty nickname/avatar/lock).
-                requestSettingsOverlayExit();
-                // #247: the chat-info pane belongs to the chats context — leaving it
-                // closes the pane (direct close is safe: its edits commit per-action).
-                closeContactDetailsOverlays();
-                closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
-                closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
+                if (suppressNextTabOverlayExit)
+                {
+                    // #285: this is the reloaded shell's own boot-time tab1 echo
+                    // (Fix #8), not a user tab switch — skip the exit sweep ONCE.
+                    suppressNextTabOverlayExit = false;
+                }
+                else
+                {
+                    // Unit 2 (#240): switching home tab closes an open Account pane —
+                    // routed THROUGH the shell so held edits are saved (never a silent
+                    // teardown around a dirty nickname/avatar/lock).
+                    requestSettingsOverlayExit();
+                    // #247: the chat-info pane belongs to the chats context — leaving it
+                    // closes the pane (direct close is safe: its edits commit per-action).
+                    closeContactDetailsOverlays();
+                    closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
+                    closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
+                }
                 if (currentTab == "tab2")
                 {
                     loadTransactions(true);
@@ -2495,6 +2508,39 @@ namespace SPIXI
         {
             base.reload();
             removeDetailContent();
+        }
+
+        // #285: language re-bake — regenerate ONLY the home shell. Unlike reload(),
+        // the detail pane is left alone: the language pick that calls this is hosted
+        // IN the detail pane (Account settings; nuking it would clobber the #274
+        // picker restore), and live chat panes re-localize via their own reload().
+        public void reloadShell()
+        {
+            suppressNextTabOverlayExit = true;
+            base.reload();
+            // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE
+            // Navigated→readyState flush; on WinUI that can race the fresh document
+            // and strand the message queue → an empty (but correctly-localized)
+            // shell. If the latch is still down after the boot window, re-drive it
+            // (webViewNavigated → readyState poll → queue flush), then re-arm the
+            // refresh flags so the 1 Hz updateScreen pass re-pushes chats + avatar
+            // (balance re-pushes every tick anyway; tab2/tab3 load on open, Fix #8).
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(1500);
+                if (!pageLoaded)
+                {
+                    // must run on the UI thread: webViewNavigated → applyPlatformPageChrome
+                    // touches native layout properties.
+                    MainThread.BeginInvokeOnMainThread(() => { try { webViewNavigated(this, null); } catch { } });
+                    await System.Threading.Tasks.Task.Delay(500);
+                }
+                UIHelpers.shouldRefreshContacts = true;
+                UIHelpers.refreshAppRequests = true;
+                Node.changedSettings = true;   // re-push avatar on the next tick
+                await System.Threading.Tasks.Task.Delay(3500);
+                UIHelpers.shouldRefreshContacts = true;   // second pass if the first raced the boot
+            });
         }
 
         public void removeDetailContent(bool setDefault = true)

@@ -299,6 +299,21 @@ namespace SPIXI
                     selectedLanguage = lang;
                     Preferences.Default.Set("language", selectedLanguage);
                     loadPage(webView, "settings.html");
+                    // #285 (F5 2026-07-29): strings are BAKED into generated pages; the
+                    // deferred save/exit Home reload (#242) never fires on DESKTOP — the
+                    // Account pane is tabbed away from, not exited — so the rest of the
+                    // app kept the old language until an app restart. Re-localize the
+                    // LIVE surfaces at pick time: the home shell (shell-only —
+                    // HomePage.reload() would removeDetailContent(), tearing down the
+                    // very pane this settings page is hosted in and clobbering the #274
+                    // picker restore) and every live conversation WebView (same
+                    // enumeration as the #284 delete-all leg). Other detail pages
+                    // (tx details, downloads) regenerate localized on next open.
+                    HomePage.Instance()?.reloadShell();
+                    foreach (var chat_page in Utils.getChatPages())
+                    {
+                        chat_page.reload();
+                    }
                 }
                 else
                 {
@@ -394,16 +409,12 @@ namespace SPIXI
 
         private void saveSettingsCore(string nick)
         {
-            bool homeNeedsReload = false;
-
             if (selectedLanguage != null)
             {
                 Preferences.Default.Set("language", selectedLanguage);
-                // Strings are baked into the generated pages — a language change needs
-                // a real Home reload (reload() re-localizes; SpixiContentPage.reload).
-                homeNeedsReload = true;
-                // #242: consumed — an apply must not re-reload Home on every later
-                // save/exit of this same page instance.
+                // #285: live surfaces re-localize at PICK time now (ixian:language
+                // handler) — no deferred Home reload on save/exit. #242 stays honored:
+                // nothing re-reloads on later saves of this page instance either.
                 selectedLanguage = null;
             }
             else
@@ -428,10 +439,7 @@ namespace SPIXI
             // Combined with HomePage.OnAppearing's (also removed) fromSettings reload,
             // every Account exit double-booted Home in front of the user. Appearance is
             // applied LIVE at pick time (ixian:appearance above); nothing to do on save.
-            if (homeNeedsReload)
-            {
-                HomePage.Instance()?.reload();
-            }
+            // (#285: the language reload moved to pick time too — see ixian:language.)
         }
 
         private void resetLanguage()

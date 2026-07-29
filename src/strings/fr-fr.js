@@ -493,6 +493,7 @@ export const frfr = {
   retryCopy: "Votre portefeuille n'a pas pu être déverrouillé avec le mot de passe enregistré. Saisissez-le pour continuer.",
   retryTitle: "Déverrouillez votre portefeuille",
   returnToCall: "Revenir à l'appel",
+  revealAmounts: "Show amounts",
   reviewSend: "Vérifier",
   reviewTitle: "Vérifier le paiement",
   runsSecurely: "S'exécute en toute sécurité dans Spixi — rien ne quitte votre appareil sans votre autorisation.",

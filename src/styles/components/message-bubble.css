@@ -438,3 +438,26 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
 }
+
+/* iOS-33 — long-press ownership on TOUCH surfaces.
+   WKWebView runs its own long-press gesture (text selection + the native callout)
+   at ~500ms, which is exactly LONG_PRESS_MS in message-menu.js:25. Both fired: the
+   c-msgmenu sheet opened AND a stray fragment of the bubble text came up selected
+   underneath it, with the selection handles unreachable behind the scrim. The
+   message menu owns long-press — Copy is the sanctioned whole-message path — so
+   the native gesture is suppressed on the menu's own targets.
+   DESKTOP IS EXCLUDED: there long-press is already disabled for a mouse
+   (message-menu.js:120, #265 ①), right-click opens the menu, and free drag-select
+   is useful and conflicts with nothing. Keeps working on a touch-screen desktop
+   only insofar as selection stays available there — deliberate.
+   NOTE: this makes PARTIAL text selection impossible on mobile. That half of the
+   report is a UX decision (a "Select text" affordance), flagged for Damir — not
+   silently invented here. */
+:root:not([data-desktop]) .c-bubble,
+:root:not([data-desktop]) .c-tcard,
+:root:not([data-desktop]) .c-fbubble,
+:root:not([data-desktop]) .c-mbubble {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;   /* WebKit honors only the prefixed form (avatar.css:59 precedent) */
+  user-select: none;
+}

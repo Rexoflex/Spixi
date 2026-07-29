@@ -20,105 +20,39 @@ namespace Spixi
 
         private static bool clearNotificationsAfterInit = false;
         private static bool clearRemoteNotificationsAfterInit = false;
-        public class NotificationDelegate : UNUserNotificationCenterDelegate
-        {
-            public override void DidReceiveNotificationResponse(
-                UNUserNotificationCenter center,
-                UNNotificationResponse response,
-                Action completionHandler)
-            {
-                try
-                {
-                    var userInfo = response.Notification.Request.Content.UserInfo;
-
-                    if (userInfo.ContainsKey((NSString)"fa"))
-                    {
-                        var fa = userInfo[(NSString)"fa"];
-                        if (fa != null)
-                        {
-                            MainThread.BeginInvokeOnMainThread(() =>
-                            {
-                                App.startingScreen = Convert.ToString(fa);
-                                HomePage.Instance().updateScreen();
-                            });
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("Exception occured in DidReceiveNotificationResponse: {0}", ex);
-                }
-                finally
-                {
-                    completionHandler();
-                }
-            }
-
-            public override void WillPresentNotification(
-                UNUserNotificationCenter center,
-                UNNotification notification,
-                Action<UNNotificationPresentationOptions> completionHandler)
-            {
-                // iOS bring-up 2026-07-22 (sim crashes iOS-5/7/9): OneSignal's swizzling forwards
-                // every foreground presentation through this callback; a managed exception escaping
-                // it becomes an uncaught NSException -> abort. Same guard pattern as
-                // DidReceiveNotificationResponse above (which had it; this one did not).
-                var options = UNNotificationPresentationOptions.List;
-                try
-                {
-                    var userInfo = notification.Request.Content.UserInfo;
-                    bool showAlert = false;
-
-                    if (userInfo.ContainsKey((NSString)"alert"))
-                    {
-                        var alertValue = userInfo[(NSString)"alert"];
-                        if (alertValue != null && bool.TryParse(alertValue.ToString(), out bool alertBool))
-                        {
-                            showAlert = alertBool;
-                        }
-                    }
-
-                    if (showAlert)
-                    {
-                        // Show the notification even when the app is in the foreground
-                        options = UNNotificationPresentationOptions.Banner | UNNotificationPresentationOptions.Sound | UNNotificationPresentationOptions.List;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("Exception occured in WillPresentNotification: {0}", ex);
-                }
-                finally
-                {
-                    completionHandler(options);
-                }
-            }
-
-            // #281 (root cause of iOS-5/7/9, from the guarded-run log): OneSignal's swizzling MOVES
-            // the original delegate implementation to a "onesignal"-prefixed selector and invokes
-            // that. The .NET registrar only maps the standard selectors, so the runtime died at
-            // lookup ("Failed to lookup the required marshalling information") BEFORE any managed
-            // body ran — which is why the #280 guard alone couldn't catch it. Exporting the
-            // prefixed selectors registers them with the managed runtime; OneSignal's forwarder
-            // lands here and we route to the real handlers.
-            [Export("onesignalUserNotificationCenter:willPresentNotification:withCompletionHandler:")]
-            public void OneSignalWillPresentNotification(
-                UNUserNotificationCenter center,
-                UNNotification notification,
-                Action<UNNotificationPresentationOptions> completionHandler)
-            {
-                WillPresentNotification(center, notification, completionHandler);
-            }
-
-            [Export("onesignalUserNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:")]
-            public void OneSignalDidReceiveNotificationResponse(
-                UNUserNotificationCenter center,
-                UNNotificationResponse response,
-                Action completionHandler)
-            {
-                DidReceiveNotificationResponse(center, response, completionHandler);
-            }
-        }
+        /* iOS-27 (device crash on receiving a contact request) — ROOT CAUSE + FIX, 2026-07-29.
+         *
+         * The custom UNUserNotificationCenterDelegate that used to live here is DELETED.
+         * It was the whole crash family (iOS-5/7/9 on sim, iOS-27 on device):
+         *
+         *  · OneSignal swizzles the notification delegate by class_addMethod-ing
+         *    "onesignal"-prefixed selectors and exchanging implementations.
+         *    class_addMethod FAILS when the class ALREADY defines the selector — which is
+         *    exactly what this class did — so OneSignal's forwarder landed on selectors the
+         *    managed runtime had no marshalling info for, and the process aborted at selector
+         *    lookup BEFORE any managed body ran (which is why the #280 try/catch could never
+         *    log it).
+         *  · #281 tried to fix that by hand-exporting the prefixed selectors. That could not
+         *    work: a hand-written [Export] carrying an Action<UNNotificationPresentationOptions>
+         *    block parameter has no [BlockProxy], so the registrar cannot build the block
+         *    trampoline. The device build says so out loud —
+         *      MT4174: Unable to locate the block to delegate conversion method for
+         *              OneSignalWillPresentNotification(...)'s parameter #3
+         *    Debug's dynamic registrar downgrades it to a warning; the static registrar
+         *    (Release/device) makes it fatal. It only ever "passed" on the simulator.
+         *
+         * The fix is to stop owning the delegate at all. Every piece of logic that lived here
+         * already has a home in OneSignal's own managed events, which are wired in initialize()
+         * below and involve no hand-written selectors:
+         *   · the "fa" deep link  → handleNotificationOpened (Notifications.Clicked)
+         *   · foreground display  → handleNotificationReceived (Notifications.WillDisplay),
+         *                           which now also honours the "alert" flag this class read.
+         *
+         * Leaving OneSignal to install its own delegate means class_addMethod succeeds, so this
+         * ALSO closes B1 (delegate starvation — our selectors were the thing starving it) and
+         * B2 (double tap-handling: DidReceiveNotificationResponse and the Clicked handler were
+         * two live owners of the same tap, with divergent navigation).
+         */
 
         public static void initialize()
         {
@@ -132,7 +66,8 @@ namespace Spixi
             OneSignal.Debug.LogLevel = LogLevel.WARN;
             OneSignal.Debug.AlertLevel = LogLevel.NONE;
 
-            UNUserNotificationCenter.Current.Delegate = new NotificationDelegate();
+            // iOS-27: deliberately NOT setting UNUserNotificationCenter.Current.Delegate —
+            // owning it is what broke OneSignal's swizzle (see the note above).
 
             OneSignal.Notifications.Clicked += handleNotificationOpened;
             OneSignal.Notifications.WillDisplay += handleNotificationReceived;
@@ -321,6 +256,22 @@ namespace Spixi
                 if (OfflinePushMessages.fetchPushMessages(true, true))
                 {
                     return;
+                }
+
+                // iOS-27: the foreground-presentation decision the deleted
+                // WillPresentNotification override used to make. Payload "alert" false (or
+                // absent) = deliver silently; true = let it surface. Same semantics, minus the
+                // hand-exported selector that was aborting the process.
+                var additional = e.Notification.AdditionalData;
+                if (additional != null && additional.ContainsKey("alert"))
+                {
+                    var alertValue = additional["alert"];
+                    if (alertValue != null
+                        && bool.TryParse(Convert.ToString(alertValue), out bool showAlert)
+                        && !showAlert)
+                    {
+                        return;   // silent: no banner/sound in the foreground
+                    }
                 }
             }
             catch (Exception ex)

@@ -1665,13 +1665,24 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
     && /dropExdelHint\(chat\.address\);/.test(persistBody)
     && /leaveRequestsFilterIfEmpty\(\);/.test(persistBody),
     'Q12/M5: a row delete sheds its exdel hint + re-runs the Requests leave guard (onPersist)');
-  // Q5: the contacts takeover consumes the FILTERED roster at BOTH hand-off
-  // points; groups recognized via CH1 kind (chats model) + the C# avatar sentinel.
+  // iOS-26 SUPERSEDES Q5 (Damir 2026-07-29): groups are back IN the directory and
+  // the 'start' picker — a wiped chat history must not make a group unreachable —
+  // and the People/Groups chips separate them instead. Both hand-off points still
+  // take directoryRoster(); what changed is that it no longer drops groups, only
+  // normalizes the isGroup flag from the two signals (CH1 kind + avatar sentinel).
   ok(/contactsView\.setContacts\(directoryRoster\(\)\)/.test(home)
     && /getRoster: \(\) => directoryRoster\(\)/.test(home)
     && /groupAddrs\.add\(wallet\)/.test(home)
-    && /isGroup: avatar === 'img\/spixi-group-avatar\.png'/.test(home),
-    'Q5: directory/picker roster filters groups (CH1 kind set + group-avatar sentinel)');
+    && /isGroup: avatar === 'img\/spixi-group-avatar\.png'/.test(home)
+    && /const isGroupContact = /.test(home)
+    && !/\.filter\(\(c\) => c && !c\.isGroup && !groupAddrs\.has\(c\.address\)\)/.test(home),
+    'iOS-26: directory/picker roster KEEPS groups (isGroup normalized; Q5 drop-filter gone)');
+  // iOS-26 money fence: groups must never reach a payment/recipient surface.
+  // peopleRoster() is the people-only view; both money consumers take it.
+  ok(/const peopleRoster = \(\) => directoryRoster\(\)\.filter\(\(c\) => !c\.isGroup\)/.test(home)
+    && /contacts: peopleRoster\(\)/.test(home)
+    && /return peopleRoster\(\)\.filter\(\(c\) => c && !c\.pending/.test(home),
+    'iOS-26/#255: createWalletSend + requestableContacts consume the people-only roster');
   // M5 (corrected round 2, Damir F5): the real outgoing-request signal is the
   // unapproved-state chat-waiting-for-response override (HomePage.xaml.cs:1606-1612),
   // NOT index-excerpt-contact-request. Carrier same-line-closed (#248) + DIRECTION

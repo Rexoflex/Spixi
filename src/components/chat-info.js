@@ -252,8 +252,13 @@ export function createChatInfo({
     }
   }
 
-  /* ——— address card (blind groups: identities hidden — no address, no QR) ——— */
-  if (address && !(kind === 'group' && blind)) {
+  /* ——— address card ———
+     Groups have NO payable/shareable address at all (Damir F5 2026-07-29): a group's
+     identifier is a local session id, not a wallet address, so showing it — and worse,
+     rendering it as a scannable QR that resolves to nothing — is wrong for EVERY group,
+     not just blind ones. Suppress the whole card for groups; 1:1 and bot surfaces keep
+     it. (`blind` stays in the condition for bots/1:1 that opt into identity hiding.) */
+  if (address && kind !== 'group' && !blind) {
     const card = document.createElement('div');
     card.className = 'c-chat-info__address';
     card.append(sectionLabel(strings.address || 'Address'));
@@ -318,10 +323,16 @@ export function createChatInfo({
   /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
      contact context: Message LEADS (you're not in the chat yet — member-sheet
      precedent), Pay demotes to outline; chat context: Pay stays primary */
-  if (kind !== 'group' && (onMessage || onPay || onRequest)) {
+  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
+     Message action too — the whole point of putting groups back in the directory is
+     that a wiped chat history must not make the group unreachable, and without this
+     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
+     address is not a payable counterparty (peopleRoster fence, home.html). */
+  const groupMessageOnly = kind === 'group' && !!onMessage;
+  if ((kind !== 'group' || groupMessageOnly) && (onMessage || onPay || onRequest)) {
     const money = document.createElement('div');
     money.className = 'c-chat-info__money';
-    if (context === 'contact' && onMessage) {
+    if ((context === 'contact' || groupMessageOnly) && onMessage) {
       const msg = createButton({
         label: strings.message || 'Message', type: 'fill', size: 44, width: 'full',
         icon: icon('messages', { size: 18 }), onClick: () => onMessage(),
@@ -329,12 +340,12 @@ export function createChatInfo({
       msg.classList.add('c-chat-info__message');
       money.append(msg);
     }
-    if (onPay) money.append(createButton({
+    if (onPay && !groupMessageOnly) money.append(createButton({
       label: strings.pay || 'Pay',
       type: context === 'contact' && onMessage ? 'outline' : 'fill', size: 44,
       icon: icon('arrow-up-right', { size: 18 }), onClick: () => onPay(),
     }));
-    if (onRequest) money.append(createButton({
+    if (onRequest && !groupMessageOnly) money.append(createButton({
       label: strings.request || 'Request', type: 'outline', size: 44,
       icon: icon('arrow-down-left', { size: 18 }), onClick: () => onRequest(),
     }));

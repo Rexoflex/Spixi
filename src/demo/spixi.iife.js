@@ -4706,19 +4706,13 @@ function hideIncomingCall(el) {
 
 
 
-/** Middle-truncate a long address for display (keeps head + tail). */
-function crDisplayAddress(addr) {
-  const s = String(addr || '');
-  return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
-}
-
 function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = getStrings(), host, onAccept, onDecline } = {}) {
   // #211 address-display canon: a raw address is NEVER shown in full on a chat
   // surface. A request friend's nick/name often DEFAULTS to its own address (no
   // custom name yet) — treat a name that IS the address as "no name" and
   // middle-truncate, matching the chat-list rows / bubble sender labels.
   const realName = (nick && nick !== address) ? nick : (name && name !== address) ? name : '';
-  const display = realName || crDisplayAddress(address);
+  const display = realName || truncateAddressMiddle(address);   // iOS-14: ONE canon helper (was a local 6…4 duplicate)
 
   const row = document.createElement('div');
   row.className = 'c-contact-request';
@@ -4732,6 +4726,9 @@ function createContactRequest({ name = '', nick = '', address = '', avatar = nul
   body.className = 'c-contact-request__body';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-contact-request__name';
+  // iOS-14: no nick → this slot holds an ADDRESS, not a name. The marker lets
+  // contact-request.css drop it to the excerpt role (a real nick keeps body-lg).
+  if (!realName) nameEl.dataset.address = '';
   nameEl.textContent = display;                      // user data → textContent (XSS-safe)
   const sub = document.createElement('span');
   sub.className = 'c-contact-request__sub';
@@ -5643,12 +5640,27 @@ function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
     }
   };
 
+  // iOS rubber-band guard (Damir F5 2026-07-29: "scrolling to top or bottom has a
+  // weird animation and looks like it bugs out"). WebKit lets scrollTop run NEGATIVE
+  // past the top and past max at the bottom during a bounce, then springs back — which
+  // fed this a rapid alternating delta and drove collapse/expand against each other,
+  // mid-transition, every time you hit either end. Two fixes: ignore events while
+  // overscrolled (a bounce is not a scroll intent), and require a real downward delta
+  // so settle-jitter can't trip a collapse.
+  const COLLAPSE_DELTA_PX = 4;
   const onScroll = () => {
-    const top = scrollEl.scrollTop;
+    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const raw = scrollEl.scrollTop;
+    if (raw < 0 || raw > max) {                        // rubber-band overscroll — not a gesture
+      lastTop = Math.min(max, Math.max(0, raw));       // resync so the spring-back reads delta 0
+      if (raw < 0) setCollapsed(false);                // bouncing at the top still means "at the top"
+      return;
+    }
+    const top = raw;
     const delta = top - lastTop;
     lastTop = top;
     if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
-    else if (delta > 0) setCollapsed(true);            // collapse on downward scroll (stays collapsed on up)
+    else if (delta > COLLAPSE_DELTA_PX) setCollapsed(true);   // collapse on real downward scroll
   };
 
   const onResize = () => {                    // re-measure while expanded (can't while collapsed)
@@ -10703,7 +10715,7 @@ function createWalletReceive({
     });
     askBox.append(search);
     rows = document.createElement('div');
-    rows.className = 'c-wallet-receive__contacts';
+    rows.className = 'c-wallet-receive__contacts';   // scrolls (Damir F5); NO card/.u-scroll — both added padding inside the request box
     askBox.append(rows);
     reqBox.append(askBox);
   }
@@ -10724,7 +10736,12 @@ function createWalletReceive({
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
       || (c.address || '').toLocaleLowerCase().includes(needle));
-    const cap = needle ? 8 : 5;                            // #136③ scaling: search is the path through hundreds
+    // Damir F5 2026-07-29: the old 5/8 cap meant the roster visibly "cut off" and the
+    // only way to anyone else was to type. The strip scrolls now (wallet-receive.css),
+    // so the cap is purely a DOM-size guard for very large rosters — high enough that
+    // scrolling reaches everyone in practice, with the "keep typing" note below still
+    // covering the tail.
+    const cap = 50;
     for (const c of list.slice(0, cap)) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -11503,8 +11520,13 @@ function createChatInfo({
     }
   }
 
-  /* ——— address card (blind groups: identities hidden — no address, no QR) ——— */
-  if (address && !(kind === 'group' && blind)) {
+  /* ——— address card ———
+     Groups have NO payable/shareable address at all (Damir F5 2026-07-29): a group's
+     identifier is a local session id, not a wallet address, so showing it — and worse,
+     rendering it as a scannable QR that resolves to nothing — is wrong for EVERY group,
+     not just blind ones. Suppress the whole card for groups; 1:1 and bot surfaces keep
+     it. (`blind` stays in the condition for bots/1:1 that opt into identity hiding.) */
+  if (address && kind !== 'group' && !blind) {
     const card = document.createElement('div');
     card.className = 'c-chat-info__address';
     card.append(sectionLabel(strings.address || 'Address'));
@@ -11569,10 +11591,16 @@ function createChatInfo({
   /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
      contact context: Message LEADS (you're not in the chat yet — member-sheet
      precedent), Pay demotes to outline; chat context: Pay stays primary */
-  if (kind !== 'group' && (onMessage || onPay || onRequest)) {
+  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
+     Message action too — the whole point of putting groups back in the directory is
+     that a wiped chat history must not make the group unreachable, and without this
+     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
+     address is not a payable counterparty (peopleRoster fence, home.html). */
+  const groupMessageOnly = kind === 'group' && !!onMessage;
+  if ((kind !== 'group' || groupMessageOnly) && (onMessage || onPay || onRequest)) {
     const money = document.createElement('div');
     money.className = 'c-chat-info__money';
-    if (context === 'contact' && onMessage) {
+    if ((context === 'contact' || groupMessageOnly) && onMessage) {
       const msg = createButton({
         label: strings.message || 'Message', type: 'fill', size: 44, width: 'full',
         icon: icon('messages', { size: 18 }), onClick: () => onMessage(),
@@ -11580,12 +11608,12 @@ function createChatInfo({
       msg.classList.add('c-chat-info__message');
       money.append(msg);
     }
-    if (onPay) money.append(createButton({
+    if (onPay && !groupMessageOnly) money.append(createButton({
       label: strings.pay || 'Pay',
       type: context === 'contact' && onMessage ? 'outline' : 'fill', size: 44,
       icon: icon('arrow-up-right', { size: 18 }), onClick: () => onPay(),
     }));
-    if (onRequest) money.append(createButton({
+    if (onRequest && !groupMessageOnly) money.append(createButton({
       label: strings.request || 'Request', type: 'outline', size: 44,
       icon: icon('arrow-down-left', { size: 18 }), onClick: () => onRequest(),
     }));
@@ -12218,9 +12246,26 @@ function renderPickerList(st) {
   const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
-  const matches = sortedContacts(st.contacts).filter((c) => !needle
+  // iOS-26: People / Groups chips. MULTI mode (group creation) is people-only —
+  // a group cannot be a member of a group — so the kind filter is pinned there.
+  // chips earn their space only when there IS something to separate.
+  // AUDIT MINOR-2: they can disappear (last group left / roster re-flush) while
+  // 'groups' is still selected, which left an empty list and no visible control to
+  // escape it. Reset BEFORE `kind` is read below, so this render already reflects
+  // the fallback (calling setKind here would re-enter and then be overwritten).
+  if (st.els.kinds) {
+    const hide = st.mode === 'multi' || !st.contacts.some((c) => c && c.isGroup);
+    st.els.kinds.hidden = hide;
+    if (hide && st.mode !== 'multi' && st.kind !== 'all') {
+      st.kind = 'all';
+      if (st.els.syncKindChips) st.els.syncKindChips();
+    }
+  }
+  const kind = st.mode === 'multi' ? 'people' : (st.kind || 'all');
+  const kindOk = (c) => kind === 'all' || (kind === 'groups' ? !!c.isGroup : !c.isGroup);
+  const matches = sortedContacts(st.contacts).filter((c) => kindOk(c) && (!needle
     || (c.name || '').toLocaleLowerCase().includes(needle)
-    || (c.address || '').toLocaleLowerCase().includes(needle));
+    || (c.address || '').toLocaleLowerCase().includes(needle)));
 
   if (st.contacts.length === 0) {                 // noContacts (bridge-audit-A.md:537)
     empty.hidden = false;
@@ -12233,8 +12278,11 @@ function renderPickerList(st) {
   if (matches.length === 0) {
     empty.hidden = false;
     empty.dataset.kind = 'search';
-    empty.querySelector('.c-contacts__empty-text').textContent =
-      strings.noMatches || 'No contacts match your search.';
+    empty.querySelector('.c-contacts__empty-text').textContent = needle
+      ? (strings.noMatches || 'No contacts match your search.')
+      : (kind === 'groups'
+        ? (strings.noGroups || 'No groups yet.')
+        : (strings.noPeople || 'No contacts yet.'));
     list.hidden = true;
     return;
   }
@@ -12275,9 +12323,16 @@ function syncNext(st) {
   }
   // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
   // isn't focusable, so SR users got nothing). State the rule in the sub-line.
+  // Damir F5 2026-07-29: hiding this at the 2nd selection collapsed its line box and
+  // JUMPED the whole contact list upward mid-tap — the worst possible moment to move
+  // the row under someone's finger. The line now STAYS and just changes what it says:
+  // the rule while it's unmet, the live count once it is. Same element, same height,
+  // no reflow. (role="status" makes the swap an SR announcement too.)
   if (st.els.minHint) {
-    st.els.minHint.hidden = n >= GROUP_MIN_MEMBERS;
-    st.els.minHint.textContent = strings.groupNeedsTwo || 'Select at least 2 people to create a group.';
+    st.els.minHint.hidden = false;
+    st.els.minHint.textContent = n >= GROUP_MIN_MEMBERS
+      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
+      : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.');
   }
 }
 
@@ -12314,7 +12369,8 @@ function createContactsPicker({
   el.dataset.purpose = purpose;
 
   const st = {
-    mode: 'browse', selected: new Set(), query: '',
+    mode: 'browse', selected: new Set(), query: '', kind: 'all',   // iOS-26: People/Groups chip
+
     contacts: contacts.slice(),
     opts: { purpose, onAddContact, onCreateGroup, onOpenChat, onViewContact, onNext, onBack, strings },
     els: { root: el },
@@ -12367,6 +12423,45 @@ function createContactsPicker({
     strings,
   });
   body.append(search);
+
+  /* iOS-26 — People / Groups filter. Groups are back in the directory (a wiped
+     chat history must not make a group unreachable) and in the 'start' picker, so
+     the two kinds need separating. Same exclusive-chip grammar as the chats-list
+     header (#218). Hidden while the roster holds no groups at all — a lone
+     "People" chip is noise — and hidden in MULTI mode, where the list is pinned
+     to people (renderPickerList). */
+  const kinds = document.createElement('div');
+  kinds.className = 'c-contacts__kinds';
+  kinds.setAttribute('role', 'group');
+  kinds.setAttribute('aria-label', strings.filter || 'Filter');
+  const kindChips = [];
+  const syncKindChips = () => {
+    for (const { el: chipEl, value } of kindChips) {
+      setChipSelected(chipEl, value === st.kind);
+      chipEl.setAttribute('aria-pressed', value === st.kind ? 'true' : 'false');
+    }
+  };
+  const setKind = (k) => {
+    if (st.kind === k) return;
+    st.kind = k;
+    syncKindChips();
+    renderPickerList(st);
+  };
+  for (const [value, label] of [
+    ['all', strings.all || 'All'],
+    ['people', strings.people || 'People'],
+    ['groups', strings.groups || 'Groups'],
+  ]) {
+    const chipEl = createChip({ label, size: 'small', selected: value === 'all', strings });
+    chipEl.setAttribute('aria-pressed', value === 'all' ? 'true' : 'false');
+    chipEl.addEventListener('click', () => setKind(value));
+    kindChips.push({ el: chipEl, value });
+    kinds.append(chipEl);
+  }
+  st.els.kinds = kinds;
+  st.els.setKind = setKind;
+  st.els.syncKindChips = syncKindChips;
+  body.append(kinds);
 
   const list = document.createElement('div');
   list.className = 'c-contacts__list';
@@ -15451,6 +15546,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -15869,7 +15965,8 @@ function createSettingsAbout({
   tagline,
   description,
   links,
-  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
+  host,                          // iOS-23: sheet host for the legal doc sheets
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -15921,6 +16018,32 @@ function createSettingsAbout({
     groupWrap.append(card);
     body.append(groupWrap);
   }
+
+  /* iOS-23 — Terms of Use + Privacy Policy were missing from About entirely.
+     They open as the SAME in-app doc sheets onboarding uses (openLegalDoc →
+     launch-shell.js), NOT as external links: app-controlled copy, works with no
+     network, and English-only by #169. Nothing here depends on onOpenLink. */
+  const docs = [
+    { label: strings.termsLink || 'Terms of Use', doc: 'terms' },
+    { label: strings.privacyLink || 'Privacy Policy', doc: 'privacy' },
+  ];
+  const docWrap = document.createElement('div');
+  docWrap.className = 'c-settings__groupwrap';
+  const docCard = document.createElement('div');
+  docCard.className = 'c-settings__group c-settings-links';
+  for (const d of docs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = d.label;
+    b.append(lab, icon('chevron-right', { size: 18 }));
+    b.addEventListener('click', () => openLegalDoc({ doc: d.doc, host, strings }));
+    docCard.append(b);
+  }
+  docWrap.append(docCard);
+  body.append(docWrap);
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
@@ -15988,7 +16111,9 @@ function createSettingsHowTo({
   body.append(groupWrap);
 
   const linkList = links || [
-    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+    // iOS-21: the help centre, not the marketing home page — this is the
+    // "how to use Spixi" destination (mirrors Config.guideUrl, Meta/Config.cs:32).
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io/help-center.html' },
   ];
   if (linkList.length) {
     const lw = document.createElement('div');
@@ -16163,7 +16288,9 @@ const textInput = ({ label, name }) => {
 /* —— welcome (the ONLY brand view — #160 treatment; premium rework) ——— */
 
 function hostEl(st) {
-  return st.opts.host || st.root.closest('.demo-phone') || undefined;
+  // st.root is null for the openLegalDoc re-use path (no launch view mounted) —
+  // guard rather than dereference, or About's Terms row would throw (iOS-23).
+  return st.opts.host || (st.root && st.root.closest('.demo-phone')) || undefined;
 }
 
 // #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
@@ -16506,7 +16633,7 @@ function openDocSheet(st, title, text) {
       bodyEl.append(p);
     }
   }
-  const sheet = createSheet({ content: bodyEl, host: hostEl(st), title, strings });
+  const sheet = createSheet({ content: bodyEl, host: st.docHost || hostEl(st), title, strings });
   // explicit close affordance (scrim tap + Esc still work) — obvious corner tap
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -16516,6 +16643,25 @@ function openDocSheet(st, title, text) {
   closeBtn.addEventListener('click', () => closeSheet(sheet));
   sheet.append(closeBtn);
   openSheet(sheet);
+}
+
+/**
+ * iOS-23 — the SAME legal documents, reachable from Account -> About.
+ * Onboarding shows Terms/Privacy as in-app doc sheets (never an external link):
+ * the copy is app-controlled, works offline, and is deliberately ENGLISH-ONLY
+ * (#169 — titles ARE translated, bodies are not). Account -> About must show the
+ * identical text from the identical source, so this exports the launch renderer
+ * rather than duplicating legal copy into settings-app.js, where the two would
+ * silently drift.
+ *   openLegalDoc({ doc: 'terms' | 'privacy', host, strings })
+ */
+function openLegalDoc({ doc = 'terms', host, strings = getStrings() } = {}) {
+  const ctx = { strings, docHost: host, opts: { host }, root: null };
+  if (doc === 'privacy') {
+    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT);
+  } else {
+    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT);
+  }
 }
 
 // one-shot ixian:accept — emitted at the binding action (create/restore commit)
@@ -17596,5 +17742,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

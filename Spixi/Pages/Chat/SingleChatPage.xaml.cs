@@ -704,7 +704,7 @@ namespace SPIXI
                     {
                         try
                         {
-                            webView.FadeTo(1, 150);
+                            webView.FadeTo(1, 90);   // Damir F5 2026-07-29: trimmed from 150 — the hold is loadMessages, the fade shouldn't add to it
                             webView.Focus();
                         }
                         catch (Exception ex)
@@ -1267,7 +1267,13 @@ namespace SPIXI
                     // whose unread consisted of a requestAdd (the accepted-request row) kept its
                     // stale row/tab badge until the next structural flush (cross-platform, seen
                     // on iOS + suspected on Windows). Display-only push; no message flags touched.
-                    UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.getUnreadMessageCount(), "", 0);
+                    // iOS-31 leg A: push a LITERAL 0, not getUnreadMessageCount(). The line
+                    // above just set metaData.unreadMessageCount = 0 and saved it — that IS the
+                    // truth for this chat. getUnreadMessageCount() re-derives the count from
+                    // message flags, and a requestAdd is never markable-read, so for a chat whose
+                    // unread was the accepted-request row the recount comes back >= 1 and this
+                    // "zeroing" push re-asserted the very badge it was meant to clear.
+                    UIHelpers.setContactStatus(friend.walletAddress, friend.online, 0, "", 0);
                 }
                 foreach (FriendMessage message in messages)
                 {

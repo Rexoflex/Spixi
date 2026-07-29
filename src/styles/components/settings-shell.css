@@ -133,7 +133,7 @@
   background: var(--surface-qr);
   box-shadow: var(--elevation-1);
 }
-.c-settings__qr svg { width: 148px; height: 148px; }   /* sanctioned: scan-comfort QR dim (receive-card family) */
+.c-settings__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (receive-card family) — +25% with chat-info (Damir F5 2026-07-29) */
 
 .c-settings__address-row {
   display: flex;

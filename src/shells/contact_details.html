@@ -222,6 +222,12 @@
         host: document.body,
         strings,
         onBack: () => bridge.send('ixian:back'),
+        // iOS-26 (Damir F5): a group reached from the CONTACTS DIRECTORY had no way
+        // into its conversation — the surface dead-ended, which defeats the reason
+        // groups were put back in the directory (a wiped history must not orphan the
+        // group). Entered from inside the chat (context 'chat') there is nothing to
+        // offer: you are already there. Title stays "Group info" either way.
+        onMessage: state.context === 'chat' ? undefined : () => bridge.send('ixian:chat'),
         // notifications toggle → the group mute verbs (#248 ContactDetails forwards;
         // fire-and-forget, resolve optimistically — same as the in-chat takeover).
         onNotifications: (next, ctrl) => {

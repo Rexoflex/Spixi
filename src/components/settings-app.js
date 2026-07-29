@@ -27,6 +27,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
+import { openLegalDoc } from './launch-shell.js';   // iOS-23: ONE source for the legal copy (#169)
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { settingsConfirm } from './settings-shell.js';
@@ -449,7 +450,8 @@ export function createSettingsAbout({
   tagline,
   description,
   links,
-  onOpenLink,                    // OPTIONAL (url) — no bridge verb today → shells omit it
+  onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
+  host,                          // iOS-23: sheet host for the legal doc sheets
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -501,6 +503,32 @@ export function createSettingsAbout({
     groupWrap.append(card);
     body.append(groupWrap);
   }
+
+  /* iOS-23 — Terms of Use + Privacy Policy were missing from About entirely.
+     They open as the SAME in-app doc sheets onboarding uses (openLegalDoc →
+     launch-shell.js), NOT as external links: app-controlled copy, works with no
+     network, and English-only by #169. Nothing here depends on onOpenLink. */
+  const docs = [
+    { label: strings.termsLink || 'Terms of Use', doc: 'terms' },
+    { label: strings.privacyLink || 'Privacy Policy', doc: 'privacy' },
+  ];
+  const docWrap = document.createElement('div');
+  docWrap.className = 'c-settings__groupwrap';
+  const docCard = document.createElement('div');
+  docCard.className = 'c-settings__group c-settings-links';
+  for (const d of docs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings-links__label';
+    lab.textContent = d.label;
+    b.append(lab, icon('chevron-right', { size: 18 }));
+    b.addEventListener('click', () => openLegalDoc({ doc: d.doc, host, strings }));
+    docCard.append(b);
+  }
+  docWrap.append(docCard);
+  body.append(docWrap);
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
@@ -568,7 +596,9 @@ export function createSettingsHowTo({
   body.append(groupWrap);
 
   const linkList = links || [
-    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io' },
+    // iOS-21: the help centre, not the marketing home page — this is the
+    // "how to use Spixi" destination (mirrors Config.guideUrl, Meta/Config.cs:32).
+    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io/help-center.html' },
   ];
   if (linkList.length) {
     const lw = document.createElement('div');

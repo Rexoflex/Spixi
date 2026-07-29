@@ -2,6 +2,7 @@
 using IXICore.Meta;
 using IXICore.Network;
 using IXICore.Streaming;
+using Microsoft.Maui.ApplicationModel;    // iOS-21: Browser.Default (SingleChatPage:21 precedent)
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Maui.Storage;
@@ -11,6 +12,7 @@ using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
 using System.IO;
+using System.Net;                 // iOS-21: WebUtility.HtmlDecode for ixian:openLink
 using System.Threading.Tasks;
 using System.Web;
 
@@ -172,6 +174,32 @@ namespace SPIXI
             else if (current_url.Equals("ixian:deleted", StringComparison.Ordinal))
             {
                 onDeleteDownloads();
+            }
+            else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))
+            {
+                // iOS-21/iOS-23: About + How-to link rows. Mirror of the SingleChatPage
+                // handler (SingleChatPage.xaml.cs:334) so external links behave the same
+                // on every surface: the WebView NEVER navigates to http(s) itself (iOS
+                // Cancel-blocks it in iOSWebViewHandler.DecidePolicy) — the OS browser
+                // opens it. URLs are curated in-code by settings-app.js, not user input.
+                // Terms/Privacy do NOT come through here: they open as in-app doc sheets.
+                string link = current_url.Substring("ixian:openLink:".Length);
+                if (!link.Contains("://"))
+                {
+                    link = "http://" + link;
+                }
+
+                try
+                {
+                    string decoded_link = WebUtility.HtmlDecode(link);
+#pragma warning disable CS0618 // Type or member is obsolete
+                    Browser.Default.OpenAsync(new Uri(decoded_link));
+#pragma warning restore CS0618 // Type or member is obsolete
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("Exception occured while trying to open URL '{0}': {1}", link, ex);
+                }
             }
             else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
             {

@@ -2492,6 +2492,22 @@ namespace SPIXI
                             cacheItem.online = online;
                             cacheItem.excerpt = excerpt;
                         }
+                        else if (timestamp == 0)
+                        {
+                            // iOS-8/11/31 leg B(ii): timestamp 0 is the DISPLAY-ONLY push
+                            // (loadMessages zeroing the unread count, presence ticks) — it
+                            // carries no new message, so it can never win a `>` comparison
+                            // against an existing entry and was dropped outright. That is why
+                            // opening a chat cleared nothing: the zero never reached the list.
+                            // Apply the live fields, keep the entry's own excerpt/timestamp.
+                            cacheItem.unread = unread;
+                            cacheItem.online = online;
+                        }
+                        // iOS-8/11/31 leg B(i): contactStatusCacheItem is a STRUCT, so the
+                        // line above took a COPY — every mutation here was written to that copy
+                        // and thrown away, and updateContactStatus went on pushing the ORIGINAL
+                        // cached values. Write it back.
+                        contactStatusCache[i] = cacheItem;
                         // Already in cache, break to minimize processing
                         _alreadyInCache = true;
                         break;

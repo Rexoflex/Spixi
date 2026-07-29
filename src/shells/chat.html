@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- iOS/quirks: pinch must scale the CHAT TEXT, not the page. Without a scale
+     clamp WKWebView owns the pinch and does a document zoom (blurry raster,
+     topbar/composer scaled off-screen, no way back but a double-tap) — Damir
+     2026-07-29. The clamp hands the gesture to us; the handler below maps it onto
+     --chat-text-scale, the SAME knob Account → Chat appearance writes. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi</title>
 <!-- Resolve the theme BEFORE any style/paint so the instant-bg + tokens match the
      user's chosen appearance from the first frame (no light→dark flash). Same
@@ -784,6 +789,64 @@
 
   /* —— message log —————————————————————————————————————————————————————————— */
   const box = document.getElementById('messages');
+
+  /* —— pinch = TEXT size, not page zoom (Damir 2026-07-29) ————————————————————
+   * The intent was always "pinch to enlarge the chat text", the same knob as
+   * Account -> Chat appearance. What shipped was the browser's own gesture: with
+   * no scale clamp in the viewport meta, WKWebView pinch-zooms the DOCUMENT —
+   * a raster zoom that blurs text, scales the topbar and composer off-screen and
+   * strands the user until they double-tap back out. The meta clamp above stops
+   * that; this maps the gesture onto --chat-text-scale instead.
+   *
+   * Same variable, same clamp and same storage key the Chat-appearance screen
+   * writes (TEXT_SIZES spans 0.9..1.25; the boot script clamps 0.8..1.5), so a
+   * pinch and the settings picker are two controls over ONE preference and
+   * survive a reopen identically.
+   *
+   * Touch events, not the WebKit-only gesture* events: those don't fire once the
+   * viewport is scale-clamped. Non-passive so the 2-finger move can preventDefault
+   * (otherwise the log scroll-pans under the pinch). Single-finger scrolling is
+   * untouched — we bail unless exactly two touches are down. */
+  const TEXT_SCALE_MIN = 0.8, TEXT_SCALE_MAX = 1.5;
+  function readTextScale() {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chat-text-scale'));
+    return isNaN(v) ? 1 : v;
+  }
+  function applyTextScale(v) {
+    const c = Math.min(TEXT_SCALE_MAX, Math.max(TEXT_SCALE_MIN, v));
+    document.documentElement.style.setProperty('--chat-text-scale', String(c));
+    return c;
+  }
+  (function attachPinchTextScale() {
+    let pinching = false, startDist = 0, startScale = 1, liveScale = 1;
+    const dist = (t) => {
+      const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+    box.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 2) { pinching = false; return; }
+      pinching = true;
+      startDist = dist(e.touches);
+      startScale = liveScale = readTextScale();
+    }, { passive: true });
+    box.addEventListener('touchmove', (e) => {
+      if (!pinching || e.touches.length !== 2 || !startDist) return;
+      e.preventDefault();                       // the log must not pan under the pinch
+      liveScale = applyTextScale(startScale * (dist(e.touches) / startDist));
+    }, { passive: false });
+    const end = (e) => {
+      if (!pinching) return;
+      if (e.touches && e.touches.length >= 2) return;   // one finger lifted mid-pinch
+      pinching = false;
+      // persist ONCE at the end, not per frame — this is the same key Chat
+      // appearance owns, and a localStorage write per touchmove is a jank source.
+      if (Math.abs(liveScale - startScale) > 0.001) {
+        try { localStorage.setItem('spixi.chat.textscale', String(liveScale)); } catch (err) {}
+      }
+    };
+    box.addEventListener('touchend', end, { passive: true });
+    box.addEventListener('touchcancel', end, { passive: true });
+  })();
 
   /* model: id → record, in insertion order. A record is one of:
    *   kind 'text'    → { id, kind, direction, text, ts(ms), status, senderNick, senderAddress }
@@ -3060,6 +3123,12 @@
       const delta = window.innerHeight - vv.height;
       const open = delta > 60;
       const stick = nearBottom();          // read BEFORE the height change
+      // iOS-29 REVERTED to the pre-#294 shape (Damir device F5 2026-07-29): the
+      // !important + data-kb variant worked in the console but NOT when shipped, and
+      // it introduced a visible artifact — on composer focus the topbar slid up and a
+      // second topbar animated in below it. Resizing body under WKWebView's own focus
+      // pan is evidently the wrong lever; see ios-sim-findings iOS-29 for the full
+      // measurement set before attempting a third fix.
       if (open) {
         document.body.style.height = Math.round(vv.height) + 'px';
         kbOpen = true;

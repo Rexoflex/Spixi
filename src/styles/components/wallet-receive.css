@@ -12,7 +12,7 @@
 /* —— QR card —— */
 .c-wallet-receive__qrcard {
   align-self: center;
-  width: min(260px, 70vw);
+  width: min(325px, 86vw);   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
   padding: var(--spacing-16);
   box-sizing: border-box;
   border-radius: var(--radius-24);
@@ -137,7 +137,19 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-02);
 }
-.c-wallet-receive__contacts { display: flex; flex-direction: column; }
+/* Damir F5 2026-07-29 (round 2): the strip stopped at 5 contacts, so reaching anyone
+   further down MEANT typing — fixed by making it SCROLL (cap raised in
+   wallet-receive.js). The card treatment tried in round 1 is REVERTED: this strip
+   already sits inside the request box, so a second surface stacked its padding on top
+   of that one and read cramped. Scroll only — no background, radius, padding or
+   elevation. Height cap keeps the amount field on screen with the keyboard up. */
+.c-wallet-receive__contacts {
+  display: flex;
+  flex-direction: column;
+  max-height: 264px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .c-wallet-receive__contact {
   display: flex; align-items: center; gap: var(--spacing-12);
   min-height: var(--size-target-min);

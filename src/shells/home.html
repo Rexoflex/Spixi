@@ -454,9 +454,27 @@
    * contacts-picker `pending` badge ("request sent", #153 grammar) — the
    * addContact push itself carries no state flag (§9). */
   const requestAddrs = new Set();
+  /* iOS-26 (Damir REVERSES Q5/#253): groups belong in the contacts directory —
+   * wipe a chat history and the group becomes unreachable otherwise. Groups are
+   * now KEPT in both picker purposes and separated by the People/Groups filter
+   * chips instead (contacts-shell.js). The isGroup flag is normalized here, from
+   * either signal, so the component filters on one field. */
+  const isGroupContact = (c) => !!(c && (c.isGroup || groupAddrs.has(c.address)));
   const directoryRoster = () => contactsRoster
-    .filter((c) => c && !c.isGroup && !groupAddrs.has(c.address))
-    .map((c) => (requestAddrs.has(c.address) ? Object.assign({}, c, { pending: true }) : c));
+    .filter((c) => !!c)
+    .map((c) => {
+      const flagged = isGroupContact(c);
+      const pending = requestAddrs.has(c.address);
+      return (flagged !== !!c.isGroup || pending)
+        ? Object.assign({}, c, { isGroup: flagged, pending: pending || undefined })
+        : c;
+    });
+  /* MONEY PATH — people only, never a group. A group address is not a payable
+   * counterparty, and iOS-26 just put groups into the shared roster; #255 already
+   * flagged createWalletSend as consuming the UNFILTERED list (harmless only while
+   * composeSend is capability-gated OFF). Fence it here so surfacing groups cannot
+   * turn into a group appearing in a recipient picker. */
+  const peopleRoster = () => directoryRoster().filter((c) => !c.isGroup);
   // RE-ARMING debounce (not rAF): clearContacts→addContact×N arrive as separate
   // eval frames within one C# tick, so a plain rAF can fire BETWEEN the clear and
   // the row pushes → the open takeover flashes its "No contacts" empty state for a
@@ -465,7 +483,7 @@
   function scheduleContactsRender() {
     clearTimeout(contactsRenderTimer);
     contactsRenderTimer = setTimeout(() => {
-      if (contactsView) contactsView.setContacts(directoryRoster());   // Q5: groups filtered
+      if (contactsView) contactsView.setContacts(directoryRoster());   // iOS-26: groups INCLUDED, chip-filtered
     }, 80);
   }
 
@@ -476,7 +494,7 @@
     if (contactsView) contactsView.close();       // onClose nulls the handle
     contactsView = mountContacts({
       host: document.body, bridge, strings, purpose,
-      getRoster: () => directoryRoster(),               // Q5: groups filtered (both purposes)
+      getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
       onClose: () => { contactsView = null; },
     });
   }
@@ -490,6 +508,13 @@
     { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
     { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
   ];
+  /* iOS-34: run fn after the browser has painted the current mutation. rAF fires
+     BEFORE paint, so the nested task is what actually lands after it. Used to keep
+     the synchronous `location.href` bridge hop off the tab-swap frame. */
+  function deferToPaint(fn) {
+    requestAnimationFrame(() => { setTimeout(fn, 0); });
+  }
+
   let activeNav = 'chats';                                 // last real in-page tab (for the account revert)
   const nav = createBottomNav({
     items: NAV_ITEMS, active: 'chats',
@@ -503,13 +528,27 @@
       // beside it). Highlight Account while it's open; C# pushes onSettingsClosed
       // when the pane exits and the highlight falls back to the real in-page tab.
       if (id === 'account') {
-        bridge.send('ixian:settings');
+        // AUDIT MINOR-1: this MUST ride the same deferral as the tab verb below,
+        // or a quick chats→Account double tap inverts them (settings sent first,
+        // then the deferred tab verb runs C#'s tab-switch sweep and tears down
+        // the pane that was just opened). setTimeout is FIFO, so deferring both
+        // preserves tap order.
+        deferToPaint(() => bridge.send('ixian:settings'));
         setNavActive(nav, 'account');
         return;
       }
       activeNav = id;
       showView(id);                                        // swap the client-side view first…
-      bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id));  // …then tell C# (loads tab2/tab3 data). home.js:500
+      // iOS-34: …and let that swap PAINT before the bridge hop. bridge.send is
+      // `location.href = 'ixian:…'` (native.js:48), which on iOS runs WKWebView's
+      // navigation-policy delegate synchronously on the main thread — in the same
+      // task as this click handler. The tab content is fully pre-rendered, but the
+      // paint was queued behind that native round trip (and behind whatever C#
+      // does on the verb: loadTransactions/loadApps for tab2/tab3), so a switch
+      // that should be instant visibly stalled. Deferring past one frame costs
+      // nothing functionally — C# only needs the verb to set currentTab and load
+      // that tab's data — and makes the swap feel immediate.
+      deferToPaint(() => bridge.send('ixian:tab:' + (NAV_TO_TAB[id] || id)));   // home.js:500
     },
   });
   document.getElementById('chats-nav').append(nav);
@@ -708,6 +747,39 @@
    * render (clearChatsDone renders the batch once). */
   let chatsFlushing = false;
   let chatsRenderQueued = false;
+  /* iOS-28 belt: `chatsFlushing` is set by clearChats and cleared ONLY by
+   * clearChatsDone. If C#'s loadChats throws anywhere between the two
+   * (HomePage.xaml.cs:1855..1925), clearChatsDone never arrives — and then the
+   * latch is permanent: scheduleChatsRender early-returns forever (below) and
+   * the list DOM freezes on its pre-flush rows while the model is empty. Every
+   * later flush repeats the same half-run, so the list never repaints again.
+   * A dropped final push must degrade to "render what the model holds", not to
+   * a dead list, so arm a watchdog on each flush start. 1500ms is comfortably
+   * longer than any real flush and shorter than the 2s updateUILoop tick. */
+  /* AUDIT MAJOR-1: the watchdog must NOT clear `chatsFlushing`. That flag is not
+   * only a render latch — addChat reads it as the STRUCTURAL-flush vs lone-push
+   * discriminator for the CH3 delete tombstone (see addChat below). Clearing it
+   * mid-burst would make the remaining rows of the same flush look like new-message
+   * events: a session-deleted chat would come back AND lose its tombstone for good.
+   * So the watchdog releases a SEPARATE render gate and leaves the discriminator
+   * alone; only clearChatsDone ends the flush. */
+  let chatsFlushStalled = false;
+  let chatsFlushWatchdog = null;
+  function armChatsFlushWatchdog() {
+    if (chatsFlushWatchdog) clearTimeout(chatsFlushWatchdog);
+    chatsFlushStalled = false;
+    chatsFlushWatchdog = setTimeout(() => {
+      chatsFlushWatchdog = null;
+      if (!chatsFlushing) return;                 // normal completion — nothing to heal
+      try { console.warn('[home-shell] chats flush never completed — releasing the render gate'); } catch (e) {}
+      chatsFlushStalled = true;                   // render again; tombstone semantics untouched
+      renderChatsNow();
+    }, 1500);
+  }
+  function disarmChatsFlushWatchdog() {
+    if (chatsFlushWatchdog) { clearTimeout(chatsFlushWatchdog); chatsFlushWatchdog = null; }
+    chatsFlushStalled = false;
+  }
   function scheduleChatsRender() {
     if (chatsRenderQueued) return;
     chatsRenderQueued = true;
@@ -717,7 +789,7 @@
       // schedule and this frame — clearChats emptied the model but the rows
       // aren't back yet. clearChatsDone owns that render; skip to avoid painting
       // an empty/partial list for one frame (audit MINOR-1).
-      if (chatsFlushing) return;
+      if (chatsFlushing && !chatsFlushStalled) return;
       renderChatsNow();
     });
   }
@@ -1243,7 +1315,10 @@
    * guard (reject unapproved/group/bot) is the security boundary. */
   function requestableContacts() {
     const incoming = new Set((state.requests || []).map((r) => r && r.address).filter(Boolean));
-    return directoryRoster().filter((c) => c && !c.pending && !incoming.has(c.address));
+    // iOS-26: directoryRoster now CARRIES groups (chip-filtered in the picker), so
+    // this money surface takes the people-only view — a requestFunds to a group
+    // address is the same un-deliverable lie this function exists to prevent.
+    return peopleRoster().filter((c) => c && !c.pending && !incoming.has(c.address));
   }
   function mountWalletReceive() {
     if (walletTakeover) return;                               // double-open guard
@@ -1312,7 +1387,7 @@
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
     body.append(createWalletSend({
-      contacts: contactsRoster,
+      contacts: peopleRoster(),          // iOS-26/#255: groups are never payment recipients
       balance: walletRawBalance || 0,    // RAW numeric from setBalance (money math needs un-grouped)
       fee: WALLET_FEE_ESTIMATE,          // placeholder — no home-tab fee push (BE ask)
       strings: walletStrings, host: document.body,
@@ -1573,6 +1648,8 @@
     // per-row addChat upserts don't each render (clearChatsDone renders once).
     clearChats() {
       chatsFlushing = true;
+      armChatsFlushWatchdog();          // iOS-28 belt: a half-run flush must not latch the list dead
+
       // CH2: keep a row that's inside its ≥3s handshake hold so a C# re-flush during
       // those 3s can't cut the "Establishing…" state short (Damir). Normal flush (no
       // holds) → filters to [] as before.
@@ -1684,6 +1761,7 @@
     // Batch complete: leave flushing mode, render once, re-apply any selection.
     clearChatsDone() {
       chatsFlushing = false;
+      disarmChatsFlushWatchdog();
       // B-7: the model is authoritative now → drop hints for addresses that no
       // longer have a row (contact removed natively — no addChat ever expires it).
       pruneExdelHints();

@@ -12,8 +12,20 @@
 .c-contact-request__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
 .c-contact-request__name {
   font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg);
-  font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
+  letter-spacing: var(--tracking-body-lg);   /* iOS-14: chatlist-item parity (was missing) */
+  color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* iOS-14: with no nick the title IS the wallet address. Same defect #277 fixed on
+   the tx row — the unconditional semibold made addresses the heaviest text on the
+   screen, sitting at the very top of the chats list. .c-chatlist-item__name is
+   body-lg REGULAR and reserves semibold for [data-unread]; match it, and step the
+   address case down to the excerpt role so it never out-shouts the real names
+   below it. Marker is set in contact-request.js. */
+.c-contact-request__name[data-address] {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
 }
 .c-contact-request__sub { font-size: var(--font-size-body-sm); color: var(--text-neutral-02); } /* #231b (Opus sweep): secondary list-row line — body-md is 15px desktop, LARGER than the body-lg=14 name; match the chatlist excerpt/tx secondary-line parity */
 .c-contact-request__time { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }

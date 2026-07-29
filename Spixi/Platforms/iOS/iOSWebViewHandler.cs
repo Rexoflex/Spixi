@@ -60,6 +60,52 @@ namespace Spixi.Platforms.iOS
         }
     }
 
+    /* iOS scan: the camera never turned on (Damir F5 2026-07-29).
+     * getUserMedia() in a WKWebView does NOT reach the OS permission sheet by itself —
+     * WebKit asks the WKUIDelegate via requestMediaCapturePermissionForOrigin:…, and
+     * with NO UIDelegate installed that request is auto-DENIED. The shell then correctly
+     * showed its "camera denied" state, so it looked like a permission refusal when in
+     * fact nothing was ever asked. Info.plist already carries NSCameraUsageDescription.
+     * We ask AVFoundation for the real OS permission first and mirror the user's answer
+     * back to WebKit — the WebView never gets capture the user hasn't granted. */
+    class MediaCaptureUIDelegate : WKUIDelegate
+    {
+        public override void RequestMediaCapturePermission(
+            WKWebView webView,
+            WKSecurityOrigin origin,
+            WKFrameInfo frame,
+            WKMediaCaptureType type,
+            Action<WKPermissionDecision> decisionHandler)
+        {
+            var mediaType = type == WKMediaCaptureType.Microphone
+                ? AVFoundation.AVAuthorizationMediaType.Audio
+                : AVFoundation.AVAuthorizationMediaType.Video;
+
+            var status = AVFoundation.AVCaptureDevice.GetAuthorizationStatus(mediaType);
+            if (status == AVFoundation.AVAuthorizationStatus.Authorized)
+            {
+                decisionHandler(WKPermissionDecision.Grant);
+                return;
+            }
+            if (status == AVFoundation.AVAuthorizationStatus.Denied
+                || status == AVFoundation.AVAuthorizationStatus.Restricted)
+            {
+                decisionHandler(WKPermissionDecision.Deny);   // shell renders its denied state + Settings hint
+                return;
+            }
+
+            // NotDetermined → this is the call that actually shows the OS sheet.
+            AVFoundation.AVCaptureDevice.RequestAccessForMediaType(mediaType, granted =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try { decisionHandler(granted ? WKPermissionDecision.Grant : WKPermissionDecision.Deny); }
+                    catch (Exception ex) { IXICore.Meta.Logging.error("Media capture decision failed: {0}", ex); }
+                });
+            });
+        }
+    }
+
     public class iOSWebViewHandler : WebViewHandler
     {
         static bool _swizzled;
@@ -70,13 +116,23 @@ namespace Spixi.Platforms.iOS
 
             //var previousDelegate = platformView.NavigationDelegate;
             platformView.NavigationDelegate = new SecureNavigationDelegate(this);
+            platformView.UIDelegate = new MediaCaptureUIDelegate();   // iOS scan: without this getUserMedia is auto-denied
 
             platformView.ScrollView.ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never;
             platformView.ScrollView.ScrollEnabled = false;
             platformView.ScrollView.Bounces = false;
 
-            // Enable inspection for debugging
-            //platformView.Inspectable = true;
+            // Safari Web Inspector. From iOS 16.4 a WKWebView is INVISIBLE to the
+            // Develop menu unless this is set — which is why the sim/device passes had
+            // no console: every shell is a WebView, so without it nothing is
+            // inspectable on either the simulator or hardware. DEBUG-only: a shippable
+            // build must never expose its WebViews to an attached machine.
+#if DEBUG
+            if (OperatingSystem.IsIOSVersionAtLeast(16, 4) || OperatingSystem.IsMacCatalystVersionAtLeast(16, 4))
+            {
+                platformView.Inspectable = true;
+            }
+#endif
 
             // Remove the iOS keyboard accessory bar (up/down arrows and checkmark)
             var assistantItem = platformView.InputAssistantItem;

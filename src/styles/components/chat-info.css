@@ -193,7 +193,7 @@
   background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
   box-shadow: var(--elevation-1);
 }
-.c-chat-info__qr svg { width: 148px; height: 148px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) */
+.c-chat-info__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) — +25% (Damir F5 2026-07-29: 148 scanned poorly on a phone held at arm's length) */
 
 /* —— money row —— */
 .c-chat-info__money {

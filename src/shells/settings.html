@@ -41,6 +41,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
@@ -711,6 +712,15 @@
   // picker on the next Account boot inside the 15 s window.
   function showHub() { try { localStorage.removeItem(VIEW_RESUME_KEY); } catch (e) {} currentView = 'hub'; renderLayout(); }
   function showDanger() { currentView = 'danger'; renderLayout(); }
+  /* iOS-21 — external links from About / How-to. The WebView never navigates to
+     http(s) itself (iOSWebViewHandler.DecidePolicy Cancel-blocks it, and the
+     Windows/legacy flows all route through Browser.OpenAsync); the sanctioned
+     path is the ixian:openLink verb SingleChatPage already implements (:334),
+     now mirrored on SettingsPage. URLs here are curated in-code, never user
+     input (settings-app.js linkRow). Before this, About/How-to links rendered
+     as dead selectable text (be-cutover S13). */
+  function openExternal(url) { if (url) bridge.send('ixian:openLink:' + url); }
+
   function showAbout() { currentView = 'about'; renderLayout(); }
   function showHowTo() { currentView = 'howto'; renderLayout(); }
   function showChatAppearance() { currentView = 'chatappearance'; renderLayout(); }
@@ -761,10 +771,12 @@
       });
       case 'about': return createSettingsAbout({
         version: appVersion, host: document.body, strings,
+        onOpenLink: openExternal,     // iOS-21
         onBack: showHub,
       });
       case 'howto': return createSettingsHowTo({
         host: document.body, strings,
+        onOpenLink: openExternal,     // iOS-21 — "Learn more" → the help centre
         onBack: showHub,
       });
       case 'contributors': return createSettingsContributors({

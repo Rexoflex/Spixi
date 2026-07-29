@@ -18,16 +18,10 @@
  * setRequestAccepting(row, strings) — latch Accept to "Accepting…" (loading).
  */
 import { getStrings } from './strings-runtime.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { formatChatTimestamp } from './timestamp.js';
 import { icon } from './icons.js';
-
-/** Middle-truncate a long address for display (keeps head + tail). */
-function crDisplayAddress(addr) {
-  const s = String(addr || '');
-  return s.length > 14 ? s.slice(0, 6) + '…' + s.slice(-4) : s;
-}
 
 export function createContactRequest({ name = '', nick = '', address = '', avatar = null, timestamp, strings = getStrings(), host, onAccept, onDecline } = {}) {
   // #211 address-display canon: a raw address is NEVER shown in full on a chat
@@ -35,7 +29,7 @@ export function createContactRequest({ name = '', nick = '', address = '', avata
   // custom name yet) — treat a name that IS the address as "no name" and
   // middle-truncate, matching the chat-list rows / bubble sender labels.
   const realName = (nick && nick !== address) ? nick : (name && name !== address) ? name : '';
-  const display = realName || crDisplayAddress(address);
+  const display = realName || truncateAddressMiddle(address);   // iOS-14: ONE canon helper (was a local 6…4 duplicate)
 
   const row = document.createElement('div');
   row.className = 'c-contact-request';
@@ -49,6 +43,9 @@ export function createContactRequest({ name = '', nick = '', address = '', avata
   body.className = 'c-contact-request__body';
   const nameEl = document.createElement('span');
   nameEl.className = 'c-contact-request__name';
+  // iOS-14: no nick → this slot holds an ADDRESS, not a name. The marker lets
+  // contact-request.css drop it to the excerpt role (a real nick keeps body-lg).
+  if (!realName) nameEl.dataset.address = '';
   nameEl.textContent = display;                      // user data → textContent (XSS-safe)
   const sub = document.createElement('span');
   sub.className = 'c-contact-request__sub';

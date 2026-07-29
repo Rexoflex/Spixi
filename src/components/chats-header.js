@@ -159,12 +159,27 @@ export function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) 
     }
   };
 
+  // iOS rubber-band guard (Damir F5 2026-07-29: "scrolling to top or bottom has a
+  // weird animation and looks like it bugs out"). WebKit lets scrollTop run NEGATIVE
+  // past the top and past max at the bottom during a bounce, then springs back — which
+  // fed this a rapid alternating delta and drove collapse/expand against each other,
+  // mid-transition, every time you hit either end. Two fixes: ignore events while
+  // overscrolled (a bounce is not a scroll intent), and require a real downward delta
+  // so settle-jitter can't trip a collapse.
+  const COLLAPSE_DELTA_PX = 4;
   const onScroll = () => {
-    const top = scrollEl.scrollTop;
+    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const raw = scrollEl.scrollTop;
+    if (raw < 0 || raw > max) {                        // rubber-band overscroll — not a gesture
+      lastTop = Math.min(max, Math.max(0, raw));       // resync so the spring-back reads delta 0
+      if (raw < 0) setCollapsed(false);                // bouncing at the top still means "at the top"
+      return;
+    }
+    const top = raw;
     const delta = top - lastTop;
     lastTop = top;
     if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
-    else if (delta > 0) setCollapsed(true);            // collapse on downward scroll (stays collapsed on up)
+    else if (delta > COLLAPSE_DELTA_PX) setCollapsed(true);   // collapse on real downward scroll
   };
 
   const onResize = () => {                    // re-measure while expanded (can't while collapsed)

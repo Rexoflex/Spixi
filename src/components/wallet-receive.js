@@ -207,7 +207,7 @@ export function createWalletReceive({
     });
     askBox.append(search);
     rows = document.createElement('div');
-    rows.className = 'c-wallet-receive__contacts';
+    rows.className = 'c-wallet-receive__contacts';   // scrolls (Damir F5); NO card/.u-scroll — both added padding inside the request box
     askBox.append(rows);
     reqBox.append(askBox);
   }
@@ -228,7 +228,12 @@ export function createWalletReceive({
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
       || (c.address || '').toLocaleLowerCase().includes(needle));
-    const cap = needle ? 8 : 5;                            // #136③ scaling: search is the path through hundreds
+    // Damir F5 2026-07-29: the old 5/8 cap meant the roster visibly "cut off" and the
+    // only way to anyone else was to type. The strip scrolls now (wallet-receive.css),
+    // so the cap is purely a DOM-size guard for very large rosters — high enough that
+    // scrolling reaches everyone in practice, with the "keep typing" note below still
+    // covering the tail.
+    const cap = 50;
     for (const c of list.slice(0, cap)) {
       const b = document.createElement('button');
       b.type = 'button';

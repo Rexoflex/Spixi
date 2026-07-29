@@ -157,7 +157,9 @@ const textInput = ({ label, name }) => {
 /* —— welcome (the ONLY brand view — #160 treatment; premium rework) ——— */
 
 function hostEl(st) {
-  return st.opts.host || st.root.closest('.demo-phone') || undefined;
+  // st.root is null for the openLegalDoc re-use path (no launch view mounted) —
+  // guard rather than dereference, or About's Terms row would throw (iOS-23).
+  return st.opts.host || (st.root && st.root.closest('.demo-phone')) || undefined;
 }
 
 // #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
@@ -500,7 +502,7 @@ function openDocSheet(st, title, text) {
       bodyEl.append(p);
     }
   }
-  const sheet = createSheet({ content: bodyEl, host: hostEl(st), title, strings });
+  const sheet = createSheet({ content: bodyEl, host: st.docHost || hostEl(st), title, strings });
   // explicit close affordance (scrim tap + Esc still work) — obvious corner tap
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -510,6 +512,25 @@ function openDocSheet(st, title, text) {
   closeBtn.addEventListener('click', () => closeSheet(sheet));
   sheet.append(closeBtn);
   openSheet(sheet);
+}
+
+/**
+ * iOS-23 — the SAME legal documents, reachable from Account -> About.
+ * Onboarding shows Terms/Privacy as in-app doc sheets (never an external link):
+ * the copy is app-controlled, works offline, and is deliberately ENGLISH-ONLY
+ * (#169 — titles ARE translated, bodies are not). Account -> About must show the
+ * identical text from the identical source, so this exports the launch renderer
+ * rather than duplicating legal copy into settings-app.js, where the two would
+ * silently drift.
+ *   openLegalDoc({ doc: 'terms' | 'privacy', host, strings })
+ */
+export function openLegalDoc({ doc = 'terms', host, strings = getStrings() } = {}) {
+  const ctx = { strings, docHost: host, opts: { host }, root: null };
+  if (doc === 'privacy') {
+    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT);
+  } else {
+    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT);
+  }
 }
 
 // one-shot ixian:accept — emitted at the binding action (create/restore commit)

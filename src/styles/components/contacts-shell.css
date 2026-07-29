@@ -64,8 +64,34 @@
 }
 .c-contacts__action-label { min-width: 0; }
 
+/* iOS-26: People/Groups filter chips (exclusive, chats-header #218 grammar).
+   Scrolls horizontally on narrow screens rather than wrapping the row. */
+.c-contacts__kinds {
+  display: flex;
+  gap: var(--spacing-8);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.c-contacts__kinds::-webkit-scrollbar { display: none; }
+.c-contacts__kinds > * { flex: none; }
+
 /* —— picker: contact rows —— */
-.c-contacts__list { display: flex; flex-direction: column; }
+/* iOS-30 (Damir): the contacts list sits 16px inside the screen edge while the
+   chats list is full-bleed, so it read as "narrower" — an accident, not a
+   surface. Keeping the inset is the call; what was missing is the CARD that
+   justifies it. Same grammar as .c-contacts__group above (the actions card), so
+   the whole picker body is now one consistent card stack instead of a card
+   floating over loose rows. */
+.c-contacts__list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+.c-contacts__list:empty { display: none; }   /* no empty card behind the empty state */
 .c-contacts__row {
   width: 100%;
   display: flex;

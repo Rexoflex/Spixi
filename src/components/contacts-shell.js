@@ -38,7 +38,7 @@ import { createTopbar } from './topbar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { createBadge } from './badge.js';
-import { createChip } from './chip.js';
+import { createChip, setChipSelected } from './chip.js';
 import { overlayId } from './overlay.js';
 
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
@@ -184,9 +184,26 @@ function renderPickerList(st) {
   const prevScroll = list.scrollTop;
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
-  const matches = sortedContacts(st.contacts).filter((c) => !needle
+  // iOS-26: People / Groups chips. MULTI mode (group creation) is people-only —
+  // a group cannot be a member of a group — so the kind filter is pinned there.
+  // chips earn their space only when there IS something to separate.
+  // AUDIT MINOR-2: they can disappear (last group left / roster re-flush) while
+  // 'groups' is still selected, which left an empty list and no visible control to
+  // escape it. Reset BEFORE `kind` is read below, so this render already reflects
+  // the fallback (calling setKind here would re-enter and then be overwritten).
+  if (st.els.kinds) {
+    const hide = st.mode === 'multi' || !st.contacts.some((c) => c && c.isGroup);
+    st.els.kinds.hidden = hide;
+    if (hide && st.mode !== 'multi' && st.kind !== 'all') {
+      st.kind = 'all';
+      if (st.els.syncKindChips) st.els.syncKindChips();
+    }
+  }
+  const kind = st.mode === 'multi' ? 'people' : (st.kind || 'all');
+  const kindOk = (c) => kind === 'all' || (kind === 'groups' ? !!c.isGroup : !c.isGroup);
+  const matches = sortedContacts(st.contacts).filter((c) => kindOk(c) && (!needle
     || (c.name || '').toLocaleLowerCase().includes(needle)
-    || (c.address || '').toLocaleLowerCase().includes(needle));
+    || (c.address || '').toLocaleLowerCase().includes(needle)));
 
   if (st.contacts.length === 0) {                 // noContacts (bridge-audit-A.md:537)
     empty.hidden = false;
@@ -199,8 +216,11 @@ function renderPickerList(st) {
   if (matches.length === 0) {
     empty.hidden = false;
     empty.dataset.kind = 'search';
-    empty.querySelector('.c-contacts__empty-text').textContent =
-      strings.noMatches || 'No contacts match your search.';
+    empty.querySelector('.c-contacts__empty-text').textContent = needle
+      ? (strings.noMatches || 'No contacts match your search.')
+      : (kind === 'groups'
+        ? (strings.noGroups || 'No groups yet.')
+        : (strings.noPeople || 'No contacts yet.'));
     list.hidden = true;
     return;
   }
@@ -241,9 +261,16 @@ function syncNext(st) {
   }
   // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
   // isn't focusable, so SR users got nothing). State the rule in the sub-line.
+  // Damir F5 2026-07-29: hiding this at the 2nd selection collapsed its line box and
+  // JUMPED the whole contact list upward mid-tap — the worst possible moment to move
+  // the row under someone's finger. The line now STAYS and just changes what it says:
+  // the rule while it's unmet, the live count once it is. Same element, same height,
+  // no reflow. (role="status" makes the swap an SR announcement too.)
   if (st.els.minHint) {
-    st.els.minHint.hidden = n >= GROUP_MIN_MEMBERS;
-    st.els.minHint.textContent = strings.groupNeedsTwo || 'Select at least 2 people to create a group.';
+    st.els.minHint.hidden = false;
+    st.els.minHint.textContent = n >= GROUP_MIN_MEMBERS
+      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
+      : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.');
   }
 }
 
@@ -280,7 +307,8 @@ export function createContactsPicker({
   el.dataset.purpose = purpose;
 
   const st = {
-    mode: 'browse', selected: new Set(), query: '',
+    mode: 'browse', selected: new Set(), query: '', kind: 'all',   // iOS-26: People/Groups chip
+
     contacts: contacts.slice(),
     opts: { purpose, onAddContact, onCreateGroup, onOpenChat, onViewContact, onNext, onBack, strings },
     els: { root: el },
@@ -333,6 +361,45 @@ export function createContactsPicker({
     strings,
   });
   body.append(search);
+
+  /* iOS-26 — People / Groups filter. Groups are back in the directory (a wiped
+     chat history must not make a group unreachable) and in the 'start' picker, so
+     the two kinds need separating. Same exclusive-chip grammar as the chats-list
+     header (#218). Hidden while the roster holds no groups at all — a lone
+     "People" chip is noise — and hidden in MULTI mode, where the list is pinned
+     to people (renderPickerList). */
+  const kinds = document.createElement('div');
+  kinds.className = 'c-contacts__kinds';
+  kinds.setAttribute('role', 'group');
+  kinds.setAttribute('aria-label', strings.filter || 'Filter');
+  const kindChips = [];
+  const syncKindChips = () => {
+    for (const { el: chipEl, value } of kindChips) {
+      setChipSelected(chipEl, value === st.kind);
+      chipEl.setAttribute('aria-pressed', value === st.kind ? 'true' : 'false');
+    }
+  };
+  const setKind = (k) => {
+    if (st.kind === k) return;
+    st.kind = k;
+    syncKindChips();
+    renderPickerList(st);
+  };
+  for (const [value, label] of [
+    ['all', strings.all || 'All'],
+    ['people', strings.people || 'People'],
+    ['groups', strings.groups || 'Groups'],
+  ]) {
+    const chipEl = createChip({ label, size: 'small', selected: value === 'all', strings });
+    chipEl.setAttribute('aria-pressed', value === 'all' ? 'true' : 'false');
+    chipEl.addEventListener('click', () => setKind(value));
+    kindChips.push({ el: chipEl, value });
+    kinds.append(chipEl);
+  }
+  st.els.kinds = kinds;
+  st.els.setKind = setKind;
+  st.els.syncKindChips = syncKindChips;
+  body.append(kinds);
 
   const list = document.createElement('div');
   list.className = 'c-contacts__list';

@@ -174,7 +174,16 @@ namespace SPIXI
                 if (onRemove())
                 {
                     popToRootAsync();
-                    HomePage.Instance().removeDetailContent();
+                    var homePage = HomePage.Instance();
+                    homePage?.removeDetailContent();
+                    // iOS-28: onRemove() sets UIHelpers.shouldRefreshContacts, but that is
+                    // only consumed by the 2s updateUILoop tick (Node.cs:388 →
+                    // HomePage.updateScreen:2128) — so the deleted contact's chat row stayed
+                    // on screen for up to two seconds after the user popped back, reading as
+                    // "the delete did nothing". Flush NOW, exactly like onRemoveHistory
+                    // re-renders the live chat instead of trusting the tick (iOS-24, #283).
+                    // updateScreen() self-guards on the flag, so this is idempotent.
+                    homePage?.updateScreen();
                 }
             }
             else if (current_url.Equals("ixian:removehistory", StringComparison.Ordinal))

@@ -493,7 +493,7 @@ export const slsi = {
   retryCopy: "Vaše denarnice ni bilo mogoče odkleniti s shranjenim geslom. Vnesite ga za nadaljevanje.",
   retryTitle: "Odklenite svojo denarnico",
   returnToCall: "Vrni se h klicu",
-  revealAmounts: "Show amounts",
+  revealAmounts: "Prikaži zneske",
   reviewSend: "Preglej",
   reviewTitle: "Preglejte plačilo",
   runsSecurely: "Varno teče znotraj Spixija — nič ne zapusti vaše naprave brez vašega dovoljenja.",

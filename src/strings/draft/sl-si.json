@@ -537,5 +537,6 @@
   "tabAccount": "Račun",
   "tabApps": "Aplikacije",
   "tabNotReady": "Ta razdelek še ni del prenove.",
-  "wallet": "Denarnica"
+  "wallet": "Denarnica",
+  "revealAmounts": "Prikaži zneske"
 }

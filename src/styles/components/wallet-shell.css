@@ -15,7 +15,10 @@
   padding-block-start: var(--spacing-12);
   padding-inline: var(--spacing-16);
   background: var(--surface-screen);
-  max-height: 160px;                          /* > natural height; enables the tuck-away transition (#114 pattern) */
+  /* > natural height; enables the tuck-away transition (#114 pattern).
+     #286: 160 → 220 — headroom for the data-wrap second filter line (ultra-narrow
+     pane); 160 clipped it at exactly the wrapped height. */
+  max-height: 220px;
   overflow: hidden;
   transition: max-height var(--duration-300) var(--easing-standard),
               opacity var(--duration-300) var(--easing-standard),
@@ -62,6 +65,12 @@
    which also covers a narrow PANE inside a wide desktop window. */
 @media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
 .c-wallet-filters[data-compact] .c-wallet-misstx__label { display: none; }
+/* #286 (Damir F5): in an ultra-narrow pane the three chips alone fill the row —
+   even the ⓘ-only chip overflowed past the row end and .c-wallet-tools'
+   overflow:hidden CLIPPED it (the "missing Missing-a-transaction" bug). Last
+   resort after data-compact: wrap the pill to its own line; margin-inline-start:
+   auto keeps it right-aligned. Set by measurement in createWalletFilters. */
+.c-wallet-filters[data-wrap] { flex-wrap: wrap; }
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }

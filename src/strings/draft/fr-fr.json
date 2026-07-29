@@ -537,5 +537,6 @@
   "tabAccount": "Compte",
   "tabApps": "Apps",
   "tabNotReady": "Cette section ne fait pas encore partie de la refonte.",
-  "wallet": "Portefeuille"
+  "wallet": "Portefeuille",
+  "revealAmounts": "Afficher les montants"
 }

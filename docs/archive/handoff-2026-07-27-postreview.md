@@ -43,13 +43,6 @@ new-chat narrower than chats list · iOS-32 thermals/battery parity (ship gate).
 - Gated: wallet-send LAST (#232) · reply-to (BE carrier) · #234 (BE) · BE cutover
   `docs/be-cutover-brief.md` + `docs/security-review-for-be-engineer.md`.
 
-## Owed — adversarial review not yet run
-- This session's Opus loop covered ONLY #282+#283 (`c0ceae1e..fd5b308b`). The earlier post-freeze
-  Phase-B batches — #273/#274, #275–#278 (07-20), Mac bring-up + iOS-sim through #281 (07-22) — have
-  had NO #46 adversarial pass. Range: `17dc04c3..c0ceae1e` (#273–#281). Higher-risk seams than this
-  CSS/inset pass: #275 C# composer-lock state machine · #274 localStorage language handshake · #281
-  runtime selector export — budget a deeper review.
-
 ## Gotchas
 - This mount truncates large-file reads/writes (#175/#204) — edit big files (CLAUDE.md, chat.html,
   home.html) via node fs on the device, not the Edit tool; verify size/lines after.

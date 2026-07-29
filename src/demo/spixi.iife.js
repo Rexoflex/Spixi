@@ -7369,7 +7369,15 @@ function createWalletFilters(state, opts = {}) {
   if (typeof ResizeObserver === 'function') {
     const fit = () => {
       delete row.dataset.compact;                      // measure at natural width
+      delete row.dataset.wrap;
       if (row.scrollWidth > row.clientWidth) row.dataset.compact = '';
+      // #286 (Damir F5): ultra-narrow pane — the chips alone can fill the row, so
+      // even the ⓘ-only chip overflowed and was clipped by the tools box. Second
+      // escalation: wrap the pill onto its own right-aligned line (CSS data-wrap).
+      // Reads force a sync reflow, so the post-compact measurement is accurate;
+      // the height change re-fires the RO once, fit() recomputes to the same
+      // state and settles (no loop — attrs end where the last paint left them).
+      if (row.scrollWidth > row.clientWidth) row.dataset.wrap = '';
     };
     const ro = new ResizeObserver(fit);
     ro.observe(row);

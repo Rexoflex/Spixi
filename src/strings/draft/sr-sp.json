@@ -537,5 +537,6 @@
   "tabAccount": "Nalog",
   "tabApps": "Aplikacije",
   "tabNotReady": "Ovaj deo još nije obuhvaćen redizajnom.",
-  "wallet": "Novčanik"
+  "wallet": "Novčanik",
+  "revealAmounts": "Prikaži iznose"
 }

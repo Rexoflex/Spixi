@@ -537,5 +537,6 @@
   "tabAccount": "Conta",
   "tabApps": "Apps",
   "tabNotReady": "Esta seção ainda não faz parte do redesign.",
-  "wallet": "Carteira"
+  "wallet": "Carteira",
+  "revealAmounts": "Mostrar valores"
 }

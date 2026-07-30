@@ -148,12 +148,19 @@
 
   /** Choose the launch verb from the app's user-mode flags. Single-user apps →
    *  ixian:startApp; multi-user-only apps → ixian:startAppMulti (C# then opens a
-   *  contact picker + sends the chat app-invite). If an app declares BOTH, prefer
-   *  single-user (direct launch, no picker). One Open pill → one verb. */
+   *  contact picker + sends the chat app-invite). An app declaring BOTH launches
+   *  SOLO from the Open pill — A9 (#302) adds a second, explicitly labelled
+   *  "Invite a contact" pill beside it rather than overloading Open or reviving
+   *  legacy's per-tap choice modal. One pill → one verb, still. */
   function launch(a) {
     if (!a || a.id == null || a.id === '') return;
     if (a.hasSingleUser || !a.hasMultiUser) bridge.send('ixian:startApp:' + a.id);
     else bridge.send('ixian:startAppMulti:' + a.id);
+  }
+  /** A9 (#302): the explicit multi-user launch for a dual-capability app. */
+  function launchMulti(a) {
+    if (!a || a.id == null || a.id === '') return;
+    bridge.send('ixian:startAppMulti:' + a.id);
   }
 
   function buildTopbar() {
@@ -171,6 +178,7 @@
 
       // launch (Open pill on installed apps, or related tiles → their details)
       onLaunch: (a) => launch(a),
+      onLaunchMulti: (a) => launchMulti(a),      // A9 (#302): dual-capability apps only
       onOpen: () => {},                          // no related-app data over this bridge → no-op
 
       // install — fire the intent, stash the ctrl; C#'s showInstall* resolves it.

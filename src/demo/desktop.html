@@ -954,7 +954,10 @@
       ];
       return {
         title: { name: 'Ixian News', sub: '# announcements · 12,4k members', address: 'ixianewsbot' },
-        cost: '0.1 IXI', // bridge setChatMode costText
+        // bridge setChatMode `costText` — C# sends the COMPLETE localized sentence
+        // (String.Format("chat-message-cost-bar", cost + " IXI"), xaml.cs:610), and
+        // setComposerCost renders it verbatim (A2/#302). Mirror that shape here.
+        cost: 'Sending messages costs 0.1 IXI per kB',
         onIdentity: (topbarEl) => {
           const sheet = openChannelSheet({
             host: frame,

@@ -2129,6 +2129,7 @@ function createMessageBubble({
   reply = null,
   onReplyClick = null,
   edited = false,
+  paid = false,                // A2 (#302): this message cost IXI (C# `paid` = transactionId != "")
   onLinkClick = null,
   linkPreview = null,
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
@@ -2312,6 +2313,24 @@ function createMessageBubble({
       meta.append(st);
     }
   }
+  /* A2 (#302): paid marker. AFTER the status icon deliberately — setMessageStatus
+     finds the tick via `.c-bubble__meta .c-status-icon` and replaceWith()s it, so a
+     glyph appended before it would break that lookup; appended after, both survive.
+     Legacy's CSS REPLACED the delivery tick with the wallet glyph
+     (spixiui-light.css:2544-2550 `.paid .statusIndicator{display:none!important}`) —
+     deliberately not copied: that lost delivery state to show cost state.
+     Rendered for both directions; legacy only ever set `paid` on own messages, so
+     the received case simply never fires today rather than being gated out. */
+  if (paid) {
+    const pg = icon('wallet', { size: 14 });
+    if (pg) {
+      pg.classList.add('c-bubble__paid');
+      pg.removeAttribute('aria-hidden');
+      pg.setAttribute('role', 'img');
+      pg.setAttribute('aria-label', strings.paidMessage || 'Paid message');
+      meta.append(pg);
+    }
+  }
   if (meta.childNodes.length) el.append(meta);
 
   // failed sent message (Damir 2026-07-03, r2): clean bubble — retry circle
@@ -2442,8 +2461,19 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
  * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
  *
  * createComposer({ placeholder, voice = false, onSend(text), onAttach,
- *                  onTyping, onRecord, strings }) → el
+ *                  onTyping, onRecord, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
+ *
+ * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
+ *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
+ *   When set, send() returns BEFORE onSend and WITHOUT clearing the field, the
+ *   action button disables, and a counter appears once the text passes 90% of the
+ *   limit. The guard MUST live here and not in the shell: send() clears the
+ *   textarea unconditionally after onSend, so a shell-side `return` would block the
+ *   send AND destroy what the user typed or pasted. Legacy alerted and kept the
+ *   text; a guard that loses 64 000 characters is worse than no guard.
+ * onTooLong(len, max) — fired on a blocked send attempt (Enter or the button), so
+ *   the shell can toast. The over-limit state is otherwise silent and visual.
  */
 
 
@@ -2460,6 +2490,8 @@ function createComposer({
   onTyping,
   onRecord,
   mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
+  maxLength = 0,          // A7: 0 = off. Counted on the TRIMMED text, raw UTF-16 units.
+  onTooLong = null,       // (len, max) → shell toasts; the visual state is handled here
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
@@ -2494,6 +2526,34 @@ function createComposer({
 
   const hasText = () => input.value.trim().length > 0;
 
+  /* A7 length guard. Count the TRIMMED text: C# trims before it prices and sends
+     (SingleChatPage.xaml.cs:747), so a 64 001-char message whose last 5 chars are
+     newlines should go through. Legacy counted untrimmed innerText — this is the
+     same rule, minus that off-by-whitespace. */
+  const textLen = () => input.value.trim().length;
+  const overLimit = () => maxLength > 0 && textLen() > maxLength;
+
+  /* The counter is the honest way to communicate the limit: it says the number in
+     every locale for free, and it appears BEFORE the user commits — the realistic
+     trigger here is pasting a large blob, and a toast fired after the tap is the
+     bad path. Hidden below 90% so it costs nothing in normal use. */
+  let counter = null;
+  const syncCounter = () => {
+    if (!maxLength) return;
+    const len = textLen();
+    const show = len > maxLength * 0.9;
+    if (!show) { if (counter) { counter.remove(); counter = null; } return; }
+    if (!counter) {
+      counter = document.createElement('span');
+      counter.className = 'c-composer__counter t-body-xs';
+      counter.setAttribute('aria-hidden', 'true');   // the blocked-send toast carries this for SRs
+      field.append(counter);
+    }
+    const over = len > maxLength;
+    counter.textContent = (over ? '−' : '') + Math.abs(maxLength - len).toLocaleString();
+    if (over) counter.setAttribute('data-over', ''); else counter.removeAttribute('data-over');
+  };
+
   const syncAction = () => {
     if (voice && !hasText()) {
       micIcon();
@@ -2503,7 +2563,7 @@ function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = !hasText();
+      action.disabled = !hasText() || overLimit();
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -2520,15 +2580,26 @@ function createComposer({
   const send = () => {
     const text = input.value.trim();
     if (!text) return;
+    // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
+    // caret stays, the draft stays. Both entry paths (Enter and the action button)
+    // funnel through here, so this one return covers them.
+    if (maxLength > 0 && text.length > maxLength) {
+      if (onTooLong) { try { onTooLong(text.length, maxLength); } catch (_) {} }
+      syncCounter();
+      syncAction();
+      return;
+    }
     if (onSend) onSend(text);
     input.value = '';
     grow();
+    syncCounter();
     syncAction();
     input.focus();
   };
 
   input.addEventListener('input', (e) => {
     grow();
+    syncCounter();     // fires after paste too — the `input` event covers it
     syncAction();
     // synthetic events (clearComposer) must not emit a spurious ixian:typing
     if (onTyping && e.isTrusted) onTyping(); // shell throttles → ixian:typing
@@ -2550,6 +2621,7 @@ function createComposer({
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
 
+  syncCounter();
   syncAction();
   return el;
 }
@@ -2770,7 +2842,16 @@ function getComposerContext(el) { return composerCtx.get(el) || null; }
 
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.
- *  Falsy costText removes it. #44 free fn. */
+ *  Falsy costText removes it. #44 free fn.
+ *
+ *  A2 (#302): costText is rendered VERBATIM. C# already sends a COMPLETE localized
+ *  sentence — String.Format(_SL("chat-message-cost-bar"), cost + " IXI")
+ *  (SingleChatPage.xaml.cs:610) → "Sending messages costs 0.1 IXI per kB". The old
+ *  `strings.costPerMessage + ' ' + costText` prefix produced "Each message costs
+ *  Sending messages costs 0.1 IXI per kB" the moment a real bot was wired, and the
+ *  prefix was also factually wrong: the charge is per kB and length-dependent
+ *  (friend.getMessagePrice(str.Length), :757), not flat per message. Callers that
+ *  have only a bare amount compose their own sentence before calling. */
 function setComposerCost(el, costText, strings = getStrings()) {
   const prev = el.querySelector('.c-composer__cost');
   if (prev) prev.remove();
@@ -2779,7 +2860,7 @@ function setComposerCost(el, costText, strings = getStrings()) {
   line.className = 'c-composer__cost';
   line.append(icon('wallet', { size: 14 }));
   const t = document.createElement('span');
-  t.textContent = (strings.costPerMessage || 'Each message costs') + ' ' + costText;
+  t.textContent = String(costText);
   line.append(t);
   el.prepend(line); // always topmost (above any reply/edit ctx strip)
 }
@@ -5839,7 +5920,7 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
 
 
 
-function openAppMenu({ app = {}, host, onAction, strings = getStrings() } = {}) {
+function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');
@@ -5856,6 +5937,20 @@ function openAppMenu({ app = {}, host, onAction, strings = getStrings() } = {}) 
     list.append(b);
   };
 
+  /* A9 (#302) — multi-user launch for a DUAL-capability app (one declaring both
+     singleUser and multiUser in its manifest, MiniApp.cs:181-211).
+     Legacy asked with a modal on EVERY tap (index.html:251-269); the redesign
+     dropped the choice and forced solo (home.html:1503-1507). Neither is right:
+     solo relaunch is the repeated action so a per-tap modal taxes it, but the
+     invite path shouldn't vanish either. Primary tap stays solo; the choice lives
+     here, in the menu that already exists for secondary actions. The details page
+     gets an explicit second button instead (apps-details.js).
+     Only DUAL apps get this row — a multi-only app already launches multi on tap,
+     and a single-only app has nothing to invite to. Flag names follow the home
+     shell's model (addApp → isSingleUser/isMultiUser, home.html:2103-2104). */
+  if (app.isMultiUser && app.isSingleUser && allowInvite) {
+    item('user-plus', strings.launchInvite || 'Invite a contact', () => act('invite'));
+  }
   item('info-circle', strings.appDetails || 'App details', () => act('details'));
   item('trash', strings.uninstall || 'Uninstall', () => {
     closeSheet(sheet);
@@ -5966,6 +6061,7 @@ function renderAppsList(listEl, state, opts = {}) {
       onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
+        allowInvite: !!opts.onLaunchMulti,   // A9: never render a row that no-ops (#184 class)
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
       }),
     }));
@@ -5981,6 +6077,7 @@ function applyAppAction(listEl, state, app, action, opts = {}) {
   switch (action) {
     case 'open': if (opts.onLaunch) opts.onLaunch(app); return;
     case 'details': if (opts.onOpen) opts.onOpen(app); return;
+    case 'invite': if (opts.onLaunchMulti) opts.onLaunchMulti(app); return;   // A9 (#302): dual-capability app
     case 'uninstall': state.apps = (state.apps || []).filter((a) => a !== app); break;
     default: return;
   }
@@ -6476,7 +6573,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -6510,6 +6607,26 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
       icon: icon('player-play', { size: 18 }), onClick: () => { if (onLaunch) onLaunch(app); } });
     openPill.classList.add('c-app-details__openpill');
     header.append(openPill);
+    /* A9 (#302): a DUAL-capability app (declares both singleUser and multiUser) can
+       also be started WITH someone. Details is a deliberate context, so two labelled
+       buttons beat a modal here — and unlike the list this surface has room for the
+       second one. The apps-list equivalent is the ⋮ "Invite a contact" row.
+       Single-only and multi-only apps are untouched: their one Open pill already
+       maps to their one verb. */
+    if (app.hasMultiUser && app.hasSingleUser && onLaunchMulti) {
+      /* ICON-ONLY, deliberately. .c-app-details__header is a no-wrap flex row and both
+         pills are flex:none, so a second LABELLED pill (~184px, more in de/ru) blew the
+         328px inner width on a 360px phone, squeezed the app name to zero and gave the
+         page horizontal pan (audit MAJOR). Icon-only keeps it at 44px; the label lives
+         in aria-label + title so it is neither lost to SRs nor to a hover. */
+      const invitePill = createButton({ type: 'outline', size: 44,
+        icon: icon('user-plus', { size: 18 }),
+        ariaLabel: strings.launchInvite || 'Invite a contact',
+        onClick: () => onLaunchMulti(app) });
+      invitePill.title = strings.launchInvite || 'Invite a contact';
+      invitePill.classList.add('c-app-details__openpill');
+      header.append(invitePill);
+    }
   }
   el.append(header);
 
@@ -11364,6 +11481,7 @@ function createChatInfo({
   address = '',
   avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
+  online = false,                // A4 (#302): presence dot on the hero avatar — 1:1 ONLY
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
@@ -11418,7 +11536,14 @@ function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  hero.append(createAvatar({ src: avatar, name: name, address: avatarSeed || address, size: 64 }));
+  /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
+     a group or bot (ContactDetails.updateScreen returns at :405-410, before the
+     presence block, whenever isGroup is set). Guarding on `kind` here as well means
+     a demo passing online:true on a group can't grow a dot the bridge never feeds. */
+  hero.append(createAvatar({
+    src: avatar, name: name, address: avatarSeed || address, size: 64,
+    online: kind === 'contact' && !!online,
+  }));
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -12057,6 +12182,32 @@ function createChatInfo({
   }
 
   return el;
+}
+
+/** A4 (#302) — live presence toggle on the chat-info hero. #44 free-fn grammar
+ *  (twin of setTopbarSub).
+ *
+ *  This exists because a rebuild CANNOT carry presence. contact_details.html
+ *  coalesces every push through stateSig()/buildIfChanged (:299-325), which no-ops
+ *  on an unchanged signature — so a contact going offline would leave the green dot
+ *  lit until some unrelated field (a name, a new transaction) happened to change.
+ *  A targeted toggle is both correct and cheaper than rebuilding a panel at the
+ *  presence cadence (~0.5 Hz while the surface is visible: Node.updateUILoop
+ *  Task.Delay(2000) → HomePage.OnUpdateUI, foreground-only :2211).
+ *
+ *  Presence is 1:1 only — see the note at the hero. */
+function setChatInfoPresence(el, online) {
+  if (!el) return;
+  const avatar = el.querySelector('.c-chat-info__hero .c-avatar');
+  if (!avatar) return;
+  const has = avatar.querySelector('.c-avatar__dot');
+  if (online && !has) {
+    const dot = document.createElement('span');
+    dot.className = 'c-avatar__dot';
+    avatar.append(dot);
+  } else if (!online && has) {
+    has.remove();
+  }
 }
 
 /* ---- src/components/contacts-shell.js ---- */
@@ -17552,6 +17703,75 @@ function html5QrcodeCamera(win) {
   const w = win || window;
   if (!w.Html5Qrcode) return null;
   let instance = null;
+
+  /* ————————————————————————————————————————————————————————————————————————
+   * A8 (#302) — camera track state (zoom + torch).
+   *
+   * Both zoom and torch are applied through track.applyConstraints({advanced:[…]}),
+   * which REPLACES the constraint set rather than merging into it. Applied
+   * separately (as torch was), a torch toggle can silently reset the zoom and a
+   * zoom retry can kill the torch. So both live in one object and are always
+   * written together.
+   *
+   * Legacy parity note: legacy set `showZoomSliderIfSupported: true` AND
+   * `showTorchButtonIfSupported: true` (scan.html:70-76) but passed them to
+   * Html5Qrcode.start(), whose config surface is {fps,qrbox,aspectRatio,disableFlip,
+   * videoConstraints} — both keys are read only by the Html5QrcodeSCANNER render
+   * path. So legacy rendered NEITHER a slider nor a torch button. The only zoom
+   * behaviour legacy actually had was the auto-applied 2× at :79-84, and that is
+   * what is restored here. (Torch is a redesign addition, not a survivor.)
+   * ———————————————————————————————————————————————————————————————————————— */
+  const track = { zoom: null, torch: false };
+
+  function applyTrackState(inst) {
+    const adv = {};
+    if (track.zoom != null) adv.zoom = track.zoom;
+    // Always WRITE torch, never omit it: an absent key leaves the engine's current
+    // photo setting untouched, so omitting it on "off" left the LED burning while the
+    // button reported off (audit MAJOR). Advanced sets are best-effort, so an explicit
+    // torch:false on a torch-less track is ignored exactly as before.
+    adv.torch = !!track.torch;
+    // applyVideoConstraints THROWS SYNCHRONOUSLY when the camera isn't running
+    // (getRenderedCameraOrFail) — a bare .catch() would not catch that, hence try.
+    try { return inst.applyVideoConstraints({ advanced: [adv] }); }
+    catch (e) { return Promise.reject(e); }
+  }
+
+  /* Legacy applied a LITERAL zoom of 2.0 after a 1 s setTimeout. Both details are
+     wrong and are deliberately not copied:
+       • the literal — `zoom` is a device-defined MediaSettingsRange. Plenty of
+         Android stacks report {min:1,max:10}, others report percent-like
+         {min:100,max:400} where 2.0 is BELOW min and is silently ignored or
+         clamped. Advanced constraints are best-effort, so the fix would look
+         applied and do nothing. Compute min×2 instead: scale-agnostic, 1→2 and
+         100→200 both mean "2×".
+       • the 1 s timer — legacy called start() fire-and-forget with no .then, so it
+         had no completion anchor and guessed. We have one. */
+  function applyPreferredZoom(inst, retry) {
+    try {
+      if (instance !== inst) return;                  // stopped / restarted since
+      // Never on desktop: a webcam's FOV is already narrow, so 2× just forces the
+      // user to hold the code further away. Also keeps the #263 device-pick path
+      // completely untouched.
+      if ((w.document || document).documentElement.hasAttribute('data-desktop')) return;
+      const caps = inst.getRunningTrackCameraCapabilities();
+      const zoom = caps && caps.zoomFeature && caps.zoomFeature();
+      if (!zoom || !zoom.isSupported()) {
+        // some Android stacks populate capabilities a tick after play — one retry
+        if (retry) setTimeout(() => applyPreferredZoom(inst, false), 700);
+        return;
+      }
+      const min = zoom.min(), max = zoom.max(), step = zoom.step();
+      // min>0 first: {min:0,max:10} would make max/min Infinity, pass the ratio test,
+      // and then pin zoom to 0 — the widest setting, the opposite of the intent.
+      if (!(min > 0) || !(max > min) || (max / min) < 1.5) return;
+      let z = Math.min(min * 2, max);
+      if (step > 0) z = Math.min(min + Math.round((z - min) / step) * step, max);
+      track.zoom = z;
+      applyTrackState(inst).catch(() => { track.zoom = null; });   // fail soft, always
+    } catch (_) { /* capability probing must never break scanning */ }
+  }
+
   return {
     start(feedEl, onText, ctrl) {
       if (!feedEl.id) feedEl.id = 'spixi-scan-feed'; // Html5Qrcode mounts by element id
@@ -17572,6 +17792,9 @@ function html5QrcodeCamera(win) {
         try { console.error('scan camera start failed (' + label + ')', err); } catch (e2) { /* console gone */ }
         ctrl.fail();
       };
+      /* A8: the real completion anchor legacy never had. Every successful start
+         path routes through here instead of calling ctrl.done() directly. */
+      const started = () => { ctrl.done(); applyPreferredZoom(inst, true); };
       if (desktop) {
         w.Html5Qrcode.getCameras()
           .then((cams) => {
@@ -17579,29 +17802,36 @@ function html5QrcodeCamera(win) {
             const pick = real[0] || (cams || [])[0];
             return go(pick ? { deviceId: { exact: pick.id } } : { facingMode: 'user' });
           })
-          .then(() => ctrl.done())
+          .then(started)
           .catch((e1) => {
             // enumerate/deviceId path failed → last-resort plain user-facing ask
-            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('desktop user-facing fallback; first error: ' + e1));
+            go({ facingMode: 'user' }).then(started).catch(fail('desktop user-facing fallback; first error: ' + e1));
           });
       } else {
         go({ facingMode: 'environment' })
-          .then(() => ctrl.done())
+          .then(started)
           .catch((e1) => {
-            go({ facingMode: 'user' }).then(() => ctrl.done()).catch(fail('mobile user-facing fallback; first error: ' + e1));
+            go({ facingMode: 'user' }).then(started).catch(fail('mobile user-facing fallback; first error: ' + e1));
           });
       }
     },
     stop() {
       const inst = instance;
       instance = null;
+      track.zoom = null;                         // A8: next start re-probes from scratch
+      track.torch = false;
       if (inst) { try { inst.stop().catch(() => {}); } catch { /* already stopped */ } }
     },
     setTorch(on, ctrl) {
-      if (!instance) { ctrl.fail(); return; }
-      instance.applyVideoConstraints({ advanced: [{ torch: on }] })
+      const inst = instance;
+      if (!inst) { ctrl.fail(); return; }
+      // A8: route through the shared track state so toggling the torch cannot
+      // silently drop the applied zoom (advanced constraints REPLACE, not merge).
+      const prev = track.torch;
+      track.torch = !!on;
+      applyTrackState(inst)
         .then(() => ctrl.done())
-        .catch(() => ctrl.fail());               // unsupported track → button reverts
+        .catch(() => { track.torch = prev; ctrl.fail(); });   // unsupported track → button reverts
     },
   };
 }
@@ -17742,5 +17972,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

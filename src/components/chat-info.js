@@ -96,6 +96,7 @@ export function createChatInfo({
   address = '',
   avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
+  online = false,                // A4 (#302): presence dot on the hero avatar — 1:1 ONLY
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
@@ -150,7 +151,14 @@ export function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  hero.append(createAvatar({ src: avatar, name: name, address: avatarSeed || address, size: 64 }));
+  /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
+     a group or bot (ContactDetails.updateScreen returns at :405-410, before the
+     presence block, whenever isGroup is set). Guarding on `kind` here as well means
+     a demo passing online:true on a group can't grow a dot the bridge never feeds. */
+  hero.append(createAvatar({
+    src: avatar, name: name, address: avatarSeed || address, size: 64,
+    online: kind === 'contact' && !!online,
+  }));
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -789,4 +797,30 @@ export function createChatInfo({
   }
 
   return el;
+}
+
+/** A4 (#302) — live presence toggle on the chat-info hero. #44 free-fn grammar
+ *  (twin of setTopbarSub).
+ *
+ *  This exists because a rebuild CANNOT carry presence. contact_details.html
+ *  coalesces every push through stateSig()/buildIfChanged (:299-325), which no-ops
+ *  on an unchanged signature — so a contact going offline would leave the green dot
+ *  lit until some unrelated field (a name, a new transaction) happened to change.
+ *  A targeted toggle is both correct and cheaper than rebuilding a panel at the
+ *  presence cadence (~0.5 Hz while the surface is visible: Node.updateUILoop
+ *  Task.Delay(2000) → HomePage.OnUpdateUI, foreground-only :2211).
+ *
+ *  Presence is 1:1 only — see the note at the hero. */
+export function setChatInfoPresence(el, online) {
+  if (!el) return;
+  const avatar = el.querySelector('.c-chat-info__hero .c-avatar');
+  if (!avatar) return;
+  const has = avatar.querySelector('.c-avatar__dot');
+  if (online && !has) {
+    const dot = document.createElement('span');
+    dot.className = 'c-avatar__dot';
+    avatar.append(dot);
+  } else if (!online && has) {
+    has.remove();
+  }
 }

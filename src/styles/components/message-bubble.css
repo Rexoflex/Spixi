@@ -353,6 +353,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--icon-bubble-delivered); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
+/* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
+   already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
+   needs no token of its own and reads correctly in light and dark. flex:none stops
+   it being squeezed against the tick; RTL is handled by the meta float swap above. */
+.c-bubble__meta .c-bubble__paid { flex: none; }
 
 /* —— failed message (Damir 2026-07-03, r2): bubble stays CLEAN — the red
    outline on the blue clashed. Retry circle (hugging) + red caption carry

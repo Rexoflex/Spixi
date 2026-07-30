@@ -116,11 +116,13 @@
    *   the open payments accordion, and scroll position every tick. So pushes are
    *   coalesced (settle timer) and the panel is rebuilt ONLY when the meaningful
    *   state (name / address / tx set) actually CHANGES — and never while a
-   *   nickname edit is open. avatar/presence are stored but don't trigger a
-   *   rebuild (the component renders neither today — see gaps).
+   *   nickname edit is open. The avatar rebuilds once when it resolves; PRESENCE
+   *   deliberately does NOT rebuild — it flips at the poll cadence, so it is
+   *   applied with a targeted toggle instead (A4/#302, setChatInfoPresence) and is
+   *   only re-seeded into stateSig so a rebuild from another cause keeps it.
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    createChatInfo, formatIxiAmount,
+    createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -255,10 +257,15 @@
       address: state.address,
       avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
       avatarSeed: state.address,       // identity-stable gradient hue even before the name lands
+      online: state.online,            // A4 (#302): seed the hero dot on (re)build; live flips go
+                                       // through setChatInfoPresence, see showIndicator
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
                                        // edit prefills empty w/ name as placeholder (empty = clear override)
       txs: state.txs,
-      capabilities: { presence: state.online },   // notifications/media/selfDestruct OFF: no bridge verb (§9)
+      // A4: `capabilities` is a FEATURE-GATE bag ("this surface supports presence"),
+      // not a live-value channel — it was carrying state.online since #142 and
+      // nothing ever read it. The live value now rides the top-level `online` opt.
+      capabilities: { presence: true },   // notifications/media/selfDestruct OFF: no bridge verb (§9)
       host: document.body,             // confirm modals / QR-adjacent sheets attach to the page body
       strings,
 
@@ -313,6 +320,11 @@
       // signature sorted by address so a re-pushed roster in a different order
       // never forces a needless rebuild (would drop an open search/sheet).
       context: state.context,
+      // A4 (#302): in the signature so a rebuild from ANY cause re-seeds the dot
+      // with the current value. Live flips still go through setChatInfoPresence —
+      // showIndicator never calls scheduleCommit, so this never drives a rebuild
+      // by itself, it only makes one that happens anyway come out right.
+      online: state.online,
       isGroup: state.isGroup,
       group: state.group,
       members: state.members.map((m) => [m.address, m.name, m.avatar])
@@ -393,8 +405,17 @@
     // when the photo arrives; the coalescer + edit-guard keep it churn-safe, and
     // c-avatar's onerror falls back to the gradient if the path can't load.
     setAvatar(path) { state.avatarPath = resolveAvatar(path); scheduleCommit(); },
-    // presence — stored; c-chat-info renders no presence line today (component gap).
-    showIndicator(online) { state.online = asBool(online); },
+    /* A4 (#302): presence. Guarded on CHANGE — this arrives at the poll cadence
+       (~0.5 Hz while the surface is visible) and an unguarded scheduleCommit would
+       reset the 120 ms settle timer on every tick, so the panel could never settle.
+       No rebuild: a targeted dot toggle. state.online is also in stateSig now, so a
+       rebuild triggered by something else re-seeds the dot correctly. */
+    showIndicator(online) {
+      const next = asBool(online);
+      if (next === state.online) return;
+      state.online = next;
+      if (built && !state.isGroup) setChatInfoPresence(root.firstElementChild, next);
+    },
 
     // tx list is cleared + fully re-pushed every second. Buffer between clear and
     // the settle so a partial list never commits.

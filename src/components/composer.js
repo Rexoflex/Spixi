@@ -6,8 +6,19 @@
  * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
  *
  * createComposer({ placeholder, voice = false, onSend(text), onAttach,
- *                  onTyping, onRecord, strings }) → el
+ *                  onTyping, onRecord, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
+ *
+ * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
+ *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
+ *   When set, send() returns BEFORE onSend and WITHOUT clearing the field, the
+ *   action button disables, and a counter appears once the text passes 90% of the
+ *   limit. The guard MUST live here and not in the shell: send() clears the
+ *   textarea unconditionally after onSend, so a shell-side `return` would block the
+ *   send AND destroy what the user typed or pasted. Legacy alerted and kept the
+ *   text; a guard that loses 64 000 characters is worse than no guard.
+ * onTooLong(len, max) — fired on a blocked send attempt (Enter or the button), so
+ *   the shell can toast. The over-limit state is otherwise silent and visual.
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
@@ -24,6 +35,8 @@ export function createComposer({
   onTyping,
   onRecord,
   mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
+  maxLength = 0,          // A7: 0 = off. Counted on the TRIMMED text, raw UTF-16 units.
+  onTooLong = null,       // (len, max) → shell toasts; the visual state is handled here
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
@@ -58,6 +71,34 @@ export function createComposer({
 
   const hasText = () => input.value.trim().length > 0;
 
+  /* A7 length guard. Count the TRIMMED text: C# trims before it prices and sends
+     (SingleChatPage.xaml.cs:747), so a 64 001-char message whose last 5 chars are
+     newlines should go through. Legacy counted untrimmed innerText — this is the
+     same rule, minus that off-by-whitespace. */
+  const textLen = () => input.value.trim().length;
+  const overLimit = () => maxLength > 0 && textLen() > maxLength;
+
+  /* The counter is the honest way to communicate the limit: it says the number in
+     every locale for free, and it appears BEFORE the user commits — the realistic
+     trigger here is pasting a large blob, and a toast fired after the tap is the
+     bad path. Hidden below 90% so it costs nothing in normal use. */
+  let counter = null;
+  const syncCounter = () => {
+    if (!maxLength) return;
+    const len = textLen();
+    const show = len > maxLength * 0.9;
+    if (!show) { if (counter) { counter.remove(); counter = null; } return; }
+    if (!counter) {
+      counter = document.createElement('span');
+      counter.className = 'c-composer__counter t-body-xs';
+      counter.setAttribute('aria-hidden', 'true');   // the blocked-send toast carries this for SRs
+      field.append(counter);
+    }
+    const over = len > maxLength;
+    counter.textContent = (over ? '−' : '') + Math.abs(maxLength - len).toLocaleString();
+    if (over) counter.setAttribute('data-over', ''); else counter.removeAttribute('data-over');
+  };
+
   const syncAction = () => {
     if (voice && !hasText()) {
       micIcon();
@@ -67,7 +108,7 @@ export function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = !hasText();
+      action.disabled = !hasText() || overLimit();
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -84,15 +125,26 @@ export function createComposer({
   const send = () => {
     const text = input.value.trim();
     if (!text) return;
+    // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
+    // caret stays, the draft stays. Both entry paths (Enter and the action button)
+    // funnel through here, so this one return covers them.
+    if (maxLength > 0 && text.length > maxLength) {
+      if (onTooLong) { try { onTooLong(text.length, maxLength); } catch (_) {} }
+      syncCounter();
+      syncAction();
+      return;
+    }
     if (onSend) onSend(text);
     input.value = '';
     grow();
+    syncCounter();
     syncAction();
     input.focus();
   };
 
   input.addEventListener('input', (e) => {
     grow();
+    syncCounter();     // fires after paste too — the `input` event covers it
     syncAction();
     // synthetic events (clearComposer) must not emit a spurious ixian:typing
     if (onTyping && e.isTrusted) onTyping(); // shell throttles → ixian:typing
@@ -114,6 +166,7 @@ export function createComposer({
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
 
+  syncCounter();
   syncAction();
   return el;
 }
@@ -334,7 +387,16 @@ export function getComposerContext(el) { return composerCtx.get(el) || null; }
 
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.
- *  Falsy costText removes it. #44 free fn. */
+ *  Falsy costText removes it. #44 free fn.
+ *
+ *  A2 (#302): costText is rendered VERBATIM. C# already sends a COMPLETE localized
+ *  sentence — String.Format(_SL("chat-message-cost-bar"), cost + " IXI")
+ *  (SingleChatPage.xaml.cs:610) → "Sending messages costs 0.1 IXI per kB". The old
+ *  `strings.costPerMessage + ' ' + costText` prefix produced "Each message costs
+ *  Sending messages costs 0.1 IXI per kB" the moment a real bot was wired, and the
+ *  prefix was also factually wrong: the charge is per kB and length-dependent
+ *  (friend.getMessagePrice(str.Length), :757), not flat per message. Callers that
+ *  have only a bare amount compose their own sentence before calling. */
 export function setComposerCost(el, costText, strings = getStrings()) {
   const prev = el.querySelector('.c-composer__cost');
   if (prev) prev.remove();
@@ -343,7 +405,7 @@ export function setComposerCost(el, costText, strings = getStrings()) {
   line.className = 'c-composer__cost';
   line.append(icon('wallet', { size: 14 }));
   const t = document.createElement('span');
-  t.textContent = (strings.costPerMessage || 'Each message costs') + ' ' + costText;
+  t.textContent = String(costText);
   line.append(t);
   el.prepend(line); // always topmost (above any reply/edit ctx strip)
 }

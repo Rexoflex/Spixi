@@ -58,6 +58,8 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
+<link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- A11 (#302): periodic backup reminder -->
+<link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- A5 (#302): store-rating prompt -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
@@ -294,6 +296,9 @@
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     attachContextMenuAnchors,            // Batch C (M6): desktop sheet grammar (no-op on mobile)
+    showToast,                           // A10 (#302): share/copy feedback — was silent on WebView2
+    // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
+    showBackupNudge, showRatingNudge,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -1343,13 +1348,22 @@
     body.append(createWalletReceive({
       address: addr,
       strings: walletStrings, host: document.body,
-      // No native share bridge verb exists (§9 ask). Use the Web Share API where the
-      // WebView provides it; otherwise degrade to a clipboard copy of the payload —
-      // never invent a verb. (The component also has its own address-copy affordance.)
-      onShare: ({ value }) => {
-        if (navigator.share) { navigator.share({ text: value }).catch(() => {}); }
-        else if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(value); }
-      },
+      /* A10 (#302) — Share. The old path degraded to a SILENT clipboard write on
+         any WebView without navigator.share (WebView2 on Windows, Android
+         WebView): no toast, no error, nothing — the user tapped Share and, as far
+         as they could tell, nothing happened.
+         ★ The amount gate is the important part. `ixian:share` takes NO argument;
+         C# shares primaryAddress itself (HomePage.xaml.cs:635-641). But this
+         payload is `address:ixi`, or `address:send:<amount>` once an amount is
+         requested. Routing a REQUEST through that verb would share a bare address
+         while the user believes they shared a payment request — silently dropping
+         the amount, which is worse than the no-op it replaces. So the live verb is
+         used only for the plain-address case. */
+      // Pass the BARE address for the no-amount case: ixian:share shares C#'s
+      // primaryAddress, so sending `address:ixi` to navigator.share on iOS while
+      // Windows/Android shared a bare address made the same button produce two
+      // different texts (audit MINOR). The request case keeps the full payload.
+      onShare: ({ address, value, amount }) => shareReceivePayload(amount ? value : (address || value), amount),
       // Q2-⑥ (#268): people-only roster, minus pending in BOTH directions (see
       // requestableContacts). Fire-and-forget — the component's ✓ morph is the ack;
       // C# validates again and composes the requestFunds chat message (legacy
@@ -1362,6 +1376,70 @@
     }));
     over.append(body);
     document.body.append(over);
+  }
+
+  /* ————————————————————————————————————————————————————————————————————————
+   * A10 (#302) — share the Receive payload, with a real fallback ladder.
+   *
+   * Ordering matters and is not arbitrary:
+   *  1. navigator.share first, INSIDE the click's activation window (the component
+   *     calls onShare synchronously from the button handler, wallet-receive.js:143).
+   *  2. AbortError is NOT a failure — it is the user dismissing the iOS share
+   *     sheet. Falling back there would silently copy and toast "Copied" for
+   *     someone who just cancelled. Return.
+   *  3. ixian:share for the bare-address case. It is `location.href`, so it needs
+   *     no activation and works after the await.
+   *  4. Clipboard last, and execCopy (textarea + execCommand) as the final rung:
+   *     after `await navigator.share().catch()` the transient activation is spent,
+   *     and WebKit rejects navigator.clipboard.writeText outside a gesture — the
+   *     execCommand path does not need the permission and survives it.
+   * Every branch ends in a visible toast. Ported from the hardened settings
+   * implementation (#235b, settings.html:875-899) rather than reinvented; the two
+   * should be factored into one helper when the settings share verb lands (batch B).
+   * ———————————————————————————————————————————————————————————————————————— */
+  function execCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
+  function shareReceivePayload(value, amount) {
+    if (!value) return;
+    const s = strings;
+    const copied = () => showToast({ text: s.copied || 'Copied', tone: 'success', host: document.body, strings: s });
+    const copyFailed = () => showToast({ text: s.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: document.body, strings: s });
+    const clipboard = () => {
+      const fail = () => { if (execCopy(value)) copied(); else copyFailed(); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(copied, fail);
+        else fail();
+      } catch (e) { fail(); }
+    };
+    // A request payload carries an amount the argument-less ixian:share cannot
+    // express — never route it there.
+    const nativeOk = !amount;
+    if (navigator.share) {
+      try {
+        navigator.share({ text: value }).catch((e) => {
+          // AbortError is USUALLY the user dismissing the sheet — but Chromium also
+          // raises it when the share sheet could not be shown at all, which is exactly
+          // the WebView2 case A10 exists to fix. So when the native verb is available
+          // we try it even on abort (it is idempotent and cheap); only a genuine
+          // cancel with no native fallback is treated as "done, do nothing".
+          if (nativeOk) { bridge.send('ixian:share'); return; }
+          if (e && e.name === 'AbortError') return;         // user cancelled — not a failure
+          clipboard();
+        });
+        return;
+      } catch (e) { /* threw synchronously → fall through */ }
+    }
+    if (nativeOk) { bridge.send('ixian:share'); return; }   // WebView2 / Android WebView
+    clipboard();
   }
 
   /* ——— Send compose/review takeover (BE-GATED — built + wired, OFF in v1) ————————
@@ -1502,8 +1580,20 @@
     // both flags → single. C# owns launch (native picker for multi) — SECURITY.md OK.
     onLaunch: (app) => {
       if (!app || app.id == null || app.id === '') return;
+      // A9 (#302): a DUAL app (both flags) still launches SOLO on the primary tap —
+      // solo relaunch is the repeated action, and legacy's per-tap modal taxed it.
+      // The invite path is no longer lost: it is a row in the ⋮ menu (apps-menu.js)
+      // and an explicit second button on the details page. An app declaring NEITHER
+      // flag also launches solo — legacy's chain had no final else, so such a tap
+      // simply did nothing (index.html:649-676); that dead branch is not restored.
       const multi = !!app.isMultiUser && !app.isSingleUser;
       bridge.send('ixian:' + (multi ? 'startAppMulti' : 'startApp') + ':' + app.id);
+    },
+    // A9 (#302): explicit multi-user launch for a dual-capability app (⋮ → "Invite a
+    // contact"). C# hands off to its native contact picker (HomePage.xaml.cs:2682).
+    onLaunchMulti: (app) => {
+      if (!app || app.id == null || app.id === '') return;
+      bridge.send('ixian:startAppMulti:' + app.id);
     },
     // details → the app's details page (launch-mode + permissions live there); reached
     // via the ⋮ menu's "App details" action (onOpen).
@@ -1558,6 +1648,11 @@
     document.getElementById('placeholder-note').textContent =
       strings.tabNotReady || 'This section isn’t part of the redesign yet.';
   }
+  /* Deliberately NOT `activeNav` (:522): that one tracks the last tab the USER
+   * tapped (it drives the account revert at :1774) and is not updated by C#'s
+   * selectTab push, so it goes stale. showView is the single chokepoint every path
+   * goes through, so the nudge gate reads its own value. */
+  let nudgeTabId = 'chats';
   function showView(navId) {
     const isChats = navId === 'chats';
     const isWallet = navId === 'wallet';
@@ -1568,7 +1663,149 @@
     placeholderView.hidden = isChats || isWallet || isApps;
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
+    nudgeTabId = navId;
+    pumpNudges();                       // a tab change can unblock a queued nudge
   }
+
+  /* —————————————————————————————————————————————————————————————————————————
+   * NUDGE QUEUE (A5 + A11, DECISIONS #302) — the backup reminder and the rating
+   * prompt share ONE gate. They must: C# can push both inside the same frame
+   * (HomePage.onLoaded → updateScreen():1367 → displayBackupReminder, then
+   * checkForRating():1375), and without a queue the second sheet stacks over the
+   * first — while the backup reminder's 30-day slot has ALREADY been spent
+   * (HomePage.xaml.cs:2083 writes backupReminderTimestamp on PUSH, not on ack).
+   *
+   * Priority: backup (1) > rating (2). The backup slot is destroyed on push and
+   * cannot be re-requested for 30 days, so a queued backup is NEVER dropped while
+   * this page lives. The rating re-pushes on every chat exit (:2295/:2442) and on
+   * every home load (:1375), so dropping it is free.
+   *
+   * Context gates exist because neither push is context-aware: home's takeovers are
+   * z-30 and sheets z-40, so an ungated nudge paints over an open contacts/wallet
+   * takeover, and overlay.js's `overlayOpen` flag (:107) does not see takeovers.
+   * openSheet also traps and pulls focus (overlay.js:44-79) — landing mid-typing is
+   * hostile, and for the backup nudge a reflex dismiss costs the user 30 days.
+   *
+   * KNOWN residual (logged, needs C#): since #270 the call ring lives in CallPage's
+   * own WebView and home receives no call state, so a queued nudge can still surface
+   * under an incoming ring. Making home call-aware is a new push = batch B.
+   * ————————————————————————————————————————————————————————————————————————— */
+
+  const RATING_SNOOZE_KEY = 'spixi.rating.snooze';   // ms timestamp; UI throttle only
+  const RATING_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+  const BACKUP_STAMP_KEY = 'spixi.backup.last';      // WRITTEN by settings.html:424 /
+                                                     // settings_backup.html:124 — read-only here
+  const BACKUP_SUPPRESS_MS = 30 * 24 * 60 * 60 * 1000;
+  const NUDGE_GAP_MS = 600;                          // no back-to-back scrims
+
+  const nudgeQueue = [];               // kinds waiting for a clear context
+  let nudgeOpen = null;                // kind currently on screen
+  let nudgeReadyAt = 0;                // gap timer
+
+  const lsGet = (k) => { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+
+  /* A11: suppress the reminder for someone who already backed up. There is NO C#
+   * backup-done pref anywhere (be-cutover S2) — this localStorage stamp is the only
+   * signal that exists, and it is same-origin with the settings shells that write it.
+   * Documented caveat (settings.html:420-423): it stamps the share-sheet LAUNCH, not
+   * a confirmed success. Accepted — over-suppressing by one interval beats nagging a
+   * user who just backed up. */
+  function backedUpRecently() {
+    const t = Number(lsGet(BACKUP_STAMP_KEY) || 0);
+    return t > 0 && (Date.now() - t) < BACKUP_SUPPRESS_MS;
+  }
+  function ratingSnoozed() {
+    const t = Number(lsGet(RATING_SNOOZE_KEY) || 0);
+    return t > 0 && (Date.now() - t) < RATING_SNOOZE_MS;
+  }
+
+  /* Every condition that must hold before ANY nudge may take the screen. */
+  function nudgeContextClear() {
+    if (nudgeOpen) return false;
+    if (document.body.dataset.overlayOpen !== undefined) return false;   // overlay.js:107
+    // Takeovers are z-30, sheets z-40 — a nudge would paint straight over them, and
+    // overlay.js's flag does not track them. Gate on the shell's own live handles
+    // (authoritative) plus a DOM belt: mountContacts appends `.c-contacts` to body
+    // directly, so the `.contacts-takeover` wrapper the CSS anticipates never exists.
+    if (contactsView || walletTakeover) return false;
+    if (document.querySelector('.c-contacts, .wallet-takeover')) return false;
+    if (nudgeTabId !== 'chats') return false;      // a nudge over Wallet/Apps reads as a hijack
+    if (document.visibilityState !== 'visible') return false;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return false;
+    return Date.now() >= nudgeReadyAt;
+  }
+
+  let nudgePumpTimer = 0;
+  function enqueueNudge(kind) {
+    if (nudgeOpen === kind) return;                 // already on screen
+    if (!nudgeQueue.includes(kind)) nudgeQueue.push(kind);
+    nudgeQueue.sort((a, b) => (a === 'backup' ? -1 : 0) - (b === 'backup' ? -1 : 0));
+    /* Coalesce before opening. Pumping synchronously would let whichever push landed
+       FIRST take the screen, so the backup>rating priority could never actually
+       reorder anything — and the real ordering that matters is the bad one: leaving a
+       chat fires checkForRating (:2295/:2442) while displayBackupReminder rides the
+       updateScreen tick (:2124), so the rating arrives first and the backup — whose
+       30-day slot is already burned at :2083 — queues behind it (audit MINOR). */
+    clearTimeout(nudgePumpTimer);
+    nudgePumpTimer = setTimeout(pumpNudges, 150);
+  }
+
+  function closeNudge() {
+    nudgeOpen = null;
+    nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
+    setTimeout(pumpNudges, NUDGE_GAP_MS + 20);
+  }
+
+  function pumpNudges() {
+    if (!nudgeQueue.length || !nudgeContextClear()) return;
+    const kind = nudgeQueue.shift();
+    if (kind === 'backup') {
+      if (backedUpRecently()) { pumpNudges(); return; }   // re-checked at SHOW time, not at push
+      nudgeOpen = 'backup';
+      showBackupNudge({
+        host: document.body,
+        illustration: 'images/backup.svg',   // ships beside the shells (build-shells.mjs:260-267)
+        strings,
+        onBackup: () => {
+          /* ixian:backup pushes BackupPage over home. iOS keeps this WebView's
+             visibilityState 'visible' underneath, so the gate would not stop the queue
+             and a queued rating sheet would be sitting there when the user came back
+             (audit MINOR). Drop the queue — the rating re-pushes for free on the next
+             chat exit; the backup slot is the one that cannot be re-requested. */
+          nudgeQueue.length = 0;
+          closeNudge();
+          bridge.send('ixian:backup');
+        },
+        onDismiss: closeNudge,
+      });
+    } else if (kind === 'rating') {
+      if (ratingSnoozed()) { pumpNudges(); return; }
+      nudgeOpen = 'rating';
+      showRatingNudge({
+        host: document.body,
+        strings,
+        onRate: (a) => { closeNudge(); bridge.send('ixian:rating:' + (a === 'yes' ? 'yes' : 'no')); },
+        // Light-dismiss sends NO verb (component contract, rating-nudge.js:17-19) and
+        // C# re-pushes on every chat exit — without a local throttle that is an endless
+        // nag loop. C#'s "done" stays authoritative; this only paces the asking.
+        onDismiss: () => { lsSet(RATING_SNOOZE_KEY, String(Date.now())); closeNudge(); },
+      });
+    }
+  }
+
+  document.addEventListener('visibilitychange', pumpNudges);
+
+  /* Retry hook. Rather than threading a callback through every overlay/takeover
+   * close site (and missing the next one someone adds), watch the two things the
+   * gate actually reads: body's `data-overlay-open` attribute and body's direct
+   * children (both takeovers and every sheet mount to document.body). pumpNudges
+   * early-returns on an empty queue, so this costs nothing in the normal case. */
+  try {
+    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); })
+      .observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (_) { /* no MutationObserver → nudges still fire on push / tab change */ }
 
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS command handlers. Every one is a page global (registered via
@@ -2022,8 +2259,22 @@
       setChatsTitleState(isConn ? t : '');
       setWarning(homeBanner, isConn ? '' : (text || ''));
     },
-    showRatingPrompt() { dbg('showRatingPrompt'); },
-    toggleAnimatedSlider() { dbg('toggleAnimatedSlider'); },
+    // A5 (#302). C# re-pushes while Preferences("rating_action")=="show" — from
+    // onLoaded (:1375), SingleChatPage overlay close (:2295) and OnAppearing
+    // fromChat (:2442). Answering either way marks it done C#-side (:665); a
+    // light-dismiss marks nothing, hence the local snooze in the queue.
+    showRatingPrompt() { enqueueNudge('rating'); },
+
+    // A11 (#302). C# pushes toggleAnimatedSlider("backup-prompt") from
+    // displayBackupReminder (HomePage.xaml.cs:2082). Take the ARGUMENT: legacy's
+    // toggleAnimatedSlider was a generic slider toggle (js/spixi.js:385-399) driven
+    // by several ids, and it also CLOSED the prompt when the CTA/"Not now" called it
+    // again. Here it means "show", and only for this one id — a second push must not
+    // close an open nudge, and a future slider id must not open the backup sheet.
+    toggleAnimatedSlider(id) {
+      if (String(id || '') !== 'backup-prompt') { dbg('toggleAnimatedSlider', id); return; }
+      enqueueNudge('backup');
+    },
     updateDebugInfo() { dbg('updateDebugInfo'); },
   };
 

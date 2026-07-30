@@ -233,6 +233,7 @@ export function createMessageBubble({
   reply = null,
   onReplyClick = null,
   edited = false,
+  paid = false,                // A2 (#302): this message cost IXI (C# `paid` = transactionId != "")
   onLinkClick = null,
   linkPreview = null,
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
@@ -414,6 +415,24 @@ export function createMessageBubble({
       st.setAttribute('role', 'img');
       st.setAttribute('aria-label', strings['status-' + status] || status);
       meta.append(st);
+    }
+  }
+  /* A2 (#302): paid marker. AFTER the status icon deliberately — setMessageStatus
+     finds the tick via `.c-bubble__meta .c-status-icon` and replaceWith()s it, so a
+     glyph appended before it would break that lookup; appended after, both survive.
+     Legacy's CSS REPLACED the delivery tick with the wallet glyph
+     (spixiui-light.css:2544-2550 `.paid .statusIndicator{display:none!important}`) —
+     deliberately not copied: that lost delivery state to show cost state.
+     Rendered for both directions; legacy only ever set `paid` on own messages, so
+     the received case simply never fires today rather than being gated out. */
+  if (paid) {
+    const pg = icon('wallet', { size: 14 });
+    if (pg) {
+      pg.classList.add('c-bubble__paid');
+      pg.removeAttribute('aria-hidden');
+      pg.setAttribute('role', 'img');
+      pg.setAttribute('aria-label', strings.paidMessage || 'Paid message');
+      meta.append(pg);
     }
   }
   if (meta.childNodes.length) el.append(meta);

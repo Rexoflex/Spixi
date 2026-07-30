@@ -140,6 +140,41 @@
      newest at the bottom (Damir 2026-07-07). */
   #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
+  /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
+     (error surface + a 2px ring in the HOST surface so it reads on any background) at
+     topbar scale — ring in --surface-topbar, not the bottombar token the nav badge
+     uses. Positioned INSIDE the 44px button box (a bottomnav-style negative offset
+     would clip against the topbar's own padding), and aria-hidden because the
+     state is announced through the button's aria-label instead. */
+  #chat-topbar .c-button[data-unread-dot] { position: relative; }
+  #chat-topbar .c-button[data-unread-dot]::after {
+    content: ""; position: absolute; top: 6px; inset-inline-end: 6px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--surface-error);
+    box-shadow: 0 0 0 2px var(--surface-topbar);
+    pointer-events: none;
+  }
+  /* A1 (#302): "Show older messages" pill, first child of the log. It only ever
+     renders when ≥100 messages exist, so it never coexists with the #181
+     centered-when-short layout above (auto margins have collapsed by then).
+     flex:none so it can't be stretched by the column. */
+  .chat-older { flex: none; display: flex; justify-content: center; padding: var(--spacing-8) 0 var(--spacing-4); }
+  .chat-older__btn {
+    display: inline-flex; align-items: center; gap: var(--spacing-8);
+    min-height: 32px; padding: 0 var(--spacing-16);
+    border: 0; border-radius: var(--radius-full, 999px);
+    background: var(--surface-menu, var(--surface-card));
+    color: var(--text-action-default, var(--text-neutral-01));
+    font-size: var(--font-size-label-sm, 13px);
+    font-weight: var(--font-weight-semibold, 600);
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: var(--elevation-1, 0 1px 2px rgba(0,0,0,.12));
+    transition: background var(--duration-100) var(--easing-standard);
+  }
+  /* #43: every hover lives inside the hover-capable guard */
+  @media (hover: hover) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } }
+  .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
   #chat-composer { flex: none; }
   /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
      the base to grey-1000 (#207); data-desktop is on <html>, same element as
@@ -250,6 +285,18 @@
     color: var(--text-neutral-02, #666);
     padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
   }
+  /* A6 (#302): bot/server description under the panel title. Body-sm neutral-02,
+     clamped to 4 lines — the text is bot-authored and unbounded in length. */
+  .chat-channel-panel__desc {
+    margin: 0;
+    padding: 0 var(--spacing-8) var(--spacing-8);
+    color: var(--text-neutral-02, #666);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
   /* channel list (rows shared by the panel) */
   .chat-channel-list { display: flex; flex-direction: column; gap: var(--spacing-4); }
   .chat-channel-list__item {
@@ -333,6 +380,7 @@
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
     <span id="sl-request-accepted">*SL{global-friend-request-accepted}</span>
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
+    <span id="sl-online">*SL{chat-online}</span>
   </div>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
@@ -382,7 +430,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
-    createComposer, clearComposer, createTypingIndicator, createScrollToLatest,
+    createComposer, clearComposer, setComposerCost, createTypingIndicator, createScrollToLatest,
     setMessageStatus, removeMessage,
     createFileBubble, setFileProgress,
     createMediaBubble, setMediaSrc, openMediaViewer,
@@ -464,6 +512,15 @@
    * signal (showRequestSentModal / showContactRequest) lands. Locale-proof. */
   const WAITING_RESPONSE_TEXT = slCarrier('sl-waiting-response', 'Waiting for response');
 
+  /* W1 (#302) — the presence dot was DEAD in 5 of the 8 shipped locales.
+     setOnlineStatus receives a fully-localized string from C# (:1930/1940/1946),
+     and the dot was derived from /online/.test(s). "chat-online" is only the word
+     "Online" in en-us/de-de/pt-br; es-co "En línea", fr-fr "En ligne", ru-ru
+     "В сети", sl-si "Na voljo", sr-sp "Na mreži" all fail that regex, so those
+     users never saw a presence dot at all. Same carrier mechanism the payment
+     titles already use in this file — locale-proof by construction. */
+  const ONLINE_TEXT = slCarrier('sl-online', 'Online');
+
   const ACCEPTED_TPL = slCarrier('sl-request-accepted', '{0} has accepted your contact request.');
   const ACCEPTED_PARTS = (() => {
     const i = ACCEPTED_TPL.indexOf('{0}');
@@ -494,11 +551,15 @@
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
-  const mode = { type: 0, isBot: false, isMulti: false, admin: false, notifications: true };
+  const mode = { type: 0, isBot: false, isMulti: false, admin: false, notifications: true, costText: '', description: '' };
 
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
   const identity = { name: '', sub: '', address: '', online: false, avatar: null };
+
+  /* A3 (#302): "unread messages exist in other chats". Shell-scope, applied inside
+   * renderTopbarNow — the topbar is fully rebuilt on six triggers. */
+  let unreadElsewhere = false;
 
   /** Resolve a C# avatar arg to an <img> src, or null for the gradient fallback
    *  (same rule as the home shell): real on-disk path → src (normalize
@@ -586,6 +647,12 @@
       // shell-side surface (ixian:details); plain bots keep the in-chat takeover.
       onIdentity: botChannels ? () => openChannelSelector() : infoTap,
       onBack: () => bridge.send('ixian:back'),
+      /* A3 (#302): the unread-elsewhere state has to ride the BACK LABEL, not a
+         nested badge element. createButton puts backLabel on the button's
+         aria-label (button.js:43), and an aria-label overrides nested content —
+         a badge <span> inside would be announced to nobody. Count-free wording
+         deliberately: see the dot rationale at setUnreadIndicator. */
+      backLabel: (s.back || 'Back') + (unreadElsewhere ? ' — ' + (s.unreadElsewhere || 'Unread messages') : ''),
       actions,
     });
 
@@ -613,6 +680,17 @@
     // the identity lands (address known) — the slot reserves space, then the real avatar
     // (or the correct address-gradient) appears once, with no wrong-colour flash.
     if (!identity.address) tb.classList.add('is-avatar-pending');
+    /* A3 (#302): unread-elsewhere dot on the back button. Applied HERE, inside the
+       render, because renderTopbarNow rebuilds the whole topbar (textContent=''
+       at :582) on six different triggers — setNickname, setOnlineStatus, setAvatar,
+       setChatMode, channel select and the rAF coalescer — so a one-shot DOM poke
+       from the handler would evaporate on the next one.
+       Mobile/single-pane only: on desktop the chats list is visible beside the
+       conversation and already carries the unread state. */
+    if (unreadElsewhere && !document.documentElement.hasAttribute('data-desktop')) {
+      const backBtn = tb.querySelector('.c-button');
+      if (backBtn) backBtn.dataset.unreadDot = '';
+    }
     topbarHost.append(tb);
     // channel row-select coalesces a topbar rebuild; land focus on the NEW title
     // (the old trigger is detached by textContent='' above → would drop to body).
@@ -748,6 +826,19 @@
     title.className = 'chat-channel-panel__title';
     title.textContent = s.channels || 'Channels';
     panel.append(title);
+
+    /* A6 (#302): the bot/server description, on the one bot-owned surface this
+       shell owns (#97/#252 Q9). Read from stored mode state, not from the push
+       moment — this panel is torn down and rebuilt on every open, so the value has
+       to survive. textContent (never innerHTML): the string is authored by a REMOTE
+       bot server. Already clamped in setChatMode; -webkit-line-clamp caps the
+       visual height so a long one can't blow the panel. */
+    if (mode.description) {
+      const desc = document.createElement('p');
+      desc.className = 'chat-channel-panel__desc t-body-sm';
+      desc.textContent = mode.description;
+      panel.append(desc);
+    }
 
     channelSheetBody = document.createElement('div');
     channelSheetBody.className = 'chat-channel-list';
@@ -1038,6 +1129,7 @@
       text: rec.text || '',
       timestamp: rec.ts,
       status: isSent ? rec.status : null,
+      paid: !!rec.paid,             // A2 (#302): message cost IXI (C# transactionId)
       // group/bot chats: show the sender nick, or the raw ADDRESS (middle-truncated
       // + click-to-copy in the component) when there's no nick yet (Damir 2026-07-07).
       // A nameless sender is one with no nick AND one whose "nick" is really its
@@ -1424,6 +1516,12 @@
    * Reply/Edit are §8-gated behind a capability flag (OFF until BE), so they
    * never render today. Non-text cards keep their own inline actions in v1. */
   const overlayHost = document.body;
+  /* A7 (#302): legacy's 64 000-char ceiling (js/chat.js:403). Counted on the
+     TRIMMED text in raw UTF-16 units — the same units C# prices in (:757). */
+  const MAX_MESSAGE_CHARS = 64000;
+  /* A6 (#302): hard clamp on the bot-authored server description before it ever
+     reaches the DOM. The CSS line-clamp is the visual cap; this is the data cap. */
+  const DESCRIPTION_MAX = 500;
   // Batch C (M6): on desktop, a RIGHT-CLICKED message menu presents as an anchored
   // dropdown at the pointer with the source row highlighted (demo 06c ⑩/⑰ grammar);
   // long-press keeps the centered dialog. No-op on mobile (data-desktop absent).
@@ -1860,7 +1958,17 @@
     // removes the boot spinner (it's a child of box) on the first render.
     const frag = document.createDocumentFragment();
     rows.clear();
-    frag.append(createSecureNotice());   // privacy note pinned at the top of history
+    /* A1 (#302): the "Show older messages" affordance, above everything else.
+       Model-driven, NOT appended imperatively — this fragment replaces the whole
+       box below, so a node poked in from outside a render would be destroyed. */
+    if (showOlder) frag.append(buildOlderPill());
+    /* A1 / D1 (#302): the secure notice marks the START of the conversation
+       ("Encrypted… Yours alone"). Pinning it unconditionally was harmless while
+       nothing above it contradicted it — with the pill it would assert "this is the
+       beginning" directly above a button that loads more of the beginning. So it
+       appears only once history is exhausted, which is also the demo contract
+       (src/demo/chat.html:436-450) and #91's original intent. */
+    if (!showOlder) frag.append(createSecureNotice());
     /* #265 (Damir ③ / C10 FE-side): a FULFILLED payment request is TWO C#
      * messages — the original requestFunds (flips to ":"+txid → Completed) AND
      * a separate sentFunds direct-payment message carrying the SAME txid. One
@@ -1897,6 +2005,7 @@
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+    else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
   }
@@ -2000,6 +2109,117 @@
     requestAnimationFrame(() => { renderQueued = false; renderLogNow(); });
   }
 
+  /* ————————————————————————————————————————————————————————————————————————
+   * A1 (#302) — "Show older messages".
+   *
+   * Chat history beyond the last 100 messages per channel was unreachable: C# is
+   * fully alive (onLoadMore :151-153 grows the window +100 :371-376 and re-flushes
+   * via loadMessages :1234) but nothing in the shell emitted the verb, and
+   * clearMessages threw its `showMore` argument away.
+   *
+   * End-of-history needs NO heuristic — C# already tells us: loadMessages pushes
+   * show_more="false" whenever the returned count is below the window (:1246-1249)
+   * and on the empty-history path (:1239-1244).
+   *
+   * The transport is a full teardown + re-add of the whole grown window, which is
+   * why this is a BUTTON and not a scroll trigger: infinite scroll on top of a
+   * re-flush yanks the page out from under a scrolling user. The proper fix is a
+   * prepend + batched push — see docs/chat-transport-spec.md. When that lands the
+   * pill is swapped for a scroll sentinel and attachLazyHistory finally gets wired.
+   * ———————————————————————————————————————————————————————————————————————— */
+  let showOlder = false;         // C# says more history exists
+  let loadingOlder = false;      // a loadmore is in flight
+  let olderTimeout = 0;          // spinner can't outlive a lost navigation
+  let olderAnchorId = null;      // message id that was topmost when the user tapped
+  let olderAnchorOffset = 0;     // its offsetTop minus scrollTop, i.e. its screen y
+  let olderAnchorRows = 0;       // row count when the anchor was taken
+  let olderAnchorUntil = 0;      // hard deadline — the anchor is for THIS re-flush only
+
+  function buildOlderPill() {
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-older';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-older__btn';
+    if (loadingOlder) {
+      btn.disabled = true;
+      // .c-history-loading ships in lazy-history.css, which this shell already
+      // links (:61) — the spinner costs no new CSS.
+      const sp = document.createElement('span');
+      sp.className = 'c-history-loading__spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      btn.append(sp);
+      btn.append(document.createTextNode((window.SL && window.SL.loading) || 'Loading'));
+    } else {
+      btn.textContent = (window.SL && window.SL.showOlderMessages) || 'Show older messages';
+      btn.addEventListener('click', requestOlder);
+    }
+    wrap.append(btn);
+    return wrap;
+  }
+
+  function requestOlder() {
+    if (loadingOlder) return;            // each tap costs +100 rows of C# window, permanently
+    loadingOlder = true;
+
+    /* Take the anchor BEFORE the re-flush. Element+offset, not a scrollHeight
+       delta: the delta is a one-shot and the re-flush can paint across SEVERAL
+       renders (C# pushes no onChatScreenLoaded after onLoadMore — only the 250 ms
+       burst-safety timer ends the burst, so a slow stream ends it early and paints
+       in chunks). An element anchor stays correct however many renders it takes. */
+    olderAnchorId = order.length ? order[0] : null;
+    olderAnchorRows = order.length;
+    // The anchor exists to survive a re-flush that may paint across several renders —
+    // not to outlive it. Without a deadline it stays armed after the flush settles and
+    // the NEXT unrelated render (a peer message arriving while the user reads the newly
+    // loaded history) snaps the scroll back to where they tapped (audit MAJOR).
+    olderAnchorUntil = Date.now() + 3000;
+    const arow = olderAnchorId && rows.get(olderAnchorId);
+    olderAnchorOffset = arow ? (arow.offsetTop - box.scrollTop) : 0;
+
+    /* Paint the loading state SYNCHRONOUSLY, in place. It cannot go through
+       renderLog(): clearMessages sets bursting=true and renderLog() then returns
+       early for the whole round trip, so a re-render here would never paint. */
+    const live = box.querySelector('.chat-older');
+    if (live) live.replaceWith(buildOlderPill());
+
+    clearTimeout(olderTimeout);
+    olderTimeout = setTimeout(() => {     // a lost navigation must not strand the spinner
+      loadingOlder = false;
+      olderAnchorId = null;
+      renderLog();
+    }, 8000);
+
+    bridge.send('ixian:loadmore');
+  }
+
+  /* Restore the reading position after a load-more re-flush. Re-applied on EVERY
+     render until the row count stops growing, because the re-flush may paint in
+     more than one pass (see requestOlder). */
+  function applyOlderAnchor() {
+    if (!olderAnchorId) return;
+    if (Date.now() > olderAnchorUntil) { olderAnchorId = null; return; }   // expired — never yank a later render
+    const arow = rows.get(olderAnchorId);
+    // Anchor row gone (fell out of the window, or suppressed by the payment-dedup
+    // filter): disarm rather than leaving it live for an arbitrary future render.
+    if (!arow) { olderAnchorId = null; return; }
+    box.scrollTop = arow.offsetTop - olderAnchorOffset;
+    if (order.length > olderAnchorRows) { olderAnchorRows = order.length; return; }
+    olderAnchorId = null;                 // stream settled — stop re-anchoring
+  }
+
+  /* Per-peer reset (onChatScreenReady) — a stale spinner or anchor must never ride
+     into the next conversation. */
+  function resetOlder() {
+    clearTimeout(olderTimeout);
+    olderTimeout = 0;
+    showOlder = false;
+    loadingOlder = false;
+    olderAnchorId = null;
+    olderAnchorRows = 0;
+    olderAnchorUntil = 0;
+  }
+
   /* insert (or move) an id into `order` keeping timestamp-ascending; stable for
    * equal timestamps (append after equals → matches arrival order). */
   function orderInsert(id) {
@@ -2033,6 +2253,17 @@
       if (extra.avatar !== undefined) rec.avatar = extra.avatar || null;
     }
     rec.status = statusFrom(flags || {});
+    /* A2 (#302): the paid marker. `paid` has always been PASSED (addMe/addThem
+       both carry it, xaml.cs:1361-1364 sets it from transactionId != "") and then
+       silently dropped — statusFrom never read it and nothing persisted it. Keep it
+       on the record so the bubble can render it.
+       ⚠ VERIFY-FIRST (#215): transactionId is assigned inside Ixian-Core, which is
+       outside this repo, so it is UNVERIFIED that an outgoing text to a paid bot
+       actually carries one. Legacy shipped the glyph (js/chat.js:773), which is
+       circumstantial. If the F5 on a real paid bot shows no marker, this is dead
+       code, not a bug — see the F5 checklist. */
+    const paidBefore = !!rec.paid;
+    if (flags && flags.paid !== undefined) rec.paid = asBool(flags.paid);
     model.set(id, rec);
     orderInsert(id);
     hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping)
@@ -2043,7 +2274,11 @@
     }
     // status-only update on an existing SENT row → surgical tick (no flicker).
     // failed restructures the row, so re-render instead.
-    if (rec.direction === 'sent' && rec.status !== 'failed') {
+    // A2: a `paid` FLIP must escape the surgical path — transactionId can land after
+    // send (updateMessage, :2320), and the tick-only updater would never paint the
+    // wallet glyph. Keyed on the flag CHANGING, so ordinary status pushes on an
+    // already-paid row stay surgical and don't force a full re-render.
+    if (rec.direction === 'sent' && rec.status !== 'failed' && !!rec.paid === paidBefore) {
       const row = rows.get(id);
       if (row) { setMessageStatus(row, rec.status); return; }
     }
@@ -2169,8 +2404,9 @@
 
     // setChatMode(type, cost, costText, admin, botDescription, notificationsString)
     // type: 0 = 1:1, 1 = private group, 2 = blind group, 3 = bot (chat.js:152).
-    // v1 focus is 1:1 text; we record the mode so grouping shows sender
-    // labels/avatars for groups. cost/bot/notifications surfaces are later passes.
+    // Arg 5 is a legacy MISNOMER kept for shape parity: C# passes
+    // friend.metaData.botInfo.serverDescription into it (xaml.cs:612). There is no
+    // separate "botDescription" anywhere in either tree.
     setChatMode(type, cost, costText, admin, botDescription, notificationsString) {
       const t = Number(type) || 0;
       mode.type = t;
@@ -2184,11 +2420,35 @@
       // notificationsString "True"/"False" (groups/bots) — current mute state for
       // the chat-info notifications toggle (legacy chat.js:237).
       mode.notifications = asBool(notificationsString);
+
+      /* A2 (#302): paid-bot cost disclosure. Gate on the NUMERIC cost, never on
+         costText being non-empty — the chat_type>0 branch covers groups as well as
+         bots and always formats a sentence, so a free group arrives carrying
+         "Sending messages costs 0.00000000 IXI per kB" (xaml.cs:610). C# gates its
+         own spend the same way (botInfo.cost > 0, :754).
+         Unparseable → SHOW. This is money-adjacent disclosure: failing towards the
+         warning is the safe direction. Display only — legacy did not gate send
+         either (it disclosed, it did not block), and nothing here touches the money
+         path. */
+      const costNum = parseFloat(String(cost == null ? '' : cost).replace(',', '.'));
+      const showCost = !!costText && (isNaN(costNum) || costNum > 0);
+      mode.costText = showCost ? String(costText) : '';
+      if (composerEl) setComposerCost(composerEl, mode.costText || null, window.SL || {});
+
+      /* A6 (#302): bot/server description. Damir confirmed only bot servers set
+         one, so the bot-owned channel panel is the complete surface (a plain group
+         never carries a description, and never gets a channel selector anyway).
+         textContent + a length clamp on render: this string comes from a REMOTE bot
+         server. Legacy assigned it with innerHTML (js/chat.js:245) — remote HTML
+         injection straight into the chat WebView. That is a legacy vuln this
+         redesign closes; logged in the security review. */
+      mode.description = String(botDescription == null ? '' : botDescription).trim().slice(0, DESCRIPTION_MAX);
+
       // reflect a live mode/notification change into an OPEN chat-info takeover
       if (chatInfoOpen) refreshChatInfo();
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
-      dbg('setChatMode', { type: t, cost, admin: mode.admin, notificationsString });
+      dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
     },
 
     setNickname(nick) {
@@ -2208,12 +2468,13 @@
 
     // setOnlineStatus receives a fully-localised string from C# (chat-online /
     // chat-offline / member count / waiting-for-response) — render it verbatim
-    // as the presence sub-line. We flag the avatar dot online only for the
-    // 1:1 "online" wording heuristically; presence text is the source of truth.
+    // as the presence sub-line. The avatar dot lights on an EXACT match against
+    // the C#-substituted carrier (W1/#302 — the old /online/ substring heuristic
+    // was English-shaped and left the dot dead in es/fr/ru/sl/sr).
     setOnlineStatus(status) {
       identity.sub = status || '';
-      const s = (status || '').toLowerCase();
-      identity.online = !mode.isMulti && /online/.test(s);
+      const s = String(status || '').trim();
+      identity.online = !mode.isMulti && !!s && s.toLowerCase() === ONLINE_TEXT.toLowerCase();
       // ⑪ presence doubles as the pending-state heartbeat: "Waiting for response"
       // (carrier-matched, locale-proof) arrives BEFORE the load burst for both
       // pending states → early generic lock; any OTHER presence text while the
@@ -2270,7 +2531,20 @@
       // 250 ms expiry must not decide "is this an open load"), but derivation
       // requires loadPhase && bursting — see the A3 docblock.
       beginLoadPhase();
-      dbg('clearMessages', { showMore });
+
+      /* A1 (#302): consume `showMore` instead of discarding it. C# sends the string
+         "true"/"false" (loadMessages :1246-1251, and "false" on the empty-history
+         path :1243) — this IS the end-of-history signal, so the pill hides itself
+         when there is nothing left to fetch. Strict string test: an older C# exe
+         that omits the argument leaves it undefined → no pill, which fails safe. */
+      showOlder = (String(showMore) === 'true');
+      if (loadingOlder) {                 // the re-flush answering our loadmore landed
+        clearTimeout(olderTimeout);
+        olderTimeout = 0;
+        loadingOlder = false;
+      }
+
+      dbg('clearMessages', { showMore, showOlder });
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
@@ -2302,7 +2576,7 @@
       if (loadPhase && bursting && !boundaryLatched && unreadBoundaryId === null && read === 'False') {
         unreadBoundaryId = String(id);
       }
-      upsertText(id, text, 'received', toMs(time), {},
+      upsertText(id, text, 'received', toMs(time), { paid },
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av });
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
@@ -2425,6 +2699,7 @@
       resetMentionTracking();              // per-peer reset of the @ jump-to-mention seen/baseline state (#8)
       resetUnreadBoundary();               // A3 per-peer reset (id + loadPhase + boundaryLatched + safety timer)
                                            // — the next open re-derives (or, normally, doesn't)
+      resetOlder();                        // A1 per-peer reset — no stale spinner or scroll anchor
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -2445,7 +2720,37 @@
     },
 
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
-    setUnreadIndicator(n) { dbg('setUnreadIndicator', n); },
+
+    /* A3 (#302) — unread messages in OTHER chats, shown on the back button.
+     *
+     * A DOT, not the count — and that is a correctness decision, not a styling one.
+     * Two facts about the push make a number dishonest:
+     *   1. It is EDGE-LATCHED. SingleChatPage pushes once per 0↔>0 transition
+     *      (`unreadIndicatorDisplayed`, declared :42, reset only in onLoad :639,
+     *      used :2039-2052). The number is never updated while it changes, so a
+     *      rendered count goes stale the moment a second message lands.
+     *   2. The first number INCLUDES the chat you just opened. onLoad calls
+     *      updateScreen() (:651) → push; loadMessages(), which zeroes this chat's
+     *      unread (:1260-1262), only runs later inside Task.Run (:691). Because of
+     *      the latch that first wrong number is usually the only one, and it can
+     *      never correct downward until it hits 0.
+     * Legacy showed a dot too (js/chat.js:1836-1842 sets className="unread"; the
+     * CSS is a 10×10 dot) and discarded the count argument — so this is parity AND
+     * the honest reading of the signal.
+     * A truthful NUMBER needs ~3 lines of C# (drop the latch, move the first push
+     * after loadMessages) — logged for batch B, not faked here. */
+    setUnreadIndicator(n) {
+      /* Ignore pushes during the OPEN load phase. onLoad resets the C# latch (:639)
+         and pushes from updateScreen (:651) BEFORE loadMessages zeroes this chat's own
+         unread inside Task.Run (:691) — so the first push after opening the only chat
+         with unread messages would light "unread ELSEWHERE" for ~1s. Post-load pushes
+         are the trustworthy ones. */
+      if (loadPhase) return;
+      const next = (Number(n) || 0) > 0;
+      if (next === unreadElsewhere) return;
+      unreadElsewhere = next;
+      renderTopbar();
+    },
 
     /* ——— payments (view-only, wired) ————————————————————————————————————————
      * addPaymentRequest is the 14-arg legacy shape (xaml.cs:1310/1361):
@@ -2638,6 +2943,14 @@
       // latch (and a stale boundary id matching no row) would kill the divider in
       // every channel after the first.
       resetUnreadBoundary();
+      /* A1: same reasoning — a channel switch is a new stream and onChatScreenReady
+         does not re-fire, so an in-flight loadmore's spinner/anchor from the
+         previous channel must not survive into this one. The incoming
+         clearMessages then sets showOlder correctly for the new channel.
+         (Note for the record: C# does NOT reset messagesToShow on a channel switch
+         (:249-256 calls loadMessages() with the grown window), so an expanded
+         window carries across channels. The pill simply reflects that faithfully.) */
+      resetOlder();
       renderTopbar();
     },
     // "true" ⇒ all read; anything else (incl. "") ⇒ unread (legacy chat.js:1345)
@@ -3035,9 +3348,27 @@
     onSend: (text) => {
       if (!text) return;
       if (composerLock) return;   // ⑪ belt-and-braces: no compose path while pending
+      if (text.length > MAX_MESSAGE_CHARS) return;    // A7 belt — composer already blocked it
       bridge.send('ixian:chat:' + encodeURIComponent(text));
       clearDraft();                                   // sent → drop the saved draft (CH7)
       // composer already clears its own field on send; this is belt-and-braces.
+    },
+    /* A7 (#302) — legacy parity: legacy alerted and aborted above 64 000 chars
+       (js/chat.js:401-409) and the string ships in all 13 legacy locales. There is
+       no length check anywhere in either tree today, and the transport is URL
+       navigation — encodeURIComponent inflates ~3× for ASCII but NINE× for CJK
+       (%XX per UTF-8 byte), so 64 000 raw chars is a ~576 000-char URL. That is
+       still well under Chromium's 2 MB URL cap, which is why the raw count is the
+       right rule and an encoded check would never fire first.
+       ⚠ BE ask (logged, not this batch): the genuinely correct cap is BYTES — C#
+       sends Encoding.UTF8.GetBytes(str) (:771) and prices by UTF-16 length (:757),
+       and neither tree checks any length. Needs the protocol max from BE. */
+    maxLength: MAX_MESSAGE_CHARS,
+    onTooLong: () => {
+      showToast({
+        text: (window.SL && window.SL.messageTooLong) || 'Text is too long.',
+        tone: 'error', host: overlayHost, strings: window.SL || {},
+      });
     },
     onTyping: () => {
       // #264 (Damir: "no typing indicator in groups"): legacy suppressed typing in

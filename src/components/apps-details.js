@@ -169,7 +169,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-export function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+export function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -203,6 +203,26 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
       icon: icon('player-play', { size: 18 }), onClick: () => { if (onLaunch) onLaunch(app); } });
     openPill.classList.add('c-app-details__openpill');
     header.append(openPill);
+    /* A9 (#302): a DUAL-capability app (declares both singleUser and multiUser) can
+       also be started WITH someone. Details is a deliberate context, so two labelled
+       buttons beat a modal here — and unlike the list this surface has room for the
+       second one. The apps-list equivalent is the ⋮ "Invite a contact" row.
+       Single-only and multi-only apps are untouched: their one Open pill already
+       maps to their one verb. */
+    if (app.hasMultiUser && app.hasSingleUser && onLaunchMulti) {
+      /* ICON-ONLY, deliberately. .c-app-details__header is a no-wrap flex row and both
+         pills are flex:none, so a second LABELLED pill (~184px, more in de/ru) blew the
+         328px inner width on a 360px phone, squeezed the app name to zero and gave the
+         page horizontal pan (audit MAJOR). Icon-only keeps it at 44px; the label lives
+         in aria-label + title so it is neither lost to SRs nor to a hover. */
+      const invitePill = createButton({ type: 'outline', size: 44,
+        icon: icon('user-plus', { size: 18 }),
+        ariaLabel: strings.launchInvite || 'Invite a contact',
+        onClick: () => onLaunchMulti(app) });
+      invitePill.title = strings.launchInvite || 'Invite a contact';
+      invitePill.classList.add('c-app-details__openpill');
+      header.append(invitePill);
+    }
   }
   el.append(header);
 

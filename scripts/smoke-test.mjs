@@ -3722,6 +3722,145 @@ console.log('missing-bits Batch C — desktop overlay grammar + form panes (M6/M
     '#268: a transparent scrim still catches the outside click (no pointer-events:none)');
 }
 
+
+/* —— PARITY BATCH A (DECISIONS #302) ————————————————————————————————————————
+   The shells are not jsdom-loadable (#205), so shell-side items are pinned with
+   STATIC assertions on the source; component-side items assert real behaviour
+   over the bundle where they can. Each assertion names the failure it prevents,
+   not just the feature it covers. */
+console.log('parity batch A (#302) — A1..A11 + W1/W2');
+{
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const cdet = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
+  const appd = readFileSync(join(root, 'src/shells/app_details.html'), 'utf8');
+  const composerJs = readFileSync(join(root, 'src/components/composer.js'), 'utf8');
+  const bubbleJs = readFileSync(join(root, 'src/components/message-bubble.js'), 'utf8');
+  const infoJs = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
+  const menuJs = readFileSync(join(root, 'src/components/apps-menu.js'), 'utf8');
+  const shellJs = readFileSync(join(root, 'src/components/apps-shell.js'), 'utf8');
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const enUs = readFileSync(join(root, 'src/strings/en-us.js'), 'utf8');
+
+  /* —— A1: show older messages —— */
+  ok(/bridge\.send\('ixian:loadmore'\)/.test(chat), 'A1: the chat shell EMITS ixian:loadmore (was a stub verb — history >100 msgs was unreachable)');
+  ok(/showOlder = \(String\(showMore\) === 'true'\)/.test(chat),
+    "A1: showMore drives the pill — C#'s own end-of-history signal, not a heuristic");
+  ok(/if \(showOlder\) frag\.append\(buildOlderPill\(\)\)/.test(chat) && /if \(!showOlder\) frag\.append\(createSecureNotice\(\)\)/.test(chat),
+    'A1/D1: the pill is built INSIDE the render (replaceChildren would destroy an appended node), and the secure notice yields to it');
+  ok(/if \(loadingOlder\) return;/.test(chat) && /olderTimeout = setTimeout/.test(chat),
+    'A1: double-fire guard + timeout — each tap costs +100 rows of C# window with no ack, and a lost navigation must not strand the spinner');
+  ok(/function applyOlderAnchor/.test(chat) && /arow\.offsetTop - olderAnchorOffset/.test(chat),
+    'A1: scroll restores by ELEMENT anchor — a one-shot scrollHeight delta breaks when the re-flush paints across several renders');
+  // NB: match a CALL, not the name — this file's comments discuss it by name.
+  ok(!/attachLazyHistory\s*\(/.test(chat) && !/\battachLazyHistory\b\s*[,}]/.test(chat.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'A1: attachLazyHistory stays UNWIRED — it assumes a C# prepend that does not exist (docs/chat-transport-spec.md)');
+  ok(/resetOlder\(\);/.test(chat), 'A1: per-peer / per-channel reset — no stale spinner or anchor riding into the next conversation');
+
+  /* —— A2: paid-bot cost + paid marker —— */
+  ok(/t\.textContent = String\(costText\)/.test(composerJs),
+    'A2: setComposerCost renders costText VERBATIM — C# already sends a complete sentence, the old prefix produced "Each message costs Sending messages costs …"');
+  ok(/const showCost = !!costText && \(isNaN\(costNum\) \|\| costNum > 0\)/.test(chat),
+    'A2: cost gates on the NUMERIC cost — a free group also receives a formatted costText ("… 0.00000000 IXI per kB")');
+  ok(/if \(flags && flags\.paid !== undefined\) rec\.paid = asBool\(flags\.paid\)/.test(chat),
+    'A2: `paid` is persisted on the record — it was passed by both addMe/addThem and silently dropped');
+  ok(/!!rec\.paid === paidBefore/.test(chat),
+    'A2: a paid FLIP escapes the surgical status path — transactionId can land after send, and the tick-only updater would never paint the glyph');
+  ok(/paid = false,/.test(bubbleJs) && /c-bubble__paid/.test(bubbleJs),
+    'A2: the bubble takes a paid opt and renders a marker');
+  ok(bubbleJs.indexOf("meta.append(pg)") > bubbleJs.indexOf("meta.append(st)"),
+    'A2: the paid glyph is appended AFTER the status icon — setMessageStatus finds the tick by `.c-bubble__meta .c-status-icon` and replaceWith()s it');
+
+  /* —— A3: unread-elsewhere DOT (not a count) —— */
+  ok(/const next = \(Number\(n\) \|\| 0\) > 0;/.test(chat),
+    'A3: the unread indicator is a BOOLEAN dot — the C# push is edge-latched and its first value includes the chat you just opened, so a rendered count would be a lie');
+  ok(/backLabel: \(s\.back \|\| 'Back'\) \+ \(unreadElsewhere/.test(chat),
+    "A3: unread state rides the BACK LABEL — createButton puts backLabel on aria-label, which overrides nested content, so a badge span would be announced to nobody");
+  ok(/if \(unreadElsewhere && !document\.documentElement\.hasAttribute\('data-desktop'\)\)/.test(chat),
+    'A3: mobile only — on desktop the chats list is beside the conversation and already carries unread');
+  ok(/data-unread-dot\]::after/.test(chat) && /--surface-topbar/.test(chat),
+    'A3: #48 badge grammar at topbar scale — the ring uses the TOPBAR surface, not the bottombar token');
+
+  /* —— A4 + W1/W2: presence —— */
+  ok(/export function setChatInfoPresence/.test(infoJs),
+    'A4: a free-fn presence toggle exists — stateSig()/buildIfChanged no-op on an unchanged signature, so a rebuild could leave the dot green after the contact went offline');
+  ok(/online: state\.online,/.test(cdet) && /if \(next === state\.online\) return;/.test(cdet),
+    'A4: presence is in stateSig (a rebuild re-seeds it) and guarded on CHANGE (it arrives at the poll cadence)');
+  ok(/capabilities: \{ presence: true \}/.test(cdet),
+    'A4: `capabilities` is a feature GATE again — it was carrying the live value and nothing read it');
+  ok(/online: kind === 'contact' && !!online/.test(infoJs),
+    'A4: presence is 1:1 only — C# structurally cannot push it for a group/bot');
+  // strip comments first: the docblock explaining this fix quotes the OLD regex.
+  const chatCode = chat.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok(/const ONLINE_TEXT = slCarrier\('sl-online'/.test(chat)
+    && /identity\.online = [^;]*ONLINE_TEXT/.test(chatCode)
+    && !/\/online\/\.test/.test(chatCode),
+    'W1: the presence dot matches a C#-substituted CARRIER — the old /online/ regex left it dead in es/fr/ru/sl/sr');
+  ok(/<span id="sl-online">/.test(chat), 'W1: the sl-online carrier element exists for C# to substitute');
+
+  /* —— A5 + A11: the shared nudge queue —— */
+  ok(/showRatingPrompt\(\) \{ enqueueNudge\('rating'\); \}/.test(home) && /enqueueNudge\('backup'\)/.test(home),
+    'A5/A11: both nudges are wired and both go through the queue');
+  ok(/if \(String\(id \|\| ''\) !== 'backup-prompt'\) \{ dbg/.test(home),
+    'A11: toggleAnimatedSlider checks its ID — legacy used the verb generically and also to CLOSE the prompt');
+  ok(/function nudgeContextClear/.test(home) && /nudgeTabId !== 'chats'/.test(home) && /contactsView \|\| walletTakeover/.test(home),
+    'A5/A11: context gates — C# can push both in the same frame, and neither push knows about takeovers (z-30, below sheets)');
+  ok(/backedUpRecently/.test(home) && /BACKUP_STAMP_KEY = 'spixi\.backup\.last'/.test(home),
+    'A11: suppressed for someone who already backed up — there is NO C# backup-done pref (be-cutover S2); this stamp is the only signal that exists');
+  ok(/RATING_SNOOZE_KEY/.test(home),
+    'A5: a light-dismiss snoozes locally — the component sends no verb and C# re-pushes on EVERY chat exit, which is an endless nag without this');
+  ok(/backup-nudge\.css/.test(home) && /rating-nudge\.css/.test(home), 'A5/A11: both nudge stylesheets are linked (neither was)');
+  ok(/illustration: 'images\/backup\.svg'/.test(home), 'A11: the shared backup art is used (it already ships beside the shells)');
+
+  /* —— A6: bot description —— */
+  ok(/mode\.description = String\(botDescription/.test(chat) && /DESCRIPTION_MAX/.test(chat),
+    'A6: the server description is stored and length-clamped');
+  ok(/desc\.textContent = mode\.description/.test(chat) && !/innerHTML\s*=\s*mode\.description/.test(chat),
+    'A6 ★: textContent, never innerHTML — this string comes from a REMOTE bot server; legacy used innerHTML (js/chat.js:245)');
+  ok(/chat-channel-panel__desc/.test(chat),
+    'A6: it renders on the real production component (chat-channel-panel), not the demo-only channel-sheet.js');
+
+  /* —— A7: 64k guard —— */
+  ok(/maxLength = 0,/.test(composerJs) && /if \(maxLength > 0 && text\.length > maxLength\)/.test(composerJs),
+    'A7: the guard lives in the COMPONENT and returns before onSend — a shell-side return would block the send AND wipe the 64 000 chars the user typed');
+  ok(composerJs.indexOf('if (onTooLong)') < composerJs.indexOf('if (onSend) onSend(text)'),
+    'A7: the bail happens BEFORE onSend and therefore before the unconditional field clear');
+  ok(/maxLength: MAX_MESSAGE_CHARS/.test(chat) && /MAX_MESSAGE_CHARS = 64000/.test(chat), 'A7: the shell passes legacy’s 64 000 ceiling');
+  ok(/messageTooLong: "Text is too long\."/.test(enUs),
+    'A7: the English fallback matches legacy `chat-text-too-long` EXACTLY — build-locales value-matches it and all 7 shipped locales come free');
+  ok(/c-composer__counter/.test(composerJs), 'A7: an over-limit counter warns before the tap (the realistic trigger is a paste, not typing)');
+
+  /* —— A8: scan zoom —— */
+  ok(/getRunningTrackCameraCapabilities/.test(scanJs) && !/zoom: 2\.0/.test(scanJs),
+    'A8: zoom is computed from the device capability range — a literal 2.0 is below min on percent-scale cameras and is silently ignored');
+  ok(/Math\.min\(min \* 2, max\)/.test(scanJs), 'A8: min×2 clamped to max — scale-agnostic 2×');
+  ok(/function applyTrackState/.test(scanJs) && /adv\.torch = !!track\.torch;/.test(scanJs),
+    'A8: torch and zoom are written TOGETHER — applyConstraints replaces the advanced set, so separate writes reset each other');
+  ok(!/if \(track\.torch\) adv\.torch = true/.test(scanJs),
+    'A8: torch is written UNCONDITIONALLY — omitting the key on "off" leaves the engine setting untouched, i.e. the LED stays lit while the button says off');
+  ok(/hasAttribute\('data-desktop'\)\) return;/.test(scanJs), 'A8: never on desktop — 2× on an already-narrow webcam FOV makes scanning worse');
+  ok(/try \{ return inst\.applyVideoConstraints/.test(scanJs),
+    'A8: applyVideoConstraints is wrapped in try — it THROWS SYNCHRONOUSLY when the camera is not running, which .catch() would not see');
+
+  /* —— A9: dual-capability app launch —— */
+  ok(/app\.isMultiUser && app\.isSingleUser/.test(menuJs), 'A9: the Invite row appears only for DUAL apps (multi-only already launches multi on tap)');
+  ok(/case 'invite':/.test(shellJs) && /onLaunchMulti/.test(home), 'A9: the invite action reaches ixian:startAppMulti from the apps list');
+  ok(/app\.hasMultiUser && app\.hasSingleUser && onLaunchMulti/.test(readFileSync(join(root, 'src/components/apps-details.js'), 'utf8')),
+    'A9: the details page gets an explicit second button (its flags are hasSingleUser/hasMultiUser, NOT is*)');
+  ok(/const multi = !!app\.isMultiUser && !app\.isSingleUser/.test(home),
+    'A9: the primary tap still launches SOLO — solo relaunch is the repeated action, legacy taxed it with a per-tap modal');
+
+  /* —— A10: wallet share —— */
+  ok(/const nativeOk = !amount;/.test(home),
+    "A10 ★: a REQUEST payload never routes to ixian:share — that verb takes no argument and shares the bare address, silently dropping the amount the user thinks they shared");
+  ok(/e\.name === 'AbortError'/.test(home),
+    'A10: cancelling the iOS share sheet is not a failure — falling back there would silently copy and toast "Copied"');
+  ok(/function execCopy/.test(home),
+    'A10: the execCommand rung is ported — after `await navigator.share().catch()` the activation is spent and WebKit rejects clipboard.writeText');
+  ok(/bridge\.send\('ixian:share'\)/.test(home), 'A10: the live orphaned verb is finally emitted (was a silent clipboard write on WebView2)');
+  ok(/showToast,\s+\/\/ A10/.test(home), 'A10: showToast is in scope — every branch now gives feedback');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

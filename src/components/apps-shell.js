@@ -86,6 +86,7 @@ export function renderAppsList(listEl, state, opts = {}) {
       onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
       onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
         app: a, host: opts.host, strings,
+        allowInvite: !!opts.onLaunchMulti,   // A9: never render a row that no-ops (#184 class)
         onAction: (action) => applyAppAction(listEl, state, a, action, opts),
       }),
     }));
@@ -101,6 +102,7 @@ export function applyAppAction(listEl, state, app, action, opts = {}) {
   switch (action) {
     case 'open': if (opts.onLaunch) opts.onLaunch(app); return;
     case 'details': if (opts.onOpen) opts.onOpen(app); return;
+    case 'invite': if (opts.onLaunchMulti) opts.onLaunchMulti(app); return;   // A9 (#302): dual-capability app
     case 'uninstall': state.apps = (state.apps || []).filter((a) => a !== app); break;
     default: return;
   }

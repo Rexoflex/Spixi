@@ -223,3 +223,21 @@
   .c-composer__mention:hover { background: var(--surface-interactive-hover); }
 }
 .c-composer__mention:active { background: var(--surface-interactive-pressed); }
+
+/* —— A7 (#302): over-length counter ————————————————————————————————————————
+   Shown only past 90% of maxLength, so it costs nothing in normal use. Sits at
+   the trailing edge of the field, baseline-aligned with the last line of text
+   (align-self:flex-end matches the field's align-items:flex-end). Never wraps —
+   the number is the whole point. aria-hidden: the blocked-send toast carries the
+   message for screen readers; a live counter would spam announcements per
+   keystroke. */
+.c-composer__counter {
+  flex: none;
+  align-self: flex-end;
+  padding-block-end: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.c-composer__counter[data-over] { color: var(--text-error); }

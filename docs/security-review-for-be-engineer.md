@@ -108,6 +108,30 @@ Two regressions from the iOS bring-up batch reached the **mini-app** WebView —
 
 Neither touches money or the chat wall directly; (a) is the actionable one — it hands an untrusted surface a user-gesture-cheap external-launch primitive that the trusted shells deliberately wrap in a confirm. Classification ask: confirm MiniAppPage's trust tier in the handler layer (it currently inherits every "trusted shell" behaviour the global handler ships, and will inherit the next one too).
 
+*Running tally of global-handler behaviours the mini-app WebView inherits (grows until the trust-tier split lands):* the #283 link handoff (above) · the #293 `MediaCaptureUIDelegate` (mini-app content can trigger the OS camera/mic permission flow) · **the #301 F2 zoom pin** (`ScrollView.MinimumZoomScale = MaximumZoomScale = 1` — pinch-zoom disabled for third-party content that may rely on it; UX-only, no data exposure).
+
+### ⚠ TRUST-SIGNAL — presence "online" stays green ~2 min after a peer quits (F4, iPhone F5 2026-08-04; DECISIONS #300/#301; BE/Ixian-Core — logged, deliberately NOT patched in the shell)
+
+A green presence dot is a **trust signal**: users message someone the app asserts is
+online and read silence as intent. Damir's device F5: the most-recently-online contact
+keeps showing **online for ~2 minutes after that person closed Spixi**; an app restart
+clears it. The FE render is correct — it faithfully shows what C# pushes (verified at
+batch-A A4). The staleness is upstream: `Node.cs:418-455` reports online while a
+`PresenceList` entry exists and `friend.relayNode != null`, and it only goes false when
+the PL entry **expires** — nothing signals a clean quit. `StreamProcessor.cs:217-222`
+additionally force-sets online on any inbound stream message. So "online" really means
+*"announced in the presence list and not yet expired"* — and the restart-clears-it
+symptom fits exactly (a fresh process rebuilds the PL from the network instead of
+carrying the stale entry).
+
+**Why the shell must not "fix" this:** there is no honest signal to render differently —
+any FE-side timeout would be a second guess layered on a stale claim. Two BE-side ways
+out (either or both): **(1)** shorten presence expiry / send an explicit offline announce
+on clean shutdown (Ixian-Core); **(2)** soften the claim — a "last seen …" treatment
+instead of a binary dot, which becomes an FE job **once the bridge carries a timestamp**
+(it currently pushes only the boolean). Files with the chat-transport work order
+(`docs/chat-transport-spec.md`) — same engagement, same owner.
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|

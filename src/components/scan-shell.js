@@ -174,7 +174,7 @@ export function createScanView({
   };
   scanState.set(el, st);
 
-  cta.addEventListener('click', () => {          // Allow camera / Try again — same request
+  function beginRequest() {                      // Allow camera / Try again — same request
     if (st.requesting) return;
     st.requesting = true;
     setLoading(cta, true);
@@ -185,10 +185,25 @@ export function createScanView({
     try {
       if (onRequestPermission) onRequestPermission(ctrl); else ctrl.done();
     } catch { ctrl.fail(); }                     // #141-m4
-  });
+  }
+  st.beginRequest = beginRequest;                // #305: startScanRequest() entry point
+  cta.addEventListener('click', beginRequest);
 
   sync(st);
   return el;
+}
+
+/**
+ * #305 (Damir F5: "allow camera doesn't persist"): programmatic entry into the SAME
+ * permission path the CTA drives — the host calls this when a previous session already
+ * granted the camera, so the consent card doesn't gate every single visit. Only fires
+ * from the 'prompt' state and rides the CTA's own latch; a failure lands on 'denied'
+ * with the Try-again card exactly as a tapped request would.
+ */
+export function startScanRequest(el) {
+  const st = scanState.get(el);
+  if (!st || st.state !== 'prompt' || !st.beginRequest) return;
+  st.beginRequest();
 }
 
 /** Move between permission states; 'scanning' shows frame + hint + torch. */

@@ -108,17 +108,26 @@ to be dead code rather than a bug, and that's a real outcome, not a failure.
 - [ ] Note: the invite picker is the **old unredesigned** `WalletRecipientPage`, and it lists groups.
       Expected for now; flagged.
 
-## A10 — Wallet Share  ⚠
+## A10 — Wallet Share  ⚠  (SUPERSEDED by F3 — #301, 2026-08-04: re-test to THIS contract, not the batch-A one)
 
-- [ ] Wallet → Receive → Share, **with no amount entered**:
-  - iOS → the native share sheet. Cancel it → **no "Copied" toast** (cancelling isn't a failure).
-  - ⚠ **Windows** → this is the one to watch. It should now open the OS share sheet via the native
-    verb. That code path has never run since the rewrite. If nothing happens at all, tell me.
-  - Android → same as Windows.
-- [ ] Now **enter an amount** and Share → it must **not** silently share a bare address. It should
-      copy the full request payload and toast "Copied". (Sharing an address while the user thinks
-      they shared a request for 12 IXI was the defect here.)
-- [ ] Any failure path shows a toast — never silence.
+Your dial after the iPhone F5: the shared text must never carry `:send:<amount>`, so Share now
+**always sends the bare address**, and the button **hides while an amount is entered** (hide, not
+disable — your pick). The clipboard/"Copied"-toast rungs are GONE (they only existed for the
+amount case). #303 (your second ruling, same day) went further: the QR is now CONSTANT
+`address:ixi` — it never encodes an amount either; an entered amount drives only the
+send-request-to-a-contact strip.
+
+- [ ] Wallet → Receive → Share, **no amount entered** → the share sheet carries the **bare address**
+      (no `:ixi`, no `:send:`).
+  - iOS → native share sheet. Cancel it → **nothing happens** — no toast, and no SECOND sheet
+      (batch A would have re-opened one on cancel; fixed in F3).
+  - ⚠ **Windows** → still the one to watch (this path has never run): the OS share sheet should
+      open via the native verb, sharing the bare address. If nothing happens at all, tell me.
+  - Android → same expectation as Windows.
+- [ ] **Enter an amount** → the Share button **disappears**. Clear the amount (or collapse the
+      request row) → it comes back.
+- [ ] There is **no clipboard fallback and no "Copied" toast anywhere** in this flow now — if you
+      see one, that's a stale build.
 
 ---
 

@@ -220,9 +220,10 @@ console.log('wallet.html');
   const ramt = rec.querySelector('.c-wallet-receive__amount');
   ramt.value = '12,5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ok(ramt.value === '12.5', 'request amount follows the send sanitize rules (shared export)');
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:12.5', 'QR morphs to addr:send:amount in place');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
+    '#303: the QR NEVER re-encodes to addr:send:amount — amount-request QRs are not a supported flow (Damir 2026-08-04); the amount drives only the contact strip');
   ramt.value = '12.'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:12', 'trailing-dot amount canonicalized in the QR (audit M1)');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: still constant under amount edits');
   ramt.value = '12.5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   const ask = rec.querySelector('.c-wallet-receive__ask');
   ok(!ask.hidden, 'amount active → send-request-to-contact strip appears');
@@ -243,17 +244,17 @@ console.log('wallet.html');
   ok(![...ask.querySelectorAll('.c-wallet-receive__contact')].some((b) => b.dataset.acted !== undefined)
     && [...ask.querySelectorAll('.c-wallet-receive__contact')].every((b) => !b.disabled),
     'amount edit mid-latch resets the strip — no stale sent-✓ (audit M5)');
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:9', 'QR follows the new amount after the reset');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: QR constant through the mid-latch amount reset too');
   const rcopy = rec.querySelector('.c-wallet-receive__copy');
   rcopy.click();
   ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'), 'no clipboard → honest failure morph, no false Copied (audit m1)');
 
   reqRow.click();                                          // collapse clears the request
   ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi' && ask.hidden,
-    'collapsing the reveal restores the plain receive QR (state honesty)');
+    'collapsing the reveal clears the request state (QR was already plain — #303)');
   W2.Spixi.setRequestAmount(rec, 0.0000001);
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:send:0.0000001',
-    'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17)');
+  ok(rec.querySelector('.c-wallet-receive__amount').value === '0.0000001',
+    'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17; asserted on the INPUT since #303 keeps the QR constant)');
 
   /* tipping (#138, docs/tipping-spec.md): #26-lite sheet — presets + custom, ONE latched confirm */
   let tipCalls = 0, tipPayload = null, tipCtrl = null;
@@ -3850,15 +3851,150 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
   ok(/const multi = !!app\.isMultiUser && !app\.isSingleUser/.test(home),
     'A9: the primary tap still launches SOLO — solo relaunch is the repeated action, legacy taxed it with a per-tap modal');
 
-  /* —— A10: wallet share —— */
-  ok(/const nativeOk = !amount;/.test(home),
-    "A10 ★: a REQUEST payload never routes to ixian:share — that verb takes no argument and shares the bare address, silently dropping the amount the user thinks they shared");
-  ok(/e\.name === 'AbortError'/.test(home),
-    'A10: cancelling the iOS share sheet is not a failure — falling back there would silently copy and toast "Copied"');
-  ok(/function execCopy/.test(home),
-    'A10: the execCommand rung is ported — after `await navigator.share().catch()` the activation is spent and WebKit rejects clipboard.writeText');
-  ok(/bridge\.send\('ixian:share'\)/.test(home), 'A10: the live orphaned verb is finally emitted (was a silent clipboard write on WebView2)');
-  ok(/showToast,\s+\/\/ A10/.test(home), 'A10: showToast is in scope — every branch now gives feedback');
+  /* —— A10: wallet share — REBASED by F3 (#301): payload is ALWAYS the bare
+     address, so the amount gate + clipboard rungs are asserted GONE, not present —— */
+  ok(/function shareReceivePayload\(value\) \{/.test(home) && !/const nativeOk/.test(home),
+    'F3 ★: shareReceivePayload takes NO amount — the A10 gate collapsed because the shared text never carries `:send:<amount>` (Damir 2026-08-04)');
+  ok(/onShare: \(\{ address, value \}\) => shareReceivePayload\(address \|\|/.test(home),
+    'F3: onShare passes the BARE address — qrValue()\'s `address:ixi`/`address:send:` composition must never reach the share sheet');
+  ok(/e\.name === 'AbortError' && !isWebView2\) return/.test(home),
+    'F3: a WebKit AbortError (sheet shown, user dismissed) does NOTHING — batch A re-sent ixian:share there, popping a SECOND sheet after a cancel');
+  ok(/window\.chrome && window\.chrome\.webview/.test(home),
+    'F3: WebView2 is detected explicitly — its navigator.share exists but rejects, and THAT engine must still fall through to ixian:share (the A10 silent no-op)');
+  ok(/bridge\.send\('ixian:share'\)/.test(home), 'A10/F3: the live native verb is still emitted (was a silent clipboard write on WebView2)');
+  ok(!/function execCopy/.test(home),
+    'F3: the clipboard/execCopy rungs are GONE from home.html — unreachable code that pretended a copy path still existed');
+}
+
+/* —— F5 FIX BATCH (DECISIONS #301) — F1 scan probe · F2 zoom clamp · F3 share · iOS-29 r4.
+   Shell items are STATIC pins (#205); the F2 sweep is asserted over EVERY shell so a
+   future shell added without the clamp fails loudly. */
+console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
+{
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const wrJs = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8');
+  const iosHandler = readFileSync(join(root, 'Spixi/Platforms/iOS/iOSWebViewHandler.cs'), 'utf8');
+
+  /* —— F2: pinch is chat-only — every shell carries the scale clamp —— */
+  const shellsDir = join(root, 'src/shells');
+  const shellFiles = readdirSync(shellsDir).filter((f) => f.endsWith('.html'));
+  ok(shellFiles.length >= 18, 'F2: the shells directory still holds the full set (' + shellFiles.length + ' found) — a miscount means this sweep is asserting over the wrong tree');
+  for (const f of shellFiles) {
+    const src = readFileSync(join(shellsDir, f), 'utf8');
+    ok(/minimum-scale=1, maximum-scale=1, user-scalable=no/.test(src),
+      'F2: ' + f + ' clamps the viewport — without it WKWebView raster-zooms the whole document on pinch (only chat may interpret pinch, as text size)');
+  }
+  ok(/attachPinchTextScale/.test(chat), 'F2: chat KEEPS its pinch-to-text-size gesture — the clamp is what makes the touch-event gesture receivable');
+  ok(/MinimumZoomScale = 1;/.test(iosHandler) && /MaximumZoomScale = 1;/.test(iosHandler),
+    'F2: the iOS ScrollView zoom belt covers the still-legacy pages (wallet_send/apps…) that ship no viewport clamp');
+
+  /* —— F3: Share hides while an amount is set (component half) —— */
+  ok(/shareBtn\.hidden = active/.test(wrJs),
+    'F3: the Share button HIDES while an amount is entered — offering a share that omits the on-screen amount would be dishonest (Damir dial, hide > disable)');
+  ok(/let shareBtn = null/.test(wrJs), 'F3: the share button is state-driven from sync(), not a fire-and-forget append');
+
+  /* —— F1: scan diagnostics + re-kick (iOS-49, zero-C# by design) —— */
+  ok(/function probeScanFeed/.test(scanJs) && /function scheduleScanProbe/.test(scanJs),
+    'F1: the scan probe exists — #293\'s "verify with Inspector before building" was never run; this IS that verification, on-screen');
+  ok(/done: \(payload\) => \{[\s\S]{0,240}?ctrl\.done\(payload\);[\s\S]{0,240}?scheduleScanProbe\(el, feed, \(\) => finished\);/.test(scanJs),
+    'F1: the probe schedules ONLY on a successful start — the denied state must not grow a diagnostic line (r4: the grant-flag write rides the same done())');
+  ok(/if \(isDone && isDone\(\)\) return;/.test(scanJs),
+    'F1: BOTH probe timers bail once decode/cancel latched — a late probe reads the torn-down feed as dead and would overwrite "Code scanned" on a scanner that just worked');
+  ok(/fail: \(msg\) => \{[\s\S]{0,240}?ctrl\.fail\(msg\);/.test(scanJs),
+    'F1: fail() still reaches ctrl exactly once — the wrapper adds only the r4 grant-flag clear, never alters one-shot semantics');
+  ok(/v\.paused \|\| v\.videoWidth === 0/.test(scanJs) && /r\.catch\(\(\) => \{\}\)/.test(scanJs),
+    'F1: the play() re-kick fires only on a stalled video and swallows its rejection — it must never break a working camera');
+  ok(/t\.muted/.test(scanJs) && /frame === 'black'/.test(scanJs),
+    'F1: the probe distinguishes the three failure layers — muted track (native suspend) vs 0×0 video (inline refused) vs black frames (canvas readback)');
+  ok(!/AllowsInlineMediaPlayback/.test(iosHandler),
+    'F1 ★: NO AllowsInlineMediaPlayback in the handler — MAUI already sets it at construction (MauiWKWebView.CreateConfiguration); writing it again would ship a proven no-op as a "fix"');
+
+  /* —— iOS-29 attempt 4: the CHANGED lever (#294 standing order) —— */
+  ok(!/document\.body\.style\.height/.test(chat),
+    'iOS-29: <body> is NEVER resized — that was the lever #294 proved wrong three times (double-topbar artifact, shipped no-op)');
+  ok(/setProperty\('--kb-inset'/.test(chat),
+    'iOS-29: the keyboard overlap is published as --kb-inset from visualViewport');
+  ok(/margin-bottom: max\(0px, calc\(var\(--kb-inset, 0px\) - env\(safe-area-inset-bottom, 0px\)\)\)/.test(chat),
+    'iOS-29: the composer margin re-uses the safe-area cushion as keyboard clearance and clamps to 0 closed — env() stays FULL with the keyboard up (#294 measurement)');
+  ok(/if \(vv\.offsetTop \|\| window\.scrollY\) window\.scrollTo\(0, 0\);/.test(chat),
+    'iOS-29: the pan reset stays — scrollTo(0,0) is the half #283 PROVED works; only the resize half changed lever');
+}
+
+/* —— R2 (DECISIONS #303) — keyboard both-levers · amount-QR drop. —— */
+console.log('r2 (#303) — keyboard native+hardened · amount-QR drop');
+{
+  const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const wrJs = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8');
+  const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+
+  /* keyboard — FE half */
+  ok(/window\.__setKbInset = function/.test(chat) && /nativeKb = true/.test(chat),
+    'iOS-29 r2: the native entry point exists and LATCHES — once C# frames arrive the vv writer stands down (two writers would fight)');
+  ok(/\[80, 240, 480, 900, 1400\]\.map\(\(ms\) => setTimeout\(apply, ms\)\)/.test(chat),
+    'iOS-29 r2: the settle ladder outlives the ~250ms keyboard animation — the on-device miss was an EARLY first resize event with no follow-up until a keystroke');
+  ok(/composerEl && composerEl\.contains\(e\.target\)\) kick\(\)/.test(chat),
+    'iOS-29 r2: composer focus triggers the lever directly — the user summoning the keyboard must not depend on a vv event at all');
+  ok(!/document\.body\.style\.height/.test(chat), 'iOS-29 r2: body is still never resized (the #294 dead lever stays dead)');
+
+  /* keyboard — C# half */
+  ok(/loadedHtmlFileName != "chat\.html" \|\| kbChangeObserver != null/.test(scp),
+    'iOS-29 r2 ★: the C# observer attaches ONLY to chat.html pages — MiniAppPage never sets loadedHtmlFileName, so third-party content is structurally excluded');
+  ok(/ObserveWillChangeFrame/.test(scp) && /ObserveWillHide/.test(scp),
+    'iOS-29 r2: both notifications observed — WillChangeFrame carries the settled END frame (the determinism the vv event lacks), WillHide zeroes the inset');
+  ok(/window\.__setKbInset && window\.__setKbInset\(/.test(scp),
+    'iOS-29 r2: the push is guard-called — a shell without the hook (or a stale build) is a silent no-op, never a JS error');
+  ok(/detachKeyboardInsetObserver\(\);   \/\/ iOS-29 r2/.test(scp),
+    'iOS-29 r2: observers detach on the real teardown path (Dispose-when-popped) — no leaked NSObject observers pushing into dead pages');
+  ok(/op\.target\.attachKeyboardInsetObserver\(\);/.test(scp),
+    'iOS-29 r2 ★★: the observer ALSO attaches at the overlay present — chat is overlay-presented on iOS and OnAppearing never fires there (review MAJOR-1; OnAppearing alone = dead native lever in the primary flow)');
+  ok(/e\.FrameEnd\.Width < screen\.Width/.test(scp),
+    'iOS-29 r2: floating/split iPad keyboards (narrow frame) are NOT pushed — bogus mid-screen overlap would latch the shell off its vv belt (review MINOR-5)');
+
+  /* amount-QR drop */
+  ok(!/:send:' \+ canonicalAmount/.test(wrJs) && /const qrValue = \(\) => address \+ ':ixi'/.test(wrJs),
+    "#303 ★: wallet-receive NEVER composes address:send:<amount> — the QR is constant address:ixi (Damir: amount-request QRs are not supported)");
+  ok(!/setQrValue\(/.test(wrJs) && !/import \{ createQrSvg, setQrValue \}/.test(wrJs),
+    '#303: no QR re-encode machinery left in wallet-receive (no call sites, import dropped)');
+  ok(/requestModeAnnounce/.test(wrJs) === false,
+    '#303: the request-mode announcements are gone — announcing a QR mode change that no longer happens would lie to screen readers');
+  ok(/onSendRequest\(\{ contact: c, amount \}\)/.test(wrJs),
+    '#303: the send-request-to-contact flow SURVIVES the QR drop — only the QR encoding was removed (W8 stays live)');
+}
+
+/* —— R3 (DECISIONS #304) — iOS-49 ROOT CAUSE fix: the QR library's inline
+   position stamp collapsed the feed to 0×0 (device-measured: feed 0x0 @ center,
+   video style.width "0px", decode canvas 0x0, track live). —— */
+console.log('r3 (#304) — scan feed inline-style collapse fix');
+{
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const scanCss = readFileSync(join(root, 'src/styles/components/scan-shell.css'), 'utf8');
+
+  ok(/new w\.Html5Qrcode\(feedEl\.id[\s\S]{0,900}feedEl\.style\.removeProperty\('position'\)/.test(scanJs),
+    "#304 ★: the ctor's inline position:relative stamp is removed BEFORE start() reads clientWidth — inline beat the stylesheet, collapsing the feed to 0×0 (black preview + 0×0 decode canvas + zero scans, torch alive)");
+  ok(/width: 100% !important; height: 100% !important/.test(scanCss),
+    '#304: the video fill wins over the pixel width html5-qrcode inlines at start time (rotation/resize adapt; sanctioned !important, documented in the css)');
+  ok(/box\.w === 0 \|\| box\.h === 0/.test(scanJs) && /indexOf\('readback-'\) === 0/.test(scanJs),
+    '#304: the probe now counts a 0×0 feed box AND a blocked canvas readback as DEAD — both were blind spots that read as "healthy" while nothing could scan');
+  ok(/' · box ' \+ b \+ /.test(scanJs),
+    '#304: the on-screen probe line carries the feed box size — the number that would have named this bug on the first F5');
+}
+
+/* —— R4 (DECISIONS #305) — feed CSS made authoritative + grant persistence. —— */
+console.log('r4 (#305) — feed !important · camera-grant persistence');
+{
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const scanCss = readFileSync(join(root, 'src/styles/components/scan-shell.css'), 'utf8');
+  const shellJs = readFileSync(join(root, 'src/components/scan-shell.js'), 'utf8');
+
+  ok(/\.c-scan__feed \{ position: absolute !important; inset: 0 !important; \}/.test(scanCss),
+    '#305 ★: the feed position is stylesheet-!important — html5-qrcode inline-stamps position:relative in BOTH its ctor and start() (device-measured: the pre-start removeProperty won round 1 and lost round 2)');
+  ok(/export function startScanRequest/.test(shellJs) && /st\.state !== 'prompt' \|\| !st\.beginRequest\) return/.test(shellJs),
+    '#305: programmatic start rides the SAME latched CTA path, prompt-state only — no parallel permission machinery');
+  ok(/localStorage\.getItem\(SCAN_GRANT_KEY\)\) startScanRequest\(el\)/.test(scanJs),
+    '#305: a previously granted camera skips the consent-card tap (Damir F5: "allow doesn\'t persist"); first visit still shows the card');
+  ok(/localStorage\.setItem\(SCAN_GRANT_KEY, '1'\)/.test(scanJs) && /localStorage\.removeItem\(SCAN_GRANT_KEY\)/.test(scanJs),
+    '#305: the grant flag is set only on a SUCCESSFUL start and cleared on failure — revoking camera access in iOS Settings falls back to the honest prompt/denied cards');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

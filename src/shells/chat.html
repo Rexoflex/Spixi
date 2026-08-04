@@ -176,6 +176,19 @@
   @media (hover: hover) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } }
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
   #chat-composer { flex: none; }
+  /* iOS-29 attempt 4 (#301) — CHANGED LEVER per #294: never resize <body> (that
+     fought WKWebView's own focus pan through three attempts). The flex column
+     keeps its 100% layout height; while the soft keyboard is up the composer is
+     pushed above it by a bottom margin driven from visualViewport (--kb-inset,
+     set by keyboardViewport()), and .c-chat-canvas (flex:1, min-height:0)
+     absorbs the difference — topbar stays, log shrinks, composer lifts.
+     The max(0px, … − env(safe-area-inset-bottom)) does two jobs: WebKit keeps
+     reporting the FULL safe-area inset with the keyboard up (#294 measurement),
+     so the composer's own inset padding is re-used as keyboard clearance
+     (no 34px dead cushion above the keyboard); and with the keyboard closed
+     (--kb-inset: 0) the max() clamps the negative result to 0 so the composer
+     is never pushed INTO the home indicator. */
+  #chat-composer { margin-bottom: max(0px, calc(var(--kb-inset, 0px) - env(safe-area-inset-bottom, 0px))); }
   /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
      the base to grey-1000 (#207); data-desktop is on <html>, same element as
      data-theme, so the dark rule is a COMPOUND selector (not descendant).
@@ -3429,53 +3442,97 @@
     } catch (_) {}
   }
 
-  /* —— iOS-6 keyboard viewport (#283) ——————————————————————————————————————
+  /* —— iOS-6/iOS-29 keyboard viewport — attempt 4, CHANGED LEVER (#301) ————
    * WKWebView does NOT resize the layout viewport when the soft keyboard shows —
    * it PANS the document (programmatic scrollView contentOffset) to reveal the
-   * focused input, shoving the sticky topbar + secure notice above the screen
-   * top (ios-sim-findings iOS-6, post-#282 screenshot confirms the pan). The
-   * redesigned shell never inherited legacy chat.js's iosFixer, so nothing
-   * corrected it. Fix: while the keyboard is up, size <body> to
-   * visualViewport.height (the flex column then FITS the visible area — topbar
-   * stays, composer lifts above the keyboard) and undo the pan with
-   * window.scrollTo(0,0) — the reset the legacy iosFixer proved against
-   * WKWebView. No-op by construction wherever the keyboard already resizes the
-   * viewport (Android adjustResize, Windows WebView2 → delta ≈ 0) and skipped
-   * on desktop; guarded so a missing visualViewport (old engines) changes
-   * nothing. Keyboard-open threshold 60px separates real keyboards from
-   * browser-chrome/jitter resizes. */
+   * focused input (ios-sim-findings iOS-6). Attempts 1–3 fought that pan by
+   * RESIZING <body> to vv.height; #294's device F5 proved that lever wrong:
+   * shipped, the resize did not land AND produced a double-topbar artifact
+   * while WKWebView ran its own focus pan against the shrinking document.
+   * REVERTED there; #294's standing order = only re-attempt with a changed lever.
+   *
+   * This is that changed lever: the document NEVER changes size (so WKWebView's
+   * pan math stays stable and scrollTo(0,0) fully undoes it — the part #283
+   * proved works). Instead the keyboard overlap is published as a CSS var
+   * (--kb-inset) and the composer's margin-bottom (see the #chat-composer rule)
+   * lifts it above the keyboard INSIDE the fixed-height flex column;
+   * .c-chat-canvas (flex:1, min-height:0) absorbs the difference so the topbar
+   * never moves. #294's measurements all hold here: innerHeight constant (852),
+   * vv.height shrinks (544), the vv resize event fires, and env(safe-area-
+   * inset-bottom) stays at full value with the keyboard up (compensated in the
+   * CSS max()). No-op by construction wherever the keyboard already resizes
+   * the viewport (Android adjustResize, WebView2 → delta ≈ 0), skipped on
+   * desktop, guarded for a missing visualViewport. Threshold 60px separates
+   * real keyboards from browser-chrome/jitter resizes. */
   (function keyboardViewport() {
     const vv = window.visualViewport;
-    if (!vv || document.documentElement.hasAttribute('data-desktop')) return;
+    if (document.documentElement.hasAttribute('data-desktop')) return;
     let kbOpen = false;
+    let nativeKb = false;                  // r2 (#303): true once C# keyboard frames arrive — they win
+    function setInset(px) {
+      document.documentElement.style.setProperty('--kb-inset', px + 'px');
+      kbOpen = px > 0;
+    }
     function apply() {
+      if (!vv) return;
       // innerHeight tracks the LAYOUT viewport (constant under WKWebView's
       // keyboard); vv.height shrinks by the keyboard overlap.
       const delta = window.innerHeight - vv.height;
       const open = delta > 60;
-      const stick = nearBottom();          // read BEFORE the height change
-      // iOS-29 REVERTED to the pre-#294 shape (Damir device F5 2026-07-29): the
-      // !important + data-kb variant worked in the console but NOT when shipped, and
-      // it introduced a visible artifact — on composer focus the topbar slid up and a
-      // second topbar animated in below it. Resizing body under WKWebView's own focus
-      // pan is evidently the wrong lever; see ios-sim-findings iOS-29 for the full
-      // measurement set before attempting a third fix.
-      if (open) {
-        document.body.style.height = Math.round(vv.height) + 'px';
-        kbOpen = true;
-      } else if (kbOpen) {
-        document.body.style.height = '';   // restore html/body 100%
-        kbOpen = false;
+      const stick = nearBottom();          // read BEFORE the layout change
+      // r2 (#303): once the NATIVE lever is live, the vv path stops writing the
+      // inset (two writers with different readings of the same keyboard would
+      // fight) but keeps its pan-reset + stick duties below.
+      if (!nativeKb) {
+        if (open) setInset(Math.round(delta));
+        else if (kbOpen) setInset(0);
       }
-      // undo WKWebView's focus pan (fires before AND after our resize — the
-      // vv 'scroll' listener below catches the late pan too)
+      // undo WKWebView's focus pan (fires before AND after our margin lands — the
+      // vv 'scroll' listener below catches the late pan too). With the composer
+      // lifted above the keyboard, WebKit has no reason to re-pan after this.
       if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
       if (open && stick) box.scrollTop = box.scrollHeight;
     }
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
+    /* r2 (#303) — SETTLE POLL. Damir's F5: the composer lifted only after 7-8
+     * typed characters. Diagnosis: the first vv 'resize' fires BEFORE the keyboard
+     * geometry settles (delta still < 60 → no-op) and no further event comes until
+     * a keystroke makes WebKit scroll the caret (vv 'scroll' → apply → correct).
+     * So: every trigger (vv event OR composer focus) runs apply() NOW plus a short
+     * recheck ladder that outlives the ~250ms keyboard animation — a missed or
+     * early event can no longer strand the composer under the keyboard. */
+    let settleTimers = [];
+    function kick() {
+      apply();
+      for (const t of settleTimers) clearTimeout(t);
+      settleTimers = [80, 240, 480, 900, 1400].map((ms) => setTimeout(apply, ms));
+    }
+    if (vv) {
+      vv.addEventListener('resize', kick);
+      vv.addEventListener('scroll', kick);
+    }
+    // focus into the composer = the user summoned the keyboard — don't wait for vv
+    document.addEventListener('focusin', (e) => {
+      if (composerEl && composerEl.contains(e.target)) kick();
+    });
     // belt: any stray document pan while the keyboard is up gets reset
     window.addEventListener('scroll', () => { if (kbOpen) window.scrollTo(0, 0); }, { passive: true });
+    /* r2 (#303) — NATIVE LEVER (the #294 alternative, now primary on iOS). C#
+     * observes UIKeyboardWillChangeFrame/WillHide (SpixiContentPage, chat.html
+     * pages only) and pushes the FINAL keyboard overlap in points — same units as
+     * CSS px — through this global. Deterministic where the vv event is not: the
+     * notification always carries the settled end-frame. First push latches
+     * nativeKb so the vv writer stands down; hide pushes 0. The vv machinery
+     * stays as the belt for pan-resets and as the whole lever on engines where
+     * C# never pushes (Android WebView, browser previews). */
+    window.__setKbInset = function (h) {
+      if (document.documentElement.hasAttribute('data-desktop')) return;
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      nativeKb = true;
+      const stick = nearBottom();
+      setInset(px > 60 ? px : 0);          // same real-keyboard threshold as the vv path
+      if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
+      if (px > 60 && stick) box.scrollTop = box.scrollHeight;
+    };
   })();
 
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching

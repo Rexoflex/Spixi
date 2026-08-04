@@ -22,8 +22,16 @@
   overflow: hidden;
   background: #101214;              /* sanctioned: fixed-dark camera bed, both themes */
 }
-.c-scan__feed { position: absolute; inset: 0; }
-.c-scan__feed > video { width: 100%; height: 100%; object-fit: cover; }
+/* #305: !important is SANCTIONED — the html5-qrcode ctor AND its start() path both
+   stamp `position:relative` INLINE on this container (device-measured twice: the
+   pre-start removeProperty won the ctor battle and lost the start() re-stamp — feed
+   dropped back into the flex flow at 262×349 and dragged the frame off-center).
+   A stylesheet !important outranks inline styles, so the war ends here. */
+.c-scan__feed { position: absolute !important; inset: 0 !important; }
+/* #304: !important is SANCTIONED here — html5-qrcode inlines a pixel width on its
+   <video> (measured at start time), and inline styles beat the stylesheet. The
+   fill must win so the feed adapts (rotation/resize) and covers the camera bed. */
+.c-scan__feed > video { width: 100% !important; height: 100% !important; object-fit: cover; }
 
 /* —— scanning: corner-bracket frame over a scrim cutout —— */
 .c-scan__frame {

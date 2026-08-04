@@ -14,7 +14,7 @@
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
      ?desktop=1 sets / ?mobile=1 clears the attribute (the app passes no query). -->
 <script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi</title>
 <style>
   /* Paint the screen surface IMMEDIATELY (keyed off the head-top data-theme, so
@@ -296,7 +296,8 @@
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     attachContextMenuAnchors,            // Batch C (M6): desktop sheet grammar (no-op on mobile)
-    showToast,                           // A10 (#302): share/copy feedback — was silent on WebView2
+    // (showToast dropped with F3 #301 — the share ladder's clipboard rungs collapsed
+    //  and nothing else in this shell toasts; re-destructure from the bundle if needed)
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
     showBackupNudge, showRatingNudge,
   } = window.Spixi;
@@ -1293,8 +1294,9 @@
    * onReceive opens the redesigned c-wallet-receive OVER the wallet view instead of
    * pushing the native WalletReceivePage. QR of the own address (`address:ixi`, the
    * legacy wallet_request format the component builds), an honest copy morph, the
-   * request-an-amount reveal (re-encodes the QR to `address:send:amount` CLIENT-SIDE —
-   * no bridge), and Share. Own back closes it — never an ixian: nav verb.
+   * request-an-amount reveal (#303: the QR stays CONSTANT `address:ixi` — amount-request
+   * QRs aren't supported; the amount drives only the contact strip), and Share. Own
+   * back closes it — never an ixian: nav verb.
    * Q2-⑥ (#268, W8 LANDED): the "send request to a contact" strip is NOW WIRED —
    * HomePage dispatches `ixian:sendrequest:` (lifted verbatim from WalletReceivePage,
    * the sanctioned same-page-new-host pattern), so the component's contact picker +
@@ -1348,22 +1350,17 @@
     body.append(createWalletReceive({
       address: addr,
       strings: walletStrings, host: document.body,
-      /* A10 (#302) — Share. The old path degraded to a SILENT clipboard write on
-         any WebView without navigator.share (WebView2 on Windows, Android
-         WebView): no toast, no error, nothing — the user tapped Share and, as far
-         as they could tell, nothing happened.
-         ★ The amount gate is the important part. `ixian:share` takes NO argument;
-         C# shares primaryAddress itself (HomePage.xaml.cs:635-641). But this
-         payload is `address:ixi`, or `address:send:<amount>` once an amount is
-         requested. Routing a REQUEST through that verb would share a bare address
-         while the user believes they shared a payment request — silently dropping
-         the amount, which is worse than the no-op it replaces. So the live verb is
-         used only for the plain-address case. */
-      // Pass the BARE address for the no-amount case: ixian:share shares C#'s
-      // primaryAddress, so sending `address:ixi` to navigator.share on iOS while
-      // Windows/Android shared a bare address made the same button produce two
-      // different texts (audit MINOR). The request case keeps the full payload.
-      onShare: ({ address, value, amount }) => shareReceivePayload(amount ? value : (address || value), amount),
+      /* F3 (#301) — Share sends the BARE ADDRESS, always (Damir, 2026-08-04 F5:
+         "we can't share a request for a specific amount yet, so that needs to
+         go out"). The A10 amount-gate branch collapsed with it: the gate existed
+         to stop `address:send:<amount>` being silently dropped by the
+         argument-less `ixian:share` verb (C# shares primaryAddress itself,
+         HomePage.xaml.cs:635-641) — with the amount never in the shared text,
+         payload and verb agree on every platform. #303 went further: the QR
+         no longer encodes an amount either (constant `address:ixi`); and while
+         an amount is entered the Share button is HIDDEN (wallet-receive.js),
+         so this handler only ever fires for the plain-address case. */
+      onShare: ({ address, value }) => shareReceivePayload(address || String(value || '').split(':')[0]),
       // Q2-⑥ (#268): people-only roster, minus pending in BOTH directions (see
       // requestableContacts). Fire-and-forget — the component's ✓ morph is the ack;
       // C# validates again and composes the requestFunds chat message (legacy
@@ -1379,67 +1376,38 @@
   }
 
   /* ————————————————————————————————————————————————————————————————————————
-   * A10 (#302) — share the Receive payload, with a real fallback ladder.
+   * F3 (#301) — share the Receive address. Payload is ALWAYS the bare address
+   * (Damir, 2026-08-04), which is exactly what the argument-less `ixian:share`
+   * verb shares (C# → primaryAddress, HomePage.xaml.cs:635-641) — so the native
+   * verb became the universal fallback and A10's clipboard/execCopy rungs
+   * collapsed away (they were reachable only from the request case, which no
+   * longer shares).
    *
-   * Ordering matters and is not arbitrary:
+   * Ladder:
    *  1. navigator.share first, INSIDE the click's activation window (the component
-   *     calls onShare synchronously from the button handler, wallet-receive.js:143).
-   *  2. AbortError is NOT a failure — it is the user dismissing the iOS share
-   *     sheet. Falling back there would silently copy and toast "Copied" for
-   *     someone who just cancelled. Return.
-   *  3. ixian:share for the bare-address case. It is `location.href`, so it needs
-   *     no activation and works after the await.
-   *  4. Clipboard last, and execCopy (textarea + execCommand) as the final rung:
-   *     after `await navigator.share().catch()` the transient activation is spent,
-   *     and WebKit rejects navigator.clipboard.writeText outside a gesture — the
-   *     execCommand path does not need the permission and survives it.
-   * Every branch ends in a visible toast. Ported from the hardened settings
-   * implementation (#235b, settings.html:875-899) rather than reinvented; the two
-   * should be factored into one helper when the settings share verb lands (batch B).
+   *     calls onShare synchronously from the button handler, wallet-receive.js).
+   *  2. In the catch: a WebKit AbortError means the sheet WAS shown and the user
+   *     dismissed it — do nothing (re-sending ixian:share there would pop a
+   *     SECOND share sheet right after a cancel; batch-A behaviour, fixed here).
+   *     WebView2 also exposes navigator.share but rejects when it cannot present
+   *     a sheet — that engine is detected via window.chrome.webview and falls
+   *     through to the native verb (the silent-no-op A10 existed to fix).
+   *  3. No navigator.share at all (Android WebView) → ixian:share. It is
+   *     `location.href`, so it needs no activation and works after the await.
    * ———————————————————————————————————————————————————————————————————————— */
-  function execCopy(text) {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      const ok = document.execCommand && document.execCommand('copy');
-      document.body.removeChild(ta);
-      return !!ok;
-    } catch (e) { return false; }
-  }
-  function shareReceivePayload(value, amount) {
+  function shareReceivePayload(value) {
     if (!value) return;
-    const s = strings;
-    const copied = () => showToast({ text: s.copied || 'Copied', tone: 'success', host: document.body, strings: s });
-    const copyFailed = () => showToast({ text: s.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: document.body, strings: s });
-    const clipboard = () => {
-      const fail = () => { if (execCopy(value)) copied(); else copyFailed(); };
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(copied, fail);
-        else fail();
-      } catch (e) { fail(); }
-    };
-    // A request payload carries an amount the argument-less ixian:share cannot
-    // express — never route it there.
-    const nativeOk = !amount;
     if (navigator.share) {
       try {
         navigator.share({ text: value }).catch((e) => {
-          // AbortError is USUALLY the user dismissing the sheet — but Chromium also
-          // raises it when the share sheet could not be shown at all, which is exactly
-          // the WebView2 case A10 exists to fix. So when the native verb is available
-          // we try it even on abort (it is idempotent and cheap); only a genuine
-          // cancel with no native fallback is treated as "done, do nothing".
-          if (nativeOk) { bridge.send('ixian:share'); return; }
-          if (e && e.name === 'AbortError') return;         // user cancelled — not a failure
-          clipboard();
+          const isWebView2 = !!(window.chrome && window.chrome.webview);
+          if (e && e.name === 'AbortError' && !isWebView2) return;   // user cancelled — not a failure
+          bridge.send('ixian:share');            // engine couldn't share → C# sheet, same bare payload
         });
         return;
       } catch (e) { /* threw synchronously → fall through */ }
     }
-    if (nativeOk) { bridge.send('ixian:share'); return; }   // WebView2 / Android WebView
-    clipboard();
+    bridge.send('ixian:share');                  // Android WebView / no Web Share API
   }
 
   /* ——— Send compose/review takeover (BE-GATED — built + wired, OFF in v1) ————————

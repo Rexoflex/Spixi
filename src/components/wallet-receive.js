@@ -9,16 +9,18 @@
  * Share (shell duty via onShare — NO share bridge command exists in the legacy set,
  * §9 ask; shells can use navigator.share where present).
  *
- * "Request an amount" (aria-expanded/-controls row, send-screen grammar) morphs the
- * surface: the amount input follows wallet-send's sanitize rules (shared export),
- * the QR re-encodes IN PLACE to `address:send:amount` — amount CANONICALIZED
- * ('12.'→'12', '.5'→'0.5', '007'→'7'; audit M1: what the QR carries is what a legacy
- * parser must read) — and a contact strip appears: "Send request to a contact" →
- * onSendRequest({ contact, amount }) mirrors the legacy `ixian:sendrequest` payload.
+ * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
+ * input follows wallet-send's sanitize rules (shared export) and a contact strip
+ * appears: "Send request to a contact" → onSendRequest({ contact, amount }) mirrors
+ * the legacy `ixian:sendrequest` payload, amount CANONICALIZED ('12.'→'12', '.5'→'0.5',
+ * '007'→'7'; audit M1 — what leaves this surface is what a legacy parser must read).
  * onSendRequest is FIRE-AND-FORGET (audit m4): the ✓ morph confirms the intent left
  * this surface, not chain/chat delivery — matching the legacy command's semantics.
- * Collapsing the reveal clears the amount (the visible QR must never encode an
- * amount the user can no longer see — state honesty).
+ * ★ #303 (Damir, 2026-08-04 F5): the QR NEVER re-encodes to `address:send:amount` —
+ * amount-request QRs aren't a supported flow, so the QR is constant `address:ixi`
+ * and an entered amount drives ONLY the contact-request strip (receiving/scanning
+ * `address:send:` QRs from elsewhere is untouched — setSendAddress still parses it).
+ * Collapsing the reveal still clears the amount (fresh state next open).
  *
  * Request latch (audit M2/M3/M5 rework): the latch lives in STATE, not on row DOM —
  * search re-renders keep it; the acted row stays ENABLED (focus is not dropped) and
@@ -37,7 +39,7 @@ import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
-import { createQrSvg, setQrValue } from './qr.js';
+import { createQrSvg } from './qr.js';                     // #303: setQrValue import dropped — the QR never re-encodes
 import { sanitizeAmount, canonicalAmount } from './money.js';   // #143: shared money module
 import { icon } from './icons.js';
 
@@ -67,12 +69,10 @@ export function createWalletReceive({
     return el;
   }
 
-  const qrLabel = () => requestable(state.amount)
-    ? (strings.qrRequestLabel || 'QR code — payment request for {a} IXI').split('{a}').join(canonicalAmount(state.amount))
-    : (strings.qrReceiveLabel || 'QR code — your Ixian address');
-  const qrValue = () => requestable(state.amount)
-    ? address + ':send:' + canonicalAmount(state.amount)   // legacy request format — setSendAddress parses it
-    : address + ':ixi';                                    // legacy receive format (wallet_request parity)
+  // #303: constant — the QR never carries an amount (see docblock). Kept as functions
+  // so the onShare payload contract ({ value: qrValue() }) is unchanged for callers.
+  const qrLabel = () => (strings.qrReceiveLabel || 'QR code — your Ixian address');
+  const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
 
   /* ——— QR card ——— */
   const card = document.createElement('div');
@@ -135,9 +135,15 @@ export function createWalletReceive({
   addrRow.append(addrValue, copy);
   el.append(addrLabel, addrRow);
 
-  /* ——— share (shell duty — no legacy bridge command; §9) ——— */
+  /* ——— share (shell duty — no legacy bridge command; §9) ———
+   * F3 (#301): Share always sends the BARE ADDRESS (an amount request can't be
+   * shared as text yet — Damir), so the button HIDES while an amount is entered
+   * rather than offer a share that wouldn't include the amount on screen (sync()
+   * drives it, same honesty rule as the QR/caption). `amount` is still passed
+   * for API compatibility, but with the hide it is always null in practice. */
+  let shareBtn = null;
   if (onShare) {
-    el.append(createButton({
+    shareBtn = createButton({
       label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
       icon: icon('share-3', { size: 18 }),
       onClick: () => onShare({
@@ -145,7 +151,8 @@ export function createWalletReceive({
         amount: requestable(state.amount) ? canonicalAmount(state.amount) : null,
         value: qrValue(),
       }),
-    }));
+    });
+    el.append(shareBtn);
   }
 
   /* ——— request an amount (progressive reveal, send-screen row grammar) ——— */
@@ -288,20 +295,14 @@ export function createWalletReceive({
     }
   }
 
-  let wasActive = false;
   function sync() {
     const active = requestable(state.amount);
-    setQrValue(qr, qrValue(), { label: qrLabel() });       // re-encode in place — no node swap
-    caption.textContent = active
-      ? (strings.requestingCaption || 'Requesting {a} IXI — scanning fills the amount in').split('{a}').join(canonicalAmount(state.amount))
-      : (strings.receiveCaption || 'Scan to send IXI to this address');
+    // #303: no QR re-encode and no mode announcements — the QR's meaning never
+    // changes now (constant address:ixi), so announcing a "request mode" would lie.
+    // The caption stays the plain receive line for the same reason.
+    caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
     if (askBox) askBox.hidden = !active;
-    if (active !== wasActive) {                            // transitions announce; keystrokes don't (audit m3)
-      wasActive = active;
-      live.textContent = active
-        ? (strings.requestModeAnnounce || 'QR now requests a specific amount')
-        : (strings.receiveModeAnnounce || 'QR shows your plain address again');
-    }
+    if (shareBtn) shareBtn.hidden = active;                 // F3 (#301): no Share while an amount is set
   }
 
   amtInput.addEventListener('input', () => {

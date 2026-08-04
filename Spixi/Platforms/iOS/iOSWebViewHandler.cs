@@ -122,6 +122,20 @@ namespace Spixi.Platforms.iOS
             platformView.ScrollView.ScrollEnabled = false;
             platformView.ScrollView.Bounces = false;
 
+            // F2 (#301): pinch is a CHAT-ONLY gesture (message text size). The redesigned
+            // shells all clamp the viewport (minimum/maximum-scale=1, user-scalable=no),
+            // which WKWebView honors — this pin is the belt for the still-legacy pages
+            // (wallet_send.html, apps.html, …) that ship no clamp. The shells scroll inner
+            // containers (ScrollEnabled=false above), so pinning the WebView's own zoom
+            // costs nothing there. Note WebKit may re-derive zoom scales from a page's
+            // viewport meta on navigation, so the meta clamp stays the primary fix; this
+            // is best-effort coverage for pages without one. ⚠ Like everything in this
+            // handler it is GLOBAL (MauiProgram.cs registers it for typeof(WebView)), so
+            // it also pins pinch-zoom for third-party MINI-APP content — logged on
+            // security-review MAJOR #6 (the trust-tier split of this handler).
+            platformView.ScrollView.MinimumZoomScale = 1;
+            platformView.ScrollView.MaximumZoomScale = 1;
+
             // Safari Web Inspector. From iOS 16.4 a WKWebView is INVISIBLE to the
             // Develop menu unless this is set — which is why the sim/device passes had
             // no console: every shell is a WebView, so without it nothing is

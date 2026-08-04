@@ -16,8 +16,16 @@
  *             (integration gap is visible, never silent — spec §4).
  * Returns { el, bridge } (tests introspect both).
  */
-import { createScanView, deliverScanResult } from '../components/scan-shell.js';
+import { createScanView, deliverScanResult, startScanRequest } from '../components/scan-shell.js';
 import { createNativeBridge } from './native.js';
+
+/* #305: remember that the camera was granted once, so the shell's consent card
+ * doesn't gate EVERY visit (Damir F5: "allow camera doesn't persist"). A boolean
+ * only — no addresses, no content (the #254 storage rule); the OS permission is
+ * still the real authority (our C# WKUIDelegate mirrors AVFoundation, which only
+ * shows its sheet once). Cleared whenever a start fails, so a user who revokes
+ * camera access in Settings falls back to the honest prompt/denied cards. */
+const SCAN_GRANT_KEY = 'spixi.scan.granted';
 
 /** Default camera provider over the vendored html5-qrcode library. */
 export function html5QrcodeCamera(win) {
@@ -97,6 +105,15 @@ export function html5QrcodeCamera(win) {
     start(feedEl, onText, ctrl) {
       if (!feedEl.id) feedEl.id = 'spixi-scan-feed'; // Html5Qrcode mounts by element id
       instance = new w.Html5Qrcode(feedEl.id, { formatsToSupport: [0] }); // 0 = QR_CODE
+      /* iOS-49 ROOT CAUSE (#304, device-measured 2026-08-04): the Html5Qrcode ctor
+       * stamps `style.position = "relative"` INLINE on its container — overriding
+       * scan-shell.css's `position:absolute; inset:0` — so the feed collapses to a
+       * 0×0 point in the centered flex camera: BLACK preview, video style.width
+       * "0px", and a 0×0 decode canvas (zero scans) while the track runs (torch
+       * worked). Remove the stamp BEFORE start() reads clientWidth; the stylesheet
+       * absolute returns and everything downstream sizes itself correctly. Runs on
+       * every start, so the Try-again path (new ctor = new stamp) is covered too. */
+      feedEl.style.removeProperty('position');
       const inst = instance;
       const go = (source) => inst.start(source, { fps: 10 }, (decodedText) => onText(decodedText));
       // #263 (Damir F5: desktop "Allow" → BLACK feed): a bare
@@ -157,6 +174,103 @@ export function html5QrcodeCamera(win) {
   };
 }
 
+/* ————————————————————————————————————————————————————————————————————————————
+ * F1 (#301) — iOS-49 scan diagnostics + best-effort re-kick. ZERO-C# BY DESIGN.
+ *
+ * The 2026-08-04 iPhone F5: torch works (track LIVE) while nothing ever scans.
+ * The prescribed fix — set AllowsInlineMediaPlayback at WKWebView construction —
+ * was verified a NO-OP before building: MAUI's own MauiWKWebView.CreateConfiguration
+ * (dotnet/maui release/10.0.1xx) already sets AllowsInlineMediaPlayback = true and
+ * MediaTypesRequiringUserActionForPlayback = None on every WKWebView it constructs
+ * (iOSWebViewHandler → base.CreatePlatformView → MauiWKWebView), and the vendored
+ * html5-qrcode already sets playsInline + muted on its <video>. Both halves of
+ * iOS-49's "remaining half" are therefore ALREADY in place, and the real failing
+ * layer is unknown: #293's own "verify with Inspector before building (#215)" was
+ * never run. So this probe IS that verification, on-screen (no Mac tether needed):
+ *
+ *   · ~1.2 s after a successful start: log full video/track/frame state to the
+ *     console AND, if the <video> is stalled (0×0 or paused), re-call play() —
+ *     a known, free WebKit nudge that may fix rendering outright.
+ *   · ~2.8 s: re-probe. Still dead → paint a compact readout into the scan hint
+ *     (role=status): video WxH/ready/paused · track live/muted · frame black?.
+ *     track.muted=true ⇒ WebKit suspended capture natively (C#/WebKit-side);
+ *     video 0×0 ⇒ inline rendering refused; healthy video + black frames ⇒
+ *     canvas readback; NO line shown but still no scans ⇒ decode-side (console).
+ *
+ * Healthy platforms never show the line (probe logs one line and stops), so this
+ * ships everywhere (Android bring-up gets it free). Fail-soft: nothing here can
+ * break scanning — every step is try/wrapped and read-only except video.play().
+ * ———————————————————————————————————————————————————————————————————————————— */
+function probeScanFeed(feedEl) {
+  try {
+    const v = feedEl && feedEl.querySelector('video');
+    const s = v && v.srcObject;
+    const t = s && s.getVideoTracks ? s.getVideoTracks()[0] : null;
+    let frame = 'n/a';                           // black-frame sample — only meaningful with pixels
+    if (v && v.videoWidth > 0) {
+      try {
+        const c = document.createElement('canvas');
+        c.width = c.height = 8;
+        const g = c.getContext('2d');
+        g.drawImage(v, 0, 0, 8, 8);
+        const d = g.getImageData(0, 0, 8, 8).data;
+        let max = 0;
+        for (let i = 0; i < d.length; i += 4) max = Math.max(max, d[i], d[i + 1], d[i + 2]);
+        frame = max < 16 ? 'black' : 'live';
+      } catch (e) { frame = 'readback-' + (e && e.name); }  // SecurityError etc. — itself diagnostic
+    }
+    // #304: the box the video RENDERS in — the failure this probe originally
+    // missed was a 0×0 feed (library inline-style collapse), which reads as a
+    // perfectly healthy video. Layout is part of the diagnosis now.
+    const fr = feedEl && feedEl.getBoundingClientRect ? feedEl.getBoundingClientRect() : null;
+    const box = fr ? { w: Math.round(fr.width), h: Math.round(fr.height) } : null;
+    return {
+      video: v ? { w: v.videoWidth, h: v.videoHeight, ready: v.readyState, paused: v.paused, inline: v.playsInline !== false } : null,
+      track: t ? { state: t.readyState, muted: t.muted, enabled: t.enabled } : null,
+      frame,
+      box,
+      dead: !v || v.videoWidth === 0 || v.paused || (t ? t.muted : false) || frame === 'black'
+        || String(frame).indexOf('readback-') === 0        // a blocked readback ALSO blocks the decoder — that is dead, not healthy (#304 blind spot)
+        || !box || box.w === 0 || box.h === 0,             // frames nobody can see or scan
+    };
+  } catch (e) { return { video: null, track: null, frame: 'probe-' + (e && e.name), dead: true }; }
+}
+
+function scanProbeLine(p) {
+  const v = p.video ? p.video.w + 'x' + p.video.h + ' ready=' + p.video.ready + (p.video.paused ? ' PAUSED' : '') + (p.video.inline ? '' : ' NOINLINE') : 'NO VIDEO';
+  const t = p.track ? p.track.state + (p.track.muted ? ' MUTED' : '') + (p.track.enabled ? '' : ' DISABLED') : 'no track';
+  const b = p.box ? p.box.w + 'x' + p.box.h : '?';
+  return 'scan probe — video ' + v + ' · box ' + b + ' · track ' + t + ' · frame ' + p.frame;
+}
+
+function scheduleScanProbe(el, feedEl, isDone) {
+  const say = (msg, p) => { try { console.error('[scan-probe] ' + msg, JSON.stringify(p)); } catch (e) { /* console gone */ } };
+  // isDone() = the mount's terminal latch (decode/cancel). Both timers bail on it:
+  // after a decode stopCamera() pauses the video, so a late probe would read the
+  // torn-down feed as "dead" and overwrite the "Code scanned" hint (role=status —
+  // an SR would announce the diagnostic) on a scanner that just WORKED (#46 audit).
+  setTimeout(() => {
+    if (isDone && isDone()) return;              // scanned/cancelled — probing torn-down state
+    const p1 = probeScanFeed(feedEl);
+    say('t+1.2s', p1);
+    if (!p1.dead) return;                        // healthy — one console line, no UI
+    try {                                        // the free nudge: WebKit sometimes starts
+      const v = feedEl && feedEl.querySelector('video');   // rendering on a second play()
+      if (v && (v.paused || v.videoWidth === 0)) { const r = v.play(); if (r && r.catch) r.catch(() => {}); }
+    } catch (e) { /* fail soft */ }
+    setTimeout(() => {
+      if (isDone && isDone()) return;            // decode landed between probes — stay silent
+      const p2 = probeScanFeed(feedEl);
+      say('t+2.8s (after re-kick)', p2);
+      if (!p2.dead) return;                      // re-kick fixed it — say nothing on screen
+      try {
+        const hint = el.querySelector('.c-scan__hint');
+        if (hint && !hint.hidden) hint.textContent = scanProbeLine(p2);
+      } catch (e) { /* fail soft */ }
+    }, 1600);
+  }, 1200);
+}
+
 export function mountScanPage({ host, bridge, strings, camera } = {}) {
   const br = bridge || createNativeBridge();
   const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
@@ -172,7 +286,21 @@ export function mountScanPage({ host, bridge, strings, camera } = {}) {
     onRequestPermission(ctrl) {
       if (!cam) { ctrl.fail(); return; }         // library missing — visible, honest (spec §4)
       const feed = el.querySelector('.c-scan__feed');
-      cam.start(feed, (text) => deliverScanResult(el, text), ctrl);
+      // F1 (#301): wrap done() so a SUCCESSFUL start schedules the probe; fail()
+      // passes through untouched (denied state needs no probe). One-shot semantics
+      // live in the underlying scanCtrl — this wrapper adds no state.
+      const probed = {
+        done: (payload) => {
+          ctrl.done(payload);
+          try { localStorage.setItem(SCAN_GRANT_KEY, '1'); } catch (e) { /* private mode */ }
+          scheduleScanProbe(el, feed, () => finished);
+        },
+        fail: (msg) => {
+          try { localStorage.removeItem(SCAN_GRANT_KEY); } catch (e) { /* private mode */ }
+          ctrl.fail(msg);
+        },
+      };
+      cam.start(feed, (text) => deliverScanResult(el, text), probed);
     },
     onDecode(text) {                             // one-shot upstream (scan-shell gate)
       if (finished) return;
@@ -192,5 +320,11 @@ export function mountScanPage({ host, bridge, strings, camera } = {}) {
 
   (host || document.body).append(el);
   br.ready();                                    // ixian:onload — C# flushes queued pushes
+  // #305: a previously granted camera skips the consent-card tap — auto-enter the
+  // SAME request path (latched, honest: failure lands on the denied card and clears
+  // the flag). First-ever visit still shows the card; nothing is captured unbidden.
+  try {
+    if (cam && localStorage.getItem(SCAN_GRANT_KEY)) startScanRequest(el);
+  } catch (e) { /* private mode → card stays, exactly as before */ }
   return { el, bridge: br };
 }

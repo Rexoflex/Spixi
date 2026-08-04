@@ -25,6 +25,11 @@ using Microsoft.Maui.Controls.PlatformConfiguration;
 using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 #endif
 
+#if IOS
+using UIKit;        // iOS-29 r2 (#303): native keyboard-frame observer
+using Foundation;
+#endif
+
 #if WINDOWS
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Maui.Platform;
@@ -1277,6 +1282,12 @@ namespace SPIXI
                         try
                         {
                             UIHelpers.refreshAppRequests = true;
+#if IOS
+                            // iOS-29 r2 (#303) review MAJOR-1: chat is presented through THIS
+                            // machinery on iOS too, so OnAppearing never fires for it — attach
+                            // the keyboard observer here as well (idempotent; chat.html-gated).
+                            op.target.attachKeyboardInsetObserver();
+#endif
                             op.target.updateScreen();
                         }
                         catch (Exception ex)
@@ -1586,6 +1597,9 @@ namespace SPIXI
         protected override void OnAppearing()
         {
             base.OnAppearing();
+#if IOS
+            attachKeyboardInsetObserver();   // iOS-29 r2 (#303): chat.html pages only, no-op elsewhere
+#endif
             UIHelpers.refreshAppRequests = true;
             updateScreen();
         }
@@ -1628,6 +1642,60 @@ namespace SPIXI
             return true;
         }
 
+#if IOS
+        /* iOS-29 r2 (#303) — the NATIVE keyboard lever. The chat shell lifts its
+         * composer above the soft keyboard via a CSS inset (--kb-inset); driving it
+         * from visualViewport alone proved racy on-device (the first resize event can
+         * fire before the keyboard geometry settles — the composer lifted only after
+         * a few keystrokes re-triggered layout). UIKeyboardWillChangeFrame/WillHide
+         * always carry the settled END frame, so the exact overlap is pushed into the
+         * shell (window.__setKbInset — guarded, a no-op wherever undefined), which
+         * latches to native values; its visualViewport machinery stays as the belt.
+         * SCOPED to chat.html pages only (the one composer-over-keyboard surface).
+         * MiniAppPage never sets loadedHtmlFileName, so third-party content is
+         * structurally excluded (the security-review MAJOR #6 accretion class —
+         * deliberately NOT added to that tally because it cannot reach mini-apps). */
+        private NSObject? kbChangeObserver = null;
+        private NSObject? kbHideObserver = null;
+
+        private void attachKeyboardInsetObserver()
+        {
+            if (loadedHtmlFileName != "chat.html" || kbChangeObserver != null)
+                return;
+            kbChangeObserver = UIKeyboard.Notifications.ObserveWillChangeFrame((sender, e) =>
+            {
+                try
+                {
+                    // End-frame is in screen coordinates; a dismissed keyboard sits at or
+                    // below the screen bottom edge -> overlap 0. Points == CSS px in the
+                    // WebView, so the value feeds the shell's --kb-inset unconverted.
+                    var screen = UIScreen.MainScreen.Bounds;
+                    // iPad floating/split keyboards deliver a NARROWER, mid-screen frame —
+                    // the bottom-overlap math would compute a bogus inset AND latch the
+                    // shell off its visualViewport belt (review MINOR-5). Docked keyboards
+                    // span the full width; push only for those, let the belt handle the rest.
+                    if (e.FrameEnd.Width < screen.Width)
+                        return;
+                    double overlap = Math.Max(0, (double)(screen.Height - e.FrameEnd.Y));
+                    sendMessage("window.__setKbInset && window.__setKbInset(" + (int)overlap + ")");
+                }
+                catch { }
+            });
+            kbHideObserver = UIKeyboard.Notifications.ObserveWillHide((sender, e) =>
+            {
+                try { sendMessage("window.__setKbInset && window.__setKbInset(0)"); } catch { }
+            });
+        }
+
+        private void detachKeyboardInsetObserver()
+        {
+            try { kbChangeObserver?.Dispose(); } catch { }
+            try { kbHideObserver?.Dispose(); } catch { }
+            kbChangeObserver = null;
+            kbHideObserver = null;
+        }
+#endif
+
         public void Dispose()
         {
             try
@@ -1636,6 +1704,9 @@ namespace SPIXI
                 {
                     pageLoaded = false;
                     messageQueue.Clear();
+#if IOS
+                    detachKeyboardInsetObserver();   // iOS-29 r2 (#303)
+#endif
 
                     var webView = _webView;
                     _webView = null;

@@ -3897,8 +3897,18 @@ console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
   /* —— F1: scan diagnostics + re-kick (iOS-49, zero-C# by design) —— */
   ok(/function probeScanFeed/.test(scanJs) && /function scheduleScanProbe/.test(scanJs),
     'F1: the scan probe exists — #293\'s "verify with Inspector before building" was never run; this IS that verification, on-screen');
-  ok(/done: \(payload\) => \{[\s\S]{0,240}?ctrl\.done\(payload\);[\s\S]{0,240}?scheduleScanProbe\(el, feed, \(\) => finished\);/.test(scanJs),
-    'F1: the probe schedules ONLY on a successful start — the denied state must not grow a diagnostic line (r4: the grant-flag write rides the same done())');
+  // #46 r2 MINOR-A: the window is BOUNDED to the done closure — every atom must appear
+  // BEFORE `fail: (msg)` opens, so relocating any of them into the fail path (the exact
+  // regression the message names) fails this pin instead of slipping through a widened
+  // character count. Pinned order: done → grant write → storage-line removal → probe.
+  ok(new RegExp(
+    'done: \\(payload\\) => \\{'
+    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,80}?ctrl\\.done\\(payload\\);'
+    + "(?:(?!fail: \\(msg\\))[\\s\\S]){0,200}?localStorage\\.setItem\\(SCAN_GRANT_KEY, '1'\\)"
+    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,600}?storageProbeLine\\.remove\\(\\)'
+    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,200}?scheduleScanProbe\\(el, feed, \\(\\) => finished\\);'
+  ).test(scanJs),
+    'F1: the probe schedules ONLY on a successful start — done → grant write → #308 line removal → scheduleScanProbe, all inside the done closure (a fail-located schedule or removal escapes the bounded window and fails here)');
   ok(/if \(isDone && isDone\(\)\) return;/.test(scanJs),
     'F1: BOTH probe timers bail once decode/cancel latched — a late probe reads the torn-down feed as dead and would overwrite "Code scanned" on a scanner that just worked');
   ok(/fail: \(msg\) => \{[\s\S]{0,240}?ctrl\.fail\(msg\);/.test(scanJs),
@@ -3987,14 +3997,107 @@ console.log('r4 (#305) — feed !important · camera-grant persistence');
   const scanCss = readFileSync(join(root, 'src/styles/components/scan-shell.css'), 'utf8');
   const shellJs = readFileSync(join(root, 'src/components/scan-shell.js'), 'utf8');
 
-  ok(/\.c-scan__feed \{ position: absolute !important; inset: 0 !important; \}/.test(scanCss),
-    '#305 ★: the feed position is stylesheet-!important — html5-qrcode inline-stamps position:relative in BOTH its ctor and start() (device-measured: the pre-start removeProperty won round 1 and lost round 2)');
+  ok(/\.c-scan__feed \{ position: absolute !important; inset: 0; \}/.test(scanCss),
+    '#305 ★ (rebased by #307): the feed POSITION stays stylesheet-!important — html5-qrcode inline-stamps position:relative in BOTH its ctor and start(); inset is deliberately demoted so the #307 aspect-lock (inline left/top/width/height) can size the box, with inset:0 as the fail-soft full-bleed');
   ok(/export function startScanRequest/.test(shellJs) && /st\.state !== 'prompt' \|\| !st\.beginRequest\) return/.test(shellJs),
     '#305: programmatic start rides the SAME latched CTA path, prompt-state only — no parallel permission machinery');
   ok(/localStorage\.getItem\(SCAN_GRANT_KEY\)\) startScanRequest\(el\)/.test(scanJs),
     '#305: a previously granted camera skips the consent-card tap (Damir F5: "allow doesn\'t persist"); first visit still shows the card');
   ok(/localStorage\.setItem\(SCAN_GRANT_KEY, '1'\)/.test(scanJs) && /localStorage\.removeItem\(SCAN_GRANT_KEY\)/.test(scanJs),
     '#305: the grant flag is set only on a SUCCESSFUL start and cleared on failure — revoking camera access in iOS Settings falls back to the honest prompt/denied cards');
+}
+
+/* —— #307/#308 — scan DECODE aspect-lock + the C-9 storage probe. —— */
+console.log('#307/#308 — aspect-locked scan feed · C-9 storage probe');
+{
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const scanCss = readFileSync(join(root, 'src/styles/components/scan-shell.css'), 'utf8');
+
+  /* #307: the decode fix — verified region math, aspect-locked feed */
+  ok(/function fitFeedBox/.test(scanJs) && /function attachFeedSizer/.test(scanJs),
+    '#307: the aspect-lock exists — html5-qrcode\'s qrRegion maps per-axis client→intrinsic ratios, so decode is only undistorted when the feed box has the stream aspect (min.js-verified; r4\'s full-bleed stretched frames 1.41× → zero decode)');
+  ok(/feedSizer = attachFeedSizer\(feedEl, desktop, \(\) => requestRestart\(\)\);[\s\S]{0,700}?launch\(\(inst\) => \{ ctrl\.done\(\);/.test(scanJs)
+    && /const launch = [\s\S]{0,600}?instance = new w\.Html5Qrcode\(feedEl\.id/.test(scanJs),
+    '#307 (rebased by #309b): the sizer attaches BEFORE launch() runs the Html5Qrcode ctor — the default box must exist before the library ever measures, and loadedmetadata (the aspect correction) always precedes the \'playing\' event where qrRegion latches');
+  ok(/loadedmetadata/.test(scanJs) && /videoWidth \/ v\.videoHeight/.test(scanJs),
+    '#307: the real stream aspect lands from loadedmetadata (3:4 mobile / 4:3 desktop are only the pre-metadata defaults)');
+  ok(/if \(feedSizer\) \{ try \{ feedSizer\.off\(\); \} catch \(e\) \{ \/\* stale \*\/ \} feedSizer = null; \}/.test(scanJs),
+    '#307: stop() releases the sizer (resize listener + MutationObserver) — Try-again attaches a fresh one');
+  ok(!/qrbox/.test(scanJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+    '#307: NO qrbox was added — under a non-aspect-true feed a qrbox sample distorts identically (getShadedRegionBounds returns client coords through the same per-axis ratios); the fix is the box, not the region');
+
+  /* #308: the C-9 probe — self-serve storage verdict on the consent-card moment */
+  ok(/const SCAN_PROBE_KEY = 'spixi\.probe\.scan'/.test(scanJs) && /function probeScanStorage/.test(scanJs),
+    '#308: the C-9 storage probe exists — a counter key whose increment across scan entries settles same-page file:// localStorage persistence without a Mac tether');
+  ok(/storage\.grant !== '1'\) storageProbeLine = paintStorageProbe\(el, storage\)/.test(scanJs),
+    '#308: the storage line paints ONLY when the consent card gates (the symptom moment) — a working scanner never shows diagnostics');
+  ok(/storageProbeLine\.remove\(\)/.test(scanJs) && /storageProbeLine = null/.test(scanJs)
+    && !/fail: \(msg\) => \{(?:(?!ctrl\.fail)[\s\S])*?storageProbeLine/.test(scanJs),
+    '#308 (#46 r1 MINOR-1): a SUCCESSFUL start removes the storage line (never the fail path — denied KEEPS it, still the symptom moment); placement pinned by the bounded F1 window above plus this fail-closure negative');
+  ok(/aspect = video\.videoWidth \/ video\.videoHeight/.test(scanJs),
+    '#307 (#46 r1 MINOR-2): resize RE-READS the live stream aspect before re-fitting — rotation swaps videoWidth/videoHeight, and a stale-aspect re-fit would re-open the exact distortion this fix closes');
+  ok(/aria-hidden/.test(scanJs) && /pointer-events:none/.test(scanJs),
+    '#308: the storage line is aria-hidden + pointer-events:none — diagnostics reach neither screen readers nor touch');
+  ok(/spixi\.appearance/.test(scanJs),
+    '#308: the probe also reads spixi.appearance (written by ll_settings.html) — a 1 kills the per-FILE-origin theory for cross-page keys in the same glance');
+  ok(/"ll_" \+ /.test(readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8')),
+    '#308 premise: generatePage still writes the literal "ll_"-prefixed localized page — the STABLE per-page name the probe\'s repo-side verdict rests on (per-visit origins ruled out in-repo)');
+}
+
+/* —— #309 — device round 1 fixes: staged-mount feed re-fit + WKWebView delegate retention. —— */
+console.log('#309 — bed ResizeObserver re-fit · strong WKWebView delegate roots');
+{
+  const scanJs = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  const iosHandler = readFileSync(join(root, 'Spixi/Platforms/iOS/iOSWebViewHandler.cs'), 'utf8');
+
+  ok(/new ResizeObserver\(\(\) => apply\(\)\)/.test(scanJs) && /ro\.observe\(bed\)/.test(scanJs),
+    '#309: a ResizeObserver on the BED re-fits the feed on any bed-size change — C# presents this page AFTER load with no window resize event, so the staged-mount box (393×370 measured on-device) needs a structural re-fit trigger');
+  ok(/aspect = v\.videoWidth \/ v\.videoHeight;[\s\S]{0,700}?apply\(\);[\s\S]{0,40}?\} catch \(e\) \{ \/\* fail soft \*\/ \}/.test(scanJs)
+    && !/Math\.abs\(a - aspect\)/.test(scanJs),
+    '#309: loadedmetadata ALWAYS re-fits — the aspect-changed-only short-circuit let a mis-measured bed stick when the stream aspect matched the default (the exact device symptom)');
+  ok(/if \(ro\) ro\.disconnect\(\)/.test(scanJs),
+    '#309: off() disconnects the bed observer with the rest of the sizer machinery');
+  ok(/SecureNavigationDelegate\? _navigationDelegate;/.test(iosHandler) && /MediaCaptureUIDelegate\? _uiDelegate;/.test(iosHandler)
+    && /_navigationDelegate = new SecureNavigationDelegate\(this\);/.test(iosHandler) && /_uiDelegate = new MediaCaptureUIDelegate\(\);/.test(iosHandler)
+    && /platformView\.NavigationDelegate = _navigationDelegate;/.test(iosHandler) && /platformView\.UIDelegate = _uiDelegate;/.test(iosHandler),
+    '#309 ★: the WKWebView delegates are STRONG-ROOTED on the handler — fields DECLARED + CONSTRUCTED + ASSIGNED (r3 MINOR-1: without the construction atoms, deleting only the `= new …` lines would assign null and drop the http/https block deterministically — the exact MAJOR #7 outcome)');
+  ok(/DisconnectHandler\(WKWebView platformView\)[\s\S]{0,300}?_navigationDelegate = null;[\s\S]{0,100}?_uiDelegate = null;/.test(iosHandler),
+    '#309: the roots release with the WebView they served (DisconnectHandler)');
+
+  /* —— #310: the delegate rebuilt registrar-proof + observable —— */
+  ok(/class MediaCaptureUIDelegate : NSObject, IWKUIDelegate/.test(iosHandler)
+    && /\[Export\("webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:"\)\]/.test(iosHandler),
+    '#310: MediaCaptureUIDelegate is an explicit NSObject + IWKUIDelegate adopter with a hand-written [Export] — the [Model]-subclass override was never invoked on device (WebKit\'s own prompt with the strong-rooted delegate in place falsified the GC-only theory)');
+  ok(/\[cam-perm\]/.test(iosHandler) && /forward\(webView, "invoked type=/.test(iosHandler),
+    '#310: every invocation is observable — [cam-perm] entry + AVFoundation status forward into the page console (the #304 Inspector workflow proves whether WebKit consulted us at all)');
+
+  /* —— #311: runtime UIDelegate probe + re-assert at the first bridge navigation —— */
+  ok(/probe uiDelegate=/.test(iosHandler) && /respondsToSelector=/.test(iosHandler)
+    && /webView\.UIDelegate = _owner\.EnsureUiDelegate\(\);/.test(iosHandler)
+    && /internal IWKUIDelegate EnsureUiDelegate\(\)/.test(iosHandler),
+    '#311: the first ixian: navigation probes WHO the UIDelegate is at runtime + whether the permission selector registered, and RE-ASSERTS ours if it was swapped (the clobber fork) — through the handler root, never an unrooted instance');
+  ok(/if \(!_udProbed && url\.StartsWith\("ixian:", StringComparison\.OrdinalIgnoreCase\)\)/.test(iosHandler),
+    '#311: the probe is one-shot per WebView and fires at the FIRST bridge navigation — the page is alive and it lands right before the scan auto-enter getUserMedia');
+
+  /* —— #312: the heal runs on EVERY navigation (incl. the main-frame load) —— */
+  ok(/var url = navigationAction\.Request\.Url\?\.AbsoluteString \?\? "";[\s\S]{0,1200}?if \(_owner != null && !\(webView\.UIDelegate is MediaCaptureUIDelegate\)\)[\s\S]{0,120}?webView\.UIDelegate = _owner\.EnsureUiDelegate\(\);/.test(iosHandler),
+    '#312: the UIDelegate heal runs on EVERY DecidePolicy call — the main-frame file:// load fires before the page parses, so the heal deterministically precedes any page-JS getUserMedia (the #311 first-ixian heal RACED the auto-enter and lost on warm entries)');
+  ok(/url\.StartsWith\("ixian:", StringComparison\.OrdinalIgnoreCase\) \? "ixian:\*" : "load"/.test(iosHandler)
+    && !/console\.error\('" \+ url/.test(iosHandler),
+    '#312: the heal log uses a FIXED vocabulary ("load"/"ixian:*") — a raw URL interpolated into an EvaluateJavaScript string would be a JS-injection vector from navigation payloads');
+
+  /* —— #309b: the staged-latch RE-LATCH (r3 reviewer MAJOR — the residue math was wrong) —— */
+  ok(/let playedBox = null;/.test(scanJs) && /addEventListener\('playing', recordPlayed, \{ once: true \}\)/.test(scanJs),
+    '#309b: the sizer records the box the library latched its decode region from (its \'playing\' listener registers first, so ours reads post-latch)');
+  ok(/playedBox\.w \* playedBox\.h \* 1\.25/.test(scanJs) && /const requestRestart = \(\) => \{/.test(scanJs)
+    && /if \(restarted\) return;/.test(scanJs),
+    '#309b: a >25% post-\'playing\' box GROW silently stops+relaunches the camera ONCE — the latched region sampled only the top-left ~70% of the frame, clipping a bracket-filling QR\'s finder (r3 math); the fresh start latches the full box');
+  ok(/if \(instance !== inst\) return;[\s\S]{0,900}?feedSizer = attachFeedSizer\(feedEl, desktop, null\);[\s\S]{0,300}?launch\(/.test(scanJs),
+    '#309b: the relaunch bails when stop() ran during teardown, and the FRESH sizer attaches only after stop() resolved (r4 MINOR: a pre-stop attach hooks the DYING video and never sees the relaunched one — a different-aspect fallback camera would scan distorted with no recovery)');
+  ok(/growFired = true;[\s\S]{0,80}?video = null;/.test(scanJs),
+    '#309b: off() latches growFired — a detached sizer must never restart anything');
+  ok(/attachFeedSizer\(feedEl, desktop, \(\) => requestRestart\(\)\)/.test(scanJs) && /attachFeedSizer\(feedEl, desktop, null\)/.test(scanJs),
+    '#309b: the first sizer arms the re-latch via a deferring lambda (TDZ-safe); the post-restart sizer passes null — one re-latch per start is the contract');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

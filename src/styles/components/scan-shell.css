@@ -22,15 +22,27 @@
   overflow: hidden;
   background: #101214;              /* sanctioned: fixed-dark camera bed, both themes */
 }
-/* #305: !important is SANCTIONED — the html5-qrcode ctor AND its start() path both
-   stamp `position:relative` INLINE on this container (device-measured twice: the
-   pre-start removeProperty won the ctor battle and lost the start() re-stamp — feed
-   dropped back into the flex flow at 262×349 and dragged the frame off-center).
-   A stylesheet !important outranks inline styles, so the war ends here. */
-.c-scan__feed { position: absolute !important; inset: 0 !important; }
+/* #305: !important on POSITION is SANCTIONED — the html5-qrcode ctor AND its
+   start() path both stamp `position:relative` INLINE on this container
+   (device-measured twice: the pre-start removeProperty won the ctor battle and
+   lost the start() re-stamp — feed dropped back into the flex flow at 262×349
+   and dragged the frame off-center). A stylesheet !important outranks inline
+   styles, so the war ends here.
+   #307: inset is deliberately NOT !important any more — scan-page.js ASPECT-LOCKS
+   the feed box (inline left/top/width/height, contain-fit to the stream aspect,
+   centered; the bed's dark ground is the letterbox). html5-qrcode's decode region
+   is only geometrically sound when the feed box has the stream's aspect (verified
+   in the vendored min.js: qrRegion maps through per-axis client→intrinsic ratios,
+   so r4's full-bleed feed stretched every sampled frame 1.41× — zero decode).
+   This stylesheet inset stays as the FAIL-SOFT: if the JS sizer never runs, the
+   feed is full-bleed (camera visible, decode degraded) instead of 0×0. */
+.c-scan__feed { position: absolute !important; inset: 0; }
 /* #304: !important is SANCTIONED here — html5-qrcode inlines a pixel width on its
    <video> (measured at start time), and inline styles beat the stylesheet. The
-   fill must win so the feed adapts (rotation/resize) and covers the camera bed. */
+   fill must win so the feed adapts (rotation/resize) and covers the camera bed.
+   #307: with the aspect-locked feed box, cover == exact fit (aspects match); the
+   crop only bites in the sub-second window before loadedmetadata corrects a
+   wrong default aspect, where it hides the reflow. */
 .c-scan__feed > video { width: 100% !important; height: 100% !important; object-fit: cover; }
 
 /* —— scanning: corner-bracket frame over a scrim cutout —— */

@@ -2071,7 +2071,14 @@ namespace SPIXI
                     confirmed = "error";
                 }
 
-                string time = Utils.unixTimeStampToHumanFormatString(Convert.ToDouble(activity.timestamp));
+                // iOS-55 (#325, W1 LANDED): push the RAW EPOCH (seconds) — the shell
+                // formats it via formatTxTimestamp/docLocale, the same translation
+                // machinery as chat rows. The old pre-formatted string came out of
+                // DateTime.ToString under the .NET culture, which never follows the
+                // APP language (wallet rows stayed English under sl-si). The shell
+                // numeric-detects, so an OLD shell build shows raw digits only in a
+                // mismatched-build scenario (bundle always ships both together).
+                string time = activity.timestamp.ToString();
                 Utils.sendUiCommand(this, "addPaymentActivity", tx.getTxIdString(), received, tx_text, time, amount_string, fiat_amount_string, confirmed);
             }
 

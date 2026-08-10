@@ -876,13 +876,37 @@
    * Search and filter operate on the local model only (setChatsQuery /
    * setChatsFilter). No bridge round-trip — the full roster already lives
    * in-page once C# has flushed it. */
+  /* iOS-57 (#327, Damir pick): on MOBILE the header is LIST CONTENT — first
+   * child of the scroller, so search + chips scroll away 1:1 with the finger
+   * and ride the rubber-band natively (the #67 binary collapse felt like a
+   * curtain and fought the bounce; retired on this surface). While searching
+   * (focus-within or a non-empty query) the header pins sticky at the scroller
+   * top (`is-pinned`, chats-header.css) so results can't scroll the query
+   * away. Desktop keeps the outside placement + triggered collapse. */
+  let headerQuery = '';
   const header = createChatsHeader({
     activeFilter: 'all', strings, favorites: false,
     onFilter: (f) => setChatsFilter(list, state, f, opts),
-    onQuery: (q) => setChatsQuery(list, state, q, opts),
+    onQuery: (q) => {
+      headerQuery = String(q || '');
+      setChatsQuery(list, state, q, opts);
+      syncHeaderPin();
+    },
   });
-  document.getElementById('chats-header').append(header);
-  attachChatsCollapse(header, scroller);
+  function syncHeaderPin() {
+    header.classList.toggle('is-pinned',
+      headerQuery !== '' || header.contains(document.activeElement));
+  }
+  if (document.documentElement.hasAttribute('data-desktop')) {
+    document.getElementById('chats-header').append(header);
+    attachChatsCollapse(header, scroller);
+  } else {
+    scroller.insertBefore(header, list);
+    header.addEventListener('focusin', syncHeaderPin);
+    // focusout fires BEFORE activeElement moves — defer so the check reads the
+    // post-blur reality (tap into the list drops the pin unless a query holds it).
+    header.addEventListener('focusout', () => setTimeout(syncHeaderPin, 0));
+  }
 
   setNavBadge(nav, 'chats', navUnreadTotal());
 
@@ -2323,7 +2347,14 @@
         amount: walletHidden ? WALLET_MASK : amt,
         fiat: walletHidden ? '' : ft,
         _raw: { amount: amt, fiat: ft, name: cpDisplay, address: cpIsAddr ? cp : '' },
-        timeText: time || '',        // pre-formatted string (BE gap W1: send epoch → relative ts)
+        // iOS-55 (#325, W1 LANDED): C# now pushes the RAW EPOCH (seconds) — an
+        // all-digits value formats in-component via formatTxTimestamp/docLocale
+        // (txlist-item + the R6 sheet both already prefer timestamp when timeText
+        // is absent) = the same translation machinery as chat rows. Anything
+        // non-numeric = an OLD exe's pre-formatted English string → verbatim.
+        ...(/^\d{1,12}$/.test(String(time == null ? '' : time).trim())
+          ? { timestamp: Number(String(time).trim()) * 1000 }
+          : { timeText: time || '' }),
         // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
       });
       scheduleWalletRender();

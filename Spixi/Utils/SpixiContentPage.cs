@@ -782,7 +782,7 @@ namespace SPIXI
             return true;
         }
 
-        private static void closeOverlay(PreloadOp op)
+        private static void closeOverlay(PreloadOp op, bool slideOut = false)
         {
             SpixiContentPage? host;
             PreloadOp? evicted = null;
@@ -859,6 +859,22 @@ namespace SPIXI
                     }
                     else
                     {
+                        // #326 (iOS-56 polish, Damir pick): a BACK-initiated close on iOS
+                        // SLIDES the stage right (~250ms CubicOut) before the teardown —
+                        // the WebView beneath is live (#225 architecture), so this is a
+                        // true previous-screen reveal, the native-pop look. iOS-only:
+                        // WinUI keeps the #229b instant flip (flash class), Android keeps
+                        // its native transitions; non-back closes (close-audits, tab
+                        // switches, removePage) pass slideOut=false and stay instant.
+                        if (slideOut && Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
+                        {
+                            try
+                            {
+                                double w = op.stage.Width > 0 ? op.stage.Width : 500;
+                                await op.stage.TranslateTo(w, 0, 250, Easing.CubicOut);
+                            }
+                            catch { }
+                        }
                         // #229b (Damir F5: chat-info → conversation flashed): HIDE first —
                         // an Opacity flip is the #225-proven no-repaint operation — let the
                         // frame commit, and only THEN detach + dispose. Removing/tearing
@@ -868,6 +884,7 @@ namespace SPIXI
                         op.stage.InputTransparent = true;
                         await Task.Delay(100);
                         op.hostGrid.Children.Remove(op.stage);
+                        op.stage.TranslationX = 0;   // #326 belt: never hand a translated stage to any reuse path
                         op.stage.Content = null;
                         op.target.Content = op.targetContent;   // reattach for a clean Dispose
                         op.target.Dispose();                    // tear the WebView down
@@ -2015,7 +2032,7 @@ namespace SPIXI
             }
             if (overlayOp != null)
             {
-                closeOverlay(overlayOp);
+                closeOverlay(overlayOp, true);   // #326: back-initiated → iOS slide-out
                 return;
             }
 
@@ -2062,7 +2079,9 @@ namespace SPIXI
             {
                 for (int i = overlays.Count - 1; i >= 0; i--)
                 {
-                    closeOverlay(overlays[i]);
+                    // #326: only the TOPMOST stage slides (the visible one); anything
+                    // stacked beneath closes instantly under it.
+                    closeOverlay(overlays[i], i == overlays.Count - 1);
                 }
                 return;
             }

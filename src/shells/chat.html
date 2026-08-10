@@ -3558,6 +3558,44 @@
     };
   })();
 
+  /* —— iOS-56 r3 — edge-swipe back, SHELL lever (#325) ——————————————————————
+   * Two rounds of a native UIScreenEdgePanGestureRecognizer died silently in
+   * UIKit arbitration (never transitioned to Began — no [swipe] lines with the
+   * recognizer on the WKWebView + simultaneous recognition, then on the page
+   * root + scroll-pan requireToFail). The touches provably DO reach this page
+   * (scrolling works), so the pan is detected HERE instead: touchstart within
+   * 24px of the left edge, then >70px rightward travel with <50px vertical
+   * drift inside 700ms = back. Sheet-first: an open overlay consumes the swipe
+   * (dismissTopOverlay() — synchronous here, same grammar as Esc/back; a
+   * locked money sheet swallows it); otherwise ixian:back = the topbar-back
+   * verb (popToRootAsync — overlay-aware C#-side). Touch surfaces only;
+   * desktop untouched. No horizontal gesture exists in the chat surface, so
+   * there is nothing to collide with; vertical scroll intent bails early. */
+  (function edgeSwipeBack() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    let x0 = 0, y0 = 0, t0 = 0, tracking = false, fired = false;
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { tracking = false; return; }
+      const t = e.touches[0];
+      tracking = t.clientX <= 24;
+      fired = false;
+      x0 = t.clientX; y0 = t.clientY; t0 = performance.now();
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!tracking || fired || e.touches.length !== 1) return;
+      if (performance.now() - t0 > 700) { tracking = false; return; }
+      const t = e.touches[0];
+      const dx = t.clientX - x0;
+      const dy = Math.abs(t.clientY - y0);
+      if (dy > 50 && dy > dx) { tracking = false; return; }   // vertical scroll intent
+      if (dx > 70 && dy < 50) {
+        fired = true; tracking = false;
+        const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
+        if (!(dismiss && dismiss())) bridge.send('ixian:back');
+      }
+    }, { passive: true });
+  })();
+
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it
    *    synchronously during parse raced C#'s conversation push: the first entry

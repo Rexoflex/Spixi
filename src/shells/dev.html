@@ -100,17 +100,42 @@
 
   const root = document.getElementById('dev-root');
 
-  // Build ONCE; setLog drives the pane via setDevLog (idempotent double-push safe).
-  // onSendLog omitted → the Send-log button is hidden (§9-gated, no bridge verb).
-  const devEl = createSettingsDev({
-    strings,
-    onBack: () => bridge.send('ixian:back'),
-  });
-  root.replaceChildren(devEl);
+  // #321 (R5 parity): Send-log is UN-GATED behind the C# cap — DevPage now pushes
+  // setCaps('sendlog') and dispatches ixian:sendlog (mobile = OS share sheet with
+  // the log attached; Windows = save to Downloads; C# names the file, §3 rule).
+  // The screen builds in a function so a cap landing AFTER the boot build (the
+  // onLoad burst follows parse) rebuilds WITH the button; the log re-applies from
+  // the cache. Old exe: cap never arrives → button never renders (no dead tap).
+  let devEl = null;
+  let lastLog = '';
+  function buildDev() {
+    devEl = createSettingsDev({
+      strings,
+      onBack: () => bridge.send('ixian:back'),
+      // Optimistic done (backup S2 reality: the share sheet gives no completion
+      // signal) — the "Sent" morph confirms the HANDOFF to the OS, not delivery.
+      ...(bridge.cap('sendlog')
+        ? { onSendLog: (ctrl) => { bridge.send('ixian:sendlog'); ctrl.done(); } }
+        : {}),
+    });
+    root.replaceChildren(devEl);
+    if (lastLog) setDevLog(devEl, lastLog);
+  }
+  buildDev();
 
   const handlers = {
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
-    setLog(text) { setDevLog(devEl, text || ''); },
+    setLog(text) { lastLog = text || ''; setDevLog(devEl, lastLog); },
+    // #321: capability declaration (settings.html:1028 grammar — in-place store
+    // mutation; rebuild only when the send button is newly unlocked).
+    setCaps(list) {
+      const had = bridge.cap('sendlog');
+      String(list || '').split(',').forEach((c) => {
+        c = c.trim();
+        if (c) bridge.capabilities[c] = true;
+      });
+      if (!had && bridge.cap('sendlog')) buildDev();
+    },
   };
   bridge.exposeAll(handlers);
 

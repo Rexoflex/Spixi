@@ -44,6 +44,12 @@ namespace SPIXI
             // neither collection — regenerate it too (theme/language), or it keeps
             // the boot-time substitution forever.
             HomePage.Instance()?.reloadDefaultDetail();
+            // #315 (#46 r1 MAJOR-3): a PARKED overlay (warm Account, iOS-46) is
+            // deliberately in NONE of the collections above — an OS auto-theme flip
+            // or language change would re-present it in yesterday's theme, forever
+            // (the #251 EmptyDetail class, new instance). Theme/language flips are
+            // rare: drop the warm instance; the next open rebuilds fresh + correct.
+            SpixiContentPage.disposeParkedOverlay();
         }
 
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)

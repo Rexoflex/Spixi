@@ -1416,6 +1416,35 @@ namespace SPIXI
             // One WebView, one trust domain (settings only); the chat wall (#221) is
             // untouched. Narrow windows keep the full-span takeover.
             bool wide = rightContent.IsVisible;
+
+            // iOS-46 route (a) (#315): NARROW mode keeps ONE warm SettingsPage across
+            // opens — close parks it (hidden, WebView alive), a re-tap re-presents it
+            // in place: no construction, no ~1.6MB shell reboot, no data re-flush =
+            // the iOS-40 lag gone from the second open on. Scope guard: a parked page
+            // is only re-presented while the window is still NARROW and it was built
+            // non-pane — pane geometry (margins + setPaneMetrics pushed once at
+            // onLoad) does not survive a breakpoint crossing, so any mode mismatch
+            // disposes the parked instance and rebuilds fresh (the pre-#315 path).
+            SpixiContentPage? parked = SpixiContentPage.getParkedOverlay();
+            if (parked is SettingsPage parkedSettings)
+            {
+                if (!wide && !parkedSettings.isPaneMode
+                    && SpixiContentPage.representParkedOverlay(parkedSettings))
+                {
+                    return;
+                }
+                // #46 r1 NIT-2: a lock being up is why represent refused (fail-closed,
+                // #230) — keep the warm instance for after the unlock instead of
+                // sacrificing it to a fresh push the same lock gate will drop anyway.
+                if (SpixiContentPage.hasModalOverlay())
+                {
+                    return;
+                }
+                // Mode mismatch / guard failure → never leave a second live instance
+                // behind the fresh one.
+                SpixiContentPage.disposeParkedOverlay();
+            }
+
             if (wide)
             {
                 pushPageLoaded(new SettingsPage(true, leftPaneWidth - railWidthDip), 4000, "settings", -1,
@@ -1423,7 +1452,7 @@ namespace SPIXI
             }
             else
             {
-                pushPageLoaded(new SettingsPage(), 4000, "settings");
+                pushPageLoaded(new SettingsPage(), 4000, "settings", -1, null, default, true);   // parkOnClose (#315)
             }
         }
 

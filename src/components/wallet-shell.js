@@ -95,9 +95,16 @@ export function renderWalletTxList(listEl, state, opts = {}) {
       // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
       // page/pane). A txid-less row keeps the in-page sheet — the detail page is
       // keyed by txid. Default (demos): the tx-detail bottom sheet, unchanged.
-      onClick: () => (opts.onTx && tx.txid)
-        ? opts.onTx(tx)
-        : openTxSheet({ tx, host: opts.host, strings, onExplorer: opts.onExplorer }),
+      // R6 (#314): opts.enrichTx(tx) → tx′ lets the host decorate the SHEET copy
+      // at open time (roster join: avatar/nickname/address the addPaymentActivity
+      // push doesn't carry). Open-time, not push-time: the roster may land after
+      // the tx flush, and the hide mask must be read at the moment of opening.
+      onClick: () => {
+        const t = (typeof opts.enrichTx === 'function') ? (opts.enrichTx(tx) || tx) : tx;
+        return (opts.onTx && t.txid)
+          ? opts.onTx(t)
+          : openTxSheet({ tx: t, host: opts.host, strings, onExplorer: opts.onExplorer });
+      },
     }));
   }
   if (!txs.length) listEl.append(walletEmpty(state, strings));

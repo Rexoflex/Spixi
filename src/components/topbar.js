@@ -69,8 +69,16 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
       const mark = icon('logo', { size: 28 });
       mark.classList.add('c-topbar__logo');
       const word = document.createElement('span');
+      word.className = 'c-topbar__word';   // iOS-47 (#314): Sora is scoped to THIS class — the wordmark alone (#226/B1)
       word.textContent = title || 'Spixi';
       titleEl.append(mark, word);
+    } else if (variant === 'root') {
+      // iOS-47/48 (#314): plain root titles (Apps; desktop Chats) also get an inner
+      // span — a stable target for the M16 title-state swap + the ellipsis/min-width
+      // mechanics. NO __word class → system face (the Apps-in-Sora bug).
+      const word = document.createElement('span');
+      word.textContent = title;
+      titleEl.append(word);
     } else {
       titleEl.textContent = title;
     }

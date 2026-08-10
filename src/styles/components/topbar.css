@@ -46,7 +46,9 @@
   gap: var(--spacing-8);
   color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
-  font-family: var(--font-display);   /* B1 (#226): the WORDMARK keeps Sora; all UI = system-ui */
+  /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
+     title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
+     for the WORDMARK alone. The wordmark span rule below carries it. */
 }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
@@ -61,6 +63,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* iOS-47: Sora scoped to the WORDMARK class alone (topbar.js logo branch) —
+   plain root titles (Apps; desktop Chats) render the system face, per #226/B1 */
+.c-topbar[data-variant="root"] .c-topbar__title > .c-topbar__word {
+  font-family: var(--font-display);
+}
+/* iOS-48 (#314): while the title carries the CONNECTIVITY state (M16 swap) it is
+   UI text, not the wordmark — system face, regular contrast handled by ink. */
+.c-topbar[data-variant="root"] .c-topbar__title[data-connecting] > span {
+  font-family: var(--font-secondary);
+}
+/* iOS-48: animated ellipsis — three dots stepping so the state reads as LIVE.
+   Opacity keyframes on static glyphs (no text mutation → no aria-live spam; the
+   dots container is aria-hidden). Reduced motion: dots hold steady. */
+.c-topbar__dots { display: inline; }
+.c-topbar__dots span {
+  animation: topbar-dot 1.2s infinite;
+  opacity: 0.25;
+}
+.c-topbar__dots span:nth-child(2) { animation-delay: 0.2s; }
+.c-topbar__dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes topbar-dot {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-topbar__dots span { animation: none; opacity: 1; }
 }
 
 /* view variant — secondary screens (app details, add, discover). Hairline below so the

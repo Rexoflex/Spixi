@@ -330,6 +330,13 @@ namespace SPIXI
             // Chained navigation (AppNew → AppDetails): the page to close/remove only
             // AFTER this one is visible — never a gap, never an orphaned overlay.
             public SpixiContentPage? replaces = null;
+            // iOS-46 route (a) (#315): close PARKS this overlay (hidden, WebView kept
+            // warm in the host grid) instead of disposing it — re-presented instantly
+            // by representParkedOverlay. Set ONLY by HomePage's narrow-mode Account
+            // push. Presentation-lifecycle only: the page keeps its own WebView/JS
+            // context (§1/#221 unchanged) — parking changes WHEN it is torn down,
+            // never what it can reach.
+            public bool parkOnClose = false;
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -378,6 +385,148 @@ namespace SPIXI
         // kept out of overlayStack on purpose (closeTopOverlay/back must never close a
         // lock; it closes ONLY via closeModalOverlay from the lock's own auth paths).
         private static PreloadOp? modalOverlayOp = null;
+
+        // iOS-46 route (a) (#315): the ONE parked (closed-but-warm) overlay. Kept out
+        // of overlayStack on purpose — a parked page is CLOSED for every consumer
+        // (getOverlayPages, closeTopOverlay, back handling, exit sweeps); only
+        // representParkedOverlay resurrects it. Single slot: only the narrow-mode
+        // Account uses parking today, and one warm ~settings WebView is the costed
+        // memory dial (iOS-46 (a): "hold one warm instance").
+        private static PreloadOp? parkedOverlay = null;
+
+        /** The parked page (or null) — HomePage checks the type + mode before re-presenting. */
+        public static SpixiContentPage? getParkedOverlay()
+        {
+            lock (preloadLock)
+            {
+                return parkedOverlay?.target;
+            }
+        }
+
+        /** Dispose the parked overlay (mode mismatch / teardown paths). Safe when none. */
+        public static void disposeParkedOverlay()
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = parkedOverlay;
+                parkedOverlay = null;
+            }
+            if (op == null)
+            {
+                return;
+            }
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    op.hostGrid.Children.Remove(op.stage);
+                    op.stage.Content = null;
+                    op.target.Content = op.targetContent;   // reattach for a clean Dispose
+                    op.target.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("disposeParkedOverlay: " + ex);
+                }
+            });
+        }
+
+        /** iOS-46 (a) (#315): re-present the parked overlay in place — the warm-instance
+         *  fast path (no construction, no WebView boot, no data re-flush). Fail-closed
+         *  guards, in order:
+         *    · #230: NEVER present anything while a lock is shown in place;
+         *    · overlay mode must hold (host registered AND top of the native stack);
+         *    · no other overlay may be open — the parked stage kept its old position
+         *      in the host grid's children, so presenting it under a newer stage would
+         *      layer it INVISIBLY (mobile Account taps always come from the bare home
+         *      shell, so this guard is theoretical there — but it makes the fallback
+         *      the fresh-construct path, never a broken present).
+         *  Returns false when any guard fails; the caller then builds a fresh page
+         *  (and should disposeParkedOverlay() first to avoid two live instances). */
+        public static bool representParkedOverlay(SpixiContentPage target)
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = parkedOverlay;
+                if (op == null || op.target != target)
+                {
+                    return false;
+                }
+                if (modalOverlayOp != null)
+                {
+                    return false;   // #230 fail-closed: lock is up
+                }
+                bool overlayModeHolds = overlayHost != null
+                    && (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() == overlayHost
+                    && op.host == overlayHost;
+                if (!overlayModeHolds || overlayStack.Count > 0)
+                {
+                    return false;
+                }
+                parkedOverlay = null;
+                overlayStack.Add(op);
+            }
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    // #46 r1 MAJOR-1: the shell's single-fire exit latch (#199) was
+                    // designed for a page that DIES on pop — a re-presented document
+                    // still has `exiting = true` and would suppress every render AND
+                    // every exit verb (a frozen Account with no back arrow left).
+                    // The reopen push resets the latch + repaints; it lands in the
+                    // WebView's queue BEFORE the stage becomes visible/interactive.
+                    Utils.sendUiCommand(op.target, "onRepresented");
+                    op.stage.InputTransparent = false;
+                    op.stage.Opacity = 1;
+                    try
+                    {
+                        op.host.onOverlayPresented(op.target);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("representParkedOverlay onOverlayPresented: " + ex);
+                    }
+                    // Mirror the overlay-present refresh (#225 present path): overlays
+                    // never get OnAppearing, and this page skipped onLoad entirely.
+                    try
+                    {
+                        UIHelpers.refreshAppRequests = true;
+#if IOS
+                        op.target.attachKeyboardInsetObserver();   // idempotent (#303)
+#endif
+                        op.target.updateScreen();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("representParkedOverlay updateScreen: " + ex);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Present failed structurally — tear the warm page down so the NEXT
+                    // Account tap takes the fresh-construct path instead of wedging.
+                    // #46 r1 NIT-1: full teardown convention (stage out of the grid,
+                    // content reattached) — a bare Dispose leaked the stage child.
+                    Logging.error("representParkedOverlay failed: " + ex);
+                    lock (preloadLock)
+                    {
+                        overlayStack.RemoveAll(o => o == op);
+                    }
+                    try
+                    {
+                        op.hostGrid.Children.Remove(op.stage);
+                        op.stage.Content = null;
+                        op.target.Content = op.targetContent;
+                    }
+                    catch { }
+                    try { op.target.Dispose(); } catch { }
+                }
+            });
+            return true;
+        }
 
         /** In-place present hook (#230): fired instead of OnAppearing when a modal-mode
          *  page is shown in place. Default no-op; LockPage arms biometrics off it. */
@@ -499,6 +648,9 @@ namespace SPIXI
             {
                 try { op.target.Dispose(); } catch { }
             }
+            // #315: a parked overlay is parented to the OLD host's grid — same orphan
+            // class as the stale list above; tear it down with them.
+            disposeParkedOverlay();
         }
 
         public static SpixiContentPage? getTopOverlay()
@@ -633,6 +785,8 @@ namespace SPIXI
         private static void closeOverlay(PreloadOp op)
         {
             SpixiContentPage? host;
+            PreloadOp? evicted = null;
+            bool parked = false;
             lock (preloadLock)
             {
                 // Reviewer MINOR-4: two racing closers (closeTopOverlay reads the top
@@ -642,23 +796,82 @@ namespace SPIXI
                     return;
                 }
                 host = overlayHost;
+                // #46 r2 MINOR-1: only a BOOTED shell is worth keeping warm — a page
+                // that presented via the 4s timeout with its WebView wedged
+                // (pageLoaded false, the removePage never-booted branch) must take
+                // the dispose path so the next tap constructs fresh (the pre-#315
+                // self-heal); parking it would re-present the same dead page forever.
+                if (op.parkOnClose && op.target.pageLoaded)
+                {
+                    // iOS-46 route (a) (#315): PARK — the stage stays in the host grid
+                    // (hidden below), the page and its WebView stay alive and warm.
+                    // #46 r1 MINOR-1: the slot is claimed in the SAME lock section
+                    // that removes the op from the stack — an ixian:settings landing
+                    // inside the hide window finds the parked op and re-presents it
+                    // (net effect: the page simply stays open) instead of racing a
+                    // duplicate SettingsPage into existence. Single slot: a different
+                    // already-parked op (unreachable today — only Account parks) is
+                    // evicted + disposed on the main thread below.
+                    if (parkedOverlay != null && parkedOverlay != op)
+                    {
+                        evicted = parkedOverlay;
+                    }
+                    parkedOverlay = op;
+                    parked = true;
+                }
             }
             MainThread.BeginInvokeOnMainThread(async () =>
             {
+                if (evicted != null)
+                {
+                    try
+                    {
+                        evicted.hostGrid.Children.Remove(evicted.stage);
+                        evicted.stage.Content = null;
+                        evicted.target.Content = evicted.targetContent;
+                        evicted.target.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("park eviction: " + ex);
+                    }
+                }
                 try
                 {
-                    // #229b (Damir F5: chat-info → conversation flashed): HIDE first —
-                    // an Opacity flip is the #225-proven no-repaint operation — let the
-                    // frame commit, and only THEN detach + dispose. Removing/tearing
-                    // down a WebView2's composition surface in the same frame it is
-                    // still visible briefly flashes the reveal on WinUI.
-                    op.stage.Opacity = 0;
-                    op.stage.InputTransparent = true;
-                    await Task.Delay(100);
-                    op.hostGrid.Children.Remove(op.stage);
-                    op.stage.Content = null;
-                    op.target.Content = op.targetContent;   // reattach for a clean Dispose
-                    op.target.Dispose();                    // tear the WebView down
+                    // #46 r2: branch on the CLAIM decision (parked), not the flag —
+                    // a parkOnClose op that failed the pageLoaded gate must take the
+                    // dispose path below, never fall into a hide-only limbo.
+                    if (parked)
+                    {
+                        // #46 r1 MINOR-1: hide ONLY while still parked — a re-present
+                        // that already reclaimed the op (tap-Account-inside-the-window
+                        // race) must not have its page hidden out from under it.
+                        bool stillParked;
+                        lock (preloadLock)
+                        {
+                            stillParked = parkedOverlay == op;
+                        }
+                        if (stillParked)
+                        {
+                            op.stage.Opacity = 0;
+                            op.stage.InputTransparent = true;
+                        }
+                    }
+                    else
+                    {
+                        // #229b (Damir F5: chat-info → conversation flashed): HIDE first —
+                        // an Opacity flip is the #225-proven no-repaint operation — let the
+                        // frame commit, and only THEN detach + dispose. Removing/tearing
+                        // down a WebView2's composition surface in the same frame it is
+                        // still visible briefly flashes the reveal on WinUI.
+                        op.stage.Opacity = 0;
+                        op.stage.InputTransparent = true;
+                        await Task.Delay(100);
+                        op.hostGrid.Children.Remove(op.stage);
+                        op.stage.Content = null;
+                        op.target.Content = op.targetContent;   // reattach for a clean Dispose
+                        op.target.Dispose();                    // tear the WebView down
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -829,7 +1042,10 @@ namespace SPIXI
         // stageMargin (#245): insets the overlay stage inside the host grid — the
         // Account peer-pane leaves the home rail strip (leading 72dip) visible and
         // interactive. Presentation-only; zero margin = exact previous behavior.
-        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default)
+        // parkOnClose (#315, iOS-46 route (a)): close hides + keeps the overlay warm
+        // instead of disposing it (see PreloadOp.parkOnClose). Only HomePage's
+        // narrow-mode Account push sets it.
+        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default, bool parkOnClose = false)
         {
             lock (preloadLock)
             {
@@ -916,6 +1132,9 @@ namespace SPIXI
                 op.tag = tag;
                 op.column = column;
                 op.replaces = replaces;
+                // #315: parking only makes sense for the in-place overlay presentation —
+                // a push-fallback page leaves the host grid at present time.
+                op.parkOnClose = parkOnClose && overlayMode;
 
                 try
                 {

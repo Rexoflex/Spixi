@@ -138,6 +138,18 @@ instead of a binary dot, which becomes an FE job **once the bridge carries a tim
 (it currently pushes only the boolean). Files with the chat-transport work order
 (`docs/chat-transport-spec.md`) — same engagement, same owner.
 
+### ℹ #315 — Account overlay now PARKS (warm WebView) instead of disposing on close (2026-08-07 №2; presentation-lifecycle only)
+The narrow-mode SettingsPage keeps ONE hidden-but-alive WebView between opens
+(iOS-46 route (a): instant re-present). **No new attack surface**: the page keeps its
+own isolated WebView/JS context (§1/#221 unchanged), no data crosses anywhere it
+didn't before, the bridge gained one C#→JS push (`onRepresented`, no arguments) and
+zero JS→C# verbs. Reviewed properties worth your eyes: the re-present path REFUSES
+while the privacy lock is shown in place (fail-closed, same #230 gate class as
+pushPageLoaded), and a parked page is torn down on host recreation, on
+`reloadAllPages` (theme/language), and under memory pressure (`Node.onLowMemory`).
+Residual accepted: a jetsam-killed parked content process re-presents blank until one
+of those teardowns fires (never a data exposure — the page shows nothing).
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|

@@ -204,6 +204,9 @@
 .c-contacts__footer {
   flex: none;
   padding: var(--spacing-12) var(--spacing-16);
+  /* #314: same latent bug as the encpass footer (Damir's CTA screenshot) — the
+     Add-contact CTA sat on the iOS home indicator (launch-shell.css:281 pattern) */
+  padding-bottom: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }

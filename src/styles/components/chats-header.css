@@ -16,6 +16,21 @@
    the clipped header; attachChatsCollapse also drops tabindex on the focusables */
 .c-chats-header[data-collapsed] { pointer-events: none; }
 
+/* iOS-57 (#327, Damir pick): on MOBILE the header lives INSIDE the scroller as
+   the first list content — it scrolls away 1:1 with the finger and stretches
+   with the rubber-band because it IS list content (native physics; the #67
+   binary collapse is retired on that surface — desktop keeps it). While the
+   user is SEARCHING (focus-within or a non-empty query, shell-toggled
+   `is-pinned`) the header pins sticky at the scroller top so results can't
+   scroll the query away; opaque surface so rows slide under it cleanly. */
+.u-scroll > .c-chats-header { overflow: visible; }   /* in-list: no clip machinery */
+.u-scroll > .c-chats-header.is-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-screen);
+}
+
 .c-chats-header__search {
   padding-block: var(--spacing-4) var(--spacing-8);
   padding-inline: var(--spacing-16);

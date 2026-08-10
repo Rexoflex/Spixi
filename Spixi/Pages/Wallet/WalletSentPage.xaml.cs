@@ -157,7 +157,9 @@ namespace SPIXI
 
             IxiNumber amount = ctransaction.amount;
 
-            string time = Utils.unixTimeStampToHumanFormatString(Convert.ToDouble(activity.timestamp));
+            // iOS-55 (#325, W1 LANDED): raw epoch seconds — the shell formats via
+            // formatTxTimestamp/docLocale (see HomePage.addPaymentActivity note).
+            string time = activity.timestamp.ToString();
 
             string type = "send";
 

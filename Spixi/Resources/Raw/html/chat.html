@@ -4787,6 +4787,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      (--kb-inset: 0) the max() clamps the negative result to 0 so the composer
      is never pushed INTO the home indicator. */
   #chat-composer { margin-bottom: max(0px, calc(var(--kb-inset, 0px) - env(safe-area-inset-bottom, 0px))); }
+  /* iOS-53 r2 (#324): ride the keyboard, don't jump it. The native push lands at
+     the keyboard animation's START (WillChangeFrame), so transitioning the margin
+     over ~the keyboard's own duration/curve slides the composer in sync with the
+     keyboard; the canvas + log animate with it (the stick loop in the shell keeps
+     the newest message glued to the bottom through the slide). The bezier is the
+     community-measured UIKit keyboard curve. Engines that never set --kb-inset
+     (Android adjustResize, desktop) never trigger it. Reduced motion: instant. */
+  #chat-composer { transition: margin-bottom 280ms cubic-bezier(0.38, 0.7, 0.125, 1); }
+  @media (prefers-reduced-motion: reduce) { #chat-composer { transition: none; } }
   /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
      the base to grey-1000 (#207); data-desktop is on <html>, same element as
      data-theme, so the dark rule is a COMPOUND selector (not descendant).
@@ -26694,6 +26703,20 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     if (document.documentElement.hasAttribute('data-desktop')) return;
     let kbOpen = false;
     let nativeKb = false;                  // r2 (#303): true once C# keyboard frames arrive — they win
+    /* iOS-53 r2 (#324) — bottom-stick THROUGH the margin transition. A one-shot
+     * scrollTop write only held the bottom for the instant jump; with the
+     * composer sliding (280ms), the log's height changes every frame, so the
+     * stick must track the whole slide or the newest message lags then snaps.
+     * 340ms > the 280ms transition; restarts safely on overlapping writes. */
+    let stickRaf = 0, stickEnd = 0;
+    function stickDuring(ms) {
+      stickEnd = performance.now() + ms;
+      cancelAnimationFrame(stickRaf);
+      (function step() {
+        box.scrollTop = box.scrollHeight;
+        if (performance.now() < stickEnd) stickRaf = requestAnimationFrame(step);
+      })();
+    }
     function setInset(px) {
       document.documentElement.style.setProperty('--kb-inset', px + 'px');
       kbOpen = px > 0;
@@ -26716,7 +26739,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // vv 'scroll' listener below catches the late pan too). With the composer
       // lifted above the keyboard, WebKit has no reason to re-pan after this.
       if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
-      if (open && stick) box.scrollTop = box.scrollHeight;
+      if (open && stick) stickDuring(340);   // iOS-53 r2: track the slide, not one frame
     }
     /* r2 (#303) — SETTLE POLL. Damir's F5: the composer lifted only after 7-8
      * typed characters. Diagnosis: the first vv 'resize' fires BEFORE the keyboard
@@ -26756,7 +26779,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const stick = nearBottom();
       setInset(px > 60 ? px : 0);          // same real-keyboard threshold as the vv path
       if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
-      if (px > 60 && stick) box.scrollTop = box.scrollHeight;
+      if (px > 60 && stick) stickDuring(340);   // iOS-53 r2: track the slide, not one frame
     };
   })();
 

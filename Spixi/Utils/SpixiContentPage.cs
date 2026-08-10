@@ -1876,6 +1876,53 @@ namespace SPIXI
          * deliberately NOT added to that tally because it cannot reach mini-apps). */
         private NSObject? kbChangeObserver = null;
         private NSObject? kbHideObserver = null;
+        private IDisposable? kbScrollPin = null;   // iOS-53 (#324): contentOffset pin while the keyboard is up
+
+        /* iOS-53 (#324) — THE TOPBAR DIP. kb-probe on-device (2026-08-10, AI15):
+         * with the keyboard summoned, WKWebView programmatically PANS its scroll
+         * view to "reveal" the focused composer even though the shell's layout
+         * keeps everything inside the viewport (trace: transient winScroll/
+         * vvScroll events with DOM geometry pinned at 0, rAF starved through the
+         * window). No in-page lever can win: a pre-lift applied synchronously at
+         * focusin was still panned over (the decision predates DOM focus), and
+         * iOS 26 WebKit rejects `interactive-widget` ("not recognized", live
+         * console). On this page the pan is wrong BY CONSTRUCTION — fixed flex
+         * column, overflow:hidden, inner scrollers only, so document offset 0 is
+         * the only correct state (the shell already resets it reactively; this
+         * pins it natively, frame-perfect). KVO on contentOffset while the
+         * keyboard is up snaps any programmatic pan back to zero the moment it is
+         * written; resetting re-fires KVO with (0,0), which passes the check —
+         * no recursion. Same attach scope as the inset observer (chat.html only;
+         * MiniAppPage never sets loadedHtmlFileName → mini-apps structurally
+         * excluded), same docked-keyboard width guard. */
+        private void pinKeyboardScroll()
+        {
+            if (kbScrollPin != null)
+                return;
+            try
+            {
+                var wk = _webView?.Handler?.PlatformView as WebKit.WKWebView;
+                var sv = wk?.ScrollView;
+                if (sv == null)
+                    return;
+                kbScrollPin = sv.AddObserver("contentOffset", NSKeyValueObservingOptions.New, _ =>
+                {
+                    try
+                    {
+                        if (sv.ContentOffset.Y != 0 || sv.ContentOffset.X != 0)
+                            sv.SetContentOffset(CoreGraphics.CGPoint.Empty, false);
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        }
+
+        private void unpinKeyboardScroll()
+        {
+            try { kbScrollPin?.Dispose(); } catch { }
+            kbScrollPin = null;
+        }
 
         private void attachKeyboardInsetObserver()
         {
@@ -1896,18 +1943,27 @@ namespace SPIXI
                     if (e.FrameEnd.Width < screen.Width)
                         return;
                     double overlap = Math.Max(0, (double)(screen.Height - e.FrameEnd.Y));
+                    // iOS-53 (#324): pin BEFORE the inset push — WillChangeFrame precedes
+                    // WebKit's reveal pan (probe: push t=59-91, pan t=75-115), so the pin
+                    // is live when the first wrong offset is written.
+                    if (overlap > 0)
+                        pinKeyboardScroll();
+                    else
+                        unpinKeyboardScroll();
                     sendMessage("window.__setKbInset && window.__setKbInset(" + (int)overlap + ")");
                 }
                 catch { }
             });
             kbHideObserver = UIKeyboard.Notifications.ObserveWillHide((sender, e) =>
             {
+                unpinKeyboardScroll();   // iOS-53 (#324): keyboard leaving — release the pin
                 try { sendMessage("window.__setKbInset && window.__setKbInset(0)"); } catch { }
             });
         }
 
         private void detachKeyboardInsetObserver()
         {
+            unpinKeyboardScroll();   // iOS-53 (#324)
             try { kbChangeObserver?.Dispose(); } catch { }
             try { kbHideObserver?.Dispose(); } catch { }
             kbChangeObserver = null;

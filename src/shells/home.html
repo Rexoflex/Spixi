@@ -116,6 +116,24 @@
   }
   @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
   .fab:active { background: var(--surface-action-pressed); }
+  /* #321 (R5 parity): the dev-mode HUD strip — the legacy DebugOverlay's live
+     NETM/STRM/OFFM/PSTRM counters (HomePage pushes updateDebugInfo every second
+     while devMode is on; the redesign dropped the render). Fixed above the
+     bottom bar, clear of the FAB (right inset), pointer-transparent, dev-only
+     diagnostics = English-only + aria-hidden (#301 precedent). */
+  .dev-hud {
+    position: fixed; left: var(--spacing-8); right: 80px;
+    bottom: calc(var(--layout-bar-bottom) + env(safe-area-inset-bottom, 0px) + var(--spacing-8));
+    z-index: var(--z-10); display: flex; gap: var(--spacing-12); flex-wrap: wrap;
+    width: max-content; max-width: calc(100% - 96px);
+    padding: 3px var(--spacing-8); border-radius: var(--radius-8, 8px);
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; line-height: 14px;
+    pointer-events: none;
+  }
+  :root[data-desktop] .dev-hud { right: var(--spacing-8); }   /* no FAB to clear */
+  .dev-hud__cell { white-space: nowrap; }
   /* Contacts takeover — full-viewport cover mounted OVER the shell (FAB picker +
      topbar directory). Mirrors chat.html .chat-info-takeover: z-30 sits above the
      bars but below any sheet/modal it spawns; the c-contacts panel is height:100%
@@ -216,6 +234,11 @@
          bare leading space) — but NOT in id-id ("Saya:"), and any locale may fill
          it in, which would silently kill every outgoing event glyph. -->
     <span id="sl-ex-self">*SL{index-excerpt-self}</span>
+    <!-- iOS-22 (#314): devMode is a CUSTOM string HomePage registers at boot
+         (addCustomString, xaml:136 — "true"/"false"), the legacy index.html
+         carrier grammar. Lets the dev affordance survive restarts; browser
+         preview leaves it raw → treated as false. -->
+    <span id="sl-devmode">*SL{devMode}</span>
   </div>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
@@ -296,6 +319,8 @@
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     attachContextMenuAnchors,            // Batch C (M6): desktop sheet grammar (no-op on mobile)
+    createButton,                        // iOS-22 (#314): the dev-log topbar action
+    showToast,                           // iOS-22 (#314): dev-mode enable/disable feedback (toast.css already linked)
     // (showToast dropped with F3 #301 — the share ladder's clipboard rungs collapsed
     //  and nothing else in this shell toasts; re-destructure from the bundle if needed)
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
@@ -363,6 +388,87 @@
   });
   document.getElementById('chats-topbar').append(chatsTopbarEl);
 
+  /* —— iOS-22 (#314): dev-mode 10-tap restore (legacy countLogoClick grammar) ——
+   * ZERO-C#: HomePage still dispatches ixian:enableDevMode / ixian:disableDevMode
+   * (persists the "devMode" preference + custom string, xaml:756-766) and
+   * ixian:dev (→ DevPage modal hosting the redesigned dev.html log viewer,
+   * xaml:768). 10 deliberate taps on the chats-topbar LOGOTYPE toggle the mode
+   * (legacy: 11 lifetime clicks on the home logo; now 10 within a rolling 1.2s
+   * inter-tap window so a long-lived page can't accumulate accidental taps).
+   * The dev entry = a topbar icon action (⚠ no bug/terminal glyph in the icon
+   * registry — 'adjustments-alt' stands in until Damir's next Figma icon export)
+   * that sends ixian:dev. Visibility: the *SL{devMode} carrier (survives
+   * restarts) OR the just-toggled state. Send-log stays §9-gated in dev.html. */
+  let renderDevHud = () => {};   // #321: assigned inside the dev IIFE; updateDebugInfo routes here
+  (function () {
+    let devMode = slCarrier('sl-devmode', 'false') === 'true';
+    const actionsWrap = chatsTopbarEl.querySelector('.c-topbar__actions');
+    let devBtn = null;
+    /* #321 (R5 parity): live HUD — HomePage.updateDebugOverlay pushes C#-composed
+       markup ("<a title='…'><span>NETM:</span>4/2/0</a>…") every second while
+       devMode is on. NEVER innerHTML'd (legacy did): parsed INERT via DOMParser,
+       re-rendered as fresh textContent cells (title attr kept for desktop hover).
+       Counters are C#-side integers, but the sink stays untrusted-proof anyway. */
+    const hud = document.createElement('div');
+    hud.className = 'dev-hud';
+    hud.hidden = true;
+    hud.setAttribute('aria-hidden', 'true');
+    document.body.append(hud);
+    renderDevHud = (info) => {
+      if (!devMode) { hud.hidden = true; return; }
+      hud.textContent = '';
+      let anchors = [];
+      try {
+        anchors = new DOMParser().parseFromString(String(info || ''), 'text/html').querySelectorAll('a');
+      } catch (e) { /* fall through to the flat render */ }
+      if (anchors.length) {
+        for (const a of anchors) {
+          const cell = document.createElement('span');
+          cell.className = 'dev-hud__cell';
+          const t = a.getAttribute('title');
+          if (t) cell.title = t;
+          cell.textContent = a.textContent;
+          hud.append(cell);
+        }
+      } else {
+        hud.textContent = String(info || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+      hud.hidden = !hud.firstChild && !hud.textContent;
+    };
+    function syncDevAffordance() {
+      if (!devMode) hud.hidden = true;   // toggle-off clears the strip immediately
+      if (devMode && !devBtn && actionsWrap) {
+        devBtn = createButton({
+          type: 'text', size: 44,
+          icon: icon('adjustments-alt'),
+          ariaLabel: strings.developerLog || 'Developer log',
+          onClick: () => bridge.send('ixian:dev'),
+        });
+        actionsWrap.prepend(devBtn);
+      }
+      if (devBtn) devBtn.hidden = !devMode;
+    }
+    syncDevAffordance();
+    const title = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (!title) return;
+    let taps = 0, lastTap = 0;
+    title.addEventListener('click', () => {
+      const now = Date.now();
+      taps = (now - lastTap < 1200) ? taps + 1 : 1;
+      lastTap = now;
+      if (taps < 10) return;
+      taps = 0;
+      devMode = !devMode;
+      bridge.send(devMode ? 'ixian:enableDevMode' : 'ixian:disableDevMode');
+      syncDevAffordance();
+      showToast({
+        text: devMode ? (strings.devModeOn || 'Developer mode enabled')
+                      : (strings.devModeOff || 'Developer mode disabled'),
+        tone: 'info', host: document.body, strings,
+      });
+    });
+  })();
+
   /* —— M16 (#59): connectivity as a topbar TITLE-STATE ————————————————————————
    * HomePage routes both "Connecting to Ixian Platform..." AND the actionable
    * "update available" through ONE showWarning verb (xaml:1760/1781; "" clears —
@@ -404,13 +510,55 @@
     const trimmed = decodeEntities(raw || '').trim();
     return !!trimmed && trimmed === REQUEST_SENT_TEXT;
   }
-  // root title node: logo variant wraps the wordmark in a <span>; plain title
-  // (desktop) is the title div's own text — target whichever exists.
+  // root title node: every root title now carries an inner <span> (topbar.js
+  // iOS-47/48 build — wordmark on mobile, plain span on desktop); the holder
+  // fallback survives a stale bundle.
+  // iOS-48 (#314): the pushed legacy copy ("Connecting to Ixian Platform...")
+  // truncated in the topbar — the push is only RECOGNIZED (CONNECTIVITY_TEXTS)
+  // and the title renders our own SHORT copy + an animated ellipsis (CSS steps,
+  // aria-hidden — no live-region spam; reduced-motion holds the dots steady).
+  // data-connecting also swaps the wordmark span to the system face while live
+  // (topbar.css — the state is UI text, not the brand mark). The S2-vs-DLT
+  // legacy distinction collapses into one string (Damir's shorter-copy dial).
+  // #322 (Damir F5 r2): the connectivity state was CHATS-only — misleading on the
+  // wallet/apps tabs, which showed their normal titles while offline. The state
+  // now lands on all three in-page tab titles (Account is its own WebView — its
+  // omission is Damir's accepted dial; chat.html + other subscreens would need a
+  // C# push-routing change, logged, not built). aria-live stays on the CHATS title
+  // alone — one polite announcement, not three.
+  function titleStateTargets() {
+    const out = [];
+    const chats = chatsTopbarEl.querySelector('.c-topbar__title');
+    if (chats) out.push({ holder: chats, word: chats.querySelector('span') || chats, base: chatsTitleBase });
+    try {
+      const apps = appsTopbarEl.querySelector('.c-topbar__title');
+      if (apps) out.push({ holder: apps, word: apps.querySelector('span') || apps, base: strings.tabApps || 'Apps' });
+    } catch (e) { /* pre-build TDZ — first push always lands after parse */ }
+    try {
+      const wh = hero.querySelector('.c-wallet-hero__title');
+      if (wh) out.push({ holder: wh, word: wh, base: strings.wallet || 'Wallet' });
+    } catch (e) { /* same */ }
+    return out;
+  }
   function setChatsTitleState(text) {
-    const holder = chatsTopbarEl.querySelector('.c-topbar__title');
-    if (!holder) return;
-    const word = holder.querySelector('span') || holder;
-    word.textContent = text || chatsTitleBase;
+    for (const { holder, word, base } of titleStateTargets()) {
+      if (text) {
+        holder.setAttribute('data-connecting', '');
+        word.textContent = strings.connecting || 'Connecting';
+        const dots = document.createElement('span');
+        dots.className = 'c-topbar__dots';
+        dots.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < 3; i++) {
+          const d = document.createElement('span');
+          d.textContent = '.';
+          dots.append(d);
+        }
+        word.append(dots);
+      } else {
+        holder.removeAttribute('data-connecting');
+        word.textContent = base;
+      }
+    }
   }
   // announce connectivity swaps to screen readers: the title element PERSISTS
   // (in-place textContent swap on a long-lived node), so a polite live region
@@ -1283,11 +1431,39 @@
     // silently replaced MOBILE's built in-page bottom sheet with a full pushed
     // page (Damir: regression, the sheet is the intended mobile presentation).
     // Omitting onTx restores it: wallet-shell.js opens the sheet when onTx is
-    // absent. Trade-off (accepted): the mobile sheet shows the row's partial
-    // data (no fee/address — addPaymentActivity doesn't carry them, W2–W4).
+    // absent. R6 (#314) closes most of the old partial-data trade-off via the
+    // roster join below; fee alone stays honestly absent (W2 — not in any push
+    // this page receives).
     ...(document.documentElement.hasAttribute('data-desktop')
       ? { onTx: (tx) => bridge.send('ixian:txdetails:' + tx.txid) }
       : {}),
+    /* R6 (#314, dial LOCKED 2026-08-07: tx tap = FULL detail in the SHEET).
+     * addPaymentActivity carries nickname-OR-address + amounts only (W4); the
+     * roster (loadContacts, same page) knows the rest. Join at OPEN time:
+     *   address-shaped counterparty → roster row by address → nickname + avatar;
+     *   nickname counterparty      → roster row by name    → address + avatar
+     *     (first match on a duplicate nickname — the W4 ambiguity, accepted).
+     * ★ #285/#288 hide fail-safe: when the wallet is HIDDEN the tx object's
+     * display fields already carry the mask (applyWalletVisibility) — return it
+     * UNTOUCHED, never join, so enrichment can't leak name/address/avatar around
+     * the mask. Enrichment reads _raw (the true values) only on the visible leg. */
+    enrichTx: (tx) => {
+      if (walletHidden || !tx || !tx._raw) return tx;
+      const raw = tx._raw;
+      // #46 r1 MINOR-2: PEOPLE only — iOS-26 put groups into contactsRoster, and a
+      // name-collision join could print a GROUP's address as the copyable payment
+      // counterparty (the #255/peopleRoster money fence, same reasoning).
+      const byAddr = raw.address ? contactsRoster.find((c) => c && !isGroupContact(c) && c.address === raw.address) : null;
+      const byName = !byAddr && raw.name ? contactsRoster.find((c) => c && !isGroupContact(c) && c.name === raw.name) : null;
+      const hit = byAddr || byName;
+      if (!hit) return tx;
+      return Object.assign({}, tx, {
+        name: hit.name || tx.name,
+        address: raw.address || hit.address || '',
+        avatar: hit.avatar || null,
+        contact: true,               // sheet header: avatar + "Sent to/Received from {name}"
+      });
+    },
   };
 
   /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
@@ -1453,6 +1629,10 @@
   }
 
   const hero = createWalletHero({
+    // #322 (Damir F5 r2 screenshot): the hero title was the hardcoded English
+    // 'Wallet' default — walletTitle has no dictionary entry, but the plain
+    // `wallet` key is translated everywhere ("Denarnica").
+    title: strings.wallet || 'Wallet',
     strings: walletStrings,
     onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
     onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
@@ -1574,10 +1754,11 @@
   };
 
   // Apps topbar — root style + an Add action (→ legacy AppNewPage).
-  document.getElementById('apps-topbar').append(createTopbar({
+  const appsTopbarEl = createTopbar({
     variant: 'root', title: strings.tabApps || 'Apps',
     actions: [{ icon: 'circle-plus', label: strings.addMiniApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],   // key ≠ app_new's addApp 'Add app' (A4 conflict gate)
-  }));
+  });
+  document.getElementById('apps-topbar').append(appsTopbarEl);   // #322: ref kept — the connectivity title-state also lands here
 
   const appsScroll = document.getElementById('apps-scroll');
   const appsList = createAppsList(appsState, appsOpts);
@@ -1846,7 +2027,14 @@
 
     // #245: the Account pane closed (HomePage.onOverlayClosed) — the rail
     // highlight falls back from Account to the real in-page tab.
-    onSettingsClosed() { setNavActive(nav, activeNav); },
+    // #314 (iOS-46 leg): consume the landtab hand-off HERE too — this push is the
+    // one deterministic "Account just closed" signal on iOS, where the storage
+    // event never crosses WebViews and focus/visibility don't fire on overlay
+    // close (the settings shell's exit-tap write raced listeners that never ran).
+    // consumeLandTab sets activeNav itself when a fresh key is present; the
+    // setNavActive after it is then a consistent no-op, and the real fallback
+    // when there was no tab hand-off.
+    onSettingsClosed() { consumeLandTab(); setNavActive(nav, activeNav); },
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
 
     // Batch start of a FULL flush: reset the model + enter flushing mode so the
@@ -2243,7 +2431,9 @@
       if (String(id || '') !== 'backup-prompt') { dbg('toggleAnimatedSlider', id); return; }
       enqueueNudge('backup');
     },
-    updateDebugInfo() { dbg('updateDebugInfo'); },
+    // #321 (R5 parity): the 1 Hz dev-HUD feed (HomePage.updateDebugOverlay,
+    // xaml:2116 — only pushed while devMode is on; render gated again shell-side).
+    updateDebugInfo(info) { renderDevHud(info); },
   };
 
   bridge.exposeAll(handlers);

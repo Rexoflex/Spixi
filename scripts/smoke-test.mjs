@@ -4100,6 +4100,226 @@ console.log('#309 — bed ResizeObserver re-fit · strong WKWebView delegate roo
     '#309b: the first sizer arms the re-latch via a deferring lambda (TDZ-safe); the post-restart sizer passes null — one re-latch per start is the contract');
 }
 
+console.log('#314 — polish batch (selectability · mention pill · toast/CTA · iOS-47/48 · i18n · backup poll · R6 sheet · dev 10-tap)');
+{
+  const mb = readFileSync(join(root, 'src/components/message-bubble.js'), 'utf8');
+  const homeSh = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const settingsSh = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const baseCss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  const toastCss = readFileSync(join(root, 'src/styles/components/toast.css'), 'utf8');
+  const lockCss = readFileSync(join(root, 'src/styles/components/lock-shell.css'), 'utf8');
+  const contactsCss = readFileSync(join(root, 'src/styles/components/contacts-shell.css'), 'utf8');
+  const topbarCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
+  const topbarJs = readFileSync(join(root, 'src/components/topbar.js'), 'utf8');
+  const walletJs = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+
+  /* mention ↔ linkify — BEHAVIORAL (the repro that pinned the bug, kept as the pin) */
+  {
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { createMessageBubble } = await import('file://' + join(root, 'src/components/message-bubble.js'));
+      const flat = (text, mention) => {
+        const row = createMessageBubble({ text, direction: 'received', mention, strings: {} });
+        const out = [];
+        const walk = (n) => { for (const c of n.childNodes) {
+          if (c.nodeType === 3) out.push('T:' + c.textContent);
+          else if (c.classList && c.classList.contains('c-bubble__mention')) out.push('M:' + c.textContent);
+          else if (c.classList && c.classList.contains('c-bubble__link')) out.push('L:' + c.textContent);
+          else walk(c); } };
+        walk(row);
+        return out.join('|');
+      };
+      ok(flat('@bob.com hello', { names: [] }).includes('M:@bob.com'),
+        '#314 mention: a URL-looking nick with NO roster pills WHOLE ("@bob.com", not "@bob" + ".com" — the dotted generic term)');
+      ok(flat('hi @Bob site.com !', { names: ['Bob site.com'] }).includes('M:@Bob site.com'),
+        '#314 mention: a multi-word roster nick with a URL-looking word pills WHOLE — mentions now split BEFORE linkify (the link button stole "site.com" out of the pill)');
+      const email = flat('mail a@bob.com ok', { names: [] });
+      ok(!email.includes('M:') && !email.includes('L:'),
+        '#314 mention: the #231c email guard survives the inversion — "a@bob.com" is neither a pill nor a link');
+      ok(flat('@Ana see x.com', { names: ['Ana'] }).includes('L:x.com'),
+        '#314 mention: linkify still runs on the plain runs BETWEEN mentions (bare-domain whitelist intact)');
+      ok(flat('@bob. Next', { names: [] }).includes('M:@bob') && !flat('@bob. Next', { names: [] }).includes('M:@bob.'),
+        '#314 mention: a sentence-ending dot stays OUT of the pill (each dotted segment requires a following word run)');
+      ok(flat('check https://mastodon.social/@gargron today', { names: ['gargron'] }).includes('L:https://mastodon.social/@gargron'),
+        '#314 mention (#46 r1 MAJOR-2): a profile URL keeps its /@handle INSIDE the link — the mention pass must not steal it (mastodon/youtube/x profile links became wrong-target stumps)');
+      ok(flat('youtube.com/@veritasium and @bob too', { names: ['bob'] }).includes('L:youtube.com/@veritasium')
+        && flat('youtube.com/@veritasium and @bob too', { names: ['bob'] }).includes('M:@bob'),
+        '#314 mention (#46 r1 MAJOR-2): a rejected path-handle and a REAL mention coexist in one message — the run stays contiguous through the rejection');
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+  ok(/forEachMentionSplit\(text, mention,\s*\n?\s*\(run\) => linkifyPlain\(parent, run, onLinkClick\)/.test(mb),
+    '#314 mention (structure): linkifyInto delegates mention-first — plain runs go through linkifyPlain, mention spans append verbatim');
+
+  /* toast + CTA safe-area (Damir screenshots) */
+  ok(/toast\.css/.test(settingsSh),
+    '#314 toast: settings.html links toast.css — the "Settings saved" toast rendered UNSTYLED in document flow under the bottom bar (the screenshot bug was a missing stylesheet, not z-index)');
+  ok(/bottom: calc\(var\(--layout-bar-bottom\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--spacing-16\)\)/.test(toastCss),
+    '#314 toast: the styled toast clears the SAFE-AREA-tall iOS bottom bar (64px token vs 64+env real height)');
+  ok(/c-encpass__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\)/.test(lockCss),
+    '#314 CTA: the Change-password footer clears the iOS home indicator (launch-shell canonical pattern)');
+  ok(/c-contacts__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\)/.test(contactsCss),
+    '#314 CTA: the Add-contact footer had the IDENTICAL latent bug — swept with the same pattern');
+
+  /* iOS-47 — Sora scoped to the wordmark */
+  ok(!/\.c-topbar\[data-variant="root"\] \.c-topbar__title \{[^}]*font-display/.test(topbarCss)
+    && /\.c-topbar__title > \.c-topbar__word \{\s*\n?\s*font-family: var\(--font-display\)/.test(topbarCss),
+    'iOS-47: --font-display moved OFF the root title rule and onto .c-topbar__word alone — "Apps" (a plain root title) rendered Sora against the #226/B1 wordmark-only canon');
+  ok(/word\.className = 'c-topbar__word'/.test(topbarJs) && /variant === 'root'\) \{[\s\S]{0,400}?const word = document\.createElement\('span'\)/.test(topbarJs),
+    'iOS-47/48: the wordmark carries the __word class; plain ROOT titles get a class-less inner span (stable M16 swap target, system face)');
+
+  /* iOS-48 — Connecting title-state */
+  ok(/data-connecting/.test(homeSh) && /strings\.connecting \|\| 'Connecting'/.test(homeSh),
+    'iOS-48: the connectivity push is only RECOGNIZED — the title renders the SHORT i18n copy, never the truncating legacy string');
+  ok(/c-topbar__dots/.test(homeSh) && /setAttribute\('aria-hidden', 'true'\)/.test(homeSh),
+    'iOS-48: the animated ellipsis is aria-hidden static glyphs (no text mutation → no aria-live spam)');
+  ok(/@keyframes topbar-dot/.test(topbarCss) && /prefers-reduced-motion: reduce\) \{\s*\n?\s*\.c-topbar__dots span \{ animation: none/.test(topbarCss),
+    'iOS-48: dots step via CSS opacity keyframes and hold steady under prefers-reduced-motion');
+  ok(/\.c-topbar__title\[data-connecting\] > span \{\s*\n?\s*font-family: var\(--font-secondary\)/.test(topbarCss),
+    'iOS-48: while connecting, the title is UI text — system face overrides the wordmark Sora for exactly that window');
+
+  /* chrome selectability sweep */
+  ok(/:root:not\(\[data-desktop\]\) \.c-bottomnav,[\s\S]{0,600}?\.fab \{[\s\S]{0,200}?-webkit-touch-callout: none;[\s\S]{0,100}?-webkit-user-select: none;/.test(baseCss),
+    '#314 sweep: nav/rows/topbars/chips/FAB suppress selection AND the iOS callout on touch surfaces only (desktop drag-select intact; message TEXT rules untouched)');
+
+  /* backup badge — the REFRESH gap (C-9 cleared storage; iOS fires none of the 3 listeners) */
+  ok(/setInterval\(\(\) => \{ if \(!document\.hidden && !exiting\) refreshBackupStampIfChanged\(\); \}, 2000\)/.test(settingsSh),
+    '#314 backup: a visibility+park-guarded 2s stamp poll closes the iOS refresh gap (no cross-WebView storage event, no focus/visibility on overlay pop) — change-guarded so it never rebuilds mid-edit');
+
+  /* landtab — consumed on the deterministic C# close push */
+  ok(/onSettingsClosed\(\) \{ consumeLandTab\(\); setNavActive\(nav, activeNav\); \}/.test(homeSh),
+    '#314 landtab (iOS-46 leg): onSettingsClosed consumes the tab hand-off BEFORE the highlight re-sync — the storage/focus listeners never fire on iOS overlay close');
+
+  /* R6 — full-detail tx sheet via roster join, hide fail-safe FIRST */
+  ok(/enrichTx: \(tx\) => \{\s*\n?\s*if \(walletHidden \|\| !tx \|\| !tx\._raw\) return tx;/.test(homeSh),
+    'R6 ★: the hide mask is the FIRST check in enrichTx — a hidden wallet returns the masked row UNTOUCHED (the #285/#288 fail-safe: enrichment can never leak name/address/avatar around the mask)');
+  ok(/const byAddr = raw\.address \? contactsRoster\.find\(\(c\) => c && !isGroupContact\(c\)/.test(homeSh)
+    && /const byName = !byAddr && raw\.name \? contactsRoster\.find\(\(c\) => c && !isGroupContact\(c\)/.test(homeSh),
+    'R6 (#46 r1 MINOR-2): the roster join resolves counterparties over PEOPLE only — a name-collision must never print a GROUP address as the copyable payment counterparty (the #255 money-fence reasoning)');
+  ok(/opts\.enrichTx === 'function'\) \? \(opts\.enrichTx\(tx\) \|\| tx\) : tx/.test(walletJs),
+    'R6: wallet-shell rows pass through the host decorator when supplied; demos (no decorator) keep the raw row');
+
+  /* iOS-22 — dev-mode 10-tap (zero-C#: the HomePage verbs never left) */
+  ok(/sl-devmode/.test(homeSh) && /\*SL\{devMode\}/.test(homeSh),
+    'iOS-22: the devMode custom-string carrier persists the mode across restarts (legacy index.html grammar; raw marker in preview = false)');
+  ok(/taps = \(now - lastTap < 1200\) \? taps \+ 1 : 1;/.test(homeSh) && /if \(taps < 10\) return;/.test(homeSh),
+    'iOS-22: 10 taps within a rolling 1.2s window — a long-lived home page cannot accumulate accidental lifetime taps (the legacy counter never reset)');
+  ok(/ixian:enableDevMode/.test(homeSh) && /ixian:disableDevMode/.test(homeSh) && /bridge\.send\('ixian:dev'\)/.test(homeSh),
+    'iOS-22: enable/disable toggle + the dev-log entry ride the EXISTING HomePage verbs (xaml:756-770) — zero C#');
+
+  /* i18n drafts — the "untranslated" report was missing DRAFTS, not missing keys */
+  {
+    const langs = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br'];
+    const missing = [];
+    for (const l of langs) {
+      const d = JSON.parse(readFileSync(join(root, 'src/strings/draft/' + l + '.json'), 'utf8'));
+      for (const k of ['people', 'groups', 'howToIntro', 'howToStep1', 'howToStep4Body', 'connecting']) {
+        if (!d[k]) missing.push(l + ':' + k);
+      }
+    }
+    ok(missing.length === 0,
+      '#314 i18n: people/groups + the how-to steps + connecting carry DRAFT translations in all 7 locales (was: keys extracted fine, every locale fell back to English)' + (missing.length ? ' — MISSING ' + missing.join(', ') : ''));
+  }
+}
+
+console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present)');
+{
+  const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const sp = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const settingsSh = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+
+  ok(/public bool parkOnClose = false;/.test(scp)
+    && /if \(op\.parkOnClose && op\.target\.pageLoaded\)\s*\r?\n?\s*\{[\s\S]{0,1600}?parkedOverlay = op;/.test(scp)
+    && /op\.target\.Dispose\(\);\s*\/\/ tear the WebView down/.test(scp),
+    '#315: closeOverlay PARKS a booted parkOnClose op — stage hidden + input-transparent, WebView kept warm, single parked slot (the dispose branch is untouched for every other overlay)');
+  ok(/private static PreloadOp\? parkedOverlay = null;/.test(scp)
+    && !/overlayStack\.Add\(parkedOverlay/.test(scp),
+    '#315: the parked op lives OUTSIDE overlayStack — parked = CLOSED for every consumer (getOverlayPages, back handling, exit sweeps); only representParkedOverlay resurrects it');
+  ok(/public static bool representParkedOverlay\(SpixiContentPage target\)[\s\S]{0,700}?if \(modalOverlayOp != null\)[\s\S]{0,120}?return false;/.test(scp),
+    '#315 ★ #230 fail-closed: the re-present path REFUSES while a lock is shown in place — same guard class as pushPageLoaded (an overlay must never cover the lock)');
+  ok(/representParkedOverlay\(SpixiContentPage target\)[\s\S]{0,1400}?overlayStack\.Count > 0\)[\s\S]{0,40}?return false;/.test(scp),
+    '#315: re-present refuses when ANY overlay is open — the parked stage kept its old grid position, so presenting under a newer stage would layer it invisibly; the caller falls back to fresh-construct');
+  ok(/setOverlayHost[\s\S]{0,3000}?disposeParkedOverlay\(\);/.test(scp),
+    '#315: a re-created overlay host tears the parked page down with the stale overlays (same orphan class)');
+  ok(/if \(!wide && !parkedSettings\.isPaneMode[\s\S]{0,140}?representParkedOverlay\(parkedSettings\)\)/.test(hp)
+    && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(hp),
+    '#315: HomePage re-presents ONLY narrow + non-pane (pane geometry does not survive a breakpoint crossing); any mismatch disposes the parked instance BEFORE constructing fresh — never two live SettingsPages');
+  ok(/pushPageLoaded\(new SettingsPage\(\), 4000, "settings", -1, null, default, true\)/.test(hp),
+    '#315: only the NARROW Account push parks (wide keeps the #245 pane lifecycle unchanged)');
+  ok(/public bool isPaneMode \{ get \{ return paneMode; \} \}/.test(sp),
+    '#315: the park guard reads the hosting mode through a real accessor');
+  ok(/onBack: undefined,/.test(settingsSh) && !/onBack: isDesktop \? undefined : exitSettings/.test(settingsSh),
+    'iOS-46: the hub topbar has NO back arrow on any form factor — Account is a TAB (exits: peer-nav taps / rail / hardware back via handlers.onBack, all through exitSettings so held edits still save)');
+
+  /* —— #46 r1 loop fixes over the park machinery —— */
+  ok(/Utils\.sendUiCommand\(op\.target, "onRepresented"\);[\s\S]{0,200}?op\.stage\.InputTransparent = false;/.test(scp)
+    && /onRepresented\(\) \{[\s\S]{0,300}?exiting = false;/.test(settingsSh)
+    && /onRepresented\(\) \{[\s\S]{0,1600}?renderLayout\(\);/.test(settingsSh)
+    && /onRepresented\(\) \{[\s\S]{0,1600}?state\.savedName = state\.name;[\s\S]{0,200}?state\.dirtyNick = state\.dirtyAvatar = state\.dirtyLock = false;/.test(settingsSh),
+    '#46 r1 MAJOR-1 (+r2): the re-present pushes onRepresented BEFORE the stage becomes interactive; the shell resets the #199 exit latch, RECONCILES the dirty machinery with the already-persisted parking exit (r2: a stale savedName silently DROPPED a nickname revert) and repaints');
+  ok(/reloadAllPages\(\)[\s\S]{0,1400}?SpixiContentPage\.disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Utils/UIHelpers.cs'), 'utf8')),
+    '#46 r1 MAJOR-3: reloadAllPages drops the parked page — an OS auto-theme flip must never re-present yesterday\'s theme (the #251 EmptyDetail class)');
+  ok(/onLowMemory\(\)[\s\S]{0,900}?disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+    '#46 r1 MINOR-3: low memory releases the warm WebView — the memory dial has a pressure valve, and the content-process-death window shrinks to presented-only');
+  ok(/if \(!overlayStack\.Remove\(op\)\)[\s\S]{0,1900}?parkedOverlay = op;\s*\r?\n\s*parked = true;\s*\r?\n\s*\}\s*\r?\n\s*\}\s*\r?\n\s*MainThread\.BeginInvokeOnMainThread/.test(scp)
+    && /stillParked = parkedOverlay == op;/.test(scp)
+    && /op\.parkOnClose && op\.target\.pageLoaded/.test(scp),
+    '#46 r1 MINOR-1 (+r2): the park claim sits between the stack-Remove and the lock CLOSE (r2 pin: anchored on the un-relocatable neighbors — moving the claim outside the lock breaks the brace run before MainThread), the deferred hide re-checks it, and only a BOOTED shell parks (pageLoaded gate — a wedged shell takes the pre-#315 dispose self-heal)');
+  ok(/if \(!document\.hidden && !exiting\) refreshBackupStampIfChanged\(\)/.test(settingsSh),
+    '#46 r1 MINOR-4: the backup poll pauses while PARKED (document.hidden stays false at opacity 0) and resumes via onRepresented');
+  ok(/hasModalOverlay\(\)\)\s*\r?\n?\s*\{\s*\r?\n?\s*return;/.test(hp),
+    '#46 r1 NIT-2: a lock-refused re-present keeps the warm instance for after the unlock (the fresh push would be dropped by the same #230 gate anyway)');
+
+  /* —— #320: Damir device-F5 round 1 fixes —— */
+  const settingsShellJs = readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8');
+  ok(/variant: onBack \? 'view' : 'root', title: strings\.account \|\| 'Account', onBack,/.test(settingsShellJs),
+    '#320: a back-less hub (= the peer TAB) renders the ROOT topbar variant — bold action ink + root padding, exact parity with the Chats/Apps/Wallet bars (Damir: title mis-aligned + wrong face)');
+  ok(/exitSettings\(\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)
+    && /onRepresented\(\) \{[\s\S]{0,2200}?setNavActive\(nav, 'account'\);/.test(settingsSh),
+    '#320: the peer nav highlight snaps back to Account after an exit tap AND on re-present — bottomnav auto-selects the tapped item before onChange, so the page PARKED with the wrong tab lit (Damir: Denarnica highlighted on the Account screen)');
+
+  /* —— #321: R5 dev-mode parity (send-log + live HUD) —— */
+  const devSh = readFileSync(join(root, 'src/shells/dev.html'), 'utf8');
+  const devCs = readFileSync(join(root, 'Spixi/Pages/Dev/DevPage.xaml.cs'), 'utf8');
+  const homeSh2 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/bridge\.cap\('sendlog'\)\s*\r?\n?\s*\? \{ onSendLog: \(ctrl\) => \{ bridge\.send\('ixian:sendlog'\); ctrl\.done\(\); \} \}/.test(devSh)
+    && /if \(!had && bridge\.cap\('sendlog'\)\) buildDev\(\);/.test(devSh),
+    '#321: Send-log is CAP-GATED (old exe → no dead button) and the screen rebuilds when the cap lands after the boot build (the onLoad burst follows parse)');
+  ok(/setCaps", "sendlog"\);/.test(devCs)
+    && /current_url\.Equals\("ixian:sendlog", StringComparison\.Ordinal\)/.test(devCs),
+    '#321: DevPage declares the cap at onLoad and dispatches ixian:sendlog');
+  ok(/string shareLogPath = Path\.Combine\(Config\.spixiUserFolder, "spixi-log\.txt"\);/.test(devCs)
+    && /Share\.RequestAsync\(new ShareFileRequest/.test(devCs)
+    && /#if WINDOWS[\s\S]{0,700}?Downloads[\s\S]{0,400}?#else/.test(devCs),
+    '#321 §3: C# NAMES every path itself (no WebView-supplied filename), mobile shares via the OS sheet, Windows saves to Downloads (Damir desktop dial)');
+  ok(/renderDevHud = \(info\) => \{/.test(homeSh2)
+    && /new DOMParser\(\)\.parseFromString\(String\(info \|\| ''\), 'text\/html'\)/.test(homeSh2)
+    && /cell\.textContent = a\.textContent;/.test(homeSh2)
+    && !/hud\.innerHTML/.test(homeSh2),
+    '#321 HUD: the C#-composed markup is parsed INERT and re-rendered as textContent cells — NEVER innerHTML\'d (the legacy sink); a parse miss falls back to a tag-stripped flat line');
+  ok(/updateDebugInfo\(info\) \{ renderDevHud\(info\); \}/.test(homeSh2)
+    && /if \(!devMode\) \{ hud\.hidden = true; return; \}/.test(homeSh2),
+    '#321 HUD: the 1 Hz updateDebugInfo push renders ONLY while devMode is on (double-gated: C# checks devMode, the shell re-checks) and the 10-tap toggle-off hides the strip immediately');
+
+  /* —— #322: Damir device-F5 round 2 fixes —— */
+  const baseCss2 = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  ok(/:root:not\(\[data-desktop\]\) body \{\s*\n\s*-webkit-touch-callout: none;\s*\n\s*-webkit-user-select: none;/.test(baseCss2)
+    && /:root:not\(\[data-desktop\]\) input,[\s\S]{0,200}?\[contenteditable\] \* \{[\s\S]{0,120}?-webkit-user-select: text;/.test(baseCss2),
+    '#322 sweep: on touch, selection is suppressed at the BODY (the wallet-hero labels were the whack-a-mole tell) and re-enabled ONLY on inputs/textareas/contenteditables; explicit element-level text rules (dev log, link urls) still win');
+  ok(/function titleStateTargets\(\)/.test(homeSh2)
+    && /appsTopbarEl\.querySelector\('\.c-topbar__title'\)/.test(homeSh2)
+    && /hero\.querySelector\('\.c-wallet-hero__title'\)/.test(homeSh2),
+    '#322: the connectivity title-state lands on ALL THREE in-page tabs (chats topbar + apps topbar + wallet hero) — it was chats-only, misleading on the other tabs (Account = own WebView, accepted omission)');
+  ok(/title: strings\.wallet \|\| 'Wallet',\s*\n\s*strings: walletStrings,/.test(homeSh2),
+    '#322 i18n: the wallet hero title threads the translated `wallet` key — it rendered the hardcoded English default ("Wallet" on a Slovenian build, Damir screenshot)');
+}
+
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

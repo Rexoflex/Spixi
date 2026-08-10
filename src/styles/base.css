@@ -151,3 +151,51 @@ img, svg { display: block; max-width: 100%; }
 .c-disc[data-grad='14'] { --disc-grad: var(--disc-grad-14); }
 /* destructive stays RED regardless of the per-glyph gradient (safety) — LAST wins */
 .c-disc[data-hue='error'] { --disc-grad: var(--disc-grad-error); }
+
+/* Interactive-CHROME selectability sweep (iOS-33 extension; Damir 2026-08-07:
+   bottom-nav labels were selectable, chat-row long-press popped the iOS text
+   callout). Nav, rows, topbars, chips and the FAB are controls, not content —
+   suppress selection AND the callout on TOUCH surfaces only (iOS-33 grammar:
+   :root:not([data-desktop]) keeps desktop drag-select alive). Message TEXT keeps
+   its decided behavior (message-bubble.css iOS-33/41 — menu-copy on mobile);
+   deliberately selectable content (settings dev log / link urls, both explicit
+   -webkit-user-select:text) wins on its own elements — -webkit-user-select
+   inherits, and an explicit `text` on the child overrides this chrome-level
+   `none`. No text INPUT lives inside any listed selector (search fields sit in
+   .c-chats-header / takeover heads, both unlisted) — field selection unharmed. */
+:root:not([data-desktop]) .c-bottomnav,
+:root:not([data-desktop]) .c-topbar,
+:root:not([data-desktop]) .c-chatlist-item,
+:root:not([data-desktop]) .c-txlist-item,
+:root:not([data-desktop]) .c-contacts__row,
+:root:not([data-desktop]) .c-app-item,
+:root:not([data-desktop]) .c-settings__row,
+:root:not([data-desktop]) .c-chip,
+:root:not([data-desktop]) .fab {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;   /* WebKit honors only the prefixed form (avatar.css precedent) */
+  user-select: none;
+}
+/* #322 (Damir F5 r2: the wallet-hero action LABELS selected on long-press, "and
+   it also works same on other places"): the per-component list above was
+   whack-a-mole — on TOUCH surfaces NOTHING outside real inputs is document
+   content, so suppress at the BODY and re-enable selection only where typing/
+   selection is the point. -webkit-user-select inherits: element-level explicit
+   `text` rules (settings dev log · link urls — settings-app.css:117/230) still
+   win over the inherited none, and iOS-33's message-text policy is unchanged
+   (bubbles were already none on mobile; menu Copy is the copy path). Desktop
+   keeps full drag-select (the :root guard). The component list above stays —
+   harmless, and it documents the surfaces that PROMPTED each pass. */
+:root:not([data-desktop]) body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+:root:not([data-desktop]) input,
+:root:not([data-desktop]) textarea,
+:root:not([data-desktop]) [contenteditable],
+:root:not([data-desktop]) [contenteditable] * {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}

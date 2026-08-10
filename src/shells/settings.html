@@ -48,6 +48,7 @@
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
+<link rel="stylesheet" href="../styles/components/toast.css"><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
 <style>
   /* Production shell: fill the WebView. Internal views (hub = root · danger /
      about / how-to = takeovers) swap client-side inside #settings-root.
@@ -160,7 +161,7 @@
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
-    createBottomNav, showToast,
+    createBottomNav, setNavActive, showToast,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
@@ -444,6 +445,20 @@
   window.addEventListener('storage', (e) => { if (e.key === BACKUP_STAMP_KEY) refreshBackupStampIfChanged(); });
   window.addEventListener('focus', refreshBackupStampIfChanged);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshBackupStampIfChanged(); });
+  /* #314 (Damir F5: the nudge badge SURVIVED a backup on iOS) — the three
+   * listeners above all miss on iOS: WKWebView fires no cross-WebView storage
+   * event, and popping the BackupPage overlay changes neither visibilityState
+   * nor window focus for the WebView that sat beneath it (it was "visible" the
+   * whole time). C-9 (#311) proved the stamp itself crosses ll_* files fine —
+   * the gap was purely REFRESH. A visibility-guarded 2s poll (home.html tick
+   * cadence precedent) closes it deterministically on every platform; the
+   * change-guard in refreshBackupStampIfChanged keeps it from ever rebuilding
+   * under a mid-edit nickname. Also carries the B2 warm-Account world, where
+   * this page LIVES across closes and re-presents (no reboot re-read). */
+  // #46 r1 MINOR-4: `!exiting` pauses the poll while the page is PARKED (#315 —
+  // document.hidden stays false for an attached opacity-0 WKWebView, so the
+  // visibility guard alone never trips); onRepresented resets the latch → resumes.
+  setInterval(() => { if (!document.hidden && !exiting) refreshBackupStampIfChanged(); }, 2000);
   function backupStatus() {
     try {
       const t = Number(localStorage.getItem(BACKUP_STAMP_KEY));
@@ -557,10 +572,13 @@
       },
       host: document.body,
       strings,
-      // Mobile: standalone pushed page → topbar back. Desktop (Damir F5 r2): NO
-      // back button — the rail is the exit (any non-Account rail tap routes
-      // through exitSettings, saving held edits on the way out).
-      onBack: isDesktop ? undefined : exitSettings,
+      // iOS-46 (#315): NO back arrow on the hub, ANY form factor — Account is a
+      // peer TAB now (C# keeps the page warm + re-presents it), and a tab has no
+      // "back". Exits that remain: the peer bottom-nav taps (mobile — routed
+      // through exitSettings below, saving held edits), the rail (desktop, Damir
+      // F5 r2 grammar), and the hardware/system back (handlers.onBack →
+      // exitSettings — Android unchanged). Sublevels keep their back-to-hub.
+      onBack: undefined,
 
       // Save (Damir, legacy parity) — explicit commit + pop via the single-fire
       // latch. ixian:save persists nick + language + lock + promotes avatar-tmp,
@@ -1035,6 +1053,35 @@
     // about / how-to / …) back returns to the hub (split: empties the detail);
     // from the hub it exits (save-if-dirty else back).
     onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
+
+    // #315 (iOS-46 warm re-present; #46 r1 MAJOR-1): C# now PARKS this page on
+    // close and re-presents the SAME document — the single-fire `exiting` latch
+    // (#199 flicker guard, designed for a page that DIES on pop) would otherwise
+    // freeze every re-presented Account: renders bailed, every exit verb
+    // suppressed, no back arrow left to save you (this batch removed it). The
+    // re-present push resets the latch, re-arms the dirty machinery and repaints
+    // whatever view the user parked on. Also un-gates the #314 backup-stamp poll
+    // (which pauses on `exiting` — a parked page must not tick timers).
+    onRepresented() {
+      exiting = false;
+      rebuildQueued = false;
+      // #46 r2 MAJOR-1: reconcile the dirty machinery with what the PARKING EXIT
+      // already persisted — every reachable park routes through exitSettings,
+      // which sent ixian:save:<name> when dirty, so at park time shell-state ==
+      // C#-state. Without this, a re-presented page kept savedName/dirty* from
+      // BEFORE that save: a phantom Save button, and worse — reverting the nick
+      // to the stale savedName read as "not dirty" → exit sent ixian:back and
+      // the revert was SILENTLY DROPPED (the #240 close-audit class).
+      state.savedName = state.name;
+      state.dirtyNick = state.dirtyAvatar = state.dirtyLock = false;
+      avatarPickPending = false;
+      refreshBackupStampIfChanged();   // a backup may have happened while parked
+      renderLayout();
+      syncSave();
+      // #320: the peer nav may have parked with the EXIT tap's tab highlighted
+      // (bottomnav auto-selects before onChange) — this page is the Account tab.
+      try { setNavActive(nav, 'account'); } catch (e) { /* pre-nav boot */ }
+    },
   };
 
   bridge.exposeAll(handlers);
@@ -1071,6 +1118,12 @@
       if (id === 'account') return;
       try { localStorage.setItem('spixi.landtab', id + ':' + Date.now()); } catch (e) {}
       exitSettings();
+      // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
+      // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED
+      // in that state, and the warm re-present showed Account with the wrong tab
+      // lit. This page IS the Account tab: snap the highlight back immediately
+      // so the parked state is always canonical (belt: onRepresented re-asserts).
+      setNavActive(nav, 'account');
     },
   });
   document.getElementById('settings-nav').append(nav);

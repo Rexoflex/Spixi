@@ -412,20 +412,24 @@ Summary: **676** keys · **130** map to a legacy id · **546** new · legacy dic
 | `setGroupPhoto` | Set group photo | aria/text | short |  | — |
 | `validAddress` | Looks like a valid Ixian address | text | medium |  | — |
 
-## home.html (10)
+## home.html (14)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `addMiniApp` | Add mini app | title | short |  | `app-new-title` |
 | `apps` | Apps | label | short |  | `apps-apps-text` |
 | `chats` | Chats | text/label | short |  | `index-tab-chats` |
+| `connecting` | Connecting | text | short |  | — |
+| `devModeOff` | Developer mode disabled | text | medium |  | — |
+| `devModeOn` | Developer mode enabled | text | medium |  | — |
+| `developerLog` | Developer log | text | short |  | — |
 | `newChat` | New chat | label/aria | short |  | `index-new-chat-button` |
 | `reacted` | Reacted | text | short |  | — |
 | `tabAccount` | Account | placeholder | short |  | — |
-| `tabApps` | Apps | title | short |  | `apps-apps-text` |
+| `tabApps` | Apps | text/title | short |  | `apps-apps-text` |
 | `tabNotReady` | This section isn’t part of the redesign yet. | placeholder | medium |  | — |
 | `viewExplorerAddress` | View address in Explorer | text | medium |  | — |
-| `wallet` | Wallet | label | short |  | `index-tab-wallet` |
+| `wallet` | Wallet | text/label/title | short |  | `index-tab-wallet` |
 
 ## launch-shell.js (63)
 
@@ -906,7 +910,7 @@ Summary: **676** keys · **130** map to a legacy id · **546** new · legacy dic
 | `hideBalance` | Hide balance | aria | short |  | — |
 | `receive` | Receive | label | short |  | `contact-details-receive` |
 
-## wallet-receive.js (14)
+## wallet-receive.js (10)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -914,13 +918,9 @@ Summary: **676** keys · **130** map to a legacy id · **546** new · legacy dic
 | `noContactMatch` | No contact matches “{q}” — you can paste their address instead. | text | long | {q} | — |
 | `noOwnAddress` | Your address isn’t available yet. | text | medium |  | — |
 | `qrReceiveLabel` | QR code — your Ixian address | text | medium |  | — |
-| `qrRequestLabel` | QR code — payment request for {a} IXI | text | medium | {a} | — |
 | `receiveCaption` | Scan to send IXI to this address | text | medium |  | — |
-| `receiveModeAnnounce` | QR shows your plain address again | text | medium |  | — |
 | `requestAmount` | Request an amount | label/aria | short |  | — |
-| `requestModeAnnounce` | QR now requests a specific amount | text | medium |  | — |
 | `requestSentTo` | Request for {a} IXI sent to {name} | text | medium | {a} {name} | — |
-| `requestingCaption` | Requesting {a} IXI — scanning fills the amount in | text | medium | {a} | — |
 | `sendRequestTo` | Send request to a contact | label | medium |  | — |
 | `txCopied` | Copied | text/aria | short |  | — |
 | `yourAddress` | Your address | label/text | short |  | — |

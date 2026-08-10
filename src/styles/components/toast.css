@@ -4,7 +4,10 @@
 .c-toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
+  /* #314: + the safe-area inset — the iOS bottom bar is 64px + env() tall
+     (bottomnav.css:12); without the env() term the toast's lower edge sat
+     BEHIND the nav on notched iPhones. env = 0 everywhere else (#282 grammar). */
+  bottom: calc(var(--layout-bar-bottom) + env(safe-area-inset-bottom, 0px) + var(--spacing-16));
   transform: translate(-50%, var(--spacing-8));
   z-index: var(--z-70);
   display: flex;

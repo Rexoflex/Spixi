@@ -118,7 +118,13 @@ const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(
    generic `@word` fallback keeps mentions visible in 1:1 chats with no roster.
    `self` keys (lowercased) get the stronger self-mention treatment (`data-self`). */
 function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-const GENERIC_TERM = '[\\p{L}\\p{N}_]{1,48}';
+/* #314 (Damir F5 2026-08-07, repro'd before fixing per #215): a URL-looking nick
+   with NO roster entry ("@bob.com" in a 1:1) split at the dot — the generic term
+   forbade dots, so the pill wrapped only "@bob". Interior dotted segments are now
+   allowed (each dot must be FOLLOWED by a word run, so a sentence-ending "@bob."
+   still pills only "@bob"). Bounded repetition ({0,3}) keeps the term linear —
+   no nested quantifiers, no backtracking blowup (the #235 DoS review class). */
+const GENERIC_TERM = '[\\p{L}\\p{N}_]{1,48}(?:\\.[\\p{L}\\p{N}_]{1,48}){0,3}';
 const GENERIC_MENTION_RE = () => new RegExp('@(' + GENERIC_TERM + ')(?![\\p{L}\\p{N}_])', 'giu');
 /* Match ANY @word (so a mention of the local user highlights even before we know
    their nick — Damir F5 2026-07-09), with known member names as LEADING, longest-
@@ -137,42 +143,79 @@ function buildMentionRe(names) {
   try { return new RegExp('@(' + alts.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu'); }
   catch (_) { return GENERIC_MENTION_RE(); }
 }
-function appendWithMentions(parent, text, mention) {
-  if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
+/* #314: the ONE mention-matching pass, split-callback form. onPlain(run) receives
+   every non-mention text run (contiguous — splitting happens ONLY at accepted
+   mention matches, so an email guard reading run-internal context stays sound);
+   onMention(span) receives a built .c-bubble__mention span. */
+function forEachMentionSplit(text, mention, onPlain, onMention) {
   const re = mention._re || (mention._re = buildMentionRe(mention.names));
   const selfSet = mention._self || (mention._self = new Set((mention.self || []).map((s) => String(s).toLowerCase())));
   re.lastIndex = 0;
-  const WORD_BEFORE = /[\p{L}\p{N}_@]/u;
+  // #46 r1 MAJOR-2 (mentions now run BEFORE linkify): the boundary class must also
+  // reject an "@" glued to URL-STRUCTURAL chars (/ : = ? & % #), or the mention
+  // pass steals "@handle" out of the middle of a profile URL
+  // ("mastodon.social/@user", "youtube.com/@channel", "?ref=@bob") — splitting the
+  // run so linkifyPlain links only the stump and the real target becomes
+  // unreachable. A rejected "@" stays inside its contiguous run, so linkifyPlain
+  // still sees (and links) the FULL URL, path-handle included.
+  // #46 r2 ACCEPTED RESIDUAL: chars legal in URL paths but NOT in this class
+  // (- . ~ + , ; parens) can still let a mention split a link ("site.com/a-b-@user")
+  // — closing them would kill natural pills ("ok.@bob", "hi,@bob"). The natural
+  // profile-URL grammar is fully covered; the residual needs a path that GLUES
+  // one of those chars to an @handle — contrived, accepted (#315 row).
+  const WORD_BEFORE = /[\p{L}\p{N}_@\/:=?&%#]/u;
   let last = 0, m;
   while ((m = re.exec(text))) {
-    // boundary-BEFORE the "@": if the char preceding it is a word char or another
-    // "@", this is not a mention (e.g. an email "a@bob.com") — leave it as plain
-    // text (it stays in the run flushed by the next match / the tail append).
+    // boundary-BEFORE the "@": if the char preceding it is a word char, another
+    // "@" or a URL-structural char, this is not a mention (e.g. an email
+    // "a@bob.com" or a profile-URL "/@user") — leave it as plain text (it stays
+    // in the run flushed by the next match / the tail append).
     const prev = m.index > 0 ? text[m.index - 1] : '';
     if (prev && WORD_BEFORE.test(prev)) {
       if (re.lastIndex === m.index) re.lastIndex++;
       continue;
     }
-    if (m.index > last) parent.append(text.slice(last, m.index));
+    if (m.index > last) onPlain(text.slice(last, m.index));
     const span = document.createElement('span');
     span.className = 'c-bubble__mention';
     span.textContent = m[0];                 // "@Name" verbatim (safe)
     if (selfSet.has(String(m[1]).toLowerCase())) span.dataset.self = '';
-    parent.append(span);
+    onMention(span);
     last = m.index + m[0].length;
     if (re.lastIndex === m.index) re.lastIndex++;   // zero-width guard (defensive)
   }
-  if (last < text.length) parent.append(text.slice(last));
+  if (last < text.length) onPlain(text.slice(last));
+}
+function appendWithMentions(parent, text, mention) {
+  if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
+  forEachMentionSplit(text, mention, (run) => parent.append(run), (span) => parent.append(span));
 }
 /* #235 DoS guard: the bare-domain alternation backtracks per start position on
    a crafted no-TLD token ("a.a.a.a…" ~50KB) → an O(n²) matchAll scan freezes
    the chat pane (victim-side render DoS; isolated to the chat WebView per §1,
    but still a freeze). Real chat messages are far below this cap — oversized
    text skips linkify entirely and renders as plain text (mentions still work;
-   appendWithMentions is a single linear exec pass). */
+   the mention pass is a single linear exec). */
 const LINKIFY_MAX = 4096;
+/* #314 ORDERING (Damir F5 2026-08-07, repro'd first per #215): linkify used to run
+   OUTER and mentions only in its gaps — a multi-word roster nick with a URL-looking
+   word ("@Bob site.com") had "site.com" consumed as a LINK BUTTON before the
+   mention regex ever saw it, splitting the pill at the text-node boundary. Mentions
+   now split FIRST (roster names beat URL detection — a mention is the more specific
+   read of the same characters) and each remaining plain run is linkified alone.
+   The #231c email guard is unaffected: a rejected "@…" after a word char stays
+   INSIDE its plain run, so linkifyPlain still sees "a@bob.com" contiguous. */
 function linkifyInto(parent, text, onLinkClick, mention = null) {
   if (text.length > LINKIFY_MAX) { appendWithMentions(parent, text, mention); return; }
+  if (mention && text.indexOf('@') !== -1) {
+    forEachMentionSplit(text, mention,
+      (run) => linkifyPlain(parent, run, onLinkClick),
+      (span) => parent.append(span));
+    return;
+  }
+  linkifyPlain(parent, text, onLinkClick);
+}
+function linkifyPlain(parent, text, onLinkClick) {
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
     // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
@@ -187,7 +230,7 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
     while (url.endsWith(')') &&
            (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
     if (!url) continue;
-    appendWithMentions(parent, text.slice(last, m.index), mention);   // mentions in the gap before the URL
+    if (m.index > last) parent.append(text.slice(last, m.index));
     const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;  // #231c: click target for scheme-less links
     const b = document.createElement('button');
     b.type = 'button';
@@ -198,7 +241,7 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
     parent.append(b);
     last = m.index + url.length;
   }
-  appendWithMentions(parent, text.slice(last), mention);
+  if (last < text.length) parent.append(text.slice(last));
 }
 
 /* Copy the FULL address to the clipboard + brief inline "Copied" feedback.

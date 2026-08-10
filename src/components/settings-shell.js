@@ -326,7 +326,11 @@ export function createSettingsHub({
   el.className = 'c-settings';
 
   const topbar = createTopbar({
-    variant: 'view', title: strings.account || 'Account', onBack,
+    // #320 (Damir F5 of #315): NO onBack = the hub is a PEER TAB (iOS-46) — its
+    // topbar must read exactly like the other tabs' ROOT bars (bold action ink,
+    // 16px inline padding, no view hairline; heading-sm is shared per #58).
+    // 'view' stays for a legacy standalone-pushed presentation that supplies onBack.
+    variant: onBack ? 'view' : 'root', title: strings.account || 'Account', onBack,
     // Save button (Damir, legacy parity): the #146 model commits per-row / on-exit
     // with NO Save button — this OPTIONAL trailing action adds an explicit commit
     // (the shell fires ixian:save → persist nick/lang/lock/avatar + pop). Topbar

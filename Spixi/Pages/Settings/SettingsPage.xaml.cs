@@ -36,6 +36,10 @@ namespace SPIXI
         bool paneMode = false;
         double masterWidth = 0;
 
+        // #315: HomePage's park/re-present guard reads the hosting mode — a parked
+        // NON-pane page must never be re-presented into a WIDE window (and vice versa).
+        public bool isPaneMode { get { return paneMode; } }
+
         public SettingsPage(bool pane_mode = false, double master_width = 0)
         {
             paneMode = pane_mode;

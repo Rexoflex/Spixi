@@ -79,13 +79,14 @@ to be dead code rather than a bug, and that's a real outcome, not a failure.
       under the "Channels" heading, clamped to a few lines.
 - [ ] A bot with no description → no empty line, no gap.
 
-## A7 — Long message guard
+## A7 — Long message guard  ✅ VERIFIED 2026-08-07 (Damir: guard works over the 64k limit)
 
-- [ ] Paste something enormous (>64 000 characters) into the composer. **The text stays put** — it
+- [x] Paste something enormous (>64 000 characters) into the composer. **The text stays put** — it
       must not vanish. Send is disabled and a counter shows how far over you are.
-- [ ] Tap send anyway → toast "Text is too long." **and the text is still there.**
-- [ ] Trim it under the limit → the counter disappears and send re-enables.
+- [x] Tap send anyway → toast "Text is too long." **and the text is still there.**
+- [x] Trim it under the limit → the counter disappears and send re-enables.
 - [ ] Non-English: this one **is** translated (it reused the legacy string) — check it in German.
+      (Only leg still open — fold into the next locale pass, not a re-test of the guard.)
 
 ## A8 — Scan zoom  ⚠
 

@@ -219,6 +219,9 @@
 .c-encpass__footer {
   flex: none;
   padding: var(--spacing-12) var(--spacing-16);
+  /* #314 (Damir screenshot): the Change-password CTA sat ON the iOS home
+     indicator — clear it (launch-shell.css:281 canonical pattern; env = 0 elsewhere) */
+  padding-bottom: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }

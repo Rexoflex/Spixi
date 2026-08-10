@@ -702,6 +702,12 @@ namespace SPIXI.Meta
                 excludeAddresses.Add(p.friend.walletAddress);
             }
             FriendList.onLowMemory(excludeAddresses);
+            // #315 (#46 r1 MINOR-3): the parked warm Account WebView is the memory
+            // dial iOS-46 (a) bought — under REAL pressure it is the first thing to
+            // give back (an opacity-0 WKWebView is also a prime jetsam target whose
+            // content-process death would re-present a dead blank page; disposing
+            // here shrinks that window to presented-only, the pre-#315 world).
+            SPIXI.SpixiContentPage.disposeParkedOverlay();
         }
 
         public override Block? getBlockHeader(ulong blockNum)

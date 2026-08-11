@@ -4318,6 +4318,79 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#322: the connectivity title-state lands on ALL THREE in-page tabs (chats topbar + apps topbar + wallet hero) — it was chats-only, misleading on the other tabs (Account = own WebView, accepted omission)');
   ok(/title: strings\.wallet \|\| 'Wallet',\s*\n\s*strings: walletStrings,/.test(homeSh2),
     '#322 i18n: the wallet hero title threads the translated `wallet` key — it rendered the hardcoded English default ("Wallet" on a Slovenian build, Damir screenshot)');
+
+  /* ——— #324–#328 sweep-session pins (iOS-53/55/56/57 + the #46 loop fixes) ——— */
+  const chat328 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const home328 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const ws328 = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
+  const cd328 = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
+  const scp328 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const hp328 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const chdr328 = readFileSync(join(root, 'src/components/chats-header.js'), 'utf8');
+  const sapp328 = readFileSync(join(root, 'src/components/settings-app.js'), 'utf8');
+  // #324: the native contentOffset pin arms in WillChangeFrame BEFORE the inset push
+  ok(/if \(overlap > 0\)\s*\n\s*pinKeyboardScroll\(\);[\s\S]{0,500}\(int\)overlap/.test(scp328),
+    '#324: the KVO contentOffset pin arms BEFORE the inset push on the SHOW path (WillChangeFrame precedes the pan — probe-proven ordering; reviewer r2: the loose pin matched WillHide via the unpin substring)');
+  ok(/AddObserver\("contentOffset"/.test(scp328) && /unpinKeyboardScroll\(\);/.test(scp328),
+    '#324: pin = KVO on contentOffset with an unpin release path (WillHide + detach)');
+  ok(/#chat-composer \{ transition: margin-bottom 280ms/.test(chat328)
+    && /prefers-reduced-motion: reduce\) \{ #chat-composer \{ transition: none/.test(chat328),
+    '#324 r2: the composer rides the keyboard (280ms margin transition, reduced-motion instant)');
+  ok(/if \(open && stick && insetChanged\) stickDuring\(340\);/.test(chat328)
+    && /if \(px > 60 && stick && insetChanged\) stickDuring\(340\);/.test(chat328),
+    '#328: bottom-stick is CHANGE-GATED in both writers — the exact if-conditions, not just the identifier (the settle ladder must not re-arm a ~1.7s pin window — audit MAJOR; reviewer r2: the count-based pin was decorative)');
+  ok(/cancelAnimationFrame\(stickRaf\);\s*\n\s*stickEnd = 0;/.test(chat328),
+    '#328: any user touch cancels the stick (the loop must never fight a scroll or yank the @-FAB jump while the mention marker burns — audit MAJOR)');
+  // #325: shell edge-swipe back — sheet-first, channel-panel aware, selection-guarded
+  ok(/function edgeSwipeBack|\(function edgeSwipeBack\(\)/.test(chat328)
+    && /dismissTopOverlay/.test(chat328) && /ixian:back/.test(chat328),
+    '#325: edge-swipe back lives in the SHELL (two native recognizer rounds died in UIKit arbitration — do not resurrect them) and consults the overlay stack before ixian:back');
+  ok(/Math\.max\(70, dy \* 2\)[\s\S]{0,900}if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat328),
+    '#328: the hand-rolled channel selector (not on the overlay stack) consumes the swipe INSIDE the edge handler — sheet-first covers it (audit MINOR; anchored past the axis gate: the #252 title-tap toggle uses the same line shape elsewhere)');
+  ok(/sel && !sel\.isCollapsed/.test(chat328) && /dx > Math\.max\(70, dy \* 2\)/.test(chat328),
+    '#328: an active text selection is never stolen by the swipe + dominant-axis gate (audit MINOR/NIT)');
+  ok(!/kb-probe|kbProbe/.test(chat328),
+    '#324: the kb-probe was TEMPORARY and is fully retired from the shell');
+  // #326: iOS slide-out on back-initiated overlay closes
+  ok(/closeOverlay\(PreloadOp op, bool slideOut = false\)/.test(scp328)
+    && /closeOverlay\(overlayOp, true\)/.test(scp328)
+    && /closeOverlay\(overlays\[i\], i == overlays\.Count - 1\)/.test(scp328),
+    '#326: slide-out is BACK-INITIATED only (popPageAsync + popToRootAsync topmost); close-audits stay instant');
+  ok(/op\.column < 0[\s\S]{0,200}DevicePlatform\.iOS/.test(scp328),
+    '#328: column-pinned (split-view) stages never slide — phone pop-grammar stays off the iPad split (audit MINOR)');
+  ok(/InputTransparent = true;\s*\n\s*double w = op\.stage\.Width/.test(scp328),
+    '#328: the sliding stage goes INPUT-DEAD before the animation starts (a second back-tap mid-slide fell through to the native stack — the #272 pop-the-top class, audit MAJOR)');
+  ok(/op\.stage\.TranslationX = 0;/.test(scp328),
+    '#326 belt: no translated stage can reach a reuse path');
+  // iOS-55 (W1): epoch timestamps, numeric-detect with the >0 guard, all four surfaces
+  ok(/string time = activity\.timestamp\.ToString\(\);/.test(hp328),
+    'iOS-55: HomePage pushes the RAW EPOCH — DateTime.ToString under the .NET culture never followed the app language');
+  ok(/&& Number\(String\(time\)\.trim\(\)\) > 0\)/.test(home328) && /timestamp: Number\(String\(time\)\.trim\(\)\) \* 1000/.test(home328),
+    'iOS-55/#328: home.html numeric-detects with the epoch>0 guard (0 degrades to no-time, never a 1970 date)');
+  ok(/Number\(s\) > 0\) return formatTxTimestamp\(Number\(s\) \* 1000\)/.test(ws328)
+    && /formatTxTimestamp,/.test(ws328),
+    'iOS-55/#328: wallet_sent formats epoch via formatTxTimestamp (destructured) with the >0 guard');
+  const cdcs328 = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+  ok(/timestamp: Number\(String\(time\)\.trim\(\)\) \* 1000/.test(cd328)
+    && /string time = activity\.timestamp\.ToString\(\);/.test(cdcs328)
+    && !/= Utils\.unixTimeStampToString/.test(cdcs328),
+    '#328: ContactDetails recent activity joined the W1 fix — BOTH halves (C# epoch push + shell numeric-detect; reviewer r2: the C# half was unpinned)');
+  ok(/formatTxTimestamp\(Number\(s\) \* 1000\)/.test(sapp328) && /import \{ formatTxTimestamp \}/.test(sapp328),
+    '#328: the downloads file-date joined the W1 fix (settings + downloads shells, one component site)');
+  ok(!/unixTimeStampToHumanFormatString/.test(hp328),
+    'iOS-55: no formatted-time push remains in HomePage');
+  // #327: chats header = list content on mobile
+  ok(/scroller\.insertBefore\(header, list\)/.test(home328)
+    && /data-desktop'\)\)\s*\{\s*\n\s*document\.getElementById\('chats-header'\)\.append\(header\);\s*\n\s*attachChatsCollapse/.test(home328),
+    '#327: mobile mounts the header IN the scroller (native physics); the triggered collapse is DESKTOP-ONLY');
+  const chdrCss328 = readFileSync(join(root, 'src/styles/components/chats-header.css'), 'utf8');
+  ok(/\.u-scroll > \.c-chats-header\.is-pinned \{\s*\n\s*position: sticky/.test(chdrCss328),
+    '#327: the searching header pins sticky at the scroller top (results cannot scroll the query away)');
+  ok(/searching = headerEl\.contains\(document\.activeElement\)/.test(chdr328)
+    && /delta > COLLAPSE_DELTA_PX && !searching/.test(chdr328),
+    '#328: the desktop collapse never fires mid-search — the && !searching lives in the COLLAPSE BRANCH itself (audit MINOR; reviewer r2: the assignment-only pin was decorative)');
+  ok(/scroller\.insertBefore\(header, list\)/.test(readFileSync(join(root, 'src/demo/chats.html'), 'utf8')),
+    '#328: the phone-frame demo mirrors the shipped in-list header (demo drift — audit MINOR)');
 }
 
 if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }

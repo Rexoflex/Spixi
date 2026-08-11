@@ -10970,8 +10970,15 @@ function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
     const top = raw;
     const delta = top - lastTop;
     lastTop = top;
+    /* #328 (audit MINOR, the wallet-shell toolsBusy precedent): NEVER collapse
+     * while the user is SEARCHING — a mid-query collapse `inert`s the focused
+     * input (Chromium blurs it) and hides the only way to see/clear the active
+     * filter until the list is scrolled back to absolute top. Desktop is the
+     * only production consumer since #327 (mobile mounts the header in-list). */
+    const searching = headerEl.contains(document.activeElement)
+      || (() => { const i = headerEl.querySelector('input'); return !!(i && i.value); })();
     if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
-    else if (delta > COLLAPSE_DELTA_PX) setCollapsed(true);   // collapse on real downward scroll
+    else if (delta > COLLAPSE_DELTA_PX && !searching) setCollapsed(true);   // collapse on real downward scroll
   };
 
   const onResize = () => {                    // re-measure while expanded (can't while collapsed)
@@ -20955,6 +20962,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -21106,7 +21114,13 @@ function createSettingsDownloads({
     if (time) {
       const tm = document.createElement('span');
       tm.className = 'c-settings-dl__time';
-      tm.textContent = time;               // opaque locale string — never parsed
+      // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
+      // formats via formatTxTimestamp/docLocale (translated, chat-row parity);
+      // anything else = an OLD exe's culture-opaque DateTime string → verbatim.
+      const s = String(time).trim();
+      tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
+        ? formatTxTimestamp(Number(s) * 1000)
+        : time;                            // opaque locale string — never parsed
       meta.append(tm);
     }
     open.append(disc, meta);
@@ -26710,6 +26724,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
      * 340ms > the 280ms transition; restarts safely on overlapping writes. */
     let stickRaf = 0, stickEnd = 0;
     function stickDuring(ms) {
+      // #328 loop fix: reduced-motion has no transition to track — one write.
+      if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        box.scrollTop = box.scrollHeight;
+        return;
+      }
       stickEnd = performance.now() + ms;
       cancelAnimationFrame(stickRaf);
       (function step() {
@@ -26717,10 +26736,23 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         if (performance.now() < stickEnd) stickRaf = requestAnimationFrame(step);
       })();
     }
+    /* #328 loop fix (audit MAJOR): any user touch cancels the stick — the loop
+     * exists only to track the composer's own 280ms slide; without this it
+     * fought user scrolling AND yanked the @-mention FAB's jump back to the
+     * bottom while the mention was already marked seen (the marker burned with
+     * the jump never shown). A touch anywhere = user intent wins. */
+    document.addEventListener('touchstart', () => {
+      cancelAnimationFrame(stickRaf);
+      stickEnd = 0;
+    }, { passive: true, capture: true });
+    let lastInset = -1;                    // #328: arm the stick only on a REAL change
     function setInset(px) {
       document.documentElement.style.setProperty('--kb-inset', px + 'px');
       kbOpen = px > 0;
+      insetChanged = px !== lastInset;
+      lastInset = px;
     }
+    let insetChanged = false;
     function apply() {
       if (!vv) return;
       // innerHeight tracks the LAYOUT viewport (constant under WKWebView's
@@ -26739,7 +26771,11 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       // vv 'scroll' listener below catches the late pan too). With the composer
       // lifted above the keyboard, WebKit has no reason to re-pan after this.
       if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
-      if (open && stick) stickDuring(340);   // iOS-53 r2: track the slide, not one frame
+      // #328: arm ONLY when this pass actually changed the inset — the settle
+      // ladder re-runs apply() at 80..1400ms and each pass re-armed a fresh
+      // 340ms pin (a ~1.7s continuous window after every focus, audit MAJOR).
+      if (open && stick && insetChanged) stickDuring(340);
+      insetChanged = false;
     }
     /* r2 (#303) — SETTLE POLL. Damir's F5: the composer lifted only after 7-8
      * typed characters. Diagnosis: the first vv 'resize' fires BEFORE the keyboard
@@ -26779,7 +26815,10 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const stick = nearBottom();
       setInset(px > 60 ? px : 0);          // same real-keyboard threshold as the vv path
       if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
-      if (px > 60 && stick) stickDuring(340);   // iOS-53 r2: track the slide, not one frame
+      // #328: change-gated like the vv writer — a re-push of the same height
+      // (C# re-posts WillChangeFrame freely) must not re-pin the log.
+      if (px > 60 && stick && insetChanged) stickDuring(340);
+      insetChanged = false;
     };
   })();
 
@@ -26813,8 +26852,24 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       const dx = t.clientX - x0;
       const dy = Math.abs(t.clientY - y0);
       if (dy > 50 && dy > dx) { tracking = false; return; }   // vertical scroll intent
-      if (dx > 70 && dy < 50) {
+      // #328 r2: dominant-axis gate. The r1 form (`dx > dy * 1.4` beside
+      // dy < 50) was DEAD CODE — for any dy < 50, dy*1.4 < 70 < dx, so it
+      // never bound (break-my-verdict catch: its own cited 71/49 case still
+      // fired). Real gate: the dx threshold SCALES with drift — a shallow
+      // swipe fires at 70px, a 49px-drift diagonal needs 98px of travel.
+      if (dy < 50 && dx > Math.max(70, dy * 2)) {
+        // #328 (audit MINOR): an active text selection means the user is
+        // dragging a selection handle (received bubbles sit left-aligned —
+        // a start-handle drag from the edge IS this gesture's shape). Never
+        // steal it.
+        const sel = document.getSelection && document.getSelection();
+        if (sel && !sel.isCollapsed) { tracking = false; return; }
         fired = true; tracking = false;
+        // #328 (audit MINOR): the bot channel selector is hand-rolled (top-
+        // anchored panel, deliberately NOT on the shared overlay stack) — the
+        // sheet-first contract must cover it too, or the swipe closes the
+        // whole chat under an open panel.
+        if (channelDropdown) { closeChannelSelector(); return; }   // live-state probe: nulled at close START (an exiting panel must not eat the swipe)
         const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
         if (!(dismiss && dismiss())) bridge.send('ixian:back');
       }

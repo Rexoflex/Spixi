@@ -432,7 +432,14 @@
         status: asBool(confirmed) ? 'confirmed' : 'pending',
         name: type || '',                                   // verbatim localized "Sent"/"Received" label
         amount: (dir === 'in' ? '+' : '-') + formatIxiAmount(amount),
-        timeText: time || '',                               // pre-formatted display string, shown verbatim
+        // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
+        // formats in-component via formatTxTimestamp/docLocale (createTxItem
+        // prefers timestamp when timeText is absent); anything else = an OLD
+        // exe's pre-formatted string → verbatim (backcompat). >0 guard: epoch 0
+        // degrades to "no time", never a 1970 date.
+        ...((/^\d{1,12}$/.test(String(time == null ? '' : time).trim()) && Number(String(time).trim()) > 0)
+          ? { timestamp: Number(String(time).trim()) * 1000 }
+          : { timeText: time || '' }),
       });
       scheduleCommit();
     },

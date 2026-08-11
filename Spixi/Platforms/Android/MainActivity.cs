@@ -154,7 +154,9 @@ public class MainActivity : MauiAppCompatActivity
             if (!string.IsNullOrEmpty(chatId))
             {
                 App.startingScreen = chatId;
-                HomePage.Instance().updateScreen();
+                // AND-1 (#329): a push-tap intent pre-login must NOT construct HomePage
+                // (App.startingScreen stays set; the post-login construction consumes it).
+                HomePage.InstanceOrNull()?.updateScreen();
             }
         }
     }

@@ -251,14 +251,24 @@
   const list = createChatsList(state, opts);
   scroller.append(list);
 
+  /* #327/#328 (production parity): the mobile header is LIST CONTENT — first
+   * child of the scroller, native scroll physics, sticky `is-pinned` while
+   * searching. The #67 triggered collapse is retired on mobile (desktop.html
+   * keeps it); this phone-frame demo now demonstrates the shipped behavior. */
+  let headerQuery = '';
   const header = createChatsHeader({
     activeFilter: 'all', strings, favorites: caps.favorites,
     counts: chatsHeaderCounts(),          // seeds the Unread/Groups numbers + reveals the Requests chip
     onFilter: (f) => setChatsFilter(list, state, f, opts),
-    onQuery: (q) => setChatsQuery(list, state, q, opts),
+    onQuery: (q) => { headerQuery = String(q || ''); setChatsQuery(list, state, q, opts); syncHeaderPin(); },
   });
-  document.getElementById('chats-header').append(header);
-  attachChatsCollapse(header, scroller);
+  function syncHeaderPin() {
+    header.classList.toggle('is-pinned',
+      headerQuery !== '' || header.contains(document.activeElement));
+  }
+  scroller.insertBefore(header, list);
+  header.addEventListener('focusin', syncHeaderPin);
+  header.addEventListener('focusout', () => setTimeout(syncHeaderPin, 0));
 
   // demo-only: park/unpark pin+mute to show the capability gating (swipe + menu)
   let parked = false;

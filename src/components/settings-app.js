@@ -26,6 +26,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
+import { formatTxTimestamp } from './timestamp.js';   // iOS-55/#328: epoch ctimes → localized display
 import { createTopbar } from './topbar.js';
 import { openLegalDoc } from './launch-shell.js';   // iOS-23: ONE source for the legal copy (#169)
 import { createButton, setLoading, setSuccess } from './button.js';
@@ -183,7 +184,13 @@ export function createSettingsDownloads({
     if (time) {
       const tm = document.createElement('span');
       tm.className = 'c-settings-dl__time';
-      tm.textContent = time;               // opaque locale string — never parsed
+      // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
+      // formats via formatTxTimestamp/docLocale (translated, chat-row parity);
+      // anything else = an OLD exe's culture-opaque DateTime string → verbatim.
+      const s = String(time).trim();
+      tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
+        ? formatTxTimestamp(Number(s) * 1000)
+        : time;                            // opaque locale string — never parsed
       meta.append(tm);
     }
     open.append(disc, meta);

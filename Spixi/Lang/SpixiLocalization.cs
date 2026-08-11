@@ -194,7 +194,17 @@ namespace SPIXI.Lang
         public static string localizeHtml(Stream stream)
         {
             StreamReader sr = new StreamReader(stream);
-            string lines = "";
+            /* AND-2 (#330, first Android run 2026-08-11): `lines += line` was
+             * QUADRATIC — each += recopies the whole accumulated document, and the
+             * redesigned shells are ~22,000 lines / ~1.3MB, so one page load did
+             * gigabytes of memory copying ON THE UI THREAD: the 30s+ splash hang
+             * and the language-change ANR, both this loop (language re-runs
+             * generatePage). Legacy pages were small enough to hide it; the file
+             * overload below always streamed (linear), which is why only Android —
+             * the sole consumer of this overload — ever hurt. StringBuilder =
+             * linear, same output byte-for-byte. */
+            var lines = new System.Text.StringBuilder(
+                stream.CanSeek ? (int)Math.Min(stream.Length + (stream.Length / 4), int.MaxValue / 2) : 1 << 21);
             while (!sr.EndOfStream)
             {
                 string line = sr.ReadLine().Trim();
@@ -214,13 +224,14 @@ namespace SPIXI.Lang
                     }
                     line = line.Replace("*SL{" + key + "}", value);
                 }
-                lines += line + "\n";
+                lines.Append(line);
+                lines.Append('\n');
             }
 
             sr.Close();
             sr.Dispose();
 
-            return lines;
+            return lines.ToString();
         }
 
         private static Dictionary<string, (int argCount, string localizedString)>? testFile(string path)

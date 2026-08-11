@@ -142,10 +142,11 @@ namespace SPIXI
                 }
             }
 
-            if (HomePage.Instance() != null
-                && HomePage.Instance().getDetailContent() != null)
+            var homeDetail = HomePage.InstanceOrNull();   // AND-1 (#329): read-only lookup
+            if (homeDetail != null
+                && homeDetail.getDetailContent() != null)
             {
-                var item = HomePage.Instance().getDetailContent();
+                var item = homeDetail.getDetailContent();
                 if (item is SingleChatPage)
                 {
                     if (((SingleChatPage)item).friend == friend)
@@ -191,8 +192,9 @@ namespace SPIXI
             // outside the NavigationStack — getChatPage() covers that surface but this
             // enumerator didn't, so page-wide sweeps (onLowMemory eviction exclusion,
             // reloadScreen-all, delete-all history) missed the most-visible desktop chat.
-            if (HomePage.Instance() != null
-                && HomePage.Instance().getDetailContent() is SingleChatPage detailChat
+            var homeLive = HomePage.InstanceOrNull();     // AND-1 (#329): read-only sweep
+            if (homeLive != null
+                && homeLive.getDetailContent() is SingleChatPage detailChat
                 && !chatPages.Contains(detailChat))
             {
                 chatPages.Add(detailChat);

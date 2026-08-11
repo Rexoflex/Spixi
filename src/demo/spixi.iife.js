@@ -5791,8 +5791,15 @@ function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
     const top = raw;
     const delta = top - lastTop;
     lastTop = top;
+    /* #328 (audit MINOR, the wallet-shell toolsBusy precedent): NEVER collapse
+     * while the user is SEARCHING — a mid-query collapse `inert`s the focused
+     * input (Chromium blurs it) and hides the only way to see/clear the active
+     * filter until the list is scrolled back to absolute top. Desktop is the
+     * only production consumer since #327 (mobile mounts the header in-list). */
+    const searching = headerEl.contains(document.activeElement)
+      || (() => { const i = headerEl.querySelector('input'); return !!(i && i.value); })();
     if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
-    else if (delta > COLLAPSE_DELTA_PX) setCollapsed(true);   // collapse on real downward scroll
+    else if (delta > COLLAPSE_DELTA_PX && !searching) setCollapsed(true);   // collapse on real downward scroll
   };
 
   const onResize = () => {                    // re-measure while expanded (can't while collapsed)
@@ -15776,6 +15783,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -15927,7 +15935,13 @@ function createSettingsDownloads({
     if (time) {
       const tm = document.createElement('span');
       tm.className = 'c-settings-dl__time';
-      tm.textContent = time;               // opaque locale string — never parsed
+      // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
+      // formats via formatTxTimestamp/docLocale (translated, chat-row parity);
+      // anything else = an OLD exe's culture-opaque DateTime string → verbatim.
+      const s = String(time).trim();
+      tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
+        ? formatTxTimestamp(Number(s) * 1000)
+        : time;                            // opaque locale string — never parsed
       meta.append(tm);
     }
     open.append(disc, meta);

@@ -178,8 +178,15 @@ export function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) 
     const top = raw;
     const delta = top - lastTop;
     lastTop = top;
+    /* #328 (audit MINOR, the wallet-shell toolsBusy precedent): NEVER collapse
+     * while the user is SEARCHING — a mid-query collapse `inert`s the focused
+     * input (Chromium blurs it) and hides the only way to see/clear the active
+     * filter until the list is scrolled back to absolute top. Desktop is the
+     * only production consumer since #327 (mobile mounts the header in-list). */
+    const searching = headerEl.contains(document.activeElement)
+      || (() => { const i = headerEl.querySelector('input'); return !!(i && i.value); })();
     if (top <= CHATS_REVEAL_AT) setCollapsed(false);   // reveal ONLY at the absolute top
-    else if (delta > COLLAPSE_DELTA_PX) setCollapsed(true);   // collapse on real downward scroll
+    else if (delta > COLLAPSE_DELTA_PX && !searching) setCollapsed(true);   // collapse on real downward scroll
   };
 
   const onResize = () => {                    // re-measure while expanded (can't while collapsed)

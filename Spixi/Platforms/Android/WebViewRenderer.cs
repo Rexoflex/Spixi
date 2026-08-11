@@ -363,8 +363,19 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
             }
 
             webView.Settings.CacheMode = CacheModes.NoCache;
-            webView.Settings.DatabaseEnabled = false;
-            webView.Settings.DomStorageEnabled = false;
+            webView.Settings.DatabaseEnabled = false;   // WebSQL — deprecated, unused, stays off
+            /* AND-9 (#331, first Android walk 2026-08-11): the redesign RUNS ON
+             * localStorage (drafts · rating snooze · backup stamp · landtab ·
+             * pins · mentions-seen · chat prefs/textscale · scan grant — the
+             * spixi.* family, C-9-verified persistent on iOS/desktop) and Android
+             * WebView ships DOM storage DISABLED by default; this legacy `false`
+             * kept it off explicitly, so every one of those features silently
+             * reset per page load: rating prompt on EVERY chat exit, drafts
+             * vanishing, "not backed up yet" after a backup, Account exits
+             * landing on the stale tab (the #314 landtab fix reads storage).
+             * Same-origin note: all shells load off the same assets base URL —
+             * one origin, exactly like file:// elsewhere (#308 cross-page leg). */
+            webView.Settings.DomStorageEnabled = true;
 
             webView.FocusChange += (sender, args) =>
             {

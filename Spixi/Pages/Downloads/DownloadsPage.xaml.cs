@@ -156,7 +156,10 @@ namespace SPIXI
 
             foreach (var path in Directory.EnumerateFiles(TransferManager.downloadsPath))
             {
-                Utils.sendUiCommand(this, "addFile", Path.GetFileName(path), File.GetCreationTime(path).ToString());
+                // iOS-55/#328 (W1 class): raw epoch seconds — the downloads component
+                // numeric-detects and formats via formatTxTimestamp/docLocale; the old
+                // DateTime.ToString() was the .NET culture, never the app language.
+                Utils.sendUiCommand(this, "addFile", Path.GetFileName(path), new DateTimeOffset(File.GetCreationTime(path)).ToUnixTimeSeconds().ToString());
             }
         }
 

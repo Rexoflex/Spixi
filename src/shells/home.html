@@ -894,6 +894,9 @@
     },
   });
   function syncHeaderPin() {
+    // #328 NIT: mobile-only — on desktop the header lives outside the scroller,
+    // so the class would be dead churn (the sticky rule needs `.u-scroll >`).
+    if (document.documentElement.hasAttribute('data-desktop')) return;
     header.classList.toggle('is-pinned',
       headerQuery !== '' || header.contains(document.activeElement));
   }
@@ -2352,7 +2355,7 @@
         // (txlist-item + the R6 sheet both already prefer timestamp when timeText
         // is absent) = the same translation machinery as chat rows. Anything
         // non-numeric = an OLD exe's pre-formatted English string → verbatim.
-        ...(/^\d{1,12}$/.test(String(time == null ? '' : time).trim())
+        ...((/^\d{1,12}$/.test(String(time == null ? '' : time).trim()) && Number(String(time).trim()) > 0)
           ? { timestamp: Number(String(time).trim()) * 1000 }
           : { timeText: time || '' }),
         // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)

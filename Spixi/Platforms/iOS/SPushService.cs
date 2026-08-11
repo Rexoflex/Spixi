@@ -293,7 +293,7 @@ namespace Spixi
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
                             App.startingScreen = Convert.ToString(fa);
-                            HomePage.Instance().popToRootAsync();
+                            HomePage.InstanceOrNull()?.popToRootAsync();   // AND-1 (#329): push tap pre-login must not construct
                         });
                     }
                 }

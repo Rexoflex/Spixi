@@ -395,7 +395,7 @@ namespace SPIXI.Meta
                     {
                         if (running)
                         {
-                            HomePage.Instance()?.OnUpdateUI();
+                            HomePage.InstanceOrNull()?.OnUpdateUI();   // AND-1 (#329): UI tick must never construct
                         }
                     }
                     catch (Exception e)
@@ -591,7 +591,7 @@ namespace SPIXI.Meta
 
         public override void shutdown()
         {
-            HomePage.Instance()?.stop();
+            HomePage.InstanceOrNull()?.stop();   // AND-1 (#329): shutdown must never construct-to-stop
             stop();
         }
 

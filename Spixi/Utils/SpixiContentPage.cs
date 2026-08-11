@@ -866,10 +866,20 @@ namespace SPIXI
                         // WinUI keeps the #229b instant flip (flash class), Android keeps
                         // its native transitions; non-back closes (close-audits, tab
                         // switches, removePage) pass slideOut=false and stay instant.
-                        if (slideOut && Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
+                        // #328 loop fixes: (1) the stage goes INPUT-DEAD before the first
+                        // animation frame — the op left overlayStack synchronously, so a
+                        // second back-tap during the slide would fall through popPageAsync
+                        // onto the native stack (the #272 pop-the-top class, audit MAJOR),
+                        // and any button in the closing page could still fire verbs on a
+                        // page mid-teardown; (2) COLUMN-PINNED stages (wide/iPad split,
+                        // op.column >= 0) never slide — phone pop-grammar across a split
+                        // layout dragged the pane over its neighbour (audit MINOR).
+                        if (slideOut && op.column < 0
+                            && Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
                         {
                             try
                             {
+                                op.stage.InputTransparent = true;
                                 double w = op.stage.Width > 0 ? op.stage.Width : 500;
                                 await op.stage.TranslateTo(w, 0, 250, Easing.CubicOut);
                             }

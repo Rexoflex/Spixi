@@ -56,6 +56,20 @@ namespace SPIXI
             return _singletonInstance;
         }
 
+        /* AND-1 (#329, first Android run 2026-08-11): READ-ONLY accessor — returns
+         * the existing instance or null, NEVER constructs. Instance() constructing
+         * on first touch is correct only for the App-start assignment (App.xaml.cs,
+         * wallet present + decrypted); every caller that merely pokes the LIVE page
+         * must use this instead. The Android boot fired RequestedThemeChanged →
+         * reloadAllPages → Instance() → HomePage ctor → Node.start() on a
+         * WALLET-LESS install → the getWalletStorage NRE storm over the onboarding
+         * carousel (fatal dialog + 1 Hz TransactionInclusion re-throws). Latent on
+         * every platform; Android's boot-time theme event was the first to fire it. */
+        public static HomePage? InstanceOrNull()
+        {
+            return _singletonInstance;
+        }
+
         private ushort transactionFilter = 0; // 0-All 1-Sent 2-Received
 
         private string currentTab = "tab1";

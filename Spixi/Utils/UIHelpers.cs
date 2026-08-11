@@ -43,7 +43,7 @@ namespace SPIXI
             // #251: the default detail (EmptyDetail in HomePage.rightContent) is in
             // neither collection — regenerate it too (theme/language), or it keeps
             // the boot-time substitution forever.
-            HomePage.Instance()?.reloadDefaultDetail();
+            HomePage.InstanceOrNull()?.reloadDefaultDetail();   // AND-1 (#329): read-only — must NEVER construct (pre-login theme/language reload)
             // #315 (#46 r1 MAJOR-3): a PARKED overlay (warm Account, iOS-46) is
             // deliberately in NONE of the collections above — an OS auto-theme flip
             // or language change would re-present it in yesterday's theme, forever

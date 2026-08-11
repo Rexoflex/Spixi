@@ -376,7 +376,10 @@ namespace SPIXI
                 {
                     tx_type = SpixiLocalization._SL("global-sent");
                 }
-                string time = Utils.unixTimeStampToString(Convert.ToDouble(activity.timestamp));
+                // iOS-55/#328 (W1 class): raw epoch seconds — the shell numeric-detects
+                // and formats via formatTxTimestamp/docLocale (translated month names);
+                // the old unixTimeStampToString was a hard-coded US "MM/dd/yyyy HH:mm:ss".
+                string time = activity.timestamp.ToString();
 
                 string confirmed = "true";
                 if (activity.status != IXICore.Activity.ActivityStatus.Final)

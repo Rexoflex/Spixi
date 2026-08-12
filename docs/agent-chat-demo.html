@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark" data-desktop><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spixi &mdash; AI agent conversation (design demo, production tokens)</title>
+<title>Spixi &mdash; AI agent conversation (design demo, production tokens + components)</title>
 <style data-src="tokens.css">
 /* ==========================================================================
    Spixi design tokens — GENERATED from Figma "Spixi-App" variables.
@@ -2060,6 +2060,317 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 }
 
 </style>
+<style data-src="typed-bubbles.css">
+/* Typed message cards + file bubble + unread divider (batch 2).
+   Card language per Figma: white card (bubble-received surface), radius-16,
+   elevation-1, header label+time, pill actions, Details link. */
+
+.c-tcard {
+  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1);
+}
+/* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
+   below) carry the same 2px outgoing-colour border as sent media tiles
+   (media-bubble.css:130) — "yours" at a glance. */
+.c-bubble-row[data-direction="sent"] .c-tcard,
+.c-bubble-row[data-direction="sent"] .c-fbubble {
+  border: 2px solid var(--surface-bubble-sent);
+}
+/* #265 (Damir ⑪): call cards HUG their content — a two-line event read
+   oversized at full bubble width. */
+.c-tcard[data-kind="call"] {
+  width: fit-content;
+  min-width: 220px;
+  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+}
+
+.c-tcard__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-8);
+}
+.c-tcard__title {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-tcard__time {
+  flex: none;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+
+/* amount (payment) — Sora, tone-driven per Figma */
+.c-tcard__amount {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+}
+.c-tcard__amount[data-tone="pending"] { color: var(--text-warning); }
+.c-tcard__amount[data-tone="positive"] { color: var(--text-success); }
+.c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
+.c-tcard__amount[data-tone="void"] {
+  color: var(--text-neutral-disabled);
+  text-decoration: line-through;
+}
+.c-tcard__unit { font-size: 0.62em; font-weight: var(--font-weight-bold); } /* 0.62 sanctioned: IXI/amount ratio from Figma payment cards */
+.c-tcard__fiat {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-tcard__fiat[data-tone="void"] { text-decoration: line-through; color: var(--text-neutral-disabled); }
+
+.c-tcard__badge { margin-top: var(--spacing-8); }
+
+.c-tcard__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-12);
+}
+/* r2 backlog B4: flex:1 + nowrap labels overflowed the card at <320px —
+   buttons may shrink, labels ellipsize */
+.c-tcard__actions .c-button { flex: 1; min-width: 0; }
+.c-tcard__actions .c-button .c-button__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-tcard__note {
+  margin-top: var(--spacing-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* Details › — hairline above, action-ink link row */
+.c-tcard__details {
+  margin-top: var(--spacing-12);
+  padding-top: var(--spacing-8);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-tcard__details-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-4) 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label-sm);
+  color: var(--text-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .c-tcard__details-btn:hover { color: var(--text-action-hover); }
+}
+.c-tcard__details-btn:active { color: var(--text-action-pressed); }
+
+/* app identity row */
+.c-tcard__app {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-tcard__app-icon {
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-12);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+}
+.c-tcard__app-icon img { width: 100%; height: 100%; object-fit: cover; }
+.c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
+.c-tcard__app-name {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-tcard__app-sub {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* call card */
+.c-bubble-row[data-missed] .c-tcard__title { color: var(--text-error); }
+.c-bubble-row[data-missed] .c-tcard__title svg { color: var(--icon-error); }
+/* #264 (Damir ③): call cards adopt the FILE-BUBBLE medallion grammar — the
+   outcome glyph (phone / phone-off missed / phone-x declined) sits in a tonal
+   disc like the file icon; missed/declined tint the disc destructive. Marker
+   set by createCallBubble (data-call-outcome). */
+.c-bubble-row[data-call-outcome] .c-tcard__title svg {
+  box-sizing: content-box;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+}
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__title svg,
+.c-bubble-row[data-call-outcome="declined"] .c-tcard__title svg {
+  background: var(--surface-destructive-tonal-default);
+  color: var(--icon-error);
+}
+.c-tcard__call-meta {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+.c-tcard__call-back {
+  border: 0;
+  background: transparent;
+  padding: var(--spacing-4) 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  text-align: start;
+}
+@media (hover: hover) {
+  .c-tcard__call-back:hover { color: var(--text-action-hover); }
+}
+
+/* —— file bubble (compact) —— */
+.c-fbubble {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: var(--elevation-1);
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .c-fbubble:hover .c-fbubble__icon { background: var(--surface-action-tonal-hover); }
+}
+.c-fbubble__icon {
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  flex: none;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-fbubble[data-state="failed"] .c-fbubble__icon {
+  background: var(--surface-destructive-tonal-default);
+  color: var(--icon-error);
+}
+.c-fbubble:active .c-fbubble__icon { background: var(--surface-action-tonal-pressed); } /* audit: no pressed feedback */
+.c-fbubble:disabled { cursor: default; } /* progress state */
+.c-fbubble__info { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
+.c-fbubble__name {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-fbubble__meta {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
+.c-fbubble__track {
+  height: var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-progress-track);
+  overflow: hidden;
+  margin-top: var(--spacing-2);
+}
+/* dark: global track token (neutral-700) equals the card surface — invisible (audit MAJOR) */
+[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }
+.c-fbubble__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--surface-progress-fill);
+  transition: width var(--duration-200) var(--easing-standard);
+}
+/* keep-open hint — progress state only (P2P: both peers must stay online) */
+.c-fbubble__hint {
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+/* "Open file" affordance — complete state only (A8b). Link-like accent text so a
+   finished download reads as actionable; the whole bubble is the button. */
+.c-fbubble__open {
+  margin-top: var(--spacing-4);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-action-default);
+}
+
+.c-fbubble__time {
+  align-self: flex-end;
+  flex: none;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+
+/* —— unread divider (full width) —— */
+.c-unread-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0;
+  padding: var(--spacing-4) var(--spacing-16);
+  background: var(--surface-neutral-02);
+  border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+</style>
 <style data-src="chip.css">
 /* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
    (docs/chip-search-spec.md, DECISIONS #50). Semantic tokens only. */
@@ -2829,7 +3140,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 <style data-src="demo-agent-mode">/* ===== DEMO GLUE + AGENT MODE — semantic tokens ONLY ===== */
 html, body { margin: 0; height: 100%; }
 body { display: flex; background: var(--surface-screen); font-family: var(--font-secondary); color: var(--text-neutral-01); }
-/* — desktop frame: rail | list | conversation — */
+.ico { display: block; flex: none; }
 .frame-list { flex: none; width: 360px; display: flex; flex-direction: column; min-height: 0;
   background: var(--surface-neutral-01); border-inline-end: var(--outline-width-1) solid var(--outline-neutral-01); }
 .frame-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -2837,31 +3148,30 @@ body { display: flex; background: var(--surface-screen); font-family: var(--font
 .c-topbar { flex: none; }
 .c-chat-canvas { flex: 1; min-height: 0; }
 html[data-desktop][data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
-.log { flex: 1; min-height: 0; overflow-y: auto; padding-block: var(--spacing-16) var(--spacing-4); }
-.log-inner { display: flex; flex-direction: column; }
-/* — centered content column (log + composer share the SAME column → aligned) with
-   the workflow column sitting to its right, bottom row level with the composer — */
+/* W4 preview: desktop bubble cap raised (tokens ship the mobile-tuned 480px) */
+html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .canvas-row { display: flex; justify-content: center; gap: var(--spacing-24); height: 100%; min-height: 0;
   padding-inline: var(--spacing-16); }
 .content-col { flex: 0 1 900px; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.wf-col { flex: none; width: 300px; min-height: 0; overflow-y: auto; padding-block: var(--spacing-16);
+.wf-col { flex: none; width: 304px; min-height: 0; overflow-y: auto; padding-block: var(--spacing-16);
   display: flex; flex-direction: column; gap: var(--spacing-12); }
-/* W4 preview: desktop bubble cap raised (tokens ship the mobile-tuned 480px) */
-html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 @media (max-width: 1500px) { .wf-col { display: none; } .content-col { flex-basis: 760px; } }
-
-/* — chats list column — */
+.log { flex: 1; min-height: 0; overflow-y: auto; padding-block: var(--spacing-16) var(--spacing-4); }
+.log-inner { display: flex; flex-direction: column; }
 .list-top { display: flex; align-items: center; padding: var(--spacing-16) var(--spacing-16) var(--spacing-8); }
 .list-top h1 { margin: 0; font-family: var(--font-primary); font-size: var(--font-size-heading-sm, 20px);
   font-weight: var(--font-weight-semibold); color: var(--text-action-default); flex: 1; }
 .list-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .c-chats-header { padding-inline: var(--spacing-16); }
+.tb-icobtn { background: none; border: 0; color: var(--icon-neutral-02); cursor: pointer;
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-full); }
 
-/* — agent marker (production-doable: same slot as the presence dot) — */
+/* — agent marker: same slot as the presence dot — */
 .c-avatar__dot--agent { position: absolute; right: -2px; bottom: -2px; width: 16px; height: 16px;
   border-radius: var(--radius-full); background: var(--surface-action-default);
   border: 2px solid var(--surface-neutral-01); color: var(--text-neutral-on-action, #fff);
-  display: flex; align-items: center; justify-content: center; font-size: 9px; line-height: 1; }
+  display: flex; align-items: center; justify-content: center; }
 .agent-badge { display: inline-flex; align-items: center; margin-inline-start: var(--spacing-8);
   padding: 0 var(--spacing-8); border-radius: var(--radius-full);
   background: var(--surface-action-tonal-default); border: var(--outline-width-1) solid var(--outline-action-default);
@@ -2887,37 +3197,63 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .agent-prose li { margin: var(--spacing-2) 0; }
 .agent-prose code { background: var(--surface-neutral-02); border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-4); padding: 0 var(--spacing-4); font-size: var(--font-size-body-sm); }
-.agent-prose pre { background: var(--surface-neutral-02); border: var(--outline-width-1) solid var(--outline-neutral-01);
+.agent-prose pre { position: relative; background: var(--surface-neutral-02);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-8); padding: var(--spacing-12); overflow-x: auto; margin: var(--spacing-8) 0; }
 .agent-prose pre code { background: none; border: none; padding: 0; }
+.code-copy { position: absolute; top: var(--spacing-4); inset-inline-end: var(--spacing-4);
+  border: 0; background: transparent; color: var(--icon-neutral-02); cursor: pointer;
+  padding: var(--spacing-4); border-radius: var(--radius-4); display: inline-flex; }
+@media (hover: hover) { .code-copy:hover { color: var(--icon-neutral-01); background: var(--surface-interactive-hover); } }
 .caret { display: inline-block; width: 7px; height: 1em; vertical-align: text-bottom;
   background: var(--icon-action-default); animation: caret-blink calc(var(--duration-300) * 3) steps(1) infinite; }
 @keyframes caret-blink { 50% { opacity: 0; } }
 
-/* — cards in agent turns — */
-.agent-card { margin: var(--spacing-8) 0; background: var(--surface-neutral-02);
-  border: var(--outline-width-1) solid var(--outline-neutral-01); border-radius: var(--radius-12);
-  padding: var(--spacing-12) var(--spacing-16); max-width: 420px; box-shadow: var(--elevation-1); }
-.filecard { display: flex; align-items: center; gap: var(--spacing-12); }
-.filecard__ico { width: var(--size-avatar-40); height: var(--size-avatar-40); border-radius: var(--radius-8);
-  background: var(--surface-action-tonal-default); color: var(--icon-action-default);
-  display: flex; align-items: center; justify-content: center; flex: none; }
-.filecard__name { font-weight: var(--font-weight-semibold); font-size: var(--font-size-body-sm); }
-.filecard__size { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); }
-.filecard .c-button { margin-inline-start: auto; }
-.paycard__top { display: flex; align-items: center; gap: var(--spacing-12); }
-.paycard__disc { width: var(--size-avatar-40); height: var(--size-avatar-40); border-radius: var(--radius-full);
-  background: var(--disc-success-bg); color: var(--icon-success);
-  display: flex; align-items: center; justify-content: center; flex: none; }
-.paycard__amt { font-size: var(--font-size-heading-sm, 18px); font-weight: var(--font-weight-bold); }
-.paycard__lbl { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); }
-.paycard__addr { font-size: var(--font-size-label-xs); color: var(--text-neutral-02); margin-top: var(--spacing-8);
-  background: var(--surface-neutral-01); border-radius: var(--radius-4);
-  padding: var(--spacing-4) var(--spacing-8); word-break: break-all; }
-.paycard__acts { display: flex; gap: var(--spacing-8); margin-top: var(--spacing-12); }
-.paycard__note { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); margin-top: var(--spacing-8); }
+/* collapse long turns */
+.turn-clamp[data-collapsed] .agent-prose { max-height: 260px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 75%, transparent); mask-image: linear-gradient(#000 75%, transparent); }
+.turn-more { margin-top: var(--spacing-4); }
 
-/* — AI composer: floating field, no chrome bar behind it — */
+/* typed cards inside agent turns */
+.agent-turn .c-tcard, .agent-turn .c-fbubble { margin-block: var(--spacing-8); width: min(100%, 420px); }
+.tcard-verify { display: flex; align-items: center; gap: var(--spacing-4); margin-top: var(--spacing-8);
+  font-size: var(--font-size-label-xs); color: var(--text-success); font-weight: var(--font-weight-semibold); }
+.tcard-verify .ico { color: var(--icon-success); }
+.turn-files-actions { margin-top: var(--spacing-4); }
+
+/* working pill (long task ≠ typing) */
+.work-pill { display: inline-flex; align-items: center; gap: var(--spacing-8);
+  margin: var(--spacing-8) var(--spacing-16) 0; padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full); background: var(--surface-neutral-02);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  color: var(--text-neutral-02); font-size: var(--font-size-label-sm); width: fit-content; }
+.work-pill .ico { color: var(--icon-action-default); animation: work-spin 1.6s linear infinite; }
+@keyframes work-spin { to { transform: rotate(360deg); } }
+
+/* stream stop */
+.stream-stop { position: sticky; bottom: var(--spacing-8); align-self: center;
+  display: none; align-items: center; gap: var(--spacing-4);
+  border: var(--outline-width-1) solid var(--outline-neutral-01); border-radius: var(--radius-full);
+  background: var(--surface-neutral-02); color: var(--text-neutral-01); cursor: pointer;
+  padding: var(--spacing-4) var(--spacing-12); font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-semibold); box-shadow: var(--elevation-2); }
+.stream-stop[data-on] { display: inline-flex; }
+
+/* approval tray above composer */
+.approval-tray { display: none; align-items: center; gap: var(--spacing-8);
+  margin-bottom: var(--spacing-8); padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12); background: var(--disc-warning-bg);
+  border: var(--outline-width-1) solid var(--outline-warning, var(--outline-neutral-01));
+  color: var(--text-neutral-01); font-size: var(--font-size-label-sm); cursor: pointer; }
+.approval-tray[data-count]:not([data-count="0"]) { display: flex; }
+.approval-tray .ico { color: var(--icon-warning); }
+.approval-tray b { font-weight: var(--font-weight-semibold); }
+.approval-tray span.go { margin-inline-start: auto; color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
+
+/* starter prompts (agent-advertised) */
+.suggest-row { display: flex; gap: var(--spacing-8); flex-wrap: wrap; margin-bottom: var(--spacing-8); }
+
+/* AI composer */
 .ai-composer { flex: none; padding: var(--spacing-8) 0 var(--spacing-16); background: transparent; }
 .ai-composer__box { display: flex; align-items: flex-end; gap: var(--spacing-8);
   background: var(--surface-neutral-02); border: var(--outline-width-1) solid var(--outline-neutral-01);
@@ -2931,12 +3267,11 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .ai-composer__btn { flex: none; width: 40px; height: 40px; border: 0; border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   background: var(--surface-action-default); color: var(--text-neutral-on-action, #fff); }
-.ai-composer__btn[disabled] { background: var(--surface-action-disabled); }
 .ai-composer__attach { flex: none; width: 40px; height: 40px; border: 0; border-radius: var(--radius-full);
-  background: transparent; color: var(--icon-neutral-02); font-size: 20px; cursor: pointer;
+  background: transparent; color: var(--icon-neutral-02); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
 
-/* — floating workflow containers (SOLID surfaces) — */
+/* floating workflow cards (solid) */
 .float-card { background: var(--surface-neutral-01); border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-16); box-shadow: var(--elevation-3); padding: var(--spacing-12) var(--spacing-16); }
 .float-card h2 { margin: 0 0 var(--spacing-8); font-size: var(--font-size-label-xs);
@@ -2950,13 +3285,14 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .wf-chip[data-state="running"] { color: var(--icon-success); background: var(--disc-success-bg); }
 .wf-chip[data-state="done"] { color: var(--text-action-default); background: var(--surface-action-tonal-default); }
 .wf-sub { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); margin: var(--spacing-2) 0 var(--spacing-8); }
-.step { display: flex; gap: var(--spacing-8); position: relative; padding: var(--spacing-4) 0; }
+.step { display: flex; gap: var(--spacing-8); position: relative; padding: var(--spacing-4) 0;
+  cursor: pointer; border-radius: var(--radius-8); }
+@media (hover: hover) { .step:hover { background: var(--surface-interactive-hover); } }
 .step__rail { position: absolute; inset-inline-start: 9px; top: 26px; bottom: calc(-1 * var(--spacing-4));
   width: var(--outline-width-1); background: var(--outline-neutral-01); }
 .step:last-child .step__rail { display: none; }
 .step__ico { width: 19px; height: 19px; border-radius: var(--radius-full); flex: none;
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--font-size-label-xs); margin-top: 1px; z-index: 1; }
+  display: flex; align-items: center; justify-content: center; margin-top: 1px; z-index: 1; }
 .step[data-state="done"] .step__ico { background: var(--disc-success-bg); color: var(--icon-success); }
 .step[data-state="wait"] .step__ico { background: var(--disc-warning-bg); color: var(--icon-warning); }
 .step[data-state="run"] .step__ico { background: var(--surface-action-tonal-default); }
@@ -2976,193 +3312,199 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .kv b { color: var(--text-neutral-01); font-weight: var(--font-weight-semibold); }
 .capchips { display: flex; gap: var(--spacing-4); flex-wrap: wrap; margin-top: var(--spacing-4); }
 .e2e { display: flex; align-items: center; gap: var(--spacing-4); margin-top: var(--spacing-8);
-  font-size: var(--font-size-label-xs); color: var(--icon-success); font-weight: var(--font-weight-semibold); }
-@media (prefers-reduced-motion: reduce) { .caret, .step[data-state="run"] .step__ico::after { animation: none; } }
-.tb-icobtn { background: none; border: 0; color: var(--icon-neutral-02); cursor: pointer;
-  width: var(--size-target-min); height: var(--size-target-min);
-  display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-full); }
+  font-size: var(--font-size-label-xs); color: var(--text-success); font-weight: var(--font-weight-semibold); }
+.e2e .ico { color: var(--icon-success); }
+.art-row { display: flex; align-items: center; gap: var(--spacing-8); padding: var(--spacing-4) 0;
+  font-size: var(--font-size-label-sm); color: var(--text-neutral-01); }
+.art-row .ico { color: var(--icon-action-default); }
+.art-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-row time { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); }
+/* deep-link flash */
+@keyframes anchor-flash { 0%, 60% { outline-color: var(--outline-action-default); } 100% { outline-color: transparent; } }
+.flash { outline: 2px solid transparent; outline-offset: 4px; border-radius: var(--radius-8);
+  animation: anchor-flash 1.6s var(--easing-standard) 1; }
+@media (prefers-reduced-motion: reduce) {
+  .caret, .step[data-state="run"] .step__ico::after, .work-pill .ico { animation: none; } }
 </style>
 </head><body>
-
-<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
-  <linearGradient id="agrad" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#6a5cff"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/>
-  </linearGradient>
-  <symbol id="adam-mark" viewBox="0 0 40 40">
-    <rect x="1.2" y="1.2" width="37.6" height="37.6" rx="11" fill="#10151b" stroke="url(#agrad)" stroke-width="1.6"/>
-    <path d="M20 9.5 L29 30 M20 9.5 L11 30 M14.6 22.6 H25.4" stroke="url(#agrad)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-    <circle cx="20" cy="9.5" r="2.1" fill="#22d3ee"/><circle cx="11" cy="30" r="2.1" fill="#6a5cff"/><circle cx="29" cy="30" r="2.1" fill="#3b82f6"/>
-  </symbol>
-</defs></svg>
-
-<nav class="c-bottomnav c-bottomnav--rail">
-  <span class="c-bottomnav__logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M8 10c2-2 6-2 8 0M8 14c2 2 6 2 8 0"/></svg></span>
-<button class="c-bottomnav__item" aria-current="page"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 01-9 8.35 8.5 8.5 0 01-3.4-.7L3 21l1.85-5.6A8.38 8.38 0 013 11.5a8.5 8.5 0 018.5-8.5 8.38 8.38 0 019.5 8.5z"/></svg></span></span><span class="c-bottomnav__label">Chats</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span></span><span class="c-bottomnav__label">Apps</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2.5"/><path d="M16 13h4"/><path d="M2 10h20"/></svg></span></span><span class="c-bottomnav__label">Wallet</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg></span></span><span class="c-bottomnav__label">Account</span></button>
-</nav>
-
-<div class="frame-list">
-  <div class="list-top"><h1>Chats</h1>
-    <button class="tb-icobtn" aria-label="Contacts"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/><circle cx="17.5" cy="9" r="3"/><path d="M16 15.7c2.3.3 4.3 1.7 5.5 4.3"/></svg></button>
-    <button class="tb-icobtn" aria-label="New chat"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 01-9 8.35 8.5 8.5 0 01-3.4-.7L3 21l1.85-5.6A8.38 8.38 0 013 11.5a8.5 8.5 0 018.5-8.5 8.38 8.38 0 019.5 8.5z"/><path d="M12 8v6M9 11h6"/></svg></button>
-  </div>
-  <div class="c-chats-header">
-    <div class="c-chats-header__search"><div class="c-search-field">
-      <span class="c-search-field__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
-      <input class="c-search-field__input" placeholder="Search chats">
-    </div></div>
-    <div class="c-chats-header__filters">
-      <button class="c-chip" aria-pressed="true">All</button>
-      <button class="c-chip" aria-pressed="false">Unread</button>
-      <button class="c-chip" aria-pressed="false">Groups</button>
-      <button class="c-chip" aria-pressed="false">Agents <span class="c-chip__count">1</span></button>
-    </div>
-  </div>
-  <div class="list-scroll">
-<button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:340;--av-h2:20"><span class="c-avatar__initials">3S</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">3sxqKo&hellip;vEMBf1</div><div class="c-excerpt"><span class="c-excerpt__text">&#128379; Missed call</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">10:07</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:140;--av-h2:180"><span class="c-avatar__initials">SO</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Spixi Official Group Chat</div><div class="c-excerpt"><span class="c-excerpt__text">I need 2 dollar for interesting conversation</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Aug 01</span></div></button><button class="c-chatlist-item" aria-current="true"><span class="c-avatar" style="width:var(--size-avatar-48);height:var(--size-avatar-48)"><svg width="48" height="48" style="width:100%;height:100%"><use href="#adam-mark"/></svg><span class="c-avatar__dot--agent">&#10022;</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Adam</div><div class="c-excerpt"><span class="c-excerpt__text">&#10022; Working: Release &amp; payout &middot; 3/5 steps</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">09:42</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:30;--av-h2:60"><span class="c-avatar__initials">ST</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Shang Tsung &#128293;</div><div class="c-excerpt"><span class="c-excerpt__text">Spixi redesign, repo at C:\Users\Damir\Clau&hellip;</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Jul 29</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:150;--av-h2:200"><span class="c-avatar__initials">DI</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Damir | ixian.io</div><div class="c-excerpt"><span class="c-excerpt__text">&#9993; Payment Sent</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Jul 29</span></div></button>
-  </div>
-</div>
-
-<div class="frame-main">
-<header class="c-topbar">
-  <button class="tb-icobtn" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-<span class="c-avatar" style="width:var(--size-avatar-40);height:var(--size-avatar-40)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span>
-  <div class="c-topbar__identity">
-    <div class="c-topbar__name">Adam <span class="agent-badge">AI Agent</span></div>
-    <div class="c-topbar__sub">QuIXI &middot; peer-to-peer &middot; end-to-end encrypted</div>
-  </div>
-  <div class="c-topbar__actions">
-    <button class="tb-icobtn" aria-label="Info"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>
-  </div>
-</header>
-
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="agrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6a5cff"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient><symbol id="adam-mark" viewBox="0 0 40 40"><rect x="1.2" y="1.2" width="37.6" height="37.6" rx="11" fill="#10151b" stroke="url(#agrad)" stroke-width="1.6"/><path d="M20 9.5 L29 30 M20 9.5 L11 30 M14.6 22.6 H25.4" stroke="url(#agrad)" stroke-width="2.2" stroke-linecap="round" fill="none"/><circle cx="20" cy="9.5" r="2.1" fill="#22d3ee"/><circle cx="11" cy="30" r="2.1" fill="#6a5cff"/><circle cx="29" cy="30" r="2.1" fill="#3b82f6"/></symbol></defs></svg>
+<nav class="c-bottomnav c-bottomnav--rail"><span class="c-bottomnav__logo" aria-hidden="true"><svg class="ico " viewBox="0 0 32 32" width="28" height="28" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.1837 30.7611C12.7734 30.7611 11.3974 30.4686 10.0923 29.8903C7.56429 28.7703 5.61457 26.7131 4.602 24.0937C3.58943 21.4766 3.63286 18.6126 4.72543 16.0297C5.35172 14.5508 6.31172 13.2228 7.50943 12.1828C7.43172 10.5783 7.71972 8.95313 8.346 7.47427C9.98029 3.61141 13.7243 1.11313 17.8843 1.11313H18.2271C19.7266 1.11313 25.6557 1.11084 26.138 1.11084C26.8786 1.11084 27.4226 1.57713 27.53 1.6777C27.6351 1.77141 28.1289 2.26055 28.1289 3.15884C28.1289 3.73027 28.1243 9.39884 28.122 11.1223V11.696C28.1174 13.1268 27.8317 14.5234 27.2717 15.8468C26.6454 17.3257 25.6854 18.6537 24.4877 19.6937C24.5654 21.2983 24.2774 22.9234 23.6511 24.4023C22.0191 28.2628 18.3026 30.7611 14.1837 30.7611ZM8.06029 15.0857C7.60086 15.6617 7.22143 16.3017 6.92657 16.9943C6.08543 18.9828 6.05114 21.1863 6.83057 23.2C7.61 25.2114 9.10714 26.7931 11.0477 27.6526C12.0489 28.096 13.1049 28.32 14.1837 28.32C17.3426 28.32 20.1951 26.4023 21.45 23.4331C21.7449 22.736 21.9414 22.0114 22.0351 21.2708C20.7071 21.8811 19.2511 22.2034 17.7997 22.2034C16.3894 22.2034 15.0134 21.9108 13.7083 21.3326C12.1951 20.6628 10.8489 19.6206 9.81343 18.3223C9.05914 17.3691 8.45572 16.2583 8.06029 15.0857ZM10.058 13.3006C10.5814 15.8857 12.2934 18.0434 14.666 19.0948C15.6671 19.5383 16.7209 19.7623 17.802 19.7623C19.2649 19.7623 20.6911 19.3508 21.9391 18.5691C21.4157 15.984 19.7037 13.8263 17.3311 12.7748C16.33 12.3314 15.2763 12.1074 14.1951 12.1074C12.7323 12.1074 11.306 12.5211 10.058 13.3006ZM14.1951 9.66855C15.6054 9.66855 16.9814 9.96113 18.2866 10.5394C19.7997 11.2091 21.146 12.2491 22.1814 13.5497C22.9403 14.5028 23.5437 15.6137 23.9391 16.7886C24.3986 16.2126 24.778 15.5726 25.0729 14.88C25.5574 13.7326 25.5574 12.4206 25.5574 11.264C25.5574 10.9897 25.5574 10.6948 25.5574 10.3908V10.3543C25.5574 9.70741 25.5574 8.97598 25.5574 8.29484C25.5551 7.44684 25.5551 6.58512 25.5574 5.89255V5.83313C25.5574 5.54513 25.5574 5.28227 25.5574 5.04913V3.69598H17.9803C17.9026 3.69598 17.8591 3.69598 17.834 3.69598C17.8271 3.69598 17.818 3.69598 17.8111 3.69598H17.8066C14.6614 3.69598 11.7449 5.60227 10.5449 8.43655C10.25 9.1337 10.0534 9.85827 9.95972 10.5988C11.2877 9.98855 12.7437 9.66855 14.1951 9.66855Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M13.7227 16.3717C14.4137 16.3717 14.9727 15.8113 14.9727 15.1217C14.9727 14.4321 14.4137 13.8717 13.7227 13.8717C13.0316 13.8717 12.4727 14.4321 12.4727 15.1217C12.4727 15.8113 13.0316 16.3717 13.7227 16.3717Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M19.2637 16.4083C19.2637 17.3741 18.4816 18.1583 17.5137 18.1583C16.5487 18.1583 15.7637 17.3741 15.7637 16.4083C15.7637 15.4424 16.5457 14.6583 17.5137 14.6583C18.4787 14.6611 19.2637 15.4424 19.2637 16.4083Z" fill="currentColor"/></svg></span><button class="c-bottomnav__item" aria-current="page"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg class="ico " viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path fill="currentColor" d="M20.901 14.995l-.044 -.006a.4 .4 0 0 1 -.102 -.02l-.045 -.012l-.048 -.017l-.045 -.016l-.043 -.02l-.045 -.022l-.04 -.024l-.044 -.026l-.043 -.032l-.036 -.027a1 1 0 0 1 -.073 -.066l-2.707 -2.707h-6.586a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2h9a2 2 0 0 1 2 2v10a1 1 0 0 1 -.076 .383l-.02 .043l-.022 .045l-.024 .04l-.026 .044l-.032 .043l-.027 .036a1 1 0 0 1 -.578 .347l-.052 .008l-.044 .006a1 1 0 0 1 -.198 0" /><path fill="currentColor" d="M7 8.999v1.001a4 4 0 0 0 4 4h4v3a2 2 0 0 1 -2 2h-6.586l-2.707 2.707c-.63 .63 -1.707 .184 -1.707 -.707v-10a2 2 0 0 1 2 -2z" /></svg></span></span><span class="c-bottomnav__label">Chats</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg class="ico " viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M5 15V19H9V15H5ZM15 15V19H19V15H15ZM5 5V9H9V5H5ZM16 10V8H14C13.4477 8 13 7.55228 13 7C13 6.44772 13.4477 6 14 6H16V4C16 3.44772 16.4477 3 17 3C17.5523 3 18 3.44772 18 4V6H20C20.5523 6 21 6.44772 21 7C21 7.55228 20.5523 8 20 8H18V10C18 10.5523 17.5523 11 17 11C16.4477 11 16 10.5523 16 10ZM11 19C11 19.5304 10.7891 20.039 10.4141 20.4141C10.039 20.7891 9.53043 21 9 21H5C4.46957 21 3.96101 20.7891 3.58594 20.4141C3.21087 20.039 3 19.5304 3 19V15C3 14.4696 3.21087 13.961 3.58594 13.5859C3.96101 13.2109 4.46957 13 5 13H9C9.53043 13 10.039 13.2109 10.4141 13.5859C10.7891 13.961 11 14.4696 11 15V19ZM21 19C21 19.5304 20.7891 20.039 20.4141 20.4141C20.039 20.7891 19.5304 21 19 21H15C14.4696 21 13.961 20.7891 13.5859 20.4141C13.2109 20.039 13 19.5304 13 19V15C13 14.4696 13.2109 13.961 13.5859 13.5859C13.961 13.2109 14.4696 13 15 13H19C19.5304 13 20.039 13.2109 20.4141 13.5859C20.7891 13.961 21 14.4696 21 15V19ZM11 9C11 9.53043 10.7891 10.039 10.4141 10.4141C10.039 10.7891 9.53043 11 9 11H5C4.46957 11 3.96101 10.7891 3.58594 10.4141C3.21087 10.039 3 9.53043 3 9V5C3 4.46957 3.21087 3.96101 3.58594 3.58594C3.96101 3.21087 4.46957 3 5 3H9C9.53043 3 10.039 3.21087 10.4141 3.58594C10.7891 3.96101 11 4.46957 11 5V9Z" fill="currentColor"/></svg></span></span><span class="c-bottomnav__label">Apps</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg class="ico " viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M6 9C5.65558 9 5.31859 8.93703 5 8.82422V18C5 18.2652 5.10543 18.5195 5.29297 18.707C5.48051 18.8946 5.73478 19 6 19H18V17H16C15.2043 17 14.4415 16.6837 13.8789 16.1211C13.3163 15.5585 13 14.7957 13 14C13 13.2043 13.3163 12.4415 13.8789 11.8789C14.4415 11.3163 15.2043 11 16 11H18V9H6ZM15 14C15 14.2652 15.1054 14.5195 15.293 14.707C15.4805 14.8946 15.7348 15 16 15H19V13H16C15.7348 13 15.4805 13.1054 15.293 13.293C15.1054 13.4805 15 13.7348 15 14ZM6 5C5.73478 5 5.4805 5.10543 5.29297 5.29297C5.10543 5.4805 5 5.73478 5 6C5 6.26522 5.10543 6.5195 5.29297 6.70703C5.4805 6.89457 5.73478 7 6 7H16V5H6ZM18 7C18.5304 7 19.039 7.21087 19.4141 7.58594C19.7891 7.96101 20 8.46957 20 9V11C20.5523 11 21 11.4477 21 12V16C21 16.5523 20.5523 17 20 17V19C20 19.5304 19.7891 20.039 19.4141 20.4141C19.039 20.7891 18.5304 21 18 21H6C5.20435 21 4.44151 20.6837 3.87891 20.1211C3.3163 19.5585 3 18.7956 3 18V6C3 5.20435 3.3163 4.44152 3.87891 3.87891C4.44152 3.3163 5.20435 3 6 3H16C16.5304 3 17.039 3.21086 17.4141 3.58594C17.7891 3.96101 18 4.46957 18 5V7Z" fill="currentColor"/></svg></span></span><span class="c-bottomnav__label">Wallet</span></button><button class="c-bottomnav__item"><span class="c-bottomnav__iconwrap"><span class="c-bottomnav__icon"><svg class="ico " viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M20 12C20 10.9494 19.7927 9.90908 19.3906 8.93848C18.9886 7.96795 18.4 7.08559 17.6572 6.34277C16.9144 5.59995 16.0321 5.01141 15.0615 4.60938C14.0909 4.20734 13.0506 4 12 4C10.9494 4 9.90908 4.20734 8.93848 4.60938C7.96795 5.01141 7.08559 5.59995 6.34277 6.34277C5.59995 7.08559 5.01141 7.96795 4.60938 8.93848C4.20734 9.90908 4 10.9494 4 12C4 13.0506 4.20734 14.0909 4.60938 15.0615C4.92472 15.8228 5.35628 16.5284 5.88574 17.1562C6.194 16.7104 6.57506 16.3149 7.01562 15.9873C7.87838 15.3459 8.92495 14.9997 10 15H14C15.0763 14.9997 16.124 15.3465 16.9873 15.9893C17.4263 16.3161 17.8049 16.7118 18.1123 17.1562C18.6421 16.5282 19.0751 15.8232 19.3906 15.0615C19.7927 14.0909 20 13.0506 20 12ZM10 17C9.35489 16.9998 8.72669 17.2079 8.20898 17.5928C7.86933 17.8453 7.58982 18.1656 7.38477 18.5303C7.86869 18.8723 8.38841 19.1628 8.93848 19.3906C9.90908 19.7927 10.9494 20 12 20C13.0506 20 14.0909 19.7927 15.0615 19.3906C15.6116 19.1628 16.1313 18.8723 16.6152 18.5303C16.4106 18.1663 16.1318 17.8461 15.793 17.5938C15.3396 17.2562 14.8014 17.0547 14.2412 17.0098L14 17H10ZM14 10C14 9.46957 13.7891 8.96101 13.4141 8.58594C13.039 8.21087 12.5304 8 12 8C11.4696 8 10.961 8.21087 10.5859 8.58594C10.2109 8.96101 10 9.46957 10 10C10 10.5304 10.2109 11.039 10.5859 11.4141C10.961 11.7891 11.4696 12 12 12C12.5304 12 13.039 11.7891 13.4141 11.4141C13.7891 11.039 14 10.5304 14 10ZM22 12C22 13.3132 21.7418 14.6139 21.2393 15.8271C20.7367 17.0404 19.9998 18.1427 19.0713 19.0713C18.9045 19.2381 18.7294 19.3956 18.5518 19.5498C18.5113 19.5917 18.4668 19.6295 18.4189 19.6641C17.6406 20.316 16.7683 20.8494 15.8271 21.2393C14.6139 21.7418 13.3132 22 12 22C10.6868 22 9.38611 21.7418 8.17285 21.2393C6.95964 20.7367 5.85727 19.9998 4.92871 19.0713C4.00015 18.1427 3.26329 17.0404 2.76074 15.8271C2.2582 14.6139 2 13.3132 2 12C2 10.6868 2.2582 9.38611 2.76074 8.17285C3.26329 6.95964 4.00015 5.85727 4.92871 4.92871C5.85727 4.00015 6.95964 3.26329 8.17285 2.76074C9.38611 2.2582 10.6868 2 12 2C13.3132 2 14.6139 2.2582 15.8271 2.76074C17.0404 3.26329 18.1427 4.00015 19.0713 4.92871C19.9998 5.85727 20.7367 6.95964 21.2393 8.17285C21.7418 9.38611 22 10.6868 22 12ZM16 10C16 11.0609 15.5783 12.078 14.8281 12.8281C14.078 13.5783 13.0609 14 12 14C10.9391 14 9.92202 13.5783 9.17188 12.8281C8.42173 12.078 8 11.0609 8 10C8 8.93913 8.42173 7.92202 9.17188 7.17188C9.92202 6.42173 10.9391 6 12 6C13.0609 6 14.078 6.42173 14.8281 7.17188C15.5783 7.92202 16 8.93913 16 10Z" fill="currentColor"/></svg></span></span><span class="c-bottomnav__label">Account</span></button></nav>
+<div class="frame-list"><div class="list-top"><h1>Chats</h1><button class="tb-icobtn" aria-label="Contacts"><svg class="ico " viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M14 21V19C14 18.2043 13.6837 17.4415 13.1211 16.8789C12.5585 16.3163 11.7956 16 11 16H7C6.20435 16 5.44152 16.3163 4.87891 16.8789C4.3163 17.4415 4 18.2043 4 19V21C4 21.5523 3.55228 22 3 22C2.44772 22 2 21.5523 2 21V19C2 17.6739 2.52716 16.4025 3.46484 15.4648C4.40253 14.5272 5.67392 14 7 14H11C12.3261 14 13.5975 14.5272 14.5352 15.4648C15.4728 16.4025 16 17.6739 16 19V21C16 21.5523 15.5523 22 15 22C14.4477 22 14 21.5523 14 21ZM20 21V19.0059L19.9883 18.7588C19.9376 18.1851 19.7224 17.6358 19.3662 17.1787C18.9592 16.6566 18.391 16.2837 17.75 16.1182C17.2153 15.9801 16.8943 15.4351 17.0322 14.9004C17.1703 14.3656 17.7153 14.0436 18.25 14.1816C19.3185 14.4575 20.266 15.0797 20.9443 15.9502C21.6224 16.8206 21.9936 17.8908 22 18.9941V21C22 21.5523 21.5523 22 21 22C20.4477 22 20 21.5523 20 21ZM12 7C12 6.20435 11.6837 5.44152 11.1211 4.87891C10.5585 4.3163 9.79565 4 9 4C8.20435 4 7.44151 4.3163 6.87891 4.87891C6.3163 5.44152 6 6.20435 6 7C6 7.79565 6.3163 8.55848 6.87891 9.12109C7.44151 9.6837 8.20435 10 9 10C9.79565 10 10.5585 9.6837 11.1211 9.12109C11.6837 8.55848 12 7.79565 12 7ZM18.0078 7.00488C18.0078 6.3388 17.7864 5.69121 17.3779 5.16504C16.9695 4.63892 16.3972 4.26384 15.752 4.09863C15.2169 3.96163 14.8943 3.41685 15.0312 2.88184C15.1683 2.34689 15.7131 2.02417 16.248 2.16113C17.3236 2.43651 18.2773 3.06244 18.958 3.93945C19.6385 4.81636 20.0078 5.89488 20.0078 7.00488C20.0078 8.1151 19.6388 9.19428 18.958 10.0713C18.2773 10.9483 17.3235 11.5733 16.248 11.8486C15.713 11.9856 15.1682 11.663 15.0312 11.1279C14.8943 10.5929 15.217 10.0481 15.752 9.91113C16.3973 9.74591 16.9695 9.37092 17.3779 8.84473C17.7864 8.31852 18.0078 7.67101 18.0078 7.00488ZM14 7C14 8.32608 13.4728 9.59747 12.5352 10.5352C11.5975 11.4728 10.3261 12 9 12C7.67392 12 6.40253 11.4728 5.46484 10.5352C4.52716 9.59747 4 8.32608 4 7C4 5.67392 4.52716 4.40253 5.46484 3.46484C6.40253 2.52716 7.67392 2 9 2C10.3261 2 11.5975 2.52716 12.5352 3.46484C13.4728 4.40253 14 5.67392 14 7Z" fill="currentColor"/></svg></button><button class="tb-icobtn" aria-label="New chat"><svg class="ico " viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M18 22V20H16C15.4477 20 15 19.5523 15 19C15 18.4477 15.4477 18 16 18H18V16C18 15.4477 18.4477 15 19 15C19.5523 15 20 15.4477 20 16V18H22C22.5523 18 23 18.4477 23 19C23 19.5523 22.5523 20 22 20H20V22C20 22.5523 19.5523 23 19 23C18.4477 23 18 22.5523 18 22ZM14 12C14.5523 12 15 12.4477 15 13C15 13.5523 14.5523 14 14 14H8C7.44772 14 7 13.5523 7 13C7 12.4477 7.44772 12 8 12H14ZM20 12.5V7C20 6.46957 19.7891 5.96101 19.4141 5.58594C19.039 5.21087 18.5304 5 18 5H6C5.46957 5 4.96101 5.21086 4.58594 5.58594C4.21086 5.96101 4 6.46957 4 7V15C4 15.5304 4.21087 16.039 4.58594 16.4141C4.96101 16.7891 5.46957 17 6 17H8C8.55228 17 9 17.4477 9 18V19.2334L11.4951 17.7363C11.9686 17.4523 12.5829 17.6059 12.8672 18.0791C13.1513 18.5527 12.9979 19.167 12.5244 19.4512L8.51465 21.8574C8.20572 22.0428 7.82034 22.0476 7.50684 21.8701C7.19355 21.6926 7 21.3601 7 21V19H6C4.93913 19 3.92202 18.5783 3.17188 17.8281C2.42173 17.078 2 16.0609 2 15V7C2 5.93913 2.42173 4.92202 3.17188 4.17188C3.92202 3.42173 4.93913 3 6 3H18C19.0609 3 20.078 3.42173 20.8281 4.17188C21.5783 4.92202 22 5.93913 22 7V12.5C22 13.0523 21.5523 13.5 21 13.5C20.4477 13.5 20 13.0523 20 12.5ZM16 8C16.5523 8 17 8.44772 17 9C17 9.55228 16.5523 10 16 10H8C7.44772 10 7 9.55228 7 9C7 8.44772 7.44772 8 8 8H16Z" fill="currentColor"/></svg></button></div><div class="c-chats-header"><div class="c-chats-header__search"><div class="c-search-field"><span class="c-search-field__icon"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M16 10C16 9.21209 15.8445 8.43204 15.543 7.7041C15.2414 6.97615 14.7993 6.31496 14.2422 5.75781C13.685 5.20066 13.0239 4.75856 12.2959 4.45703C11.568 4.15552 10.7879 4 10 4C9.21209 4 8.43204 4.15552 7.7041 4.45703C6.97615 4.75856 6.31496 5.20066 5.75781 5.75781C5.20066 6.31496 4.75856 6.97615 4.45703 7.7041C4.15552 8.43204 4 9.21209 4 10C4 10.7879 4.15552 11.568 4.45703 12.2959C4.75856 13.0239 5.20066 13.685 5.75781 14.2422C6.31496 14.7993 6.97615 15.2414 7.7041 15.543C8.43204 15.8445 9.21209 16 10 16C10.7879 16 11.568 15.8445 12.2959 15.543C13.0239 15.2414 13.685 14.7993 14.2422 14.2422C14.7993 13.685 15.2414 13.0239 15.543 12.2959C15.8445 11.568 16 10.7879 16 10ZM18 10C18 11.0506 17.7927 12.0909 17.3906 13.0615C17.1168 13.7225 16.7542 14.3405 16.3174 14.9033L21.707 20.293C22.0976 20.6835 22.0976 21.3165 21.707 21.707C21.3165 22.0976 20.6835 22.0976 20.293 21.707L14.9033 16.3174C14.3405 16.7542 13.7225 17.1168 13.0615 17.3906C12.0909 17.7927 11.0506 18 10 18C8.94943 18 7.90908 17.7927 6.93848 17.3906C5.96795 16.9886 5.08559 16.4 4.34277 15.6572C3.59995 14.9144 3.01141 14.0321 2.60938 13.0615C2.20734 12.0909 2 11.0506 2 10C2 8.94942 2.20734 7.90908 2.60938 6.93848C3.01141 5.96795 3.59995 5.08559 4.34277 4.34277C5.08559 3.59995 5.96795 3.01141 6.93848 2.60938C7.90908 2.20734 8.94942 2 10 2C11.0506 2 12.0909 2.20734 13.0615 2.60938C14.0321 3.01141 14.9144 3.59995 15.6572 4.34277C16.4 5.08559 16.9886 5.96795 17.3906 6.93848C17.7927 7.90908 18 8.94943 18 10Z" fill="currentColor"/></svg></span><input class="c-search-field__input" placeholder="Search chats"></div></div><div class="c-chats-header__filters"><button class="c-chip" aria-pressed="true">All</button><button class="c-chip" aria-pressed="false">Unread</button><button class="c-chip" aria-pressed="false">Groups</button><button class="c-chip" aria-pressed="false">Agents <span class="c-chip__count">1</span></button></div></div><div class="list-scroll"><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:340;--av-h2:20"><span class="c-avatar__initials">3S</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">3sxqKo&hellip;vEMBf1</div><div class="c-excerpt"><span class="c-excerpt__text">Missed call</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">10:07</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:140;--av-h2:180"><span class="c-avatar__initials">SO</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Spixi Official Group Chat</div><div class="c-excerpt"><span class="c-excerpt__text">I need 2 dollar for interesting conversation</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Aug 01</span></div></button><button class="c-chatlist-item" aria-current="true"><span class="c-avatar" style="width:var(--size-avatar-48);height:var(--size-avatar-48)"><svg width="48" height="48" style="width:100%;height:100%"><use href="#adam-mark"/></svg><span class="c-avatar__dot--agent"><svg class="ico " viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M20 5C20 4.73478 19.8946 4.48051 19.707 4.29297C19.5195 4.10543 19.2652 4 19 4H5C4.73478 4 4.4805 4.10543 4.29297 4.29297C4.10543 4.4805 4 4.73478 4 5V19C4 19.2652 4.10543 19.5195 4.29297 19.707C4.48051 19.8946 4.73478 20 5 20H19C19.2652 20 19.5195 19.8946 19.707 19.707C19.8946 19.5195 20 19.2652 20 19V5ZM11 15.5V13.8682L9.55469 14.832C9.09516 15.1384 8.47432 15.0142 8.16797 14.5547C7.86162 14.0952 7.98578 13.4743 8.44531 13.168L10.1973 12L8.44531 10.832C7.98578 10.5257 7.86162 9.90484 8.16797 9.44531C8.47432 8.98578 9.09516 8.86162 9.55469 9.16797L11 10.1309V8.5C11 7.94772 11.4477 7.5 12 7.5C12.5523 7.5 13 7.94772 13 8.5V10.1309L14.4453 9.16797C14.9048 8.86162 15.5257 8.98578 15.832 9.44531C16.1384 9.90484 16.0142 10.5257 15.5547 10.832L13.8027 12L15.5547 13.168C16.0142 13.4743 16.1384 14.0952 15.832 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.832L13 13.8682V15.5C13 16.0523 12.5523 16.5 12 16.5C11.4477 16.5 11 16.0523 11 15.5ZM22 19C22 19.7957 21.6837 20.5585 21.1211 21.1211C20.5585 21.6837 19.7957 22 19 22H5C4.20435 22 3.44152 21.6837 2.87891 21.1211C2.3163 20.5585 2 19.7957 2 19V5C2 4.20435 2.3163 3.44152 2.87891 2.87891C3.44152 2.3163 4.20435 2 5 2H19C19.7957 2 20.5585 2.3163 21.1211 2.87891C21.6837 3.44152 22 4.20435 22 5V19Z" fill="currentColor"/></svg></span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Adam</div><div class="c-excerpt"><span class="c-excerpt__text">Working: Release &amp; payout &middot; 3/5 steps</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">09:42</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:30;--av-h2:60"><span class="c-avatar__initials">ST</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Shang Tsung</div><div class="c-excerpt"><span class="c-excerpt__text">Spixi redesign, repo at C:\Users\Damir\Clau&hellip;</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Jul 29</span></div></button><button class="c-chatlist-item"><span class="c-avatar" data-placeholder style="width:var(--size-avatar-48);height:var(--size-avatar-48);--av-h1:150;--av-h2:200"><span class="c-avatar__initials">DI</span></span><div class="c-chatlist-item__content"><div class="c-chatlist-item__name">Damir | ixian.io</div><div class="c-excerpt"><span class="c-excerpt__text">Payment Sent</span></div></div><div class="c-chatlist-item__right"><span class="c-chatlist-item__time">Jul 29</span></div></button></div></div>
+<div class="frame-main"><header class="c-topbar"><button class="tb-icobtn" aria-label="Back"><svg class="ico " viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M14.2929 5.29295C14.6834 4.90243 15.3164 4.90243 15.707 5.29295C16.0975 5.68348 16.0975 6.31649 15.707 6.70702L10.414 12L15.707 17.293C16.0975 17.6835 16.0975 18.3165 15.707 18.707C15.3164 19.0975 14.6834 19.0975 14.2929 18.707L8.29289 12.707C7.90237 12.3165 7.90237 11.6835 8.29289 11.293L14.2929 5.29295Z" fill="currentColor"/></svg></button><span class="c-avatar" style="width:var(--size-avatar-40);height:var(--size-avatar-40)"><svg width="40" height="40" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="c-topbar__identity"><div class="c-topbar__name">Adam <span class="agent-badge">AI Agent</span></div><div class="c-topbar__sub">QuIXI &middot; peer-to-peer &middot; end-to-end encrypted</div></div><div class="c-topbar__actions"><button class="tb-icobtn" aria-label="Info"><svg class="ico " viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M20 12C20 9.87827 19.1575 7.84306 17.6572 6.34277C16.1569 4.84248 14.1217 4 12 4C9.87827 4 7.84306 4.84248 6.34277 6.34277C4.84248 7.84306 4 9.87827 4 12C4 13.0506 4.20734 14.0909 4.60938 15.0615C5.01141 16.0321 5.59995 16.9144 6.34277 17.6572C7.08559 18.4 7.96795 18.9886 8.93848 19.3906C9.90908 19.7927 10.9494 20 12 20C13.0506 20 14.0909 19.7927 15.0615 19.3906C16.0321 18.9886 16.9144 18.4 17.6572 17.6572C18.4 16.9144 18.9886 16.0321 19.3906 15.0615C19.7927 14.0909 20 13.0506 20 12ZM12 11C12.5523 11 13 11.4477 13 12V15C13.5523 15 14 15.4477 14 16C14 16.5523 13.5523 17 13 17H12C11.4477 17 11 16.5523 11 16V13C10.4477 13 10 12.5523 10 12C10 11.4477 10.4477 11 11 11H12ZM12.0098 8C12.5621 8 13.0098 8.44772 13.0098 9C13.0098 9.55228 12.5621 10 12.0098 10H12C11.4477 10 11 9.55228 11 9C11 8.44772 11.4477 8 12 8H12.0098ZM22 12C22 13.3132 21.7418 14.6139 21.2393 15.8271C20.7367 17.0404 19.9998 18.1427 19.0713 19.0713C18.1427 19.9998 17.0404 20.7367 15.8271 21.2393C14.6139 21.7418 13.3132 22 12 22C10.6868 22 9.38611 21.7418 8.17285 21.2393C6.95964 20.7367 5.85727 19.9998 4.92871 19.0713C4.00015 18.1427 3.26329 17.0404 2.76074 15.8271C2.2582 14.6139 2 13.3132 2 12C2 9.34784 3.05335 6.80407 4.92871 4.92871C6.80407 3.05335 9.34784 2 12 2C14.6522 2 17.1959 3.05335 19.0713 4.92871C20.9467 6.80407 22 9.34784 22 12Z" fill="currentColor"/></svg></button></div></header>
 <div class="c-chat-canvas"><div class="canvas-row">
-  <div class="content-col">
-  <div class="log" id="log"><div class="log-inner" id="loginner">
-<div class="c-datesep"><span class="c-datesep__pill">Yesterday</span></div><div class="c-sysnotice"><div class="c-sysnotice__card"><div class="c-sysnotice__medallion">&#10022;</div><div class="c-sysnotice__title">Adam joined as an AI agent</div><div class="c-sysnotice__text">Capabilities: markdown &middot; files &middot; streaming &middot; workflows. Messages stay end-to-end encrypted and travel peer-to-peer over S2. The agent badge is informational only.</div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Adam, are you online? Ping the render node for me.<span class="c-bubble__meta">18:04</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">18:04</span></div><div class="agent-prose"><p>Online. <code>render-01</code> answers in 42&nbsp;ms over S2 &mdash; queue empty, GPU idle at 31&nbsp;&deg;C. Ready when you are.</p></div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Queue the ixian-launch scene. 4K, 200 frames.<span class="c-bubble__meta">18:06</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">18:06</span></div><div class="agent-prose"><p>Queued as job <code>#4187</code>.</p><ul><li>Estimate: <b>3&nbsp;h&nbsp;10&nbsp;m</b> wall-clock, priority normal.</li><li>Cost at current rates: <b>25&nbsp;IXI</b> &mdash; invoice follows once frames verify.</li></ul></div></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">21:19</span></div><div class="agent-prose"><p>Render complete &mdash; <b>200/200 frames</b>, zero dropped tiles. Contact sheet attached.</p></div><div class="agent-card filecard"><div class="filecard__ico">&#128444;</div><div><div class="filecard__name">ixian-launch-contact-sheet.png</div><div class="filecard__size">2.4 MB &middot; image</div></div><button class="c-button" data-type="text" data-size="32">Save</button></div></div></div><div class="c-datesep"><span class="c-datesep__pill">Today</span></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Morning. What changed in QuIXI 0.9.4a? Short version.<span class="c-bubble__meta">09:41</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">09:41</span></div><div class="agent-prose"><p>Short version: 0.9.4a switches delivery to <b>direct P2P</b> while keeping network propagation for consensus.</p><h4>Delivery model</h4><ul><li>Messages and transactions go <b>directly to recipients</b> &mdash; no polling, no delayed retrieval.</li><li>The network still propagates for <b>consensus and availability</b>, so offline peers catch up.</li><li>Better fit for IoT, services, and real-time integrations (that includes me).</li></ul><h4>If you integrate</h4><pre><code>// subscribe to direct-delivery events
+<div class="content-col">
+<div class="log" id="log"><div class="log-inner" id="loginner"><div class="c-datesep"><span class="c-datesep__pill">Yesterday</span></div><div class="c-sysnotice"><div class="c-sysnotice__card"><div class="c-sysnotice__medallion"><svg class="ico " viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M20 5C20 4.73478 19.8946 4.48051 19.707 4.29297C19.5195 4.10543 19.2652 4 19 4H5C4.73478 4 4.4805 4.10543 4.29297 4.29297C4.10543 4.4805 4 4.73478 4 5V19C4 19.2652 4.10543 19.5195 4.29297 19.707C4.48051 19.8946 4.73478 20 5 20H19C19.2652 20 19.5195 19.8946 19.707 19.707C19.8946 19.5195 20 19.2652 20 19V5ZM11 15.5V13.8682L9.55469 14.832C9.09516 15.1384 8.47432 15.0142 8.16797 14.5547C7.86162 14.0952 7.98578 13.4743 8.44531 13.168L10.1973 12L8.44531 10.832C7.98578 10.5257 7.86162 9.90484 8.16797 9.44531C8.47432 8.98578 9.09516 8.86162 9.55469 9.16797L11 10.1309V8.5C11 7.94772 11.4477 7.5 12 7.5C12.5523 7.5 13 7.94772 13 8.5V10.1309L14.4453 9.16797C14.9048 8.86162 15.5257 8.98578 15.832 9.44531C16.1384 9.90484 16.0142 10.5257 15.5547 10.832L13.8027 12L15.5547 13.168C16.0142 13.4743 16.1384 14.0952 15.832 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.832L13 13.8682V15.5C13 16.0523 12.5523 16.5 12 16.5C11.4477 16.5 11 16.0523 11 15.5ZM22 19C22 19.7957 21.6837 20.5585 21.1211 21.1211C20.5585 21.6837 19.7957 22 19 22H5C4.20435 22 3.44152 21.6837 2.87891 21.1211C2.3163 20.5585 2 19.7957 2 19V5C2 4.20435 2.3163 3.44152 2.87891 2.87891C3.44152 2.3163 4.20435 2 5 2H19C19.7957 2 20.5585 2.3163 21.1211 2.87891C21.6837 3.44152 22 4.20435 22 5V19Z" fill="currentColor"/></svg></div><div class="c-sysnotice__title">Adam joined as an AI agent</div><div class="c-sysnotice__text">Capabilities: markdown &middot; files &middot; streaming &middot; workflows. Messages stay end-to-end encrypted and travel peer-to-peer over S2. The agent badge is informational only.</div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Adam, are you online? Ping the render node for me.<span class="c-bubble__meta">18:04</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">18:04</span></div><div class="agent-prose"><p>Online. <code>render-01</code> answers in 42&nbsp;ms over S2 &mdash; queue empty, GPU idle at 31&nbsp;&deg;C. Ready when you are.</p></div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Queue the ixian-launch scene. 4K, 200 frames.<span class="c-bubble__meta">18:06</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">18:06</span></div><div class="agent-prose"><p>Queued as job <code>#4187</code>.</p><ul><li>Estimate: <b>3&nbsp;h&nbsp;10&nbsp;m</b> wall-clock, priority normal.</li><li>Cost at current rates: <b>25&nbsp;IXI</b> &mdash; invoice follows once frames verify.</li></ul></div></div></div><div class="agent-turn" id="m-sheet"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">21:19</span></div><div class="agent-prose"><p>Render complete &mdash; <b>200/200 frames</b>, zero dropped tiles. Contact sheet attached.</p></div><button class="c-fbubble"><span class="c-fbubble__icon"><svg class="ico " viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M20 16.4141L17.3066 13.7207L17.1904 13.6172C16.9238 13.398 16.6866 13.3301 16.5 13.3301C16.2867 13.3301 16.0072 13.4187 15.6934 13.7207L15.4141 14L16.707 15.293C17.0976 15.6835 17.0976 16.3165 16.707 16.707C16.3165 17.0976 15.6835 17.0976 15.293 16.707L10.3066 11.7207L10.1904 11.6172C9.92378 11.398 9.68659 11.3301 9.5 11.3301C9.28674 11.3301 9.00721 11.4187 8.69336 11.7207L4 16.4141V18C4 18.5304 4.21086 19.039 4.58594 19.4141C4.96101 19.7891 5.46957 20 6 20H18C18.5304 20 19.039 19.7891 19.4141 19.4141C19.7891 19.039 20 18.5304 20 18V16.4141ZM15.0098 7C15.5621 7 16.0098 7.44772 16.0098 8C16.0098 8.55228 15.5621 9 15.0098 9H15C14.4477 9 14 8.55228 14 8C14 7.44772 14.4477 7 15 7H15.0098ZM20 6C20 5.46957 19.7891 4.96101 19.4141 4.58594C19.039 4.21086 18.5304 4 18 4H6C5.46957 4 4.96101 4.21086 4.58594 4.58594C4.21086 4.96101 4 5.46957 4 6V13.5859L7.30664 10.2793C7.92077 9.68836 8.6773 9.33008 9.5 9.33008C10.3227 9.33008 11.0792 9.68836 11.6934 10.2793L14 12.5859L14.3066 12.2793C14.9208 11.6884 15.6773 11.3301 16.5 11.3301C17.3227 11.3301 18.0792 11.6884 18.6934 12.2793L20 13.5859V6ZM22 18C22 19.0609 21.5783 20.078 20.8281 20.8281C20.078 21.5783 19.0609 22 18 22H6C4.93913 22 3.92202 21.5783 3.17188 20.8281C2.42173 20.078 2 19.0609 2 18V6C2 4.93913 2.42173 3.92202 3.17188 3.17188C3.92202 2.42173 4.93913 2 6 2H18C19.0609 2 20.078 2.42173 20.8281 3.17188C21.5783 3.92202 22 4.93913 22 6V18Z" fill="currentColor"/></svg></span><span class="c-fbubble__info"><span class="c-fbubble__name">ixian-launch-contact-sheet.png</span><span class="c-fbubble__meta">2.4 MB &middot; image</span></span><span class="c-fbubble__open"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M3 19V17C3 16.4477 3.44772 16 4 16C4.55228 16 5 16.4477 5 17V19C5 19.2652 5.10543 19.5195 5.29297 19.707C5.48051 19.8946 5.73478 20 6 20H18C18.2652 20 18.5195 19.8946 18.707 19.707C18.8946 19.5195 19 19.2652 19 19V17C19 16.4477 19.4477 16 20 16C20.5523 16 21 16.4477 21 17V19C21 19.7957 20.6837 20.5585 20.1211 21.1211C19.5585 21.6837 18.7956 22 18 22H6C5.20435 22 4.44151 21.6837 3.87891 21.1211C3.3163 20.5585 3 19.7956 3 19ZM11 4C11 3.44772 11.4477 3 12 3C12.5523 3 13 3.44772 13 4V13.5859L16.293 10.293C16.6835 9.90244 17.3165 9.90244 17.707 10.293C18.0976 10.6835 18.0976 11.3165 17.707 11.707L12.707 16.707C12.3165 17.0976 11.6835 17.0976 11.293 16.707L6.29297 11.707C5.90244 11.3165 5.90244 10.6835 6.29297 10.293C6.68349 9.90244 7.31651 9.90244 7.70703 10.293L11 13.5859V4Z" fill="currentColor"/></svg></span></button></div></div><div class="c-datesep"><span class="c-datesep__pill">Today</span></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Morning. What changed in QuIXI 0.9.4a? Short version.<span class="c-bubble__meta">09:41</span></div></div><div class="agent-turn turn-clamp" data-collapsed="true" id="m-summary"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">09:41</span></div><div class="agent-prose"><p>Short version: 0.9.4a switches delivery to <b>direct P2P</b> while keeping network propagation for consensus.</p><h4>Delivery model</h4><ul><li>Messages and transactions go <b>directly to recipients</b> &mdash; no polling, no delayed retrieval.</li><li>The network still propagates for <b>consensus and availability</b>, so offline peers catch up.</li><li>Better fit for IoT, services, and real-time integrations (that includes me).</li></ul><h4>If you integrate</h4><pre><button class="code-copy" onclick="copyCode(this)" aria-label="Copy"><svg class="ico " viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M20 9.66699C20 9.44814 19.9568 9.23149 19.873 9.0293C19.7893 8.82705 19.6665 8.64308 19.5117 8.48828C19.3569 8.33349 19.173 8.21073 18.9707 8.12695C18.7685 8.04323 18.5519 8 18.333 8H9.66699C9.22488 8 8.8009 8.17566 8.48828 8.48828C8.17566 8.8009 8 9.22488 8 9.66699V18.333C8 18.5519 8.04323 18.7685 8.12695 18.9707C8.21073 19.173 8.33349 19.3569 8.48828 19.5117C8.64308 19.6665 8.82705 19.7893 9.0293 19.873C9.23149 19.9568 9.44814 20 9.66699 20H18.333C18.5519 20 18.7685 19.9568 18.9707 19.873C19.173 19.7893 19.3569 19.6665 19.5117 19.5117C19.6665 19.3569 19.7893 19.173 19.873 18.9707C19.9568 18.7685 20 18.5519 20 18.333V9.66699ZM2 5C2 3.34772 3.34772 2 5 2H15C15.5623 2 16.0628 2.14977 16.4902 2.45996C16.896 2.75447 17.1695 3.14597 17.374 3.51367C17.6424 3.99627 17.4688 4.60555 16.9863 4.87402C16.5037 5.1424 15.8945 4.96884 15.626 4.48633C15.4886 4.23925 15.3866 4.13082 15.3154 4.0791C15.2659 4.04314 15.1876 4 15 4H5C4.45228 4 4 4.45228 4 5V14.998L4.00879 15.1299C4.02644 15.2604 4.07001 15.3865 4.13672 15.501C4.22572 15.6537 4.35329 15.7805 4.50684 15.8682C4.98663 16.1417 5.15438 16.7526 4.88086 17.2324C4.60732 17.7122 3.99637 17.879 3.5166 17.6055C3.0571 17.3435 2.67448 16.9649 2.4082 16.5078C2.14196 16.0507 2.00128 15.5309 2 15.002V5ZM22 18.333C22 18.8146 21.905 19.2914 21.7207 19.7363C21.5364 20.1812 21.2663 20.5853 20.9258 20.9258C20.5853 21.2663 20.1812 21.5364 19.7363 21.7207C19.2914 21.905 18.8146 22 18.333 22H9.66699C9.18544 22 8.70857 21.905 8.26367 21.7207C7.8188 21.5364 7.41471 21.2663 7.07422 20.9258C6.73373 20.5853 6.46358 20.1812 6.2793 19.7363C6.09501 19.2914 6 18.8146 6 18.333V9.66699C6 8.69445 6.38652 7.76191 7.07422 7.07422C7.76191 6.38652 8.69445 6 9.66699 6H18.333C18.8146 6 19.2914 6.09501 19.7363 6.2793C20.1812 6.46358 20.5853 6.73373 20.9258 7.07422C21.2663 7.41471 21.5364 7.8188 21.7207 8.26367C21.905 8.70857 22 9.18544 22 9.66699V18.333Z" fill="currentColor"/></svg></button><code>// subscribe to direct-delivery events
 var stream = quixi.connect("s2://relay");
-stream.onMessage += (peer, msg) =&gt; handle(peer, msg);</code></pre></div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Yes, save the notes. And request the 25 IXI for the render.<span class="c-bubble__meta">09:42</span></div></div><div class="agent-turn"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">09:42</span></div><div class="agent-prose"><p>Done &mdash; notes attached, and the invoice for job <code>#4187</code> is below.</p></div><div class="agent-card filecard"><div class="filecard__ico">&#9636;</div><div><div class="filecard__name">release-notes-0.9.4a.md</div><div class="filecard__size">3.1 kB &middot; markdown</div></div><button class="c-button" data-type="text" data-size="32">Save</button></div><div class="agent-card paycard"><div class="paycard__top"><div class="paycard__disc">&#8601;</div><div><div class="paycard__amt">25.00 IXI</div><div class="paycard__lbl">Payment request &middot; render job #4187</div></div></div><div class="paycard__addr">to 3JDNzTw5JZBG9ReiGQvW7no18XcYdSgSTrqA2f7v7iji8AJNNXfau&hellip;5CQen</div><div class="paycard__acts"><button class="c-button" data-type="fill" data-size="32">Review &amp; send</button><button class="c-button" data-type="outline" data-size="32">Decline</button></div><div class="paycard__note">Wallet actions are always confirmed by you &mdash; an agent can request, never send.</div></div></div></div>
-    <div class="c-bubble-row c-bubble-row--typing" id="typing" hidden>
-      <span class="c-bubble-row__gutter"><span class="c-avatar" style="width:var(--size-avatar-24);height:var(--size-avatar-24)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span></span>
-      <div class="c-typing"><span class="c-typing__name">Adam</span>
-        <span class="c-typing__dots"><span class="c-typing__dot"></span><span class="c-typing__dot"></span><span class="c-typing__dot"></span></span></div>
-    </div>
-  </div></div>
-
-  <div class="ai-composer">
-    <div class="ai-composer__box">
-      <button class="ai-composer__attach" aria-label="Attach">+</button>
-      <textarea class="ai-composer__input" id="input" rows="1" placeholder="Message Adam&hellip;"></textarea>
-      <button class="ai-composer__btn" id="send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
-    </div>
-  </div>
-  </div><!-- /content-col -->
-  <div class="wf-col">
-    <div class="float-card">
-      <h2>Workflow</h2>
-      <div class="wf-title">Release &amp; payout <span class="wf-chip" data-state="running" id="wfchip">Running</span></div>
-      <div class="wf-sub">Started 09:41 &middot; published by Adam</div>
-      <div class="step" data-state="done"><span class="step__rail"></span><span class="step__ico">&#10003;</span>
-        <div><div class="step__t">Summarize 0.9.4a release</div><div class="step__sub">09:41</div></div></div>
-      <div class="step" data-state="done"><span class="step__rail"></span><span class="step__ico">&#10003;</span>
-        <div><div class="step__t">Export release notes</div><div class="step__sub">release-notes-0.9.4a.md &middot; 09:42</div></div></div>
-      <div class="step" data-state="wait" id="st3"><span class="step__rail"></span><span class="step__ico">&#8987;</span>
-        <div><div class="step__t">Invoice 25 IXI</div><div class="step__sub" id="st3sub">awaiting your confirmation</div></div></div>
-      <div class="step" data-state="todo" id="st4"><span class="step__rail"></span><span class="step__ico"></span>
-        <div style="flex:1"><div class="step__t">Draft group announcement</div><div class="step__sub" id="st4sub">queued</div>
-        <div class="step__bar"><i></i></div></div></div>
-      <div class="step" data-state="todo" id="st5"><span class="step__ico"></span>
-        <div style="flex:1"><div class="step__t">Deliver packed frames</div><div class="step__sub" id="st5sub">needs your approval to post</div>
-        <div class="step__bar"><i></i></div></div></div>
-    </div>
-    <div class="float-card">
-      <h2>Session</h2>
-      <div class="kv"><span>Connection</span><b>P2P over S2</b></div>
-      <div class="kv"><span>Requests confirmed</span><b>1</b></div>
-      <div class="kv"><span>Files received</span><b id="filecount">2</b></div>
-      <div class="capchips">
-        <span class="c-chip" data-readonly>markdown</span><span class="c-chip" data-readonly>files</span>
-        <span class="c-chip" data-readonly>streaming</span><span class="c-chip" data-readonly>workflows</span>
-      </div>
-      <div class="e2e">&#128737; End-to-end encrypted</div>
-    </div>
-    </div><!-- /wf-col -->
+stream.onMessage += (peer, msg) =&gt; handle(peer, msg);</code></pre><p>Full notes are in the release tag.</p></div><div class="turn-more"><button class="c-button" data-type="text" data-size="32" onclick="toggleClamp(this)"><span class="c-button__label">Show more</span></button></div></div></div><div class="c-bubble-row" data-direction="sent"><div class="c-bubble">Yes, save the notes. And request the 25 IXI for the render.<span class="c-bubble__meta">09:42</span></div></div><div class="agent-turn" id="m-invoice"><span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span><div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span><span class="agent-turn__time">09:42</span></div><div class="agent-prose"><p>Done &mdash; notes attached, and the invoice for job <code>#4187</code> is below.</p></div><button class="c-fbubble"><span class="c-fbubble__icon"><svg class="ico " viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M4.99992 8V5C4.99992 4.20435 5.31622 3.44152 5.87883 2.87891C6.44144 2.3163 7.20428 2 7.99992 2H14.9999C15.2651 2 15.5194 2.10543 15.707 2.29297L20.707 7.29297C20.8945 7.4805 20.9999 7.73478 20.9999 8V19C20.9999 19.7957 20.6836 20.5585 20.121 21.1211C19.5584 21.6837 18.7956 22 17.9999 22H7.99992C7.20427 22 6.44144 21.6837 5.87883 21.1211C5.31622 20.5585 4.99992 19.7957 4.99992 19V14.4141L3.70696 15.707C3.31643 16.0976 2.68342 16.0976 2.29289 15.707C1.90237 15.3165 1.90237 14.6835 2.29289 14.293L5.29289 11.293L5.36907 11.2246C5.76184 10.9043 6.34084 10.9269 6.70696 11.293L9.70696 14.293C10.0975 14.6835 10.0975 15.3165 9.70696 15.707C9.31643 16.0976 8.68342 16.0976 8.29289 15.707L6.99992 14.4141V19C6.99992 19.2652 7.10536 19.5195 7.29289 19.707C7.48043 19.8946 7.73471 20 7.99992 20H17.9999C18.2651 20 18.5194 19.8946 18.707 19.707C18.8945 19.5195 18.9999 19.2652 18.9999 19V9H15.9999C15.4695 9 14.9609 8.78913 14.5859 8.41406C14.2108 8.03899 13.9999 7.53043 13.9999 7V4H7.99992C7.73471 4 7.48043 4.10543 7.29289 4.29297C7.10536 4.4805 6.99992 4.73478 6.99992 5V8C6.99992 8.55228 6.55221 9 5.99992 9C5.44764 9 4.99992 8.55228 4.99992 8ZM17.5859 7L15.9999 5.41406V7H17.5859Z" fill="currentColor"/></svg></span><span class="c-fbubble__info"><span class="c-fbubble__name">release-notes-0.9.4a.md</span><span class="c-fbubble__meta">3.1 kB &middot; markdown</span></span><span class="c-fbubble__open"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M3 19V17C3 16.4477 3.44772 16 4 16C4.55228 16 5 16.4477 5 17V19C5 19.2652 5.10543 19.5195 5.29297 19.707C5.48051 19.8946 5.73478 20 6 20H18C18.2652 20 18.5195 19.8946 18.707 19.707C18.8946 19.5195 19 19.2652 19 19V17C19 16.4477 19.4477 16 20 16C20.5523 16 21 16.4477 21 17V19C21 19.7957 20.6837 20.5585 20.1211 21.1211C19.5585 21.6837 18.7956 22 18 22H6C5.20435 22 4.44151 21.6837 3.87891 21.1211C3.3163 20.5585 3 19.7956 3 19ZM11 4C11 3.44772 11.4477 3 12 3C12.5523 3 13 3.44772 13 4V13.5859L16.293 10.293C16.6835 9.90244 17.3165 9.90244 17.707 10.293C18.0976 10.6835 18.0976 11.3165 17.707 11.707L12.707 16.707C12.3165 17.0976 11.6835 17.0976 11.293 16.707L6.29297 11.707C5.90244 11.3165 5.90244 10.6835 6.29297 10.293C6.68349 9.90244 7.31651 9.90244 7.70703 10.293L11 13.5859V4Z" fill="currentColor"/></svg></span></button><div class="c-tcard" id="inv-card"><div class="c-tcard__head"><span class="c-tcard__title"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M16.293 6.29295C16.6835 5.90243 17.3165 5.90243 17.707 6.29295C18.0976 6.68348 18.0976 7.31649 17.707 7.70702L9.41406 16H16C16.5523 16 17 16.4477 17 17C17 17.5523 16.5523 18 16 18H7C6.44772 18 6 17.5523 6 17V7.99999C6 7.4477 6.44772 6.99999 7 6.99999C7.55228 6.99999 8 7.4477 8 7.99999V14.5859L16.293 6.29295Z" fill="currentColor"/></svg> Payment request</span><span class="c-tcard__time">09:42</span></div><div class="c-tcard__amount" data-tone="pending" id="inv-amount">25.00 <span class="c-tcard__unit">IXI</span></div><div class="c-tcard__fiat">Render job #4187</div><div class="tcard-verify"><svg class="ico " viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M19.2929 6.29295C19.6834 5.90243 20.3164 5.90243 20.707 6.29295C21.0975 6.68348 21.0975 7.31649 20.707 7.70702L10.707 17.707C10.3164 18.0975 9.68342 18.0975 9.29289 17.707L4.29289 12.707C3.90237 12.3165 3.90237 11.6835 4.29289 11.293C4.68342 10.9024 5.31643 10.9024 5.70696 11.293L9.99992 15.5859L19.2929 6.29295Z" fill="currentColor"/></svg> Matches Adam&rsquo;s verified contact address</div><div class="c-tcard__actions" id="inv-actions"><button class="c-button" data-type="fill" data-size="44" onclick="approveInvoice()"><span class="c-button__label">Review &amp; send</span></button><button class="c-button" data-type="outline" data-size="44" onclick="declineInvoice()"><span class="c-button__label">Decline</span></button></div><div class="c-tcard__note">Wallet actions are always confirmed by you &mdash; an agent can request, never send.</div><div class="c-tcard__details"><button class="c-tcard__details-btn">Details <svg class="ico " viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.29289 5.29295C8.68342 4.90243 9.31643 4.90243 9.70696 5.29295L15.707 11.293C16.0975 11.6835 16.0975 12.3165 15.707 12.707L9.70696 18.707C9.31643 19.0975 8.68342 19.0975 8.29289 18.707C7.90237 18.3165 7.90237 17.6835 8.29289 17.293L13.5859 12L8.29289 6.70702C7.90237 6.31649 7.90237 5.68348 8.29289 5.29295Z" fill="currentColor"/></svg></button></div></div></div></div><div class="c-bubble-row c-bubble-row--typing" id="typing" hidden><span class="c-bubble-row__gutter"><span class="c-avatar" style="width:var(--size-avatar-24);height:var(--size-avatar-24)"><svg width="24" height="24" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span></span><div class="c-typing"><span class="c-typing__name">Adam</span><span class="c-typing__dots"><span class="c-typing__dot"></span><span class="c-typing__dot"></span><span class="c-typing__dot"></span></span></div></div><div class="work-pill" id="workpill" hidden><svg class="ico " viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8.62598 3.62194C10.8477 2.72728 13.3344 2.75202 15.5381 3.6903C17.7419 4.62874 19.4832 6.40494 20.3779 8.62682C21.2724 10.8484 21.2478 13.3344 20.3096 15.538C19.73 16.8989 18.83 18.0823 17.7041 18.9999H20C20.5523 18.9999 20.9999 19.4476 21 19.9999C21 20.5522 20.5523 20.9999 20 20.9999H15C14.4477 20.9999 14 20.5522 14 19.9999V14.9999C14.0001 14.4476 14.4477 13.9999 15 13.9999C15.5523 13.9999 15.9999 14.4476 16 14.9999V17.7792C17.0832 17.0294 17.9444 15.986 18.4688 14.7548C19.1993 13.0391 19.2189 11.1036 18.5225 9.37389C17.8259 7.64411 16.4705 6.26177 14.7549 5.53112C13.0393 4.80056 11.1037 4.78102 9.37402 5.47741C8.86176 5.68369 8.27861 5.43592 8.07227 4.9237C7.866 4.41148 8.11386 3.82834 8.62598 3.62194ZM10 19.9501V19.9403C10 19.388 10.4477 18.9403 11 18.9403C11.5523 18.9403 12 19.388 12 19.9403V19.9501C12 20.5023 11.5523 20.9501 11 20.9501C10.4477 20.9501 10 20.5023 10 19.9501ZM6.16016 18.3798V18.37C6.16016 17.8177 6.60787 17.37 7.16016 17.37C7.71244 17.37 8.16016 17.8177 8.16016 18.37V18.3798C8.16016 18.932 7.71244 19.3798 7.16016 19.3798C6.60787 19.3798 6.16016 18.932 6.16016 18.3798ZM3.63086 15.1102V15.1005C3.63086 14.5482 4.07857 14.1005 4.63086 14.1005C5.18314 14.1005 5.63086 14.5482 5.63086 15.1005V15.1102C5.63072 15.6624 5.18306 16.1102 4.63086 16.1102C4.07866 16.1102 3.631 15.6624 3.63086 15.1102ZM3.06055 11.0096V10.9999C3.06061 10.4476 3.5083 9.99987 4.06055 9.99987C4.61279 9.99987 5.06048 10.4476 5.06055 10.9999V11.0096C5.06055 11.5619 4.61283 12.0096 4.06055 12.0096C3.50826 12.0096 3.06055 11.5619 3.06055 11.0096ZM4.63086 7.16979V7.16002C4.63086 6.60774 5.07857 6.16002 5.63086 6.16002C6.18314 6.16002 6.63086 6.60774 6.63086 7.16002V7.16979C6.63086 7.72207 6.18314 8.16979 5.63086 8.16979C5.07857 8.16979 4.63086 7.72207 4.63086 7.16979Z" fill="currentColor"/></svg><span id="workpill-t">packing frames &middot; 35%</span></div><button class="stream-stop" id="stopbtn" onclick="stopStream()"><svg class="ico " viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M17.2929 5.29302C17.6834 4.90249 18.3164 4.90249 18.707 5.29302C19.0975 5.68354 19.0975 6.31655 18.707 6.70708L13.414 12L18.707 17.293C19.0975 17.6835 19.0975 18.3166 18.707 18.7071C18.3164 19.0976 17.6834 19.0976 17.2929 18.7071L11.9999 13.4141L6.70696 18.7071C6.31643 19.0976 5.68342 19.0976 5.29289 18.7071C4.90237 18.3166 4.90237 17.6835 5.29289 17.293L10.5859 12L5.29289 6.70708C4.90237 6.31655 4.90237 5.68354 5.29289 5.29302C5.68342 4.90249 6.31643 4.90249 6.70696 5.29302L11.9999 10.586L17.2929 5.29302Z" fill="currentColor"/></svg> Stop</button></div></div>
+<div class="approval-tray" id="tray" data-count="1" onclick="gotoApproval()"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17 18C17 16.6739 16.4728 15.4025 15.5352 14.4648C14.5975 13.5272 13.3261 13 12 13C10.6739 13 9.40253 13.5272 8.46484 14.4648C7.52716 15.4025 7 16.6739 7 18V20H17V18ZM7 4V6C7 7.32608 7.52716 8.59747 8.46484 9.53516C9.40253 10.4728 10.6739 11 12 11C13.3261 11 14.5975 10.4728 15.5352 9.53516C16.4728 8.59747 17 7.32608 17 6V4H7ZM19 6C19 7.85651 18.2629 9.63744 16.9502 10.9502C16.543 11.3574 16.09 11.7083 15.6045 12C16.09 12.2917 16.543 12.6426 16.9502 13.0498C18.2629 14.3626 19 16.1435 19 18V20C19 20.5304 18.7891 21.039 18.4141 21.4141C18.039 21.7891 17.5304 22 17 22H7C6.46957 22 5.96101 21.7891 5.58594 21.4141C5.21087 21.039 5 20.5304 5 20V18C5 16.1435 5.73705 14.3626 7.0498 13.0498C7.45682 12.6428 7.90927 12.2916 8.39453 12C7.90927 11.7084 7.45682 11.3572 7.0498 10.9502C5.73705 9.63744 5 7.85652 5 6V4C5 3.46957 5.21087 2.96101 5.58594 2.58594C5.96101 2.21086 6.46957 2 7 2H17C17.5304 2 18.039 2.21086 18.4141 2.58594C18.7891 2.96101 19 3.46957 19 4V6Z" fill="currentColor"/></svg><span><b id="tray-n">1</b> approval waiting</span><span class="go">Review</span></div><div class="suggest-row" id="suggest"><button class="c-chip" onclick="suggest(this)">Summarize the release</button><button class="c-chip" onclick="suggest(this)">Queue another render</button><button class="c-chip" onclick="suggest(this)">Show my invoices</button></div><div class="ai-composer"><div class="ai-composer__box"><button class="ai-composer__attach" aria-label="Attach"><svg class="ico " viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M20 12C20 9.87827 19.1575 7.84306 17.6572 6.34277C16.1569 4.84248 14.1217 4 12 4C9.87827 4 7.84306 4.84248 6.34277 6.34277C4.84248 7.84306 4 9.87827 4 12C4 13.0506 4.20734 14.0909 4.60938 15.0615C5.01141 16.0321 5.59995 16.9144 6.34277 17.6572C7.08559 18.4 7.96795 18.9886 8.93848 19.3906C9.90908 19.7927 10.9494 20 12 20C13.0506 20 14.0909 19.7927 15.0615 19.3906C16.0321 18.9886 16.9144 18.4 17.6572 17.6572C18.4 16.9144 18.9886 16.0321 19.3906 15.0615C19.7927 14.0909 20 13.0506 20 12ZM11 15V13H9C8.44772 13 8 12.5523 8 12C8 11.4477 8.44772 11 9 11H11V9C11 8.44772 11.4477 8 12 8C12.5523 8 13 8.44772 13 9V11H15C15.5523 11 16 11.4477 16 12C16 12.5523 15.5523 13 15 13H13V15C13 15.5523 12.5523 16 12 16C11.4477 16 11 15.5523 11 15ZM22 12C22 13.3132 21.7418 14.6139 21.2393 15.8271C20.7367 17.0404 19.9998 18.1427 19.0713 19.0713C18.1427 19.9998 17.0404 20.7367 15.8271 21.2393C14.6139 21.7418 13.3132 22 12 22C10.6868 22 9.38611 21.7418 8.17285 21.2393C6.95964 20.7367 5.85727 19.9998 4.92871 19.0713C4.00015 18.1427 3.26329 17.0404 2.76074 15.8271C2.2582 14.6139 2 13.3132 2 12C2 9.34784 3.05335 6.80407 4.92871 4.92871C6.80407 3.05335 9.34784 2 12 2C14.6522 2 17.1959 3.05335 19.0713 4.92871C20.9467 6.80407 22 9.34784 22 12Z" fill="currentColor"/></svg></button><textarea class="ai-composer__input" id="input" rows="1" placeholder="Message Adam&hellip;"></textarea><button class="ai-composer__btn" id="send" aria-label="Send"><svg class="ico " viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M4.29397 3.01705C4.51388 2.98395 4.73828 3.00075 4.9512 3.06491L5.05667 3.10006L5.13772 3.13522L21.4395 11.101C21.7826 11.2687 21.9999 11.6176 22 11.9995C22 12.3815 21.7828 12.7312 21.4395 12.8989L5.13772 20.8647C5.11149 20.8775 5.08393 20.8884 5.05667 20.8989C4.77865 21.0057 4.47505 21.0283 4.1846 20.9624C3.89426 20.8964 3.63036 20.7451 3.42581 20.5288L3.42679 20.5278C3.22976 20.3196 3.0925 20.0622 3.03323 19.7817C2.97491 19.5056 2.99389 19.2191 3.08597 18.9526L5.44339 11.9995L3.08499 5.04733L3.08597 5.04635C2.99414 4.78008 2.97497 4.494 3.03323 4.21823L3.09183 4.01217C3.16435 3.81101 3.27864 3.62649 3.42679 3.47018C3.63121 3.25435 3.89471 3.10345 4.1846 3.03756L4.29397 3.01705ZM5.33694 18.5405L16.6768 12.9995H7.21683L5.33694 18.5405ZM7.21683 10.9995H16.6748L5.33694 5.45846L7.21683 10.9995Z" fill="currentColor"/></svg></button></div></div>
+</div><!-- /content-col -->
+<div class="wf-col"><div class="float-card"><h2>Workflow</h2><div class="wf-title">Release &amp; payout <span class="wf-chip" data-state="running" id="wfchip">Running</span></div><div class="wf-sub">Started 09:41 &middot; published by Adam</div><div class="step" data-state="done" data-target="m-summary"><span class="step__rail"></span><span class="step__ico"><svg class="ico " viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M19.2929 6.29295C19.6834 5.90243 20.3164 5.90243 20.707 6.29295C21.0975 6.68348 21.0975 7.31649 20.707 7.70702L10.707 17.707C10.3164 18.0975 9.68342 18.0975 9.29289 17.707L4.29289 12.707C3.90237 12.3165 3.90237 11.6835 4.29289 11.293C4.68342 10.9024 5.31643 10.9024 5.70696 11.293L9.99992 15.5859L19.2929 6.29295Z" fill="currentColor"/></svg></span><div><div class="step__t">Summarize 0.9.4a release</div><div class="step__sub">09:41</div></div></div><div class="step" data-state="done" data-target="m-invoice"><span class="step__rail"></span><span class="step__ico"><svg class="ico " viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M19.2929 6.29295C19.6834 5.90243 20.3164 5.90243 20.707 6.29295C21.0975 6.68348 21.0975 7.31649 20.707 7.70702L10.707 17.707C10.3164 18.0975 9.68342 18.0975 9.29289 17.707L4.29289 12.707C3.90237 12.3165 3.90237 11.6835 4.29289 11.293C4.68342 10.9024 5.31643 10.9024 5.70696 11.293L9.99992 15.5859L19.2929 6.29295Z" fill="currentColor"/></svg></span><div><div class="step__t">Export release notes</div><div class="step__sub">release-notes-0.9.4a.md &middot; 09:42</div></div></div><div class="step" data-state="wait" id="st3" data-target="m-invoice"><span class="step__rail"></span><span class="step__ico"><svg class="ico " viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M17 18C17 16.6739 16.4728 15.4025 15.5352 14.4648C14.5975 13.5272 13.3261 13 12 13C10.6739 13 9.40253 13.5272 8.46484 14.4648C7.52716 15.4025 7 16.6739 7 18V20H17V18ZM7 4V6C7 7.32608 7.52716 8.59747 8.46484 9.53516C9.40253 10.4728 10.6739 11 12 11C13.3261 11 14.5975 10.4728 15.5352 9.53516C16.4728 8.59747 17 7.32608 17 6V4H7ZM19 6C19 7.85651 18.2629 9.63744 16.9502 10.9502C16.543 11.3574 16.09 11.7083 15.6045 12C16.09 12.2917 16.543 12.6426 16.9502 13.0498C18.2629 14.3626 19 16.1435 19 18V20C19 20.5304 18.7891 21.039 18.4141 21.4141C18.039 21.7891 17.5304 22 17 22H7C6.46957 22 5.96101 21.7891 5.58594 21.4141C5.21087 21.039 5 20.5304 5 20V18C5 16.1435 5.73705 14.3626 7.0498 13.0498C7.45682 12.6428 7.90927 12.2916 8.39453 12C7.90927 11.7084 7.45682 11.3572 7.0498 10.9502C5.73705 9.63744 5 7.85652 5 6V4C5 3.46957 5.21087 2.96101 5.58594 2.58594C5.96101 2.21086 6.46957 2 7 2H17C17.5304 2 18.039 2.21086 18.4141 2.58594C18.7891 2.96101 19 3.46957 19 4V6Z" fill="currentColor"/></svg></span><div><div class="step__t">Invoice 25 IXI</div><div class="step__sub" id="st3sub">awaiting your confirmation</div></div></div><div class="step" data-state="todo" id="st4" data-target="m-summary"><span class="step__rail"></span><span class="step__ico"></span><div style="flex:1"><div class="step__t">Draft group announcement</div><div class="step__sub" id="st4sub">queued</div><div class="step__bar"><i></i></div></div></div><div class="step" data-state="todo" id="st5" data-target="m-sheet"><span class="step__ico"></span><div style="flex:1"><div class="step__t">Deliver packed frames</div><div class="step__sub" id="st5sub">needs your approval to post</div><div class="step__bar"><i></i></div></div></div></div><div class="float-card"><h2>Session</h2><div class="kv"><span>Connection</span><b>P2P over S2</b></div><div class="kv"><span>Spent with Adam</span><b id="spent">0 IXI <span style="color:var(--text-warning);font-weight:var(--font-weight-semibold)">(25 pending)</span></b></div><div class="kv"><span>Budget cap</span><b>100 IXI / week</b></div><div class="kv"><span>Requests confirmed</span><b id="confirmed">0</b></div><div class="capchips"><span class="c-chip" data-readonly>markdown</span><span class="c-chip" data-readonly>files</span><span class="c-chip" data-readonly>streaming</span><span class="c-chip" data-readonly>workflows</span></div><div class="e2e"><svg class="ico " viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.4109 2.19242C11.7865 1.91776 12.3082 1.93735 12.6629 2.25101C14.8041 4.14537 17.599 5.13169 20.4549 5.00101C20.915 4.97996 21.3298 5.27599 21.4598 5.71781C21.9512 7.38941 22.1018 9.1432 21.9022 10.8741C21.7025 12.6048 21.1566 14.2782 20.2977 15.794C19.4387 17.3096 18.2843 18.6377 16.9022 19.6983C15.5199 20.7589 13.9382 21.5304 12.2518 21.9678C12.0872 22.0105 11.9144 22.0105 11.7498 21.9678C10.0634 21.5304 8.48163 20.7589 7.09942 19.6983C5.71721 18.6376 4.56191 17.3098 3.70293 15.794C2.84399 14.2782 2.29906 12.6048 2.09942 10.8741C1.8998 9.1432 2.04943 7.38941 2.54082 5.71781L2.60235 5.5596C2.77505 5.20697 3.14391 4.98258 3.54668 5.00101C6.4024 5.1316 9.19662 4.14522 11.3377 2.25101L11.4109 2.19242ZM11.9998 4.29593C9.78479 6.00861 7.07539 6.9612 4.2752 7.0098C4.01177 8.20104 3.94558 9.42911 4.08574 10.6446C4.25465 12.1091 4.71633 13.525 5.44317 14.8077C6.17 16.0903 7.1476 17.2139 8.31719 18.1114C9.41741 18.9556 10.6676 19.5804 11.9998 19.96C13.3326 19.5804 14.5837 18.956 15.6844 18.1114C16.854 17.2139 17.8316 16.0903 18.5584 14.8077C19.2852 13.525 19.7459 12.1091 19.9148 10.6446C20.0551 9.42865 19.9881 8.20049 19.7244 7.00882C16.9244 6.95988 14.2146 6.00877 11.9998 4.29593ZM13.9998 11C13.9998 11.5305 13.7889 12.039 13.4139 12.4141C13.2895 12.5385 13.1495 12.643 12.9998 12.7295V14.5C12.9998 15.0523 12.5521 15.5 11.9998 15.5C11.4475 15.5 10.9998 15.0523 10.9998 14.5V12.7295C10.8501 12.643 10.7101 12.5385 10.5857 12.4141C10.2107 12.039 9.99981 11.5305 9.99981 11C9.99981 10.4696 10.2107 9.96104 10.5857 9.58597C10.9608 9.2109 11.4694 9.00003 11.9998 9.00003C12.5302 9.00003 13.0388 9.2109 13.4139 9.58597C13.7889 9.96104 13.9998 10.4696 13.9998 11Z" fill="currentColor"/></svg> End-to-end encrypted</div></div><div class="float-card"><h2>Produced by Adam</h2><div id="artlist"><div class="art-row"><svg class="ico " viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M20 16.4141L17.3066 13.7207L17.1904 13.6172C16.9238 13.398 16.6866 13.3301 16.5 13.3301C16.2867 13.3301 16.0072 13.4187 15.6934 13.7207L15.4141 14L16.707 15.293C17.0976 15.6835 17.0976 16.3165 16.707 16.707C16.3165 17.0976 15.6835 17.0976 15.293 16.707L10.3066 11.7207L10.1904 11.6172C9.92378 11.398 9.68659 11.3301 9.5 11.3301C9.28674 11.3301 9.00721 11.4187 8.69336 11.7207L4 16.4141V18C4 18.5304 4.21086 19.039 4.58594 19.4141C4.96101 19.7891 5.46957 20 6 20H18C18.5304 20 19.039 19.7891 19.4141 19.4141C19.7891 19.039 20 18.5304 20 18V16.4141ZM15.0098 7C15.5621 7 16.0098 7.44772 16.0098 8C16.0098 8.55228 15.5621 9 15.0098 9H15C14.4477 9 14 8.55228 14 8C14 7.44772 14.4477 7 15 7H15.0098ZM20 6C20 5.46957 19.7891 4.96101 19.4141 4.58594C19.039 4.21086 18.5304 4 18 4H6C5.46957 4 4.96101 4.21086 4.58594 4.58594C4.21086 4.96101 4 5.46957 4 6V13.5859L7.30664 10.2793C7.92077 9.68836 8.6773 9.33008 9.5 9.33008C10.3227 9.33008 11.0792 9.68836 11.6934 10.2793L14 12.5859L14.3066 12.2793C14.9208 11.6884 15.6773 11.3301 16.5 11.3301C17.3227 11.3301 18.0792 11.6884 18.6934 12.2793L20 13.5859V6ZM22 18C22 19.0609 21.5783 20.078 20.8281 20.8281C20.078 21.5783 19.0609 22 18 22H6C4.93913 22 3.92202 21.5783 3.17188 20.8281C2.42173 20.078 2 19.0609 2 18V6C2 4.93913 2.42173 3.92202 3.17188 3.17188C3.92202 2.42173 4.93913 2 6 2H18C19.0609 2 20.078 2.42173 20.8281 3.17188C21.5783 3.92202 22 4.93913 22 6V18Z" fill="currentColor"/></svg><span>ixian-launch-contact-sheet.png</span><time>21:19</time></div><div class="art-row"><svg class="ico " viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M4.99992 8V5C4.99992 4.20435 5.31622 3.44152 5.87883 2.87891C6.44144 2.3163 7.20428 2 7.99992 2H14.9999C15.2651 2 15.5194 2.10543 15.707 2.29297L20.707 7.29297C20.8945 7.4805 20.9999 7.73478 20.9999 8V19C20.9999 19.7957 20.6836 20.5585 20.121 21.1211C19.5584 21.6837 18.7956 22 17.9999 22H7.99992C7.20427 22 6.44144 21.6837 5.87883 21.1211C5.31622 20.5585 4.99992 19.7957 4.99992 19V14.4141L3.70696 15.707C3.31643 16.0976 2.68342 16.0976 2.29289 15.707C1.90237 15.3165 1.90237 14.6835 2.29289 14.293L5.29289 11.293L5.36907 11.2246C5.76184 10.9043 6.34084 10.9269 6.70696 11.293L9.70696 14.293C10.0975 14.6835 10.0975 15.3165 9.70696 15.707C9.31643 16.0976 8.68342 16.0976 8.29289 15.707L6.99992 14.4141V19C6.99992 19.2652 7.10536 19.5195 7.29289 19.707C7.48043 19.8946 7.73471 20 7.99992 20H17.9999C18.2651 20 18.5194 19.8946 18.707 19.707C18.8945 19.5195 18.9999 19.2652 18.9999 19V9H15.9999C15.4695 9 14.9609 8.78913 14.5859 8.41406C14.2108 8.03899 13.9999 7.53043 13.9999 7V4H7.99992C7.73471 4 7.48043 4.10543 7.29289 4.29297C7.10536 4.4805 6.99992 4.73478 6.99992 5V8C6.99992 8.55228 6.55221 9 5.99992 9C5.44764 9 4.99992 8.55228 4.99992 8ZM17.5859 7L15.9999 5.41406V7H17.5859Z" fill="currentColor"/></svg><span>release-notes-0.9.4a.md</span><time>09:42</time></div></div></div></div><!-- /wf-col -->
 </div><!-- /canvas-row --></div><!-- /canvas -->
 </div><!-- /frame-main -->
 
 <script>
-(function () {
-  var log = document.getElementById('log'), inner = document.getElementById('loginner');
-  var typing = document.getElementById('typing'), input = document.getElementById('input');
-  var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-  function toBottom() { log.scrollTop = log.scrollHeight; }
-  function now() { var d = new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
-  function setStep(id, state, sub, progress) {
-    var el = document.getElementById(id); if (!el) return;
-    el.dataset.state = state;
-    el.querySelector('.step__ico').innerHTML = state === 'done' ? '&#10003;' : state === 'wait' ? '&#8987;' : '';
-    if (sub) document.getElementById(id + 'sub').textContent = sub;
-    if (progress != null) el.style.setProperty('--wf-progress', progress + '%');
-  }
-  var AV = '<span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)"><svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span>';
-  var script = [
-    [["<p>Announcement is ready &mdash; parked in your drafts:</p>",
-      "<p><b>QuIXI 0.9.4a is live.</b> Your messages now travel straight to their recipients &mdash; direct peer-to-peer delivery, ",
+var DEMO_ICONS = {"check": {"v": "0 0 24 24", "b": "<path d=\"M19.2929 6.29295C19.6834 5.90243 20.3164 5.90243 20.707 6.29295C21.0975 6.68348 21.0975 7.31649 20.707 7.70702L10.707 17.707C10.3164 18.0975 9.68342 18.0975 9.29289 17.707L4.29289 12.707C3.90237 12.3165 3.90237 11.6835 4.29289 11.293C4.68342 10.9024 5.31643 10.9024 5.70696 11.293L9.99992 15.5859L19.2929 6.29295Z\" fill=\"currentColor\"/>"}, "x": {"v": "0 0 24 24", "b": "<path d=\"M17.2929 5.29302C17.6834 4.90249 18.3164 4.90249 18.707 5.29302C19.0975 5.68354 19.0975 6.31655 18.707 6.70708L13.414 12L18.707 17.293C19.0975 17.6835 19.0975 18.3166 18.707 18.7071C18.3164 19.0976 17.6834 19.0976 17.2929 18.7071L11.9999 13.4141L6.70696 18.7071C6.31643 19.0976 5.68342 19.0976 5.29289 18.7071C4.90237 18.3166 4.90237 17.6835 5.29289 17.293L10.5859 12L5.29289 6.70708C4.90237 6.31655 4.90237 5.68354 5.29289 5.29302C5.68342 4.90249 6.31643 4.90249 6.70696 5.29302L11.9999 10.586L17.2929 5.29302Z\" fill=\"currentColor\"/>"}, "file-isr": {"v": "0 0 24 24", "b": "<path d=\"M4.99992 8V5C4.99992 4.20435 5.31622 3.44152 5.87883 2.87891C6.44144 2.3163 7.20428 2 7.99992 2H14.9999C15.2651 2 15.5194 2.10543 15.707 2.29297L20.707 7.29297C20.8945 7.4805 20.9999 7.73478 20.9999 8V19C20.9999 19.7957 20.6836 20.5585 20.121 21.1211C19.5584 21.6837 18.7956 22 17.9999 22H7.99992C7.20427 22 6.44144 21.6837 5.87883 21.1211C5.31622 20.5585 4.99992 19.7957 4.99992 19V14.4141L3.70696 15.707C3.31643 16.0976 2.68342 16.0976 2.29289 15.707C1.90237 15.3165 1.90237 14.6835 2.29289 14.293L5.29289 11.293L5.36907 11.2246C5.76184 10.9043 6.34084 10.9269 6.70696 11.293L9.70696 14.293C10.0975 14.6835 10.0975 15.3165 9.70696 15.707C9.31643 16.0976 8.68342 16.0976 8.29289 15.707L6.99992 14.4141V19C6.99992 19.2652 7.10536 19.5195 7.29289 19.707C7.48043 19.8946 7.73471 20 7.99992 20H17.9999C18.2651 20 18.5194 19.8946 18.707 19.707C18.8945 19.5195 18.9999 19.2652 18.9999 19V9H15.9999C15.4695 9 14.9609 8.78913 14.5859 8.41406C14.2108 8.03899 13.9999 7.53043 13.9999 7V4H7.99992C7.73471 4 7.48043 4.10543 7.29289 4.29297C7.10536 4.4805 6.99992 4.73478 6.99992 5V8C6.99992 8.55228 6.55221 9 5.99992 9C5.44764 9 4.99992 8.55228 4.99992 8ZM17.5859 7L15.9999 5.41406V7H17.5859Z\" fill=\"currentColor\"/>"}, "hourglass-empty": {"v": "0 0 24 24", "b": "<path d=\"M17 18C17 16.6739 16.4728 15.4025 15.5352 14.4648C14.5975 13.5272 13.3261 13 12 13C10.6739 13 9.40253 13.5272 8.46484 14.4648C7.52716 15.4025 7 16.6739 7 18V20H17V18ZM7 4V6C7 7.32608 7.52716 8.59747 8.46484 9.53516C9.40253 10.4728 10.6739 11 12 11C13.3261 11 14.5975 10.4728 15.5352 9.53516C16.4728 8.59747 17 7.32608 17 6V4H7ZM19 6C19 7.85651 18.2629 9.63744 16.9502 10.9502C16.543 11.3574 16.09 11.7083 15.6045 12C16.09 12.2917 16.543 12.6426 16.9502 13.0498C18.2629 14.3626 19 16.1435 19 18V20C19 20.5304 18.7891 21.039 18.4141 21.4141C18.039 21.7891 17.5304 22 17 22H7C6.46957 22 5.96101 21.7891 5.58594 21.4141C5.21087 21.039 5 20.5304 5 20V18C5 16.1435 5.73705 14.3626 7.0498 13.0498C7.45682 12.6428 7.90927 12.2916 8.39453 12C7.90927 11.7084 7.45682 11.3572 7.0498 10.9502C5.73705 9.63744 5 7.85652 5 6V4C5 3.46957 5.21087 2.96101 5.58594 2.58594C5.96101 2.21086 6.46957 2 7 2H17C17.5304 2 18.039 2.21086 18.4141 2.58594C18.7891 2.96101 19 3.46957 19 4V6Z\" fill=\"currentColor\"/>"}, "rotate-clockwise-2": {"v": "0 0 24 24", "b": "<path d=\"M8.62598 3.62194C10.8477 2.72728 13.3344 2.75202 15.5381 3.6903C17.7419 4.62874 19.4832 6.40494 20.3779 8.62682C21.2724 10.8484 21.2478 13.3344 20.3096 15.538C19.73 16.8989 18.83 18.0823 17.7041 18.9999H20C20.5523 18.9999 20.9999 19.4476 21 19.9999C21 20.5522 20.5523 20.9999 20 20.9999H15C14.4477 20.9999 14 20.5522 14 19.9999V14.9999C14.0001 14.4476 14.4477 13.9999 15 13.9999C15.5523 13.9999 15.9999 14.4476 16 14.9999V17.7792C17.0832 17.0294 17.9444 15.986 18.4688 14.7548C19.1993 13.0391 19.2189 11.1036 18.5225 9.37389C17.8259 7.64411 16.4705 6.26177 14.7549 5.53112C13.0393 4.80056 11.1037 4.78102 9.37402 5.47741C8.86176 5.68369 8.27861 5.43592 8.07227 4.9237C7.866 4.41148 8.11386 3.82834 8.62598 3.62194ZM10 19.9501V19.9403C10 19.388 10.4477 18.9403 11 18.9403C11.5523 18.9403 12 19.388 12 19.9403V19.9501C12 20.5023 11.5523 20.9501 11 20.9501C10.4477 20.9501 10 20.5023 10 19.9501ZM6.16016 18.3798V18.37C6.16016 17.8177 6.60787 17.37 7.16016 17.37C7.71244 17.37 8.16016 17.8177 8.16016 18.37V18.3798C8.16016 18.932 7.71244 19.3798 7.16016 19.3798C6.60787 19.3798 6.16016 18.932 6.16016 18.3798ZM3.63086 15.1102V15.1005C3.63086 14.5482 4.07857 14.1005 4.63086 14.1005C5.18314 14.1005 5.63086 14.5482 5.63086 15.1005V15.1102C5.63072 15.6624 5.18306 16.1102 4.63086 16.1102C4.07866 16.1102 3.631 15.6624 3.63086 15.1102ZM3.06055 11.0096V10.9999C3.06061 10.4476 3.5083 9.99987 4.06055 9.99987C4.61279 9.99987 5.06048 10.4476 5.06055 10.9999V11.0096C5.06055 11.5619 4.61283 12.0096 4.06055 12.0096C3.50826 12.0096 3.06055 11.5619 3.06055 11.0096ZM4.63086 7.16979V7.16002C4.63086 6.60774 5.07857 6.16002 5.63086 6.16002C6.18314 6.16002 6.63086 6.60774 6.63086 7.16002V7.16979C6.63086 7.72207 6.18314 8.16979 5.63086 8.16979C5.07857 8.16979 4.63086 7.72207 4.63086 7.16979Z\" fill=\"currentColor\"/>"}, "download": {"v": "0 0 24 24", "b": "<path d=\"M3 19V17C3 16.4477 3.44772 16 4 16C4.55228 16 5 16.4477 5 17V19C5 19.2652 5.10543 19.5195 5.29297 19.707C5.48051 19.8946 5.73478 20 6 20H18C18.2652 20 18.5195 19.8946 18.707 19.707C18.8946 19.5195 19 19.2652 19 19V17C19 16.4477 19.4477 16 20 16C20.5523 16 21 16.4477 21 17V19C21 19.7957 20.6837 20.5585 20.1211 21.1211C19.5585 21.6837 18.7956 22 18 22H6C5.20435 22 4.44151 21.6837 3.87891 21.1211C3.3163 20.5585 3 19.7956 3 19ZM11 4C11 3.44772 11.4477 3 12 3C12.5523 3 13 3.44772 13 4V13.5859L16.293 10.293C16.6835 9.90244 17.3165 9.90244 17.707 10.293C18.0976 10.6835 18.0976 11.3165 17.707 11.707L12.707 16.707C12.3165 17.0976 11.6835 17.0976 11.293 16.707L6.29297 11.707C5.90244 11.3165 5.90244 10.6835 6.29297 10.293C6.68349 9.90244 7.31651 9.90244 7.70703 10.293L11 13.5859V4Z\" fill=\"currentColor\"/>"}, "photo": {"v": "0 0 24 24", "b": "<path d=\"M20 16.4141L17.3066 13.7207L17.1904 13.6172C16.9238 13.398 16.6866 13.3301 16.5 13.3301C16.2867 13.3301 16.0072 13.4187 15.6934 13.7207L15.4141 14L16.707 15.293C17.0976 15.6835 17.0976 16.3165 16.707 16.707C16.3165 17.0976 15.6835 17.0976 15.293 16.707L10.3066 11.7207L10.1904 11.6172C9.92378 11.398 9.68659 11.3301 9.5 11.3301C9.28674 11.3301 9.00721 11.4187 8.69336 11.7207L4 16.4141V18C4 18.5304 4.21086 19.039 4.58594 19.4141C4.96101 19.7891 5.46957 20 6 20H18C18.5304 20 19.039 19.7891 19.4141 19.4141C19.7891 19.039 20 18.5304 20 18V16.4141ZM15.0098 7C15.5621 7 16.0098 7.44772 16.0098 8C16.0098 8.55228 15.5621 9 15.0098 9H15C14.4477 9 14 8.55228 14 8C14 7.44772 14.4477 7 15 7H15.0098ZM20 6C20 5.46957 19.7891 4.96101 19.4141 4.58594C19.039 4.21086 18.5304 4 18 4H6C5.46957 4 4.96101 4.21086 4.58594 4.58594C4.21086 4.96101 4 5.46957 4 6V13.5859L7.30664 10.2793C7.92077 9.68836 8.6773 9.33008 9.5 9.33008C10.3227 9.33008 11.0792 9.68836 11.6934 10.2793L14 12.5859L14.3066 12.2793C14.9208 11.6884 15.6773 11.3301 16.5 11.3301C17.3227 11.3301 18.0792 11.6884 18.6934 12.2793L20 13.5859V6ZM22 18C22 19.0609 21.5783 20.078 20.8281 20.8281C20.078 21.5783 19.0609 22 18 22H6C4.93913 22 3.92202 21.5783 3.17188 20.8281C2.42173 20.078 2 19.0609 2 18V6C2 4.93913 2.42173 3.92202 3.17188 3.17188C3.92202 2.42173 4.93913 2 6 2H18C19.0609 2 20.078 2.42173 20.8281 3.17188C21.5783 3.92202 22 4.93913 22 6V18Z\" fill=\"currentColor\"/>"}, "copy": {"v": "0 0 24 24", "b": "<path d=\"M20 9.66699C20 9.44814 19.9568 9.23149 19.873 9.0293C19.7893 8.82705 19.6665 8.64308 19.5117 8.48828C19.3569 8.33349 19.173 8.21073 18.9707 8.12695C18.7685 8.04323 18.5519 8 18.333 8H9.66699C9.22488 8 8.8009 8.17566 8.48828 8.48828C8.17566 8.8009 8 9.22488 8 9.66699V18.333C8 18.5519 8.04323 18.7685 8.12695 18.9707C8.21073 19.173 8.33349 19.3569 8.48828 19.5117C8.64308 19.6665 8.82705 19.7893 9.0293 19.873C9.23149 19.9568 9.44814 20 9.66699 20H18.333C18.5519 20 18.7685 19.9568 18.9707 19.873C19.173 19.7893 19.3569 19.6665 19.5117 19.5117C19.6665 19.3569 19.7893 19.173 19.873 18.9707C19.9568 18.7685 20 18.5519 20 18.333V9.66699ZM2 5C2 3.34772 3.34772 2 5 2H15C15.5623 2 16.0628 2.14977 16.4902 2.45996C16.896 2.75447 17.1695 3.14597 17.374 3.51367C17.6424 3.99627 17.4688 4.60555 16.9863 4.87402C16.5037 5.1424 15.8945 4.96884 15.626 4.48633C15.4886 4.23925 15.3866 4.13082 15.3154 4.0791C15.2659 4.04314 15.1876 4 15 4H5C4.45228 4 4 4.45228 4 5V14.998L4.00879 15.1299C4.02644 15.2604 4.07001 15.3865 4.13672 15.501C4.22572 15.6537 4.35329 15.7805 4.50684 15.8682C4.98663 16.1417 5.15438 16.7526 4.88086 17.2324C4.60732 17.7122 3.99637 17.879 3.5166 17.6055C3.0571 17.3435 2.67448 16.9649 2.4082 16.5078C2.14196 16.0507 2.00128 15.5309 2 15.002V5ZM22 18.333C22 18.8146 21.905 19.2914 21.7207 19.7363C21.5364 20.1812 21.2663 20.5853 20.9258 20.9258C20.5853 21.2663 20.1812 21.5364 19.7363 21.7207C19.2914 21.905 18.8146 22 18.333 22H9.66699C9.18544 22 8.70857 21.905 8.26367 21.7207C7.8188 21.5364 7.41471 21.2663 7.07422 20.9258C6.73373 20.5853 6.46358 20.1812 6.2793 19.7363C6.09501 19.2914 6 18.8146 6 18.333V9.66699C6 8.69445 6.38652 7.76191 7.07422 7.07422C7.76191 6.38652 8.69445 6 9.66699 6H18.333C18.8146 6 19.2914 6.09501 19.7363 6.2793C20.1812 6.46358 20.5853 6.73373 20.9258 7.07422C21.2663 7.41471 21.5364 7.8188 21.7207 8.26367C21.905 8.70857 22 9.18544 22 9.66699V18.333Z\" fill=\"currentColor\"/>"}};
+function dic(name, size) {
+  var i = DEMO_ICONS[name];
+  return '<svg class="ico" viewBox="' + i.v + '" width="' + size + '" height="' + size + '" fill="currentColor" aria-hidden="true">' + i.b + '</svg>';
+}
+var log = document.getElementById('log'), inner = document.getElementById('loginner');
+var typing = document.getElementById('typing'), input = document.getElementById('input');
+var workpill = document.getElementById('workpill'), stopbtn = document.getElementById('stopbtn');
+var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+function toBottom() { log.scrollTop = log.scrollHeight; }
+function now() { var d = new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+
+/* ---- approval tray ---- */
+var trayCount = 1;
+function setTray(n) { trayCount = Math.max(0, n); var t = document.getElementById('tray');
+  t.dataset.count = String(trayCount); document.getElementById('tray-n').textContent = trayCount; }
+function gotoApproval() { var el = document.querySelector('.c-tcard__amount[data-tone="pending"]');
+  if (el) flashTo(el.closest('.agent-turn') || el); }
+function flashTo(el) { el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+
+/* ---- workflow helpers ---- */
+function setStep(id, state, sub, progress) {
+  var el = document.getElementById(id); if (!el) return;
+  el.dataset.state = state;
+  el.querySelector('.step__ico').innerHTML = state === 'done' ? dic('check', 12) : state === 'wait' ? dic('hourglass-empty', 12) : '';
+  if (sub) document.getElementById(id + 'sub').textContent = sub;
+  if (progress != null) el.style.setProperty('--wf-progress', progress + '%');
+}
+document.querySelectorAll('.step[data-target]').forEach(function (s) {
+  s.addEventListener('click', function () { var el = document.getElementById(s.dataset.target); if (el) flashTo(el); });
+});
+
+/* ---- invoice interactions (unified approval card) ---- */
+function approveInvoice() {
+  var a = document.getElementById('inv-amount'); a.dataset.tone = 'positive';
+  document.getElementById('inv-actions').innerHTML =
+    '<div class="tcard-verify">' + dic('check', 14) + ' Sent &middot; confirmed by you at ' + now() + '</div>';
+  setStep('st3', 'done', 'paid \u00b7 ' + now());
+  document.getElementById('spent').textContent = '25 IXI';
+  document.getElementById('confirmed').textContent = '1';
+  setTray(trayCount - 1);
+}
+function declineInvoice() {
+  var a = document.getElementById('inv-amount'); a.dataset.tone = 'void';
+  document.getElementById('inv-actions').innerHTML = '<div class="c-tcard__note">Declined.</div>';
+  setStep('st3', 'todo', 'declined'); setTray(trayCount - 1);
+}
+function approveDelivery(btn) {
+  var card = btn.closest('.c-tcard');
+  card.querySelector('.c-tcard__actions').innerHTML =
+    '<div class="tcard-verify">' + dic('check', 14) + ' Posted to Spixi Official Group Chat</div>';
+  setStep('st5', 'done', 'delivered \u00b7 ' + now());
+  var chip = document.getElementById('wfchip'); chip.dataset.state = 'done'; chip.textContent = 'Done';
+  setTray(trayCount - 1);
+}
+function copyCode(btn) {
+  var code = btn.parentElement.querySelector('code');
+  try { navigator.clipboard.writeText(code.textContent); } catch (e) {}
+  btn.innerHTML = dic('check', 16); setTimeout(function () { btn.innerHTML = dic('copy' in DEMO_ICONS ? 'copy' : 'check', 16); }, 1200);
+}
+function toggleClamp(btn) {
+  var t = btn.closest('.turn-clamp'); var lbl = btn.querySelector('.c-button__label');
+  if (t.hasAttribute('data-collapsed')) { t.removeAttribute('data-collapsed'); lbl.textContent = 'Show less'; }
+  else { t.setAttribute('data-collapsed', 'true'); lbl.textContent = 'Show more'; }
+}
+function addArtifact(icon, name) {
+  var r = document.createElement('div'); r.className = 'art-row';
+  r.innerHTML = dic(icon, 16) + '<span>' + name + '</span><time>' + now() + '</time>';
+  document.getElementById('artlist').appendChild(r);
+}
+
+/* ---- streaming with stop + queue (composer never locks) ---- */
+var busy = false, queue = [], stopFlag = false, idx = 0;
+function stopStream() { stopFlag = true; }
+var FB_FRAMES = '<button class="c-fbubble">'
+  + '<span class="c-fbubble__icon">' + dic('file-isr', 20) + '</span>'
+  + '<span class="c-fbubble__info"><span class="c-fbubble__name">ixian-launch-frames.tar</span>'
+  + '<span class="c-fbubble__meta">1.9 GB \u00b7 archive</span></span>'
+  + '<span class="c-fbubble__open">' + dic('download', 18) + '</span></button>';
+var FB_SUMS = '<button class="c-fbubble">'
+  + '<span class="c-fbubble__icon">' + dic('file-isr', 20) + '</span>'
+  + '<span class="c-fbubble__info"><span class="c-fbubble__name">checksums.sha256</span>'
+  + '<span class="c-fbubble__meta">12 kB \u00b7 text</span></span>'
+  + '<span class="c-fbubble__open">' + dic('download', 18) + '</span></button>';
+var DELIVERY_CARD = '<div class="c-tcard"><div class="c-tcard__head">'
+  + '<span class="c-tcard__title">' + dic('hourglass-empty', 18) + ' Approval \u00b7 Post to group</span>'
+  + '<span class="c-tcard__time"></span></div>'
+  + '<div class="c-tcard__note">Post <b>ixian-launch-frames.tar</b> + announcement to <b>Spixi Official Group Chat</b>.</div>'
+  + '<div class="c-tcard__actions">'
+  + '<button class="c-button" data-type="fill" data-size="44" onclick="approveDelivery(this)"><span class="c-button__label">Approve &amp; post</span></button>'
+  + '<button class="c-button" data-type="outline" data-size="44"><span class="c-button__label">Not now</span></button></div></div>';
+var SAVE_ALL = '<div class="turn-files-actions"><button class="c-button" data-type="tonal" data-size="32">'
+  + '<span class="c-button__label">Save all (2)</span></button></div>';
+
+var script = [
+  { chunks: ["<p>Announcement is ready \u2014 parked in your drafts:</p>",
+      "<p><b>QuIXI 0.9.4a is live.</b> Your messages now travel straight to their recipients \u2014 direct peer-to-peer delivery, ",
       "with the network keeping consensus in step behind the scenes. Faster for people, dependable for services, ",
       "and ready for real-time integrations.</p>",
-      "<p>Want me to trim it for the group&rsquo;s tone?</p>"],
-     function () { setStep('st4','done','drafted &middot; ' + now()); setStep('st5','run','packing + checksums&hellip;',35); }],
-    [["<p>Frames packed and verified &mdash; <code>sha256</code> checksums clean, 1.9&nbsp;GB total.</p>",
-      "<p>Delivery is staged. I need your approval to post the bundle to the group.</p>"],
-     function () { setStep('st5','wait','staged &mdash; awaiting your approval'); }],
-    [["<p>All tracks idle. Say the word and I&rsquo;ll close the workflow, or queue the next scene.</p>"],
-     function () { var c = document.getElementById('wfchip'); c.dataset.state = 'done'; c.textContent = 'Waiting'; }]
-  ];
-  var idx = 0, busy = false;
-  function agentTurn(chunks, onDone) {
-    typing.hidden = false; toBottom();
-    setTimeout(function () {
-      typing.hidden = true;
-      var wrap = document.createElement('div'); wrap.className = 'agent-turn';
-      wrap.innerHTML = AV
-        + '<div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span>'
-        + '<span class="agent-turn__time">' + now() + '</span></div><div class="agent-prose"></div></div>';
-      inner.insertBefore(wrap, typing);
-      var prose = wrap.querySelector('.agent-prose');
-      var i = 0;
-      function stepChunk() {
-        prose.innerHTML = chunks.slice(0, i + 1).join('') + (i + 1 < chunks.length ? '<span class="caret"></span>' : '');
-        toBottom(); i++;
-        if (i < chunks.length) setTimeout(stepChunk, reduce ? 0 : 350);
-        else { busy = false; if (onDone) onDone(); }
-      }
-      if (reduce) { prose.innerHTML = chunks.join(''); busy = false; if (onDone) onDone(); toBottom(); }
-      else stepChunk();
-    }, reduce ? 0 : 900);
-  }
-  function nudge() {
-    if (busy) return; busy = true;
-    var text = input.value.trim();
-    if (text) {
-      var row = document.createElement('div');
-      row.className = 'c-bubble-row'; row.dataset.direction = 'sent';
-      var b = document.createElement('div'); b.className = 'c-bubble';
-      b.textContent = text;
-      var m = document.createElement('span'); m.className = 'c-bubble__meta'; m.textContent = now();
-      b.appendChild(m); row.appendChild(b); inner.insertBefore(row, typing);
-      input.value = ''; input.style.height = 'auto';
+      "<p>Packing the frames next \u2014 I\u2019ll ask before anything is posted.</p>"],
+    done: function () { setStep('st4', 'done', 'drafted \u00b7 ' + now()); startWork(); } },
+  { chunks: ["<p>Frames packed and verified \u2014 checksums clean, 1.9\u00a0GB total. Delivery is staged; approval below.</p>"],
+    extra: FB_FRAMES + FB_SUMS + SAVE_ALL + DELIVERY_CARD,
+    done: function () { setStep('st5', 'wait', 'staged \u2014 awaiting your approval');
+      setTray(trayCount + 1); addArtifact('file-isr', 'ixian-launch-frames.tar'); addArtifact('file-isr', 'checksums.sha256'); } },
+  { chunks: ["<p>All tracks idle. Say the word and I\u2019ll close the workflow, or queue the next scene.</p>"], done: null }
+];
+
+function startWork() {
+  workpill.hidden = false; var pct = 35;
+  var iv = setInterval(function () {
+    pct += 13; if (pct >= 100) { clearInterval(iv); workpill.hidden = true; runScript(); return; }
+    document.getElementById('workpill-t').innerHTML = 'packing frames \u00b7 ' + pct + '%';
+    setStep('st5', 'run', 'packing \u00b7 ' + pct + '%', pct);
+  }, reduce ? 60 : 900);
+  setStep('st5', 'run', 'packing \u00b7 35%', 35);
+  toBottom();
+}
+function agentTurn(item) {
+  typing.hidden = false; toBottom();
+  setTimeout(function () {
+    typing.hidden = true; stopFlag = false;
+    var wrap = document.createElement('div'); wrap.className = 'agent-turn';
+    wrap.innerHTML = '<span class="c-avatar" style="width:var(--size-avatar-32);height:var(--size-avatar-32)">'
+      + '<svg width="32" height="32" style="width:100%;height:100%"><use href="#adam-mark"/></svg></span>'
+      + '<div class="agent-turn__body"><div class="agent-turn__hdr"><span class="agent-turn__name">Adam</span>'
+      + '<span class="agent-turn__time">' + now() + '</span></div><div class="agent-prose"></div></div>';
+    inner.insertBefore(wrap, typing);
+    var prose = wrap.querySelector('.agent-prose'); var body = wrap.querySelector('.agent-turn__body');
+    var i = 0;
+    function fin() { stopbtn.removeAttribute('data-on');
+      if (item.extra && !stopFlag) body.insertAdjacentHTML('beforeend', item.extra);
+      busy = false; if (item.done && !stopFlag) item.done();
+      toBottom(); if (queue.length) setTimeout(function () { runScript(queue.shift()); }, 300); }
+    function stepChunk() {
+      if (stopFlag) { prose.innerHTML = item.chunks.slice(0, i).join('') + ' <i style="color:var(--text-neutral-03)">\u2014 stopped</i>'; fin(); return; }
+      prose.innerHTML = item.chunks.slice(0, i + 1).join('') + (i + 1 < item.chunks.length ? '<span class="caret"></span>' : '');
+      toBottom(); i++;
+      if (i < item.chunks.length) setTimeout(stepChunk, reduce ? 0 : 380); else fin();
     }
-    var s = script[Math.min(idx, script.length - 1)]; idx++;
-    agentTurn(s[0], s[1]);
+    if (reduce) { prose.innerHTML = item.chunks.join(''); fin(); }
+    else { stopbtn.setAttribute('data-on', '1'); stepChunk(); }
+  }, reduce ? 0 : 900);
+}
+function runScript() { var s = script[Math.min(idx, script.length - 1)]; idx++; busy = true; agentTurn(s); }
+function sendMsg() {
+  var text = input.value.trim();
+  if (text) {
+    var row = document.createElement('div'); row.className = 'c-bubble-row'; row.dataset.direction = 'sent';
+    var b = document.createElement('div'); b.className = 'c-bubble'; b.textContent = text;
+    var m = document.createElement('span'); m.className = 'c-bubble__meta'; m.textContent = now();
+    b.appendChild(m); row.appendChild(b); inner.insertBefore(row, typing);
+    input.value = ''; input.style.height = 'auto'; toBottom();
   }
-  document.getElementById('send').addEventListener('click', nudge);
-  input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); nudge(); }
-  });
-  input.addEventListener('input', function () {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 160) + 'px';
-  });
-  toBottom(); input.focus();
-})();
+  if (busy) { queue.push(1); return; }   /* composer never locks — reply queues */
+  runScript();
+}
+function suggest(chip) { input.value = chip.textContent; sendMsg(); }
+document.getElementById('send').addEventListener('click', sendMsg);
+input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+input.addEventListener('input', function () { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; });
+toBottom(); input.focus();
 </script>
 </body></html>

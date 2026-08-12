@@ -240,6 +240,62 @@ active). Spec of the working prototype:
 
 ---
 
+## W6 — UX CHANGE REQUEST (Damir 2026-08-12): Wallet Receive → "Request an amount"
+
+Current behavior: expanding "Request an amount" stacks the amount input and the
+contact list UNDER the QR card — everything crams on one screen (see the
+Receive page, `WalletReceivePage` → `wallet_request.html`).
+
+**Requested behavior:**
+1. On tap/click of "Request an amount", the QR card (QR + "Scan to send…"
+   caption) **gently animates away upward** — collapse + slide to top, token
+   durations/easing (`--duration-*`/`--easing-standard`), instant under
+   `prefers-reduced-motion`. The screen then shows: address row (keep),
+   amount input focused, contact list below. Collapsing the section brings the
+   QR back the same way.
+2. The per-contact **send arrows are DISABLED until an amount is typed**
+   (disabled ink `--icon-action-disabled`, no hit action; live re-enable as
+   soon as the amount field is a valid positive number). Same for Enter-to-send
+   if the search field supports it.
+
+---
+
+## W7 — BUG (Windows desktop, reproducible): Account → "Change wallet password" hangs the Account surface
+
+**Repro (deterministic on Damir's Windows build):** Account (wide/pane mode) →
+Security & privacy → Change wallet password. The change-password pane RENDERS
+(fields + Change password button visible, screenshot verified) but from that
+point the whole Account surface is dead: nothing in the Account left pane
+responds, the change-password form itself doesn't respond, no way back. The
+RAIL still works — switching to Chats/Apps/Wallet recovers.
+
+**Reading of the symptoms (pointers, not verified):**
+- Rail taps work (home-shell tab commands) while every Account row action goes
+  through `pushPageLoaded` — consistent with the preload latch staying set:
+  `preloadPending`/`activePreload` never cleared, so every subsequent
+  `pushPageLoaded` hits the drop branch (SpixiContentPage.cs ~1173-1181,
+  "double-tap / competing nav — drop this one") and silently disposes the
+  target → "can't click anything in Account".
+- The pane is pushed at SettingsPage.xaml.cs:214
+  (`pushPageLoaded(new EncryptionPassword(), 4000, null, paneMode ? 1 : -1)`),
+  staged on the HomePage grid. There IS a 4s timeout failsafe
+  (`presentPreload(op, "timeout")`, SpixiContentPage.cs ~1212) — the pane being
+  visible-but-dead suggests the present ran but the op/stage state didn't fully
+  resolve. Compare the "loaded" vs "timeout" paths in `presentPreload`:
+  input-enable flip, `activePreload` clear, and stage `InputTransparent`
+  handling — and whether `settings_encryption.html` actually fires
+  `ixian:onload` on Windows (F12 on the pane → check; also grep app log for
+  the "timeout" present reason at that moment).
+- If the shell never signals onload on Windows, that's its own bug —
+  settings_encryption.html is in the redesigned-shell set; check its onload
+  latch against the #177 timing invariant.
+
+**Verify after fix:** open Change wallet password on desktop → form accepts
+input; back arrow works; other Account rows still open their panes; repeat
+open/close 3× (latch regression check).
+
+---
+
 ## F1 — FUTURE EXPLORATION (design note, NOT part of the fix batch): AI-agent conversations over QuIXI
 
 Context (Damir, 2026-08-12): Spixi can talk to AI agents connected through QuIXI
@@ -313,3 +369,7 @@ markdown → ② streaming append/edit → ③ artifact-style file presentation.
    clickable in both.
 3. W3: chips on takeover visually identical to chats-header chips.
 4. W4: bubbles in a wide pane use the new cap; narrow window unchanged.
+5. W6: Receive → Request an amount → QR animates away, arrows disabled until an
+   amount is typed; collapse restores the QR.
+6. W7: Change wallet password opens, accepts input, closes; Account stays
+   responsive after repeated open/close.

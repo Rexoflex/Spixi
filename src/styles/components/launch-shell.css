@@ -63,7 +63,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-launch__pill:hover { background: rgba(255, 255, 255, 0.12); } } /* sanctioned */
+@media (hover: hover) and (pointer: fine) { .c-launch__pill:hover { background: rgba(255, 255, 255, 0.12); } } /* sanctioned */
 .c-launch__pill:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;
@@ -232,7 +232,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-launch__sheet-close:hover { background: var(--surface-neutral-04); } }
+@media (hover: hover) and (pointer: fine) { .c-launch__sheet-close:hover { background: var(--surface-neutral-04); } }
 .c-launch__sheet-close:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 2px;

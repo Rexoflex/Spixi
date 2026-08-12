@@ -29,36 +29,37 @@ export function openMediaViewer({
   el.setAttribute('aria-label', alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image')));
   el.tabIndex = -1;
 
-  const bar = document.createElement('div');
-  bar.className = 'c-mviewer__bar';
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'c-mviewer__btn';
-  close.setAttribute('aria-label', strings.close || 'Close');
-  close.append(icon('x', { size: 22 }));
-  close.addEventListener('click', () => dismissOverlay(el));
-  bar.append(close);
-  if (alt) {
-    const cap = document.createElement('span');
-    cap.className = 'c-mviewer__caption';
-    cap.textContent = alt;
-    bar.append(cap);
+  // #336 (Damir F5 iOS #1): the close ✕ used to live in a TOP bar with no
+  // safe-area inset — on iOS edge-to-edge it sat UNDER the status bar and
+  // wasn't tappable. The top bar now carries only the caption + optional Save
+  // (with the top inset), and CLOSE moved to a prominent bottom-centered button
+  // (below). A top bar renders only when there's something to show.
+  if (alt || onSave) {
+    const bar = document.createElement('div');
+    bar.className = 'c-mviewer__bar';
+    if (onSave) {
+      const spacer = document.createElement('span');   // balance the Save button so the caption stays centered
+      spacer.className = 'c-mviewer__spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      bar.append(spacer);
+    }
+    if (alt) {
+      const cap = document.createElement('span');
+      cap.className = 'c-mviewer__caption';
+      cap.textContent = alt;
+      bar.append(cap);
+    }
+    if (onSave) {
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'c-mviewer__btn';
+      save.setAttribute('aria-label', strings.save || 'Save');
+      save.append(icon('download', { size: 22 }));
+      save.addEventListener('click', () => onSave());
+      bar.append(save);
+    }
+    el.append(bar);
   }
-  if (onSave) {
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'c-mviewer__btn';
-    save.setAttribute('aria-label', strings.save || 'Save');
-    save.append(icon('download', { size: 22 }));
-    save.addEventListener('click', () => onSave());
-    bar.append(save);
-  } else {
-    const spacer = document.createElement('span');
-    spacer.className = 'c-mviewer__spacer';
-    spacer.setAttribute('aria-hidden', 'true');
-    bar.append(spacer);
-  }
-  el.append(bar);
 
   const stage = document.createElement('div');
   stage.className = 'c-mviewer__stage';
@@ -70,6 +71,19 @@ export function openMediaViewer({
   stage.append(img);
   el.append(stage);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
+  // clear of the notch/status bar, with the home-indicator safe-area inset.
+  const foot = document.createElement('div');
+  foot.className = 'c-mviewer__foot';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'c-mviewer__close';
+  close.setAttribute('aria-label', strings.close || 'Close');
+  close.append(icon('x', { size: 24 }));
+  close.addEventListener('click', () => dismissOverlay(el));
+  foot.append(close);
+  el.append(foot);
 
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;

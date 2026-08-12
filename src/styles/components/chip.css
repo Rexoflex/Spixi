@@ -76,7 +76,7 @@
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chip:not(:disabled):hover {
     background: var(--surface-neutral-02);
     border-color: var(--outline-action-hover);

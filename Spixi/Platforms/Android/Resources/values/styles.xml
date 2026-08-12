@@ -16,12 +16,22 @@
     <item name="colorPrimaryDark">@android:color/background_dark</item>
     <!-- colorAccent is used as the default value for colorControlActivated
          which is used to tint widgets -->
-    <item name="colorAccent">#FF4081</item>
+    <!-- AND-14 (#334): was the Material template pink #FF4081 - it leaked into every
+         AppCompat-tinted widget (dialog buttons, ripples). Rebranded to the brand
+         accent = the logomark fill / tokens.css brand-600 (same pick as the
+         notification SetColor + OneSignal accent). -->
+    <item name="colorAccent">#3050BD</item>
     <!-- You can also set colorControlNormal, colorControlActivated
          colorControlHighlight and colorSwitchThumbNormal. -->
     <item name="windowActionModeOverlay">true</item>
-    
+
     <item name="android:datePickerDialogTheme">@style/AppCompatDialogStyle</item>
+    <!-- AND-14 (#334): displaySpixiAlert funnels ~90 call sites through the one
+         native DisplayAlert render path (SpixiContentPage:1714) - all rendered as
+         raw dark Theme.AppCompat dialogs with the pink accent. Both attr spellings
+         so AppCompat AND framework-resolved dialogs pick the style up. -->
+    <item name="alertDialogTheme">@style/SpixiAlertDialog</item>
+    <item name="android:alertDialogTheme">@style/SpixiAlertDialog</item>
     <item name="android:navigationBarColor">#010101</item>
     <item name="android:windowLightNavigationBar">false</item>
     <item name="android:windowBackground">@layout/splash_screen</item>
@@ -38,5 +48,17 @@
   
   <style name="AppCompatDialogStyle" parent="Theme.AppCompat.Dialog">
     <item name="colorAccent">#144576</item>
+  </style>
+
+  <!-- AND-14 (#334): branded alert dialog (precedent: the datePickerDialogTheme ->
+       AppCompatDialogStyle pattern above). DayNight parent = themed background +
+       text that follows the OS light/dark setting. RESIDUAL (honest limit): the
+       ACTIVITY theme is static while the APP theme is user-controlled at runtime
+       (ThemeManager) - a user who picks an explicit in-app theme that disagrees
+       with the OS gets a dialog following the OS, not the app; a static style
+       cannot read the runtime pick. ThemeAppearance.automatic (the default)
+       matches exactly. -->
+  <style name="SpixiAlertDialog" parent="Theme.AppCompat.DayNight.Dialog.Alert">
+    <item name="colorAccent">#3050BD</item>
   </style>
 </resources>

@@ -174,7 +174,7 @@
   let opts = baseOpts;
   let handlers = {};
   let readyCmd = null;             // the ready/onload verb this page's C# expects
-  let restoreCtrl = null, retryCtrl = null;
+  let createCtrl = null, restoreCtrl = null, retryCtrl = null;
 
   const baseName = (p) => String(p || '').replace(/\\/g, '/').split('/').pop();
 
@@ -201,11 +201,12 @@
     // intro_new.html · LaunchCreatePage
     opts = Object.assign({}, baseOpts, {
       onPickAvatar: () => bridge.send('ixian:avatar'),  // native picker → loadAvatar(path)
-      // INDEFINITE loading (spec §2.2): on success C# generates the wallet then
-      // navigates to Home + tears this page down (the morph never resolves);
-      // on failure C# shows a NATIVE alert with NO release signal → the spinner
-      // stays (the wedge, flag §6② / BE ask L1). We deliberately don't touch ctrl.
-      onCreateAccount: (nick, pass /* , ctrl */) => bridge.send('ixian:create:' + nick + ':' + pass),
+      // Loading until C# resolves (spec §2.2): on success C# generates the wallet
+      // then navigates to Home + tears this page down (the morph never resolves —
+      // correct); on FAILURE C# now shows the native alert AND pushes
+      // removeLoadingOverlay (#334 L1, was the wedge: no release signal → inputs +
+      // button permanently dead). Capture the ctrl so that push can release it.
+      onCreateAccount: (nick, pass, ctrl) => { createCtrl = ctrl; bridge.send('ixian:create:' + nick + ':' + pass); },
       onBack: () => bridge.send('ixian:back'),          // C# pops LaunchCreatePage → welcome
     });
     handlers = {
@@ -214,6 +215,10 @@
       // resolve inside the self-contained shell (repo-wide avatar flag) → the
       // preview falls back to the deterministic gradient. Wired for honesty.
       loadAvatar: (path) => setLaunchAvatar(el, path || null),
+      // #334 L1: create-failure release. SILENT fail('') — the retry-view grammar
+      // (see the retry branch below): the native alert already carries the words;
+      // fail('') re-enables the form + keeps the typed values for a retry.
+      removeLoadingOverlay: () => { if (createCtrl) createCtrl.fail(''); },
     };
     readyCmd = 'ixian:onload';                          // LaunchCreatePage.onLoad → setVersion
   } else if (view === 'restore') {
@@ -256,10 +261,18 @@
     // user did NOT join. (Skip only calls onFinish → ixian:finish.)
     let tailJoined = false;
     opts = Object.assign({}, baseOpts, {
-      // "Back up now" has NO OnboardPage verb (it only handles joinbot/finish/
-      // back) → the component just advances to the join step; the real backup is
-      // deferred to the settings Backup row (BE ask L3). Omitting onBackupNow
-      // lets the component advance without a dead ixian: navigation.
+      // #334 L3/AND-5: "Back up now" is LIVE — OnboardPage now handles
+      // ixian:backup (→ BackupPage.backupAccount(), the #243 static: share-sheet
+      // LAUNCH, C# names every path). Mirror the settings backup-stamp semantics
+      // (settings.html BACKUP_STAMP_KEY: timestamp ONLY, no addresses/content —
+      // #254 storage-partition rule); home reads it lazily at badge/nudge
+      // evaluation, so there is no race with the HomePage beneath this modal.
+      // NON-terminal: the component advances to the join step itself (toJoin),
+      // and the joinbot/finish mutual-exclusion latch below is untouched.
+      onBackupNow: () => {
+        try { localStorage.setItem('spixi.backup.last', String(Date.now())); } catch (e) {}
+        bridge.send('ixian:backup');
+      },
       onJoinBot: () => { tailJoined = true; bridge.send('ixian:joinbot'); },  // OnboardPage → joinBot + finish + pop
       onFinish: () => { if (!tailJoined) bridge.send('ixian:finish'); },      // skip path only (joinbot already finished)
     });

@@ -57,7 +57,7 @@
   font-size: var(--font-size-body-md);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-contacts__action:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contacts__action:hover { background: var(--surface-interactive-hover); } }
 .c-contacts__action:active { background: var(--surface-interactive-pressed); }
 .c-contacts__action + .c-contacts__action {
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
@@ -106,7 +106,7 @@
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
 .c-contacts__row:not(:disabled):active { background: var(--surface-interactive-pressed); }
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of
@@ -253,7 +253,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
 .c-contacts-add__scan:not(:disabled):active { background: var(--surface-interactive-pressed); }
 .c-contacts-add__scan:disabled { opacity: var(--opacity-disabled); cursor: default; }
 .c-contacts-add__valid {

@@ -82,8 +82,9 @@ namespace SPIXI
         // before the WebView paints is indistinguishable from the shell that follows.
         // THEME-AWARE by requirement: a hardcoded dark value breaks light mode (the
         // reported light-mode dark flash). getBackgroundColor() above keeps the LEGACY
-        // launch-blue values for the remaining legacy call sites (WalletSentPage,
-        // Android edge-to-edge); do not repoint those here.
+        // launch-blue values for the remaining legacy call sites (WalletSentPage;
+        // Android edge-to-edge REPOINTED to getSurfaceColorString at #334 AND-6);
+        // do not repoint the legacy sites here.
         // The ACTIVE appearance resolved to the shell theme name ("light"/"dark") —
         // the single C#-side truth handed to the WebViews (the *SL{SpixiThemeName}
         // boot substitution and the live "setTheme" push). Shells must NOT re-derive

@@ -82,17 +82,82 @@
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-md);
   font-weight: var(--font-weight-semibold);
+  /* #334 iOS-60 belt: a long localized label (sl-si "Izklopljeno") must never
+     explode the pill row — ellipsize inside the flex slot (min-width:0 above) */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard),
               color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings-seg__pill:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings-seg__pill[aria-checked='true'] {
   background: var(--surface-action-tonal-default);
   color: var(--text-action-default);
+}
+
+/* —— pattern swatch tiles (#334, iOS-60) — each tile = the REAL chat canvas
+   paint at that level's opacity; the localized label rides aria-label/title —— */
+.c-settings-swatches {
+  display: flex;
+  gap: var(--spacing-8);
+}
+.c-settings-swatch {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 64px;                     /* sanctioned: swatch tile dim (≥44 target) */
+  padding: 0;
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  border-radius: var(--radius-12);
+  background: transparent;
+  overflow: hidden;                 /* the canvas face clips to the tile radius */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--duration-100) var(--easing-standard),
+              box-shadow var(--duration-100) var(--easing-standard);
+}
+/* the face IS .c-chat-canvas (gradient + generated doodle mask). Two-class
+   specificity ON PURPOSE: message-bubble.css (.c-chat-canvas → position:
+   relative, display:flex) loads AFTER this file in the settings shell, so an
+   equal-specificity override would lose on source order. */
+.c-settings-swatch .c-settings-swatch__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+/* doodle rescaled for the mini tile — the 314px source tile reads as a near-blank
+   crop at 64px; 96px keeps several motifs visible so the levels differ at a glance */
+.c-settings-swatch .c-settings-swatch__canvas::before {
+  -webkit-mask-size: 96px 96px;
+  mask-size: 96px 96px;
+}
+/* Off = bare canvas gradient + a subtle diagonal slash so it reads as a distinct
+   state, not a broken tile (token ink only) */
+.c-settings-swatch[data-off] .c-settings-swatch__canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top right,
+    transparent calc(50% - 1px),
+    var(--outline-neutral-02) calc(50% - 1px),
+    var(--outline-neutral-02) calc(50% + 1px),
+    transparent calc(50% + 1px));
+  pointer-events: none;
+}
+/* hover per #43 (+#334 pointer:fine); a photo-like face can't tint, so state
+   rides the border ring — the chip.css action grammar translated to a tile */
+@media (hover: hover) and (pointer: fine) {
+  .c-settings-swatch:hover { border-color: var(--outline-action-hover); }
+}
+.c-settings-swatch:active { border-color: var(--outline-action-pressed); }
+.c-settings-swatch[aria-checked='true'] {
+  border-color: var(--outline-action-default);
+  box-shadow: 0 0 0 var(--outline-width-1) var(--outline-action-default);   /* 2px total ring = selected weight */
 }
 
 /* —— security level: tier cards —— */
@@ -116,7 +181,7 @@
               background-color var(--duration-100) var(--easing-standard);
 }
 .c-settings-security__tier[aria-checked='true'] { border-color: var(--outline-action-default); }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings-security__tier:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings-security__tier:active { background: var(--surface-interactive-pressed); }

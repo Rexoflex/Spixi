@@ -53,6 +53,7 @@ import { createModal, openModal } from './modal.js';
 import { overlayId, setOverlayOpts, dismissOverlay } from './overlay.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { openMemberSheet } from './member-sheet.js';
+import { openMediaViewer } from './media-viewer.js';
 
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
@@ -155,10 +156,39 @@ export function createChatInfo({
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
      a demo passing online:true on a group can't grow a dot the bridge never feeds. */
-  hero.append(createAvatar({
+  const heroAvatar = createAvatar({
     src: avatar, name: name, address: avatarSeed || address, size: 64,
     online: kind === 'contact' && !!online,
-  }));
+  });
+  /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
+     viewer — the avatar wraps in a button (focus ring = base.css :focus-visible;
+     setChatInfoPresence's `.c-chat-info__hero .c-avatar` query still resolves
+     through the wrapper). Gradient avatars stay non-interactive; if the photo
+     src fails to load (avatar.js onerror → gradient fallback) the wrapper
+     UNWRAPS, so no dead "View photo" control survives the fallback. ONE photo
+     only — the bridge carries a single avatar src; a carousel is a BE row, not
+     a stub to fake here. */
+  if (avatar) {
+    const view = document.createElement('button');
+    view.type = 'button';
+    view.className = 'c-chat-info__avatar-view';
+    view.setAttribute('aria-label', strings.viewPhoto || 'View photo');
+    view.append(heroAvatar);
+    view.addEventListener('click', () => openMediaViewer({
+      host: host || el.closest('.demo-phone') || undefined,   // audit m6 grammar
+      src: avatar,
+      alt: nickname || name || '',
+      kind: 'image',
+      strings,
+    }));
+    // avatar.js's own once-listener swaps the broken <img> for the gradient;
+    // ours (same event, registered after) retires the interactive wrapper.
+    const heroImg = heroAvatar.querySelector('.c-avatar__img');
+    if (heroImg) heroImg.addEventListener('error', () => view.replaceWith(heroAvatar), { once: true });
+    hero.append(view);
+  } else {
+    hero.append(heroAvatar);
+  }
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');

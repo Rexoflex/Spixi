@@ -132,7 +132,7 @@ button.c-topbar__identity-wrap {
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   button.c-topbar__identity-wrap:hover { background: var(--surface-interactive-hover); }
 }
 button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pressed); }
@@ -186,7 +186,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   --_ink-hover: var(--icon-topbar);
   --_ink-pressed: var(--icon-topbar);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .screen--hero .c-topbar .c-button[data-type="text"]:hover { background: var(--surface-wash-on-hero); }
 }
 .screen--hero .c-topbar .c-button[data-type="text"]:active { background: var(--surface-wash-on-hero-pressed); }

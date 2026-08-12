@@ -107,7 +107,7 @@
   transition: transform var(--duration-100) var(--easing-decelerate),
               background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-callin__circle:hover { transform: scale(1.06); }
 }
 .c-callin__circle:active { transform: scale(0.96); }

@@ -57,8 +57,38 @@ namespace SPIXI
             // Deprecated due to WPF, use onLoad
         }
 
+        // #334 iOS-61: the Account peer tab draws its OWN bottom-nav replica
+        // (settings.html) — it was blind to unread because the count was only
+        // ever pushed to the home WebView. This override rides the EXISTING tick
+        // plumbing for free: presented → HomePage.OnUpdateUI ticks the top
+        // overlay; parked → no ticks (hidden, fine); warm re-present →
+        // representParkedOverlay calls updateScreen() = instant refresh, no
+        // staleness window. VALUE-latched deliberately — NOT the SingleChatPage
+        // edge-latch, whose number is documented-dishonest (chat.html:2745).
+        // Known dial (DECISIONS #334): getUnreadMessageCount is mute-BLIND while
+        // the home badge is mute-aware (CH4 FE-interim) → the two can differ
+        // while a muted chat holds unread; accepted until CH4 lands C#-side.
+        int lastPushedUnread = -1;
+        public override void updateScreen()
+        {
+            base.updateScreen();
+
+            int unread = FriendList.getUnreadMessageCount();
+            if (unread != lastPushedUnread)
+            {
+                Utils.sendUiCommand(this, "setUnreadIndicator", unread.ToString());
+                lastPushedUnread = unread;
+            }
+        }
+
         private void onLoad()
         {
+            // #334 loop MINOR-1: every ixian:onload = a FRESH document (reloadAllPages
+            // on the OS theme flip reboots the shell with its badge state gone) — the
+            // value latch must reset or the unread badge stays silently absent until
+            // the count CHANGES.
+            lastPushedUnread = -1;
+
             // Unit 2 (#240): tell the shell it is pane-hosted BEFORE the data burst —
             // all onLoad pushes coalesce ahead of the overlay present, so the pane
             // lays out master-detail before it ever becomes visible.
@@ -330,7 +360,16 @@ namespace SPIXI
                 {
                     selectedLanguage = lang;
                     Preferences.Default.Set("language", selectedLanguage);
-                    loadPage(webView, "settings.html");
+                    // #334 iOS-58 (Damir dial: LIVE re-localize): the pick surface no
+                    // longer self-reloads — the shell carries ALL bundled dictionaries
+                    // (SpixiStrings, #257) and swaps + re-renders in place on this push:
+                    // zero flash where the user is looking, the picker stays put, dirty
+                    // nick/avatar state survives (the #274 stash machinery remains as
+                    // the belt for any residual reload path). The reloads below cover
+                    // surfaces whose text is BAKED at generatePage (*SL{} carriers) —
+                    // on mobile they sit UNDER this page (invisible); the one visible
+                    // desktop-pane flash is a logged v1 residual (DECISIONS #334).
+                    Utils.sendUiCommand(this, "setLocale", lang);
                     // #285 (F5 2026-07-29): strings are BAKED into generated pages; the
                     // deferred save/exit Home reload (#242) never fires on DESKTOP — the
                     // Account pane is tabbed away from, not exited — so the rest of the

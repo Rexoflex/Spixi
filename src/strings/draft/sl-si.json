@@ -559,5 +559,8 @@
   "you": "Vi",
   "youInvited": "Poslali ste povabilo",
   "youRequested": "Zahtevali ste",
-  "yourAddress": "Vaš naslov"
+  "yourAddress": "Vaš naslov",
+  "cancelTransfer": "Prekliči pošiljanje",
+  "viewPhoto": "Poglej fotografijo",
+  "waitingForAccept": "Čakanje, da {name} sprejme vašo prošnjo"
 }

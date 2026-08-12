@@ -66,6 +66,10 @@
      LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
+  /* #334 iOS-59: SUB-screens are hub-only surfaces — hide the peer-tab bottom
+     nav while a sublevel is open (its back affordance owns the exit). Desktop
+     full-window keeps the RAIL: it is the sole exit there (#237, no topbar back). */
+  :root:not([data-desktop]) body[data-subview] #settings-nav { display: none; }
 
   /* —— Account as a PEER PANE (unit 2 #240 · #243 sublevels · #245 placement,
      Damir: "same peer as wallet/apps/chats, NOT a distant pane"): C# pins this
@@ -161,7 +165,7 @@
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
-    createBottomNav, setNavActive, showToast,
+    createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
@@ -207,7 +211,7 @@
     clearTimeout(dlTimer); dlTimer = 0;
     downloadsEl = null; dlBuf = null;
   }
-  const strings = window.SL || {};
+  let strings = window.SL || {};   // #334 iOS-58: `let` — setLocale swaps the dict LIVE (closures read the variable)
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
   // SPIXI_ENV seeds it if the generation step injects one.
   let appVersion = (window.SPIXI_ENV && window.SPIXI_ENV.version) || '';
@@ -469,6 +473,7 @@
     return {};
   }
   let hubEl = null, currentView = 'hub';
+  let hubScrollTop = 0;   // #336 (Damir F5 #15): preserve hub scroll across takeover sublevels
   currentView = takeResumeView() || 'hub';
 
   const masterWrap = document.createElement('div');
@@ -508,6 +513,10 @@
 
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    // #334 iOS-59: nav visibility keys off the view — hub shows the peer-tab
+    // nav, any sublevel hides it (CSS scopes the hide to non-desktop; pane mode
+    // already hides the nav wholesale).
+    document.body.toggleAttribute('data-subview', currentView !== 'hub');
     // Q1 review (#267 loop): every render that isn't the Downloads sublevel drops
     // the mounted screen — the children are about to be replaced (both branches),
     // so keeping downloadsEl/dlBuf/dlTimer alive would retain a detached node and
@@ -526,7 +535,20 @@
       delete root.dataset.langBuilt;               // #274 re-review R5: clear the other mode's key
       markSelected(currentView === 'hub' ? null : currentView);
     } else {
+      // #336 (Damir F5 #15): a takeover sublevel DETACHES the hub node, and a
+      // detached scroller re-attaches at scrollTop 0 — so About/How-to/Chat
+      // appearance/Contributors/Delete-data snapped the hub to the top on
+      // return (Theme/Language are sheets that never detach it → they held).
+      // Save the hub scroll on the way OUT, restore it on the way back.
+      if (currentView !== 'hub' && root.contains(hubEl)) {
+        const b = hubEl.querySelector('.c-settings__body');
+        if (b) hubScrollTop = b.scrollTop;
+      }
       root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+      if (currentView === 'hub' && hubScrollTop) {
+        const b = hubEl.querySelector('.c-settings__body');
+        if (b) { b.scrollTop = hubScrollTop; requestAnimationFrame(() => { b.scrollTop = hubScrollTop; }); }
+      }
       // #274 review MINOR-2: track the built language for the NON-pane mount too — a
       // restored picker can boot before setPaneMode/setLanguage land (or the window
       // narrowed across the reload); rebuildHub refreshes it either way.
@@ -929,6 +951,44 @@
   const handlers = {
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
 
+    // #334 iOS-61: the Account tab's nav replica was BLIND to unread (the count
+    // was pushed to the home WebView only) — SettingsPage.updateScreen now fans
+    // it here, VALUE-latched C#-side (never the chat push's edge-latch, whose
+    // number is documented-dishonest — chat.html:2745). NOTE: C#'s total is
+    // mute-BLIND while home's badge is mute-aware (CH4 FE-interim) → the two can
+    // differ on muted unread; accepted, logged as a dial. `nav` is declared
+    // later in this script — safe: C# pushes only after ixian:onload.
+    setUnreadIndicator(n) { lastNavUnread = parseInt(n, 10) || 0; try { setNavBadge(nav, 'chats', lastNavUnread); } catch (e) {} },
+
+    // #334 iOS-58 (Damir dial: LIVE re-localize): the language pick no longer
+    // reloads this page — C# pushes the picked code; the BUNDLED dictionaries
+    // swap in place (SpixiStrings.get also re-stamps <html lang> → timestamps
+    // re-localize on re-render), the cached hub is dropped (its text carries the
+    // old dict), the nav replica rebuilds, and renderLayout re-renders the
+    // current view — the picker stays exactly where it was and dirty nick/avatar
+    // state SURVIVES (better than the #274 stash, which stays as belt for any
+    // residual reload path). Components read strings at render time
+    // (getStrings → window.SL) — no further plumbing. KNOWN residuals
+    // (accepted, DECISIONS #334): C#-pushed verbatim text + *SL{} carriers keep
+    // the old language until the next natural regenerate.
+    setLocale(code) {
+      let dict = null;
+      try { dict = window.SpixiStrings.get(String(code || '')); } catch (e) { dict = null; }
+      if (!dict) return;
+      window.SL = dict;
+      strings = dict;
+      if (code) state.language = String(code);
+      hubEl = null;
+      emptyEl = null;      // loop MINOR-4: the memoized sd-empty pane baked the old dict
+      // loop MINOR-5: the pane picker still arms the #274 reload-stash before the
+      // verb — this push IS the proof no reload is coming; a stranded stash would
+      // boot the NEXT pane open into the Language sublevel. The stash stays as
+      // the belt for any genuine residual reload (which never delivers setLocale).
+      try { localStorage.removeItem(VIEW_RESUME_KEY); } catch (e) {}
+      buildPeerNav();
+      renderLayout();
+    },
+
     // setNickname(nick) — SettingsPage.onLoad:43
     setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
 
@@ -1091,42 +1151,54 @@
    * true in-home integration need BE (HomePage pushing settings data, or a
    * home-tab-select verb) — be-cutover S11. The nav persists across the
    * hub/takeover swaps (it's a sibling of #settings-root). ————————————————————— */
-  const NAV_ITEMS = [
-    { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
-    { id: 'apps', label: strings.apps || 'Apps', icon: 'apps' },
-    { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
-    { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
-  ];
-  const nav = createBottomNav({
-    items: NAV_ITEMS, active: 'account',
-    // Desktop (Damir F5 r2): same LEFT RAIL as the home shell (logo on top) so a
-    // FULL-WINDOW Account (narrow desktop window) reads as a peer pane. When C#
-    // hosts this page as a real PANE (unit 2 #240, setPaneMode) this whole nav is
-    // hidden — home's rail sits beside the pane.
-    variant: isDesktop ? 'rail' : undefined,
-    logo: isDesktop,
-    // Leaving Account = pop back to home. Route through exitSettings (NOT a raw
-    // ixian:back) so a held-but-uncommitted nickname / picked avatar is saved on
-    // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
-    // dropped the edit + let C# delete avatar-tmp).
-    // r3 QUIRK fix (Damir: "from Account you always land on whatever tab you left
-    // on"): there's still no C# land-on-tab verb (S11), so the TAPPED tab rides
-    // localStorage (same origin) — home consumes it via the storage event while
-    // it sits under this pushed page (+ a focus fallback). Timestamped so a
-    // stranded key can't switch tabs minutes later.
-    onChange: (id) => {
-      if (id === 'account') return;
-      try { localStorage.setItem('spixi.landtab', id + ':' + Date.now()); } catch (e) {}
-      exitSettings();
-      // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
-      // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED
-      // in that state, and the warm re-present showed Account with the wrong tab
-      // lit. This page IS the Account tab: snap the highlight back immediately
-      // so the parked state is always canonical (belt: onRepresented re-asserts).
-      setNavActive(nav, 'account');
-    },
-  });
-  document.getElementById('settings-nav').append(nav);
+  /* #334 iOS-58: the nav is now REBUILDABLE — its labels captured a dict, and
+   * setLocale swaps dicts LIVE (no page reload), so the replica rebuilds in
+   * place. The unread badge (iOS-61) is re-applied across rebuilds from
+   * lastNavUnread — C#'s push is value-latched and won't repeat. */
+  let nav = null;
+  let lastNavUnread = 0;
+  function buildPeerNav() {
+    const items = [
+      { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
+      { id: 'apps', label: strings.apps || 'Apps', icon: 'apps' },
+      { id: 'wallet', label: strings.wallet || 'Wallet', icon: 'wallet' },
+      { id: 'account', label: strings.account || 'Account', icon: 'user-circle' },
+    ];
+    const fresh = createBottomNav({
+      items, active: 'account',
+      // Desktop (Damir F5 r2): same LEFT RAIL as the home shell (logo on top) so a
+      // FULL-WINDOW Account (narrow desktop window) reads as a peer pane. When C#
+      // hosts this page as a real PANE (unit 2 #240, setPaneMode) this whole nav is
+      // hidden — home's rail sits beside the pane.
+      variant: isDesktop ? 'rail' : undefined,
+      logo: isDesktop,
+      // Leaving Account = pop back to home. Route through exitSettings (NOT a raw
+      // ixian:back) so a held-but-uncommitted nickname / picked avatar is saved on
+      // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
+      // dropped the edit + let C# delete avatar-tmp).
+      // r3 QUIRK fix (Damir: "from Account you always land on whatever tab you left
+      // on"): there's still no C# land-on-tab verb (S11), so the TAPPED tab rides
+      // localStorage (same origin) — home consumes it via the storage event while
+      // it sits under this pushed page (+ a focus fallback). Timestamped so a
+      // stranded key can't switch tabs minutes later.
+      onChange: (id) => {
+        if (id === 'account') return;
+        try { localStorage.setItem('spixi.landtab', id + ':' + Date.now()); } catch (e) {}
+        exitSettings();
+        // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
+        // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED
+        // in that state, and the warm re-present showed Account with the wrong tab
+        // lit. This page IS the Account tab: snap the highlight back immediately
+        // so the parked state is always canonical (belt: onRepresented re-asserts).
+        setNavActive(nav, 'account');
+      },
+    });
+    if (nav) nav.replaceWith(fresh);
+    else document.getElementById('settings-nav').append(fresh);
+    nav = fresh;
+    if (lastNavUnread) setNavBadge(nav, 'chats', lastNavUnread);
+  }
+  buildPeerNav();
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push, arriving empty until

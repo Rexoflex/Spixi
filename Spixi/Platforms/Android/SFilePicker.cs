@@ -20,10 +20,22 @@ namespace Spixi
             // Get the MainActivity instance
             MainActivity activity = MainActivity.Instance;
 
-            // Start the picture-picker activity (resumes in MainActivity.cs)
-            activity.StartActivityForResult(
-                Intent.CreateChooser(intent, "Select Picture"),
-                MainActivity.PickImageId);
+            // #334 AND-21: our own picker intent pauses the app — don't trip the
+            // resume lock on the way back (one-shot, time-bounded in App).
+            App.noteOwnIntentRoundTrip();
+
+            try
+            {
+                // Start the picture-picker activity (resumes in MainActivity.cs)
+                activity.StartActivityForResult(
+                    Intent.CreateChooser(intent, "Select Picture"),
+                    MainActivity.PickImageId);
+            }
+            catch (Exception)
+            {
+                App.clearOwnIntentStamp();   // loop MINOR-4: no round-trip → no suppression
+                throw;
+            }
 
             // Save the TaskCompletionSource object as a MainActivity property
             activity.PickImageTaskCompletionSource = new TaskCompletionSource<SpixiImageData?>();
@@ -34,7 +46,19 @@ namespace Spixi
 
         public static async Task<SpixiImageData?> PickFileAsync()
         {
-            FileResult? fileData = await FilePicker.PickAsync();
+            // #334 AND-21: same one-shot suppression as PickImageAsync — the file
+            // picker round-trip is the exact flow Damir hit ("unlock to send a file").
+            App.noteOwnIntentRoundTrip();
+            FileResult? fileData;
+            try
+            {
+                fileData = await FilePicker.PickAsync();
+            }
+            catch (Exception)
+            {
+                App.clearOwnIntentStamp();   // loop MINOR-4: no round-trip → no suppression
+                throw;
+            }
             if (fileData == null)
                 return null; // User canceled file picking
 

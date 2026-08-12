@@ -26,7 +26,7 @@ button.c-member__id {
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   button.c-member__id:hover { background: var(--surface-interactive-hover); }
 }
 button.c-member__id:active { background: var(--surface-interactive-pressed); }
@@ -94,7 +94,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-member__copy::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-member__copy:hover { background: var(--surface-interactive-hover); }
 }
 .c-member__copy:active { background: var(--surface-interactive-pressed); }

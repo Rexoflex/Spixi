@@ -33,7 +33,7 @@
 /* scroll thumb over the TINTED canvas (audit r2 → r3): -03 was tuned against
    the v1 gradient and fell to 1.14:1 on the v2 sky-blue bottom — text-02 ink
    (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-canvas .u-scroll:hover,
   .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--text-neutral-02) transparent; }
   .c-chat-canvas .u-scroll:hover::-webkit-scrollbar-thumb,
@@ -123,7 +123,7 @@ button.c-bubble__sender {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   button.c-bubble__sender:hover { text-decoration: underline; }
 }
 /* nameless sender = a raw wallet address (middle-truncated): monospace reads it as
@@ -254,7 +254,7 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
   word-break: break-all;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-bubble__link:hover { color: var(--text-link-hover); }
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__link { color: var(--text-bubble-sent); }
@@ -401,7 +401,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-bubble-retry::after { content: ''; position: absolute; inset: -8px; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-bubble-retry:hover { background: var(--surface-destructive-tonal-hover); }
 }
 .c-bubble-retry:active { background: var(--surface-destructive-tonal-pressed); }

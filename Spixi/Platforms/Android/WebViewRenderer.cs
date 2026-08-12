@@ -347,6 +347,20 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
 #pragma warning restore CA1416, CA1422 // Validate platform compatibility
 #pragma warning restore 618
 
+            /* AND-19 (#334): Android twin of the WinUI WebView2.DefaultBackgroundColor
+             * mask (SpixiContentPage:139) — the engine's WHITE base layer paints on
+             * every not-yet-composited frame (overlay/Account transitions; brutal in
+             * dark mode). Transparent drops the base layer so whatever is painted
+             * BENEATH shows through: the MAUI-level _webView.BackgroundColor =
+             * pageSurfaceColor (applyPageSurfaceColor, set at loadPage AND on theme
+             * reload) lands on this renderer's ViewGroup under the native WebView.
+             * Mini-apps keep the engine white base: third-party publisher pages
+             * assume a white default — a dark surface bleeding through CSS-less
+             * mini-app content would break them (same trust split as the
+             * DomStorageEnabled gate below). */
+            if ((e.NewElement ?? Element)?.ClassId != "miniapp")
+                webView.SetBackgroundColor(global::Android.Graphics.Color.Transparent);
+
             _webViewClient = GetWebViewClient();
             webView.SetWebViewClient(_webViewClient);
 
@@ -374,8 +388,18 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
              * vanishing, "not backed up yet" after a backup, Account exits
              * landing on the stale tab (the #314 landtab fix reads storage).
              * Same-origin note: all shells load off the same assets base URL —
-             * one origin, exactly like file:// elsewhere (#308 cross-page leg). */
-            webView.Settings.DomStorageEnabled = true;
+             * one origin, exactly like file:// elsewhere (#308 cross-page leg).
+             *
+             * #334 (security MAJOR #4, Android leg): the #331 flip is scoped to
+             * TRUSTED surfaces only. The mini-app WebView (MiniAppPage — third-
+             * party publisher code, ClassId="miniapp") rides this same renderer
+             * and the ONE file:// storage partition; DOM storage ON there hands
+             * untrusted code read/write on the whole spixi.* family (drafts =
+             * own message plaintext). Mini-apps never had DOM storage (the flag
+             * was false app-wide until #331) — their sanctioned persistence is
+             * the SDK bridge (ixian:getStorageData/setStorageData →
+             * Node.MiniAppStorage), untouched. */
+            webView.Settings.DomStorageEnabled = (e.NewElement ?? Element)?.ClassId != "miniapp";
 
             webView.FocusChange += (sender, args) =>
             {

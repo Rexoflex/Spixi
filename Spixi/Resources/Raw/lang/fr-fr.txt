@@ -230,6 +230,8 @@ contact-new-description = Pour ajouter un nouveau contact, collez ou entrez son 
 contact-new-placeholder = Collez ou entrez l'adresse
 contact-new-send-request = Ajouter un contact
 contact-new-invalid-address-self-text = L'adresse saisie est votre propre adresse.
+contact-self-title = C'est votre propre adresse
+contact-exists-title = Déjà dans vos contacts
 contact-new-invalid-address-exists-text = Ce contact a déjà été ajouté.
 contact-new-scan = Scanner
 contact-new-scan-help = Ou scannez un code QR
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Sans ce mot de passe ou votre sauvegarde, 
 create-account-finish-setup = Terminer la configuration
 create-account-creating = Création de votre compte...
 create-account-creating-description = Cela ne prendra que quelques instants. Votre compte est en cours de sécurisation.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Pseudo requis
+intro-new-emptynick-text = Veuillez entrer un pseudo pour continuer.
+intro-new-avatarerror-title = Impossible de définir l’avatar
+intro-new-walleterror-title = Impossible de créer le compte
+intro-new-walleterror-text = Une erreur est survenue lors de la création de votre compte. Veuillez réessayer.
+intro-new-walletexists-title = Le compte existe déjà
+intro-new-walletexists-text = Un compte existe déjà sur cet appareil, il est donc impossible d’en créer un nouveau ici. Redémarrez Spixi pour continuer avec le compte existant.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurer le compte
@@ -633,7 +644,7 @@ global-call-incoming = Appel entrant
 global-dialog-error = Erreur
 global-dialog-ok = OK
 global-dialog-cancel = Annuler
-global-invalid-address-title = Adresse invalide
+global-invalid-address-title = Cette adresse n'a pas fonctionné
 global-invalid-address-text = Veuillez entrer une adresse valide.
 
 global-friend-request-accepted = {0} a accepté votre demande de contact.
@@ -654,3 +665,12 @@ global-time-minutesago = min
 global-share-choose = Sélectionnez une action
 global-share-savefile = Enregistrer le fichier
 global-share-sharefile = Partager le fichier
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Nouveau message
+notification-incoming-call = Appel entrant
+notification-payment-received = Paiement reçu
+notification-payment-request = Demande de paiement
+notification-app-invite = Invitation d'app
+notification-file = Fichier reçu
+notification-contact-request = Demande de contact

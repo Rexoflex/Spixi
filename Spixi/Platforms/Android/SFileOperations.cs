@@ -42,6 +42,8 @@ namespace Spixi
 
         public static void shareFile(string filepath, string title)
         {
+            // #334 AND-21: own share-sheet round-trip — no resume lock on return.
+            App.noteOwnIntentRoundTrip();
             var context = MainActivity.Instance;
             File file = new File(filepath);
             Intent shareIntent = new Intent();
@@ -52,10 +54,20 @@ namespace Spixi
 
             var chooserIntent = Intent.CreateChooser(shareIntent, title ?? string.Empty);
             chooserIntent.SetFlags(ActivityFlags.ClearTop | ActivityFlags.NewTask);
-            context.StartActivity(chooserIntent);
+            try
+            {
+                context.StartActivity(chooserIntent);
+            }
+            catch (Exception)
+            {
+                App.clearOwnIntentStamp();   // loop MINOR-4: no round-trip → no suppression
+                throw;
+            }
         }
         public static void saveFile(string filepath, string title)
         {
+            // #334 AND-21: own save-as round-trip — no resume lock on return.
+            App.noteOwnIntentRoundTrip();
             var context = MainActivity.Instance;
             Intent saveIntent = new Intent(Intent.ActionCreateDocument);
             saveIntent.AddCategory(Intent.CategoryOpenable);
@@ -64,7 +76,15 @@ namespace Spixi
             saveIntent.AddFlags(ActivityFlags.GrantWriteUriPermission);
 
             context.SaveFilePath = filepath;
-            context.StartActivityForResult(saveIntent, MainActivity.SaveFileId);
+            try
+            {
+                context.StartActivityForResult(saveIntent, MainActivity.SaveFileId);
+            }
+            catch (Exception)
+            {
+                App.clearOwnIntentStamp();   // loop MINOR-4: no round-trip → no suppression
+                throw;
+            }
         }
         public static string getMimeType(Android.Net.Uri uri)
         {

@@ -230,6 +230,8 @@ contact-new-description = To add a new contact, paste or type their Spixi addres
 contact-new-placeholder = Paste or type address
 contact-new-send-request = Add Contact
 contact-new-invalid-address-self-text = The address you have entered is your own address.
+contact-self-title = That's your address
+contact-exists-title = Already in your contacts
 contact-new-invalid-address-exists-text = This contact is already added.
 contact-new-scan = Scan
 contact-new-scan-help = Or scan the QR code
@@ -358,6 +360,17 @@ create-account-step-2-note-subtitle = Without it or your backup file, your accou
 create-account-finish-setup = Finish Setup
 create-account-creating = Creating your account...
 create-account-creating-description =  This won’t take long. Your account is being secured.
+
+; Launch create/onboarding alerts (#334 L5): consumed by LaunchCreatePage +
+; OnboardPage but previously in NO lang file — _SL returned null and
+; DisplayAlert(null,null,null) throws, so these alerts never showed at all.
+intro-new-emptynick-title = Nickname required
+intro-new-emptynick-text = Please enter a nickname to continue.
+intro-new-avatarerror-title = Could not set the avatar
+intro-new-walleterror-title = Could not create account
+intro-new-walleterror-text = Something went wrong while creating your account. Please try again.
+intro-new-walletexists-title = Account already exists
+intro-new-walletexists-text = An account already exists on this device, so a new one can’t be created here. Restart Spixi to continue with the existing account.
 
 ; Intro Restore Screen
 intro-restore-title = Restore Account
@@ -634,7 +647,7 @@ global-call-incoming = Incoming Call
 global-dialog-error = Error
 global-dialog-ok = Ok
 global-dialog-cancel = Cancel
-global-invalid-address-title = Invalid Address
+global-invalid-address-title = That address didn't work
 global-invalid-address-text = Please enter a valid address.
 
 global-friend-request-accepted = {0} has accepted your contact request.
@@ -655,3 +668,12 @@ global-time-minutesago = min
 global-share-choose = Choose Action
 global-share-savefile = Save File
 global-share-sharefile = Share File
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = New Message
+notification-incoming-call = Incoming call
+notification-payment-received = Payment received
+notification-payment-request = Payment request
+notification-app-invite = App invite
+notification-file = File received
+notification-contact-request = Contact request

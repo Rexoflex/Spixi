@@ -30,7 +30,7 @@
 /* Figma text-field used outline-info (hover) + text-action-default (focus) as
    borders — confirmed errors by Damir 2026-07-02; action OUTLINE roles are the
    correct family (#51). Mirror back to Figma text-field/large. */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-search-field:hover {
     background: var(--surface-neutral-03);
     border-color: var(--outline-action-hover);
@@ -88,7 +88,7 @@
   height: var(--size-target-min);
   transform: translate(-50%, -50%);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-search-field__clear:hover { color: var(--text-neutral-01); }
 }
 /* pressed after hover (source-order rule) */

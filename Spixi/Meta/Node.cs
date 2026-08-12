@@ -13,6 +13,7 @@ using Microsoft.Maui.Storage;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Spixi;
+using SPIXI.Lang;
 using SPIXI.MiniApps;
 using SPIXI.Network;
 using SPIXI.VoIP;
@@ -758,6 +759,28 @@ namespace SPIXI.Meta
             return addMessageWithType(type, wallet_address, channel, new ChatStreamMessage(id, message, 0, false), local_sender, sender_address, timestamp, fire_local_notification, alert, payable_data_len);
         }
 
+        // AND-15 (#334): localized per-type notification body. _SL returns NULL for a
+        // missing key (SpixiLocalization:141) and locales outside the shipped set can
+        // be active (OS-culture first-run, #258) — every branch carries an English
+        // fallback. voiceCallEnd deliberately falls through to the default (a call-end
+        // push isn't reliably a missed call — dial). requestAdd included: a contact
+        // request notifying as "New Message" was the same information loss.
+        private static string notificationTextForType(FriendMessageType type)
+        {
+            string key, fallback;
+            switch (type)
+            {
+                case FriendMessageType.voiceCall: key = "notification-incoming-call"; fallback = "Incoming call"; break;
+                case FriendMessageType.sentFunds: key = "notification-payment-received"; fallback = "Payment received"; break;
+                case FriendMessageType.requestFunds: key = "notification-payment-request"; fallback = "Payment request"; break;
+                case FriendMessageType.appSession: key = "notification-app-invite"; fallback = "App invite"; break;
+                case FriendMessageType.fileHeader: key = "notification-file"; fallback = "File received"; break;
+                case FriendMessageType.requestAdd: key = "notification-contact-request"; fallback = "Contact request"; break;
+                default: key = "notification-new-message"; fallback = "New Message"; break;
+            }
+            return SpixiLocalization._SL(key) ?? fallback;
+        }
+
         public static FriendMessage? addMessageWithType(FriendMessageType type, Address wallet_address, int channel, ChatStreamMessage chat_stream_message, bool local_sender = false, Address? sender_address = null, long timestamp = 0, bool fire_local_notification = true, bool alert = true, int payable_data_len = 0)
         {
             var friend_message_with_status = FriendList.addMessageWithType(type, wallet_address, channel, chat_stream_message, local_sender, sender_address, timestamp, fire_local_notification, payable_data_len);
@@ -816,7 +839,12 @@ namespace SPIXI.Meta
                                     || (friend.metaData.botInfo != null && friend.metaData.botInfo.sendNotification))
                                 {
                                     int unreadCount = FriendList.getUnreadMessageCount();
-                                    SPushService.showLocalNotification((int)Crc32Algorithm.Compute(friend_message.id), "Spixi", "New Message", friend.walletAddress.ToString(), alert, unreadCount);
+                                    // AND-15 (#334): per-type copy — payments, app invites and
+                                    // INCOMING CALLS all read "New Message" before (calls were
+                                    // lost entirely). No sender names, no message content
+                                    // (name-inclusion = Damir dial). kind routes calls to the
+                                    // Android Incoming-calls channel; other platforms ignore it.
+                                    SPushService.showLocalNotification((int)Crc32Algorithm.Compute(friend_message.id), "Spixi", notificationTextForType(type), friend.walletAddress.ToString(), alert, unreadCount, type == FriendMessageType.voiceCall ? "call" : "message");
                                     SPushService.clearRemoteNotifications(unreadCount);
                                 }
                             }

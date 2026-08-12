@@ -57,7 +57,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-misstx:hover { background: var(--surface-action-tonal-hover); } }
 .c-wallet-misstx:active { background: var(--surface-action-tonal-pressed); }
 /* #98 ①: narrow phones — the pill collapses to the ⓘ glyph (aria-label carries the name).
    NB viewport query only — kept as the no-ResizeObserver belt; #278 added the
@@ -204,7 +204,7 @@
   cursor: pointer;
 }
 .c-txsheet__copy::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) { .c-txsheet__copy:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-txsheet__copy:hover { background: var(--surface-interactive-hover); } }
 .c-txsheet__copy:active { background: var(--surface-interactive-pressed); }
 
 /* —— missing-tx sheet (#98; title rendered by c-sheet) —— */

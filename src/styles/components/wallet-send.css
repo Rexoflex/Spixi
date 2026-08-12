@@ -45,7 +45,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
 .c-wallet-send__contactname {
   font-size: var(--font-size-body-lg);
@@ -94,7 +94,7 @@
   color: var(--icon-action-default);
   cursor: pointer;
 }
-@media (hover: hover) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 .c-wallet-send__addrfield .c-button { flex-basis: 100%; }
 .c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
@@ -135,7 +135,7 @@
   cursor: pointer;
 }
 .c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 
 /* —— amount —— */

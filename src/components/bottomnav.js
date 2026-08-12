@@ -69,7 +69,15 @@ export function createBottomNav({ items = [], active, ariaLabel = 'Main', varian
     label.textContent = item.label;
 
     btn.append(iconwrap, label);
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      // #334 AND-18(a): a pointer tap leaves DOM focus latched on the item —
+      // Android WebView paints that focus like a second sticky selection. Blur
+      // pointer-driven activation only: keyboard clicks (Enter/Space) fire with
+      // e.detail === 0, so Tab users keep their focus. No neighboring component
+      // discriminates pointer-vs-keyboard yet — this is the first use; blur runs
+      // BEFORE the already-active early-return so re-tapping the active item
+      // un-sticks too.
+      if (e.detail) btn.blur();
       // active state lives in the DOM (setNavActive may be called externally)
       if (btn.hasAttribute('aria-current')) return; // already active — no re-fire
       setNavActive(el, item.id);

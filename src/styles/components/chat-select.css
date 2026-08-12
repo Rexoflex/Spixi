@@ -29,7 +29,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-chatselect-bar__cancel:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-chatselect-bar__cancel:hover { background: var(--surface-interactive-hover); } }
 .c-chatselect-bar__cancel:active { background: var(--surface-interactive-pressed); }   /* #28 */
 .c-chatselect-bar__count {
   flex: 1; min-width: 0;
@@ -65,5 +65,5 @@
   -webkit-tap-highlight-color: transparent;
 }
 .c-splitpaste__dismiss::after { content: ''; position: absolute; inset: -6px; }   /* 44px hit (#106) */
-@media (hover: hover) { .c-splitpaste__dismiss:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-splitpaste__dismiss:hover { background: var(--surface-interactive-hover); } }
 .c-splitpaste__dismiss:active { background: var(--surface-interactive-pressed); }

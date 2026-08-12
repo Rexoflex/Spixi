@@ -279,17 +279,51 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:sendContactRequest:"))
             {
                 Address address = new Address(current_url.Substring("ixian:sendContactRequest:".Length));
-                Friend new_friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, address, null, address.ToString(), null, null, 0);
-                if (new_friend != null)
+                // #334 loop MINOR-5: the roster includes a SELF row (#249) with a live
+                // request button — mirror ContactNewPage:174-178's self guard too.
+                if (address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
                 {
-                    new_friend.save();
-
+                    // #336 (Damir F5 #10): a valid own/known address is NOT "Invalid Address" — friendlier, accurate title.
+                    displaySpixiAlert(SpixiLocalization._SL("contact-self-title"), SpixiLocalization._SL("contact-new-invalid-address-self-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                // #334 AND-17(a): an already-known member (any state — previously
+                // requested, pending, tombstoned) made addFriend return null and the
+                // tap died SILENTLY while the member sheet offered a live button.
+                // Mirror ContactNewPage:180-193: heal pendingDeletion, surface the
+                // already-exists case instead of dropping the tap.
+                Friend existing = FriendList.getFriend(address);
+                if (existing != null && existing.pendingDeletion)
+                {
+                    FriendList.removeFriend(existing);
                     UIHelpers.shouldRefreshContacts = true;
-
-                    StreamProcessor.sendContactRequest(new_friend);
-                    if (new_friend.approved)
+                    existing = null;
+                }
+                if (existing != null)
+                {
+                    // #336 (Damir F5 #10): friendlier + accurate ("Already in your contacts").
+                    displaySpixiAlert(SpixiLocalization._SL("contact-exists-title"), SpixiLocalization._SL("contact-new-invalid-address-exists-text"), SpixiLocalization._SL("global-dialog-ok"));
+                }
+                else
+                {
+                    Friend new_friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, address, null, address.ToString(), null, null, 0);
+                    if (new_friend != null)
                     {
-                        CoreProtocolMessage.resubscribeEvents();
+                        new_friend.save();
+
+                        UIHelpers.shouldRefreshContacts = true;
+
+                        StreamProcessor.sendContactRequest(new_friend);
+                        // #334 AND-17(b): ContactNewPage:203 stamps the outgoing request
+                        // with a requestAddSent status message — the M5 "Request sent"
+                        // row + Requests chip KEY on that marker. This path never wrote
+                        // it, so member-sheet requests were SENT but INVISIBLE in the
+                        // chats list until the peer accepted (Damir, bot group 2026-08-11).
+                        Node.addMessageWithType(null, FriendMessageType.requestAddSent, address, 0, "", true);
+                        if (new_friend.approved)
+                        {
+                            CoreProtocolMessage.resubscribeEvents();
+                        }
                     }
                 }
             }
@@ -1167,6 +1201,19 @@ namespace SPIXI
                     break;
 
                 case "deleteMessage":
+                    // #334 (file-send Cancel): deleting an OWN un-completed file OFFER
+                    // is the cancel path — ALSO kill the in-memory outgoing transfer,
+                    // or the "deleted" offer kept serving a late Accept until an app
+                    // restart. Deleting the message keeps it dead across history
+                    // reloads (the SpixiLocalStorageCallbacks resurrect re-prepares
+                    // only surviving incomplete own fileHeader messages).
+                    {
+                        FriendMessage del_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                        if (del_msg != null && del_msg.type == FriendMessageType.fileHeader && del_msg.localSender && !del_msg.completed)
+                        {
+                            TransferManager.removeOutgoingTransfer(del_msg.transferId);
+                        }
+                    }
                     StreamProcessor.sendMsgDelete(friend, msg_id, selectedChannel);
                     if (!friend.bot)
                     {

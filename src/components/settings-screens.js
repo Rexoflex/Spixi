@@ -86,6 +86,52 @@ function segGroup({ options, current, ariaLabel, onPick }) {
   return g;
 }
 
+/* pattern swatch tiles (#334, iOS-60 — Damir-locked dial): the pattern picker
+   renders MINI CHAT CANVASES — the REAL .c-chat-canvas paint (gradient +
+   generated doodle mask, chat-pattern.css) at each level's opacity — instead of
+   text pills: localized level labels overflowed the pills in longer locales
+   (sl-si "Izklopljeno"/"Standardno"). The localized label LIVES ON as the
+   tile's aria-label + title tooltip; only the visual text goes. Radio semantics
+   + keyboard behavior mirror segGroup EXACTLY (native buttons, role=radio,
+   aria-checked, Tab + Enter/Space — the #205 roving-tabindex upgrade stays a
+   shared deferred item for both grammars). Off (value 0) = bare gradient +
+   diagonal slash treatment via [data-off] (settings-screens.css, token ink). */
+function swatchGroup({ options, current, ariaLabel, onPick }) {
+  const g = document.createElement('div');
+  g.className = 'c-settings-swatches';
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', ariaLabel);
+  const paint = () => {
+    for (const b of g.children) {
+      b.setAttribute('aria-checked', String(Number(b.dataset.value) === current));
+    }
+  };
+  for (const o of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-swatch';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = String(o.value);
+    b.setAttribute('aria-label', o.label);
+    b.title = o.label;                 // pointer users keep the word as a tooltip
+    if (o.value === 0) b.dataset.off = '';
+    const face = document.createElement('span');
+    face.className = 'c-chat-canvas c-settings-swatch__canvas';
+    face.setAttribute('aria-hidden', 'true');   // the button's aria-label names the tile
+    face.style.setProperty('--chat-pattern-opacity', String(o.value));
+    b.append(face);
+    b.addEventListener('click', () => {
+      if (o.value === current) return;
+      current = o.value;
+      paint();
+      onPick(o.value);
+    });
+    g.append(b);
+  }
+  paint();
+  return g;
+}
+
 /* switch row — optimistic toggle w/ revert (the chat-info notifications grammar) */
 function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }) {
   const section = document.createElement('div');
@@ -193,7 +239,9 @@ export function createChatAppearance({
   const pLab = document.createElement('h3');
   pLab.className = 'c-settings__label';
   pLab.textContent = strings.patternIntensity || 'Background pattern';
-  patternSec.append(pLab, segGroup({
+  // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
+  // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
+  patternSec.append(pLab, swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
     ariaLabel: strings.patternIntensity || 'Background pattern',

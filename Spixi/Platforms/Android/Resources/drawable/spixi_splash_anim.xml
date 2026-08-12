@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- #336: premium splash reveal — the mark scale-settles in with an overshoot, then
+     the two "eyes" pop a beat later (sequenced = premium, reliable on a filled mark;
+     a stroke draw-on doesn't suit filled paths). Total ~640ms; the system fades the
+     whole splash in/out around it. REVERT: remove the two windowSplashScreen*AnimatedIcon
+     lines in values-v31/styles.xml → falls straight back to the #334 static blue splash. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/spixi_splash_logo">
+  <target android:name="root">
+    <aapt:attr name="android:animation">
+      <set android:ordering="together">
+        <objectAnimator android:propertyName="scaleX" android:valueFrom="0.86" android:valueTo="1"
+            android:duration="600" android:interpolator="@android:anim/overshoot_interpolator"/>
+        <objectAnimator android:propertyName="scaleY" android:valueFrom="0.86" android:valueTo="1"
+            android:duration="600" android:interpolator="@android:anim/overshoot_interpolator"/>
+      </set>
+    </aapt:attr>
+  </target>
+  <target android:name="dots">
+    <aapt:attr name="android:animation">
+      <set android:ordering="together">
+        <objectAnimator android:propertyName="scaleX" android:valueFrom="0.2" android:valueTo="1"
+            android:startOffset="220" android:duration="420" android:interpolator="@android:anim/overshoot_interpolator"/>
+        <objectAnimator android:propertyName="scaleY" android:valueFrom="0.2" android:valueTo="1"
+            android:startOffset="220" android:duration="420" android:interpolator="@android:anim/overshoot_interpolator"/>
+      </set>
+    </aapt:attr>
+  </target>
+</animated-vector>

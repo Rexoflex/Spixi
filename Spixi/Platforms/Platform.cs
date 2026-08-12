@@ -53,7 +53,9 @@ namespace Spixi
         public static void setTag(string tag);
         public static void clearNotifications(int unreadCount);
         public static void clearRemoteNotifications(int unreadCount);
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount);
+        // #334 AND-15: trailing kind hint ("message" | "call") — Android routes
+        // "call" to the Incoming-calls channel; other platforms ignore it.
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message");
     }
 
     public partial class SSpixiCodecInfo

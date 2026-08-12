@@ -39,7 +39,7 @@
   pointer-events: auto;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-scroll-latest:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }
 .c-scroll-latest:active { background: var(--surface-interactive-pressed); }

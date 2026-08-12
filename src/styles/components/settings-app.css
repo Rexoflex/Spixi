@@ -38,7 +38,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings-dl__open:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings-dl__open:active { background: var(--surface-interactive-pressed); }
@@ -77,7 +77,7 @@
   transition: background-color var(--duration-100) var(--easing-standard),
               color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings-dl__del:hover {
     background: var(--surface-interactive-hover);
     color: var(--icon-error);
@@ -216,7 +216,7 @@ button.c-settings-links__row {
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   button.c-settings-links__row:hover { background: var(--surface-interactive-hover); }
 }
 button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }

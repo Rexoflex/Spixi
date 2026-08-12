@@ -172,7 +172,7 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-settings__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings__copy:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings__copy:active { background: var(--surface-interactive-pressed); }
@@ -212,7 +212,7 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-settings__row--static { cursor: default; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings__row:not(.c-settings__row--static):hover { background: var(--surface-interactive-hover); }
 }
 .c-settings__row:not(.c-settings__row--static):active { background: var(--surface-interactive-pressed); }
@@ -338,7 +338,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings__opt:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings__opt:active { background: var(--surface-interactive-pressed); }
@@ -384,7 +384,7 @@
   transition: border-color var(--duration-100) var(--easing-standard);
 }
 .c-settings__theme[aria-checked='true'] { border-color: var(--outline-action-default); }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings__theme:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings__theme:active { background: var(--surface-interactive-pressed); }
@@ -458,7 +458,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings__avatar-option:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings__avatar-option:active { background: var(--surface-interactive-pressed); }
@@ -493,7 +493,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-settings-danger__card:hover { background: var(--surface-interactive-hover); }
 }
 .c-settings-danger__card:active { background: var(--surface-interactive-pressed); }

@@ -56,6 +56,6 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-sysnotice__link:hover { color: var(--text-neutral-01); }
 }

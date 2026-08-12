@@ -559,5 +559,8 @@
   "you": "Вы",
   "youInvited": "Вы отправили приглашение",
   "youRequested": "Вы запросили",
-  "yourAddress": "Ваш адрес"
+  "yourAddress": "Ваш адрес",
+  "cancelTransfer": "Отменить отправку",
+  "viewPhoto": "Посмотреть фото",
+  "waitingForAccept": "Ожидание, пока {name} примет ваш запрос"
 }

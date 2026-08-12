@@ -64,7 +64,7 @@
   transform: scale(1);
 }
 /* hover guarded so touch devices don't get sticky hover (matches chatlist-item) */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-bottomnav__item:hover { background: var(--surface-interactive-hover); }
   .c-bottomnav__item[aria-current]:hover { background: transparent; }
   .c-bottomnav__item[aria-current]:hover::before { background: var(--surface-action-tonal-hover); }
@@ -201,7 +201,7 @@
    GREY (Damir F5 r3). The selected label already wins via the base (0,3,0) rule. */
 .c-bottomnav--rail .c-bottomnav__item[aria-current] { color: var(--icon-action-default); }
 /* hover rides the PILL layer, not the item background (§6c ①) */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-bottomnav--rail .c-bottomnav__item:hover { background: transparent; }
   .c-bottomnav--rail .c-bottomnav__item:not([aria-current]):hover::before {
     opacity: 1;

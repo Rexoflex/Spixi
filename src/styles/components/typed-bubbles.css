@@ -116,7 +116,7 @@
   color: var(--text-action-default);
   cursor: pointer;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-tcard__details-btn:hover { color: var(--text-action-hover); }
 }
 .c-tcard__details-btn:active { color: var(--text-action-pressed); }
@@ -192,7 +192,7 @@
   cursor: pointer;
   text-align: start;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-tcard__call-back:hover { color: var(--text-action-hover); }
 }
 
@@ -213,7 +213,7 @@
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-fbubble:hover .c-fbubble__icon { background: var(--surface-action-tonal-hover); }
 }
 .c-fbubble__icon {
@@ -305,4 +305,24 @@
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}
+
+/* #334 — file-send CANCEL (own un-accepted offer; sibling of the bubble button,
+   sits left of the sent bubble under flex-end). Quiet text control, action ink. */
+.c-bubble-row > .c-fbubble__cancel {
+  align-self: center;
+  border: 0;
+  background: none;
+  padding: var(--spacing-4) var(--spacing-8);
+  color: var(--text-action-default);
+  font-family: inherit;
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+}
+.c-bubble-row > .c-fbubble__cancel:active { color: var(--text-action-pressed); }
+@media (hover: hover) and (pointer: fine) {
+  .c-bubble-row > .c-fbubble__cancel:hover { color: var(--text-action-hover); }
 }

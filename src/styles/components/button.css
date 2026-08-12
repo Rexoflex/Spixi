@@ -78,7 +78,7 @@
 .c-button[data-type="text"] { background: transparent; color: var(--_ink); }
 
 /* hover guarded per DECISIONS #43 (no sticky hover on touch WebViews) */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-button[data-type="fill"]:hover { background: var(--_fill-hover); }
   .c-button[data-type="tonal"]:hover { background: var(--_tonal-hover); }
   .c-button[data-type="outline"]:hover { color: var(--_ink-hover); border-color: var(--_ink-hover); background: var(--surface-interactive-hover); }

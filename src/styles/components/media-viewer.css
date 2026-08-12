@@ -15,8 +15,37 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  padding: var(--spacing-8) var(--spacing-8) 0;
+  /* #336: top safe-area inset so the caption/Save clear the notch/status bar. */
+  padding: max(var(--spacing-8), env(safe-area-inset-top)) var(--spacing-8) 0;
 }
+/* #336 (Damir F5 iOS #1): close moved out of the top bar (unreachable under the
+   iOS status bar) to a prominent bottom-centered button clear of the home indicator. */
+.c-mviewer__foot {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-12) var(--spacing-8) max(var(--spacing-16), env(safe-area-inset-bottom));
+}
+.c-mviewer__close {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-wash-on-hero);   /* visible circle on the near-black scrim = easy to spot */
+  color: var(--icon-on-scrim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-mviewer__close:hover { background: var(--surface-wash-on-hero-pressed); }
+}
+.c-mviewer__close:active { background: var(--surface-wash-on-hero-pressed); }
+.c-mviewer__close:focus-visible { outline-color: var(--icon-on-scrim); }
 .c-mviewer__caption {
   flex: 1;
   min-width: 0;
@@ -44,7 +73,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-mviewer__btn:hover { background: var(--surface-wash-on-hero); } /* white wash on dark */
 }
 .c-mviewer__btn:active { background: var(--surface-wash-on-hero-pressed); }

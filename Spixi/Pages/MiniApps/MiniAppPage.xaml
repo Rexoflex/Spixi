@@ -8,7 +8,10 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="1*" />
             </Grid.RowDefinitions>
-            <WebView x:Name="webView" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"/>
+            <!-- ClassId="miniapp" = the UNTRUSTED-content marker (#334, security MAJOR #4
+                 Android leg): platform renderers/handlers key privilege drops on it
+                 (Android: DomStorageEnabled stays OFF for this WebView). -->
+            <WebView x:Name="webView" ClassId="miniapp" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"/>
         </Grid>
     </ContentPage.Content>
 </d:SpixiContentPage>

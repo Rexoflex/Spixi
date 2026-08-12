@@ -114,7 +114,7 @@
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     box-shadow: var(--elevation-2); z-index: var(--z-10);
   }
-  @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
+  @media (hover: hover) and (pointer: fine) { .fab:hover { background: var(--surface-action-hover); } } /* #334 AND-18 guard */
   .fab:active { background: var(--surface-action-pressed); }
   /* #321 (R5 parity): the dev-mode HUD strip — the legacy DebugOverlay's live
      NETM/STRM/OFFM/PSTRM counters (HomePage pushes updateDebugInfo every second
@@ -308,6 +308,7 @@
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
+    dismissTopOverlay,                   // AND-29 v2 (#336): hardware back closes a sheet/menu first
     mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
     createWalletHero, setWalletBalance, setBalanceHidden,
@@ -592,6 +593,37 @@
   let contactsRoster = [];
   let contactsView = null;           // open takeover controller ({ close, setContacts }) or null
   let contactsRenderTimer = 0;
+  /* AND-29 (#336, Damir F5): the contacts/new-chat + wallet Receive/Send takeovers
+   * are WebView-internal covers (not native overlays), so Android hardware back
+   * fell through HomePage.OnBackButtonPressed → base → EXIT THE APP instead of
+   * closing the takeover. Track the top takeover's close fn + push the open/closed
+   * state to C# so OnBackButtonPressed can route back INTO the shell (homeBack). */
+  let walletTakeoverClose = null;
+  /* AND-29 v2 (#336, Damir F5 r2): "wallet Receive back exits + some sheets exit".
+   * Two gaps in v1: (a) the wallet takeover open never pushed state (only contacts
+   * did) → Receive's shell takeover was invisible to C# (Send is fine — v1 Send is
+   * a NATIVE page); (b) overlay.js SHEETS/MENUS (row menu, create-group, etc.) were
+   * never tracked. Now the pushed state covers takeovers AND any open overlay
+   * (body[data-overlay-open]), and homeBack closes the top SHEET first, then a
+   * takeover — so hardware back never falls through to exit while anything is up. */
+  function homeOverlayLive() {
+    return !!(contactsView || walletTakeover) || document.body.dataset.overlayOpen !== undefined;
+  }
+  function syncHomeOverlay() {
+    try { bridge.send('ixian:homeoverlay:' + (homeOverlayLive() ? '1' : '0')); } catch (e) {}
+  }
+  // overlay.js toggles body[data-overlay-open] as sheets/menus open+close — mirror
+  // that to C# so hardware back is routed while a sheet is up (not just a takeover).
+  try {
+    new MutationObserver(syncHomeOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) {}
+  function closeTopHomeTakeover() {
+    // sheets/menus sit ABOVE takeovers (z-40 > z-30) — close the top one first.
+    if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return true;
+    if (walletTakeover && walletTakeoverClose) { walletTakeoverClose(); return true; }
+    if (contactsView) { contactsView.close(); return true; }   // onClose nulls the handle + syncs
+    return false;
+  }
   /* Q5: groups/bots stay OUT of the contacts takeover (both purposes — group
    * management lives in chat info, CI7; and the 'start' picker means "pick a
    * PERSON"). The directory push carries NO type arg (addContact 5-arg,
@@ -649,8 +681,9 @@
     contactsView = mountContacts({
       host: document.body, bridge, strings, purpose,
       getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
-      onClose: () => { contactsView = null; },
+      onClose: () => { contactsView = null; syncHomeOverlay(); },   // AND-29
     });
+    syncHomeOverlay();   // AND-29: tell C# a takeover is up (hardware back closes it, not the app)
   }
 
   /* —— bottom nav —————————————————————————————————————————————————————————— */
@@ -909,6 +942,19 @@
     // focusout fires BEFORE activeElement moves — defer so the check reads the
     // post-blur reality (tap into the list drops the pin unless a query holds it).
     header.addEventListener('focusout', () => setTimeout(syncHeaderPin, 0));
+    /* #334 AND-23 (Damir Samsung walk: header STUCK sticky on Android while iOS
+     * scrolls it away): Android WebView keeps DOM focus in the tapped search
+     * field through scrolls and outside taps (iOS blurs on an outside tap), so
+     * the focus-within half of the pin latched forever. A scroll with an EMPTY
+     * query = the user moved on → blur the field (drops the pin + keyboard —
+     * the standard mobile dismiss). A live query keeps the pin: deliberate #327
+     * (results must not scroll the query away). */
+    scroller.addEventListener('touchmove', () => {
+      if (headerQuery === '' && header.contains(document.activeElement)
+          && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+    }, { passive: true });
   }
 
   setNavBadge(nav, 'chats', navUnreadTotal());
@@ -1537,7 +1583,9 @@
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { over.remove(); walletTakeover = null; };
+    const close = () => { over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29
+    walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
+    syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
     // Object.assign({}, window.SL, walletStrings) re-merge was redundant AND
     // proxy-hostile. Title keys: `receiveTitle`/`sendTitle` NEVER EXISTED, so both
@@ -1626,7 +1674,9 @@
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { over.remove(); walletTakeover = null; };
+    const close = () => { over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29
+    walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
+    syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // See mountWalletReceive: walletStrings is the live dict (slWith); `sendTitle`
     // never existed → use the hero button's key (`send`).
     over.append(createTopbar({
@@ -2034,6 +2084,11 @@
    * broadcasts route to the surface, not to pages. */
 
   const handlers = {
+
+    // AND-29 (#336): Android hardware back, routed here by HomePage when a
+    // WebView-internal takeover is open — close the top one (contacts/new-chat
+    // or wallet Receive/Send) instead of letting C# pop the root (= exit app).
+    homeBack() { closeTopHomeTakeover(); },
 
     // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
     // appearance pick / HomePage on return from Account). C#-RESOLVED name — never

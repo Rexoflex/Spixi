@@ -17,6 +17,18 @@ namespace Spixi
         const string channelId = "f26a515e-a46b-45c5-9f29-57abc841e54e";
         const string channelName = "New Messages";
         const string channelDescription = "Spixi local notifications channel.";
+        // AND-15 (#334): separate high-importance channel for incoming calls so the
+        // user can tune call alerts independently and calls heads-up over messages.
+        // Channel display names stay hardcoded English like the existing channel —
+        // [i18n-C#] residual (channels are user-visible in system settings).
+        const string callChannelId = "spixi-incoming-calls";
+        const string callChannelName = "Incoming calls";
+        const string callChannelDescription = "Spixi incoming call notifications channel.";
+        // AND-13 (#334): brand accent for notification chrome = the logomark fill
+        // (src/assets/icons/logo.svg #3050BD = tokens.css --brand-600, the app's
+        // action blue). The csproj MauiIcon color is #000000 and colors.xml carries
+        // stale template values — the logomark fill is the one true brand source.
+        const int accentColor = unchecked((int)0xFF3050BD);
         const int pendingIntentId = 0;
 
         static bool channelInitialized = false;
@@ -109,7 +121,7 @@ namespace Spixi
             clearRemoteNotifications(unreadCount);
         }
 
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount)
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message")
         {
             if (!channelInitialized)
             {
@@ -124,14 +136,30 @@ namespace Spixi
 
             PendingIntent pendingIntent = PendingIntent.GetActivity(Android.App.Application.Context, pendingIntentId, intent, PendingIntentFlags.Immutable);
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(Android.App.Application.Context, channelId)
+            // AND-15 (#334): calls ride their own high-importance channel + heads-up
+            // priority (pre-O fallback). No CallStyle/full-screen intent — logged
+            // follow-up (API/permission complexity).
+            bool isCall = kind == "call";
+
+            // AND-13 (#334): small icon = fresh 5-density white silhouette from the
+            // logomark (ic_stat_spixi; the old statusicon was already a white
+            // silhouette but capped at xxhdpi) + the brand accent. The LargeIcon
+            // line is DROPPED: the only bitmap available is the same white
+            // silhouette — invisible on a light shade; large icons are meant for
+            // contact/content imagery, not a copy of the app mark.
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(Android.App.Application.Context, isCall ? callChannelId : channelId)
                 .SetContentIntent(pendingIntent)
                 .SetContentTitle(title)
                 .SetContentText(message)
-                .SetPriority(1)
-                .SetLargeIcon(BitmapFactory.DecodeResource(Android.App.Application.Context.Resources, Resource.Drawable.statusicon))
-                .SetSmallIcon(Resource.Drawable.statusicon)
+                .SetPriority(isCall ? NotificationCompat.PriorityMax : NotificationCompat.PriorityHigh)
+                .SetSmallIcon(Resource.Drawable.ic_stat_spixi)
+                .SetColor(accentColor)
                 .SetAutoCancel(true);
+
+            if (isCall)
+            {
+                builder.SetCategory(NotificationCompat.CategoryCall);
+            }
 
             if (alert)
             {
@@ -167,6 +195,16 @@ namespace Spixi
                     Group = "Social"
                 };
                 manager.CreateNotificationChannel(channel);
+
+                // AND-15 (#334): "Incoming calls" channel — High importance (heads-up)
+                // with sound + vibration; kind == "call" notifications route here.
+                var callChannel = new NotificationChannel(callChannelId, new Java.Lang.String(callChannelName), NotificationImportance.High)
+                {
+                    Description = callChannelDescription,
+                    Group = "Social"
+                };
+                callChannel.EnableVibration(true);
+                manager.CreateNotificationChannel(callChannel);
             }
 
             channelInitialized = true;

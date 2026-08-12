@@ -124,6 +124,13 @@ public partial class App : Application
                 if (ThemeManager.getActiveAppearance() == ThemeAppearance.automatic)
                     ThemeManager.changeAppearance(ThemeAppearance.automatic);
 
+                // AND-6 (#334): re-run the edge-to-edge pass on an OS auto-theme flip —
+                // it repaints the Android bar strip + bar icon appearance for the new
+                // theme (the explicit-pick path SettingsPage:392 already re-runs it;
+                // this path only ever reloaded pages). No-op on the other platforms
+                // (every SPlatformUtils defines it; iOS/Windows/MacCatalyst are empty).
+                SPlatformUtils.setEdgeToEdge();
+
                 UIHelpers.reloadAllPages();
             };
 
@@ -234,6 +241,33 @@ public partial class App : Application
         isLockScreenActive = false;
     }
 
+    // #334 AND-21: the app's OWN outbound intents (file/image picker, save-as)
+    // background the app — returning from them tripped the resume lock ("unlock
+    // before selecting a file", Damir's Android walk). A picker round-trip is a
+    // continuous in-app flow: the NEXT resume within a bounded window skips the
+    // lock. One-shot (consumed on EVERY resume, matched or not — a stranded
+    // stamp can never suppress a later real background) + time-bounded 5 min
+    // (loop MINOR-4 tightened from 10: a phone left sitting in the picker is
+    // grabbable lock-free for the window; privacy posture #232). Launch sites
+    // clear the stamp when the intent THROWS (the stranded-stamp path). Known
+    // benign residual: an OS permission dialog between stamp and picker can
+    // consume the stamp early → that round-trip locks like before.
+    static DateTime ownIntentStamp = DateTime.MinValue;
+    public static void noteOwnIntentRoundTrip()
+    {
+        ownIntentStamp = DateTime.Now;
+    }
+    public static void clearOwnIntentStamp()
+    {
+        ownIntentStamp = DateTime.MinValue;
+    }
+    private static bool consumeOwnIntentSuppression()
+    {
+        TimeSpan age = DateTime.Now - ownIntentStamp;
+        ownIntentStamp = DateTime.MinValue;
+        return age.TotalSeconds >= 0 && age.TotalMinutes < 5;
+    }
+
     protected override void OnResume()
     {
         base.OnResume();
@@ -244,12 +278,15 @@ public partial class App : Application
         StreamClientManager.wakeReconnectLoop();
         PresenceList.forceSendKeepAlive = true;
 
+        // #334 AND-21: consumed unconditionally — see the field docblock.
+        bool ownIntentReturn = consumeOwnIntentSuppression();
+
         // Popup the lockscreen if necessary
         // Allow a 5 second cooldown after unlock
         TimeSpan ts = DateTime.Now - unlockedDate;
         // #229 (reviewer find): ts.Seconds is the SECONDS COMPONENT (0–59) — 63s in the
         // background gave Seconds==3 → no lock. TotalSeconds is the real elapsed time.
-        if (isLockEnabled() && ts.TotalSeconds > 5 && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
+        if (isLockEnabled() && ts.TotalSeconds > 5 && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
             // Show the lock screen
             isLockScreenActive = true;

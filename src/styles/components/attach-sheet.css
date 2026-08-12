@@ -20,7 +20,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-attach__tile:hover { background: var(--surface-interactive-hover); }
 }
 .c-attach__tile:active { background: var(--surface-interactive-pressed); }
@@ -35,7 +35,7 @@
   color: var(--icon-action-default);
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-attach__tile:hover .c-attach__medallion { background: var(--surface-action-tonal-hover); }
 }
 .c-attach__label {

@@ -230,6 +230,8 @@ contact-new-description = Za dodajanje novega stika prilepite ali vnesite njegov
 contact-new-placeholder = Prilepi ali vnesi naslov
 contact-new-send-request = Dodaj stik
 contact-new-invalid-address-self-text = Naslov, ki ste ga vnesli, je vaš lasten naslov.
+contact-self-title = To je vaš lastni naslov
+contact-exists-title = Že med vašimi stiki
 contact-new-invalid-address-exists-text = Ta stik je že dodan.
 contact-new-scan = Skeniraj
 contact-new-scan-help = Ali skenirajte QR-kodo
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Brez njega ali vaše varnostne kopije vaš
 create-account-finish-setup = Dokončaj nastavitev
 create-account-creating = Ustvarjam vaš račun…
 create-account-creating-description = To ne bo dolgo. Vaš račun je trenutno zaščiten.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Vzdevek je obvezen
+intro-new-emptynick-text = Vnesite vzdevek za nadaljevanje.
+intro-new-avatarerror-title = Avatarja ni bilo mogoče nastaviti
+intro-new-walleterror-title = Računa ni bilo mogoče ustvariti
+intro-new-walleterror-text = Pri ustvarjanju računa je šlo nekaj narobe. Poskusite znova.
+intro-new-walletexists-title = Račun že obstaja
+intro-new-walletexists-text = Na tej napravi račun že obstaja, zato tukaj ni mogoče ustvariti novega. Znova zaženite Spixi, da nadaljujete z obstoječim računom.
 
 ; Intro Restore Screen
 intro-restore-title = Obnovi račun
@@ -655,7 +666,7 @@ global-call-incoming = Dohodni klic
 global-dialog-error = Napaka
 global-dialog-ok = V redu
 global-dialog-cancel = Prekliči
-global-invalid-address-title = Neveljaven naslov
+global-invalid-address-title = Ta naslov ne deluje
 global-invalid-address-text = Prosimo, vnesite veljaven naslov.
 
 global-friend-request-accepted = {0} je sprejel vašo zahtevo za stik.
@@ -676,3 +687,12 @@ global-time-minutesago = min
 global-share-choose = Izberite dejanje
 global-share-savefile = Shrani datoteko
 global-share-sharefile = Deli datoteko
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Novo sporočilo
+notification-incoming-call = Dohodni klic
+notification-payment-received = Plačilo prejeto
+notification-payment-request = Zahteva za plačilo
+notification-app-invite = Povabilo v aplikacijo
+notification-file = Datoteka prejeta
+notification-contact-request = Zahteva za stik

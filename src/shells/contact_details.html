@@ -30,6 +30,7 @@
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
+<link rel="stylesheet" href="../styles/components/media-viewer.css"><!-- #334: avatar tap → full-size viewer (chat-info hero) -->
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -365,6 +366,22 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    // W1 (#336): this shell had NO setTheme handler at all — the pick-time C# fan-out
+    // (SettingsPage:398-426, all overlays) hit an undefined bare global (a swallowed
+    // ReferenceError, the #258 class), so a live chat-info/group-info pane could
+    // never re-theme. Same grammar as home.html's handler (args arrive DECODED via
+    // the real dispatcher; #53 transition suppression for a one-frame flip).
+    setTheme(name) {
+      const t = name === 'dark' ? 'dark' : 'light';
+      const r = document.documentElement;
+      if (r.dataset.theme === t) return;
+      try { r.classList.add('theme-switching'); } catch (e) {}
+      r.dataset.theme = t;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { r.classList.remove('theme-switching'); } catch (e) {}
+      }));
+    },
+
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage
     // (identity comes from C#'s Friend, so the roster resolve is obsolete too).
     // #247: desktop pane hosting — C# pushes '1' (detail slot) or '2' (column beside

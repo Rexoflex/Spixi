@@ -432,6 +432,7 @@ export function createFileBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
+  onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -511,6 +512,20 @@ export function createFileBubble({
       el.append(time);
     }
   }
+  /* #334 (Damir ask): CANCEL on a sent-but-not-yet-accepted file offer. A
+   * SIBLING of the bubble (the bubble itself is a <button> — nesting is
+   * invalid HTML); sent rows are flex-end, so it sits LEFT of the bubble.
+   * setFileProgress drops it the moment packets flow or a final state lands
+   * (post-accept cancel = a different, BE-gated story — fileCancel row). */
+  if (onCancel) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'c-fbubble__cancel';
+    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
+    cancelBtn.addEventListener('click', oneShot(onCancel));
+    row.append(cancelBtn);
+  }
   row.append(el);
   return row;
 }
@@ -531,6 +546,12 @@ export function setFileProgress(rowEl, progress, opts = {}) {
   if (metaEl && opts.meta) metaEl.textContent = opts.meta;
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  // #334: the cancel affordance lives only in the PRE-accept window — the first
+  // packet tick or any final state removes it (post-accept retraction is BE).
+  if (p > 0 || finalState) {
+    const cancelBtn = rowEl.querySelector('.c-fbubble__cancel');
+    if (cancelBtn) cancelBtn.remove();
+  }
   if (bubble && finalState && bubble.dataset.state !== finalState) {
     const strings = opts.strings || getStrings();
     bubble.dataset.state = finalState;

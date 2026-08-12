@@ -86,6 +86,10 @@ namespace SPIXI
 
         private bool fromSettings = false;
         private bool fromChat = false;
+        // AND-29 (#336): true while a WebView-internal home takeover (contacts/new-chat,
+        // wallet Receive/Send) is open — pushed by the shell via ixian:homeoverlay so
+        // hardware back closes it instead of exiting the app.
+        private bool homeShellOverlayOpen = false;
 
         // D1 (#240): native resizable left pane. The boundary sits between two
         // ISOLATED WebViews (#221 model), so the divider must be native — a thin
@@ -747,6 +751,14 @@ namespace SPIXI
                 // owns the same MiniAppManager.remove for its details-scoped uninstall).
                 string appId = current_url.Substring("ixian:uninstall:".Length);
                 onUninstallApp(appId);
+            }
+            else if (current_url.StartsWith("ixian:homeoverlay:", StringComparison.Ordinal))
+            {
+                // AND-29 (#336): the home shell pushes 1/0 whenever a WebView-internal
+                // takeover (contacts/new-chat, wallet Receive/Send) opens or closes, so
+                // OnBackButtonPressed can route Android hardware back INTO the shell
+                // (close the takeover) instead of popping the root and exiting the app.
+                homeShellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
             }
             else if (current_url.StartsWith("ixian:acceptRequest:", StringComparison.Ordinal))
             {
@@ -2342,6 +2354,11 @@ namespace SPIXI
                 // #247: a conversation's info pane has no life of its own — closing
                 // the chat closes it (no dirty state; commits are per-action).
                 closeContactDetailsOverlays();
+                // #334 iOS-64: the chat flushed its draft to localStorage on the way
+                // out, but home only re-reads drafts at a STRUCTURAL row rebuild —
+                // without this the "Draft:" excerpt lagged until the next natural
+                // flush (~10s+). Same one-liner the SettingsPage branch above ships.
+                UIHelpers.shouldRefreshContacts = true;
                 checkForRating();
             }
             else if (overlay is ContactDetails)
@@ -2462,6 +2479,15 @@ namespace SPIXI
                 Utils.sendUiCommand(sp, "onBack");
                 return true;
             }
+            // AND-29 (#336): a WebView-internal home takeover (contacts/new-chat,
+            // wallet Receive/Send) is open — it is NOT a native overlay, so
+            // closeTopOverlay/base would miss it and EXIT THE APP. Route back into
+            // the shell to close the takeover (state pushed via ixian:homeoverlay).
+            if (homeShellOverlayOpen)
+            {
+                Utils.sendUiCommand(this, "homeBack");
+                return true;
+            }
             // #225: hardware/host back closes the top overlay first.
             if (SpixiContentPage.closeTopOverlay())
             {
@@ -2489,6 +2515,9 @@ namespace SPIXI
             else if (fromChat)
             {
                 fromChat = false;
+                // #334 iOS-64: push-fallback twin of the onOverlayClosed branch —
+                // non-overlay presentations otherwise keep the stale draft excerpt.
+                UIHelpers.shouldRefreshContacts = true;
                 checkForRating();
             }
             base.OnAppearing();

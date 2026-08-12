@@ -94,7 +94,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-scan__torch:hover { background: rgba(255, 255, 255, 0.2); } } /* sanctioned */
+@media (hover: hover) and (pointer: fine) { .c-scan__torch:hover { background: rgba(255, 255, 255, 0.2); } } /* sanctioned */
 .c-scan__torch[aria-pressed='true'] {
   background: #ffffff;              /* sanctioned: torch lit */
   color: #101214;                   /* sanctioned: matches the camera bed */

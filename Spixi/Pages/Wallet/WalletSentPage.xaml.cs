@@ -26,6 +26,20 @@ namespace SPIXI
 
         private bool isConfirmedDisplayed = false;
 
+        // #334 W9(b): true only after a FULL burst (through setData) reached the
+        // shell. lastActivityStatus used to latch BEFORE the pushes, so any
+        // mid-method exception left the 1 Hz updateScreen poll early-returning
+        // forever on an empty view; it also neutralizes the `= 0` initial-value
+        // sentinel (a first activity whose status equals the default no longer
+        // skips the first burst). Enum-agnostic — no ActivityStatus members named.
+        private bool burstPushed = false;
+        // #334 W9(a/b): whether the last committed burst was the activity == null
+        // fallback — dedupes the null-case 1 Hz re-burst (pre-fix that case NRE'd,
+        // so there is no legacy behavior to preserve) and blocks a false
+        // unchanged-status skip when the activity appears later (lastActivityStatus
+        // is stale across a null gap).
+        private bool lastActivityMissing = false;
+
         public WalletSentPage(Transaction tx, bool view_only = true, HomePage? home = null)
         {
             viewOnly = view_only;
@@ -57,21 +71,31 @@ namespace SPIXI
                 onDismiss();
                 return;
             }
-            else
-            {
-                // #285 (#263/#276 hide leg, F5 2026-07-29): the detail page previously
-                // stayed unmasked ("explicit reveal" dial — designed for the mobile
-                // sheet→Details flow). On desktop a row tap opens THIS page directly in
-                // the pane, leaking amount/fiat/name/address next to a masked list.
-                // Push the persisted flag BEFORE the burst so the first render is
-                // already masked; the shell offers a per-view reveal eye.
-                Utils.sendUiCommand(this, "setHideBalance", Preferences.Default.Get("hidebalance", false).ToString());
-                checkTransaction();
-            }
+
+            // #334 loop MINOR-2: every ixian:onload = a FRESH shell document (an OS
+            // theme flip reloadAllPages reboots it with an empty staging buffer) —
+            // an armed burstPushed would early-return the re-burst and leave a
+            // PENDING tx's card permanently blank. Reset with the document.
+            burstPushed = false;
+            lastActivityMissing = false;
+
+            // #334 W9(c): hideBackButton FIRST — it rebuilds the shell's topbar, so
+            // pushing it after setHideBalance + the data burst re-shaped chrome under
+            // an already-populated view (defense per the be-cutover W9 row: settle the
+            // page shape before any data lands).
             if (homePage != null)
             {
                 Utils.sendUiCommand(this, "hideBackButton");
             }
+
+            // #285 (#263/#276 hide leg, F5 2026-07-29): the detail page previously
+            // stayed unmasked ("explicit reveal" dial — designed for the mobile
+            // sheet→Details flow). On desktop a row tap opens THIS page directly in
+            // the pane, leaking amount/fiat/name/address next to a masked list.
+            // Push the persisted flag BEFORE the burst so the first render is
+            // already masked; the shell offers a per-view reveal eye.
+            Utils.sendUiCommand(this, "setHideBalance", Preferences.Default.Get("hidebalance", false).ToString());
+            checkTransaction();
 
             try
             {
@@ -126,12 +150,23 @@ namespace SPIXI
             Transaction? ctransaction = transaction;
             if (activity != null)
             {
-                if (lastActivityStatus == activity.status)
+                // #334 W9(b): early-return only when the previous burst actually
+                // REACHED the shell (burstPushed) AND wasn't the null-activity
+                // fallback (its status latch is stale) — see the field notes. The
+                // lone clearEntries pushed above is buffer-reset-only by the shell's
+                // #289 staging contract, same as the pre-existing early-return shape.
+                if (burstPushed && !lastActivityMissing && lastActivityStatus == activity.status)
                 {
                     return;
                 }
-                lastActivityStatus = activity.status;
-                ctransaction = activity.transaction;
+                // #334 loop MINOR-3: the status latch moved to AFTER setData (with
+                // burstPushed) — latching here re-created the exact wedge W9 fixed
+                // for the first burst: a mid-burst exception on a LATER status change
+                // left burstPushed=true + the NEW status latched → early-return
+                // forever with the old card shown.
+                // #334 W9(a) class: a null activity.transaction previously NRE'd at
+                // the amount read below — fall back to the constructor transaction.
+                ctransaction = activity.transaction ?? transaction;
                 if (activity.status == IXICore.Activity.ActivityStatus.Final)
                 {
                     isConfirmedDisplayed = true;
@@ -152,6 +187,13 @@ namespace SPIXI
             }
             else
             {
+                // #334 W9(a/b): the null-activity fallback burst is pushed ONCE; a
+                // repeat tick with activity still null has nothing new → lone
+                // clearEntries only (buffer reset, no re-render churn).
+                if (burstPushed && lastActivityMissing)
+                {
+                    return;
+                }
                 confirmed = "error";
             }
 
@@ -159,7 +201,12 @@ namespace SPIXI
 
             // iOS-55 (#325, W1 LANDED): raw epoch seconds — the shell formats via
             // formatTxTimestamp/docLocale (see HomePage.addPaymentActivity note).
-            string time = activity.timestamp.ToString();
+            // #334 W9(a): the activity == null else-branch above fell through to this
+            // deref → NRE on every poll tick. Fallback = "" (no-time): a "0" would
+            // render VERBATIM — txTimeDisplay's numeric gate is `> 0` so "0" falls to
+            // the legacy-text branch and timeText wins when non-empty (wallet_sent
+            // .html:293 + txlist-item.js:68); '' marshals fine (sendUiCommand quotes).
+            string time = activity != null ? activity.timestamp.ToString() : "";
 
             string type = "send";
 
@@ -237,6 +284,14 @@ namespace SPIXI
 
             Utils.sendUiCommand(this, "setData", amount.ToString(), fee.ToString(),
                 time, transaction.getTxIdString(), confirmed);
+            // #334 W9(b): the burst is only now COMPLETE (setData commits the shell's
+            // #289 staging buffer) — arm the unchanged-status early return.
+            burstPushed = true;
+            lastActivityMissing = (activity == null);
+            if (activity != null)
+            {
+                lastActivityStatus = activity.status;   // loop MINOR-3: latch WITH the arm
+            }
             return;
         }
 

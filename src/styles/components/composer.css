@@ -88,7 +88,7 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-composer__ctx-cancel::after { content: ''; position: absolute; inset: -8px; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-composer__ctx-cancel:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); }
 }
 .c-composer__ctx-cancel:active { background: var(--surface-interactive-pressed); }
@@ -134,7 +134,7 @@
    multi-line grow; the 36px circle vs the 40px single-line input left the ⊕
    2px low against the placeholder line */
 .c-composer__attach { margin-block-end: 2px; } /* sanctioned: optical offset */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }
 .c-composer__attach:active { background: var(--surface-interactive-pressed); }
@@ -171,7 +171,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-composer__action:not(:disabled):hover { background: var(--surface-action-hover); }
 }
 .c-composer__action:not(:disabled):active { background: var(--surface-action-pressed); }
@@ -219,7 +219,7 @@
   white-space: nowrap;
 }
 .c-composer__mention.is-active { background: var(--surface-interactive-hover); }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-composer__mention:hover { background: var(--surface-interactive-hover); }
 }
 .c-composer__mention:active { background: var(--surface-interactive-pressed); }

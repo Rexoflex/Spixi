@@ -17,7 +17,7 @@
   border-radius: var(--radius-12);
   color: var(--text-neutral-01);
 }
-@media (hover: hover) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
 .c-app-item__open:active { background: var(--surface-interactive-pressed); }
 
 .c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
@@ -50,7 +50,7 @@
   color: var(--icon-neutral-02);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-app-item__menu:hover,
   .c-app-item__info:hover { background: var(--surface-interactive-hover); }
 }

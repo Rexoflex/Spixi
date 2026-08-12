@@ -230,6 +230,8 @@ contact-new-description = Um einen neuen Kontakt hinzuzufügen, gib die Spixi-Ad
 contact-new-placeholder = Adresse einfügen oder eingeben
 contact-new-send-request = Kontakt hinzufügen
 contact-new-invalid-address-self-text = Die eingegebene Adresse ist deine eigene Adresse.
+contact-self-title = Das ist deine eigene Adresse
+contact-exists-title = Schon in deinen Kontakten
 contact-new-invalid-address-exists-text = Dieser Kontakt ist bereits hinzugefügt.
 contact-new-scan = Scannen
 contact-new-scan-help = Oder scann den QR-Code
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Ohne das Passwort oder dein Backup kann de
 create-account-finish-setup = Einrichtung abschließen
 create-account-creating = Dein Konto wird erstellt ...
 create-account-creating-description = Das dauert nicht lange. Dein Konto wird gerade gesichert.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Spitzname erforderlich
+intro-new-emptynick-text = Bitte gib einen Spitznamen ein, um fortzufahren.
+intro-new-avatarerror-title = Avatar konnte nicht gesetzt werden
+intro-new-walleterror-title = Konto konnte nicht erstellt werden
+intro-new-walleterror-text = Beim Erstellen deines Kontos ist etwas schiefgelaufen. Bitte versuche es erneut.
+intro-new-walletexists-title = Konto existiert bereits
+intro-new-walletexists-text = Auf diesem Gerät existiert bereits ein Konto, daher kann hier kein neues erstellt werden. Starte Spixi neu, um das bestehende Konto zu verwenden.
 
 ; Intro Restore Screen
 intro-restore-title = Konto wiederherstellen
@@ -633,7 +644,7 @@ global-call-incoming = Eingehender Anruf
 global-dialog-error = Fehler
 global-dialog-ok = Ok
 global-dialog-cancel = Abbrechen
-global-invalid-address-title = Ungültige Adresse
+global-invalid-address-title = Diese Adresse funktioniert nicht
 global-invalid-address-text = Bitte gib eine gültige Adresse ein.
 
 global-friend-request-accepted = {0} hat deine Kontaktanfrage akzeptiert.
@@ -654,3 +665,12 @@ global-time-minutesago = min
 global-share-choose = Aktion auswählen
 global-share-savefile = Datei speichern
 global-share-sharefile = Datei teilen
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Neue Nachricht
+notification-incoming-call = Eingehender Anruf
+notification-payment-received = Zahlung erhalten
+notification-payment-request = Zahlungsanfrage
+notification-app-invite = App-Einladung
+notification-file = Datei erhalten
+notification-contact-request = Kontaktanfrage

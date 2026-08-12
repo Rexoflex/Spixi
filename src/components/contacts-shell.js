@@ -390,7 +390,9 @@ export function createContactsPicker({
     ['people', strings.people || 'People'],
     ['groups', strings.groups || 'Groups'],
   ]) {
-    const chipEl = createChip({ label, size: 'small', selected: value === 'all', strings });
+    // W3 (#336): default size — the small variant read as a different control
+    // beside the chats-header chips (same-looking filter row, two sizes).
+    const chipEl = createChip({ label, selected: value === 'all', strings });
     chipEl.setAttribute('aria-pressed', value === 'all' ? 'true' : 'false');
     chipEl.addEventListener('click', () => setKind(value));
     kindChips.push({ el: chipEl, value });

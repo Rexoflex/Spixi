@@ -15,7 +15,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-channels__row:hover { background: var(--surface-interactive-hover); }
 }
 .c-channels__row:active { background: var(--surface-interactive-pressed); }

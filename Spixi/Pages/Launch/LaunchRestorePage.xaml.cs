@@ -75,11 +75,18 @@ namespace SPIXI
         private async void onSelectFile()
         {
             byte[] _data = null;
+            // #334 L7: the shell previously displayed the STAGING filename
+            // ("wallet.ixi.tmp") — surface the picked file's real display name
+            // (SpixiImageData.name, filled by every platform SFilePicker) instead;
+            // the staging path stays the fallback when a platform leaves it null.
+            string pickedName = null;
             try
             {
                 SpixiImageData fileData = await SFilePicker.PickFileAsync();
                 if (fileData == null)
                     return; // User canceled file picking
+
+                pickedName = fileData.name;
 
                 var stream = fileData.stream;
                 _data = new byte[stream.Length];
@@ -115,7 +122,9 @@ namespace SPIXI
                 return;
             }
 
-            Utils.sendUiCommand(this, "setUploadedFileName", filepath);
+            // #334 L7: push the picked display name (shell baseName() handles a bare
+            // filename unchanged); the staging path only when no name was available.
+            Utils.sendUiCommand(this, "setUploadedFileName", pickedName ?? filepath);
         }
 
         // Attempt to restore the wallet

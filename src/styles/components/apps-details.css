@@ -158,7 +158,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-@media (hover: hover) { .c-app-related__item:hover .c-app-related__name { color: var(--text-action-default); } }
+@media (hover: hover) and (pointer: fine) { .c-app-related__item:hover .c-app-related__name { color: var(--text-action-default); } }
 
 /* —— meta rows —— */
 .c-app-details__meta { display: flex; flex-direction: column; }
@@ -218,7 +218,7 @@
   border: 0; border-radius: var(--radius-full); background: transparent;
   color: var(--icon-neutral-02); cursor: pointer;
 }
-@media (hover: hover) { .c-app-details__copy:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-app-details__copy:hover { background: var(--surface-interactive-hover); } }
 .c-app-details__copy:active { background: var(--surface-interactive-pressed); }
 
 /* —— actions (NOT-installed only: the sticky Install bar) —— */

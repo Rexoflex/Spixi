@@ -145,6 +145,13 @@
     // then rendered NOTHING behind a full-window, back-swallowing cover. Treat a
     // detached ring as gone.
     if (ringEl && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
+    // #335 reviewer (MAJOR-residual): a DISMISSING ring is still CONNECTED for up
+    // to ~400ms (overlay.js removes on transitionend / a 400ms fallback) but its
+    // data-open is deleted SYNCHRONOUSLY at dismiss — the AND-11 gate's re-arm
+    // tick could land in that window, match `ringSession === sid` on the dying
+    // element, and be SWALLOWED → the blank cover the gate exists to prevent.
+    // Treat a no-longer-open ring as gone too ('' while open → the `in` test).
+    if (ringEl && !('open' in ringEl.dataset)) { ringEl = null; ringSession = ''; }
     if (ringEl && ringSession === sid) return;    // same ring — keep it (no restart/refocus)
     dropRing();
     ringSession = sid;

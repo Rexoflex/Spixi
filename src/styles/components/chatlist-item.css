@@ -20,7 +20,7 @@
    was barely visible on the near-black canvas; use the action-tonal surface so the
    open conversation reads clearly (Damir 2026-07-07). */
 .c-chatlist-item[aria-current] { background: var(--surface-action-tonal-default); }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
   .c-chatlist-item[aria-current]:hover { background: var(--surface-action-tonal-hover); }
 }

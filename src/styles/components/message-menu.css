@@ -27,7 +27,7 @@
   transition: background-color var(--duration-100) var(--easing-standard),
               transform var(--duration-100) var(--easing-decelerate);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
 }
 .c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
@@ -52,7 +52,7 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-msgmenu__item svg { color: var(--icon-neutral-02); flex: none; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-msgmenu__item:hover { background: var(--surface-interactive-hover); }
 }
 .c-msgmenu__item:active { background: var(--surface-interactive-pressed); }

@@ -105,8 +105,29 @@
     if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
   };
   if (!window.executeUiCommand) {
+    /* W1 (#336, Windows F5 runtime evidence: "PUSH RECEIVED: ZGFyaw=="): C#'s
+     * sendUiCommand base64-encodes EVERY argument (Utils.cs escapeHtmlParameter)
+     * and the REAL dispatcher (bridge/native.js installExecuteUiCommand) decodes —
+     * this bundle-less stub passed args RAW, so setTheme compared 'ZGFyaw==' to
+     * 'dark' and silently no-opped: the welcome pane NEVER re-themed live (dark
+     * leftovers, Damir's repro). Decode unconditionally, exactly like the real
+     * dispatcher (a bare C# `null` arrives as JS null → '' — the #182 guard). */
     window.executeUiCommand = function (fn) {
-      try { if (typeof fn === 'function') fn.apply(null, Array.prototype.slice.call(arguments, 1)); } catch (e) {}
+      try {
+        if (typeof fn !== 'function') return;
+        const args = [];
+        for (let i = 1; i < arguments.length; i++) {
+          const a = arguments[i];
+          if (a == null) { args.push(''); continue; }
+          let v = String(a);
+          try {
+            const bin = atob(v);
+            v = new TextDecoder().decode(Uint8Array.from(bin, function (c) { return c.codePointAt(0); }));
+          } catch (e) { /* not base64 (future plain push) — keep verbatim */ }
+          args.push(v);
+        }
+        fn.apply(null, args);
+      } catch (e) {}
     };
   }
 

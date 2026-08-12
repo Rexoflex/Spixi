@@ -173,7 +173,7 @@
     transition: background var(--duration-100) var(--easing-standard);
   }
   /* #43: every hover lives inside the hover-capable guard */
-  @media (hover: hover) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } }
+  @media (hover: hover) and (pointer: fine) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } } /* #334 AND-18 guard */
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
   #chat-composer { flex: none; }
   /* iOS-29 attempt 4 (#301) — CHANGED LEVER per #294: never resize <body> (that
@@ -365,7 +365,7 @@
     inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
   }
   .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
-  @media (hover: hover) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } }
+  @media (hover: hover) and (pointer: fine) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } } /* #334 AND-18 guard */
   .chat-mention-fab:active { background: var(--surface-action-tonal-pressed); }
   /* unseen-mention count (same recipe as the scroll-latest badge: error role + ring) */
   .chat-mention-fab__badge {
@@ -1269,6 +1269,25 @@
       gutter: mode.isMulti && rec.direction === 'received',
       onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
       onOpen: () => bridge.send('ixian:openfile:' + rec.fileid),
+      /* #334 (Damir ask): CANCEL an own offer the peer hasn't accepted yet —
+       * routes through the DELETE grammar (the only durable local retraction:
+       * the message goes, so the history-load resurrect has nothing to
+       * re-prepare; C# also kills the in-memory outgoing transfer). Single
+       * click per the #268 one-shot decision. Pre-accept window only: own
+       * un-complete at 0 progress; the first packet tick removes the control
+       * (setFileProgress). Peer-side residuals = C16 + the no-fileCancel
+       * protocol gap (be-cutover). */
+      onCancel: (rec.direction === 'sent' && rec.fstate !== 'complete'
+        && !rec.transferStarted && !(Number(rec.progress) > 0) && !composerLock)
+        ? () => onMenuAction('delete', rec)
+        : undefined,
+      /* loop MINOR-1: transferStarted (any updateFile tick) survives re-renders —
+       * the progress check alone floored at 0 on big files and resurrected Cancel
+       * on a LIVE transfer at every rebuild. loop MINOR-2: composerLock — the
+       * delete grammar is gated in onMenuAction (sendMsgDelete EMITS to the
+       * peer), so a locked chat must not render a dead Cancel; a mid-session
+       * lock leaves an already-rendered Cancel inert until the next re-render
+       * (accepted residual, rare path). */
     });
   }
 
@@ -2736,6 +2755,7 @@
       endLoadPhase();                      // A3: the open stream is over — spend the one-shot boundary chance
       renderLogNow();
       box.scrollTop = box.scrollHeight;
+      bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
       maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
       focusComposer();
       dbg('onChatScreenLoaded');
@@ -2832,6 +2852,11 @@
       const prev = rec.fstate;
       const done = asBool(complete) || (Number(progress) || 0) >= 100;
       rec.progress = Number(progress) || 0;
+      // #334 loop MINOR-1: the FIRST updateFile tick = the peer accepted — latch
+      // it on the MODEL so a full re-render can never resurrect the Cancel
+      // affordance mid-transfer (integer progress floors at 0 on big files, so
+      // a progress>0 gate alone lost to renderLogNow rebuilds).
+      rec.transferStarted = true;
       // BOTH directions tick then flip to complete (Damir F5: outgoing shows
       // progress too — the sender gets per-packet ticks, TransferManager:410).
       rec.fstate = done ? 'complete' : 'progress';
@@ -3561,6 +3586,35 @@
     });
     // belt: any stray document pan while the keyboard is up gets reset
     window.addEventListener('scroll', () => { if (kbOpen) window.scrollTo(0, 0); }, { passive: true });
+
+    /* AND-16 v2 (#336) — measured 2026-08-12 on the Samsung (kb-probe). Android
+     * adjustResize SHRINKS the layout viewport: innerHeight 774→451 with the
+     * keyboard, and vv.height tracks it 1:1 (delta = innerHeight − vv.height = 0),
+     * so the vv writer above stays correctly silent AND the composer is already
+     * placed right (probe cb == innerHeight, above the keyboard). The ONLY defect:
+     * the log's scrollTop stays put while scrollMax GROWS by the shrink (probe:
+     * st 5063/5063 → 5063/5386) → the newest messages fall 323px below the fold.
+     *
+     * The #333 one-shot re-pin was falsified because nearBottom() recomputes
+     * against the SHRUNKEN clientHeight (~339px) and reads false right after the
+     * shrink (5063 + 339·1.5 < scrollHeight). The fix judges "were we at bottom"
+     * on the PRE-resize geometry (sampled on scroll, stable) and re-pins with the
+     * settle-tracked stickDuring — NOT a one-shot — so it holds the bottom across
+     * the whole IME animation. Android-only (iOS innerHeight is constant under its
+     * keyboard, so the shrink test excludes it; UA-gated as belt). */
+    if (/Android/i.test(navigator.userAgent || '')) {
+      let wasAtBottom = nearBottom();
+      box.addEventListener('scroll', () => { wasAtBottom = nearBottom(); }, { passive: true });
+      let lastIH = window.innerHeight;
+      window.addEventListener('resize', () => {
+        const ih = window.innerHeight;
+        const shrank = ih < lastIH - 60;     // keyboard opening (not chrome jitter)
+        lastIH = ih;
+        // re-pin only when the keyboard OPENED and the user was reading the
+        // bottom before it did — a scrolled-up reader keeps their position.
+        if (shrank && wasAtBottom) stickDuring(500);   // > the IME settle window
+      });
+    }
     /* r2 (#303) — NATIVE LEVER (the #294 alternative, now primary on iOS). C#
      * observes UIKeyboardWillChangeFrame/WillHide (SpixiContentPage, chat.html
      * pages only) and pushes the FINAL keyboard overlap in points — same units as
@@ -3582,6 +3636,34 @@
       insetChanged = false;
     };
   })();
+
+
+  /* #334 iOS-62 — BOOT-SCOPED late-height re-pin. The boot pin in
+   * onChatScreenLoaded is one synchronous write, but bubbles GROW after it —
+   * file-transfer state swaps mutate rows IN PLACE (setFileProgress: progress
+   * bar/hint/Open-file appear) and app-invite remote icons load — pushing the
+   * newest content below the fold ("chat opens not quite at the bottom", Damir
+   * walk 2026-08-11; media tiles already self-re-pin on img load). Bounded
+   * settle window + nearBottom guard + USER-INPUT ABORT — the #328 MAJOR-2
+   * lesson: a pin without an abort fights the user; touch is not enough on
+   * desktop, so wheel + mousedown cancel too. Idempotent beside the #324 stick
+   * (same value, same direction). */
+  let bootRepinRaf = 0, bootRepinEnd = 0;
+  function cancelBootRepin() { bootRepinEnd = 0; cancelAnimationFrame(bootRepinRaf); }
+  ['touchstart', 'wheel', 'mousedown', 'keydown'].forEach((evName) =>
+    document.addEventListener(evName, cancelBootRepin, { passive: true, capture: true }));
+  function bootRepin(ms) {
+    bootRepinEnd = performance.now() + ms;
+    cancelAnimationFrame(bootRepinRaf);
+    (function step() {
+      if (performance.now() >= bootRepinEnd) return;
+      if (nearBottom()) {
+        const max = box.scrollHeight - box.clientHeight;
+        if (box.scrollTop < max) box.scrollTop = max;
+      }
+      bootRepinRaf = requestAnimationFrame(step);
+    })();
+  }
 
   /* —— iOS-56 r3 — edge-swipe back, SHELL lever (#325) ——————————————————————
    * Two rounds of a native UIScreenEdgePanGestureRecognizer died silently in

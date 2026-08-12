@@ -191,7 +191,10 @@ namespace Spixi
             });
         }
 
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount)
+        // #334 AND-15: optional kind hint ("message" | "call") — copy-only on this
+        // platform (the localized per-type text arrives via the message arg; no
+        // per-kind presentation work here by scope).
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message")
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {

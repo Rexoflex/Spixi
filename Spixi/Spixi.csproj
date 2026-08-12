@@ -46,7 +46,10 @@
 	     slice at evaluation time. An explicit -p:RuntimeIdentifier=ios-arm64 (device) overrides this. -->
 	<!-- #273-#281 review D1: opt-in on Debug exactly — '!= Release' would force the SIMULATOR
 	     slice onto custom device configurations (Ad-Hoc / AppStore / Enterprise). -->
-	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(RuntimeIdentifier)' == '' and '$(Configuration)' == 'Debug'">
+	<!-- W0 (#336, Windows findings 2026-08-12): OS-guarded — without IsOSPlatform('osx')
+	     this default collided with the SLN's Debug→x64 PlatformTarget on Windows
+	     (NETSDK RID/PlatformTarget incompatibility) and broke Build Solution outright. -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(RuntimeIdentifier)' == '' and '$(Configuration)' == 'Debug' and $([MSBuild]::IsOSPlatform('osx'))">
 		<RuntimeIdentifier>iossimulator-arm64</RuntimeIdentifier>
 	</PropertyGroup>
 	<ItemGroup Condition="$(TargetFramework.Contains('-ios')) and $(RuntimeIdentifier.Contains('iossimulator'))">

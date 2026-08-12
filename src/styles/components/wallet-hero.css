@@ -119,7 +119,7 @@
 .c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
 
 /* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline) */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
   .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
 }

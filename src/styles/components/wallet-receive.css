@@ -70,7 +70,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 
 /* —— "Request an amount" reveal row (send-screen row grammar) —— */
@@ -85,7 +85,7 @@
   color: var(--icon-neutral-02);                   /* chevron ink */
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-wallet-receive__reqrow:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__reqrow:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__reqrow:active { background: var(--surface-interactive-pressed); }
 .c-wallet-receive__reqrow[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }   /* CHILD combinator — the glyph circle's svg must not flip (audit M4) */
 .c-wallet-receive__reqglyph {
@@ -160,7 +160,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-wallet-receive__contact:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__contact:active { background: var(--surface-interactive-pressed); }
 .c-wallet-receive__contact:disabled { cursor: default; opacity: 0.6; }
 .c-wallet-receive__contact[data-acted]:disabled { opacity: 1; }   /* the acted row keeps full ink for its ✓ */

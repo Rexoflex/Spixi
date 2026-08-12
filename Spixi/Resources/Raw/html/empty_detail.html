@@ -336,7 +336,7 @@
   --layout-composer-min: 56px;
   --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
-  --layout-bubble-max: 320px;       /* chat bubble max width (responsive-ready) */
+  --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
 }
 
 /* ==========================================================================
@@ -379,6 +379,10 @@
    split threshold remains layout-only (HomePage). Phone-frame demos in a
    wide desktop browser no longer inherit desktop sizes (#226 caveat gone). */
 :root[data-desktop] {
+  /* W4 (#336, Windows F5): bubbles capped out narrow (~1/3 of a wide pane). The
+     mobile cap (360, #334) stays; desktop raises the px edge so the 82% binds on
+     modest panes and this caps the rest. VALUE = Damir dial (asked 640-720). */
+  --layout-bubble-max: 680px;
   --font-size-display-lg: 56px;  --line-height-display-lg: 64px;  --tracking-display-lg: -2px;
   --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
   --font-size-heading-lg: 36px;  --line-height-heading-lg: 44px;
@@ -772,8 +776,10 @@
   --opacity-scrim: 0.6;
 
   /* chat bubble sizing (DECISIONS.md #14):
-     bubble rule = max-width: min(var(--bubble-max-pct), var(--layout-bubble-max)) */
-  --bubble-max-pct: 75%;
+     bubble rule = max-width: min(var(--bubble-max-pct), var(--layout-bubble-max))
+     75%→82% #334 (Damir dial: wider bubbles; the % is the PHONE binding edge —
+     ~300px on a 393px viewport; typed cards + media tiles ride the same tokens) */
+  --bubble-max-pct: 82%;
 
   /* balance figures: tabular numerals so digits align and don't jitter on update
      (Sora + Source Sans 3 both ship tnum). Usage: .u-tabular { font-feature-settings: "tnum" 1; } */
@@ -1082,11 +1088,15 @@ img, svg { display: block; max-width: 100%; }
 /* Scroll regions (DECISIONS.md #41) — pointer devices get a thin themed thumb
    that is INVISIBLE until the pointer is over the region; the gutter is always
    reserved so content never shifts. ALL scrollbar styling is guarded behind
-   (hover: hover): touch WebViews — incl. Android >= Chromium 121, which honors
-   scrollbar-width/color but never hovers — keep their native transient overlay
-   indicator instead of a permanently hidden thumb. */
+   (hover: hover) and (pointer: fine) (#334 AND-18: an S-Pen/hover-capable touch
+   device flips Chromium's primary-pointer heuristic to hover-capable, which lit
+   every guarded hover as a sticky tap-hover app-wide — pointer:fine keeps mice/
+   trackpads, drops coarse-primary touch devices): touch WebViews — incl.
+   Android >= Chromium 121, which honors scrollbar-width/color but never
+   hovers — keep their native transient overlay indicator instead of a
+   permanently hidden thumb. */
 .u-scroll { overflow-y: auto; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .u-scroll {
     scrollbar-width: thin;                       /* FF + Chromium 121+ */
     scrollbar-color: transparent transparent;
@@ -1384,8 +1394,29 @@ function iconFactory(ICONS) {
     if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
   };
   if (!window.executeUiCommand) {
+    /* W1 (#336, Windows F5 runtime evidence: "PUSH RECEIVED: ZGFyaw=="): C#'s
+     * sendUiCommand base64-encodes EVERY argument (Utils.cs escapeHtmlParameter)
+     * and the REAL dispatcher (bridge/native.js installExecuteUiCommand) decodes —
+     * this bundle-less stub passed args RAW, so setTheme compared 'ZGFyaw==' to
+     * 'dark' and silently no-opped: the welcome pane NEVER re-themed live (dark
+     * leftovers, Damir's repro). Decode unconditionally, exactly like the real
+     * dispatcher (a bare C# `null` arrives as JS null → '' — the #182 guard). */
     window.executeUiCommand = function (fn) {
-      try { if (typeof fn === 'function') fn.apply(null, Array.prototype.slice.call(arguments, 1)); } catch (e) {}
+      try {
+        if (typeof fn !== 'function') return;
+        const args = [];
+        for (let i = 1; i < arguments.length; i++) {
+          const a = arguments[i];
+          if (a == null) { args.push(''); continue; }
+          let v = String(a);
+          try {
+            const bin = atob(v);
+            v = new TextDecoder().decode(Uint8Array.from(bin, function (c) { return c.codePointAt(0); }));
+          } catch (e) { /* not base64 (future plain push) — keep verbatim */ }
+          args.push(v);
+        }
+        fn.apply(null, args);
+      } catch (e) {}
     };
   }
 

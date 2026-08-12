@@ -59,6 +59,24 @@
   align-items: center;
   gap: var(--spacing-16);
 }
+/* #334: real hero photo → full-size viewer. The button hugs the avatar circle
+   (radius-full) so the base.css :focus-visible ring draws round; state rides an
+   action ring — a photo face can't tint (#43 hover coverage, tokens only). */
+.c-chat-info__avatar-view {
+  flex: none;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__avatar-view:hover { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-hover); }
+}
+.c-chat-info__avatar-view:active { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-pressed); }
 .c-chat-info__id {
   min-width: 0;                     /* long names ellipsize, never blow out (③ lesson) */
   display: flex;
@@ -156,7 +174,7 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-chat-info__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-info__copy:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__copy:active { background: var(--surface-interactive-pressed); }
@@ -236,7 +254,7 @@
    keeps a tight border-box so its pressed/focus state stays on the ~44px row and
    never bleeds up into the divider gap (Damir: tap area + pressed state were off) */
 .c-chat-info__setting-section > .c-chat-info__setting { width: 100%; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__setting:active { background: var(--surface-interactive-pressed); }
@@ -273,7 +291,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-info__sd-option:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__sd-option:active { background: var(--surface-interactive-pressed); }
@@ -397,7 +415,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-info__member:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__member:active { background: var(--surface-interactive-pressed); }
@@ -498,7 +516,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-chat-info__danger-row:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }

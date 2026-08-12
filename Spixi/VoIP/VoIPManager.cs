@@ -109,6 +109,18 @@ namespace SPIXI.VoIP
                 return false;
             }
             aquirePowerLocks();
+            // #334 AND-11: pre-request the mic at RING time (messenger practice) so
+            // the grant dialog resolves while the phone is still ringing instead of
+            // inside the answer tap (see the acceptCall gate). Loop MINOR-6: this
+            // runs on the STREAM thread — Android's RequestPermissions must launch
+            // from the main thread or it's OEM-flaky/unsupported.
+            if (!SSpixiPermissions.hasAudioRecordingPermissions())
+            {
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    SSpixiPermissions.requestAudioRecordingPermissions();
+                });
+            }
             SPlatformUtils.startRinging();
             startRingTimeout();   // #265: the incoming overlay auto-clears on the SAME budget
             return true;
@@ -268,7 +280,31 @@ namespace SPIXI.VoIP
                 return;
             }
 
-            SSpixiPermissions.requestAudioRecordingPermissions();
+            // #334 AND-11: the permission request is ASYNC — execution used to fall
+            // straight into sendAppRequestAccept + startVoIPSession with the OS
+            // dialog still up; without RECORD_AUDIO the AudioRecord ctor throws →
+            // the session catch hangs up → the peer saw accept-then-instant-hangup
+            // (≈ decline) and the user's "Allow" landed on a dead call. GATE the
+            // accept instead: no permission → fire the request and DON'T accept —
+            // the call keeps ringing (45s budget), a second Accept lands after the
+            // grant (the ring-time pre-request in onReceivedCall makes this rare).
+            if (!SSpixiPermissions.hasAudioRecordingPermissions())
+            {
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    SSpixiPermissions.requestAudioRecordingPermissions();
+                });
+                // ★ Loop MAJOR-1: the FE ring overlay one-shots + dismisses itself on
+                // the Accept tap — without a re-render the user faces a BLANK,
+                // back-swallowing, still-ringing cover whenever no OS dialog appears
+                // (permanently-denied mic). Re-arm the app-request refresh so the next
+                // UI tick (~2s cadence, Node.updateUILoop) re-presents the ring on
+                // EVERY path — dialog or no dialog. A denied user still can't accept
+                // (correct — no mic) but can always Decline; an explain-affordance
+                // (copy + settings deep-link) = Damir dial, DECISIONS #335.
+                UIHelpers.refreshAppRequests = true;
+                return;
+            }
 
             currentCallAccepted = true;
             StreamProcessor.sendAppRequestAccept(currentCallContact, session_id, Encoding.UTF8.GetBytes(currentCallCodec));

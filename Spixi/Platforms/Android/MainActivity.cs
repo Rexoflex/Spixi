@@ -50,6 +50,13 @@ public class MainActivity : MauiAppCompatActivity
 
         base.OnCreate(bundle);
 
+#if DEBUG
+        // #334: make the app's WebViews visible to chrome://inspect (Debug builds
+        // only) — the AND-16/20 keyboard measurement + AND-18/19 inspection need
+        // console access; nothing in the tree enabled this before.
+        Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
+#endif
+
         CrossFingerprint.SetCurrentActivityResolver(() => this);
 
         SpixiLocalization.addCustomString("Platform", "Xamarin-Droid");
@@ -60,14 +67,9 @@ public class MainActivity : MauiAppCompatActivity
         Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
         Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
 
-        var controller = WindowCompat.GetInsetsController(Window, Window?.DecorView);
-
-        if (controller != null)
-        {
-            // Set white icons for status and navigation bars to ensure visibility
-            controller.AppearanceLightStatusBars = false;
-            controller.AppearanceLightNavigationBars = false;
-        }
+        // AND-6 (#334): bar icon appearance (light/dark) now lives in
+        // SPlatformUtils.setEdgeToEdge() below, theme-driven — the hardcoded
+        // white icons here were unreadable over the light surface.
 
         var rootView = FindViewById(Android.Resource.Id.Content);
 

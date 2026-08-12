@@ -10,6 +10,13 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/provider_paths" />
 		</provider>
+		<!-- AND-13 (#334): accent for OneSignal SDK-rendered notifications (background
+		     pushes bypass SPushService.showLocalNotification and its SetColor) —
+		     ARGB hex, no '#', per OneSignal convention. FF3050BD = the brand accent
+		     (logomark fill / tokens.css brand-600), same pick as builder.SetColor.
+		     The small icon for that path is ic_stat_onesignal_default (now supplied
+		     at all 5 densities). -->
+		<meta-data android:name="com.onesignal.NotificationAccentColor.DEFAULT" android:value="FF3050BD" />
 	</application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />

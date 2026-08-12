@@ -84,11 +84,15 @@ img, svg { display: block; max-width: 100%; }
 /* Scroll regions (DECISIONS.md #41) — pointer devices get a thin themed thumb
    that is INVISIBLE until the pointer is over the region; the gutter is always
    reserved so content never shifts. ALL scrollbar styling is guarded behind
-   (hover: hover): touch WebViews — incl. Android >= Chromium 121, which honors
-   scrollbar-width/color but never hovers — keep their native transient overlay
-   indicator instead of a permanently hidden thumb. */
+   (hover: hover) and (pointer: fine) (#334 AND-18: an S-Pen/hover-capable touch
+   device flips Chromium's primary-pointer heuristic to hover-capable, which lit
+   every guarded hover as a sticky tap-hover app-wide — pointer:fine keeps mice/
+   trackpads, drops coarse-primary touch devices): touch WebViews — incl.
+   Android >= Chromium 121, which honors scrollbar-width/color but never
+   hovers — keep their native transient overlay indicator instead of a
+   permanently hidden thumb. */
 .u-scroll { overflow-y: auto; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .u-scroll {
     scrollbar-width: thin;                       /* FF + Chromium 121+ */
     scrollbar-color: transparent transparent;

@@ -15,7 +15,8 @@ try { ({ JSDOM, VirtualConsole } = await import('jsdom')); }
 catch { console.error('jsdom not installed — run: npm i --no-save jsdom'); process.exit(2); }
 
 const failures = [];
-const ok = (cond, msg) => { if (!cond) failures.push(msg); console.log((cond ? '  ✓ ' : '  ✗ ') + msg); };
+let passes = 0;
+const ok = (cond, msg) => { if (!cond) failures.push(msg); else passes += 1; console.log((cond ? '  ✓ ' : '  ✗ ') + msg); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); // top-level: shared by every demo block
 
 const load = (file) => new Promise((resolve) => {
@@ -1060,16 +1061,23 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ahost.append(appear);
   ok(appear.querySelector('.c-settings-appearance__preview').classList.contains('c-chat-canvas'),
     'appearance preview rides the REAL chat canvas paint (gradient + pattern mask)');
+  /* #334 iOS-60: pattern picker = SWATCH TILES (kills the label-overflow i18n
+   * class); text size stays a text segGroup. */
   const segs = [...appear.querySelectorAll('.c-settings-seg')];
-  ok(segs.length === 2
+  const swatches = [...appear.querySelectorAll('.c-settings-swatch')];
+  ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
-    && segs[1].querySelectorAll('.c-settings-seg__pill').length === 4,
-    'pattern intensity + text size segmented groups (4 pills each)');
-  segs[0].querySelector('.c-settings-seg__pill').click();       // Off (0)
+    && swatches.length === 4
+    && swatches.every((s) => s.getAttribute('role') === 'radio' && s.getAttribute('aria-label')),
+    '#334 iOS-60: pattern = 4 swatch tiles (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills)');
+  const offTile = appear.querySelector('.c-settings-swatch[data-off]');
+  ok(!!offTile && swatches.every((s) => s.querySelector('.c-settings-swatch__canvas.c-chat-canvas')),
+    '#334 iOS-60: every tile face rides the REAL chat-canvas paint; the Off tile is marked distinct (data-off)');
+  offTile.click();
   ok(patternPick === 0
     && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') === '0',
     'pattern pick applies INSTANTLY to the preview + fires the FE-only callback');
-  [...segs[1].querySelectorAll('.c-settings-seg__pill')].pop().click();   // XL (1.25)
+  [...segs[0].querySelectorAll('.c-settings-seg__pill')].pop().click();   // XL (1.25)
   ok(scalePick === 1.25, 'text-size pick fires with the scale value');
   ahost.remove();
 
@@ -4349,8 +4357,15 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#328: the hand-rolled channel selector (not on the overlay stack) consumes the swipe INSIDE the edge handler — sheet-first covers it (audit MINOR; anchored past the axis gate: the #252 title-tap toggle uses the same line shape elsewhere)');
   ok(/sel && !sel\.isCollapsed/.test(chat328) && /dx > Math\.max\(70, dy \* 2\)/.test(chat328),
     '#328: an active text selection is never stolen by the swipe + dominant-axis gate (audit MINOR/NIT)');
-  ok(!/kb-probe|kbProbe/.test(chat328),
-    '#324: the kb-probe was TEMPORARY and is fully retired from the shell');
+  /* #336: the Android kb-probe measured (2026-08-12) → RETIRED with the lever.
+   * Both probes stay gone; AND-16 v2 (the settle-tracked re-pin on the Android
+   * innerHeight shrink) is pinned present. */
+  ok(!/__kbProbe|\[kb-probe\]|kbProbeAndroid/.test(chat328),
+    '#336: both kb-probes are retired from the shell (measurement done)');
+  ok(/AND-16 v2 \(#336\)/.test(chat328)
+    && /const shrank = ih < lastIH - 60/.test(chat328)
+    && /if \(shrank && wasAtBottom\) stickDuring\(500\)/.test(chat328),
+    '#336/AND-16 v2: Android innerHeight-shrink re-pins the log via settle-tracked stickDuring, near-bottom judged pre-shrink');
   // #326: iOS slide-out on back-initiated overlay closes
   ok(/closeOverlay\(PreloadOp op, bool slideOut = false\)/.test(scp328)
     && /closeOverlay\(overlayOp, true\)/.test(scp328)
@@ -4393,6 +4408,62 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#328: the phone-frame demo mirrors the shipped in-list header (demo drift — audit MINOR)');
 }
 
-if (failures.length) { console.error('\nFAILED:\n' + failures.join('\n')); process.exit(1); }
+{
+  /* —— #334 fix-session pins — regression guards over the loop's fixes —— */
+  const chat334 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/rec\.transferStarted = true/.test(chat334)
+    && /!rec\.transferStarted && !\(Number\(rec\.progress\) > 0\) && !composerLock/.test(chat334),
+    '#334 loop: file-send Cancel gates on the transferStarted MODEL latch + composerLock (mid-transfer resurrect + locked-chat dead button)');
+  ok(/'touchstart', 'wheel', 'mousedown', 'keydown'/.test(chat334),
+    '#334 loop: the bootRepin user-input abort covers keyboard scrolling too');
+  const toks334 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/--bubble-max-pct: 82%/.test(toks334) && /--layout-bubble-max: 360px/.test(toks334),
+    '#334: bubble width dial = 82% / 360px (Damir)');
+  const scan334 = readFileSync(join(root, 'src/bridge/scan-page.js'), 'utf8');
+  ok(/match\(\/\\d\+\/g\); return m \? parseInt\(m\[m\.length - 1\], 10\)/.test(scan334),
+    '#334 loop: the AND-22 camera rank keys on the LAST digit run (the camera2-prefix made the first-digit rank a no-op)');
+  const set334 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  // reviewer r2: co-location pin — the bare greps matched the DECLARATION and the
+  // pre-existing stash sites, so reverting the setLocale hygiene stayed green.
+  ok(/setLocale\(code\)[\s\S]{0,1200}emptyEl = null;[\s\S]{0,900}removeItem\(VIEW_RESUME_KEY\)[\s\S]{0,600}buildPeerNav\(\);/.test(set334),
+    '#334 loop: setLocale ITSELF drops the memoized empty pane + the stranded #274 reload-stash (co-located pin)');
+  const home334 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/headerQuery === '' && header\.contains\(document\.activeElement\)/.test(home334),
+    '#334 AND-23: an empty-query touch scroll blurs the search field (Android sticky-header release)');
+  const bundle334 = readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8');
+  ok(/c-fbubble__cancel/.test(bundle334),
+    '#334: the file-send Cancel affordance shipped in the bundle');
+  // #336 AND-29: home takeovers push open/closed state so hardware back closes
+  // them instead of exiting the app; C# routes back via the homeBack handler.
+  ok(/ixian:homeoverlay:/.test(home334) && /homeBack\(\) \{ closeTopHomeTakeover\(\); \}/.test(home334)
+    && /function closeTopHomeTakeover/.test(home334),
+    '#336 AND-29: home shell pushes takeover state + exposes homeBack (hardware back closes the takeover, not the app)');
+  // #336 iOS-59/#15: settings hub scroll survives a takeover-sublevel round-trip.
+  const set336 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/hubScrollTop/.test(set336) && /root\.contains\(hubEl\)/.test(set336),
+    '#336 (#15): settings hub scrollTop is preserved across a takeover sublevel (About/How-to/etc.)');
+}
+
+/* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
+ * pre-existers rendered as a red FAILED block and read as a broken run twice.
+ * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known
+ * one ABSENT (a silent fix: update this list!) — keeps the red block + exit 1. */
+const KNOWN_PREEXISTERS = [
+  'contact strip caps at 5 with the keep-typing note (#136 scaling)',
+  'chat-info QR hugs the code at 148px — account-hub parity (#149③)',
+  'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker',
+  'B3: a lone clearEntries resets the BUFFER only (never blanks the rendered card)',
+];
+const unexpected = failures.filter((f) => !KNOWN_PREEXISTERS.some((k) => f.includes(k)));
+const missingKnown = KNOWN_PREEXISTERS.filter((k) => !failures.some((f) => f.includes(k)));
+if (unexpected.length || missingKnown.length) {
+  if (unexpected.length) console.error('\nFAILED:\n' + unexpected.join('\n'));
+  if (missingKnown.length) console.error('\nKNOWN pre-exister(s) ABSENT — silently fixed? Update KNOWN_PREEXISTERS:\n' + missingKnown.map((k) => '  ~ ' + k).join('\n'));
+  process.exit(1);
+}
+if (failures.length) {
+  console.log('\nBASELINE OK — ' + passes + ' pass / the ' + failures.length + ' KNOWN pre-existers (#136 · #149③ · M5 · B3)');
+  process.exit(0);
+}
 console.log('\nsmoke test CLEAN');
 process.exit(0); // jsdom windows hold live timers (their cleanup would hang the run)

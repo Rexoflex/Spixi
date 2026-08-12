@@ -878,7 +878,15 @@ function createBottomNav({ items = [], active, ariaLabel = 'Main', variant, logo
     label.textContent = item.label;
 
     btn.append(iconwrap, label);
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      // #334 AND-18(a): a pointer tap leaves DOM focus latched on the item —
+      // Android WebView paints that focus like a second sticky selection. Blur
+      // pointer-driven activation only: keyboard clicks (Enter/Space) fire with
+      // e.detail === 0, so Tab users keep their focus. No neighboring component
+      // discriminates pointer-vs-keyboard yet — this is the first use; blur runs
+      // BEFORE the already-active early-return so re-tapping the active item
+      // un-sticks too.
+      if (e.detail) btn.blur();
       // active state lives in the DOM (setNavActive may be called externally)
       if (btn.hasAttribute('aria-current')) return; // already active — no re-fire
       setNavActive(el, item.id);
@@ -3351,6 +3359,7 @@ function createFileBubble({
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
+  onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -3430,6 +3439,20 @@ function createFileBubble({
       el.append(time);
     }
   }
+  /* #334 (Damir ask): CANCEL on a sent-but-not-yet-accepted file offer. A
+   * SIBLING of the bubble (the bubble itself is a <button> — nesting is
+   * invalid HTML); sent rows are flex-end, so it sits LEFT of the bubble.
+   * setFileProgress drops it the moment packets flow or a final state lands
+   * (post-accept cancel = a different, BE-gated story — fileCancel row). */
+  if (onCancel) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'c-fbubble__cancel';
+    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
+    cancelBtn.addEventListener('click', oneShot(onCancel));
+    row.append(cancelBtn);
+  }
   row.append(el);
   return row;
 }
@@ -3450,6 +3473,12 @@ function setFileProgress(rowEl, progress, opts = {}) {
   if (metaEl && opts.meta) metaEl.textContent = opts.meta;
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  // #334: the cancel affordance lives only in the PRE-accept window — the first
+  // packet tick or any final state removes it (post-accept retraction is BE).
+  if (p > 0 || finalState) {
+    const cancelBtn = rowEl.querySelector('.c-fbubble__cancel');
+    if (cancelBtn) cancelBtn.remove();
+  }
   if (bubble && finalState && bubble.dataset.state !== finalState) {
     const strings = opts.strings || getStrings();
     bubble.dataset.state = finalState;
@@ -4615,36 +4644,37 @@ function openMediaViewer({
   el.setAttribute('aria-label', alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image')));
   el.tabIndex = -1;
 
-  const bar = document.createElement('div');
-  bar.className = 'c-mviewer__bar';
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'c-mviewer__btn';
-  close.setAttribute('aria-label', strings.close || 'Close');
-  close.append(icon('x', { size: 22 }));
-  close.addEventListener('click', () => dismissOverlay(el));
-  bar.append(close);
-  if (alt) {
-    const cap = document.createElement('span');
-    cap.className = 'c-mviewer__caption';
-    cap.textContent = alt;
-    bar.append(cap);
+  // #336 (Damir F5 iOS #1): the close ✕ used to live in a TOP bar with no
+  // safe-area inset — on iOS edge-to-edge it sat UNDER the status bar and
+  // wasn't tappable. The top bar now carries only the caption + optional Save
+  // (with the top inset), and CLOSE moved to a prominent bottom-centered button
+  // (below). A top bar renders only when there's something to show.
+  if (alt || onSave) {
+    const bar = document.createElement('div');
+    bar.className = 'c-mviewer__bar';
+    if (onSave) {
+      const spacer = document.createElement('span');   // balance the Save button so the caption stays centered
+      spacer.className = 'c-mviewer__spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      bar.append(spacer);
+    }
+    if (alt) {
+      const cap = document.createElement('span');
+      cap.className = 'c-mviewer__caption';
+      cap.textContent = alt;
+      bar.append(cap);
+    }
+    if (onSave) {
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'c-mviewer__btn';
+      save.setAttribute('aria-label', strings.save || 'Save');
+      save.append(icon('download', { size: 22 }));
+      save.addEventListener('click', () => onSave());
+      bar.append(save);
+    }
+    el.append(bar);
   }
-  if (onSave) {
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'c-mviewer__btn';
-    save.setAttribute('aria-label', strings.save || 'Save');
-    save.append(icon('download', { size: 22 }));
-    save.addEventListener('click', () => onSave());
-    bar.append(save);
-  } else {
-    const spacer = document.createElement('span');
-    spacer.className = 'c-mviewer__spacer';
-    spacer.setAttribute('aria-hidden', 'true');
-    bar.append(spacer);
-  }
-  el.append(bar);
 
   const stage = document.createElement('div');
   stage.className = 'c-mviewer__stage';
@@ -4656,6 +4686,19 @@ function openMediaViewer({
   stage.append(img);
   el.append(stage);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
+  // clear of the notch/status bar, with the home-indicator safe-area inset.
+  const foot = document.createElement('div');
+  foot.className = 'c-mviewer__foot';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'c-mviewer__close';
+  close.setAttribute('aria-label', strings.close || 'Close');
+  close.append(icon('x', { size: 24 }));
+  close.addEventListener('click', () => dismissOverlay(el));
+  foot.append(close);
+  el.append(foot);
 
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;
@@ -11505,6 +11548,7 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
 
 
 
+
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
@@ -11606,10 +11650,39 @@ function createChatInfo({
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
      a demo passing online:true on a group can't grow a dot the bridge never feeds. */
-  hero.append(createAvatar({
+  const heroAvatar = createAvatar({
     src: avatar, name: name, address: avatarSeed || address, size: 64,
     online: kind === 'contact' && !!online,
-  }));
+  });
+  /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
+     viewer — the avatar wraps in a button (focus ring = base.css :focus-visible;
+     setChatInfoPresence's `.c-chat-info__hero .c-avatar` query still resolves
+     through the wrapper). Gradient avatars stay non-interactive; if the photo
+     src fails to load (avatar.js onerror → gradient fallback) the wrapper
+     UNWRAPS, so no dead "View photo" control survives the fallback. ONE photo
+     only — the bridge carries a single avatar src; a carousel is a BE row, not
+     a stub to fake here. */
+  if (avatar) {
+    const view = document.createElement('button');
+    view.type = 'button';
+    view.className = 'c-chat-info__avatar-view';
+    view.setAttribute('aria-label', strings.viewPhoto || 'View photo');
+    view.append(heroAvatar);
+    view.addEventListener('click', () => openMediaViewer({
+      host: host || el.closest('.demo-phone') || undefined,   // audit m6 grammar
+      src: avatar,
+      alt: nickname || name || '',
+      kind: 'image',
+      strings,
+    }));
+    // avatar.js's own once-listener swaps the broken <img> for the gradient;
+    // ours (same event, registered after) retires the interactive wrapper.
+    const heroImg = heroAvatar.querySelector('.c-avatar__img');
+    if (heroImg) heroImg.addEventListener('error', () => view.replaceWith(heroAvatar), { once: true });
+    hero.append(view);
+  } else {
+    hero.append(heroAvatar);
+  }
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
   const nameRow = document.createElement('div');
@@ -12669,7 +12742,9 @@ function createContactsPicker({
     ['people', strings.people || 'People'],
     ['groups', strings.groups || 'Groups'],
   ]) {
-    const chipEl = createChip({ label, size: 'small', selected: value === 'all', strings });
+    // W3 (#336): default size — the small variant read as a different control
+    // beside the chats-header chips (same-looking filter row, two sizes).
+    const chipEl = createChip({ label, selected: value === 'all', strings });
     chipEl.setAttribute('aria-pressed', value === 'all' ? 'true' : 'false');
     chipEl.addEventListener('click', () => setKind(value));
     kindChips.push({ el: chipEl, value });
@@ -15443,6 +15518,52 @@ function segGroup({ options, current, ariaLabel, onPick }) {
   return g;
 }
 
+/* pattern swatch tiles (#334, iOS-60 — Damir-locked dial): the pattern picker
+   renders MINI CHAT CANVASES — the REAL .c-chat-canvas paint (gradient +
+   generated doodle mask, chat-pattern.css) at each level's opacity — instead of
+   text pills: localized level labels overflowed the pills in longer locales
+   (sl-si "Izklopljeno"/"Standardno"). The localized label LIVES ON as the
+   tile's aria-label + title tooltip; only the visual text goes. Radio semantics
+   + keyboard behavior mirror segGroup EXACTLY (native buttons, role=radio,
+   aria-checked, Tab + Enter/Space — the #205 roving-tabindex upgrade stays a
+   shared deferred item for both grammars). Off (value 0) = bare gradient +
+   diagonal slash treatment via [data-off] (settings-screens.css, token ink). */
+function swatchGroup({ options, current, ariaLabel, onPick }) {
+  const g = document.createElement('div');
+  g.className = 'c-settings-swatches';
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', ariaLabel);
+  const paint = () => {
+    for (const b of g.children) {
+      b.setAttribute('aria-checked', String(Number(b.dataset.value) === current));
+    }
+  };
+  for (const o of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-swatch';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = String(o.value);
+    b.setAttribute('aria-label', o.label);
+    b.title = o.label;                 // pointer users keep the word as a tooltip
+    if (o.value === 0) b.dataset.off = '';
+    const face = document.createElement('span');
+    face.className = 'c-chat-canvas c-settings-swatch__canvas';
+    face.setAttribute('aria-hidden', 'true');   // the button's aria-label names the tile
+    face.style.setProperty('--chat-pattern-opacity', String(o.value));
+    b.append(face);
+    b.addEventListener('click', () => {
+      if (o.value === current) return;
+      current = o.value;
+      paint();
+      onPick(o.value);
+    });
+    g.append(b);
+  }
+  paint();
+  return g;
+}
+
 /* switch row — optimistic toggle w/ revert (the chat-info notifications grammar) */
 function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }) {
   const section = document.createElement('div');
@@ -15550,7 +15671,9 @@ function createChatAppearance({
   const pLab = document.createElement('h3');
   pLab.className = 'c-settings__label';
   pLab.textContent = strings.patternIntensity || 'Background pattern';
-  patternSec.append(pLab, segGroup({
+  // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
+  // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
+  patternSec.append(pLab, swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
     ariaLabel: strings.patternIntensity || 'Background pattern',
@@ -18068,6 +18191,32 @@ function html5QrcodeCamera(win) {
             .catch((e1) => {
               // enumerate/deviceId path failed → last-resort plain user-facing ask
               go({ facingMode: 'user' }).then(up).catch(onFail('desktop user-facing fallback; first error: ' + e1));
+            });
+        } else if (/Android/i.test(((w.navigator || navigator).userAgent) || '')) {
+          /* #334 AND-22 (Damir Samsung walk: "fisheye" preview + poor decode): a
+           * bare facingMode:'environment' on a multi-lens Android can rank the
+           * ULTRA-WIDE first. Enumerate like #263 and prefer the MAIN back
+           * camera: back-facing only → drop named non-main lenses → lowest
+           * camera index ("camera2 0, facing back" = main on Samsung/Pixel).
+           * Every failure steps down to the pre-#334 behavior. iOS deliberately
+           * keeps the bare environment ask — its scan is device-verified (#313). */
+          w.Html5Qrcode.getCameras()
+            .then((cams) => {
+              const backs = (cams || []).filter((c) => /back|rear|environment/i.test(c.label || ''));
+              const mains = backs.filter((c) => !/ultra|tele|macro|depth|infrared|fisheye|virtual/i.test(c.label || ''));
+              // loop MINOR-3: take the LAST digit run — "camera2 0, facing back"
+              // leads with the API level's 2, which ranked every lens equal.
+              const rank = (c) => { const m = (c.label || '').match(/\d+/g); return m ? parseInt(m[m.length - 1], 10) : 99; };
+              const pick = (mains.length ? mains : backs).sort((a, b) => rank(a) - rank(b))[0];
+              return go(pick ? { deviceId: { exact: pick.id } } : { facingMode: 'environment' });
+            })
+            .then(up)
+            .catch((e1) => {
+              go({ facingMode: 'environment' })
+                .then(up)
+                .catch((e2) => {
+                  go({ facingMode: 'user' }).then(up).catch(onFail('android fallback chain; errors: ' + e1 + ' | ' + e2));
+                });
             });
         } else {
           go({ facingMode: 'environment' })

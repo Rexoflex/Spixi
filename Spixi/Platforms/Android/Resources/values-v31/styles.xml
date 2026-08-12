@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+
+  <!-- AND-12 (#334): Android 12+ IGNORES the windowBackground splash layout that
+       MainTheme.Base carries (values/styles.xml) and shows the SYSTEM splash instead,
+       which without these attrs is the system default: BLACK under a dark OS theme.
+       This v31 override keeps the whole MainTheme.Base inheritance and only brands
+       the system splash: brand splash blue background (= the csproj MauiSplashScreen
+       color, dead config on Android because MainActivity declares @style/MainTheme,
+       not the MAUI splash theme). No windowSplashScreenAnimatedIcon on purpose: the
+       only splash bitmap (@drawable/splash) is 140x283 - a tall lockup that would
+       distort in the system splash icon circle; the default (the app launcher icon)
+       reads correctly. Pre-31 devices never read this folder: legacy splash untouched. -->
+  <style name="MainTheme" parent="MainTheme.Base">
+    <item name="android:windowSplashScreenBackground">#144576</item>
+    <!-- #336 round-2: the animated icon was REVERTED (Damir F5: barely noticeable,
+         mark too big + clipped by the splash circle, dots too fast). Back to the
+         #334 static blue splash. A truly premium splash = a proper icon artwork
+         sized to the Android-12 safe circle (66% fill) + a slower single motion;
+         drawable/spixi_splash_{logo,anim}.xml are kept for that future round. -->
+  </style>
+
+</resources>

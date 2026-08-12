@@ -566,5 +566,7 @@
   "you": "Du",
   "youInvited": "Du hast eine Einladung gesendet",
   "youRequested": "Du hast angefordert",
-  "yourAddress": "Deine Adresse"
+  "yourAddress": "Deine Adresse",
+  "cancelTransfer": "Senden abbrechen",
+  "viewPhoto": "Foto ansehen"
 }

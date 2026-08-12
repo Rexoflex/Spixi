@@ -147,7 +147,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-lock__reveal:hover { color: var(--text-neutral-01); } }
+@media (hover: hover) and (pointer: fine) { .c-lock__reveal:hover { color: var(--text-neutral-01); } }
 .c-lock__reveal:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;
@@ -175,7 +175,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) { .c-lock__hatch:hover { color: var(--text-neutral-01); } }
+@media (hover: hover) and (pointer: fine) { .c-lock__hatch:hover { color: var(--text-neutral-01); } }
 .c-lock__hatch:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;

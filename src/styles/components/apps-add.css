@@ -38,7 +38,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) { .c-apps-add__method:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-apps-add__method:hover { background: var(--surface-interactive-hover); } }
 .c-apps-add__method:active { background: var(--surface-interactive-pressed); }
 .c-apps-add__method-icon {
   display: inline-flex; align-items: center; justify-content: center;

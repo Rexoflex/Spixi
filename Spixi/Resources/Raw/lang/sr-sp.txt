@@ -230,6 +230,8 @@ contact-new-description = Da biste dodali novi kontakt, nalepite ili unesite nje
 contact-new-placeholder = Nalepi ili unesi adresu
 contact-new-send-request = Dodaj kontakt
 contact-new-invalid-address-self-text = Adresa koju ste uneli je vaša sopstvena adresa.
+contact-self-title = To je vaša adresa
+contact-exists-title = Već je u vašim kontaktima
 contact-new-invalid-address-exists-text = Ovaj kontakt je već dodat.
 contact-new-scan = Skeniraj
 contact-new-scan-help = Ili skenirajte QR kod
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Bez nje ili vaše rezervne kopije, vaš na
 create-account-finish-setup = Završite podešavanje
 create-account-creating = Kreiranje vašeg naloga…
 create-account-creating-description = Neće potrajati. Vaš nalog se bezbedno kreira.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Nadimak je obavezan
+intro-new-emptynick-text = Unesite nadimak da biste nastavili.
+intro-new-avatarerror-title = Nije moguće postaviti avatar
+intro-new-walleterror-title = Nije moguće kreirati nalog
+intro-new-walleterror-text = Nešto je pošlo po zlu pri kreiranju vašeg naloga. Pokušajte ponovo.
+intro-new-walletexists-title = Nalog već postoji
+intro-new-walletexists-text = Na ovom uređaju već postoji nalog, pa ovde nije moguće kreirati novi. Ponovo pokrenite Spixi da nastavite sa postojećim nalogom.
 
 ; Intro Restore Screen
 intro-restore-title = Vrati nalog
@@ -655,7 +666,7 @@ global-call-incoming = Dolazni poziv
 global-dialog-error = Greška
 global-dialog-ok = U redu
 global-dialog-cancel = Otkaži
-global-invalid-address-title = Nevažeća adresa
+global-invalid-address-title = Ta adresa nije radila
 global-invalid-address-text = Molimo unesite važeću adresu.
 
 global-friend-request-accepted = {0} je prihvatio/la vaš zahtev za kontakt.
@@ -676,3 +687,12 @@ global-time-minutesago = min
 global-share-choose = Izaberite akciju
 global-share-savefile = Sačuvaj datoteku
 global-share-sharefile = Podeli datoteku
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Nova poruka
+notification-incoming-call = Dolazni poziv
+notification-payment-received = Uplata primljena
+notification-payment-request = Zahtev za plaćanje
+notification-app-invite = Pozivnica za aplikaciju
+notification-file = Datoteka primljena
+notification-contact-request = Zahtev za kontakt

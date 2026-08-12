@@ -23,7 +23,7 @@
   color: var(--icon-neutral-01);
   cursor: pointer;
 }
-@media (hover: hover) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
 .c-apps-header__toggle:active { background: var(--surface-interactive-pressed); }
 
 /* —— Explore / Discover banner —— */

@@ -75,7 +75,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-callbar__main:hover,
   .c-callbar__hangup:hover { background: var(--surface-wash-on-success); } /* tokenized (Figma mirroring 2026-07-02) */
 }

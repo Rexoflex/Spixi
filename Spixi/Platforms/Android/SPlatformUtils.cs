@@ -187,8 +187,29 @@ namespace Spixi
 
             if (rootView != null)
             {
-                Android.Graphics.Color bgColor = Android.Graphics.Color.ParseColor(ThemeManager.getBackgroundColorString());
+                // AND-6 (#334): the visible status/nav strip = THIS root background (both
+                // bars are transparent, MainActivity). It painted the LEGACY launch-blue
+                // (getBackgroundColorString) under redesigned shells that sit on
+                // --surface-screen — repointed to the shell-matched surface color.
+                Android.Graphics.Color bgColor = Android.Graphics.Color.ParseColor(ThemeManager.getSurfaceColorString());
                 rootView.SetBackgroundColor(bgColor);
+            }
+
+            // AND-6 (#334): bar icon appearance is theme-driven, owned HERE so every
+            // re-run (boot · explicit pick SettingsPage:392 · OS auto-flip App.xaml.cs)
+            // fixes color + icons together. Light surface -> dark icons (true);
+            // dark surface -> light icons (false). Was hardcoded white in MainActivity —
+            // unreadable over the light surface.
+            var window = MainActivity.Instance.Window;
+            if (window != null)
+            {
+                var controller = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
+                if (controller != null)
+                {
+                    bool lightSurface = ThemeManager.getResolvedAppearanceName() == "light";
+                    controller.AppearanceLightStatusBars = lightSurface;
+                    controller.AppearanceLightNavigationBars = lightSurface;
+                }
             }
         }
     }

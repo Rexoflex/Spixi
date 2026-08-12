@@ -230,6 +230,8 @@ contact-new-description = Добавить новый контакт Spixi по 
 contact-new-placeholder = Вставьте / введите адрес
 contact-new-send-request = Добавить контакт
 contact-new-invalid-address-self-text = Адрес, который Вы указали принадлежит вам.
+contact-self-title = Это ваш собственный адрес
+contact-exists-title = Уже в ваших контактах
 contact-new-invalid-address-exists-text = Адрес уже в Вашем контакт-листе.
 contact-new-scan = Сканировать 
 contact-new-scan-help = Или отсканируйте QR-код
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Без пароля или резервн�
 create-account-finish-setup = Завершить настройку
 create-account-creating = Создание аккаунта...
 create-account-creating-description = Это займет всего несколько секунд. Ваш аккаунт защищается.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Требуется никнейм
+intro-new-emptynick-text = Введите никнейм, чтобы продолжить.
+intro-new-avatarerror-title = Не удалось установить аватар
+intro-new-walleterror-title = Не удалось создать аккаунт
+intro-new-walleterror-text = При создании аккаунта что-то пошло не так. Пожалуйста, попробуйте ещё раз.
+intro-new-walletexists-title = Аккаунт уже существует
+intro-new-walletexists-text = На этом устройстве уже есть аккаунт, поэтому создать новый здесь нельзя. Перезапустите Spixi, чтобы продолжить с существующим аккаунтом.
 
 ; Intro Restore Screen
 intro-restore-title = Восстановление аккаунта
@@ -633,7 +644,7 @@ global-call-incoming = Входящий вызов
 global-dialog-error = Ошибка
 global-dialog-ok = OK
 global-dialog-cancel = ОТМЕНА
-global-invalid-address-title = Неправильный адрес
+global-invalid-address-title = Этот адрес не подошёл
 global-invalid-address-text = Введите правильный адрес.
 
 global-friend-request-accepted = {0} принял ваш запрос добавления в контакты.
@@ -654,3 +665,12 @@ global-time-minutesago = мин
 global-share-choose = Выберите действие
 global-share-savefile = Сохранить файл
 global-share-sharefile = Поделиться файлом
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Новое сообщение
+notification-incoming-call = Входящий вызов
+notification-payment-received = Платёж получен
+notification-payment-request = Запрос платежа
+notification-app-invite = Приглашение в приложение
+notification-file = Файл получен
+notification-contact-request = Запрос в контакты

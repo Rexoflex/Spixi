@@ -348,6 +348,34 @@ namespace SPIXI
             return transfer;
         }
 
+        // #334 (Damir ask: cancel a sent-but-unaccepted file): sender-side abort —
+        // dispose + drop the outgoing transfer and its packet log so a late Accept
+        // finds nothing to serve (the same posture as a sender restart; the peer's
+        // requestFileData loop then idles out). The DURABLE retraction rides the
+        // message delete (no fileCancel protocol code exists — BE row; the peer's
+        // row resurrect on reopen = the known C16 limitation).
+        public static void removeOutgoingTransfer(string uid)
+        {
+            if (uid == null || uid == "")
+            {
+                return;
+            }
+            lock (outgoingTransfers)
+            {
+                FileTransfer transfer = outgoingTransfers.Find(x => x.uid == uid);
+                if (transfer == null)
+                {
+                    return;
+                }
+                if (transfer.fileStream != null)
+                {
+                    try { transfer.fileStream.Dispose(); } catch (Exception) { }
+                }
+                outgoingTransfers.Remove(transfer);
+            }
+            removePacketsForFileTransfer(uid);
+        }
+
         public static FileTransfer prepareIncomingFileTransfer(FileTransfer transfer)
         {
             lock (incomingTransfers)

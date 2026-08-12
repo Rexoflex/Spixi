@@ -16,7 +16,7 @@
   /* 100ms intentional: micro-interaction, matches chatlist row hover */
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .c-txlist-item:hover { background: var(--surface-interactive-hover); }
 }
 /* :active AFTER the hover block so pressed wins (source order at equal specificity) */

@@ -230,6 +230,8 @@ contact-new-description = Para adicionar um novo contato, cole ou insira o ender
 contact-new-placeholder = Cole ou insira o endereço
 contact-new-send-request = Adicionar contato
 contact-new-invalid-address-self-text = O endereço inserido é o seu próprio endereço.
+contact-self-title = Esse é o seu próprio endereço
+contact-exists-title = Já está nos seus contatos
 contact-new-invalid-address-exists-text = Este contato já foi adicionado.
 contact-new-scan = Escanear
 contact-new-scan-help = Ou escaneie um código QR
@@ -357,6 +359,15 @@ create-account-step-2-note-subtitle = Sem ela ou seu backup, sua conta e carteir
 create-account-finish-setup = Finalizar configuração
 create-account-creating = Criando sua conta...
 create-account-creating-description = Isso não vai demorar. Sua conta está sendo protegida.
+
+; #334 L5 launch create/onboarding alerts (machine draft — native review needed)
+intro-new-emptynick-title = Apelido obrigatório
+intro-new-emptynick-text = Digite um apelido para continuar.
+intro-new-avatarerror-title = Não foi possível definir o avatar
+intro-new-walleterror-title = Não foi possível criar a conta
+intro-new-walleterror-text = Algo deu errado ao criar sua conta. Tente novamente.
+intro-new-walletexists-title = A conta já existe
+intro-new-walletexists-text = Já existe uma conta neste dispositivo, então não é possível criar uma nova aqui. Reinicie o Spixi para continuar com a conta existente.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurar conta
@@ -633,7 +644,7 @@ global-call-incoming = Chamada recebida
 global-dialog-error = Erro
 global-dialog-ok = OK
 global-dialog-cancel = Cancelar
-global-invalid-address-title = Endereço inválido
+global-invalid-address-title = Esse endereço não funcionou
 global-invalid-address-text = Por favor, insira um endereço válido.
 
 global-friend-request-accepted = {0} aceitou seu pedido de contato.
@@ -654,3 +665,12 @@ global-time-minutesago = min
 global-share-choose = Escolha uma ação
 global-share-savefile = Salvar arquivo
 global-share-sharefile = Compartilhar arquivo
+
+; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+notification-new-message = Nova mensagem
+notification-incoming-call = Chamada recebida
+notification-payment-received = Pagamento recebido
+notification-payment-request = Solicitação de pagamento
+notification-app-invite = Convite de app
+notification-file = Arquivo recebido
+notification-contact-request = Pedido de contato

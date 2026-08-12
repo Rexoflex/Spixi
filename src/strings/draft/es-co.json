@@ -559,5 +559,8 @@
   "you": "Tú",
   "youInvited": "Has enviado una invitación",
   "youRequested": "Solicitaste",
-  "yourAddress": "Tu dirección"
+  "yourAddress": "Tu dirección",
+  "cancelTransfer": "Cancelar envío",
+  "viewPhoto": "Ver foto",
+  "waitingForAccept": "Esperando a que {name} acepte tu solicitud"
 }

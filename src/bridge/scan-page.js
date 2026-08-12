@@ -298,6 +298,32 @@ export function html5QrcodeCamera(win) {
               // enumerate/deviceId path failed → last-resort plain user-facing ask
               go({ facingMode: 'user' }).then(up).catch(onFail('desktop user-facing fallback; first error: ' + e1));
             });
+        } else if (/Android/i.test(((w.navigator || navigator).userAgent) || '')) {
+          /* #334 AND-22 (Damir Samsung walk: "fisheye" preview + poor decode): a
+           * bare facingMode:'environment' on a multi-lens Android can rank the
+           * ULTRA-WIDE first. Enumerate like #263 and prefer the MAIN back
+           * camera: back-facing only → drop named non-main lenses → lowest
+           * camera index ("camera2 0, facing back" = main on Samsung/Pixel).
+           * Every failure steps down to the pre-#334 behavior. iOS deliberately
+           * keeps the bare environment ask — its scan is device-verified (#313). */
+          w.Html5Qrcode.getCameras()
+            .then((cams) => {
+              const backs = (cams || []).filter((c) => /back|rear|environment/i.test(c.label || ''));
+              const mains = backs.filter((c) => !/ultra|tele|macro|depth|infrared|fisheye|virtual/i.test(c.label || ''));
+              // loop MINOR-3: take the LAST digit run — "camera2 0, facing back"
+              // leads with the API level's 2, which ranked every lens equal.
+              const rank = (c) => { const m = (c.label || '').match(/\d+/g); return m ? parseInt(m[m.length - 1], 10) : 99; };
+              const pick = (mains.length ? mains : backs).sort((a, b) => rank(a) - rank(b))[0];
+              return go(pick ? { deviceId: { exact: pick.id } } : { facingMode: 'environment' });
+            })
+            .then(up)
+            .catch((e1) => {
+              go({ facingMode: 'environment' })
+                .then(up)
+                .catch((e2) => {
+                  go({ facingMode: 'user' }).then(up).catch(onFail('android fallback chain; errors: ' + e1 + ' | ' + e2));
+                });
+            });
         } else {
           go({ facingMode: 'environment' })
             .then(up)

@@ -49,4 +49,4 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-@media (hover: hover) { .c-apps-recents__item:hover .c-apps-recents__name { color: var(--text-action-default); } }
+@media (hover: hover) and (pointer: fine) { .c-apps-recents__item:hover .c-apps-recents__name { color: var(--text-action-default); } }

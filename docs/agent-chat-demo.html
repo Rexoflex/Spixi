@@ -3183,12 +3183,17 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .agent-turn .c-avatar { align-self: flex-start; margin-top: var(--spacing-2); }
 .agent-turn__body { min-width: 0; flex: 1; }
 .agent-turn__hdr { display: flex; align-items: baseline; gap: var(--spacing-8); margin-bottom: var(--spacing-2); }
-.agent-turn__name { font-size: var(--font-size-label-sm); line-height: var(--line-height-label-sm);
+.agent-turn__name { font-family: var(--font-primary); /* display voice for the agent label */
+  font-size: var(--font-size-label-sm); line-height: var(--line-height-label-sm);
   font-weight: var(--font-weight-semibold); color: var(--text-action-default); }
 .agent-turn__time { font-size: var(--font-size-label-xs); color: var(--text-neutral-03); }
 .agent-prose { color: var(--text-neutral-01);
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
-  line-height: calc(var(--line-height-body-md) * var(--chat-text-scale, 1)); }
+  /* reading rhythm: agent turns are documents, not chatter — 1.15x the bubble
+     line-height. Production: mint a dedicated token (--line-height-body-reading)
+     instead of the inline multiplier. Same face as the rest of the app — the
+     distinction is layout + rhythm, not a third typeface. */
+  line-height: calc(var(--line-height-body-md) * var(--chat-text-scale, 1) * 1.15); }
 .agent-prose p { margin: var(--spacing-4) 0; }
 .agent-prose h4 { margin: var(--spacing-12) 0 var(--spacing-2); font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm); letter-spacing: var(--tracking-label-sm);
@@ -3196,7 +3201,9 @@ html[data-desktop] .c-chat-canvas { --layout-bubble-max: 640px; }
 .agent-prose ul { margin: var(--spacing-4) 0; padding-inline-start: var(--spacing-20); }
 .agent-prose li { margin: var(--spacing-2) 0; }
 .agent-prose code { background: var(--surface-neutral-02); border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-4); padding: 0 var(--spacing-4); font-size: var(--font-size-body-sm); }
+  border-radius: var(--radius-4); padding: 0 var(--spacing-4); font-size: var(--font-size-body-sm);
+  /* mono is reserved for code — no mono anywhere else in agent turns */
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace; }
 .agent-prose pre { position: relative; background: var(--surface-neutral-02);
   border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-8); padding: var(--spacing-12); overflow-x: auto; margin: var(--spacing-8) 0; }

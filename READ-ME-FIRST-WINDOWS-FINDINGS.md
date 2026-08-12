@@ -349,6 +349,13 @@ presentation (text/code artifacts) is phase 3.
 - The workflow panel = **floating solid containers** over the canvas
   (surface-neutral-01, radius-16, elevation-3) top-right, not an attached
   full-height pane. Hidden below ~1450px width.
+- Typography: NO separate typeface for agent chat — same faces as the app.
+  Distinction comes from layout + rhythm: agent prose gets a more generous
+  line-height (demo uses 1.15× body-md; production should mint a
+  --line-height-body-reading token), the agent name label is set in
+  --font-primary (Sora), and monospace stays reserved for code. A dedicated
+  reading face is explicitly deferred until agent output becomes long-form
+  document territory.
 - The demo (docs/agent-chat-demo.html) embeds the PRODUCTION stylesheets
   verbatim and uses real component classes/states (aria-current, aria-pressed,
   data-placeholder, data-readonly, c-bubble grammar) — treat its agent-mode

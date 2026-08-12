@@ -247,7 +247,7 @@
     background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
     text-align: start; cursor: pointer; width: 100%;
   }
-  .chat-app-picker__item:hover { background: var(--surface-interactive-hover); }
+  @media (hover: hover) and (pointer: fine) { .chat-app-picker__item:hover { background: var(--surface-interactive-hover); } } /* #337: AND-18 sweep miss */
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
   /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
@@ -3527,10 +3527,18 @@
      * fought user scrolling AND yanked the @-mention FAB's jump back to the
      * bottom while the mention was already marked seen (the marker burned with
      * the jump never shown). A touch anywhere = user intent wins. */
-    document.addEventListener('touchstart', () => {
-      cancelAnimationFrame(stickRaf);
-      stickEnd = 0;
-    }, { passive: true, capture: true });
+    /* #337 audit MINOR: touchmove too — the AND-16 v2 arm fires on a window
+     * RESIZE that can land MID-drag (composer tap → flick up → IME resize
+     * ~100-300ms later): touchstart already happened, so without a move abort
+     * the stick fought the active finger for up to 500ms (#328 class). A
+     * touchmove only fires with a finger down — cancelling there never hurts
+     * the no-touch case the stick exists for (the composer's own slide). */
+    for (const evName of ['touchstart', 'touchmove']) {
+      document.addEventListener(evName, () => {
+        cancelAnimationFrame(stickRaf);
+        stickEnd = 0;
+      }, { passive: true, capture: true });
+    }
     let lastInset = -1;                    // #328: arm the stick only on a REAL change
     function setInset(px) {
       document.documentElement.style.setProperty('--kb-inset', px + 'px');

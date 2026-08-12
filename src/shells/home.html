@@ -609,8 +609,22 @@
   function homeOverlayLive() {
     return !!(contactsView || walletTakeover) || document.body.dataset.overlayOpen !== undefined;
   }
+  /* AND-29 r3 (#337 audit MAJOR): DEFERRED + coalesced. bridge.send is a raw
+   * location.href assignment with NO queue (native.js) — two navigations in one
+   * task coalesce last-wins (the #185 single-navigation lesson). The picker's
+   * pick path runs close() + bridge.send('ixian:chat:…') in ONE task (the state
+   * push was silently dropped → C# kept a stale `true`), and group-create ran
+   * bridge.send('ixian:creategroup:…') THEN close() — the state push CLOBBERED
+   * the create verb (group never created). One trailing push per task, absolute
+   * state read at fire time, so a state push never shares a navigation slot
+   * with a verb and last-wins stays correct. */
+  let homeOverlaySyncT = 0;
   function syncHomeOverlay() {
-    try { bridge.send('ixian:homeoverlay:' + (homeOverlayLive() ? '1' : '0')); } catch (e) {}
+    if (homeOverlaySyncT) return;
+    homeOverlaySyncT = setTimeout(() => {
+      homeOverlaySyncT = 0;
+      try { bridge.send('ixian:homeoverlay:' + (homeOverlayLive() ? '1' : '0')); } catch (e) {}
+    }, 0);
   }
   // overlay.js toggles body[data-overlay-open] as sheets/menus open+close — mirror
   // that to C# so hardware back is routed while a sheet is up (not just a takeover).
@@ -2088,7 +2102,10 @@
     // AND-29 (#336): Android hardware back, routed here by HomePage when a
     // WebView-internal takeover is open — close the top one (contacts/new-chat
     // or wallet Receive/Send) instead of letting C# pop the root (= exit app).
-    homeBack() { closeTopHomeTakeover(); },
+    // #337 audit MINOR: self-heal — if C# routed back here on STALE state
+    // (nothing actually open), re-assert the true state so the very next
+    // press routes normally instead of being swallowed forever.
+    homeBack() { if (!closeTopHomeTakeover()) syncHomeOverlay(); },
 
     // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
     // appearance pick / HomePage on return from Account). C#-RESOLVED name — never

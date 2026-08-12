@@ -524,7 +524,17 @@
     if (currentView !== 'downloads') releaseDownloads();
     if (!hubEl) { hubEl = buildHub(); syncSave(); }
     if (paneMode) {
-      if (hubEl.parentNode !== masterWrap) masterWrap.replaceChildren(hubEl);
+      if (hubEl.parentNode !== masterWrap) {
+        masterWrap.replaceChildren(hubEl);
+        // #337: consume a captured hub scroll here too (setLocale in PANE mode
+        // rebuilds the hub column) — and never leak a stale latch across a
+        // later mode flip into the non-pane restore.
+        if (hubScrollTop) {
+          const t = hubScrollTop; hubScrollTop = 0;   // one-shot (#337)
+          const b = hubEl.querySelector('.c-settings__body');
+          if (b) { b.scrollTop = t; requestAnimationFrame(() => { b.scrollTop = t; }); }
+        }
+      }
       if (masterWrap.parentNode !== root) root.replaceChildren(masterWrap, detailWrap);
       detailWrap.replaceChildren(currentView === 'hub' ? getEmpty() : buildScreen(currentView));
       // #274: remember which language the picker was BUILT with — a restored
@@ -544,10 +554,22 @@
         const b = hubEl.querySelector('.c-settings__body');
         if (b) hubScrollTop = b.scrollTop;
       }
-      root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
-      if (currentView === 'hub' && hubScrollTop) {
-        const b = hubEl.querySelector('.c-settings__body');
-        if (b) { b.scrollTop = hubScrollTop; requestAnimationFrame(() => { b.scrollTop = hubScrollTop; }); }
+      // #337 audit (iOS-66 root cause): an ALREADY-MOUNTED hub must not be
+      // detach/re-attached — replaceChildren with the same node still resets the
+      // scroller to 0, so every hub-view re-render (onRepresented, setPaneMode
+      // re-assert) silently lost the scroll, then the restore below re-applied a
+      // STALE latch (saved at the last sublevel visit ≈ bottom) → "Account snaps
+      // to the bottom on a language change". Skip the swap when nothing changed;
+      // consume the latch ONE-SHOT so a stale value can never be re-applied.
+      if (currentView === 'hub' && hubEl.parentNode === root) {
+        // hub already mounted — leave it in place (live scroll preserved)
+      } else {
+        root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+        if (currentView === 'hub' && hubScrollTop) {
+          const t = hubScrollTop; hubScrollTop = 0;   // one-shot (#337)
+          const b = hubEl.querySelector('.c-settings__body');
+          if (b) { b.scrollTop = t; requestAnimationFrame(() => { b.scrollTop = t; }); }
+        }
       }
       // #274 review MINOR-2: track the built language for the NON-pane mount too — a
       // restored picker can boot before setPaneMode/setLanguage land (or the window
@@ -978,6 +1000,14 @@
       window.SL = dict;
       strings = dict;
       if (code) state.language = String(code);
+      // #337 (iOS-66): keep the pick surface's scroll through the re-localize —
+      // the rebuilt hub re-attaches at 0, so capture the LIVE position now and
+      // let renderLayout's one-shot restore re-apply it (mobile keeps the sheet
+      // open over an unmoved hub; pane keeps the hub column where it was).
+      // (r2: isConnected guard — a detached hub reports scrollTop 0, which would
+      // ZERO a #15 latch saved on sublevel entry; unreachable today, belt only.)
+      const hb = hubEl && hubEl.isConnected && hubEl.querySelector('.c-settings__body');
+      hubScrollTop = hb ? hb.scrollTop : hubScrollTop;
       hubEl = null;
       emptyEl = null;      // loop MINOR-4: the memoized sd-empty pane baked the old dict
       // loop MINOR-5: the pane picker still arms the #274 reload-stash before the

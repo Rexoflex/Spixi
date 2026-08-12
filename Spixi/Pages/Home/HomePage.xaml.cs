@@ -1364,6 +1364,13 @@ namespace SPIXI
         }
         private void onLoaded()
         {
+            // #337 audit MAJOR (AND-29): every ixian:onload = a FRESH home document —
+            // nothing is open in it, but a takeover/sheet may have been open when the
+            // old document was torn down (OS theme flip → reloadAllPages, language
+            // reloadShell, renderer crash). A stale `true` would swallow EVERY
+            // hardware back (homeBack closes nothing, we return true) with no heal.
+            homeShellOverlayOpen = false;
+
             if (!Preferences.Default.ContainsKey("onboardingComplete"))
             {
                 // Show onboarding screen
@@ -2479,18 +2486,25 @@ namespace SPIXI
                 Utils.sendUiCommand(sp, "onBack");
                 return true;
             }
+            // #225: hardware/host back closes the top NATIVE overlay first.
+            // #337 audit MAJOR (AND-29 r3): this must run BEFORE the shell-takeover
+            // branch — native overlays (chat, ContactDetails, formpane, txdetail)
+            // always render ABOVE the home WebView, and the directory takeover
+            // DELIBERATELY stays open under a pushed ContactDetails/ContactNewPage
+            // (back-from-details must land on the directory). With the old order the
+            // first back inside the details page invisibly closed the directory
+            // underneath and the visible page ignored the press.
+            if (SpixiContentPage.closeTopOverlay())
+            {
+                return true;
+            }
             // AND-29 (#336): a WebView-internal home takeover (contacts/new-chat,
-            // wallet Receive/Send) is open — it is NOT a native overlay, so
-            // closeTopOverlay/base would miss it and EXIT THE APP. Route back into
-            // the shell to close the takeover (state pushed via ixian:homeoverlay).
+            // wallet Receive/Send) or an overlay.js sheet is open — it is NOT a
+            // native overlay, so base would miss it and EXIT THE APP. Route back
+            // into the shell to close it (state pushed via ixian:homeoverlay).
             if (homeShellOverlayOpen)
             {
                 Utils.sendUiCommand(this, "homeBack");
-                return true;
-            }
-            // #225: hardware/host back closes the top overlay first.
-            if (SpixiContentPage.closeTopOverlay())
-            {
                 return true;
             }
             return base.OnBackButtonPressed();

@@ -3,7 +3,9 @@
    elevation-1, header label+time, pill actions, Details link. */
 
 .c-tcard {
-  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
+     token — the 680px desktop bubble raise must not stretch fixed-width cards */
+  width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
@@ -22,7 +24,7 @@
 .c-tcard[data-kind="call"] {
   width: fit-content;
   min-width: 220px;
-  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
 }
 
 .c-tcard__head {
@@ -201,7 +203,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
   padding: var(--spacing-8) var(--spacing-12);
   border: 0;
   border-radius: var(--radius-16);

@@ -349,6 +349,13 @@
   --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
   --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
+  /* #337 audit (W4 ride-along): typed OBJECTS (payment/app/call cards, file
+     rows, media tiles) hold this rail on EVERY platform — same value as
+     bubble-max on mobile (byte-identical render), but NOT raised to 680 under
+     [data-desktop]: .c-tcard is `width:` (fixed, not hugging), so the W4 raise
+     made mostly-empty payment cards 680px wide on desktop. Dial: raise here if
+     Damir wants wider desktop cards/tiles. */
+  --layout-card-max: 360px;
 }
 
 /* ==========================================================================
@@ -2392,7 +2399,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    elevation-1, header label+time, pill actions, Details link. */
 
 .c-tcard {
-  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
+     token — the 680px desktop bubble raise must not stretch fixed-width cards */
+  width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
@@ -2411,7 +2420,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard[data-kind="call"] {
   width: fit-content;
   min-width: 220px;
-  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
 }
 
 .c-tcard__head {
@@ -2590,7 +2599,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
   padding: var(--spacing-8) var(--spacing-12);
   border: 0;
   border-radius: var(--radius-16);
@@ -3316,7 +3325,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-4);
-  max-width: min(85%, calc(var(--layout-bubble-max) + 40px));
+  max-width: min(85%, calc(var(--layout-card-max) + 40px)); /* #337 r2: card rail — the secure notice is a CARD, not a text bubble (720px on desktop otherwise) */
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-12);
   border-radius: var(--radius-16);
   /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
@@ -4498,7 +4507,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      scroll area — a portrait GIF used to render half under the composer
      (Damir F5 2026-07-08). vh keeps it inside #messages on any screen; the
      full uncropped frame is one tap away in the viewer. */
-  max-height: min(var(--layout-bubble-max), 45vh);
+  max-height: min(var(--layout-card-max), 45vh); /* #337: card rail — not the 680 desktop bubble raise */
   min-height: 96px;                     /* dimension-less messages still get a tile */
   padding: 0;
   border: 0;
@@ -4543,7 +4552,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   display: block;
   /* the anchor is the flex item now — it carries the bubble width rule so
      the tile's percentage has a definite base (audit r4) */
-  width: min(var(--bubble-max-pct), var(--layout-bubble-max));
+  width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail (fixed-width anchor) */
 }
 
 /* center affordance (play/download/spinner/retry) on a scrim circle.
@@ -4922,7 +4931,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
     text-align: start; cursor: pointer; width: 100%;
   }
-  .chat-app-picker__item:hover { background: var(--surface-interactive-hover); }
+  @media (hover: hover) and (pointer: fine) { .chat-app-picker__item:hover { background: var(--surface-interactive-hover); } } /* #337: AND-18 sweep miss */
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
   /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
@@ -26992,10 +27001,18 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
      * fought user scrolling AND yanked the @-mention FAB's jump back to the
      * bottom while the mention was already marked seen (the marker burned with
      * the jump never shown). A touch anywhere = user intent wins. */
-    document.addEventListener('touchstart', () => {
-      cancelAnimationFrame(stickRaf);
-      stickEnd = 0;
-    }, { passive: true, capture: true });
+    /* #337 audit MINOR: touchmove too — the AND-16 v2 arm fires on a window
+     * RESIZE that can land MID-drag (composer tap → flick up → IME resize
+     * ~100-300ms later): touchstart already happened, so without a move abort
+     * the stick fought the active finger for up to 500ms (#328 class). A
+     * touchmove only fires with a finger down — cancelling there never hurts
+     * the no-touch case the stick exists for (the composer's own slide). */
+    for (const evName of ['touchstart', 'touchmove']) {
+      document.addEventListener(evName, () => {
+        cancelAnimationFrame(stickRaf);
+        stickEnd = 0;
+      }, { passive: true, capture: true });
+    }
     let lastInset = -1;                    // #328: arm the stick only on a REAL change
     function setInset(px) {
       document.documentElement.style.setProperty('--kb-inset', px + 'px');

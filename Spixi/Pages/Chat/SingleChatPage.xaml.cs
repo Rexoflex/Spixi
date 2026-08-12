@@ -284,7 +284,11 @@ namespace SPIXI
                 if (address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
                 {
                     // #336 (Damir F5 #10): a valid own/known address is NOT "Invalid Address" — friendlier, accurate title.
-                    displaySpixiAlert(SpixiLocalization._SL("contact-self-title"), SpixiLocalization._SL("contact-new-invalid-address-self-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    // #337 audit: ?? fallbacks — _SL returns NULL under the 5 hidden OS-culture
+                    // locales (#258/#335 class; the two NEW title keys are absent there), so the
+                    // alert rendered TITLE-LESS for that cohort (displaySpixiAlert try/catches,
+                    // so no crash — reviewer r2 corrected the "dies silently" first read).
+                    displaySpixiAlert(SpixiLocalization._SL("contact-self-title") ?? "That's your address", SpixiLocalization._SL("contact-new-invalid-address-self-text") ?? "The address you have entered is your own address.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
                     return;
                 }
                 // #334 AND-17(a): an already-known member (any state — previously
@@ -302,7 +306,8 @@ namespace SPIXI
                 if (existing != null)
                 {
                     // #336 (Damir F5 #10): friendlier + accurate ("Already in your contacts").
-                    displaySpixiAlert(SpixiLocalization._SL("contact-exists-title"), SpixiLocalization._SL("contact-new-invalid-address-exists-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    // #337 audit: ?? fallbacks — hidden-locale _SL null must not strip the title (see self-guard above).
+                    displaySpixiAlert(SpixiLocalization._SL("contact-exists-title") ?? "Already in your contacts", SpixiLocalization._SL("contact-new-invalid-address-exists-text") ?? "This contact is already added.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
                 }
                 else
                 {

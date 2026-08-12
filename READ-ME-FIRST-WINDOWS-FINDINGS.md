@@ -240,6 +240,70 @@ active). Spec of the working prototype:
 
 ---
 
+## F1 — FUTURE EXPLORATION (design note, NOT part of the fix batch): AI-agent conversations over QuIXI
+
+Context (Damir, 2026-08-12): Spixi can talk to AI agents connected through QuIXI
+over S2. Goal: the client should KNOW a peer is an agent and give those
+conversations a distinct experience (bubble-less agent turns like a Claude-style
+interface, markdown, files, streaming). Visual target mock:
+`docs/agent-chat-demo.html` (self-contained, open in a browser). The mock also
+sketches a desktop-only WORKFLOW SIDE PANEL: an agent with the `workflows`
+capability publishes structured task state (steps, done/waiting/running/pending,
+progress, which steps need user confirmation) rendered beside the conversation —
+a phase-3+ idea on the same capability channel.
+
+**Detection — capability advertisement, not just a flag.** The contact model
+already distinguishes bot peers (groups run on bot-server contacts; the chat
+shell has group/bot info surfaces). Extend the QuIXI handshake/presence so an
+agent advertises a capability profile — `agent: true` + `markdown` / `files` /
+`streaming` — stored per-contact (Friend) and pushed to the chat shell, which
+switches that conversation into agent mode. Capabilities version better than a
+boolean: rendering degrades gracefully per feature.
+
+**Agent-mode rendering (chat.html variant, keyed on the capability):** incoming
+agent turns render as full-width prose blocks — avatar + name once per turn, no
+bubble chrome; the user's own messages stay as bubbles. Typing indicator becomes
+a "thinking" state. Streaming = message-append/edit semantics in QuIXI so the
+turn grows in place (phase 2).
+
+**Security requirements (non-negotiable):**
+- Markdown is a SANITIZED SUBSET renderer — no raw-HTML pass-through, no remote
+  image/resource fetches, everything escaped. This discipline applies to ALL
+  contacts, not only self-declared agents.
+- The agent flag is SELF-DECLARED and cosmetic only — it must never grant
+  additional trust, permissions, or a different message pipeline. Same E2E, same
+  transport, different presentation.
+- Wallet actions stay user-confirmed: an agent can REQUEST a payment (existing
+  request flow), never trigger one.
+
+**Files:** reuse the existing transfer path + Downloads; richer inline
+presentation (text/code artifacts) is phase 3.
+
+**UI decisions locked with the demo (Damir 2026-08-12):**
+- Agent chats get an **"Agents" filter chip** in the chats header (All · Unread ·
+  Groups · Agents), driven by the same per-contact capability flag.
+- Agent contacts are marked with a **corner glyph on the avatar in the same slot
+  the presence dot uses** (c-avatar__dot mechanism — production-doable, no new
+  layout); the chat-list excerpt for an agent can show live workflow status
+  ("✦ Working: <workflow> · 3/5 steps") instead of the last message.
+- Agent conversations use an **AI-style composer**: floating rounded field over
+  the canvas (surface-neutral-02, radius-16, elevation-2), no full-width chrome
+  bar, slightly taller, auto-growing multiline. Human chats keep the standard
+  composer.
+- The workflow panel = **floating solid containers** over the canvas
+  (surface-neutral-01, radius-16, elevation-3) top-right, not an attached
+  full-height pane. Hidden below ~1450px width.
+- The demo (docs/agent-chat-demo.html) embeds the PRODUCTION stylesheets
+  verbatim and uses real component classes/states (aria-current, aria-pressed,
+  data-placeholder, data-readonly, c-bubble grammar) — treat its agent-mode
+  <style data-src="demo-agent-mode"> block as the starting spec for the shell
+  CSS, it is written in semantic tokens only.
+
+**Phasing:** ① capability handshake + bubble-less rendering + sanitized
+markdown → ② streaming append/edit → ③ artifact-style file presentation.
+
+---
+
 ## Suggested verification checklist (Windows, after the batch lands)
 
 1. W1: theme pick both directions → every live surface flips without reload

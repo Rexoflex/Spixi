@@ -339,6 +339,13 @@
   --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
   --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
+  /* #337 audit (W4 ride-along): typed OBJECTS (payment/app/call cards, file
+     rows, media tiles) hold this rail on EVERY platform — same value as
+     bubble-max on mobile (byte-identical render), but NOT raised to 680 under
+     [data-desktop]: .c-tcard is `width:` (fixed, not hugging), so the W4 raise
+     made mostly-empty payment cards 680px wide on desktop. Dial: raise here if
+     Damir wants wider desktop cards/tiles. */
+  --layout-card-max: 360px;
 }
 
 /* ==========================================================================
@@ -9202,36 +9209,37 @@ function openMediaViewer({
   el.setAttribute('aria-label', alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image')));
   el.tabIndex = -1;
 
-  const bar = document.createElement('div');
-  bar.className = 'c-mviewer__bar';
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'c-mviewer__btn';
-  close.setAttribute('aria-label', strings.close || 'Close');
-  close.append(icon('x', { size: 22 }));
-  close.addEventListener('click', () => dismissOverlay(el));
-  bar.append(close);
-  if (alt) {
-    const cap = document.createElement('span');
-    cap.className = 'c-mviewer__caption';
-    cap.textContent = alt;
-    bar.append(cap);
+  // #336 (Damir F5 iOS #1): the close ✕ used to live in a TOP bar with no
+  // safe-area inset — on iOS edge-to-edge it sat UNDER the status bar and
+  // wasn't tappable. The top bar now carries only the caption + optional Save
+  // (with the top inset), and CLOSE moved to a prominent bottom-centered button
+  // (below). A top bar renders only when there's something to show.
+  if (alt || onSave) {
+    const bar = document.createElement('div');
+    bar.className = 'c-mviewer__bar';
+    if (onSave) {
+      const spacer = document.createElement('span');   // balance the Save button so the caption stays centered
+      spacer.className = 'c-mviewer__spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      bar.append(spacer);
+    }
+    if (alt) {
+      const cap = document.createElement('span');
+      cap.className = 'c-mviewer__caption';
+      cap.textContent = alt;
+      bar.append(cap);
+    }
+    if (onSave) {
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'c-mviewer__btn';
+      save.setAttribute('aria-label', strings.save || 'Save');
+      save.append(icon('download', { size: 22 }));
+      save.addEventListener('click', () => onSave());
+      bar.append(save);
+    }
+    el.append(bar);
   }
-  if (onSave) {
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'c-mviewer__btn';
-    save.setAttribute('aria-label', strings.save || 'Save');
-    save.append(icon('download', { size: 22 }));
-    save.addEventListener('click', () => onSave());
-    bar.append(save);
-  } else {
-    const spacer = document.createElement('span');
-    spacer.className = 'c-mviewer__spacer';
-    spacer.setAttribute('aria-hidden', 'true');
-    bar.append(spacer);
-  }
-  el.append(bar);
 
   const stage = document.createElement('div');
   stage.className = 'c-mviewer__stage';
@@ -9243,6 +9251,19 @@ function openMediaViewer({
   stage.append(img);
   el.append(stage);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
+  // clear of the notch/status bar, with the home-indicator safe-area inset.
+  const foot = document.createElement('div');
+  foot.className = 'c-mviewer__foot';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'c-mviewer__close';
+  close.setAttribute('aria-label', strings.close || 'Close');
+  close.append(icon('x', { size: 24 }));
+  close.addEventListener('click', () => dismissOverlay(el));
+  foot.append(close);
+  el.append(foot);
 
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;
@@ -23561,7 +23582,17 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
     if (currentView !== 'downloads') releaseDownloads();
     if (!hubEl) { hubEl = buildHub(); syncSave(); }
     if (paneMode) {
-      if (hubEl.parentNode !== masterWrap) masterWrap.replaceChildren(hubEl);
+      if (hubEl.parentNode !== masterWrap) {
+        masterWrap.replaceChildren(hubEl);
+        // #337: consume a captured hub scroll here too (setLocale in PANE mode
+        // rebuilds the hub column) — and never leak a stale latch across a
+        // later mode flip into the non-pane restore.
+        if (hubScrollTop) {
+          const t = hubScrollTop; hubScrollTop = 0;   // one-shot (#337)
+          const b = hubEl.querySelector('.c-settings__body');
+          if (b) { b.scrollTop = t; requestAnimationFrame(() => { b.scrollTop = t; }); }
+        }
+      }
       if (masterWrap.parentNode !== root) root.replaceChildren(masterWrap, detailWrap);
       detailWrap.replaceChildren(currentView === 'hub' ? getEmpty() : buildScreen(currentView));
       // #274: remember which language the picker was BUILT with — a restored
@@ -23581,10 +23612,22 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
         const b = hubEl.querySelector('.c-settings__body');
         if (b) hubScrollTop = b.scrollTop;
       }
-      root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
-      if (currentView === 'hub' && hubScrollTop) {
-        const b = hubEl.querySelector('.c-settings__body');
-        if (b) { b.scrollTop = hubScrollTop; requestAnimationFrame(() => { b.scrollTop = hubScrollTop; }); }
+      // #337 audit (iOS-66 root cause): an ALREADY-MOUNTED hub must not be
+      // detach/re-attached — replaceChildren with the same node still resets the
+      // scroller to 0, so every hub-view re-render (onRepresented, setPaneMode
+      // re-assert) silently lost the scroll, then the restore below re-applied a
+      // STALE latch (saved at the last sublevel visit ≈ bottom) → "Account snaps
+      // to the bottom on a language change". Skip the swap when nothing changed;
+      // consume the latch ONE-SHOT so a stale value can never be re-applied.
+      if (currentView === 'hub' && hubEl.parentNode === root) {
+        // hub already mounted — leave it in place (live scroll preserved)
+      } else {
+        root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+        if (currentView === 'hub' && hubScrollTop) {
+          const t = hubScrollTop; hubScrollTop = 0;   // one-shot (#337)
+          const b = hubEl.querySelector('.c-settings__body');
+          if (b) { b.scrollTop = t; requestAnimationFrame(() => { b.scrollTop = t; }); }
+        }
       }
       // #274 review MINOR-2: track the built language for the NON-pane mount too — a
       // restored picker can boot before setPaneMode/setLanguage land (or the window
@@ -24015,6 +24058,14 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
       window.SL = dict;
       strings = dict;
       if (code) state.language = String(code);
+      // #337 (iOS-66): keep the pick surface's scroll through the re-localize —
+      // the rebuilt hub re-attaches at 0, so capture the LIVE position now and
+      // let renderLayout's one-shot restore re-apply it (mobile keeps the sheet
+      // open over an unmoved hub; pane keeps the hub column where it was).
+      // (r2: isConnected guard — a detached hub reports scrollTop 0, which would
+      // ZERO a #15 latch saved on sublevel entry; unreachable today, belt only.)
+      const hb = hubEl && hubEl.isConnected && hubEl.querySelector('.c-settings__body');
+      hubScrollTop = hb ? hb.scrollTop : hubScrollTop;
       hubEl = null;
       emptyEl = null;      // loop MINOR-4: the memoized sd-empty pane baked the old dict
       // loop MINOR-5: the pane picker still arms the #274 reload-stash before the

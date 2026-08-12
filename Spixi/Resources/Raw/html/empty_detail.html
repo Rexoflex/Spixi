@@ -337,6 +337,13 @@
   --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
   --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
+  /* #337 audit (W4 ride-along): typed OBJECTS (payment/app/call cards, file
+     rows, media tiles) hold this rail on EVERY platform — same value as
+     bubble-max on mobile (byte-identical render), but NOT raised to 680 under
+     [data-desktop]: .c-tcard is `width:` (fixed, not hugging), so the W4 raise
+     made mostly-empty payment cards 680px wide on desktop. Dial: raise here if
+     Damir wants wider desktop cards/tiles. */
+  --layout-card-max: 360px;
 }
 
 /* ==========================================================================

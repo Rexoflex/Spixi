@@ -4435,13 +4435,110 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#334: the file-send Cancel affordance shipped in the bundle');
   // #336 AND-29: home takeovers push open/closed state so hardware back closes
   // them instead of exiting the app; C# routes back via the homeBack handler.
-  ok(/ixian:homeoverlay:/.test(home334) && /homeBack\(\) \{ closeTopHomeTakeover\(\); \}/.test(home334)
+  // (#337: homeBack gained the stale-state self-heal — pin the new shape.)
+  ok(/ixian:homeoverlay:/.test(home334) && /if \(!closeTopHomeTakeover\(\)\) syncHomeOverlay\(\);/.test(home334)
     && /function closeTopHomeTakeover/.test(home334),
-    '#336 AND-29: home shell pushes takeover state + exposes homeBack (hardware back closes the takeover, not the app)');
+    '#336 AND-29: home shell pushes takeover state + exposes homeBack w/ stale-state self-heal (#337)');
   // #336 iOS-59/#15: settings hub scroll survives a takeover-sublevel round-trip.
   const set336 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   ok(/hubScrollTop/.test(set336) && /root\.contains\(hubEl\)/.test(set336),
     '#336 (#15): settings hub scrollTop is preserved across a takeover sublevel (About/How-to/etc.)');
+}
+
+{
+  /* —— #337 audit-loop pins — the #46 pass over the #336 deltas —— */
+  const home337 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const hp337 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  // AND-29 r3 MAJOR: the state push is DEFERRED out of the emitting task — a raw
+  // location.href push in the same task as a verb nav coalesces last-wins (the
+  // #185 lesson): group-create was clobber-able, pick-to-chat left stale state.
+  ok(/homeOverlaySyncT = setTimeout\(/.test(home337)
+    && /if \(homeOverlaySyncT\) return;/.test(home337),
+    '#337 AND-29 r3: syncHomeOverlay is deferred+coalesced (never shares a navigation slot with a verb — group-create clobber)');
+  ok(/attributeFilter: \['data-overlay-open'\]/.test(home337)
+    && /dismissTopOverlay\(\)\) return true;/.test(home337),
+    '#337 AND-29: sheet coverage = body[data-overlay-open] observer + sheet-first close ordering');
+  ok((home337.match(/walletTakeoverClose = close;/g) || []).length === 2,
+    '#337 AND-29: BOTH wallet takeover mounts (Receive + Send) register their close for hardware back');
+  // C# half: verb parse + fresh-document reset + native-overlay-first ordering.
+  ok(/ixian:homeoverlay:/.test(hp337) && /homeShellOverlayOpen = current_url\.EndsWith/.test(hp337),
+    '#337 AND-29: HomePage parses the homeoverlay state push');
+  ok(/private void onLoaded\(\)\s*\{[\s\S]{0,700}homeShellOverlayOpen = false;/.test(hp337),
+    '#337 AND-29 MAJOR: onLoaded resets the takeover flag — a shell reload (OS theme flip/reloadAllPages) must not strand back-swallowing stale state');
+  ok(/SpixiContentPage\.closeTopOverlay\(\)\)\s*\{\s*return true;\s*\}[\s\S]{0,900}if \(homeShellOverlayOpen\)/.test(hp337),
+    '#337 AND-29 MAJOR: OnBackButtonPressed closes the top NATIVE overlay BEFORE routing into the shell (details-over-directory: first back must close the visible page)');
+  // iOS-66 MAJOR (root-caused by the audit): stale hubScrollTop latch + hub
+  // detach/re-attach on every hub render → Account snapped to the bottom on a
+  // language pick. One-shot consume + mounted-guard + setLocale capture.
+  const set337 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/const t = hubScrollTop; hubScrollTop = 0;/.test(set337),
+    '#337 iOS-66: the hub scroll latch is consumed ONE-SHOT (a stale value can never be re-applied)');
+  ok(/currentView === 'hub' && hubEl\.parentNode === root/.test(set337),
+    '#337 iOS-66: an already-mounted hub is never detach/re-attached (replaceChildren resets the scroller)');
+  ok(/setLocale\(code\)[\s\S]{0,1700}hubScrollTop = hb \? hb\.scrollTop : hubScrollTop;[\s\S]{0,300}hubEl = null;/.test(set337),
+    '#337 iOS-66: setLocale captures the LIVE hub scroll (isConnected-guarded, r2) before dropping the cached hub');
+  // AND-16 v2 rider: the stick abort covers a finger already down when the
+  // resize-armed stick starts (touchmove; the touchstart alone had a mid-drag hole).
+  const chat337 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/\['touchstart', 'touchmove'\]/.test(chat337),
+    '#337 AND-16: the stick aborts on touchmove too (resize can arm it MID-drag — #328 class)');
+  ok(/box\.scrollTop = box\.scrollHeight;\s*\n\s*bootRepin\(2000\);/.test(chat337),
+    '#337 iOS-62: the bootRepin ACTIVATION call survives in onChatScreenLoaded (the abort list alone was pinned — decorative)');
+  ok(/@media \(hover: hover\) and \(pointer: fine\) \{ \.chat-app-picker__item:hover/.test(chat337),
+    '#337: the app-invite picker hover rides the AND-18 guard (sweep miss)');
+  // W4 ride-along MAJOR: typed objects hold their own rail — the 680px desktop
+  // bubble raise must not stretch fixed-width cards/tiles/file rows.
+  const toks337 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const tb337 = readFileSync(join(root, 'src/styles/components/typed-bubbles.css'), 'utf8');
+  const mb337 = readFileSync(join(root, 'src/styles/components/media-bubble.css'), 'utf8');
+  const msg337 = readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8');
+  ok(/--layout-card-max: 360px/.test(toks337) && /data-desktop\][\s\S]{0,400}--layout-bubble-max: 680px/.test(toks337),
+    '#337 W4: card rail minted (360, NOT desktop-raised) beside the 680px desktop bubble cap');
+  ok(!/--layout-bubble-max/.test(tb337) && !/--layout-bubble-max/.test(mb337)
+    && /--layout-card-max/.test(tb337) && /--layout-card-max/.test(mb337),
+    '#337 W4 MAJOR: payment/app/call cards, file rows and media tiles consume the card rail — none ride the desktop bubble raise');
+  ok(/max-width: min\(var\(--bubble-max-pct\), var\(--layout-bubble-max\)\)/.test(msg337),
+    '#337 W4: TEXT bubbles keep the bubble token (the intended raise)');
+  const sn337 = readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8');
+  ok(/calc\(var\(--layout-card-max\) \+ 40px\)/.test(sn337) && !/--layout-bubble-max/.test(sn337),
+    '#337 W4 r2: the secure-notice card rides the card rail too (reviewer catch — 720px on desktop otherwise)');
+  // iOS-65: bottom-centered viewer close, safe-area-inset both ends.
+  const mv337 = readFileSync(join(root, 'src/components/media-viewer.js'), 'utf8');
+  const mvcss337 = readFileSync(join(root, 'src/styles/components/media-viewer.css'), 'utf8');
+  ok(/c-mviewer__foot/.test(mv337) && /c-mviewer__close/.test(mv337),
+    '#337 iOS-65: the viewer close is the bottom-centered foot button');
+  ok(/safe-area-inset-bottom/.test(mvcss337) && /safe-area-inset-top/.test(mvcss337),
+    '#337 iOS-65: viewer foot + bar carry the safe-area insets (the top-bar ✕ sat under the iOS status bar)');
+  // W1: the bundle-less empty_detail stub DECODES args (base64 bridge convention);
+  // contact_details gained its missing setTheme handler.
+  const ed337 = readFileSync(join(root, 'src/shells/empty_detail.html'), 'utf8');
+  const cdet337 = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
+  ok(/const bin = atob\(v\);/.test(ed337) && /new TextDecoder\(\)/.test(ed337),
+    '#337 W1: the empty_detail stub dispatcher decodes base64 args (the welcome pane never re-themed — Windows runtime evidence)');
+  ok(/setTheme\(name\)/.test(cdet337) && /theme-switching/.test(cdet337),
+    '#337 W1: contact_details has a live setTheme handler (was a swallowed bare-global push)');
+  // W3: takeover kind chips = default size (parity with the chats header).
+  const csjs337 = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
+  ok(/createChip\(\{ label, selected: value === 'all', strings \}\)/.test(csjs337),
+    '#337 W3: contacts kind chips use the DEFAULT chip size (small variant read as a different control)');
+  // W0: the iOS sim RID default is Mac-only (broke Windows Build Solution).
+  const csproj337 = readFileSync(join(root, 'Spixi/Spixi.csproj'), 'utf8');
+  ok(/IsOSPlatform\('osx'\)\)"/.test(csproj337),
+    '#337 W0: the Debug-iOS RID default carries the IsOSPlatform osx guard');
+  // #10: the two friendlier titles exist in ALL EIGHT locales; the C# sites
+  // carry ??-fallbacks (hidden-locale _SL null must not kill the alert).
+  const langs337 = ['en-us', 'sl-si', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sr-sp'];
+  ok(langs337.every((l) => {
+    const t = readFileSync(join(root, 'Spixi/Resources/Raw/lang/' + l + '.txt'), 'utf8');
+    return /contact-self-title\s*=/.test(t) && /contact-exists-title\s*=/.test(t);
+  }), '#337 #10: contact-self-title + contact-exists-title present in all 8 locales');
+  const scp337 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  ok(/_SL\("contact-self-title"\) \?\? /.test(scp337) && /_SL\("contact-exists-title"\) \?\? /.test(scp337),
+    '#337 #10: both alert sites carry ??-fallbacks (the #334 L5 hidden-locale lesson)');
+  // Splash: static blue only — the animated icon stays reverted.
+  const v31s337 = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/values-v31/styles.xml'), 'utf8');
+  ok(/windowSplashScreenBackground/.test(v31s337) && !/<item name="android:windowSplashScreenAnimatedIcon/.test(v31s337),
+    '#337 splash: values-v31 keeps the static blue splash; the animated icon stays reverted (Damir F5)');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

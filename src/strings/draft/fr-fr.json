@@ -214,6 +214,7 @@
   "edited": "modifié",
   "encpassMismatch": "Les nouveaux mots de passe ne correspondent pas.",
   "encpassNote": "C'est le mot de passe qui chiffre votre portefeuille sur cet appareil. Spixi ne peut pas le récupérer pour vous.",
+  "encpassRejected": "Ce mot de passe ne peut pas être utilisé. Choisissez-en un autre.",
   "encpassRepeat": "Répétez le nouveau mot de passe",
   "encpassTooShort": "Le nouveau mot de passe doit comporter au moins {n} caractères.",
   "endSession": "Terminer la session",

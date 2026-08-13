@@ -240,8 +240,16 @@
    platform flag, never a viewport query. */
 :root[data-desktop] .c-encpass__body {
   flex: 0 1 auto;
-  padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
   padding-block-end: var(--spacing-16);
+}
+/* #341: the centring rail belongs to the STANDALONE page only. In the Account pane
+   (settings.html) the detail region already caps this element at
+   --layout-pane-content-max, and `box-sizing: border-box` makes a second rail eat
+   that capped width — the fields measured ~380px on a 900px detail region and got
+   NARROWER as the window widened. Scoped by :not([data-pane]) so the standalone
+   EncryptionPassword page, which really is full-window, keeps its rail. */
+:root[data-desktop] body:not([data-pane]) .c-encpass__body {
+  padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
 }
 :root[data-desktop] .c-encpass__footer {
   display: flex;
@@ -249,6 +257,14 @@
   border-top: 0;                    /* no longer a bar edge — it is in flow now */
   background: transparent;
   padding-block-start: 0;
+  padding-inline: var(--spacing-16);
+}
+/* #341 review MINOR-5: the footer carries the SAME rail as the body, so it needed
+   the SAME scoping. Inside the pane the detail region already caps this element, and
+   border-box then let the percentage padding eat the capped width — on a 1128px
+   detail region the footer content box fell to about 152px, and it got narrower as
+   the window widened. The CTA survived only because min-width:240px re-centred it. */
+:root[data-desktop] body:not([data-pane]) .c-encpass__footer {
   padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
 }
 /* hugging CTA — the desktop pane grammar (#243, mirrors the Backup sublevel's

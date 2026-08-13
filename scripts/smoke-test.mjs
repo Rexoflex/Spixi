@@ -2742,8 +2742,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
 
   // —— encpass: hub row → screen, gates, scrub ——
   const secRows = [...d.querySelectorAll('.c-settings .c-settings__body button')];
-  const encRow = secRows.find((b) => b.textContent.includes('Change wallet password'));
-  ok(!!encRow, 'hub Security & privacy carries the Change wallet password row (ixian:encpass nav)');
+  const encRow = secRows.find((b) => b.textContent.includes('Change Spixi password'));
+  ok(!!encRow, 'hub Security & privacy carries the Change Spixi password row (ixian:encpass nav)');
   encRow.click();
   const enc = d.querySelector('.c-encpass');
   ok(!!enc, 'row opens the encpass takeover');
@@ -2799,6 +2799,35 @@ console.log('settings.html — lock shell (Phase 1 #4)');
   enc2.querySelector('.c-topbar .c-button').click();
   ok(enc2in.value === '' && !d.querySelector('.c-encpass'), 'back scrubs the fields before leaving (SECURITY §5)');
 
+  /* #341: release() — the scrub handle the Account pane needs. The standalone
+   * settings_encryption.html page DIES on pop, so back-scrub plus the window
+   * pagehide listener covered every exit there. The in-pane sublevel lives inside
+   * the long-lived settings.html document, which is PARKED on close (#315), and
+   * renderLayout replaces the children on paths that never touch the back button.
+   * Without release() the screen becomes a detached node the window listener still
+   * holds, with three plaintext passwords live in it for the life of the process. */
+  const encRel = W.Spixi.createEncPassScreen({ onBack: () => {} });
+  d.body.append(encRel);
+  const relFields = [...encRel.querySelectorAll('.c-lock__input')];
+  ok(relFields.length === 3, '#341 fixture: the screen carries the three password fields');
+  relFields.forEach((i, n) => { i.value = 'secret-value-' + n; });
+  relFields[0].type = 'text';                       // the show-password eye, left ON
+  const encRelFn = typeof encRel.release === 'function' ? encRel.release : null;
+  ok(!!encRelFn,
+    '#341: createEncPassScreen exposes release(), the convention createChatAppearance already uses — the shell cannot scrub a component it has no handle on');
+  // Guarded: a missing hook must report THREE clean failures, not abort the suite
+  // before every later block gets to run (mutation-tested — the guard is why the
+  // mutation reports instead of crashing).
+  if (encRelFn) encRelFn();
+  ok(!!encRelFn && relFields.every((i) => i.value === ''),
+    '★ #341 SECURITY: release() clears all three password values');
+  ok(!!encRelFn && relFields.every((i) => i.type === 'password'),
+    '★ #341 SECURITY: release() re-masks a revealed field too — left as type=text it would show the next visitor the last password in plain text');
+  if (encRelFn) encRelFn();
+  ok(!!encRelFn && relFields.every((i) => i.value === ''),
+    '#341: release() is idempotent — renderLayout calls it on EVERY render that is not the password sublevel');
+  encRel.remove();
+
   // pagehide scrub must ACTUALLY fire (audit: was a dead element-level listener —
   // pagehide is a WINDOW event). Dispatch it on the window and confirm the field clears.
   const encPH = W.Spixi.createEncPassScreen({ onBack: () => {} });
@@ -2838,7 +2867,7 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     'encpass scrubs on pagehide via the WINDOW (element-level pagehide never fires — audit fix; functionally asserted below)');
   ok(/c-lock__reveal/.test(ljs) && /::-ms-reveal[^}]*display: none/.test(lcss.replace(/\n/g, ' ')),
     '#160b⑦: shell-owned show-password eye + native WebView2 eye suppressed (no double eye)');
-  ok(/onChangePassword/.test(shellJs) && /Change wallet password/.test(shellJs),
+  ok(/onChangePassword/.test(shellJs) && /Change Spixi password/.test(shellJs),
     'settings hub carries the encpass nav row (presence-gated — ixian:encpass exists)');
   ok(/min-height: 0/.test(lcss) && /flex: none/.test(lcss),
     'encpass body follows the scroll-column rules (#136①, #148③/#150① classes)');
@@ -4993,6 +5022,104 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
     '#340 (B-MINOR-1): rehomeOverlay moves the op\'s stageMargin MEMORY with the real margin — otherwise a sublevel opened from a rehomed overlay inherits a phantom inset and leaves a live uncovered strip of its opener, which is the W7 failure itself');
 }
 
+/* —— #341: Change password as an IN-PANE sublevel ————————————————————————————
+ * W7 above is correct and stays. Damir's F5 ask was different: on desktop he wants
+ * the form to behave like Backup (#243) and Downloads (#267) — a hub sublevel inside
+ * the Account pane, not a page that covers the whole Account. So the pane route no
+ * longer pushes EncryptionPassword at all: settings.html mounts createEncPassScreen
+ * itself and SettingsPage dispatches ixian:changepass:.
+ * The W7 pins above still guard the MOBILE route, which is unchanged.
+ * The pins here guard the two things that can go wrong quietly:
+ *   1. the password values outliving the screen in a PARKED document (#315), and
+ *   2. a truncated password being written to the wallet. */
+console.log('#341 — Change password renders inside the Account pane');
+{
+  const spEnc = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const shEnc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+
+  ok(/setCaps",\s*"[^"]*\bencpassInline\b/.test(spEnc),
+    '#341: SettingsPage declares encpassInline — an old exe never pushes it, so a new shell falls back to the pushed EncryptionPassword page instead of emitting a verb nobody dispatches');
+  ok(/if \(paneMode && bridge\.cap\('encpassInline'\)\) \{ showEncpass\(\); return; \}[\s\S]{0,80}?bridge\.send\('ixian:encpass'\)/.test(shEnc),
+    '#341: the inline route is gated on BOTH paneMode and the cap, and falls through to ixian:encpass — mobile keeps the pushed page, so the #340 closeSublevelOverlays sweep still has a page to sweep');
+  ok(/case 'encpass': \{[\s\S]{0,3000}?bridge\.send\('ixian:changepass:' \+ ENC_DELIM \+ oldPass \+ ENC_DELIM \+ newPass\)/.test(shEnc),
+    '#341: the sublevel composes the SAME frozen verb and the SAME delimiter as src/bridge/lock-page.js — one truth, no second password grammar');
+
+  /* ★ The security pins. Both must FAIL if the guard is removed. */
+  ok(/if \(currentView !== 'encpass'\) releaseEncpass\(\);/.test(shEnc),
+    '★ #341 SECURITY: every render that is not the password sublevel releases it. This document is long-lived and PARKED on close (#315), unlike the standalone settings_encryption.html page which DIES on pop — so an unreleased screen keeps three plaintext passwords in live inputs for the life of the process');
+  ok(/exiting = true;[\s\S]{0,600}?releaseEncpass\(\);/.test(shEnc),
+    '★ #341 SECURITY: exitSettings scrubs too. `exiting` makes renderLayout bail, so the release above never runs on the rail-tab-switch / peer-nav / hardware-back routes — the exact routes a user takes to leave the form without touching its back button');
+  ok(/if \(split_url\.Length == 3 && /.test(spEnc)
+    && !/split_url\.Length >= 3/.test(spEnc),
+    '★ #341: the C# split must be EXACTLY 3. The shell refuses a password containing the delimiter, but a longer split means one got through, and writing split_url[2] would re-encrypt the wallet with a TRUNCATED password the user can never reproduce — an unrecoverable wallet');
+  ok(/Utils\.sendUiCommand\(this, "setEncPassResult", encResult\);/.test(spEnc),
+    '#341: inline there is no page pop for the shell to read as success, so SettingsPage answers explicitly. The push carries a flag only, never password material');
+
+  /* —— #341 AUDIT ROUND 1: the six defects the loop found ————————————————————— */
+  const encPage = readFileSync(join(root, 'Spixi/Pages/Settings/EncryptionPassword.xaml.cs'), 'utf8');
+  const encCss = readFileSync(join(root, 'src/styles/components/lock-shell.css'), 'utf8');
+  const encComp = readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8');
+
+  /* Slice each file down to its OWN changepass branch first. An unanchored /try\s*\{/
+   * happily matched the openLink branch two screens earlier, so the pin passed with the
+   * fence deleted — a dead pin, caught by mutation-testing it. */
+  const branchOf = (src, from, to) => src.slice(src.indexOf(from), src.indexOf(to));
+  const spBranch = branchOf(spEnc, 'StartsWith("ixian:changepass:"', 'Equals("ixian:backup"');
+  const epBranch = branchOf(encPage, 'StartsWith("ixian:changepass:"', 'protected override bool OnBackButtonPressed');
+  const FENCED = /try\s*\{[\s\S]*?writeWallet\(split_url\[2\]\)[\s\S]*?catch \(Exception ex\)[\s\S]{0,400}?Logging\.error\([^;]*ex\);/;
+  ok(!/displaySpixiAlert/.test(spBranch),
+    '#341: no native alert on the inline route — the screen renders its own success morph and its own error, so an alert would be a second confirmation of the same event');
+  ok(FENCED.test(spBranch) && FENCED.test(epBranch),
+    '★ #341 audit MAJOR-1 (BOTH routes): the wallet write is fenced. An unguarded throw escapes onNavigating, e.Cancel never runs, and iOSWebViewHandler.cs:116 logs the WHOLE URL into ixian.log — which DevPage renders and offers through the OS share sheet. That is both passwords in cleartext in a shareable file');
+  ok(!/Logging\.error\([^)]*current_url/.test(spEnc) && !/Logging\.error\([^)]*current_url/.test(encPage),
+    '★ #341: neither catch logs the URL — only the exception object (the LaunchCreatePage:215 shape)');
+  ok(/Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(spBranch)
+    && /Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(epBranch),
+    '★ #341 audit MAJOR-2 (BOTH routes, PRE-EXISTING data loss): the cached walletpass preference follows the wallet. Node.loadWallet reads it at every cold start (Node.cs:248-256), so without this the next launch cannot open the wallet and drops the user on LaunchRetryPage; and BackupPage.xaml.cs:144 encrypts the backup archive with it, so a backup taken in between needs one password for the archive and another for the wallet inside it — unrestorable');
+  ok(/split_url\.Length == 3 && split_url\[2\]\.Length >= 10/.test(spEnc),
+    '#341 audit MINOR-3: C# refuses an empty or short new password on its own. The inline route removed the separate EncryptionPassword page, so the settings shell would otherwise be the ONLY validator of a wallet re-encryption');
+  ok(/string encResult = "2";/.test(spEnc) && /encResult = "0";/.test(spEnc) && /encResult = "1";/.test(spEnc),
+    '#341 audit MINOR-2: an unusable request answers "2", not "0". Reporting it as "wrong current password" would send the user into retries that can never succeed');
+
+  ok(/case 'encpass': \{[\s\S]{0,700}?releaseEncpass\(\);[\s\S]{0,200}?createEncPassScreen\(/.test(shEnc),
+    '★ #341 audit MAJOR-1 (shell): the case releases the PREVIOUS screen before it builds a new one. renderLayout skips the release while the user is ON this view but still rebuilds — a second tap on the live hub row, a window resize (setPaneMode), setLocale, onRepresented — and each one left the old FILLED form detached with its three plaintext values');
+  ok(/releaseEncpass\(\);\s*\r?\n\s*exiting = true;\s*\r?\n\s*bridge\.send\('ixian:save:/.test(shEnc),
+    '#341 audit MAJOR-2 (shell): commitSave\'s POP path scrubs before it latches `exiting` — after that renderLayout bails, so nothing could scrub later. #341 review MINOR-6 is honest about the reach: the shipped exe pushes settingsApply, so the live Save returns earlier and STAYS on the page, where the ordinary release still runs. This pin guards the old-exe fallback');
+
+  /* —— #341 REVIEW ROUND 2: what the break-my-verdict pass found —————————————— */
+  const extractSrc = readFileSync(join(root, 'scripts/extract-strings.mjs'), 'utf8');
+  ok(/patternStyleLineArt: 'Line art',[\s\S]{0,120}?patternStyleMatrix:[\s\S]{0,120}?patternStyleFlow:/.test(extractSrc),
+    '★ #341 review MINOR-4: PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] exactly like PATTERN_LEVELS, so it is unextractable — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
+  ok(/strings\.encpassRejected \|\|/.test(shEnc) && !/strings\.badPassword \|\|/.test(shEnc),
+    '★ #341 review MINOR-2: the "2" result uses its OWN key. Re-using badPassword collided with the component value for the same key, and extract-strings sets exitCode 1 on a fallback conflict — Damir\'s documented build chain would have stopped at step 1 and rebuilt nothing');
+  ok(/if \(!c \|\| c\.seq !== encpassSeq\) \{[\s\S]{0,900}?String\(ok\) === '1'[\s\S]{0,300}?showToast\(/.test(shEnc),
+    '#341 review MINOR-7: a SUCCESS whose form is already gone still tells the user. The inline route suppresses the native alerts, so leaving the screen while C# validates would change the wallet password with no confirmation on any surface');
+  ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__footer \{[\s\S]{0,200}?padding-inline: max\(/.test(encCss)
+    && !/:root\[data-desktop\] \.c-encpass__footer \{[\s\S]{0,260}?padding-inline: max\(/.test(encCss),
+    '#341 review MINOR-5: the FOOTER carries the same rail as the body, so it needed the same scoping. Fixing only the body left the CTA row with a content box of about 152px on a 1128px detail region');
+  ok(/writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?Preferences\.Default\.Set\("walletpass"/.test(spBranch)
+    && /writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?Preferences\.Default\.Set\("walletpass"/.test(epBranch),
+    '★ #341 review MAJOR-1: the write is CONFIRMED before the cached password follows it. writeWallet is called as a statement everywhere in this repo, so a failure reported by RETURN VALUE would pass the try/catch unseen — and with the preference already moved, the next cold start could not open the wallet. Asking the storage whether the NEW password opens it needs no knowledge of the return type (Ixian-Core is outside this repo)');
+  ok(/const ENC_MIN = (\d+);/.exec(readFileSync(join(root, 'src/components/lock-shell.js'), 'utf8'))[1] === '10'
+    && /split_url\[2\]\.Length >= 10/.test(spEnc) && /split_url\[2\]\.Length >= 10/.test(encPage),
+    '#341 review NIT-10: the C# minimum and the JS ENC_MIN are the same number. They are two hand-copied literals in different languages, so this pin is the only thing that ties them together — lower ENC_MIN alone and the shell would accept a password C# answers "2" to');
+  ok(/function releaseEncpass\(\) \{[\s\S]{0,900}?clearTimeout\(encpassGuard\)[\s\S]{0,600}?encpassSeq \+= 1;/.test(shEnc),
+    '#341 audit MINOR-1/2: release drops the 8 s watchdog and invalidates the in-flight submit. Left running, the watchdog called focus() on a detached input; left valid, the FIRST answer could resolve a SECOND form with a false "Password changed"');
+  ok(/if \(!c \|\| c\.seq !== encpassSeq\) \{/.test(shEnc),
+    '#341 audit MINOR-2: setEncPassResult drops an answer that belongs to a submit the user already walked away from');
+  ok(/onBack: \(\) => \{ if \(currentView === 'encpass'\) showHub\(\); \}/.test(shEnc),
+    '#341 audit MINOR-3: the component calls onBack 900 ms after the success morph. Unguarded, that closed whatever sublevel the user opened in the meantime');
+  ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__body \{[\s\S]{0,200}?padding-inline: max\(/.test(encCss)
+    && !/:root\[data-desktop\] \.c-encpass__body \{[\s\S]{0,120}?padding-inline: max\(/.test(encCss),
+    '#341 audit MINOR-5: the centring rail is scoped to the STANDALONE page. In the pane the detail region already caps this element, and border-box made the second rail eat the capped width — the fields measured ~380px on a 900px region and got NARROWER as the window widened');
+  ok(/glyph: 'pencil', hue: 'primary', key: 'encpass',/.test(encComp),
+    '#341 audit MINOR-4: the hub row carries a key, so the pane marks it aria-current with the tonal tint while its sublevel is open — it was the only sublevel opener that announced nothing');
+
+  // The behavioural half of this batch — release() must actually scrub — lives in
+  // the settings-demo block above, where a jsdom window with the bundle is already
+  // open. A static pin cannot prove a scrub.
+}
+
 /* —— Desktop PANE CONTENT RAIL (Damir 2026-08-12, Windows screenshots) ————————
  * The Change-wallet-password form and the App-details page both render in a
  * desktop pane (W7: encpass now covers the whole Account pane · HomePage:2849/2857), so they
@@ -5009,8 +5136,8 @@ console.log('desktop pane content rail (#3xx)');
     'rail: --layout-pane-content-max is a real token (640px = the Account-sublevel measurement), not a fourth copy of the literal');
 
   const encCss = readFileSync(join(root, 'src/styles/components/lock-shell.css'), 'utf8');
-  ok(/:root\[data-desktop\] \.c-encpass__body \{[^}]*var\(--layout-pane-content-max\)/s.test(encCss),
-    'encpass: the desktop form holds the shared pane rail');
+  ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__body \{[^}]*var\(--layout-pane-content-max\)/s.test(encCss),
+    'encpass: the STANDALONE desktop page still holds the shared pane rail. #341 gave this screen a second host — inside the Account pane the detail region already caps it at the same token, so the rule is scoped away there to stop border-box applying the rail twice');
   ok(/:root\[data-desktop\] \.c-encpass__body \{[^}]*flex: 0 1 auto/s.test(encCss),
     'encpass: the body HUGS its content on desktop — that is what lifts the CTA up under the inputs');
   ok(/:root\[data-desktop\] \.c-encpass__footer \{[^}]*border-top: 0/s.test(encCss),

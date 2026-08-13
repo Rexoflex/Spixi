@@ -1,6 +1,7 @@
 ﻿using IXICore.Meta;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
+using Microsoft.Maui.Storage;     // #341 audit MAJOR-2: Preferences["walletpass"] must follow the wallet
 using SPIXI.Lang;
 using System;
 using System.Web;
@@ -52,12 +53,51 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:changepass:", StringComparison.Ordinal))
             {
-                string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
-                string old_password = split_url[1];
-                string new_password = split_url[2];
-                if (IxianHandler.getWalletStorage().isValidPassword(old_password))
+                // #341 audit: this is the MOBILE route. The desktop pane runs the same
+                // verb inside SettingsPage. Both legs carry the same two defects, fixed
+                // here in the same shape — keep them in step if you touch either.
+                //  · ★ MAJOR-1: an unguarded throw escapes onNavigating, so e.Cancel is
+                //    never set, and iOSWebViewHandler.cs:116 then logs the WHOLE URL into
+                //    ixian.log — a shareable file with both passwords in cleartext.
+                //  · ★ MAJOR-2: Node.loadWallet reads the cached "walletpass" preference
+                //    at every cold start (Node.cs:248-256), and BackupPage.xaml.cs:144
+                //    encrypts the backup archive with it. Re-encrypting the wallet without
+                //    updating it means the next launch cannot open the wallet, and a
+                //    backup taken in between cannot be restored.
+                //  · The Length test is EXACT: a longer split means a password contained
+                //    the delimiter, and writing split_url[2] would re-encrypt the wallet
+                //    with a truncated password the user can never reproduce.
+                // #341 review NIT-11: decide FIRST, speak SECOND. The alert and the pop
+                // sit outside the try, so a throw after a successful write can no longer
+                // show "wrong password" over a change that completed.
+                bool pass_changed = false;
+                try
                 {
-                    IxianHandler.getWalletStorage().writeWallet(new_password);
+                    string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
+                    if (split_url.Length == 3 && split_url[2].Length >= 10
+                        && IxianHandler.getWalletStorage().isValidPassword(split_url[1]))
+                    {
+                        IxianHandler.getWalletStorage().writeWallet(split_url[2]);
+                        // ★ #341 review MAJOR-1: confirm the write took effect before the
+                        // cached password follows it. See the SettingsPage twin for why.
+                        if (IxianHandler.getWalletStorage().isValidPassword(split_url[2]))
+                        {
+                            Preferences.Default.Set("walletpass", split_url[2]);
+                            pass_changed = true;
+                        }
+                        else
+                        {
+                            Logging.error("Wallet password change did not take effect; the cached password was left unchanged.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // NEVER log the URL or either password — only the exception.
+                    Logging.error("Exception occured while changing the wallet password: {0}", ex);
+                }
+                if (pass_changed)
+                {
                     displaySpixiAlert(SpixiLocalization._SL("settings-encryption-passwordchanged-title"), SpixiLocalization._SL("settings-encryption-passwordchanged-text"), SpixiLocalization._SL("global-dialog-ok"));
                     popPageAsync();
                 }

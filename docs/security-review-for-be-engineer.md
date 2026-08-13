@@ -160,6 +160,54 @@ pushPageLoaded), and a parked page is torn down on host recreation, on
 Residual accepted: a jetsam-killed parked content process re-presents blank until one
 of those teardowns fires (never a data exposure — the page shows nothing).
 
+## 1b. ⚠ FOUND 2026-08-13 (#341 audit) — the change-password path, three items
+
+Two of these were **fixed in #341**. The third is **logged and NOT patched** — it needs
+its own test and its own decision.
+
+**① FIXED — the wallet password change did not update the cached password, and the
+result was a lockout plus an unrestorable backup.**
+`Node.loadWallet` reads `Preferences["walletpass"]` at every cold start
+(`Spixi/Meta/Node.cs:248-256`). `EncryptionPassword` re-encrypted the wallet and never
+touched that preference. Therefore the next launch opened the wallet with the OLD
+password, failed, and dropped the user on `LaunchRetryPage`. `BackupPage.xaml.cs:144`
+encrypts the backup archive with the same preference, so a backup taken between the
+change and the next restart needed one password for the archive and a different one for
+the wallet inside it. Create, restore and retry all set the preference
+(`LaunchCreatePage:197`, `LaunchRestorePage:139`, `LaunchRetryPage:64`); only the change
+path did not. **This shipped.** Both routes now set it, and both first CONFIRM that the
+new password opens the wallet — `writeWallet` is called as a statement everywhere in
+this repo, so a failure reported by return value would otherwise move the cached
+password while the wallet file stayed on the old one.
+🟡 **For BE:** confirm on device that `isValidPassword` reports false after a failed
+`writeWallet`. The confirmation belt is cheap, not proven (rule #215). If `writeWallet`
+returns a bool, please read it at every call site in this repo.
+
+**② FIXED — an exception on a password path put both passwords into a shareable log.**
+The change-password branch had no `try/catch`. A throw escaped `onNavigating`, so
+`e.Cancel` was never set at the end of the chain, and `iOSWebViewHandler.cs:116` logs
+`navigationAction.Request.Url.AbsoluteString` — the whole `ixian:changepass:` URL. That
+file is `ixian.log`, which `DevPage` renders into a WebView and offers through the OS
+share sheet. Both routes are now fenced, and neither catch logs the URL.
+🟡 **For BE — the general rule this exposes:** ANY unhandled exception on ANY `ixian:`
+navigation reaches that logger. Every verb that carries a secret must be fenced. Please
+review the iOS handler: logging a full bridge URL on error is unsafe as a default.
+
+**③ LOGGED, NOT PATCHED — deleting the wallet leaves the plaintext wallet password in
+Preferences.** `SettingsPage.xaml.cs:633` removes the key `"waletpass"`. The key that is
+written everywhere else is `"walletpass"`. The typo is harmless at
+`LaunchCreatePage:192` and `LaunchRestorePage:135`, because both set the real key
+immediately after. Here it is not harmless: `onDeleteWallet` is the path that is meant
+to leave nothing behind, and the plaintext password survives it. One character fixes it,
+but it changes what a delete removes, so it needs its own test. This belongs with the
+punch-list item E1 ("Delete account must remove all data").
+
+**Standing note on the password transport.** `ixian:changepass:<DELIM>old<DELIM>new`
+carries plaintext password material in a navigation URL. #341 did not invent this and
+did not widen it, but the pattern now has a second host page. The navigation is
+cancelled by C#, so no history entry keeps the URL, and the shell scrubs its fields on
+every leave path. A non-URL transport for secrets is still the correct long-term ask.
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|

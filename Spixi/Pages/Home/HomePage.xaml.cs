@@ -87,7 +87,20 @@ namespace SPIXI
         // latch keeps the FIRST entry into a fresh shell forcing (nothing has been fed to
         // that document yet); afterwards the normal shouldRefreshApps gate decides.
         // Reset in onLoaded() — a new document knows nothing about the old one's rows.
-        private bool appsPushedToShell = false;
+        //
+        // #340 audit (C-MAJOR-1/2): the forced push per tab3 entry was ALSO the self-heal for
+        // every "shell rows and C# disagree" state, and this latch removed it — so a lost or
+        // interleaved push is now permanent for the session instead of transient. Three
+        // hardenings, all in this file: (a) reset on the DOCUMENT dying (reload/reloadShell)
+        // as well as on the new one announcing itself via onLoaded — ixian:onload is a known
+        // racy handshake on WinUI, and apps was the one surface with no other recovery;
+        // (b) the flag is set AFTER the push loop, not before, so a push that never lands
+        // cannot latch; (c) volatile + appsPushLock, because loadApps runs on the UI thread
+        // (tab entry) AND on Node.updateUILoop's thread-pool tick (updateScreen) with no
+        // marshalling — two interleaved runs let one run's clearApps drop rows the other had
+        // already delivered, and the latch then made that short list stick.
+        private volatile bool appsPushedToShell = false;
+        private readonly object appsPushLock = new object();
         private bool hideBalance = false;
 
         private bool running = false;
@@ -2480,6 +2493,14 @@ namespace SPIXI
                     }
                     else
                     {
+                        // #340 audit (B-MAJOR-1, scenario B): this branch closes the Account
+                        // WITHOUT going through the shell, so SettingsPage's own ixian:back /
+                        // onSaveSettings sweep never runs. pageLoaded is cleared synchronously
+                        // by reload(), and an OS theme flip reloads every overlay
+                        // (UIHelpers.reloadAllPages) — so "Account open with the password pane
+                        // up, theme flips, user taps a tab" lands HERE and would strand the
+                        // password pane over the next tab. Sweep before removing.
+                        sp.closeSublevelOverlays();
                         removePage(sp);   // wedged/never-booted shell: nothing to save
                     }
                     return;
@@ -2665,6 +2686,9 @@ namespace SPIXI
 
         public override void reload()
         {
+            // #340 (C-MAJOR-1): the rows die with the document. Don't wait for the fresh
+            // one to say ixian:onload — if that handshake is lost the apps tab never heals.
+            appsPushedToShell = false;
             base.reload();
             removeDetailContent();
         }
@@ -2682,6 +2706,7 @@ namespace SPIXI
             // #2's flag, its boot echo runs the exit sweep, and the Account pane is torn
             // down mid-pick: exactly the #285 round-2 bug this flag exists to prevent.
             int gen = ++reloadShellGen;
+            appsPushedToShell = false;   // #340 (C-MAJOR-1): same as reload(), which this bypasses
             base.reload();
             // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE
             // Navigated→readyState flush; on WinUI that can race the fresh document
@@ -2751,38 +2776,52 @@ namespace SPIXI
 
         private void loadApps(bool forceRefresh)
         {
-            if (!forceRefresh && !UIHelpers.shouldRefreshApps)
+            // #340 (C-MAJOR-1a): serialize. Two callers, two threads, no marshalling — the
+            // UI thread on tab3 entry and Node.updateUILoop's tick via updateScreen. An
+            // install sets shouldRefreshApps; if the user taps Apps inside the next second
+            // both runs pass the gate and interleave, and the tick's clearApps lands between
+            // the tap's addApp calls — the shell drops rows it had already been given.
+            // Dedicated lock (not refreshLock) to stay out of the chats/contacts lock order.
+            lock (appsPushLock)
             {
-                return;
-            }
-            if (detailContent != null)
-            {
-                detailContent.updateScreen();
-            }
-            UIHelpers.shouldRefreshApps = false;
-            appsPushedToShell = true;   // PERF: this document now holds the app rows
-
-            Utils.sendUiCommand(this, "clearApps");
-
-            var apps = Node.MiniAppManager.getInstalledApps();
-            lock (apps)
-            {
-                foreach (var app_arr in apps)
+                if (!forceRefresh && !UIHelpers.shouldRefreshApps)
                 {
-                    MiniApp app = app_arr.Value;
-                    string icon = Node.MiniAppManager.getAppIconPath(app.id);
-                    if (icon == null)
-                    {
-                        icon = "";
-                    }
-                    icon = Utils.imageToDataUri(icon);   // X1
-                    Utils.sendUiCommand(this, "addApp", app.id, app.name, icon, app.publisher, app.hasCapability(MiniAppCapabilities.SingleUser).ToString(), app.hasCapability(MiniAppCapabilities.MultiUser).ToString());
+                    return;
                 }
-            }
+                if (detailContent != null)
+                {
+                    detailContent.updateScreen();
+                }
+                UIHelpers.shouldRefreshApps = false;
 
-            foreach (var p in Utils.getChatPages())
-            {
-                p.reloadScreen();
+                Utils.sendUiCommand(this, "clearApps");
+
+                var apps = Node.MiniAppManager.getInstalledApps();
+                lock (apps)
+                {
+                    foreach (var app_arr in apps)
+                    {
+                        MiniApp app = app_arr.Value;
+                        string icon = Node.MiniAppManager.getAppIconPath(app.id);
+                        if (icon == null)
+                        {
+                            icon = "";
+                        }
+                        icon = Utils.imageToDataUri(icon);   // X1
+                        Utils.sendUiCommand(this, "addApp", app.id, app.name, icon, app.publisher, app.hasCapability(MiniAppCapabilities.SingleUser).ToString(), app.hasCapability(MiniAppCapabilities.MultiUser).ToString());
+                    }
+                }
+
+                // #340 (C-MAJOR-1b/MINOR-1): AFTER the loop, and only if this document could
+                // actually receive it. sendMessage queues while the page is unloaded and
+                // Dispose() drops that queue — latching on a push that was queued and then
+                // discarded is what makes an empty apps tab permanent.
+                appsPushedToShell = pageLoaded;
+
+                foreach (var p in Utils.getChatPages())
+                {
+                    p.reloadScreen();
+                }
             }
         }
 
@@ -2863,6 +2902,18 @@ namespace SPIXI
             if (targets.Count < 1)
             {
                 Logging.error("startappwith: no known target.");
+                return;
+            }
+            // #340 audit (C-MINOR-3): the id has to name an app we actually have. MiniApp.id
+            // comes verbatim out of a downloaded package's appinfo.spixi with no charset
+            // validation, so an id containing the ":|" delimiter mis-splits — worst case
+            // parts[0] is a truncated id and a real address lands in it, and we would send a
+            // network app-invite plus a chat card for an app that does not exist, then open a
+            // blank WebView (getAppEntryPoint returns null → "file://"). Also covers a plain
+            // unknown/uninstalled id, which previously failed silently AFTER the invite.
+            if (Node.MiniAppManager.getApp(appId) == null)
+            {
+                Logging.error("startappwith: unknown app id.");
                 return;
             }
 

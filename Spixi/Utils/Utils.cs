@@ -114,6 +114,21 @@ namespace SPIXI
         // argument (a chat message, a nickname) can legitimately begin with "data:" — every one
         // of those either fails the whitelist and gets encoded, or is character-for-character
         // round-trip identical, which is all the contract requires.
+        //
+        // #340 audit (A-MAJOR-1/2) — THE WHITELIST IS NOT ENOUGH ON ITS OWN. The passthrough
+        // is only correct where the RECEIVER was taught it, and "round-trip identical" above
+        // silently assumed every receiver runs src/bridge/native.js. Two do not:
+        //   · the 8 remaining legacy Raw/html pages (hasLegacyPageChrome) still decode with
+        //     js/spixi.js `base64ToBytes` → an unguarded atob. A peer-chosen nickname of
+        //     "data:;base64,x" passes the whitelist, is emitted verbatim, and atob THROWS on
+        //     the ':' — dropping the whole push. wallet_contact_request's setData is that
+        //     page's only writer, so a hostile requester blanks the payment-confirm screen.
+        //   · MiniAppPage points its WebView at the app's own entry point; its SDK decoder
+        //     ships inside third-party app packages and can never be re-generated. The
+        //     documented contract there is base64-per-argument, frozen.
+        // So the fast path is now gated on the TARGET PAGE (contentPage.supportsRawDataUriArgs,
+        // which fails CLOSED), not on the shape of the value. The whitelist stays as the
+        // second gate: receiver-allowed AND value-safe.
         private static bool isTransportSafeDataUri(string arg)
         {
             if (!arg.StartsWith("data:", StringComparison.Ordinal)
@@ -143,12 +158,16 @@ namespace SPIXI
                 string cmd_str = "executeUiCommand(" + command;
                 StringBuilder sb = new StringBuilder(cmd_str);
 
+                // #340: receiver gate FIRST — see isTransportSafeDataUri's header. Legacy
+                // pages and mini-app WebViews keep the base64 contract unconditionally.
+                bool raw_data_uri_ok = contentPage != null && contentPage.supportsRawDataUriArgs;
+
                 foreach (string arg in arguments)
                 {
                     if (arg != null)
                     {
                         sb.Append(",");
-                        sb.Append("'" + (isTransportSafeDataUri(arg) ? arg : escapeHtmlParameter(arg)) + "'");
+                        sb.Append("'" + ((raw_data_uri_ok && isTransportSafeDataUri(arg)) ? arg : escapeHtmlParameter(arg)) + "'");
                     }
                     else
                     {

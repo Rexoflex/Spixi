@@ -53,6 +53,27 @@ namespace SPIXI
 
         private string? loadedHtmlFileName = null;
 
+        // #340 audit (A-MAJOR-1/2): may Utils.sendUiCommand hand this page a "data:…;base64,…"
+        // argument VERBATIM instead of base64-encoding it for transport? True only for the
+        // redesigned shells, which decode through src/bridge/native.js and pass a leading
+        // "data:" straight through. FAILS CLOSED, deliberately, in both directions:
+        //   · the remaining legacy Raw/html pages (hasLegacyPageChrome) decode with
+        //     js/spixi.js's unguarded atob and would THROW on the ':' — see Utils.cs.
+        //   · MiniAppPage never calls loadPage (it points the WebView at the mini-app's own
+        //     entry point), so loadedHtmlFileName stays null here and the frozen
+        //     base64-per-argument SDK contract is preserved without MiniAppPage having to
+        //     know this rule exists. A page that is pushed to before loadPage runs is also
+        //     null → encoded, which is the pre-#339 behaviour.
+        // Keep in sync with hasLegacyPageChrome (same list, same reason: those files were
+        // never regenerated onto the new bridge).
+        public bool supportsRawDataUriArgs
+        {
+            get
+            {
+                return loadedHtmlFileName != null && !hasLegacyPageChrome(loadedHtmlFileName);
+            }
+        }
+
         // The native surface painted behind (and on) this page's WebView — chosen per
         // shell so the pre-paint frame matches what the shell will render (N1/N3).
         protected Color pageSurfaceColor = ThemeManager.getSurfaceColor();
@@ -977,6 +998,17 @@ namespace SPIXI
             try
             {
                 op.stage.Margin = new Thickness(0);
+                // #340 audit (B-MINOR-1): stageMargin is the op's MEMORY of the inset its
+                // stage carries (a sublevel inherits it to cover its opener exactly — W7).
+                // Rehoming rewrites the real margin, so the memory has to move with it.
+                // FORWARD GUARD, not a live bug (r2 reviewer): the only pages given a
+                // non-default stageMargin today are the Account pane and its encpass
+                // sublevel, and rehomeOverlay's only callers pass ContactDetails, whose
+                // margin is already default — so the sets are disjoint and this is a no-op
+                // on every current path. It stops being a no-op the moment a rehomed
+                // overlay opens a sublevel, and the failure then is the W7 one: a live
+                // uncovered strip of the opener beside a sublevel that thinks it covers it.
+                op.stageMargin = new Thickness(0);
                 if (column >= 0 && op.hostGrid.ColumnDefinitions.Count > column)
                 {
                     Grid.SetColumnSpan(op.stage, 1);

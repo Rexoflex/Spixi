@@ -507,15 +507,44 @@ namespace SPIXI
          * switch (which exits the Account through the shell) would leave the password
          * pane parked over the next tab's detail region with its WebView alive. Nothing
          * is lost: the password fields are never persisted (SECURITY.md §5 — they live
-         * only in the field) and closeOverlay Disposes the WebView with the page. */
-        private void closeSublevelOverlays()
+         * only in the field) and closeOverlay Disposes the WebView with the page.
+         *
+         * #340 audit (B-MAJOR-1): the sweep must also cover the STAGING slot. pushPageLoaded
+         * is load-then-present, so for the whole boot window (up to the 4s timeout) the
+         * EncryptionPassword is NOT in overlayStack — it lives in activePreload with its
+         * stage already parented to HomePage's grid, and nothing cancels it when its opener
+         * dies. That window is exactly when the user is most likely to leave: the screen
+         * deliberately shows the unchanged Account hub while the pane loads, so "I clicked
+         * and nothing happened" → tap a rail tab → Account closes → the password pane then
+         * presents itself over the NEXT tab with a live WebView and no escape but its own
+         * back arrow. Same "nothing moved so I clicked elsewhere" behaviour that produced
+         * the original W7 report. popPageAsync() on a staging page cancels the preload
+         * (abandoned + cancelPreload), which is the tested path for exactly this.
+         *
+         * #340 round 2 (both reviewers, independently): the test was `is EncryptionPassword`,
+         * but the Account stages THREE sublevels through this same pushPageLoaded path —
+         * ixian:encpass, ixian:backup and ixian:downloads. The other two are cap-gated to
+         * NON-pane mode (settings.html returns early on paneMode && cap), so on desktop they
+         * never fire — but on mobile they are ordinary overlays with the identical
+         * load-then-present window, so "tap Downloads, nothing appears to happen, tap back"
+         * strands the Downloads page over the home shell exactly like the encpass case.
+         * The list stays EXPLICIT and type-scoped rather than sweeping everything staged:
+         * pushModalLoaded shares activePreload, so a `!= null` sweep here would cancel the
+         * resume LOCK. Add a type when the Account learns to open another sublevel. */
+        internal void closeSublevelOverlays()
         {
             foreach (SpixiContentPage p in getOverlayPages())
             {
-                if (p is EncryptionPassword)
+                if (p is EncryptionPassword || p is BackupPage || p is DownloadsPage)
                 {
                     removePage(p);   // #225: removing an OPEN overlay = closeOverlay
                 }
+            }
+            // …and the one that hasn't been presented yet.
+            SpixiContentPage? staging = getStagingPage();
+            if (staging is EncryptionPassword || staging is BackupPage || staging is DownloadsPage)
+            {
+                staging.popPageAsync();   // staging slot → cancels the preload
             }
         }
 

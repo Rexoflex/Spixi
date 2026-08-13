@@ -7,7 +7,21 @@
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync as readFileSyncRaw, readdirSync, existsSync } from 'node:fs';
+
+/* CRLF NORMALIZATION ON READ (#340; handoff-2026-08-16 "the CRLF smoke brittleness").
+ * On a Windows checkout three pins failed with no code change behind them — #148③,
+ * #309b, #315. Reproduced deliberately: converting exactly those three source files to
+ * CRLF in an otherwise-LF twin makes exactly those three fail and nothing else. Two
+ * mechanisms, one cause: #148③'s pattern contains a literal \n, and #309b/#315 use
+ * bounded lookaheads ([\s\S]{0,80}?, {0,1400}?) that the extra \r per line pushes past
+ * budget. Every assertion in this file is about CONTENT, never about line endings, so
+ * normalizing here is the whole fix — and it is one place rather than ~200 call sites
+ * and every future bounded lookahead. Buffer reads (no encoding) pass through untouched. */
+const readFileSync = (p, enc) => {
+  const v = readFileSyncRaw(p, enc);
+  return typeof v === 'string' ? v.replace(/\r\n/g, '\n') : v;
+};
 
 const root = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM, VirtualConsole;
@@ -4958,11 +4972,25 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
     'W7: the op REMEMBERS the inset it was staged with (a stage.Margin read would be a UI-property read off the preload lock / a background thread)');
   ok(/public static Thickness getOverlayStageMargin\(SpixiContentPage page\)[\s\S]{0,400}?lock \(preloadLock\)[\s\S]{0,300}?overlayStack\.Find\(o => o\.target == page\)[\s\S]{0,160}?return op != null \? op\.stageMargin : default;/.test(scpW7),
     'W7: the accessor reads the OPEN overlay op under preloadLock and returns Thickness.Zero for a page that is not an overlay — mobile/push-fallback stays byte-identical to the pre-W7 default');
-  ok(/private void closeSublevelOverlays\(\)[\s\S]{0,400}?foreach \(SpixiContentPage p in getOverlayPages\(\)\)[\s\S]{0,200}?if \(p is EncryptionPassword\)[\s\S]{0,120}?removePage\(p\);/.test(spW7),
+  ok(/internal void closeSublevelOverlays\(\)[\s\S]{0,400}?foreach \(SpixiContentPage p in getOverlayPages\(\)\)[\s\S]{0,240}?if \(p is EncryptionPassword[^)]*\)[\s\S]{0,120}?removePage\(p\);/.test(spW7),
     'W7: SettingsPage owns a close-audit for the sublevel page it opens (the closeContactDetailsOverlays / closeFormPaneOverlays family, hosted here because the Account owns this sublevel)');
+  /* r3 reviewer: ANCHOR both lists on the closing paren. getOverlayPages()/getStagingPage()
+   * are STATIC — they see every overlay in the app, not just this page's — so an over-broad
+   * type here closes overlays the Account does not own. Unanchored, adding a 4th type passed
+   * silently; the old (pre-widening) pin bounded the list from above and this restores that. */
+  ok(/foreach \(SpixiContentPage p in getOverlayPages\(\)\)[\s\S]{0,200}?p is EncryptionPassword \|\| p is BackupPage \|\| p is DownloadsPage\)/.test(spW7)
+    && /staging is EncryptionPassword \|\| staging is BackupPage \|\| staging is DownloadsPage\)/.test(spW7),
+    '★ #340 r2: the sweep covers ALL THREE sublevels the Account stages (encpass · backup · downloads), not just the password pane. Backup/Downloads are cap-gated to non-pane mode so desktop never fires them, but on MOBILE they are ordinary overlays with the same load-then-present window — "tap Downloads, nothing appears to happen, tap back" stranded one over the home shell. Kept as an EXPLICIT type list: pushModalLoaded shares activePreload, so sweeping everything staged would cancel the resume lock');
+  ok(/closeSublevelOverlays\(\)[\s\S]{0,1400}?getStagingPage\(\)[\s\S]{0,300}?popPageAsync\(\);/.test(spW7),
+    '★ #340 (B-MAJOR-1): the sweep also covers the STAGING slot — pushPageLoaded is load-then-present, so for the whole boot window the password pane is in activePreload, NOT overlayStack, with its stage already parented to HomePage. Leaving the Account in that window (exactly when the screen looks frozen) would strand it over the next tab');
   ok(/resetLanguage\(\);\s*\r?\n\s*closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7)
     && /saveSettingsCore\(nick\);[\s\S]{0,200}?closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7),
     'W7: BOTH Account exit paths (ixian:back and ixian:save → onSaveSettings, i.e. the rail tab-switch route through requestSettingsOverlayExit) sweep the password pane — it can never outlive the Account and park over the next tab');
+  const hpW7 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  ok(/sp\.closeSublevelOverlays\(\);\s*\r?\n\s*removePage\(sp\);/.test(hpW7),
+    '★ #340 (B-MAJOR-1, scenario B): requestSettingsOverlayExit\'s DIRECT-close branch sweeps too — pageLoaded is cleared synchronously by reload(), and an OS theme flip reloads every overlay, so "Account + password pane open, theme flips, tap a tab" lands on that branch and bypasses the shell\'s own exit sweep');
+  ok(/op\.stage\.Margin = new Thickness\(0\);\s*(\r?\n\s*\/\/[^\n]*)*\r?\n\s*op\.stageMargin = new Thickness\(0\);/.test(scpW7),
+    '#340 (B-MINOR-1): rehomeOverlay moves the op\'s stageMargin MEMORY with the real margin — otherwise a sublevel opened from a rehomed overlay inherits a phantom inset and leaves a live uncovered strip of its opener, which is the W7 failure itself');
 }
 
 /* —— Desktop PANE CONTENT RAIL (Damir 2026-08-12, Windows screenshots) ————————
@@ -6219,8 +6247,29 @@ console.log('BUG-3 — built home shell, the exact scenario that bit Damir');
 console.log('BUG-2 — apps push cost (static)');
 {
   const utils = readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8');
-  ok(/isTransportSafeDataUri\(arg\) \? arg : escapeHtmlParameter\(arg\)/.test(utils),
+  ok(/\(raw_data_uri_ok && isTransportSafeDataUri\(arg\)\) \? arg : escapeHtmlParameter\(arg\)/.test(utils),
     'BUG-2①: sendUiCommand emits a transport-safe data: URI verbatim (240 KB stays 240 KB) and base64-encodes everything else');
+  ok(/bool raw_data_uri_ok = contentPage != null && contentPage\.supportsRawDataUriArgs;/.test(utils),
+    '★ #340 (A-MAJOR-1/2): the fast path is gated on the RECEIVER, not on the shape of the value. The whitelist alone assumed every receiver runs native.js — two do not');
+  const scpRaw = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  ok(/public bool supportsRawDataUriArgs[\s\S]{0,900}?return loadedHtmlFileName != null && !hasLegacyPageChrome\(loadedHtmlFileName\);/.test(scpRaw),
+    '★ #340 (A-MAJOR-1): the gate FAILS CLOSED — the 8 legacy Raw/html pages still decode with js/spixi.js\'s unguarded atob, so a peer nickname of "data:;base64,x" would pass the whitelist, throw on the \':\', and drop the whole push (wallet_contact_request.setData is that page\'s only writer → a blank payment-confirm screen)');
+  /* #340 r2 (reviewer catch): this pin used to grep SpixiContentPage.cs for the COMMENT
+   * saying MiniAppPage never calls loadPage — mutation-dead, it could not fail for any
+   * code change. The invariant lives in MiniAppPage.xaml.cs, so assert it THERE. It is
+   * load-bearing: MiniAppPage sets _webView directly, which is the only reason
+   * loadedHtmlFileName stays null and the gate fails closed for mini-app WebViews. The
+   * natural future edit — route MiniAppPage through loadPage to pick up
+   * applyPlatformPageChrome / pageSurfaceColor — silently opens the gate, and
+   * SpixiAppSdk.onNetworkData carries PEER BYTES to a decoder shipped inside third-party
+   * app packages that can never be regenerated. */
+  // r3 reviewer: strip comments before testing. Documenting this very invariant IN
+  // MiniAppPage ("does NOT go through loadPage()") would otherwise fail the pin — and that
+  // exact sentence already exists in SpixiContentPage.cs, so it is the likely next edit.
+  const miniApp = readFileSync(join(root, 'Spixi/Pages/MiniApps/MiniAppPage.xaml.cs'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  ok(!/\bloadPage\s*\(/.test(miniApp) && /_webView = webView;/.test(miniApp),
+    '★ #340 (A-MAJOR-2): MiniAppPage still bypasses loadPage, so loadedHtmlFileName stays null and the data-URI gate fails CLOSED for mini-app WebViews — the base64-per-argument SDK contract is frozen and its decoder ships outside this repo');
   ok(/public static string escapeHtmlParameter\(string str\)\s*\{\s*return Convert\.ToBase64String\(Encoding\.UTF8\.GetBytes\(str\)\);/.test(utils),
     'BUG-2①: escapeHtmlParameter itself is UNCHANGED — the escaping contract for every other caller is untouched');
   const gate = utils.slice(utils.indexOf('private static bool isTransportSafeDataUri'), utils.indexOf('public static void sendUiCommand'));
@@ -6238,11 +6287,28 @@ console.log('BUG-2 — apps push cost (static)');
   const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
   ok(/loadApps\(!appsPushedToShell\);/.test(hp) && !/loadApps\(true\);\s*\n\s*\}\s*\n\s*\}\s*\n\s*else if \(current_url\.Equals\("ixian:downloads"/.test(hp),
     '★ BUG-2③: entering tab3 no longer FORCES clearApps + addApp×N — only the first entry into a fresh document, then the shouldRefreshApps gate decides');
-  ok(/appsPushedToShell = true;/.test(hp) && /appsPushedToShell = false;/.test(hp),
+  ok(/appsPushedToShell = pageLoaded;/.test(hp) && /appsPushedToShell = false;/.test(hp),
     'BUG-2③: the latch is set when the rows are pushed and reset in onLoaded — a fresh document (theme flip, language reload) is always re-fed');
   const onLoaded = hp.slice(hp.indexOf('private void onLoaded()'), hp.indexOf('setAsRoot();'));
   ok(/appsPushedToShell = false;/.test(onLoaded),
     'BUG-2③: the reset is in onLoaded specifically — every ixian:onload is a NEW document that holds no app rows');
+
+  /* #340 (C-MAJOR-1) — the latch REMOVED the per-tab-entry self-heal, so a lost or
+   * interleaved push went from transient to permanent-for-the-session. Three pins. */
+  const loadAppsBody = hp.slice(hp.indexOf('private void loadApps(bool forceRefresh)'), hp.indexOf('private void onStartApp(string appId)'));
+  ok(/lock \(appsPushLock\)/.test(loadAppsBody) && /private volatile bool appsPushedToShell/.test(hp) && /private readonly object appsPushLock/.test(hp),
+    '★ #340 (C-MAJOR-1a): loadApps is SERIALIZED. Two callers on two threads with no marshalling — tab3 entry on the UI thread, Node.updateUILoop\'s tick via updateScreen. Interleaved, the tick\'s clearApps lands between the tap\'s addApp calls and the shell drops rows it already had; the latch then made that short list stick');
+  ok(loadAppsBody.indexOf('appsPushedToShell = pageLoaded;') > loadAppsBody.indexOf('"addApp"'),
+    '★ #340 (C-MAJOR-1b): the latch is set AFTER the addApp loop, not before — and only if this document could receive it (sendMessage queues while unloaded and Dispose() drops that queue, so latching on a discarded push is what made an empty apps tab permanent)');
+  const reloadBody = hp.slice(hp.indexOf('public override void reload()'), hp.indexOf('removeDetailContent();'));
+  const reloadShellBody = hp.slice(hp.indexOf('public void reloadShell()'), hp.indexOf('int gen = ++reloadShellGen;') + 400);
+  ok(/appsPushedToShell = false;/.test(reloadBody) && /appsPushedToShell = false;/.test(reloadShellBody),
+    '★ #340 (C-MAJOR-1c): the latch dies with the DOCUMENT — reload() AND reloadShell(), which calls base.reload() directly and so bypasses the override. Not only when the fresh document announces itself: ixian:onload is a known-racy handshake on WinUI (the #337 belt exists for it) and apps was the one surface with no other recovery path');
+
+  const startAppWith = hp.slice(hp.indexOf('private void onStartAppWith(string payload)'), hp.indexOf('public void pickAppTargets(string appId)'));
+  ok(/Node\.MiniAppManager\.getApp\(appId\) == null/.test(startAppWith)
+    && startAppWith.indexOf('getApp(appId) == null') < startAppWith.indexOf('sendAppRequest'),
+    '★ #340 (C-MINOR-3): startappwith rejects an id that names no installed app BEFORE it invites anyone. MiniApp.id comes verbatim out of a downloaded appinfo.spixi with no charset validation, so an id containing the ":|" delimiter mis-splits — worst case a real address lands in parts[0] and we send a network app-invite plus a chat card for an app that does not exist, then open a blank WebView');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

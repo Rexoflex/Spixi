@@ -17,6 +17,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - **WebView baseline is conservative CSS.** Flag modern features per-case at demo time.
 - **Demos run in a plain browser** via the mock bridge, and are mirrored to Figma.
 - **Every doc is concise.** Short tables over prose. If a fact is verifiable in source, cite the file:line.
+- **★ LANGUAGE RULE (Damir, 2026-08-13): Write all output in ASD-STE100 Simplified Technical English.** This rule applies to chat replies, docs, code comments, commit messages, and handoffs. Write short sentences. Use a maximum of 20 words in a procedural sentence. Use a maximum of 25 words in a descriptive sentence. Use the active voice. Give only one instruction in one sentence. Use one word for one meaning. Do not use slang, idioms, or metaphors. Do not use noun clusters of more than three words. Keep technical names, verb names, file names, and token names as they are.
 
 ## Doc index
 

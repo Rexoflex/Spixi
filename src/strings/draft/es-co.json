@@ -214,6 +214,7 @@
   "edited": "editado",
   "encpassMismatch": "Las nuevas contraseñas no coinciden.",
   "encpassNote": "Esta es la contraseña que cifra tu monedero en este dispositivo. Spixi no puede recuperarla por ti.",
+  "encpassRejected": "Esa contraseña no se puede usar. Elige otra.",
   "encpassRepeat": "Repite la nueva contraseña",
   "encpassTooShort": "La nueva contraseña necesita al menos {n} caracteres.",
   "endSession": "Finalizar sesión",

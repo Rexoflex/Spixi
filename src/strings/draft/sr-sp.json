@@ -214,6 +214,7 @@
   "edited": "izmenjeno",
   "encpassMismatch": "Nove lozinke se ne poklapaju.",
   "encpassNote": "Ovo je lozinka koja šifruje vaš novčanik na ovom uređaju. Spixi ne može da je vrati umesto vas.",
+  "encpassRejected": "Ta lozinka ne može da se koristi. Izaberite drugu.",
   "encpassRepeat": "Ponovite novu lozinku",
   "encpassTooShort": "Nova lozinka mora imati najmanje {n} znakova.",
   "endSession": "Završi sesiju",

@@ -214,6 +214,7 @@
   "edited": "urejeno",
   "encpassMismatch": "Novi gesli se ne ujemata.",
   "encpassNote": "To je geslo, ki šifrira vašo denarnico na tej napravi. Spixi vam ga ne more povrniti.",
+  "encpassRejected": "Tega gesla ni mogoče uporabiti. Izberite drugo.",
   "encpassRepeat": "Ponovite novo geslo",
   "encpassTooShort": "Novo geslo mora imeti vsaj {n} znakov.",
   "endSession": "Končaj sejo",

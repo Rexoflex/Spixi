@@ -116,7 +116,12 @@ namespace SPIXI
             // (→ EncryptionPassword, the redesigned settings_encryption.html lock
             // shell), so the hub shows the Change-wallet-password row. An old exe
             // never pushes the cap → the row stays hidden (no dead tap).
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass");
+            // #341 (Damir F5 item (a)): + encpassInline — ixian:changepass: is dispatched
+            // below, so the PANE renders Change password as a true hub SUBLEVEL instead of
+            // the EncryptionPassword page covering the whole Account. Mobile keeps the
+            // pushed page (the shell gates the inline route on paneMode too). An old exe
+            // never pushes this cap, so a new shell falls back to ixian:encpass.
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline");
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -256,6 +261,100 @@ namespace SPIXI
                 // Mobile (non-pane) is byte-identical: no overlay margin ⇒ Thickness.Zero.
                 pushPageLoaded(new EncryptionPassword(), 4000, null, -1, null,
                     getOverlayStageMargin(this));   // load-then-move (N3)
+            }
+            else if (current_url.StartsWith("ixian:changepass:", StringComparison.Ordinal))
+            {
+                // #341 (Damir F5 item (a)): the Account PANE renders Change password as an
+                // in-hub SUBLEVEL (cap 'encpassInline'), so the form lives in THIS WebView
+                // and there is no EncryptionPassword page to pop. Same frozen verb, same
+                // delimiter and the same validation as EncryptionPassword.xaml.cs:53. Only
+                // the answer differs: a setEncPassResult push, because inline there is no
+                // page pop for the shell to read as success.
+                //
+                // ★ SECURITY — read before you touch this branch:
+                //  · split_url[1] and [2] are PLAINTEXT wallet-password material. Never log
+                //    them, never echo them back to the WebView, never widen this verb.
+                //  · The navigation is cancelled at the end of onNavigating, so the URL
+                //    never becomes a session-history entry.
+                //  · The shell scrubs its three fields on every leave path. This document
+                //    outlives the screen, so an unscrubbed form keeps the values (#341).
+                //  · Length must be EXACTLY 3. The shell already refuses a password that
+                //    contains the delimiter, but a longer split would mean the delimiter
+                //    got through, and writing split_url[2] then re-encrypts the wallet with
+                //    a TRUNCATED password the user can never reproduce. Refuse instead.
+                //  · ★ The try/catch is NOT optional (#341 audit MAJOR-1). Without it a
+                //    throw from writeWallet escapes onNavigating, e.Cancel is never set at
+                //    the end of this chain, and the iOS handler logs the WHOLE URL —
+                //    iOSWebViewHandler.cs:116 writes navigationAction.Request.Url into
+                //    ixian.log, which DevPage renders and offers through the share sheet.
+                //    That would put both passwords in cleartext in a shareable file.
+                string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
+                // "1" = changed · "0" = wrong current password · "2" = the request itself was
+                // not usable. Separating "2" keeps the diagnosis honest: without it a payload
+                // the shell should never send is reported as "wrong current password", and no
+                // retry can ever succeed (#341 audit MINOR-2).
+                string encResult = "2";
+                try
+                {
+                    // ENC_MIN mirror (src/components/lock-shell.js:46). The shell gates this
+                    // already, but the inline route removed the separate EncryptionPassword
+                    // page, so C# must be able to refuse an empty or short password on its
+                    // own. A wallet re-encrypted with "" is a silent security downgrade.
+                    if (split_url.Length == 3 && split_url[2].Length >= 10)
+                    {
+                        if (IxianHandler.getWalletStorage().isValidPassword(split_url[1]))
+                        {
+                            IxianHandler.getWalletStorage().writeWallet(split_url[2]);
+                            // ★ #341 review MAJOR-1 — CONFIRM the write instead of assuming it.
+                            // writeWallet is called as a statement here and at every other site
+                            // in this repo, so a failure reported by RETURN VALUE (not by an
+                            // exception) would pass the try/catch unseen. Before this batch that
+                            // was survivable: the wallet and the cached preference both stayed
+                            // on the OLD password. Now the preference moves, so an unnoticed
+                            // failure would lock the user out at the next cold start. Asking the
+                            // storage whether the NEW password opens it is true either way, and
+                            // it needs no knowledge of the return type (Ixian-Core is outside
+                            // this repo — rule #215). 🟡 Confirm on device that this reports
+                            // false after a failed write; the belt is cheap, not proven.
+                            if (!IxianHandler.getWalletStorage().isValidPassword(split_url[2]))
+                            {
+                                Logging.error("Wallet password change did not take effect; the cached password was left unchanged.");
+                                encResult = "2";
+                            }
+                            else
+                            {
+                            // ★ #341 audit MAJOR-2 — the wallet password is ALSO cached as a
+                            // preference, and Node.loadWallet reads it at every cold start
+                            // (Node.cs:248-256). Re-encrypting the wallet without updating it
+                            // means the next launch opens the wallet with the OLD password,
+                            // fails, and drops the user on LaunchRetryPage — "my account is
+                            // gone". BackupPage.xaml.cs:144 encrypts the backup archive with
+                            // the same preference, so a backup taken before the next restart
+                            // needs one password for the archive and another for the wallet
+                            // inside it: unrestorable. Create/restore/retry all set it
+                            // (LaunchCreatePage:197, LaunchRestorePage:139, LaunchRetryPage:64).
+                            Preferences.Default.Set("walletpass", split_url[2]);
+                            encResult = "1";
+                            }
+                        }
+                        else
+                        {
+                            encResult = "0";
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // NEVER log the URL or either password — only the exception itself.
+                    // Same shape as LaunchCreatePage.xaml.cs:215 and LaunchRestorePage:217.
+                    Logging.error("Exception occured while changing the wallet password: {0}", ex);
+                    encResult = "2";
+                }
+                // No native alert on any outcome: the inline screen renders its own success
+                // morph and its own error, so an alert would be a second, redundant
+                // confirmation. EncryptionPassword keeps its alerts, because that page has
+                // no inline error surface.
+                Utils.sendUiCommand(this, "setEncPassResult", encResult);
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {

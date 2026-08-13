@@ -15358,7 +15358,7 @@ function createEncPassScreen({
 
   el.append(createTopbar({
     variant: 'view',
-    title: strings.changePassword || 'Change wallet password',
+    title: strings.changePassword || 'Change Spixi password',
     onBack: () => { scrub(); teardown(); if (onBack) onBack(); },
     backLabel: strings.back || 'Back',
   }));
@@ -15445,6 +15445,18 @@ function createEncPassScreen({
   cur.addEventListener('input', () => setError(''));
   next.addEventListener('input', () => setError(''));
   repeat.addEventListener('input', () => setError(''));
+
+  /* #341: release hook, same convention as createChatAppearance's `release`.
+   * The standalone settings_encryption.html shell DIES on pop, so scrub-on-back
+   * plus the window `pagehide` listener were sufficient there. The Account pane
+   * mounts this screen INSIDE the long-lived settings.html document, and that
+   * document is PARKED on close (#315). renderLayout() replaces the children on
+   * many paths that never touch the back button — hardware back, setPaneMode,
+   * setLocale, onRepresented, the language reload. Without this hook the screen
+   * becomes a DETACHED node that the window listener still holds, with the three
+   * password values live in it for the life of the process.
+   * Idempotent: scrub() and removeEventListener both tolerate a repeat call. */
+  el.release = () => { scrub(); teardown(); };
 
   return el;
 }
@@ -16245,14 +16257,17 @@ function createSettingsHub({
     onToggle: onPaymentAuth,
   }));
 
-  /* change wallet password — lock-shell encpass takeover (Phase 1 #4, docs/lock-spec.md).
-     CAPABILITY-GATED (`capabilities.changePassword`): the redesigned settings_encryption.html
-     shell exists, but SettingsPage has NO verb that opens EncryptionPassword (bridge-audit-B
-     §1/§3 — it is a separate HomePage-independent page). So the row is built + ready, gated
-     OFF until BE adds a SettingsPage → EncryptionPassword nav verb (be-cutover ask). */
+  /* Change Spixi password — the lock-shell encpass screen (Phase 1 #4, docs/lock-spec.md).
+     Still CAPABILITY-GATED on `capabilities.changePassword`, but the capability is LIVE
+     now: S7 landed in #283 (SettingsPage dispatches ixian:encpass → EncryptionPassword),
+     and #341 added the in-pane sublevel route beside it. The gate now only hides the row
+     on an old exe that pushes no caps. */
+  // #341: `key` lets the pane mark this row as the current one (aria-current + the
+  // tonal tint) while its sublevel is open, exactly like backup/downloads/theme/
+  // language. Without it the row was the only sublevel opener that announced nothing.
   if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
-    glyph: 'pencil', hue: 'primary',
-    label: strings.changePassword || 'Change wallet password',
+    glyph: 'pencil', hue: 'primary', key: 'encpass',
+    label: strings.changePassword || 'Change Spixi password',
     onClick: () => onChangePassword(),
   }).section);
 

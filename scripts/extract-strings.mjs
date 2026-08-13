@@ -64,6 +64,15 @@ const DYNAMIC = {
   patternSubtle: 'Subtle',
   patternStandard: 'Standard',
   patternBold: 'Bold',
+  // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key] exactly like
+  // PATTERN_LEVELS, so it is unextractable and MUST live here. It did not, so the
+  // three style names existed in the locale files only until the next extract run —
+  // and that run silently deleted every translation of them. Both i18n gates were
+  // blind to it: they compare locales against each other, and a key dropped from
+  // ALL of them stays "consistent".
+  patternStyleLineArt: 'Line art',
+  patternStyleMatrix: 'Data matrix',
+  patternStyleFlow: 'Live flow',
   textS: 'S',
   textM: 'M',
   textL: 'L',

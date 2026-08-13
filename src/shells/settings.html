@@ -44,6 +44,7 @@
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
+<link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- #341: c-encpass + password fields for the in-pane Change-password sublevel -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
@@ -165,6 +166,7 @@
     createSettingsContributors, createSettingsBackup,
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
+    createEncPassScreen, ENC_DELIM,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
@@ -222,6 +224,30 @@
   function releaseChatAppearance() {
     if (appearanceEl && appearanceEl.release) appearanceEl.release();
     appearanceEl = null;
+  }
+  /* #341: same contract for the in-pane Change-password sublevel, and here it is
+   * a SECURITY requirement, not only a leak guard. The screen holds three plaintext
+   * password values in live inputs. This document is long-lived and PARKED on close
+   * (#315), so a detached screen would keep them for the life of the process.
+   * release() scrubs the values, re-masks the reveal state and drops the window
+   * `pagehide` listener. Called on every render that is not 'encpass' (incl.
+   * showHub), and by the in-flight guard below. */
+  let encpassEl = null;
+  let encpassCtrl = null;                        // live lockCtrl while C# validates
+  let encpassGuard = 0;                          // watchdog timer id
+  let encpassSeq = 0;                            // correlates a submit with its answer
+  function releaseEncpass() {
+    if (encpassEl && encpassEl.release) encpassEl.release();
+    encpassEl = null;
+    encpassCtrl = null;                          // a late result must not touch a dead screen
+    // #341 audit MINOR-1: drop the watchdog too (releaseDownloads precedent). Left
+    // running it fires ctrl.fail() on a DETACHED screen up to 8 s later, which
+    // re-enables dead inputs and calls focus() on a node nobody can see.
+    clearTimeout(encpassGuard); encpassGuard = 0;
+    // #341 audit MINOR-2: invalidate the in-flight submit. Without this, "submit,
+    // leave, come back, submit again" lets the FIRST answer resolve the SECOND
+    // form — a stale "Password changed" over a request whose outcome is unknown.
+    encpassSeq += 1;
   }
   let strings = window.SL || {};   // #334 iOS-58: `let` — setLocale swaps the dict LIVE (closures read the variable)
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
@@ -383,6 +409,12 @@
   function exitSettings() {
     if (exiting) return;
     exiting = true;
+    // #341 SECURITY: scrub the password sublevel HERE too. `exiting` makes
+    // renderLayout bail, so the usual release path never runs on this route — and
+    // this document is PARKED, not destroyed (#315), so unscrubbed fields would
+    // survive in a live DOM until the next visit. Reached by a rail tab switch
+    // (onExitRequest), the peer nav and hardware back.
+    releaseEncpass();
     const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
   }
@@ -404,6 +436,11 @@
       return;
     }
     // frozen-bridge fallback: persist + pop, exactly once (the C# page pop = confirm).
+    // #341 audit MAJOR-2: scrub the password sublevel BEFORE latching `exiting`. In the
+    // pane the hub column stays live beside an open sublevel, so Save is reachable
+    // while the form holds three plaintext passwords — and once `exiting` is true
+    // renderLayout bails, so no later render can scrub them.
+    releaseEncpass();
     exiting = true;
     bridge.send('ixian:save:' + state.name);
   }
@@ -542,6 +579,7 @@
     // let the 80ms settle paint into it. Re-entry rebuilds + re-requests the list.
     if (currentView !== 'downloads') releaseDownloads();
     if (currentView !== 'chatappearance') releaseChatAppearance();
+    if (currentView !== 'encpass') releaseEncpass();   // #341: scrub the passwords
     if (!hubEl) { hubEl = buildHub(); syncSave(); }
     if (paneMode) {
       if (hubEl.parentNode !== masterWrap) {
@@ -729,12 +767,22 @@
         bridge.send('ixian:backup');
       },
 
-      // change wallet password — GATED OFF (capabilities.changePassword absent): no
-      // SettingsPage verb opens EncryptionPassword (bridge-audit-B §1/§3). The
-      // settings_encryption.html shell exists + is wired; wire this + flip the flag
-      // when BE adds the nav verb (be-cutover S7). Emits the candidate verb so it's
-      // ready — inert today (SettingsPage doesn't dispatch it, and the row is hidden).
-      onChangePassword: () => bridge.send('ixian:encpass'),
+      // Change Spixi password. This row is LIVE (S7 landed in #283): SettingsPage
+      // pushes the `encpass` cap and dispatches ixian:encpass. The stale "gated off,
+      // inert today" note that stood here was written before that and is deleted.
+      // #341 (Damir F5 item (a)): in the PANE, Change password is a true in-hub
+      // SUBLEVEL, exactly like Backup (#243) and Downloads (#267). Before this, the
+      // verb pushed the EncryptionPassword page, which W7 makes cover its opener —
+      // and the Account pane IS the window minus the rail, so the form filled the
+      // window. That behaviour was correct for W7 and wrong for the user.
+      // ⚠ Do NOT "fix" this by pinning EncryptionPassword to grid column 1. The hub
+      // then stays visible AND live underneath, every hub row opens a sublevel below
+      // the password pane, and the surface reads as frozen. That is the W7 bug.
+      // Mobile keeps the pushed page: no pane, or an old exe without the cap.
+      onChangePassword: () => {
+        if (paneMode && bridge.cap('encpassInline')) { showEncpass(); return; }
+        bridge.send('ixian:encpass');
+      },
 
       onDanger: showDanger,
     });
@@ -811,6 +859,7 @@
   function showLanguage() { currentView = 'language'; renderLayout(); }
   function showBackup() { currentView = 'backup'; renderLayout(); }        // #243: pane + backupInline cap only
   function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267): pane + downloadsInline cap only
+  function showEncpass() { currentView = 'encpass'; renderLayout(); }      // #341: pane + encpassInline cap only
 
   // #242: detail-screen chrome for the inline pickers — same view topbar + body
   // grammar as the component screens; back = showHub (split: empties the detail).
@@ -944,6 +993,56 @@
         });
         bridge.send('ixian:loadDownloads');   // request the list into THIS WebView
         return downloadsEl;
+      }
+      // #341 (Damir F5 item (a)): Change password as a pane SUBLEVEL — the SAME
+      // c-encpass screen the standalone settings_encryption.html shell mounts, with
+      // SettingsPage now dispatching ixian:changepass: itself (cap 'encpassInline').
+      // Mobile (and an old exe) keeps the pushed EncryptionPassword page via
+      // ixian:encpass, so the #340 closeSublevelOverlays sweep still applies there.
+      //
+      // ★ TRANSPORT NOTE (SECURITY, read before you change this): the password rides
+      // the SAME frozen `ixian:changepass:<DELIM>old<DELIM>new` verb as the standalone
+      // page. Nothing new is invented, but the pattern now has a SECOND host, and this
+      // host is a long-lived, parked document. Two guards make that safe, and both are
+      // load-bearing: (1) the navigation is CANCELLED by C#, so no history entry keeps
+      // the URL; (2) releaseEncpass() scrubs the fields on every leave path. Never
+      // store, log or echo these values, and never widen the verb.
+      case 'encpass': {
+        // #341 audit MAJOR-1: release the PREVIOUS screen first. renderLayout skips
+        // releaseEncpass while the user is ON this view, but it still rebuilds — a
+        // second tap on the live hub row, setPaneMode on a window resize, setLocale,
+        // onRepresented. Each one replaced the node and left the old, FILLED form
+        // detached with its three plaintext values held by the window listener.
+        // createChatAppearance's case does the same step for the same reason.
+        releaseEncpass();
+        encpassEl = createEncPassScreen({
+          strings,                               // no `host`: the component ignores it (mountEncPassPage never passed one)
+          // #341 audit MINOR-3: the component's success path calls onBack 900 ms after
+          // the morph. In that window the user can open another sublevel from the live
+          // hub column, and an unguarded showHub would close THAT screen instead.
+          onBack: () => { if (currentView === 'encpass') showHub(); },
+          onChangePassword: (oldPass, newPass, ctrl) => {
+            // Watchdog: inline there is no page pop to signal an outcome, so a C#
+            // that never answers would strand the form disabled forever. ctrl is
+            // one-shot (lockCtrl), so a late real result after this fires is inert.
+            const seq = ++encpassSeq;
+            let settled = false;
+            encpassGuard = setTimeout(() => {
+              if (settled || seq !== encpassSeq) return;
+              settled = true;
+              encpassGuard = 0;
+              encpassCtrl = null;
+              ctrl.fail();                       // component supplies the wrong-current copy
+            }, 8000);
+            encpassCtrl = {
+              seq,
+              done: (p) => { settled = true; clearTimeout(encpassGuard); encpassGuard = 0; ctrl.done(p); },
+              fail: (m) => { settled = true; clearTimeout(encpassGuard); encpassGuard = 0; ctrl.fail(m); },
+            };
+            bridge.send('ixian:changepass:' + ENC_DELIM + oldPass + ENC_DELIM + newPass);
+          },
+        });
+        return encpassEl;
       }
     }
     // unknown view (unreachable — all setters are controlled): degrade safely.
@@ -1162,6 +1261,37 @@
       if (dlBuf === null) dlBuf = [];
       dlBuf.push({ name: name || '', time: ctime || '' });
       dlSettle();
+    },
+
+    // setEncPassResult('1'|'0') — #341. The standalone settings_encryption.html has
+    // NO result push: C# alerts and pops the page, and mountEncPassPage releases the
+    // form on a 1600 ms no-pop timer. Inline there is no pop, so SettingsPage answers
+    // explicitly instead. '1' = the wallet was re-encrypted with the new password;
+    // anything else = the current password was wrong. Carries NO password material.
+    // A result that arrives after the user left the sublevel finds encpassCtrl null
+    // (releaseEncpass cleared it) and is dropped.
+    setEncPassResult(ok) {
+      const c = encpassCtrl;
+      // #341 audit MINOR-2: the seq test drops an answer that belongs to a submit the
+      // user already walked away from, so it can never resolve a later form.
+      if (!c || c.seq !== encpassSeq) {
+        // #341 review MINOR-7: but a DROPPED SUCCESS must still be told. The inline
+        // route suppresses the native alerts, so a user who leaves the screen while
+        // C# is validating would get no confirmation on any surface — and the wallet
+        // password HAS changed. The mobile route cannot reach this state: C# alerts
+        // and pops there.
+        if (String(ok) === '1') {
+          showToast({ text: strings.passwordChanged || 'Password changed', tone: 'success', host: document.body, strings });
+        }
+        return;
+      }
+      encpassCtrl = null;
+      if (String(ok) === '1') c.done();
+      // #341 review MINOR-2: this needs its OWN key. Re-using `badPassword` collided
+      // with the component's value for the same key, and extract-strings exits 1 on a
+      // fallback conflict — the whole build chain would have stopped at step 1.
+      else if (String(ok) === '2') c.fail(strings.encpassRejected || 'That password can’t be used. Pick a different one.');
+      else c.fail();                             // '0' — component supplies the wrong-current copy
     },
 
     // onBack() — hardware back, routed by HomePage while this page is an overlay

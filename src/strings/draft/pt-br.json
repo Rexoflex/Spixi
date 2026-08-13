@@ -214,6 +214,7 @@
   "edited": "editada",
   "encpassMismatch": "As novas senhas não coincidem.",
   "encpassNote": "Esta é a senha que criptografa sua carteira neste dispositivo. O Spixi não pode recuperá-la para você.",
+  "encpassRejected": "Essa senha não pode ser usada. Escolha outra.",
   "encpassRepeat": "Repita a nova senha",
   "encpassTooShort": "A nova senha precisa de pelo menos {n} caracteres.",
   "endSession": "Encerrar sessão",

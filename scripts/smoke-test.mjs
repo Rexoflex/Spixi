@@ -5124,24 +5124,20 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   const baseCss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
   const cfgCs = readFileSync(join(root, 'Spixi/Meta/Config.cs'), 'utf8');
 
-  ok(/<div id="chat-topbar"><div class="boot-chrome boot-chrome--topbar"/.test(chatSh)
-    && /<div id="chat-composer"><div class="boot-chrome boot-chrome--composer"/.test(chatSh),
-    '★ #343: the chat topbar and composer are painted as STATIC HTML skeletons. The engine can paint a chat-shaped screen as soon as the document parses, instead of showing a blank canvas for the whole ~870 KB bundle parse — which is the single biggest contributor to "entering a chat is laggy"');
-  ok(!/boot-chrome[\s\S]{0,400}?localStorage/.test(chatSh),
-    '★ #343 SECURITY: the skeleton carries NO identity. Caching the peer name or avatar to paint them earlier would put contact data in the file:// localStorage partition a mini-app can read (#254 ruling, security MAJOR #4). The name arrives by push instead');
-  ok(/document\.getElementById\('chat-composer'\)\.replaceChildren\(composerEl\)/.test(chatSh),
-    '#343: the real composer REPLACES the skeleton, so there is never a frame showing both');
-  ok(/\.chat-boot__spinner \{ opacity: 0; animation: chat-boot-in 160ms ease-out 300ms forwards/.test(chatSh),
-    '★ #343: the spinner only appears after 300 ms. A loader that flashes for 150 ms reads as a stutter and makes the app feel SLOWER than showing nothing at all');
-  ok(/const firstCommit = !firstRenderDone;/.test(chatSh)
-    && /if \(firstCommit\) \{[\s\S]{0,400}?requestAnimationFrame\(\(\) => requestAnimationFrame\(reveal\)\);[\s\S]{0,120}?setTimeout\(reveal, 400\);/.test(chatSh),
-    '★ #343: the log fades in ONCE, on the first commit only, with a fail-safe. Two rAFs because the opacity-0 frame must actually paint or the browser coalesces both and shows nothing; the timeout means a dropped frame can never leave the log invisible; one-shot because live messages must never re-fade the whole conversation');
-
-  ok(/'pointerdown'/.test(pressJs) && !/addEventListener\('click'/.test(pressJs),
-    '#343: press feedback is bound to pointerdown, never click');
+  /* #343 device outcome: the instant-chrome skeleton, the 300 ms spinner delay and the
+   * first-commit fade were REVERTED. On device they made chat entry worse, not better —
+   * Damir: "it flashes some light dark screen and is worse than before". They were aimed
+   * at a cause inferred from the code and never measured, which is exactly what rule #294
+   * exists to prevent. Do not re-attempt them before a chrome://inspect Performance trace
+   * names the real cost. What survives is the press feedback and the message window. */
+  ok(!/boot-chrome/.test(chatSh) && !/chat-boot-in/.test(chatSh) && !/logEntering/.test(chatSh),
+    '★ #343 REVERTED ON DEVICE EVIDENCE: no instant-chrome skeleton, no delayed spinner, no first-commit fade. Re-adding any of them without a measurement re-introduces a regression Damir already saw');
+  ok(/'pointerdown'/.test(pressJs) && /'touchstart'/.test(pressJs) && !/addEventListener\('click'/.test(pressJs),
+    '★ #343 device fix: BOTH touchstart and pointerdown are bound, never click. On Android WebView pointer events are synthesised from touch events and wait on gesture disambiguation, so pointerdown alone arrived late — Damir read it as "abrupt with delay". touchstart fires on contact');
   ok(/PRESS_MOVE_CANCEL_PX/.test(pressJs) && /> PRESS_MOVE_CANCEL_PX\) clear\(\)/.test(pressJs),
     '★ #343: the move-cancel rule is in the source, not just in the behavioural test above');
-  ok(/html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-color: var\(--surface-interactive-pressed\)/.test(baseCss)
+  ok(/html:root \[data-pressed\] \{ transition: none; \}/.test(baseCss)
+    && /html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-color: var\(--surface-interactive-pressed\)/.test(baseCss)
     && /html:root \[data-pressed="control"\] \{[\s\S]{0,80}?transform: scale\(0\.97\)/.test(baseCss)
     && !/\n\[data-pressed/.test(baseCss),
     '★ #343 DEVICE FIX: the press rules carry the html:root prefix. base.css loads BEFORE every component stylesheet, and .c-chatlist-item sets `background: transparent` at the same specificity — so an unprefixed rule lost on source order and the tint never painted at all on device. html:root is (0,2,1) and beats the component\'s (0,2,0) [aria-current] and :active rules from anywhere in the cascade');

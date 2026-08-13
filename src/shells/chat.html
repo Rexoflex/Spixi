@@ -220,43 +220,7 @@
   html[data-desktop][data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
-  /* #343 instant-chrome skeletons — the SHAPE of the screen, painted from HTML.
-     Deliberately flat surfaces with a hairline, not shimmering placeholders: a
-     shimmer animates attention onto the wait, which is the opposite of the goal
-     (and #264 already ruled against skeleton loaders). Heights mirror the real
-     components so nothing shifts when they mount. */
-  .boot-chrome { background: var(--surface-screen); }
-  .boot-chrome--topbar {
-    height: calc(56px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
-    border-bottom: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.16));
-  }
-  .boot-chrome--composer {
-    height: calc(56px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    border-top: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.16));
-  }
-  /* #343: the spinner no longer appears on a fast open. A loader that flashes for
-     150 ms reads as a stutter and makes the app feel SLOWER than showing nothing.
-     It fades in only after the wait is long enough for the user to have noticed it
-     (300 ms), so a quick chat goes straight from chrome to conversation. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }
-  .chat-boot__spinner { opacity: 0; animation: chat-boot-in 160ms ease-out 300ms forwards, chat-boot-spin 0.8s linear infinite; }
-  @keyframes chat-boot-in { to { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: chat-boot-in 1ms linear 300ms forwards; } }
-  /* #343: ONE 120 ms fade on the first log commit. The log already swaps in with a
-     single replaceChildren (no flicker), but an instant swap SNAPS. A short fade
-     makes the conversation arrive instead. First commit only — live messages must
-     never re-fade the whole log. */
-  #messages { transition: opacity 120ms var(--easing-standard, ease-out); }
-  #messages[data-log-entering] { opacity: 0; transition: none; }
-  @media (prefers-reduced-motion: reduce) { #messages { transition: none; } }
-  .chat-boot__spinner {
-    width: 28px; height: 28px; border-radius: 50%;
-    border: 3px solid var(--border-subtle, rgba(128,128,128,0.22));
-    border-top-color: var(--icon-accent, #1892ce);
-    animation: chat-boot-spin 0.8s linear infinite;
-  }
   @keyframes chat-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: none; } }
   /* avatar flash guard: keep the topbar avatar invisible (slot reserved) until the
@@ -446,20 +410,12 @@
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
     <span id="sl-online">*SL{chat-online}</span>
   </div>
-  <!-- #343 INSTANT CHROME. These two skeletons are plain HTML, so the engine paints a
-       chat-SHAPED screen as soon as the document parses — before the ~870 KB inlined
-       bundle is executed. Without them the user tapped a row and watched a blank canvas
-       with a spinner for the whole parse, which is the single biggest contributor to
-       "entering a chat is laggy". They carry NO identity: the peer name and avatar
-       arrive by push, and caching them locally would put contact data in the file://
-       localStorage partition that mini-apps can read (#254 ruling / security MAJOR #4).
-       Both are removed by the real mount (mountChrome below), never by a timer. -->
-  <div id="chat-topbar"><div class="boot-chrome boot-chrome--topbar" aria-hidden="true"></div></div>
+  <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
     <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
   </div>
-  <div id="chat-composer"><div class="boot-chrome boot-chrome--composer" aria-hidden="true"></div></div>
+  <div id="chat-composer"></div>
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
@@ -2371,24 +2327,10 @@
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
     }
-    const firstCommit = !firstRenderDone;   // #343: fade the FIRST commit only
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     keepTypingLast();
     if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
-    /* #343: the conversation ARRIVES instead of snapping. The swap above is already
-       atomic, so this is not a flicker fix — it is the 120 ms that makes a single
-       hard cut read as a transition. Applied once, after the scroll is set, so the
-       user never sees the log move. Two rAFs: the opacity-0 frame must actually
-       paint before the transition starts, or the browser coalesces both and shows
-       nothing. The timeout is a fail-safe — a dropped rAF must never leave the log
-       invisible. Live messages never re-fade (firstCommit is one-shot). */
-    if (firstCommit) {
-      box.dataset.logEntering = '';
-      const reveal = () => { delete box.dataset.logEntering; };
-      requestAnimationFrame(() => requestAnimationFrame(reveal));
-      setTimeout(reveal, 400);
-    }
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
     // Multi-select: every row node above is BRAND NEW, so the selection (kept by
@@ -3798,8 +3740,6 @@
     // `mode` isn't known at composer-creation, so the gate lives in the source fn.
     mentionSource: mentionMembers,
   });
-  // #343: replaceChildren, not append — this drops the instant-chrome skeleton in the
-  // same operation that mounts the real composer, so there is never a frame with both.
   document.getElementById('chat-composer').replaceChildren(composerEl);
 
   /* Save the draft as the user types (debounced ~400ms). Only genuine typing

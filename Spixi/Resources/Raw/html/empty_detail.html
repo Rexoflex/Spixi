@@ -1276,10 +1276,13 @@ img, svg { display: block; max-width: 100%; }
    component selectors are `.c-chatlist-item[aria-current]` and `:active`, both
    (0,2,0). `html:root …` is (0,2,1), which beats them from anywhere in the cascade.
    Do not simplify this prefix away. */
-html:root [data-pressed] {
-  transition: background-color 90ms var(--easing-standard, ease-out),
-              transform 90ms var(--easing-standard, ease-out);
-}
+/* ★ INSTANT ON, FADE OUT — the native grammar (device fix). The first cut ramped the
+   tint IN over 90 ms, which Damir read as "abrupt with delay": a ramp that short is too
+   fast to be seen as motion and too slow to be seen as a response, so it lands as a
+   late snap. iOS list rows and Android touch highlights both appear IMMEDIATELY and
+   FADE on release. `transition: none` here does exactly that, and the release fade
+   comes from the base rule below, which applies when the attribute is removed. */
+html:root [data-pressed] { transition: none; }
 html:root [data-pressed="row"] {
   background-color: var(--surface-interactive-pressed);
 }
@@ -1298,8 +1301,8 @@ html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item
 html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
 html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
 html:root .c-bottomnav__item, html:root .fab, html:root .c-topbar__dots {
-  transition: background-color 120ms var(--easing-standard, ease-out),
-              transform 120ms var(--easing-standard, ease-out);
+  transition: background-color 200ms var(--easing-standard, ease-out),
+              transform 200ms var(--easing-standard, ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
   html:root [data-pressed="control"] { transform: none; }

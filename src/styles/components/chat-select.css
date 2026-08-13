@@ -1,31 +1,98 @@
-/* chat-select — selection mode + count bar + split-paste offer (#139). */
+/* chat-select — selection mode + selection TOPBAR + split-paste offer (#139). */
 
-/* selection mode: rows become toggle targets; selected rows get the tonal wash */
+/* —— selection mode on the log ——————————————————————————————————————————————
+   The check circle is deliberately CSS-ONLY (pseudo-elements on the row, driven
+   by [data-selecting] / [data-selected]). The chat shell rebuilds every row node
+   on a status tick or a new message — an injected <span> check would be wiped on
+   each render, a pseudo-element re-applies for free on the fresh node. */
 [data-selecting] .c-bubble-row { cursor: pointer; }
+/* W9-④ (Damir, Windows F5): while a DESKTOP drag is ranging over rows, native
+   text selection must not fight it — the browser would paint a text highlight
+   across every bubble the pointer crosses. Scoped to the live gesture
+   ([data-dragselect] is set on pointermove and removed on pointerup), so text
+   selection inside selection mode is untouched the rest of the time, and the
+   gesture is mouse-only (chat-select.js) — touch drags stay scrolls. */
+[data-dragselect], [data-dragselect] * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* position context for the tick (below); the bubble/card is a NEARER positioned
+   ancestor, so overlap reactions keep anchoring where they did. */
+[data-selecting] .c-bubble-row[role="checkbox"] { position: relative; }
 [data-selecting] .c-bubble-row[data-selected] {
   background: var(--surface-action-tonal-default);
   border-radius: var(--radius-12);
 }
 
-/* count bar — overlays the top of the phone/host (native apps morph the topbar) */
+/* the circle: a flex item on the row's LEADING edge, both directions (sent rows
+   are justify-content:flex-end, so the circle takes the slack with auto margin) */
+[data-selecting] .c-bubble-row[role="checkbox"]::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: var(--size-avatar-24);
+  height: var(--size-avatar-24);
+  margin-inline-end: var(--spacing-8);
+  border-radius: var(--radius-full);
+  /* ICON ink, not an outline token: the empty circle is the AFFORDANCE ("this row
+     can be picked"), and it sits on the patterned chat canvas, not on a card edge.
+     --outline-neutral-02 resolves to neutral-700 in dark and disappeared against
+     the dark canvas in the F5 shots; --icon-neutral-02 is the muted-icon ink that
+     is legible on the canvas in BOTH themes. */
+  box-shadow: inset 0 0 0 var(--outline-width-2) var(--icon-neutral-02);
+  transition: background-color var(--duration-100) var(--easing-standard),
+              box-shadow var(--duration-100) var(--easing-standard);
+}
+[data-selecting] .c-bubble-row[data-direction="sent"][role="checkbox"]::before { margin-inline-end: auto; }
+[data-selecting] .c-bubble-row[data-selected]::before {
+  background: var(--surface-action-default);
+  box-shadow: inset 0 0 0 var(--outline-width-2) var(--surface-action-default);
+}
+/* the tick inside it — two borders rotated (no font glyph, no data-URI: crisp at
+   any DPI and the ink stays a token). PHYSICAL borders on purpose: a checkmark is
+   not mirrored in RTL, only its position is (inset-inline-start). */
+[data-selecting] .c-bubble-row[data-selected]::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(var(--spacing-16) + 6px);
+  top: 50%;
+  width: 10px;
+  height: 5px;
+  border-left: var(--outline-width-2) solid var(--icon-neutral-on-action);
+  border-bottom: var(--outline-width-2) solid var(--icon-neutral-on-action);
+  transform: translateY(-70%) rotate(-45deg);
+  pointer-events: none;
+}
+/* No reduced-motion media query here on purpose: the house convention zeroes the
+   duration TOKENS globally (tokens.css:967-973), so a token-based transition is
+   already still under `prefers-reduced-motion: reduce`. */
+
+/* —— selection topbar ————————————————————————————————————————————————————————
+   Mounted INTO the chat topbar's slot (host) and covering it edge to edge, so it
+   inherits the bar's height incl. the iOS status-bar inset (#282) instead of
+   re-deriving it. .c-chatselect-host is the positioning context. */
+.c-chatselect-host { position: relative; }
 .c-chatselect-bar {
   position: absolute;
-  inset-inline: 0;
-  inset-block-start: 0;
-  z-index: 30;
+  inset: 0;
+  z-index: var(--z-30);            /* over .c-topbar (--z-20) */
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
-  padding: var(--spacing-8) var(--spacing-12);
-  background: var(--surface-card-raised);
-  box-shadow: var(--elevation-1);
+  gap: var(--spacing-8);
+  padding-top: env(safe-area-inset-top, 0px);   /* host may be taller than its bar; keep the row clear of the notch */
+  padding-inline: var(--spacing-8);
+  background: var(--surface-topbar);
+  color: var(--text-topbar);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+[data-theme="dark"] .c-chatselect-bar { border-bottom-color: var(--outline-neutral-02); }
 .c-chatselect-bar__cancel {
+  flex: none;
   width: var(--size-target-min); height: var(--size-target-min);
   display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: var(--radius-full);
   background: transparent;
-  color: var(--icon-neutral-01);
+  color: var(--icon-topbar);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -33,8 +100,20 @@
 .c-chatselect-bar__cancel:active { background: var(--surface-interactive-pressed); }   /* #28 */
 .c-chatselect-bar__count {
   flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
+  color: var(--text-topbar);
+}
+.c-chatselect-bar__actions { display: flex; align-items: center; gap: var(--spacing-4); flex: none; }
+/* bar buttons: ink through the button's private vars only (a literal `color:`
+   here would out-cascade button.css's hover ink and freeze it — #49) */
+.c-chatselect-bar .c-button[data-type="text"] {
+  --_ink: var(--icon-topbar);
+  --_ink-hover: var(--icon-action-hover);
+  --_ink-pressed: var(--icon-action-pressed);
 }
 
 /* split-paste offer — sits above the composer input row */

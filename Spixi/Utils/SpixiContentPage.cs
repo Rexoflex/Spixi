@@ -337,6 +337,12 @@ namespace SPIXI
             // context (§1/#221 unchanged) — parking changes WHEN it is torn down,
             // never what it can reach.
             public bool parkOnClose = false;
+            // W7: the inset this stage was staged with (#245 rail strip for the Account
+            // peer pane; zero for every other op). Remembered so a page opened FROM this
+            // overlay can inherit the SAME geometry and cover its opener exactly —
+            // getOverlayStageMargin(). Read under preloadLock, never off the stage's
+            // Margin property (that would be a UI read from a background thread).
+            public Thickness stageMargin = default;
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -683,6 +689,27 @@ namespace SPIXI
                     pages.Add(op.target);
                 }
                 return pages;
+            }
+        }
+
+        /** W7 (Damir F5, Windows: Account → Change wallet password "hangs"): the stage
+         *  INSET of the open overlay presenting `page` — Thickness.Zero when that page
+         *  is not an open overlay (mobile takeover / push fallback), which is exactly
+         *  the pre-W7 default.
+         *
+         *  A page opened FROM an overlay-hosted page passes this back as its own
+         *  stageMargin (with column = -1) so it covers its OPENER EXACTLY. The #265 ②
+         *  class this closes: a col-1 pin covers only the DETAIL region of the full-span
+         *  Account pane, so the hub beside it stays visible AND live — every hub row
+         *  still opens its sublevel, into a detail region hidden behind the new page.
+         *  Nothing happens on screen, and the surface reads as frozen. Covering the
+         *  opener makes the sublevel a real takeover: no live-but-blind surface left. */
+        public static Thickness getOverlayStageMargin(SpixiContentPage page)
+        {
+            lock (preloadLock)
+            {
+                PreloadOp? op = overlayStack.Find(o => o.target == page);
+                return op != null ? op.stageMargin : default;
             }
         }
 
@@ -1159,6 +1186,7 @@ namespace SPIXI
                 op.tag = tag;
                 op.column = column;
                 op.replaces = replaces;
+                op.stageMargin = stageMargin;   // W7: geometry memory (see PreloadOp.stageMargin)
                 // #315: parking only makes sense for the in-place overlay presentation —
                 // a push-fallback page leaves the host grid at present time.
                 op.parkOnClose = parkOnClose && overlayMode;

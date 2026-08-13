@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="../styles/components/apps-add.css">
 <link rel="stylesheet" href="../styles/components/apps-details.css">
 <link rel="stylesheet" href="../styles/components/apps-discover.css">
+<link rel="stylesheet" href="../styles/components/empty-state.css">
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -43,15 +44,6 @@
     font-weight: var(--font-weight-bold); font-size: var(--font-size-label-md);
   }
   .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
-  .fab {
-    position: absolute; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16));
-    width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
-    background: var(--surface-action-default); color: var(--text-neutral-on-action);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: var(--elevation-2); z-index: var(--z-10);
-  }
-  @media (hover: hover) { .fab:hover { background: var(--surface-action-hover); } }
-  .fab:active { background: var(--surface-action-pressed); }
 </style>
 </head>
 <body>
@@ -66,10 +58,9 @@
         <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
         <div id="apps-topbar"></div>
         <div class="content" id="apps-content"></div>
-        <button class="fab" id="fab" aria-label="Add mini app"></button>
         <div id="apps-nav"></div>
       </div>
-      <div class="demo-caption">Apps shell — installed list ⇄ grid toggle · search · Explore banner (parked) · per-app ⋮ menu · add + details/installer</div>
+      <div class="demo-caption">Apps shell — installed list ⇄ grid toggle · search · Explore banner (parked) · per-app ⋮ menu · topbar "Add app" → details/installer</div>
     </div>
   </div>
 
@@ -82,7 +73,7 @@
     createTopbar, createBottomNav, createButton,
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, recordRecent,
     createAppsRecents, renderAppsRecents,
-    createAppsHeader, createAppsAdd, setAddUrl, setAddError, createAppDetails,
+    createAppsHeader, setAppsHeaderEmpty, createAppsAdd, setAddUrl, setAddError, createAppDetails,
     setAddDiscoverFeed, parseAppsFeed, APPS_FEED_URL,
     showAppInstalling, showAppInstalled, showAppRemoved,
     closeModal, showToast,
@@ -109,7 +100,6 @@
   const content = document.getElementById('apps-content');
   const toast = (text, tone) => showToast({ text, tone: tone || 'info', host: phone });
 
-  document.getElementById('fab').append(icon('circle-plus'));
   const NAV_ITEMS = [
     { id: 'chats', label: 'Chats', icon: 'messages' },
     { id: 'apps', label: 'Apps', icon: 'apps' },
@@ -152,7 +142,10 @@
   ];
 
   const state = { apps: APPS.slice(), query: '', layout: 'list', recents: ['com.ixilabs.spixi.tictactoe', 'sunny', 'mistral'] };
-  const strings = {};
+  // A4 precedent (home.html): `{}` pins every component to its English fallback
+  // even when window.SL carries a real locale — and this shell is the packaged
+  // AppsPage drop-in, not only a demo. Thread the ACTIVE dictionary.
+  const strings = window.SL || {};
 
   // primary tap launches the app + records it in Recently used (re-renders the strip)
   function launchApp(app) {
@@ -167,13 +160,21 @@
     onOpen: (app) => showDetails(app),                 // ⋮ → App details
     onUninstall: (app) => toast(app.name + ' uninstalled'),
     onModelChange: () => {},
+    // empty state (nothing installed): art ships BESIDE the shell as images/… —
+    // build-shells copies src/demo/images → Resources/Raw/html/images, so the same
+    // relative ref resolves in the demo AND in the packaged AppsPage shell.
+    emptyIllustration: 'images/apps-es.svg',
+    onAddApp: () => showAdd(),
   };
 
   const list = createAppsList(state, opts);
   const recentsEl = createAppsRecents(state, opts);
   const header = createAppsHeader({
     layout: state.layout, strings, discover: false,   // discover now lives in the Add surface
-    exploreImage: '../assets/images/discover-apps.svg',
+    // ⚠ was '../assets/images/discover-apps.svg' — that path does NOT exist next to the
+    // PACKAGED shell (build-shells writes this file to Resources/Raw/html/), so the
+    // banner illustration silently failed in the real app. images/… is the shipped one.
+    exploreImage: 'images/explore-banner.svg',
     onQuery: (q) => setAppsQuery(list, state, q, opts),
     onToggleLayout: (next) => setAppsLayout(list, state, next, opts),
     onExplore: () => showAdd(),                        // Explore → Add & Discover surface
@@ -181,14 +182,27 @@
 
   /* —— view switching —— */
   function showInstalled() {
-    topbar.replaceChildren(createTopbar({ variant: 'root', title: 'Apps' }));
+    // Damir 2026-08-12: a labelled TEXT action, not a bare "+" (see home.html rationale —
+    // this flow INSTALLS an existing app from a link/QR/file, so "Add app", not "New app")
+    topbar.replaceChildren(createTopbar({
+      variant: 'root', title: 'Apps',
+      actions: [{
+        // this file is ALSO the packaged AppsPage drop-in (build-shells SHELLS.apps),
+        // so the button has to localize like every other label in the shell instead
+        // of shipping English to a translated user.
+        icon: 'circle-plus',
+        text: strings.addApp || 'Add app',
+        label: strings.addMiniApp || 'Add mini app',
+        onClick: showAdd,
+      }],
+    }));
     renderAppsRecents(recentsEl, state, opts);
+    renderAppsList(list, state, opts);
+    setAppsHeaderEmpty(header, !state.apps.length);
     content.replaceChildren(header, recentsEl, list);
-    document.getElementById('fab').style.display = '';
   }
   function pushTopbar(title) {
     topbar.replaceChildren(createTopbar({ variant: 'view', title, onBack: showInstalled }));
-    document.getElementById('fab').style.display = 'none';
   }
   function showDetails(app) {
     // resolve to the live installed entry when we have it — related tiles carry bare {id,name}
@@ -196,7 +210,6 @@
     app = state.apps.find((x) => x.id === app.id) || app;
     // back-only bar: the app name lives in the details hero right below — no vertical repeat (Damir)
     topbar.replaceChildren(createTopbar({ variant: 'view', title: '', onBack: showInstalled }));
-    document.getElementById('fab').style.display = 'none';
     content.replaceChildren(createAppDetails({
       app, strings, host: phone,
       onLaunch: (a) => launchApp(a),
@@ -272,8 +285,6 @@
     showInstalled();
     showAppRemoved({ host: phone, strings });
   }
-
-  document.getElementById('fab').addEventListener('click', showAdd);
 
   showInstalled();
 </script>

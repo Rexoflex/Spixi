@@ -3,12 +3,16 @@
  * ONE surface for 1:1 / group / bot (Damir: send-screen grammar — tap the chat
  * header, full in-phone takeover); sections render by kind + capabilities:
  *
- *   hero (avatar-64, name, 1:1 nickname edit → ixian:userdefinednick)
+ *   hero (CENTERED: avatar-80, name, 1:1 nickname edit → ixian:userdefinednick)
+ *   action row (1:1/bot; contact context leads with Message) — wallet-banner
+ *     quick actions: tonal circle + label, one centered row (Damir 2026-08-12,
+ *     supersedes the #144 two-row button block). Sits DIRECTLY under the
+ *     identity: identity → what you can do → details you rarely need.
  *   address card (not for blind groups) — FULL address, HONEST copy morph
  *     (#137: ✓ only after the clipboard write resolves), "Show QR" reveal →
  *     qr.js `address:ixi` on the --surface-qr card
- *   money row (1:1/bot only — group request semantics are a §9 ask, #139) —
- *     Pay/Request are SHELL duties (onPay/onRequest open the #139 takeover/sheet)
+ *     (money is 1:1/bot only — group request semantics are a §9 ask, #139;
+ *     Pay/Request stay SHELL duties: onPay/onRequest open the native flows)
  *   notifications toggle — rendered when capabilities.notifications; the
  *     bridge only supports groups/bots today (ixian:en/disableNotifications);
  *     1:1 ships gated off until the §9 command lands (Damir: design now, flag)
@@ -35,6 +39,11 @@
  *   'contact' = the contact page (from the contacts list / member sheet):
  *   title "Contact info", a Message action (onMessage) leads, delete-history
  *   and disappearing-messages stay chat-side.
+ *   ROOMS (kind 'group'/'bot') are context-free on this point (W9-②): they show a
+ *   LONE Message action whenever the caller supplies onMessage, and nothing at all
+ *   when it does not. That is the whole switch between "reached from the directory"
+ *   (needs a way in — the history may be deleted) and "opened on top of the
+ *   conversation you are already in" (chat.html passes no onMessage).
  *
  * Async callbacks use the house (payload, ctrl) contract — ctrl.done()/fail(msg)
  * from the bridge; each ctrl is one-shot per attempt (#138 m1).
@@ -80,14 +89,38 @@ function sectionLabel(text) {
 }
 
 /* tinted icon disc (#148 — the settings-family atom from base.css; Damir:
-   chat-info/contact follows the same treatment for consistency) */
-function infoDisc(glyph, hue) {
+   chat-info/contact follows the same treatment for consistency).
+   `grad:false` keeps the disc on its HUE default — needed for the quiet
+   destructive tier, where the per-glyph gradient (data-grad wins over
+   data-hue in base.css) would repaint a deliberately grey disc vivid. */
+function infoDisc(glyph, hue, { grad = true } = {}) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
-  d.dataset.grad = String(discGrad(glyph));
+  if (grad) d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
+}
+
+/* Quick action — the WALLET-BANNER grammar (c-wallet-hero__qa: tinted circle +
+   label underneath), ported to the card/screen surface as a TONAL circle.
+   Damir 2026-08-12: the full-width Message + the two 44px outline buttons read
+   "rough" and ate a third of the screen; three small quick actions sit directly
+   under the identity, exactly like the wallet banner (and WhatsApp/Discord).
+   The whole control is the target (48px circle + label ≈ 74px tall ≥ 44). */
+function infoQuickAction({ glyph, label, onClick }) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'c-chat-info__qa';
+  const circle = document.createElement('span');
+  circle.className = 'c-chat-info__qa-circle';
+  circle.append(icon(glyph, { size: 22 }));
+  const lab = document.createElement('span');
+  lab.className = 'c-chat-info__qa-label';
+  lab.textContent = label;
+  b.append(circle, lab);
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
 }
 
 export function createChatInfo({
@@ -156,8 +189,12 @@ export function createChatInfo({
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
      a demo passing online:true on a group can't grow a dot the bridge never feeds. */
+  /* 80, not 64 (Damir 2026-08-12 "premium" pass): the hero is now a CENTERED
+     identity block — a portrait-scale avatar is what makes it read as a profile
+     rather than a list row. Initials/presence-dot scale for 80 are pinned in
+     chat-info.css (avatar.css only tokenizes 24/40/48 + the old 64 hero). */
   const heroAvatar = createAvatar({
-    src: avatar, name: name, address: avatarSeed || address, size: 64,
+    src: avatar, name: name, address: avatarSeed || address, size: 80,
     online: kind === 'contact' && !!online,
   });
   /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
@@ -290,6 +327,56 @@ export function createChatInfo({
     }
   }
 
+  /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
+     Damir 2026-08-12: the actions now sit DIRECTLY under the identity — identity →
+     what you can do → the details you rarely need (the address card used to shove
+     the primary actions half a screen down). Wallet-banner grammar: tonal circle +
+     label, three across (Message · Pay · Request); contact context leads with
+     Message, chat context has no Message (you are already in the conversation). */
+  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
+     Message action too — the whole point of putting groups back in the directory is
+     that a wiped chat history must not make the group unreachable, and without this
+     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
+     address is not a payable counterparty (peopleRoster fence, home.html). */
+  /* ★ W9-② (Damir, Windows F5 2026-08-13): "Group info — if I delete chat I can't
+     reactivate it, there's no Send message in group details."
+     iOS-26 gave the GROUP kind this action; #249 then moved BOT/channel surfaces
+     onto the same screen (`kind: 'bot'` — ContactDetails sends "group"|"bot" from
+     friend.type), and the `kind === 'group'` test below did not follow. A bot
+     channel reached from the directory therefore still dead-ended on an info
+     screen with no way into its conversation — the exact class of bug this action
+     exists to close, and (with a deleted history) the only route back in.
+     So the rule is kind-agnostic: ANY non-1:1 surface that was handed an onMessage
+     shows it alone. The in-chat takeover is untouched — chat.html passes NO
+     onMessage (you are already in the conversation), so `roomMessageOnly` is false
+     there and the whole row stays absent, exactly as yesterday's pass decided. */
+  const roomKind = kind === 'group' || kind === 'bot';
+  const roomMessageOnly = roomKind && !!onMessage;
+  if ((!roomKind || roomMessageOnly) && (onMessage || onPay || onRequest)) {
+    const money = document.createElement('div');
+    money.className = 'c-chat-info__money';
+    if ((context === 'contact' || roomMessageOnly) && onMessage) {
+      const msg = infoQuickAction({
+        glyph: 'messages', label: strings.message || 'Message', onClick: () => onMessage(),
+      });
+      msg.classList.add('c-chat-info__message');
+      money.append(msg);
+    }
+    if (onPay && !roomMessageOnly) money.append(infoQuickAction({
+      glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(),
+    }));
+    if (onRequest && !roomMessageOnly) money.append(infoQuickAction({
+      glyph: 'arrow-down-left', label: strings.request || 'Request', onClick: () => onRequest(),
+    }));
+    // a lone action (room-from-directory) hugs its label instead of stretching
+    // across the screen — a full-width circle+label reads broken
+    money.dataset.count = String(money.childElementCount);
+    // …and an EMPTY row is never appended: a 1:1 surface entered from a chat
+    // header passes onMessage but suppresses it (context 'chat'), which used to
+    // leave a bare padded div under the identity (bot case, #249).
+    if (money.childElementCount) body.append(money);
+  }
+
   /* ——— address card ———
      Groups have NO payable/shareable address at all (Damir F5 2026-07-29): a group's
      identifier is a local session id, not a wallet address, so showing it — and worse,
@@ -356,38 +443,6 @@ export function createChatInfo({
     });
     card.append(qrRow, qrBox);
     body.append(card);
-  }
-
-  /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
-     contact context: Message LEADS (you're not in the chat yet — member-sheet
-     precedent), Pay demotes to outline; chat context: Pay stays primary */
-  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
-     Message action too — the whole point of putting groups back in the directory is
-     that a wiped chat history must not make the group unreachable, and without this
-     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
-     address is not a payable counterparty (peopleRoster fence, home.html). */
-  const groupMessageOnly = kind === 'group' && !!onMessage;
-  if ((kind !== 'group' || groupMessageOnly) && (onMessage || onPay || onRequest)) {
-    const money = document.createElement('div');
-    money.className = 'c-chat-info__money';
-    if ((context === 'contact' || groupMessageOnly) && onMessage) {
-      const msg = createButton({
-        label: strings.message || 'Message', type: 'fill', size: 44, width: 'full',
-        icon: icon('messages', { size: 18 }), onClick: () => onMessage(),
-      });
-      msg.classList.add('c-chat-info__message');
-      money.append(msg);
-    }
-    if (onPay && !groupMessageOnly) money.append(createButton({
-      label: strings.pay || 'Pay',
-      type: context === 'contact' && onMessage ? 'outline' : 'fill', size: 44,
-      icon: icon('arrow-up-right', { size: 18 }), onClick: () => onPay(),
-    }));
-    if (onRequest && !groupMessageOnly) money.append(createButton({
-      label: strings.request || 'Request', type: 'outline', size: 44,
-      icon: icon('arrow-down-left', { size: 18 }), onClick: () => onRequest(),
-    }));
-    body.append(money);
   }
 
   /* ——— notifications (bridge: groups/bots today; 1:1 gated — §9) ——— */
@@ -732,11 +787,24 @@ export function createChatInfo({
   /* ——— destructive zone — every action behind a LOCKED confirm (#135-C1) ——— */
   const danger = document.createElement('div');
   danger.className = 'c-chat-info__danger';
-  const dangerRow = (label, glyph, buildOpts) => {
+  /* TWO TIERS — the settings-family grammar (createSettingsDanger: a quiet
+     "free up space" tier + a red "danger zone" tier). Damir 2026-08-12: delete
+     chat history "doesn't need to be so loud" — it clears local messages and is
+     recoverable-ish (the contact keeps their copy), so it reads as a neutral row
+     with a grey disc. Red stays RESERVED for the irreversible relationship
+     actions (remove contact / leave group), which is what makes it mean
+     something. Both rows keep the bordered card + the locked confirm. */
+  const dangerRow = (label, glyph, buildOpts, { tone = 'error' } = {}) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-chat-info__danger-row';
-    b.append(infoDisc(glyph, 'error'), document.createTextNode(label));   // #148: error disc = destructive reservation
+    b.dataset.tone = tone;
+    // #148: error disc = destructive reservation. The quiet tier drops the
+    // per-glyph gradient so the neutral hue actually survives (base.css).
+    b.append(
+      tone === 'quiet' ? infoDisc(glyph, 'neutral', { grad: false }) : infoDisc(glyph, 'error'),
+      document.createTextNode(label),
+    );
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));
@@ -750,7 +818,7 @@ export function createChatInfo({
       bodyText: strings.deleteHistoryBody || 'Messages are removed from this device. The contact keeps their copy.',
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
-    }));
+    }), { tone: 'quiet' });
   }
   if (kind !== 'group' && onRemoveContact) {
     dangerRow(strings.removeContact || 'Remove contact', 'circle-x', () => ({

@@ -7,7 +7,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const root = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM, VirtualConsole;
@@ -27,6 +27,12 @@ const load = (file) => new Promise((resolve) => {
     url: 'file://' + join(root, 'src/demo', file), virtualConsole: vc,
     beforeParse(w) {
       w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+      /* jsdom has no canvas backend: getContext() reports a not-implemented
+         error through the virtual console (which we treat as a page error) and
+         returns null. Stub it to null so the run exercises the FAIL-SOFT path
+         every canvas consumer is required to have — W5's Live flow falls back
+         to the line-art tile — instead of failing the suite on a harness gap. */
+      try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
     },
   });
   setTimeout(() => resolve(dom), 3000);
@@ -214,48 +220,176 @@ console.log('wallet.html');
   ok((rec.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen', 'FULL own address in the chip (#99)');
 
   const reqRow = rec.querySelector('.c-wallet-receive__reqrow');
-  ok(reqRow.getAttribute('aria-expanded') === 'false', 'request reveal starts collapsed');
+  ok(reqRow.getAttribute('aria-expanded') === 'false'
+    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open === undefined
+    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'false',
+    'request reveal starts collapsed (W6: data-open, not [hidden] — [hidden] cannot animate)');
   reqRow.click();
-  ok(reqRow.getAttribute('aria-expanded') === 'true' && !rec.querySelector('.c-wallet-receive__reqbox').hidden,
+  ok(reqRow.getAttribute('aria-expanded') === 'true'
+    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open !== undefined
+    && rec.querySelector('.c-wallet-receive__reqbox').getAttribute('aria-hidden') === 'false',
     'Request an amount expands in place (one progressive surface)');
+  ok(rec.dataset.requestOpen !== undefined
+    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'true',
+    'W6: opening collapses the QR section (root data flag drives the CSS) and takes it out of the SR tree');
+  /* ★ W9 (Damir, Windows F5 2026-08-13) — the request flow is a MULTI-SELECT +
+     ONE CTA now: "perhaps we can have a multiselect as for group creation and then
+     1 SEND REQUEST button that then confirms it was sent, and we return to wallet
+     screen." Everything the old per-row send pinned (the [data-acted] latch, the
+     ✓ morph, the [data-needs-amount] arrow gate) is asserted GONE below, because
+     the thing it guarded no longer exists — the rows only tick. #303 is untouched
+     and re-asserted at every step: the QR is constant and never carries an amount. */
+  const ask0 = rec.querySelector('.c-wallet-receive__ask');
+  const rowsOf = (root) => [...root.querySelectorAll('.c-wallet-receive__contact')];
+  const gated0 = rowsOf(ask0);
+  ok(!ask0.hidden && gated0.length > 0, 'the contact list is visible before an amount is typed');
+  ok(gated0.every((b) => b.getAttribute('role') === 'checkbox' && b.getAttribute('aria-checked') === 'false'
+    && !!b.querySelector('.c-wallet-receive__check')),
+    'W9: rows are the GROUP-CREATION grammar — role=checkbox + aria-checked + the select circle (contacts-shell pickerRow, not a bespoke one)');
+  ok(gated0.every((b) => !b.disabled && b.dataset.needsAmount === undefined && b.dataset.acted === undefined),
+    'W9: NO row is disabled and no [data-needs-amount]/[data-acted] survives — ticking a name is not a send, so nothing on a row needs gating');
+  ok(!rec.querySelector('.c-wallet-receive__contactgo'),
+    'W9: the per-row send arrow is GONE — a row can no longer fire anything');
+  const rcta = rec.querySelector('.c-wallet-receive__cta');
+  const rhint = ask0.querySelector('.c-wallet-receive__hint');
+  ok(!!rcta && rcta.disabled && rcta.textContent.trim() === 'Send request',
+    'W9: ONE primary CTA, disabled at rest');
+  ok(rhint.getAttribute('role') === 'status' && rhint.textContent === 'Enter an amount to send a request',
+    'W9: the rule line states the FIRST unmet condition (c-contacts__minhint grammar — same element, text swapped, never hidden: hiding it collapses its box and jumps the list under a finger)');
+  const rlive = rec.querySelector('.c-wallet-receive__live');
+  gated0[0].click();
+  ok(gated0[0].getAttribute('aria-checked') === 'true' && d2.querySelectorAll('.c-toast').length === 0
+    && rlive.textContent === '',
+    'W9: ticking a row with NO amount selects it and sends nothing — selection and sending are different axes');
+  ok(rhint.textContent === 'Enter an amount to send a request' && rcta.disabled,
+    'W9: …and the CTA stays inert with a selection but no amount');
+  rcta.click();
+  ok(d2.querySelectorAll('.c-toast').length === 0 && rlive.textContent === '',
+    '★ MONEY: a click on the CTA with no valid amount sends NOTHING — an explicit guard inside the handler, not just the disabled attribute (a synthetic/programmatic click must not get a request for "" off this surface)');
+  ask0.querySelector('input').dispatchEvent(new W2.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  ok(d2.querySelectorAll('.c-toast').length === 0 && rlive.textContent === '',
+    'Enter in the contact search is inert (the #46 audit rule survives the rewrite)');
+  gated0[0].click();                                       // untick — start the real flow clean
   const ramt = rec.querySelector('.c-wallet-receive__amount');
   ramt.value = '12,5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ok(ramt.value === '12.5', 'request amount follows the send sanitize rules (shared export)');
   ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
-    '#303: the QR NEVER re-encodes to addr:send:amount — amount-request QRs are not a supported flow (Damir 2026-08-04); the amount drives only the contact strip');
+    '#303: the QR NEVER re-encodes to addr:send:amount — amount-request QRs are not a supported flow (Damir 2026-08-04); the amount drives only the request CTA');
   ramt.value = '12.'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: still constant under amount edits');
   ramt.value = '12.5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   const ask = rec.querySelector('.c-wallet-receive__ask');
-  ok(!ask.hidden, 'amount active → send-request-to-contact strip appears');
-  ok(ask.querySelectorAll('.c-wallet-receive__contact').length === 5 && !!ask.querySelector('.c-wallet-receive__none'),
+  ok(rowsOf(ask).every((b) => !b.disabled) && rcta.disabled
+    && ask.querySelector('.c-wallet-receive__hint').textContent === 'Pick at least one contact.',
+    'W9: a valid amount alone does not arm the CTA — the rule line moves on to the SECOND condition (in place, no re-render)');
+  ok(rowsOf(ask).length === 5 && !!ask.querySelector('.c-wallet-receive__none'),
     'contact strip caps at 5 with the keep-typing note (#136 scaling)');
-  const target = ask.querySelector('.c-wallet-receive__contact');
-  target.click(); target.click();
-  ok(d2.querySelectorAll('.c-toast').length === 1, 'send-request latched on the row (no double fire, #72④)');
-  const strip = [...ask.querySelectorAll('.c-wallet-receive__contact')];
-  ok(!target.disabled && strip.filter((b) => b.disabled).length === strip.length - 1,
-    'acted row stays enabled (focus kept) — the rest latch (audit M3)');
+  const picks = rowsOf(ask);
+  picks[0].click();
+  ok(!rcta.disabled && rcta.textContent.trim() === 'Request 12.5 IXI (1)',
+    '★ W9 CTA COPY: amount + count on the button itself — at the moment of commitment the user sees the number they typed and how many people it goes to, without looking away');
+  picks[1].click(); picks[2].click();
+  ok(rcta.textContent.trim() === 'Request 12.5 IXI (3)'
+    && rcta.getAttribute('aria-label') === 'Request 12.5 IXI from 3 selected'
+    && ask.querySelector('.c-wallet-receive__hint').textContent === '3 selected',
+    'W9: the count is live on the CTA, its aria-label and the rule line (which becomes the count once the rule is met — the group-picker minhint behaviour)');
   const askSearch = ask.querySelector('input');
-  askSearch.value = 'a'; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok([...ask.querySelectorAll('.c-wallet-receive__contact')].some((b) => b.dataset.acted !== undefined),
-    'latch survives a contact-search re-render (audit M2)');
+  askSearch.value = 'Han'; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(rcta.textContent.trim() === 'Request 12.5 IXI (3)'
+    && rowsOf(ask).filter((b) => b.getAttribute('aria-checked') === 'true').length >= 1,
+    'W9: the selection survives a contact-search re-render (the state-held selection replaces the state-held latch — audit M2 rule, new mechanism)');
   askSearch.value = ''; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ramt.value = '9'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(![...ask.querySelectorAll('.c-wallet-receive__contact')].some((b) => b.dataset.acted !== undefined)
-    && [...ask.querySelectorAll('.c-wallet-receive__contact')].every((b) => !b.disabled),
-    'amount edit mid-latch resets the strip — no stale sent-✓ (audit M5)');
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: QR constant through the mid-latch amount reset too');
+  ok(rcta.textContent.trim() === 'Request 9 IXI (3)'
+    && rowsOf(ask).filter((b) => b.getAttribute('aria-checked') === 'true').length === 3,
+    'W9: editing the amount re-labels the CTA and KEEPS the selection — who you are asking is a different axis from how much (the old latch had to be killed here because a ✓ meant "sent"; a tick means nothing of the sort)');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: QR constant through the amount re-edit too');
   const rcopy = rec.querySelector('.c-wallet-receive__copy');
   rcopy.click();
   ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'), 'no clipboard → honest failure morph, no false Copied (audit m1)');
 
   reqRow.click();                                          // collapse clears the request
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi' && ask.hidden,
-    'collapsing the reveal clears the request state (QR was already plain — #303)');
+  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi'
+    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open === undefined
+    && rec.dataset.requestOpen === undefined
+    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'false',
+    'collapsing the reveal clears the request state and brings the QR back (#303 + W6)');
+  ok(rec.querySelector('.c-wallet-receive__amount').value === ''
+    && rowsOf(ask).every((b) => b.getAttribute('aria-checked') === 'false') && rcta.disabled,
+    '★ W9 STATE HONESTY: collapsing clears the SELECTION as well as the amount — a reopened section that silently still had six people ticked is the same class of lie as a QR encoding an amount you can no longer see');
   W2.Spixi.setRequestAmount(rec, 0.0000001);
   ok(rec.querySelector('.c-wallet-receive__amount').value === '0.0000001',
     'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17; asserted on the INPUT since #303 keeps the QR constant)');
+  ok(rec.dataset.requestOpen !== undefined
+    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open !== undefined
+    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'true'
+    && rec.querySelector('.c-wallet-receive__cta').disabled,
+    'W9: setRequestAmount still opens through the component writer (never an open box over a half-collapsed QR) and lands on the amount-only state — it can never pre-select a recipient');
+
+  /* ——— W9: the SEND, end to end. Ordered last in this frame because a clean run
+     navigates away (the demo shell returns to the wallet screen, exactly what
+     Damir asked for), which detaches everything asserted above. ——— */
+  rec.querySelector('.c-wallet-receive__amount').value = '2.5';
+  rec.querySelector('.c-wallet-receive__amount').dispatchEvent(new W2.Event('input', { bubbles: true }));
+  const sendPicks = rowsOf(rec.querySelector('.c-wallet-receive__ask'));
+  sendPicks[0].click(); sendPicks[1].click();
+  const sendCta = rec.querySelector('.c-wallet-receive__cta');
+  ok(sendCta.textContent.trim() === 'Request 2.5 IXI (2)', 'W9: two ticked, CTA armed');
+  sendCta.click();
+  sendCta.click();                                         // #72④: the double tap must not double-fire
+  ok(rlive.textContent === 'Request for 2.5 IXI sent to 2 contacts',
+    '★ W9 CONFIRMATION: one CTA press announces ONE outcome for the whole batch — and the second press adds nothing (#72④ double-fire protection moved from the per-row latch onto the CTA, which is now the only thing that can send)');
+  await sleep(20);
+  ok(!d2.querySelector('.c-wallet-receive'),
+    '★ W9 RETURN: a clean run leaves the receive surface — "…and we return to wallet screen"');
+  ok(d2.querySelectorAll('.c-toast').length === 1
+    && d2.querySelector('.c-toast').textContent.includes('sent to 2 contacts'),
+    'W9: the shell confirms with exactly ONE toast carrying the batch outcome (reused toast grammar, not a bespoke banner)');
+
+  /* ——— W9 PARTIAL FAILURE — the loop calls the LEGACY PER-CONTACT verb once per
+     pick (no batch verb was invented), so one recipient can fail while the others
+     go. Mounted directly with a failing callback: a demo page can only ever
+     succeed. ——— */
+  {
+    const seen = [];
+    let sentText = null;
+    const failing = W2.Spixi.createWalletReceive({
+      address: '425HqzWpMkV3dTgJnS85CQen',
+      contacts: [
+        { name: 'Han Solo', address: 'AAA' },
+        { name: 'Baracuda', address: 'BBB' },
+        { name: 'Sarah Jo', address: 'CCC' },
+      ],
+      strings: {}, host: d2.body,
+      onSendRequest: ({ contact, amount }) => { seen.push(contact.address + ':' + amount); return contact.address !== 'BBB'; },
+      onRequestsSent: (p) => { sentText = p.text; },
+    });
+    d2.body.append(failing);
+    failing.querySelector('.c-wallet-receive__reqrow').click();
+    const famt = failing.querySelector('.c-wallet-receive__amount');
+    famt.value = '3'; famt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+    const frows = rowsOf(failing);
+    frows[0].click(); frows[1].click(); frows[2].click();
+    failing.querySelector('.c-wallet-receive__cta').click();
+    ok(seen.join('|') === 'AAA:3|BBB:3|CCC:3',
+      '★ W9 LOOP: the per-contact legacy verb is called ONCE PER PICK, in list order, with the canonical amount — no batch verb was invented (the bridge protocol is frozen)');
+    ok(seen.length === 3,
+      'W9: a mid-loop failure does not abort the loop — CCC still gets its request after BBB refused (one bad address must not swallow the requests queued behind it)');
+    ok(sentText === null && !!failing.parentNode,
+      '★ W9 PARTIAL FAILURE NEVER NAVIGATES: onRequestsSent is the ALL-CLEAR signal only — leaving the screen on a partial send would strand the user with no idea which half went');
+    const fresult = failing.querySelector('.c-wallet-receive__result');
+    ok(!fresult.hidden && fresult.dataset.tone === 'error' && fresult.textContent === 'Sent to 2 — the rest are still selected. Try again.',
+      'W9: the result line names the outcome in the error tone, and says the remainder is still selected');
+    ok(fresult.getAttribute('aria-hidden') === 'true'
+      && failing.querySelector('.c-wallet-receive__live').textContent === fresult.textContent,
+      'W9: the hidden live region is the SINGLE announcer — the visible result line is aria-hidden, so a screen reader hears the outcome once, not twice');
+    const fsel = rowsOf(failing).filter((b) => b.getAttribute('aria-checked') === 'true');
+    ok(fsel.length === 1 && fsel[0].textContent.includes('Baracuda'),
+      '★ W9 RETRY IS EXACT: the two that went are unticked and ONLY the failure stays selected — pressing the CTA again retries precisely the remainder, never a duplicate request to someone who already got one');
+    ok(failing.querySelector('.c-wallet-receive__cta').textContent.trim() === 'Request 3 IXI (1)',
+      'W9: …and the CTA count follows it down to 1');
+    failing.remove();
+  }
 
   /* tipping (#138, docs/tipping-spec.md): #26-lite sheet — presets + custom, ONE latched confirm */
   let tipCalls = 0, tipPayload = null, tipCtrl = null;
@@ -506,10 +640,13 @@ console.log('chat.html — chat info (#141)');
   ok(cinfo.querySelector('.c-topbar__title').textContent === 'Contact details'
     && cinfo.dataset.context === 'contact',
     'contact context title = "Contact details" (Damir 2026-07-08, revises #142)');
-  const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-button')];
-  ok(moneyBtns[0].classList.contains('c-chat-info__message') && moneyBtns[0].dataset.type === 'fill'
-    && moneyBtns[1].dataset.type === 'outline',
-    'contact page: Message LEADS (fill), Pay demotes to outline');
+  // Damir 2026-08-12: the three chunky c-buttons became wallet-banner quick
+  // actions (tonal circle + label). Message still LEADS the row.
+  const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
+  ok(moneyBtns.length === 3 && moneyBtns[0].classList.contains('c-chat-info__message')
+    && moneyBtns.every((b) => !!b.querySelector('.c-chat-info__qa-circle')
+      && !!b.querySelector('.c-chat-info__qa-label')),
+    'contact page: Message LEADS a 3-up wallet-banner quick-action row (circle + label)');
   const dRows = [...cinfo.querySelectorAll('.c-chat-info__danger-row')];
   ok(dRows.length === 2
     && dRows.some((r) => /Delete/i.test(r.textContent))
@@ -526,6 +663,40 @@ console.log('chat.html — chat info (#141)');
   moneyBtns[0].click();
   ok(msgCalls === 1, 'Message fires onMessage (shell opens the 1:1)');
   chost.remove();
+
+  /* ★ W9-② (Damir, Windows F5 2026-08-13): "Group info — if I delete chat I can't
+     reactivate it, there's no Send message in group details."
+     The action is what makes a ROOM reachable again once its history is gone, so it
+     rides ONE rule for every room kind: supplied onMessage → a lone Message action;
+     no onMessage → no row at all. That second half is the in-chat takeover
+     (chat.html passes none — you are already in the conversation), and yesterday's
+     pass is deliberately preserved by it. */
+  const roomInfo = (kind, opts) => {
+    const h = d.createElement('div'); d.body.append(h);
+    const el = W3.Spixi.createChatInfo(Object.assign({
+      kind, context: 'chat', name: 'The Crew', address: 'grp1', host: h,
+    }, opts));
+    h.append(el);
+    const row = el.querySelector('.c-chat-info__money');
+    const out = { el, row, labels: row ? [...row.querySelectorAll('.c-chat-info__qa-label')].map((l) => l.textContent) : [] };
+    h.remove();
+    return out;
+  };
+  let roomMsgCalls = 0;
+  const grpDir = roomInfo('group', { onMessage: () => { roomMsgCalls += 1; } });
+  ok(!!grpDir.row && grpDir.labels.join() === 'Message',
+    'W9-②: a GROUP handed an onMessage shows a lone Message action — the way back into a group whose conversation was deleted');
+  const botDir = roomInfo('bot', { onMessage: () => { roomMsgCalls += 1; } });
+  ok(!!botDir.row && botDir.labels.join() === 'Message',
+    '★ W9-②: …and so does a BOT/channel. #249 moved bot surfaces onto this same screen but the old test was `kind === \'group\'`, so a channel reached from the directory still dead-ended on an info screen with no way in');
+  grpDir.row.querySelector('.c-chat-info__qa').click();
+  ok(roomMsgCalls === 1, 'W9-②: the room Message action actually fires onMessage (the shell opens the conversation)');
+  const grpChat = roomInfo('group', {});
+  ok(!grpChat.row,
+    'W9-②: NO onMessage → no quick-action row at all — the in-chat group-info takeover stays free of it (you are already in the conversation), exactly as yesterday\'s pass decided');
+  const botChat = roomInfo('bot', {});
+  ok(!botChat.row,
+    'W9-②: …and an EMPTY action row is never appended either — a bot with no offered actions used to leave a bare padded div under the identity');
 
   /* —— #142: disappearing messages (chat context, capability-gated) —— */
   let sdSecs = null, sdCtrl = null;
@@ -1064,7 +1235,12 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   /* #334 iOS-60: pattern picker = SWATCH TILES (kills the label-overflow i18n
    * class); text size stays a text segGroup. */
   const segs = [...appear.querySelectorAll('.c-settings-seg')];
-  const swatches = [...appear.querySelectorAll('.c-settings-swatch')];
+  // W5 split the swatches into TWO radiogroups: pattern STYLE then INTENSITY.
+  // Scope the #334 assertion to the intensity row so it keeps meaning what it
+  // meant (4 levels, tiles not pills) instead of counting the whole screen.
+  const styleGroup = appear.querySelector('.c-settings-swatches--style');
+  const intensityGroup = [...appear.querySelectorAll('.c-settings-swatches')].find((g) => g !== styleGroup);
+  const swatches = [...intensityGroup.querySelectorAll('.c-settings-swatch')];
   ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
     && swatches.length === 4
@@ -1491,9 +1667,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const infoCss = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
   ok(/\.c-chat-info__name \{[^}]*min-width: 0/.test(infoCss),
     'chat-info hero name has min-width:0 — long names/RTL ellipsize, no overflow (#143 ①, #140③ class)');
-  ok(/\.c-chat-info__money \{[^}]*flex-wrap: wrap/.test(infoCss)
-    && /\.c-chat-info__message \{ flex-basis: 100%/.test(infoCss),
-    'contact money row: Message leads full-width, Pay+Request wrap to a 2-col row below (#144 Damir demo)');
+  // Damir 2026-08-12 supersedes the #144 two-row button block: the action row is
+  // now the wallet-banner quick-action grammar — one centered row of small
+  // circle+label actions that stays one row for 1/2/3 actions.
+  ok(/\.c-chat-info__money \{[^}]*justify-content: center/.test(infoCss)
+    && /\.c-chat-info__money > \.c-chat-info__qa \{ flex: 1; max-width:/.test(infoCss)
+    && !/flex-wrap: wrap/.test(infoCss.split('.c-chat-info__money {')[1].split('}')[0]),
+    'contact action row: ONE centered quick-action row (wallet-banner grammar, supersedes the #144 two-row block)');
   const tip = readFileSync(join(root, 'src/components/tip-sheet.js'), 'utf8');
   const recv = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8');
   const tb = readFileSync(join(root, 'src/components/typed-bubbles.js'), 'utf8');
@@ -3593,7 +3773,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     'B2: chat boot pattern default is platform-aware (desktop 0 / mobile 0.5)');
   ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('isNaN(p))p=de?0:0.5'),
     'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives');
-  ok(/hasAttribute\('data-desktop'\) \? 0 : 0\.5/.test(settings),
+  ok(/const desktop = document\.documentElement\.hasAttribute\('data-desktop'\);/.test(settings)
+    && /let pattern = desktop \? 0 : 0\.5/.test(settings),
     'B2: settings readChatPrefs mirrors the platform-aware default');
   // B3: tx tap routed to the detail page; shell contract markers present
   ok(/onTx: \(tx\) => bridge\.send\('ixian:txdetails:' \+ tx\.txid\)/.test(home),
@@ -4539,6 +4720,1529 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const v31s337 = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/values-v31/styles.xml'), 'utf8');
   ok(/windowSplashScreenBackground/.test(v31s337) && !/<item name="android:windowSplashScreenAnimatedIcon/.test(v31s337),
     '#337 splash: values-v31 keeps the static blue splash; the animated icon stays reverted (Damir F5)');
+}
+
+/* —— W5 (Damir 2026-08-12): chat background pattern STYLES ————————————————
+ * Style (Line art / Data matrix / Live flow) is orthogonal to the existing
+ * visibility dial; "Off" stays in the visibility control only. */
+{
+  const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
+  ok(/--chat-pattern-uri-lineart/.test(gen) && /--chat-pattern-uri-matrix/.test(gen),
+    'W5: the generator emits BOTH tiles (line art + data matrix) from one run');
+  ok(/LINE-ART DRIFT/.test(gen) && /accept-lineart-change/.test(gen),
+    'W5: the generator REFUSES to silently reskin the shipped line-art tile (asset on disk is 248 vs the committed 314)');
+  ok(/cells: 24/.test(gen) && /cell: 12/.test(gen) && /gridAlpha: 0\.16/.test(gen)
+    && /pFillAfterFilled: 0\.62/.test(gen) && /pFillAfterEmpty: 0\.3/.test(gen)
+    && /pBig: 0\.45/.test(gen) && /rBig: 1\.7/.test(gen) && /rSmall: 0\.9/.test(gen)
+    && /smallAlpha: 0\.55/.test(gen) && /seed: 11/.test(gen),
+    'W5: the Damir-approved data-matrix dial is intact (24×12 · grid 0.16 · Markov .62/.30 · 45% r1.7 · r0.9@0.55 · seed 11)');
+
+  const pat = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
+  ok(/--chat-pattern-size-lineart: 314px 314px/.test(pat),
+    'W5: the SHIPPED line-art tile is still 314×314 — the matrix addition changed no existing pixel');
+  ok(/--chat-pattern-size-matrix: 288px 288px/.test(pat), 'W5: the data-matrix tile is the spec 288×288');
+  ok(/\[data-chat-pattern='matrix'\]/.test(pat) && /\[data-chat-pattern='flow'\]/.test(pat),
+    'W5: styles switch on an ATTRIBUTE selector, not a descendant one — the settings swatches each need their own style');
+  ok(/display: var\(--chat-pattern-tile, block\)/.test(pat),
+    'W5: the tile hides via an INHERITED custom property, so :root and a single canvas can both drive it');
+  ok(/\[data-chat-pattern='flow'\][^}]*--chat-pattern-uri: var\(--chat-pattern-uri-lineart\)/s.test(pat),
+    'W5: flow keeps a resolvable tile URI — a failed canvas mount falls back to line art, never a bare gradient');
+
+  /* W5 F5 (Damir 2026-08-13): "on light mode perhaps bump opacity, as its barely
+   * visible on the strongest." Measured in Chromium, the light pattern's contrast
+   * against --gradient-chat was 1.02 at Standard and 1.03 at BOLD vs dark's
+   * 1.12 / 1.18 — light Bold was fainter than dark SUBTLE while carrying 2.8× the
+   * opacity, because primary-200 is near-isoluminant with the sky-blue wash. The
+   * INK moved, not the ladder: primary-400 puts light at 1.08 / 1.14 / 1.20, i.e.
+   * parity with dark, which is left byte-identical. */
+  const tok5 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/--chat-pattern-ink: var\(--primary-400\);/.test(tok5),
+    '★ W5 F5: the LIGHT pattern ink is primary-400 — the faintness was the ink, not the opacity ladder');
+  ok(/--chat-pattern-ink: hsla\(242, 76%, 72%, 1\);/.test(tok5) && /--chat-pattern-opacity: 0\.18;/.test(tok5),
+    'W5 F5: dark keeps its own ink AND its own 0.18 — the light fix cannot reach dark');
+  const lv5 = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
+  ok(/\{ value: 0, key: 'patternOff'[^]*?\{ value: 0\.3,[^]*?\{ value: 0\.5,[^]*?\{ value: 0\.7, key: 'patternBold'/.test(lv5),
+    'W5 F5: PATTERN_LEVELS is untouched (0 / 0.3 / 0.5 / 0.7) — Standard is still the theme default it has always been');
+
+  const flow = readFileSync(join(root, 'src/components/chat-flow.js'), 'utf8');
+  ok(/speed: 0\.85/.test(flow) && /spacing: 15/.test(flow) && /dash: 7/.test(flow)
+    && /lineWidth: 1\.25/.test(flow) && /fieldScale: 44/.test(flow),
+    'W5: the RE-DIALLED Live-flow tuning (Damir F5 2026-08-13: closer · bigger · more visible movement) is verbatim');
+  ok(/ctx\.lineWidth = tune\.lineWidth \* dpr;/.test(flow),
+    'W5: stroke weight is a DIAL, not a hard-coded 1px — "too small" moved dash length AND line width');
+  ok(/0\.9 \* \(Math\.sin\(1\.7 \* x \+ t\) \+ Math\.cos\(1\.3 \* y - 0\.8 \* t\) \+ Math\.sin\(0\.8 \* \(x \+ y\) \+ 0\.5 \* t\)\)/.test(flow),
+    'W5: the angle field matches the prototype exactly');
+  ok(/fps: 25/.test(flow) && /maxDpr: 2/.test(flow) && /ResizeObserver/.test(flow)
+    && /visibilitychange/.test(flow) && /prefers-reduced-motion/.test(flow),
+    'W5: the whole budget story is present (25fps cap · dpr≤2 · ResizeObserver · hidden pauses · reduced-motion = one still frame)');
+  ok(/getPropertyValue\('--chat-pattern-ink'\)/.test(flow) && /getPropertyValue\('--chat-pattern-opacity'\)/.test(flow)
+    && /if \(!ink \|\| opacity <= 0\) return;/.test(flow),
+    'W5: ink + intensity are read from computed style EVERY frame — theme flips and the visibility dial (incl. Off) apply live');
+  ok(/export function setChatFlowPaused/.test(flow),
+    'W5: a park/unpause entry point exists for the covered-chat / backgrounded-app story');
+
+  const flowCss = readFileSync(join(root, 'src/styles/components/chat-flow.css'), 'utf8');
+  ok(/\.c-chat-canvas\[data-flow\] \{ z-index: 0; \}/.test(flowCss)
+    && /\.c-chat-canvas > \.c-chat-flow \{/.test(flowCss) && /z-index: -1/.test(flowCss),
+    'W5 stacking: negative-z canvas inside a [data-flow]-scoped stacking context (the corrected recipe)');
+  ok(!/\.c-chat-canvas > \*\s*\{[^}]*position: relative/.test(flowCss),
+    'W5 stacking: NO blanket sibling position:relative — that is what left-aligned the jump-to-latest FAB on the Windows F5');
+
+  const chatW5 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/localStorage\.getItem\('spixi\.chat\.patternstyle'\)/.test(chatW5)
+    && /setAttribute\('data-chat-pattern',s\)/.test(chatW5),
+    'W5: the style is resolved PRE-PAINT in the same script as the intensity — no wrong-pattern flash on load');
+  ok(/if\(s==='flow'&&!de\)s='lineart'/.test(chatW5),
+    'W5: Live flow is desktop-only — a mobile client carrying the pref falls back to line art (battery)');
+  ok(chatW5.indexOf("p.get('desktop')==='1'") < chatW5.indexOf("spixi.chat.patternstyle"),
+    'W5: the ?desktop/?mobile forcing still runs BEFORE the style default derives (the B2 ordering rule)');
+  ok(/attachChatFlow, syncChatFlow, detachChatFlow/.test(chatW5) && /function applyChatPatternStyle/.test(chatW5),
+    'W5: the chat shell mounts/tears down the flow engine');
+  ok(/function syncFlowIfActive\(\)/.test(chatW5) && /syncFlowIfActive\(\);\s*\/\/ …and repaint/.test(chatW5),
+    'W5: applying prefs repaints the flow canvas — under reduced motion there is no loop to re-theme itself');
+
+  /* W5 F5 (Damir 2026-08-13): "it doesnt auto apply to active chats". The pick
+   * has to cross from the Account WebView into an ALREADY-OPEN chat, so the
+   * chat re-reads the pair on the same four signals settings.html uses for
+   * spixi.backup.last (#314) — and re-runs the FULL boot ladder, not a subset. */
+  ok(/function readPatternPrefs\(\)/.test(chatW5) && /function applyPatternPrefs\(/.test(chatW5)
+    && /function refreshPatternPrefsIfChanged\(\)/.test(chatW5),
+    'W5 live-apply: the chat can re-resolve BOTH pattern prefs after boot, not only in the pre-paint script');
+  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+    && /window\.addEventListener\('focus', refreshPatternPrefsIfChanged\);/.test(chatW5)
+    && /if \(document\.visibilityState === 'visible'\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+    && /setInterval\(\(\) => \{ if \(!document\.hidden\) refreshPatternPrefsIfChanged\(\); \}, 2000\);/.test(chatW5),
+    'W5 live-apply: the #314 grammar verbatim — storage event + focus + visibilitychange + a visibility-guarded 2s poll (WKWebView fires no cross-WebView storage event, and a covered WebView stays "visible")');
+  ok(/if \(stamp === seenPatternPrefs\) return;/.test(chatW5),
+    'W5 live-apply: gated on an ACTUAL change of the stored pair — the poll is a no-op read under a live chat');
+  ok(/if \(s === 'flow' && !de\) s = 'lineart';/.test(chatW5),
+    'W5 live-apply: the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
+  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);\s*\n\s*applyChatPatternStyle\(\);/.test(chatW5),
+    'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once');
+  ok(/String\(dark \? Math\.round\(prefs\.level \* 36\) \/ 100 : prefs\.level\)/.test(chatW5),
+    'W5 live-apply: the #76 ×0.36 dark derivation is re-run on every apply — a live setTheme push used to leave dark painting the LIGHT number until a reload');
+  ok(/applyPatternPrefs\(readPatternPrefs\(\)\);/.test(chatW5.slice(chatW5.indexOf('setTheme(name)'))),
+    'W5 live-apply: setTheme re-derives the intensity, not just the flow repaint');
+
+  const setW5 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/patternStyle: 'spixi\.chat\.patternstyle'/.test(setW5) && /onPatternStyle: \(v\) =>/.test(setW5),
+    'W5: the Account screen persists the style like the intensity pref (same origin, try/catch)');
+  ok(/st === 'flow' && desktop/.test(setW5),
+    'W5: readChatPrefs refuses a stored flow on mobile, mirroring what chat.html applies');
+
+  // runtime: three options on desktop, two on mobile; the picks compose
+  const dom5 = await load('settings.html');
+  const wd = dom5.window;
+  const wdoc = wd.document;
+  wdoc.documentElement.setAttribute('data-desktop', '');
+  const host5 = wdoc.createElement('div');
+  wdoc.body.append(host5);
+  const ap5 = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'lineart', isDesktop: true });
+  host5.append(ap5);
+  const sg = ap5.querySelector('.c-settings-swatches--style');
+  ok(!!sg && sg.getAttribute('role') === 'radiogroup', 'W5: the style picker is its own radiogroup');
+  const styleTiles = [...sg.querySelectorAll('.c-settings-swatch')];
+  ok(styleTiles.length === 3 && styleTiles.map((b) => b.dataset.value).join() === 'lineart,matrix,flow',
+    'W5: desktop offers all three styles in spec order');
+  ok(styleTiles.every((b) => b.getAttribute('role') === 'radio' && b.getAttribute('aria-label')),
+    'W5: style tiles keep the #334 swatch a11y grammar (role=radio + localized label, no visible text to overflow)');
+  ok(styleTiles.every((b) => b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern === b.dataset.value),
+    'W5: each style tile paints ITS OWN style (the inherited-custom-property contract)');
+  const prev5 = ap5.querySelector('.c-settings-appearance__preview');
+  styleTiles[1].click();
+  ok(prev5.dataset.chatPattern === 'matrix', 'W5: the live preview reflects the style pick');
+  const intensityFaces = [...ap5.querySelectorAll('.c-settings-swatches:not(.c-settings-swatches--style) .c-settings-swatch__canvas')];
+  ok(intensityFaces.length === 4 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
+    'W5: the intensity tiles re-skin to the picked style — four line-art tiles under a Data-matrix pick would be a lie');
+  // fail-soft: this harness has no canvas backend, so picking Live flow must
+  // land on the line-art tile rather than a bare gradient or a thrown error
+  styleTiles[2].click();
+  ok(prev5.dataset.chatPattern === 'lineart',
+    'W5 fail-soft: no 2d context → the preview falls back to the line-art tile, never a bare gradient');
+  styleTiles[1].click();
+  const apMobile = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'flow', isDesktop: false });
+  const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style .c-settings-swatch')];
+  ok(mobileTiles.length === 2 && mobileTiles.map((b) => b.dataset.value).join() === 'lineart,matrix',
+    'W5: mobile shows two styles — Live flow is not offered');
+  ok(mobileTiles[0].getAttribute('aria-checked') === 'true',
+    'W5: a stored desktop-only style falls back to a SELECTED line art on mobile (never an empty radiogroup)');
+}
+
+/* —— Contact-details PREMIUM pass (Damir 2026-08-12) ——————————————————————
+ * Three asks: the Pay/Request/Message buttons take the wallet-banner treatment,
+ * "Delete chat history" stops shouting, and the screen gains real hierarchy. */
+console.log('contact details — premium pass');
+{
+  const dom = await load('chats.html');
+  const S = dom.window.Spixi, d = dom.window.document;
+  const host = d.createElement('div');
+  d.body.append(host);
+  const ci = S.createChatInfo({
+    context: 'contact', kind: 'contact', name: 'Marta', address: '4mkzaddr',
+    online: true, txs: [{ direction: 'in', status: 'confirmed', amount: '+1' }],
+    onBack() {}, onMessage() {}, onPay() {}, onRequest() {},
+    onNickname() {}, onDeleteHistory() {}, onRemoveContact() {},
+  });
+  host.append(ci);
+
+  // ① wallet-banner grammar: the same circle+label construction as c-wallet-hero__qa,
+  //    and NO c-button left in the action row (that was the "rough" 44px trio).
+  const qas = [...ci.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
+  ok(qas.length === 3 && !ci.querySelector('.c-chat-info__money .c-button'),
+    'premium ①: the action row is 3 quick actions, no chunky c-buttons left');
+  ok(qas.map((b) => b.querySelector('.c-chat-info__qa-label').textContent).join() === 'Message,Pay,Request',
+    'premium ①: Message · Pay · Request, in that order');
+  ok(ci.querySelector('.c-chat-info__money').dataset.count === '3',
+    'premium ①: the row carries its count so a lone action hugs instead of stretching');
+
+  // ② quiet destructive tier — delete-history reads secondary; red stays reserved
+  //    for the irreversible action (settings-shell quiet/danger precedent).
+  const rows = [...ci.querySelectorAll('.c-chat-info__danger-row')];
+  const hist = rows.find((r) => /Delete/i.test(r.textContent));
+  const remove = rows.find((r) => /Remove/i.test(r.textContent));
+  ok(hist.dataset.tone === 'quiet' && remove.dataset.tone === 'error',
+    'premium ②: delete-history = quiet tier, remove-contact stays the loud one');
+  ok(hist.querySelector('.c-disc').dataset.hue === 'neutral'
+    && !hist.querySelector('.c-disc').hasAttribute('data-grad'),
+    'premium ②: the quiet disc drops data-grad — base.css lets the per-glyph gradient win over data-hue');
+  ok(remove.querySelector('.c-disc').dataset.hue === 'error',
+    'premium ②: the destructive disc stays red (the reservation, #148)');
+
+  // ③ hierarchy: identity → what you can do → the details. The address card used
+  //    to sit between the hero and the actions and pushed them off the fold.
+  const kids = [...ci.querySelector('.c-chat-info__body').children];
+  ok(kids.indexOf(ci.querySelector('.c-chat-info__money'))
+      < kids.indexOf(ci.querySelector('.c-chat-info__address')),
+    'premium ③: actions come BEFORE the address card');
+  ok(ci.querySelector('.c-chat-info__hero .c-avatar').dataset.size === '80',
+    'premium ③: portrait-scale hero avatar (centered identity block)');
+
+  const css = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
+  ok(/\.c-chat-info__hero \{[^}]*flex-direction: column/.test(css)
+    && /\.c-chat-info__hero \{[^}]*align-items: center/.test(css),
+    'premium ③: the hero is a centered column, not a list-row');
+  ok(/\.c-chat-info__qa-circle \{[^}]*var\(--surface-action-tonal-default\)/.test(css)
+    && /\.c-chat-info__qa-circle \{[^}]*var\(--icon-action-default\)/.test(css),
+    'premium ①: quick-action circles ride semantic tonal tokens (no raw hex)');
+  ok(/@media \(hover: hover\)[^{]*\{\s*\.c-chat-info__qa:hover/.test(css),
+    '#43: the quick action has a hover state, guarded by the hover media query');
+  ok(!/@media[^{]*min-width:\s*(7|8|9|1\d)\d\d/.test(css),
+    'desktop density rides :root[data-desktop], never a viewport width query');
+  host.remove();
+}
+
+/* —— W7: a sublevel opened FROM an overlay must COVER its opener ——————————————
+ * Damir F5 (Windows, reproducible): Account → Change wallet password and the
+ * Account surface reads as frozen — only a rail tab switch clears it. Cause: the
+ * ixian:encpass push pinned EncryptionPassword to grid column 1, which covers only
+ * the DETAIL region of the full-span (minus rail) Account pane. The hub beside it
+ * stayed VISIBLE AND LIVE, so every row the user then tapped opened its sublevel
+ * *underneath* the password pane: nothing moved on screen. Not a deadlock and not
+ * a stuck preload latch (presentPreload/cancelPreload always clear activePreload in
+ * a finally) — which is exactly why only a TAB SWITCH cleared it: that is the one
+ * path that runs requestSettingsOverlayExit → the shell exits → the SettingsPage
+ * overlay is closed and disposed, so the next Account tap builds a fresh page.
+ * This is the #265 ② Downloads bug, second instance. Invariant pinned here:
+ * a page opened from the Account pane inherits the pane's own stage geometry
+ * (column -1 + the pane's inset) and is swept when the Account itself exits. */
+console.log('W7 — Change wallet password covers the Account pane it opens from');
+{
+  const scpW7 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const spW7 = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+
+  ok(/pushPageLoaded\(new EncryptionPassword\(\), 4000, null, -1, null,\s*\r?\n?\s*getOverlayStageMargin\(this\)\)/.test(spW7)
+    && !/pushPageLoaded\(new EncryptionPassword\(\)[^;]*paneMode \? 1 : -1/.test(spW7),
+    'W7: ixian:encpass opens full-span (column -1) with the ACCOUNT PANE\'S OWN inset — it covers its opener exactly, never just the detail column (the #265 ② live-but-blind hub)');
+  ok(/public Thickness stageMargin = default;/.test(scpW7)
+    && /op\.stageMargin = stageMargin;/.test(scpW7),
+    'W7: the op REMEMBERS the inset it was staged with (a stage.Margin read would be a UI-property read off the preload lock / a background thread)');
+  ok(/public static Thickness getOverlayStageMargin\(SpixiContentPage page\)[\s\S]{0,400}?lock \(preloadLock\)[\s\S]{0,300}?overlayStack\.Find\(o => o\.target == page\)[\s\S]{0,160}?return op != null \? op\.stageMargin : default;/.test(scpW7),
+    'W7: the accessor reads the OPEN overlay op under preloadLock and returns Thickness.Zero for a page that is not an overlay — mobile/push-fallback stays byte-identical to the pre-W7 default');
+  ok(/private void closeSublevelOverlays\(\)[\s\S]{0,400}?foreach \(SpixiContentPage p in getOverlayPages\(\)\)[\s\S]{0,200}?if \(p is EncryptionPassword\)[\s\S]{0,120}?removePage\(p\);/.test(spW7),
+    'W7: SettingsPage owns a close-audit for the sublevel page it opens (the closeContactDetailsOverlays / closeFormPaneOverlays family, hosted here because the Account owns this sublevel)');
+  ok(/resetLanguage\(\);\s*\r?\n\s*closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7)
+    && /saveSettingsCore\(nick\);[\s\S]{0,200}?closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7),
+    'W7: BOTH Account exit paths (ixian:back and ixian:save → onSaveSettings, i.e. the rail tab-switch route through requestSettingsOverlayExit) sweep the password pane — it can never outlive the Account and park over the next tab');
+}
+
+/* —— Desktop PANE CONTENT RAIL (Damir 2026-08-12, Windows screenshots) ————————
+ * The Change-wallet-password form and the App-details page both render in a
+ * desktop pane (W7: encpass now covers the whole Account pane · HomePage:2849/2857), so they
+ * rendered edge-to-edge at ~900–1200px while the Account sublevels ("How to use
+ * Spixi") have held a 640px rail since #243. Both now hold the SAME rail via
+ * --layout-pane-content-max; only the app-details cover stays full-bleed, and
+ * the encpass CTA moved out of the bottom-pinned bar into flow under the
+ * inputs. Mobile is byte-identical (verified: before/after phone screenshots
+ * are pixel-equal) — the rail rides the #228 platform flag. */
+console.log('desktop pane content rail (#3xx)');
+{
+  const tokRail = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  ok(/--layout-pane-content-max:\s*640px/.test(tokRail),
+    'rail: --layout-pane-content-max is a real token (640px = the Account-sublevel measurement), not a fourth copy of the literal');
+
+  const encCss = readFileSync(join(root, 'src/styles/components/lock-shell.css'), 'utf8');
+  ok(/:root\[data-desktop\] \.c-encpass__body \{[^}]*var\(--layout-pane-content-max\)/s.test(encCss),
+    'encpass: the desktop form holds the shared pane rail');
+  ok(/:root\[data-desktop\] \.c-encpass__body \{[^}]*flex: 0 1 auto/s.test(encCss),
+    'encpass: the body HUGS its content on desktop — that is what lifts the CTA up under the inputs');
+  ok(/:root\[data-desktop\] \.c-encpass__footer \{[^}]*border-top: 0/s.test(encCss),
+    'encpass: the un-pinned desktop footer drops the bar edge (it is in flow, not a bottom bar)');
+  ok(/\.c-encpass__body \{[^}]*flex: 1;[^}]*min-height: 0/s.test(encCss)
+    && /\.c-encpass__footer \{[^}]*flex: none/s.test(encCss),
+    'encpass: the MOBILE recipe (body flex:1 + bottom-pinned footer) is untouched — pinned is right on a phone');
+  ok(!/@media[^{]*min-width:\s*(6|7|8|9|1\d)\d\d/.test(encCss),
+    'encpass rail rides :root[data-desktop], never a viewport width query (#228)');
+
+  const adCss = readFileSync(join(root, 'src/styles/components/apps-details.css'), 'utf8');
+  ok(/--app-details-rail-gutter:\s*max\(0px, calc\(\(100% - var\(--layout-pane-content-max\)\) \/ 2\)\)/.test(adCss),
+    'app details: the rail is a symmetric MARGIN gutter (a % padding on the column resolves against a different box than the cover’s bleed-back margin — that mismatch left the cover 672px wide in a 900px pane)');
+  ok(/:root\[data-desktop\] \.c-app-details > \* \{ margin-inline: var\(--app-details-rail-gutter\); \}/.test(adCss),
+    'app details: every child holds the rail');
+  ok(/:root\[data-desktop\] \.c-app-details > \.c-app-hero \{ margin-inline: calc\(-1 \* var\(--spacing-16\)\); \}/.test(adCss),
+    'app details: ONLY the cover breaks out of the rail (Damir: "only the cover is full width")');
+  ok(/\.c-app-details > \.c-app-shots,\s*\S[^{]*\.c-app-related,\s*\S[^{]*\.c-app-details__actions \{\s*margin-inline: calc\(var\(--app-details-rail-gutter\) - var\(--spacing-16\)\)/.test(adCss),
+    'app details: the edge-bleeders (scroll strips + sticky Install bar) bleed past the RAIL, not to the window edge');
+  ok(!/100vw/.test(adCss),
+    'app details: no vw in the bleed — 100vw counts the scrollbar and would hand the pane a horizontal overflow');
+  ok(!/@media[^{]*min-width:\s*(6|7|8|9|1\d)\d\d/.test(adCss),
+    'app-details rail rides :root[data-desktop], never a viewport width query (#228)');
+}
+
+/* —— multi-message selection: selection TOPBAR + bulk delete (Damir tonight) ——
+ * Extends #139 (which shipped selection for copy + split-paste only, and only in
+ * the demo). The load-bearing claims: the bar mounts OVER the chat topbar as the
+ * native contextual bar; Delete only exists when the caller can perform one;
+ * selection is keyed by MESSAGE ID so the shell's full-log re-render can re-apply
+ * it; and bulk delete is a LOOP over the existing single-message bridge verb —
+ * no new command was invented on the C# side. */
+console.log('multi-message selection (selection topbar + bulk delete)');
+{
+  const dom = await load('chat.html');
+  const W = dom.window, D = W.document;
+  const host = D.createElement('div');          // stands in for the chat topbar slot
+  const list = D.createElement('div');
+  D.body.append(host, list);
+  const mk = (id, sender, text) => {
+    const r = D.createElement('div');
+    r.className = 'c-bubble-row';
+    r.dataset.msgid = id;
+    if (sender) r.dataset.sender = sender;
+    if (text) r.dataset.copytext = text;
+    list.append(r);
+    return r;
+  };
+  const rowA = mk('m1', 'Alex', 'one');
+  const rowB = mk('m2', 'Han', 'two');
+  const rowC = mk('m3', 'Han', 'three');
+  let handed = null;
+  const sel = W.Spixi.enterChatSelect(list, {
+    initialRow: rowA, host,
+    selectable: () => true,                     // cards are selectable too (delete generalises, copy filters)
+    onDelete: (items) => { handed = items; },
+  });
+  const bar = host.querySelector('.c-chatselect-bar');
+  ok(!!bar && bar.getAttribute('role') === 'toolbar' && host.classList.contains('c-chatselect-host'),
+    'the selection bar mounts INTO the topbar slot and makes it the positioning context');
+  const countEl = bar.querySelector('.c-chatselect-bar__count');
+  ok(countEl.getAttribute('aria-live') === 'polite' && countEl.textContent.includes('1'),
+    'the count is a live region — a screen reader hears the selection grow');
+  ok(rowA.getAttribute('role') === 'checkbox' && rowA.getAttribute('aria-checked') === 'true'
+    && rowC.getAttribute('aria-checked') === 'false' && rowA.tabIndex === 0,
+    'rows become keyboard-operable checkboxes with an honest checked state');
+  rowB.click(); rowC.click();
+  ok(countEl.textContent.includes('3'), 'tapping further rows toggles them into the selection');
+  rowB.dispatchEvent(new W.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+  ok(countEl.textContent.includes('2'), 'Space toggles the focused row — the log is operable without a pointer');
+  rowB.dispatchEvent(new W.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+  /* ★ the chat shell replaces EVERY row node on a status tick / new message.
+     A node-keyed selection would empty itself mid-gesture; this is id-keyed. */
+  const fresh = [...list.children].map((r) => {
+    const n = r.cloneNode(true);
+    delete n.dataset.selected; n.removeAttribute('aria-checked');
+    return n;
+  });
+  list.replaceChildren(...fresh);
+  sel.refresh();
+  ok(fresh.filter((r) => r.dataset.selected !== undefined).length === 3 && countEl.textContent.includes('3'),
+    '★ the selection survives a full-log re-render (keyed by message id, re-painted by refresh)');
+  fresh[2].remove();
+  sel.refresh();
+  ok(countEl.textContent.includes('2'), 'refresh prunes ids whose rows are gone (a landed delete shrinks the count)');
+  const barBtns = [...bar.querySelectorAll('.c-button')];
+  ok(barBtns.length === 2 && !!barBtns[1].getAttribute('aria-label')
+    && barBtns[1].dataset.intent === 'destructive' && barBtns[0].dataset.intent === 'default',
+    'the bar carries Copy + a destructive Delete — icon-only, both labelled for screen readers');
+  barBtns[1].click();
+  ok(handed && handed.length === 2 && handed[0].id === 'm1' && list.dataset.selecting !== undefined,
+    'Delete hands the caller the selected ids and does NOT exit — the confirm can still be cancelled');
+  D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  ok(list.dataset.selecting === undefined && !host.querySelector('.c-chatselect-bar')
+    && fresh[0].getAttribute('role') === null && fresh[0].dataset.selected === undefined,
+    'Escape exits selection and hands the rows back clean (role/tabindex/checked/selected cleared)');
+  ok(!host.classList.contains('c-chatselect-host'), 'the topbar slot loses the positioning class on exit');
+
+  /* ★ W9-④ — DESKTOP DRAG-TO-EXTEND (Damir, Windows F5 2026-08-13: "I would like
+     auto select on windows if i clicke and drag a whole message or multiple").
+     Deliberately narrow: only INSIDE selection mode, only for a MOUSE. A drag that
+     starts outside selection mode must keep selecting TEXT — that is the primary
+     desktop reading gesture, and Damir's "drag a whole message" when he only wants
+     the words. Touch/pen drags in the log are SCROLLS. */
+  const dhost = D.createElement('div');
+  const dlist = D.createElement('div');
+  D.body.append(dhost, dlist);
+  const dmk = (id, text) => {
+    const r = D.createElement('div');
+    r.className = 'c-bubble-row';
+    r.dataset.msgid = id; r.dataset.copytext = text;
+    dlist.append(r); return r;
+  };
+  const d1 = dmk('d1', 'one'), d2r = dmk('d2', 'two'), d3 = dmk('d3', 'three'), d4 = dmk('d4', 'four');
+  const dsel = W.Spixi.enterChatSelect(dlist, { initialRow: d1, host: dhost, selectable: () => true });
+  const dcount = dhost.querySelector('.c-chatselect-bar__count');
+  const pd = (row, type, opts = {}) => {
+    const e = new W.Event(type, { bubbles: true, cancelable: true });
+    Object.assign(e, { pointerType: 'mouse', button: 0 }, opts);
+    row.dispatchEvent(e);
+    return e;
+  };
+  // press on an UNSELECTED row and range down: the anchor's new state fills the range
+  pd(d2r, 'pointerdown');
+  const moved = pd(d4, 'pointermove');
+  ok(d2r.dataset.selected !== undefined && d3.dataset.selected !== undefined && d4.dataset.selected !== undefined
+    && dcount.textContent.includes('4'),
+    '★ W9-④: pressing on a message and dragging across others selects the whole RANGE (anchor→pointer), the sheet-fill convention');
+  ok(moved.defaultPrevented && dlist.dataset.dragselect !== undefined,
+    'W9-④: the live drag suppresses native text selection (preventDefault + [data-dragselect], which the CSS reads) — a text highlight smeared across every bubble would fight the range');
+  ok(d1.dataset.selected !== undefined,
+    'W9-④: rows OUTSIDE the range keep their state — a drag never silently clears a selection made somewhere else');
+  // shrink the range back: re-crossing repaints from the baseline, not by accumulating toggles
+  pd(d3, 'pointermove');
+  ok(d4.dataset.selected === undefined && d3.dataset.selected !== undefined && dcount.textContent.includes('3'),
+    'W9-④: dragging back UP shrinks the range (repainted from the pre-drag baseline, so a re-crossed row does not flip twice)');
+  D.dispatchEvent(new W.Event('pointerup', { bubbles: true }));
+  ok(dlist.dataset.dragselect === undefined, 'W9-④: the text-selection suppression is released with the pointer');
+  // the click that follows a drag must not undo the anchor
+  d3.click();
+  ok(d3.dataset.selected !== undefined && dcount.textContent.includes('3'),
+    'W9-④: the trailing click is swallowed — a drag that ends on a row must not immediately re-toggle it');
+  // a press that never moves is still a plain tap
+  pd(d3, 'pointerdown');
+  D.dispatchEvent(new W.Event('pointerup', { bubbles: true }));
+  d3.click();
+  ok(d3.dataset.selected === undefined && dcount.textContent.includes('2'),
+    'W9-④: a press with no movement stays a TAP — the long-press/tap grammar is untouched');
+  // touch must not range (it would wedge the scroll)
+  pd(d1, 'pointerdown', { pointerType: 'touch' });
+  const tmove = pd(d4, 'pointermove', { pointerType: 'touch' });
+  ok(!tmove.defaultPrevented && d4.dataset.selected === undefined,
+    '★ W9-④: a TOUCH drag ranges nothing and is never preventDefault-ed — in the log that gesture is a scroll, and stealing it would wedge the conversation');
+  D.dispatchEvent(new W.Event('pointerup', { bubbles: true }));
+  dsel.exit();
+  ok(dlist.dataset.dragselect === undefined && dlist.dataset.selecting === undefined,
+    'W9-④: exiting selection mode tears the drag listeners and flags down with everything else');
+  dhost.remove(); dlist.remove();
+  // no Delete button at all when the caller offers no delete (the #139 copy-only shape)
+  const host2 = D.createElement('div');
+  D.body.append(host2);
+  W.Spixi.enterChatSelect(list, { initialRow: fresh[0], host: host2, selectable: () => true });
+  ok(host2.querySelectorAll('.c-chatselect-bar .c-button').length === 1,
+    'no onDelete → no Delete button (a dead control is worse than a missing one)');
+
+  const menuSrc = readFileSync(join(root, 'src/components/message-menu.js'), 'utf8');
+  ok(/const selecting = \(\) => !!\(row\.closest/.test(menuSrc)
+    && (menuSrc.match(/if \(selecting\(\)\) return;/g) || []).length === 2,
+    'long-press AND right-click stand down while a selection runs — both gesture paths, or one opens a menu over the bar');
+
+  const selCss = readFileSync(join(root, 'src/styles/components/chat-select.css'), 'utf8');
+  ok(/\[data-selecting\] \.c-bubble-row\[role="checkbox"\]::before/.test(selCss)
+    && /\[data-selecting\] \.c-bubble-row\[data-selected\]::after/.test(selCss),
+    'the check circle is CSS-only (pseudo-elements) — it re-applies for free on every re-rendered row');
+  ok(/z-index: var\(--z-30\)/.test(selCss) && /background: var\(--surface-topbar\)/.test(selCss),
+    'the bar reads as the topbar it replaces: topbar surface, above the topbar’s --z-20');
+  ok(!/:\s*#[0-9a-fA-F]{3,8}\b/.test(selCss) && !/rgba?\(/.test(selCss),
+    'semantic tokens only — no raw hex/rgb VALUES in the selection styles');
+
+  const chatShell = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/multi-select: offered on every menu-able row/.test(chatShell) && /chat-select\.css/.test(chatShell),
+    'the production chat shell offers Select in the message menu and ships the stylesheet');
+  ok(/function sendDeleteMessage\(id\)/.test(chatShell)
+    && (chatShell.match(/bridge\.send\('ixian:contextAction:deleteMessage:/g) || []).length === 1,
+    '★ ONE delete path: bulk delete loops the EXISTING single-message verb — no new bridge command was invented');
+  ok(/const keepSelectBar = topbarHost\.querySelector\('\.c-chatselect-bar'\)/.test(chatShell),
+    'a topbar rebuild (presence tick, typing) re-attaches the selection bar instead of silently dropping it');
+  ok(/if \(chatSelect\) chatSelect\.refresh\(\);/.test(chatShell),
+    'renderLogNow re-applies the selection after it replaces every row node');
+  ok(/exitChatSelect\(\);\s+\/\/ per-peer reset/.test(chatShell),
+    'a chat switch exits selection — the contextual bar never survives into another conversation');
+  ok(/deleteSelectedMany \|\| 'Delete \{n\} messages\?'/.test(chatShell)
+    && /role: 'alertdialog'/.test(chatShell),
+    'bulk delete confirms in the house alertdialog and NAMES the count (Damir’s ask)');
+  ok(/const ids = items\.map\(\(it\) => it\.id\)\.filter\(Boolean\);\s+exitChatSelect\(\);/.test(chatShell),
+    'the ids are snapshotted BEFORE the exit — each verb echoes a re-render that would move the rows underneath');
+}
+
+/* —— multi-message selection round 2 (Damir 2026-08-12) ——————————————————————
+ * The #139 machinery already shipped (selection bar, id-keyed selection, bulk
+ * delete as a LOOP over the single-message verb). This round covers the ENTRY
+ * gestures Damir asked for ("long press to select"), the counted confirm
+ * sentence, and the composer sheet's title. Driven END-TO-END on the demo chat
+ * (the only page the harness can actually run) + source guards on the shell. */
+console.log('multi-select entry gestures · counted confirm · attach sheet title');
+{
+  const dom = await load('chat.html');
+  const W = dom.window, D = W.document;
+  const phone = D.getElementById('phone-direct');
+  const box = D.getElementById('messages-direct');
+  const topbarSlot = D.getElementById('topbar-direct');
+  const rows = [...box.querySelectorAll('.c-bubble-row')].filter((r) => r.querySelector('.c-bubble__text'));
+  const cmdClick = (row) => row.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }));
+
+  cmdClick(rows[0]);
+  const bar = topbarSlot.querySelector('.c-chatselect-bar');
+  const countEl = bar && bar.querySelector('.c-chatselect-bar__count');
+  ok(!!bar && box.dataset.selecting !== undefined && countEl.textContent.includes('1'),
+    '★ ⌘/Ctrl-click a message ENTERS selection mode with that message picked (the desktop entry — long-press is the touch one)');
+  ok(!!topbarSlot.querySelector('.c-topbar') && bar.compareDocumentPosition(topbarSlot.querySelector('.c-topbar')) !== 0,
+    'the chat topbar is still mounted underneath — the selection bar COVERS it, it does not destroy it');
+  rows[1].click(); rows[2].click();
+  ok(countEl.textContent.includes('3') && rows[1].getAttribute('aria-checked') === 'true',
+    'plain taps on further messages toggle them in — count reaches 3');
+  rows[2].click();
+  ok(countEl.textContent.includes('2') && rows[2].getAttribute('aria-checked') === 'false',
+    'tapping a SELECTED message deselects it');
+  rows[1].click(); rows[0].click();
+  ok(box.dataset.selecting === undefined && !topbarSlot.querySelector('.c-chatselect-bar'),
+    'deselecting the LAST message exits selection mode by itself (WhatsApp/Telegram grammar)');
+  ok(!!topbarSlot.querySelector('.c-topbar') && rows[0].getAttribute('role') === null,
+    'exiting restores the normal chat topbar and hands the rows back clean');
+
+  // counted confirm → one removal per selected message
+  cmdClick(rows[0]); rows[1].click(); rows[2].click();
+  const bar2 = topbarSlot.querySelector('.c-chatselect-bar');
+  const texts = rows.slice(0, 3).map((r) => r.querySelector('.c-bubble__text').textContent);
+  [...bar2.querySelectorAll('.c-button')].pop().click();          // Delete
+  await sleep(30);
+  const dlg = D.querySelector('.c-modal[role="alertdialog"]');
+  ok(!!dlg && /Delete 3 messages\?/.test(dlg.querySelector('.c-modal__title').textContent),
+    '★ bulk delete asks with the COUNT IN THE SENTENCE — "Delete 3 messages?" (Damir’s ask)');
+  ok(box.dataset.selecting !== undefined,
+    'the confirm does not pre-emptively exit selection — Cancel must be able to leave everything as it was');
+  [...dlg.querySelectorAll('.c-button')].pop().click();           // confirm Delete
+  await sleep(50);
+  ok(!box.contains(rows[0]) && !box.contains(rows[1]) && !box.contains(rows[2]),
+    '★ confirming removes EVERY selected message — one delete per selected id, not one for the batch');
+  ok(box.dataset.selecting === undefined && !topbarSlot.querySelector('.c-chatselect-bar')
+    && !!topbarSlot.querySelector('.c-topbar'),
+    'the delete exits selection and the normal topbar comes back');
+
+  // copy joins "Sender: text" lines, in log order
+  const rest = [...box.querySelectorAll('.c-bubble-row')].filter((r) => r.querySelector('.c-bubble__text'));
+  cmdClick(rest[0]); rest[1].click();
+  const bar3 = topbarSlot.querySelector('.c-chatselect-bar');
+  [...bar3.querySelectorAll('.c-button')][0].click();             // Copy
+  const buf = W.Spixi.getChatCopyBuffer();
+  ok(buf && buf.items.length === 2 && buf.joined.split('\n').length === 2
+    && buf.joined.split('\n').every((l) => /^[^:]+: /.test(l)),
+    'copy joins the selection as "Sender: text" lines, one per message, in log order');
+  ok(texts.length === 3 && !buf.joined.includes(texts[0]),
+    'a deleted message can no longer land in the copy buffer (the selection was pruned with the rows)');
+
+  /* composer ⊕ sheet: Damir — "it's titled Share, that's incorrect". Title
+     dropped; the sheet keeps an ACCESSIBLE name so the dialog is still named. */
+  const attach = W.Spixi.openAttachSheet({ host: phone, strings: W.SL || {} });
+  await sleep(20);
+  ok(!attach.querySelector('.c-sheet__title') && !/Share/.test(attach.textContent),
+    '★ the attach sheet has NO "Share" title any more — the six labelled tiles are the affordance');
+  ok(attach.getAttribute('aria-label') === 'Add to chat' && !attach.hasAttribute('aria-labelledby'),
+    'the title-less sheet still carries an accessible name ("Add to chat" — attachTitle, translated in all 8 locales)');
+  W.Spixi.closeSheet(attach);
+
+  const chatShell2 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/if \(!\(e\.metaKey \|\| e\.ctrlKey\)\) return;/.test(chatShell2)
+    && /startChatSelect\(row\);/.test(chatShell2),
+    'the production shell carries the same ⌘/Ctrl-click entry (Shift is left alone — it extends a text selection)');
+  ok(/e\.key !== 'ContextMenu' && !\(e\.shiftKey && e\.key === 'F10'\)/.test(chatShell2)
+    && /openMessageMenu\(\{ row, \.\.\.menuOptsFor\(rec, row\) \}\)/.test(chatShell2),
+    'keyboard users get IN via Shift+F10 / the Menu key (the menu carries Select); Esc is the way out');
+  ok(/if \(chatSelect\) \{ exitChatSelect\(\); return; \}/.test(chatShell2),
+    '★ back (edge-swipe) exits SELECTION first — it never leaves the conversation while the contextual bar is up');
+  ok(/selectable: \(r\) => isMenuableRec\(model\.get\(r\.dataset\.msgid \|\| ''\)\)/.test(chatShell2)
+    && /function isMenuableRec\(rec\)/.test(chatShell2),
+    'ONE predicate decides menuable AND selectable — call logs, event chips, dividers and separators are neither');
+  ok(/for \(const id of ids\) sendDeleteMessage\(id\);/.test(chatShell2),
+    'the shell issues the existing single-message verb once per selected id (no invented bulk command)');
+  const attachSrc = readFileSync(join(root, 'src/components/attach-sheet.js'), 'utf8');
+  ok(!/title: strings\.attachTitle/.test(attachSrc) && /sheet: strings\.attachTitle/.test(attachSrc),
+    'attach-sheet passes attachTitle as the sheet’s ARIA name, not as a visible heading');
+  const selCss2 = readFileSync(join(root, 'src/styles/components/chat-select.css'), 'utf8');
+  /* F5 shot fix: the EMPTY circle is the affordance and it sits on the patterned
+     chat canvas — an outline token (neutral-700 in dark) vanished there. */
+  ok(/\[role="checkbox"\]::before \{[^}]*box-shadow: inset 0 0 0 var\(--outline-width-2\) var\(--icon-neutral-02\)/.test(selCss2),
+    'the UNSELECTED check circle rides the muted-ICON ink, so it stays legible on the dark chat canvas too');
+  /* the AT-RULE, not the word: the file explains in a comment WHY it carries no
+     per-component query, and a bare-word test failed on its own rationale. */
+  ok(!/@media[^{]*prefers-reduced-motion/.test(selCss2) && /transition: background-color var\(--duration-100\)/.test(selCss2),
+    'reduced motion rides the global duration-token zeroing (tokens.css) — no per-component media query');
+
+  /* plurals across the 8 locales: this dictionary is flat (verify-locales enforces
+     key + placeholder parity), so the convention is a one/many key pair whose MANY
+     form is count-agnostic wherever the plural rules split above 1 (ru/sl/sr). */
+  const enDict = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
+  ok(enDict.deleteSelectedMany === 'Delete {n} messages?' && enDict.attachTitle === 'Add to chat',
+    'en-us carries the counted confirm + the renamed attach label');
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+    const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
+    ok(loc.deleteSelectedMany.includes('{n}') && loc.deleteSelectedMany !== enDict.deleteSelectedMany
+      && loc.selectedCount.includes('{n}') && loc.attachTitle !== enDict.attachTitle,
+      code + ': the counted confirm, the "{n} selected" bar label and the attach label are really translated');
+  }
+  for (const code of ['ru-ru', 'sl-si', 'sr-sp']) {
+    const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
+    ok(/\(\{n\}\)/.test(loc.deleteSelectedMany),
+      code + ': plural rules split above 1 → the count sits in parentheses (count-agnostic; the flat dict has no plural categories)');
+  }
+}
+
+/* —— APPS SURFACE (Damir 2026-08-12: slow Apps screen · the "+" · empty state · banner art)
+   Item 1 is the expensive one and the one that silently regresses, so it is asserted
+   BEHAVIOURALLY: the run counts <img> CREATIONS across a sequence of renders that
+   reproduces what C# actually does (clearApps + addApp-per-app, brand-new objects,
+   dispatched across frames). A rebuild-every-render regression turns those counts
+   from 0 back into N and fails here. */
+console.log('apps surface — perf · Add-app button · empty state · explore banner');
+{
+  const dom = await load('apps.html');
+  const W = dom.window, d = W.document, S = W.Spixi;
+
+  /* count img CREATION (the icon factory's cost: a new element = a new resource
+     lookup + a fresh decode of a multi-hundred-KB data: URI on the device) */
+  let imgsCreated = 0;
+  const realCreate = d.createElement.bind(d);
+  d.createElement = (tag, ...rest) => {
+    if (String(tag).toLowerCase() === 'img') imgsCreated += 1;
+    return realCreate(tag, ...rest);
+  };
+  const ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+  const mkApps = (n) => Array.from({ length: n }, (_, i) => ({ id: 'perf' + i, name: 'App ' + i, creator: 'IXI Labs', icon: ICON }));
+  const pState = { apps: mkApps(5), query: '', layout: 'list' };
+  const pOpts = { strings: {} };
+  const pList = S.createAppsList({ apps: [], query: '', layout: 'list' }, pOpts);
+  d.body.append(pList);
+
+  imgsCreated = 0;
+  S.renderAppsList(pList, pState, pOpts);
+  const coldImgs = imgsCreated;
+  const rows1 = [...pList.querySelectorAll('.c-app-item')];
+  const icons1 = [...pList.querySelectorAll('.c-app-icon__img')];
+  ok(coldImgs === 5 && rows1.length === 5, 'PERF: the first render of 5 apps builds 5 icon <img> — one per app, no duplicates');
+
+  // an identical RE-PUSH: same apps, brand-new objects (C# re-serialises every time)
+  imgsCreated = 0;
+  pState.apps = mkApps(5);
+  S.renderAppsList(pList, pState, pOpts);
+  const rows2 = [...pList.querySelectorAll('.c-app-item')];
+  ok(imgsCreated === 0, 'PERF ★: an identical re-push (tab switch → loadApps) creates ZERO new <img> — the icons are never re-decoded');
+  ok(rows1.every((r, i) => r === rows2[i]),
+    'PERF: the row NODES are reused by app id — an unchanged re-push mutates no DOM (was: textContent="" + rebuild)');
+  ok(icons1.every((im, i) => im === [...pList.querySelectorAll('.c-app-icon__img')][i]),
+    'PERF: the icon <img> nodes survive the re-push — same element, so the decoded bitmap stays in the WebView cache');
+
+  // the burst C# really emits: clearApps (EMPTY render) then addApp×N, across frames
+  imgsCreated = 0;
+  pState.apps = [];
+  S.renderAppsList(pList, pState, pOpts);
+  pState.apps = mkApps(5);
+  S.renderAppsList(pList, pState, pOpts);
+  ok(imgsCreated === 0 && [...pList.querySelectorAll('.c-app-item')].every((r, i) => r === rows1[i]),
+    'PERF ★: the cache survives the intermediate EMPTY render clearApps produces — the "it reloads the images on every tab switch" symptom');
+
+  // typing in the search box must not re-decode either
+  imgsCreated = 0;
+  S.setAppsQuery(pList, pState, 'App 1', pOpts);
+  S.setAppsQuery(pList, pState, '', pOpts);
+  ok(imgsCreated === 0, 'PERF: filtering and clearing the search re-uses every row — a keystroke costs no image work');
+
+  // …but a genuinely CHANGED icon must still repaint (the cache is not a lie)
+  imgsCreated = 0;
+  pState.apps = mkApps(5);
+  pState.apps[2].icon = ICON + 'CHANGED';
+  S.renderAppsList(pList, pState, pOpts);
+  ok(imgsCreated === 1, 'PERF: a changed icon rebuilds EXACTLY that one row — reuse is field-wise, not blind');
+  // layout switch is a different rendering of the same model → rows are rebuilt once
+  imgsCreated = 0;
+  S.setAppsLayout(pList, pState, 'grid', pOpts);
+  ok(imgsCreated === 5 && pList.dataset.layout === 'grid', 'PERF: list⇄grid rebuilds once (different node shape) and not twice');
+  S.setAppsLayout(pList, pState, 'list', pOpts);
+  d.createElement = realCreate;
+
+  /* ★ DUPLICATE IDS. The row cache is keyed by app id, so two entries sharing one
+     (a double addApp, a malformed manifest) resolved to the SAME cached element:
+     `nodes` held it twice and the insert-before reconcile just MOVED it, rendering
+     ONE row for two model entries — an app silently swallowed. The reconcile must
+     never render fewer rows than the model has. */
+  {
+    const dupList = S.createAppsList({ apps: [], query: '', layout: 'list' }, pOpts);
+    d.body.append(dupList);
+    const dupState = { apps: [{ id: 'same', name: 'First', creator: 'A' }, { id: 'same', name: 'Second', creator: 'B' }], query: '', layout: 'list' };
+    S.renderAppsList(dupList, dupState, pOpts);
+    const dupRows = [...dupList.querySelectorAll('.c-app-item')];
+    ok(dupRows.length === 2 && dupRows[0] !== dupRows[1],
+      'APPS DUP-ID: two apps sharing an id render TWO distinct rows — a shared cache key must not collapse the model');
+    ok(dupRows.map((r) => r.textContent).join('|').includes('First') && dupRows.map((r) => r.textContent).join('|').includes('Second'),
+      'APPS DUP-ID: both rows keep their OWN content (the duplicate is not a second copy of the first)');
+    // and a re-push of the same shape stays stable (no growth, no collapse)
+    S.renderAppsList(dupList, { apps: dupState.apps.map((a) => ({ ...a })), query: '', layout: 'list' }, pOpts);
+    ok(dupList.querySelectorAll('.c-app-item').length === 2,
+      'APPS DUP-ID: a re-push of the duplicate-id list is stable — still exactly 2 rows');
+    dupList.remove();
+  }
+
+  const shellSrc = readFileSync(join(root, 'src/components/apps-shell.js'), 'utf8');
+  const iconSrc = readFileSync(join(root, 'src/components/apps-icon.js'), 'utf8');
+  const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(!/listEl\.textContent = ''/.test(shellSrc) && !/listEl\.replaceChildren\(/.test(shellSrc),
+    'PERF: renderAppsList never wipes the list — replaceChildren/textContent="" would detach and re-decode every icon');
+  ok(/img\.decoding = 'async'/.test(iconSrc) && /img\.loading = 'lazy'/.test(iconSrc),
+    'PERF: the app icon decodes OFF the main thread and defers below-the-fold rows (5 apps in grid = most of them)');
+  ok(/requestAnimationFrame\(\(\) => \{[\s\S]{0,200}renderAppsList\(appsList, appsState, appsOpts\)/.test(homeSrc)
+    && /if \(appsRenderQueued\) return;/.test(homeSrc),
+    'PERF: the shell coalesces the clearApps+addApp×N burst into ONE render per frame (no render per pushed app)');
+
+  /* —— item 2: the "+" became a labelled action —————————————————————————— */
+  const textAction = d.querySelector('.c-topbar__action--text');
+  ok(!!textAction && textAction.textContent.trim().length > 2,
+    'ADD-APP: the Apps topbar carries a real TEXT action, not a bare "+" glyph (Damir 2026-08-12)');
+  ok(!!textAction && !textAction.hasAttribute('aria-label'),
+    'ADD-APP: the VISIBLE label is the accessible name — no aria-label silently overriding it with different words');
+  ok(/text: strings\.addApp \|\| 'Add app'/.test(homeSrc) && /icon: 'circle-plus'/.test(homeSrc)
+    && /onClick: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
+    'ADD-APP: the production shell passes the label + keeps the existing ixian:newapp verb (no new bridge command)');
+  const tbCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
+  ok(/\.c-topbar__action--text::after\s*\{[^}]*inset:\s*-6px 0/.test(tbCss),
+    'ADD-APP: the 32px pill still presents a 44px TOUCH TARGET (house hit-expander, §5b)');
+  // ★ regression: the % cap must sit on the ROW. On the BUTTON it resolves against the
+  // shrink-to-fit row (itself) and truncated "Add app" to "A…" on a 390px phone.
+  ok(/\.c-topbar__actions--text\s*\{[^}]*max-width:\s*62%/.test(tbCss)
+    && !/\.c-topbar__action--text\s*\{[^}]*max-width:\s*62%/.test(tbCss)
+    && /text-overflow: ellipsis/.test(tbCss),
+    'ADD-APP: the 62% cap is on the ACTIONS ROW (a % max-width on the button resolves against itself → "A…")');
+  ok(!!textAction && textAction.parentElement.classList.contains('c-topbar__actions--text'),
+    'ADD-APP: topbar.js tags the actions row so that cap has something to bite on');
+
+  /* —— item 3: the illustrated empty state —————————————————————————————— */
+  let added = 0;
+  const eOpts = { strings: {}, emptyIllustration: 'images/apps-es.svg', onAddApp: () => { added += 1; } };
+  const eState = { apps: [], query: '', layout: 'list' };
+  const eList = S.createAppsList(eState, eOpts);
+  d.body.append(eList);
+  const es = eList.querySelector('.c-empty-state');
+  ok(!!es && !!es.querySelector('.c-empty-state__title').textContent.trim()
+    && !!es.querySelector('.c-empty-state__body').textContent.trim(),
+    'APPS EMPTY: nothing installed → illustration + headline + a supporting line (not a bare one-liner)');
+  const eImg = es && es.querySelector('.c-empty-state__illo-img');
+  ok(!!eImg && eImg.getAttribute('src') === 'images/apps-es.svg',
+    'APPS EMPTY: the art loads as a SIBLING file (images/…) — a file:// WebView refuses an external asset URL');
+  const eCta = es && es.querySelector('.c-empty-state__action .c-button');
+  ok(!!eCta && eCta.dataset.size === '44' && eCta.dataset.type === 'tonal',
+    'APPS EMPTY: one SECONDARY (tonal) CTA at a 44px target — the empty state does not out-shout the topbar action');
+  if (eCta) eCta.click();
+  ok(added === 1, 'APPS EMPTY: the CTA calls the surface callback the shell already exposes (onAddApp → ixian:newapp)');
+  ok(eList.hasAttribute('data-empty'), 'APPS EMPTY: the list flags [data-empty] so the state centres in the scroller');
+  S.setAppsQuery(eList, eState, 'zzz', eOpts);
+  ok(!eList.querySelector('.c-empty-state') && !!eList.querySelector('.c-apps-empty') && !eList.hasAttribute('data-empty'),
+    'APPS EMPTY: a search that matches nothing keeps the QUIET note — an illustration there would read as an error');
+  S.setAppsQuery(eList, eState, '', eOpts);
+  ok(!!eList.querySelector('.c-empty-state__action .c-button'),
+    'APPS EMPTY: coming back from a no-match search restores the full state (cached node, CTA intact)');
+  // an art-less render must not poison the cache for the later, fully-wired one
+  const eList2 = S.createAppsList({ apps: [], query: '', layout: 'list' }, { strings: {} });
+  S.renderAppsList(eList2, { apps: [], query: '', layout: 'list' }, eOpts);
+  ok(!!eList2.querySelector('.c-empty-state__illo-img') && !!eList2.querySelector('.c-empty-state__action .c-button'),
+    'APPS EMPTY: the empty node is cached by SHAPE — an early art-less render never pins an art-less state forever');
+  ok(/emptyIllustration: 'images\/apps-es\.svg'/.test(homeSrc) && /onAddApp: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
+    'APPS EMPTY: the production shell wires the art + the CTA (same verb as the topbar — no new bridge verb)');
+  ok(existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.svg'))
+    && existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.svg')),
+    'APPS ART: both SVGs ship next to the packaged shells (build-shells copies src/demo/images) — else both refs 404 on device');
+
+  /* —— item 4: the explore banner illustration ——————————————————————————— */
+  const banner = d.querySelector('.c-apps-explore');
+  const bIllo = banner && banner.querySelector('.c-apps-explore__illo');
+  ok(!!bIllo && bIllo.getAttribute('src') === 'images/explore-banner.svg' && bIllo.getAttribute('alt') === '',
+    'BANNER: the art is on the banner as a decorative image (alt="") — the button keeps its own accessible name');
+  ok(!!bIllo && bIllo.previousElementSibling && bIllo.previousElementSibling.classList.contains('c-apps-explore__text'),
+    'BANNER: the art is a FLEX SIBLING of the copy, not an absolute overlay — text can never end up underneath it');
+  const bCss = readFileSync(join(root, 'src/styles/components/apps-header.css'), 'utf8');
+  const illoRule = (bCss.match(/\.c-apps-explore__illo\s*\{[^}]*\}/) || [''])[0];
+  ok(/align-self:\s*flex-end/.test(illoRule) && /object-position:\s*bottom right/.test(illoRule),
+    'BANNER: bottom + trailing edge (Damir: "align it bottom right") — object-position keeps it cornered when the box is capped');
+  ok(/max-width:\s*42%/.test(illoRule) && !/position:\s*absolute/.test(illoRule),
+    'BANNER narrow width: the art SHRINKS against a 42% cap (copy keeps ≥58%) — it never crops over or hides the headline');
+  ok(/:root\[data-desktop\] \.c-apps-explore__illo/.test(bCss) && !/@media[^{]*max-width[^{]*\{[^}]*c-apps-explore/.test(bCss),
+    'BANNER: desktop density rides :root[data-desktop], never a viewport width query (#228)');
+  const hdrSrc = readFileSync(join(root, 'src/components/apps-header.js'), 'utf8');
+  ok(/illo\.addEventListener\('error', \(\) => illo\.remove\(\)/.test(hdrSrc),
+    'BANNER: a blocked/missing asset removes itself — the banner stays fully usable without the art');
+  ok(/illo\.loading = 'lazy'/.test(hdrSrc),
+    'BANNER: the 806 KB art is LAZY — the Apps tab is hidden at shell boot and `decoding` only defers the decode, not the fetch');
+  // one <link> per stylesheet: build-shells INLINES each href, so a duplicate link
+  // shipped a second full copy of the file inside index.html
+  ok((homeSrc.match(/components\/empty-state\.css/g) || []).length === 1,
+    'SHELL CSS: empty-state.css is linked exactly ONCE in home.html (a second link inlines the whole file twice)');
+  // topbar text action = size-32 pill, and button.css pins [data-size="32"] icons to 16
+  ok(/icon\(a\.icon, hasText \? \{ size: 16 \} : undefined\)/.test(readFileSync(join(root, 'src/components/topbar.js'), 'utf8')),
+    'TOPBAR: a text action asks for a 16px glyph — the size button.css actually renders for the 32 pill');
+
+  /* —— copy: every locale carries the new Apps strings, really translated —— */
+  const enApps = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
+  ok(enApps.addApp === 'Add app' && !!enApps.appsEmptyTitle && !!enApps.appsEmptyBody,
+    'APPS COPY: en-us carries the button label + the empty-state headline and supporting line');
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+    const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
+    ok(loc.addApp !== enApps.addApp && loc.appsEmptyTitle !== enApps.appsEmptyTitle && loc.appsEmptyBody !== enApps.appsEmptyBody,
+      code + ': Add app + the Apps empty-state copy are really translated (not the English fallback)');
+  }
+}
+
+/* —— EMPTY STATES: Chats · Wallet · Contacts (Damir 2026-08-12: "add empty space
+   illustration and appropriate text and some text or secondary CTA for … Wallet,
+   Chats and Contacts"). Three things regress silently here and each is asserted:
+   (a) the ART PATH — these are ~300 KB assets loaded as a SIBLING `images/…` file
+       because a file:// WebView refuses an external URL (build-shells copies
+       src/demo/images → Resources/Raw/html/images); an absolute/http src would
+       render a blank box on device while every desktop demo still looked fine;
+   (b) ZERO vs NO-RESULTS — the illustration + "add your first…" CTA belongs ONLY
+       to a genuinely empty surface; under a filter/search miss it reads as if the
+       user's data had been deleted;
+   (c) the CTA must reach the callback the surface ALREADY exposes (no new bridge
+       verb) and must survive translation — de-de's wallet line pushed the button
+       under the bottom nav until the state went compact. */
+console.log('empty states — chats · wallet · contacts (illustration + copy + secondary CTA)');
+{
+  const chatsSrc = readFileSync(join(root, 'src/components/chats-shell.js'), 'utf8');
+  const walletSrc = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+  const contactsSrc = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
+
+  /* (a) art path — sibling file, and the file really ships */
+  for (const [surface, src] of [['chats', chatsSrc], ['wallet', walletSrc], ['contacts', contactsSrc]]) {
+    ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'images/" + surface + "-es\\.svg'").test(src),
+      surface + ': the empty state points at the SIBLING images/' + surface + '-es.svg (an external URL loads as a blank box under file://)');
+    ok(existsSync(join(root, 'src/demo/images', surface + '-es.svg')),
+      surface + '-es.svg really ships from src/demo/images (build-shells copies it next to the shells)');
+  }
+
+  /* (b) zero vs no-results, per surface */
+  ok(/function chatsIsZero\(state\)[\s\S]{0,200}?filter \|\| 'all'\) === 'all' && !\(state\.query \|\| ''\)\.trim\(\)/.test(chatsSrc),
+    'chats: the illustration + CTA are gated on the TRUE zero state (All, no query) — a filter/search miss keeps the plain note');
+  ok(/if \(!q && f === 'all'\) \{[\s\S]{0,120}?createEmptyState/.test(walletSrc),
+    'wallet: same gate — under a Sent/Received chip or a search, "get your first IXI" would be wrong advice');
+
+  /* (c) the CTA rides an EXISTING callback — no invented bridge verb */
+  ok(/onAction: opts\.onNewChat/.test(chatsSrc), 'chats CTA → opts.onNewChat (the FAB’s own contacts picker, no new verb)');
+  ok(/onAction: opts\.onReceive/.test(walletSrc), 'wallet CTA → opts.onReceive (the hero’s Receive takeover, no new verb)');
+  ok(/onAction: onAddContact/.test(contactsSrc), 'contacts CTA → onAddContact (the same action the picker’s own row offers)');
+  const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/onNewChat: \(\) => openContacts\('start'\)/.test(homeSrc) && /onReceive: \(\) => mountWalletReceive\(\)/.test(homeSrc),
+    'the PRODUCTION shell passes both zero-state callbacks (a demo-only wiring would ship a dead button)');
+
+  /* wallet compact — the de-de clipping guard */
+  ok(/compact: true,/.test(walletSrc.slice(walletSrc.indexOf('function walletEmpty'), walletSrc.indexOf('function walletEmpty') + 1400)),
+    '★ the wallet zero state is COMPACT — the hero owns ~300px above it, and full rhythm put "Show my address" under the bottom nav (worst in de-de)');
+  const walletCss = readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8');
+  ok(/\.c-wallet-txlist > \.c-empty-state\[data-compact\] \.c-empty-state__illo \{[^}]*width: clamp\(/.test(walletCss),
+    'wallet trims the illustration a notch under the hero (density, not a breakpoint)');
+
+  /* F5 2026-08-13 — "inconsistent empty state illustration location. we need it
+   * consistent, I think the chats is best, to the top". Measured on a 390×844
+   * home shell the illustration sat 24px below its scroller on Chats, 8px on
+   * Wallet and 171px on Apps (which centres its own list). The block now owns
+   * its own vertical placement: an auto END margin eats the host's free space
+   * before justify-content can distribute it, so it top-anchors in any
+   * flex-column host and computes to 0 in a plain block one. */
+  const esCss = readFileSync(join(root, 'src/styles/components/empty-state.css'), 'utf8');
+  ok(/\.c-empty-state \{[^}]*margin-block-end: auto;/s.test(esCss),
+    '★ the empty state top-anchors itself — one rule in the component, not four host layouts to keep in sync (Damir F5: "the chats is best, to the top")');
+  const appsCssES = readFileSync(join(root, 'src/styles/components/apps-shell.css'), 'utf8');
+  ok(/justify-content: center/.test(appsCssES),
+    'the apps host still declares its old centring — the component rule is what overrides it, so this pins the case the fix exists for');
+
+  /* house rule: desktop density rides :root[data-desktop], never a viewport query */
+  for (const f of ['empty-state.css', 'chats-shell.css', 'wallet-shell.css', 'contacts-shell.css']) {
+    const css = readFileSync(join(root, 'src/styles/components', f), 'utf8');
+    ok(!/@media[^{]*min-width:\s*(7|8|9|1\d)\d\d/.test(css),
+      f + ': no ≥700px viewport rule — desktop density rides :root[data-desktop] (#228)');
+  }
+
+  /* DOM: chats + wallet render the real thing, and the CTA actually fires */
+  {
+    const dom = await load('chats.html');
+    const W = dom.window, D = W.document, S = W.Spixi;
+    let started = 0;
+    const list = D.querySelector('.c-chats-list');
+    S.renderChatsList(list, { chats: [], requests: [], filter: 'all', query: '' },
+      { onNewChat: () => { started += 1; }, capabilities: {} });
+    const es = list.querySelector('.c-empty-state');
+    const illo = es && es.querySelector('.c-empty-state__illo');
+    const img = es && es.querySelector('.c-empty-state__illo-img');
+    const cta = es && es.querySelector('.c-empty-state__action .c-button');
+    ok(!!es && illo.getAttribute('aria-hidden') === 'true' && img.getAttribute('alt') === '',
+      'chats zero state: the illustration is DECORATIVE (aria-hidden + empty alt) — the headline carries the meaning');
+    ok(!!es.querySelector('h2.c-empty-state__title') && /No chats yet/.test(es.querySelector('h2').textContent),
+      'the headline is a real heading, not styled text — screen readers land on it');
+    ok(!!cta && cta.tagName === 'BUTTON' && cta.dataset.size === '44' && /Start a chat/.test(cta.textContent),
+      'the CTA is a real 44px button with a real label (hit target ≥44px, no icon-only riddle)');
+    cta.click();
+    ok(started === 1, 'tapping it opens the contacts picker — the same route the FAB takes');
+    S.renderChatsList(list, { chats: [], requests: [], filter: 'unread', query: '' }, { onNewChat: () => {} });
+    ok(!list.querySelector('.c-empty-state') && !!list.querySelector('.c-chats-empty'),
+      'switching to a filter that matched nothing drops back to the plain note — no illustration, no CTA');
+  }
+  {
+    const dom = await load('wallet.html');
+    const W = dom.window, D = W.document, S = W.Spixi;
+    let received = 0;
+    const txlist = D.querySelector('.c-wallet-txlist');
+    S.renderWalletTxList(txlist, { txs: [], filter: 'all', query: '' }, { onReceive: () => { received += 1; } });
+    const es = txlist.querySelector('.c-empty-state');
+    ok(!!es && es.dataset.compact !== undefined && !!es.querySelector('.c-empty-state__illo-img'),
+      'wallet zero state renders the compact illustrated block');
+    const cta = es.querySelector('.c-empty-state__action .c-button');
+    cta.click();
+    ok(received === 1 && /Show my address/.test(cta.textContent),
+      'its CTA opens Receive — the address is the one thing that turns this screen non-empty');
+    S.renderWalletTxList(txlist, { txs: [], filter: 'sent', query: '' }, { onReceive: () => {} });
+    ok(!txlist.querySelector('.c-empty-state') && !!txlist.querySelector('.c-wallet-empty'),
+      'the Sent chip with no matches keeps the plain note (the ledger is fine, the filter just missed)');
+  }
+  {
+    const dom = await load('chats.html');
+    const W = dom.window, S = W.Spixi;
+    let added = 0;
+    const picker = S.createContactsPicker({ contacts: [], purpose: 'start', onAddContact: () => { added += 1; } });
+    const zero = picker.querySelector('.c-contacts__zero');
+    ok(!!zero && zero.hidden === false && !!zero.querySelector('.c-empty-state__illo-img'),
+      'contacts: an empty roster reveals the illustrated zero state (noContacts / an empty loadContacts flush)');
+    zero.querySelector('.c-empty-state__action .c-button').click();
+    ok(added === 1, 'its CTA is the picker’s own Add-contact action — reachable from the blank area, not just the row above');
+    S.setPickerContacts(picker, [{ address: 'ADDR1', name: 'Ana' }]);
+    ok(picker.querySelector('.c-contacts__zero').hidden === true,
+      'the moment one contact lands, the zero state gets out of the way');
+    S.setPickerMode(picker, 'multi');
+    S.setPickerContacts(picker, []);
+    ok(picker.querySelector('.c-contacts__zero').hidden === true,
+      'group setup (multi) hides the Add-contact affordances, so the zero state hides its CTA too — no contradicting chrome');
+  }
+
+  /* copy: real translations in all 8 dictionaries (not the English fallback) */
+  const enES = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
+  ok(enES.chatsEmptyCta === 'Start a chat' && enES.walletEmptyCta === 'Show my address'
+    && enES.walletEmptyBody === 'Payments you send and receive show up here.',
+    'EMPTY-STATE COPY: en-us carries the three CTAs + the shortened wallet line (one sentence — the second only restated the button)');
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+    const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
+    ok(loc.chatsEmptyBody !== enES.chatsEmptyBody && loc.walletEmptyBody !== enES.walletEmptyBody
+      && loc.contactsEmptyBody !== enES.contactsEmptyBody && loc.chatsEmptyCta !== enES.chatsEmptyCta
+      && loc.walletEmptyCta !== enES.walletEmptyCta,
+      code + ': the Chats/Wallet/Contacts empty-state copy and CTAs are really translated');
+  }
+}
+
+/* ——— ZERO-STATE LOAD GATE (Apps · Chats · Wallet) ——————————————————————————
+ * An ILLUSTRATED empty state is a CLAIM about the user's account. The home shell
+ * builds all three lists SYNCHRONOUSLY with an EMPTY model, before the bridge has
+ * answered, and C# emits every clearX/addX as its OWN EvaluateJavaScriptAsync —
+ * so an ungated render painted "No chats yet" + 294 KB of art + a CTA on every F5,
+ * and repainted the whole zero state MID-BURST on every tab re-entry for a user who
+ * DOES have data. The fix is one flag, `opts.zeroReady`, read at render time by all
+ * three shell components: false → render NO empty node at all (a blank beat, never a
+ * false claim). Regressing any of the three is invisible in a screenshot review —
+ * it only shows for the ~300ms nobody screenshots — so it is asserted here. */
+console.log('zero-state load gate — no illustrated empty state during the load window');
+{
+  const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const dom = await load('chats.html');
+  const S = dom.window.Spixi, D = dom.window.document;
+
+  /* —— APPS —————————————————————————————————————————————————————————————— */
+  const aOpts = { strings: {}, emptyIllustration: 'images/apps-es.svg', onAddApp: () => {} };
+  const aList = S.createAppsList({ apps: [], query: '', layout: 'list' }, { ...aOpts, zeroReady: false });
+  D.body.append(aList);
+  ok(!aList.querySelector('.c-empty-state') && !aList.hasAttribute('data-empty'),
+    'GATE apps: zeroReady:false renders NO illustrated state and NO [data-empty] — the load window says nothing');
+  S.renderAppsList(aList, { apps: [], query: 'zzz', layout: 'list' }, { ...aOpts, zeroReady: false });
+  ok(!!aList.querySelector('.c-apps-empty'),
+    'GATE apps: a no-match SEARCH is a statement about the QUERY, not the account — its quiet note is NEVER gated');
+  S.renderAppsList(aList, { apps: [], query: '', layout: 'list' }, aOpts);
+  ok(!!aList.querySelector('.c-empty-state') && aList.hasAttribute('data-empty'),
+    'GATE apps: once the gate opens, a genuinely empty surface still reaches the full illustrated state');
+
+  /* —— CHATS ————————————————————————————————————————————————————————————— */
+  const cList = S.createChatsList({ chats: [], requests: [], filter: 'all', query: '' },
+    { capabilities: {}, onNewChat: () => {}, zeroReady: false });
+  D.body.append(cList);
+  ok(!cList.querySelector('.c-empty-state') && !cList.querySelector('.c-chats-empty'),
+    'GATE chats: the CONSTRUCTION render (F5, bridge silent) paints no zero state at all — the gap chatsFlushing never covered');
+  S.renderChatsList(cList, { chats: [], requests: [], filter: 'unread', query: '' }, { capabilities: {}, zeroReady: false });
+  ok(!!cList.querySelector('.c-chats-empty'), 'GATE chats: a filter miss keeps its plain note under the gate');
+  S.renderChatsList(cList, { chats: [], requests: [], filter: 'all', query: '' }, { capabilities: {}, onNewChat: () => {} });
+  ok(!!cList.querySelector('.c-empty-state'), 'GATE chats: gate open + empty roster → the illustrated state');
+
+  /* —— WALLET ———————————————————————————————————————————————————————————— */
+  const wList = S.createWalletTxList({ txs: [], filter: 'all', query: '' }, { onReceive: () => {}, zeroReady: false });
+  D.body.append(wList);
+  ok(!wList.querySelector('.c-empty-state') && !wList.querySelector('.c-wallet-empty'),
+    'GATE wallet: zeroReady:false paints nothing while the payment-activity burst is still arriving');
+  S.renderWalletTxList(wList, { txs: [], filter: 'sent', query: '' }, { onReceive: () => {}, zeroReady: false });
+  ok(!!wList.querySelector('.c-wallet-empty'), 'GATE wallet: the Sent-chip no-results note is never gated');
+  S.renderWalletTxList(wList, { txs: [], filter: 'all', query: '' }, { onReceive: () => {} });
+  ok(!!wList.querySelector('.c-empty-state'), 'GATE wallet: gate open + empty ledger → the illustrated state');
+
+  /* —— the PRODUCTION shell really wires all three ————————————————————— */
+  ok(/function createZeroGate\(gateOpts, render, settleMs\)/.test(homeSrc)
+    && /gateOpts\.zeroReady = false;/.test(homeSrc),
+    'GATE shell: one gate factory, and it starts CLOSED — the construction render can never claim an empty account');
+  ok(/const chatsZero = createZeroGate\(opts, \(\) => renderChatsNow\(\), 0\)/.test(homeSrc)
+    && /chatsZero\.open\(\);\s+\/\/ the roster is authoritative/.test(homeSrc)
+    && /chatsZero\.push\(/.test(homeSrc),
+    'GATE shell: chats opens on its REAL end-of-burst verb (clearChatsDone) — no timer where a signal already exists');
+  ok(/chatsZero\.open\(\);\s+\/\/ degrade to "render what the model holds"/.test(homeSrc),
+    'GATE shell: the iOS-28 stall watchdog also opens the gate — a half-run flush must not leave the surface mute forever');
+  ok(/const appsZero = createZeroGate\(appsOpts, \(\) => scheduleAppsRender\(\), ZERO_SETTLE_MS\)/.test(homeSrc)
+    && /const walletZero = createZeroGate\(walletOpts, \(\) => scheduleWalletRender\(\), ZERO_SETTLE_MS\)/.test(homeSrc)
+    && /const ZERO_SETTLE_MS = \d{3};/.test(homeSrc),
+    'GATE shell: apps + wallet have NO done verb, so they open on a QUIET WINDOW after the last push (no new bridge verb invented)');
+  ok(/appsZero\.push\(\(appsState\.apps \|\| \[\]\)\.length > 0\)/.test(homeSrc)
+    && /walletZero\.push\(\(walletState\.txs \|\| \[\]\)\.length > 0\)/.test(homeSrc),
+    'GATE shell: a clear() over a surface that HELD ROWS shuts the gate (refill) — over an already-empty one it does not (no blink)');
+  ok(/appsZero\.push\(false\);\s+\/\/ re-arm/.test(homeSrc) && /walletZero\.push\(false\);\s+\/\/ re-arm/.test(homeSrc),
+    'GATE shell: every row push RE-ARMS the window, so the settle is bounded by the GAP between pushes, not the burst length');
+  ok(/setAppsHeaderEmpty\(appsHeader, !\(appsState\.apps \|\| \[\]\)\.length && appsOpts\.zeroReady !== false\)/.test(homeSrc),
+    'GATE shell: the Apps header collapse rides the SAME flag — otherwise the search row folds and re-expands = a visible layout jump');
+}
+
+/* ——— multi-user mini-app launch uses the NEW picker (Damir F5 2026-08-12) ———
+ * "When launching multiuser app we get the legacy contacts list selector, it
+ * should be new one same as for group creation."
+ * Traced: apps row tap → ixian:startAppMulti:<id> (home.html onLaunch) →
+ * HomePage.onStartAppMulti (HomePage.xaml.cs:2775) / AppDetailsPage:286 → push
+ * LEGACY WalletRecipientPage(false, false) → wallet_recipient.html → ixian:select
+ * → HandlePickAppMultiUserSucceeded (:2789) → onJoinApp + sendAppRequest.
+ * NOTE the reality vs the ask: that legacy page is opened in SINGLE-select mode
+ * (multiContactMode:false) with payment:false, which INCLUDES groups, and the C#
+ * handler consumes addresses.First() only. So the new picker's 'app' purpose is
+ * the group-creation select GRAMMAR with launch-target RULES: SINGLE target (one,
+ * not two and not many — MiniAppPage hosts exactly one peer per session),
+ * groups selectable, back exits. */
+console.log('contacts picker — purpose "app" (multi-user launch target)');
+{
+  const dom = await load('chats.html');
+  const d = dom.window.document, W = dom.window;
+  const S = W.Spixi;
+
+  let appSel = null; let backs = 0;
+  const roster = [
+    { name: 'Han Solo', address: 'app-han', type: 0 },
+    { name: 'Ixian News', address: 'app-bot', type: 2 },                 // bot: blocked for GROUPS, fine for an app invite
+    { name: 'Ben Kenobi', address: 'app-pending', type: 0, pending: true },
+    { name: 'Crew', address: 'app-group', type: 0, isGroup: true },      // a GROUP is a legal app target
+  ];
+  const ap = S.createContactsPicker({
+    contacts: roster, purpose: 'app',
+    onBack: () => { backs += 1; },
+    onNext: (sel) => { appSel = sel; },
+  });
+  d.body.append(ap);
+
+  const apConfirm = () => ap.querySelector('.c-topbar__actions button');
+  ok(!!apConfirm() && ap.querySelector('.c-contacts__group').hidden === true,
+    'purpose "app": the picker OPENS in the select grammar — topbar ✓ present, action rows hidden (no browse detour)');
+  const apRows = [...ap.querySelectorAll('.c-contacts__row')];
+  const apRow = (n) => apRows.find((r) => r.querySelector('.c-contacts__name').textContent === n);
+  ok(!!apRow('Crew') && !apRow('Crew').disabled,
+    'purpose "app": a GROUP is selectable — WalletRecipientPage(payment:false) listed groups, so the redesign must not drop them');
+  ok(!apRow('Ixian News').disabled,
+    'purpose "app": a bot is selectable — the "can’t be added to groups" rule is a GROUP rule, not an app-invite rule');
+  ok(!!apRow('Ben Kenobi').disabled,
+    'purpose "app": a PENDING contact stays blocked — no accepted handshake, no app session');
+  ok(ap.querySelector('.c-contacts__kinds').hidden === false,
+    'purpose "app": the People/Groups chips stay live (group creation pins them to people; a launch target may be either)');
+  ok(apConfirm().disabled, 'purpose "app": confirm is inert at 0 selected');
+  const han = apRow('Han Solo');
+  ok(han.getAttribute('role') === 'radio' && han.getAttribute('aria-checked') === 'false'
+    && ap.querySelector('.c-contacts__list').getAttribute('role') === 'radiogroup',
+    'purpose "app": the pick is SINGLE-target — rows are radios in a radiogroup (group creation keeps role=checkbox)');
+  /* a11y of that radiogroup: a group with no accessible name announces as an
+     unnamed group, and a BARE child (the blocked pending row) is not accountable
+     to it. Roving tabindex / arrow keys are NOT asserted — deferred #205, shared
+     with every other swatch/radio grammar in this codebase. */
+  ok(!!(ap.querySelector('.c-contacts__list').getAttribute('aria-label') || '').trim(),
+    'purpose "app": the radiogroup carries an accessible NAME (reuses the picker’s own translated select title)');
+  ok(apRow('Ben Kenobi').getAttribute('role') === 'radio'
+    && apRow('Ben Kenobi').getAttribute('aria-checked') === 'false'
+    && apRow('Ben Kenobi').getAttribute('aria-disabled') === 'true',
+    'purpose "app": the BLOCKED pending row is a disabled radio, not a role-less element sitting bare inside the radiogroup');
+  han.click();
+  ok(han.getAttribute('aria-checked') === 'true' && !apConfirm().disabled
+    && /\(1\)/.test(apConfirm().getAttribute('aria-label') || ''),
+    'purpose "app": ONE target is enough — confirm enables at 1 (a group needs 2)');
+  ok(!ap.querySelector('.c-contacts__minhint').hidden
+    && ap.querySelector('.c-contacts__minhint').textContent.includes('1'),
+    'purpose "app": the live hint counts the selection instead of repeating the group ≥2 rule');
+  /* SINGLE-TARGET PIN (do not relax without the MiniAppPage session work — its
+   * session id is sha3(appId), it relays to ONE friendOrGroup and hasUser rejects
+   * anyone else, so extra invitees join a session the host never talks to). */
+  apRow('Crew').click();
+  ok(apRow('Crew').getAttribute('aria-checked') === 'true' && han.getAttribute('aria-checked') === 'false'
+    && /\(1\)/.test(apConfirm().getAttribute('aria-label') || ''),
+    'purpose "app": a SECOND pick REPLACES the first — the picker can never hand C# targets it would silently drop');
+  apConfirm().click();
+  ok(!!appSel && appSel.length === 1 && appSel[0].address === 'app-group',
+    'purpose "app": ✓ emits onNext with exactly ONE target');
+  ap.querySelector('.c-topbar').querySelector('button').click();   // topbar back = its first button
+  ok(backs === 1,
+    'purpose "app": topbar back LEAVES the picker (there is no browse state to fall back into — group creation flips to browse instead)');
+  ap.remove();
+
+  /* the bridge translation: a NEW verb, because ixian:startAppMulti carries no
+   * target and its C# handler slices at "ixian:startAppMulti:".Length (appending
+   * an address would land the whole tail in appId). Grammar mirrors the shipped
+   * ixian:creategroup: payload (HomePage.xaml.cs:447) minus the blind+name prefix. */
+  const cp = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
+  ok(/ixian:startappwith:'\s*\+\s*appId\s*\+\s*':\|'\s*\+\s*addresses\.join\('\|'\)/.test(cp),
+    'contacts-page: purpose "app" emits ixian:startappwith:<appId>:|<addr> — the creategroup payload grammar, minus blind+name');
+  ok(/\.slice\(0, 1\);/.test(cp),
+    'contacts-page: the launch payload carries ONE address — the bridge caps it even if a caller hands over more');
+  ok(/if\s*\(!appId \|\| addresses\.length < 1\) return;/.test(cp),
+    'contacts-page: a mount without an appId, or a confirm with no target, sends nothing (C# would only log and drop it)');
+  ok(cp.indexOf('close();') < cp.indexOf("bridge.send('ixian:startappwith:"),
+    'contacts-page: the takeover closes BEFORE the launch verb — C# pushes MiniAppPage over home; a live picker underneath would re-arm ✓ into a duplicate session');
+  ok(/purpose = 'start', appId = ''/.test(cp),
+    'contacts-page: mountContacts takes the appId the launch verb needs');
+}
+
+/* ——— the unselected selection circle is visible in BOTH themes (Damir F5) ———
+ * "the circles are too muted while unselected, and almost invisible, we need a
+ * bit stronger color one token up." --outline-neutral-02 measures 1.14:1 on
+ * --surface-card in light and 1.05:1 in dark; every remaining rung of the OUTLINE
+ * ladder is still under the 3:1 non-text floor (outline-03 1.42/1.20, outline-04
+ * 1.63/1.33), so the step is one rung up into the muted-ICON ladder — the same
+ * class of fix the chat selection circle took. */
+{
+  const css = readFileSync(join(root, 'src/styles/components/contacts-shell.css'), 'utf8');
+  const check = css.slice(css.indexOf('.c-contacts__check {'), css.indexOf('.c-contacts__row[aria-checked='));
+  ok(/border:\s*var\(--outline-width-2\)\s*solid\s*var\(--icon-neutral-03\)/.test(check),
+    'contacts multi-select: the UNSELECTED check circle rides --icon-neutral-03 (4.30:1 light / 5.69:1 dark on --surface-card) — was --outline-neutral-02 at 1.14/1.05');
+  // DECLARATIONS only — the rule's own comment NAMES the rejected token (it
+  // records the measurements), so the raw slice can never be clean. (This is why
+  // the assertion was failing red on an already-correct rule.)
+  const checkDecls = check.replace(/\/\*[\s\S]*?\*\//g, '');
+  ok(!/--outline-neutral-02/.test(checkDecls),
+    'contacts multi-select: the invisible outline token is gone from the check circle');
+  const sel = css.slice(css.indexOf('.c-contacts__row[aria-checked='));
+  ok(/background:\s*var\(--surface-action-default\)/.test(sel.slice(0, 240)),
+    'contacts multi-select: SELECTED is still the filled action surface + tick — the louder ring never competes with it');
+}
+
+/* ═══ W2 — the desktop nav rail is SYSTEM CHROME: always visible AND clickable ═══
+ * Damir (Windows F5): the rail (Chats/Apps/Wallet/Account) must never be covered.
+ * Two classes of cover: (A) legacy full-window C# PushAsync pages, (B) the shell's
+ * own full-VIEWPORT takeovers. Only B is asserted here — the C# half (a
+ * pushPageBesideRail conversion of the wallet/contact pages) was REVERTED
+ * 2026-08-13: popPageAsync is identity-aware for overlays but pops the TOP of the
+ * stack for pushed pages, so the converted pages tore down the wrong screen
+ * (Wallet → Send → pick recipient destroyed Send, and WalletSentPage.onDismiss
+ * threw indexing NavigationStack on a detached proxy). Case A stays open. */
+console.log('W2 — desktop rail always visible (FE takeovers)');
+{
+  const tokens = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const railTok = /--layout-rail-width:\s*(\d+)px/.exec(tokens);
+  ok(!!railTok, 'W2: --layout-rail-width is minted in tokens.css (the ONE frontend source for the rail width)');
+
+  const nav = readFileSync(join(root, 'src/styles/components/bottomnav.css'), 'utf8');
+  const railRule = nav.slice(nav.indexOf('.c-bottomnav--rail {'), nav.indexOf('.c-bottomnav--rail {') + 400);
+  ok(/width:\s*var\(--layout-rail-width\)/.test(railRule),
+    'W2: the rail COLUMN consumes the token — no second literal to drift from');
+
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  // Case B: BOTH full-viewport takeovers inset by the rail on desktop. Logical
+  // inset (RTL-safe: the rail is order:-1 in a flex row, so it flips sides).
+  const inset = /:root\[data-desktop\]\s*\.contacts-takeover,\s*:root\[data-desktop\]\s*\.wallet-takeover\s*\{\s*inset-inline-start:\s*var\(--layout-rail-width\);\s*\}/;
+  ok(inset.test(home),
+    'W2 case B: the contacts AND wallet takeovers inset-inline-start by --layout-rail-width on :root[data-desktop] — the rail is beside them, not under them');
+  const insetIdx = home.search(inset);
+  ok(insetIdx > 0 && !/@media[^{]*\(min-width/.test(home.slice(Math.max(0, insetIdx - 600), insetIdx)),
+    'W2 case B: the inset rides the [data-desktop] platform flag, never a viewport media query (#228)');
+  // Rail tap while a takeover is open: the tab wins — dismiss, then switch.
+  const onChange = home.slice(home.indexOf('onChange: (id) => {'), home.indexOf("bridge.send('ixian:tab:'"));
+  ok(onChange.indexOf('closeHomeTakeovers()') > -1
+    && onChange.indexOf('closeHomeTakeovers()') < onChange.indexOf("id === 'account'"),
+    'W2: tapping a rail tab while a takeover is open DISMISSES it first — for every tab, Account included (a live rail that does nothing is worse than no rail)');
+
+  /* ——— the rail-width DRIFT GUARD (static C#; #245, pre-dates W2 and survives its
+   * revert): HomePage insets the Account peer-pane by railWidthDip so the rail
+   * stays visible beside it. CSS px are DIPs in the WebView, so a one-sided
+   * re-dial would silently cover or gap the rail. ——— */
+  const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const railCs = /railWidthDip\s*=\s*(\d+(?:\.\d+)?)\s*;/.exec(hp);
+  ok(!!railCs && !!railTok && Number(railCs[1]) === Number(railTok[1]),
+    'DRIFT GUARD (#245): HomePage.railWidthDip === --layout-rail-width ('
+      + (railTok ? railTok[1] : '?') + ' / ' + (railCs ? railCs[1] : '?')
+      + ') — the Account peer-pane inset and the CSS rail must be re-dialed together');
+}
+
+/* ═══ multi-user mini-app launch uses the NEW picker, not the legacy selector ═══
+ * Damir: "when launching multiuser app we get the legacy contacts list selector,
+ * it should be new one same as for group creation." */
+console.log('multi-user app launch — new picker end to end');
+{
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const launch = home.slice(home.indexOf('onLaunch: (app) => {'), home.indexOf('onOpen: (app) =>'));
+  ok(/openContacts\('app', app\.id\)/.test(launch) && !/startAppMulti/.test(launch),
+    'apps tab: a multi-user launch opens the in-shell picker (purpose "app") — the ixian:startAppMulti verb that pushed WalletRecipientPage is gone from both launch paths');
+  ok(/function openContacts\(purpose, appId\)/.test(home) && /appId: appId \|\| ''/.test(home),
+    'home shell: openContacts threads the appId into mountContacts (the launch verb needs it)');
+  const pat = home.slice(home.indexOf('pickAppTargets(appId) {'), home.indexOf('/* ——— chats (wired)'));
+  ok(/openContacts\('app', String\(appId\)\)/.test(pat) && /if \(!appId\) return;/.test(pat),
+    'home shell: exposes pickAppTargets — AppDetailsPage has no roster, so C# hands ITS launch pick back to this one picker');
+  /* ★ W9-③ (Damir: "the selection from app details closes the app details pane and
+     returns to chat"): the app-details pane is a NATIVE surface above this WebView,
+     so the tab underneath it is what the user is dropped onto the moment it closes
+     — and on the abandon path (picker back) it is the only thing left on screen.
+     Chats is the wrong answer for a launch that started in Apps. */
+  ok(/activeNav = 'apps';/.test(pat) && /showView\('apps'\)/.test(pat) && /NAV_TO_TAB\.apps/.test(pat),
+    'W9-③: pickAppTargets parks the shell on APPS before opening the picker, through the same chokepoint the nav uses (so C# stays in sync) — the launch can no longer end on the chats list');
+
+  const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  ok(/current_url\.StartsWith\("ixian:startappwith:", StringComparison\.Ordinal\)/.test(hp)
+    && /private void onStartAppWith\(string payload\)/.test(hp),
+    'C# (static): HomePage answers ixian:startappwith:<appId>:|<addr>… — the picker’s verb has a handler, or the ✓ would do nothing');
+  const saw = hp.slice(hp.indexOf('private void onStartAppWith'), hp.indexOf('public void pickAppTargets'));
+  ok(/Split\(new string\[\] \{ ":\|" \}/.test(saw) && /FriendList\.getFriend/.test(saw),
+    'C# (static): the payload is parsed with the ixian:creategroup grammar and every WebView-supplied address is resolved against FriendList (unknown = dropped)');
+  ok(!/WalletRecipientPage/.test(saw),
+    'C# (static): the new launch path never touches the legacy picker page');
+  ok(/StreamProcessor\.sendAppRequest\(target, appId/.test(saw) && /onJoinApp\(appId, target\)/.test(saw),
+    'C# (static): it feeds the SAME core the legacy pick did — one session, one app request');
+  /* SINGLE-TARGET PIN (mirror of the picker's): MiniAppPage.xaml.cs:48 still has
+   * "TODO randomize session id and add support for more users" (sessionId =
+   * sha3(appId)), sendNetworkData relays to the single friendOrGroup and hasUser
+   * rejects everyone else — so a fan-out would invite people into a session the
+   * host never talks to. Do the MiniAppPage work before relaxing this. */
+  ok(!/foreach\s*\(Friend/.test(saw),
+    'C# (static): the launch does NOT fan out over the target list — one session, one invite, until MiniAppPage can host more');
+  const ad = readFileSync(join(root, 'Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs'), 'utf8');
+  const adMulti = ad.slice(ad.indexOf('private void onStartAppMulti'), ad.indexOf('private async void HandlePickAppMultiUserSucceeded'));
+  ok(adMulti.indexOf('home.pickAppTargets(appId)') > -1
+    && adMulti.indexOf('home.pickAppTargets(appId)') < adMulti.indexOf('new WalletRecipientPage'),
+    'C# (static): the app-details launch prefers the shell picker; WalletRecipientPage survives only as the no-home-shell fallback');
+  /* ★ W9-③: HAND OFF FIRST, TEAR DOWN SECOND. popPageAsync() is not a plain call —
+     for an overlay-mode page (#225, which is how HomePage.onAppDetails presents this
+     one) it enters closeOverlay, which QUEUES a main-thread teardown that hides the
+     stage, waits, detaches and Disposes this page (and on iOS awaits a 250 ms slide
+     first). Arming that before issuing the pick puts the hand-off on the same queue
+     as our own disposal, for no reason: nothing about closing this pane needs to
+     precede opening that picker. */
+  const adMultiCode = adMulti.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  ok(/home\.pickAppTargets\(appId\);\s*(?:\/\/[^\n]*)?\n\s*popPageAsync\(\);/.test(adMultiCode),
+    'C# (static): the hand-off is issued BEFORE this page tears itself down — the picker must exist before the surface that asked for it can go');
+}
+
+/* ═══ BUG-1 — the chats list must never silently drop a conversation ═══════════
+ * Damir F5 2026-08-13 ② "I deleted chat, then that same contact sent me messages,
+ * but I dont see it in chats list": a conversation that exists, receives traffic,
+ * and is unreachable from the list.
+ * ① "I created group, it doesnt show in my chats list" was RETRACTED by Damir —
+ * the group WAS in the list; a stale query in the chats search bar was filtering
+ * it out (that is BUG-3, the search-reset work, below). The C# predicate was never
+ * at fault, so the group/bot exception once asserted here is gone with it. What
+ * remains is the ORIGINAL predicate, asserted so nothing relaxes it by accident. */
+console.log('BUG-1 — chats-list membership (C# predicate)');
+{
+  const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const helper = hp.slice(hp.indexOf('private FriendMessageHelper? getFriendMessageHelper'),
+                          hp.indexOf('public void updateChat(Friend friend)'));
+  ok(helper.length > 0, 'getFriendMessageHelper — the chats-list predicate — is where the suite expects it');
+
+  /* ① THE PREDICATE. Returning null = "not a chat row", and the ONLY membership
+   * test is "has a last message" — no exceptions. That is also why the contacts
+   * DIRECTORY and the chats LIST are different surfaces: a contact you have never
+   * written to is in the directory only. Relaxing this would dump roster rows into
+   * the chats list, so the branch is asserted to stay a bare `return null`. */
+  const nullBranch = helper.slice(helper.indexOf('if (lastmsg == null)'), helper.indexOf('string str_online'));
+  ok(/^if \(lastmsg == null\) \{ return null; \}$/.test(nullBranch.trim().replace(/\s+/g, ' ')),
+    'BUG-1: the chats-list predicate is exactly "no lastMessage → not a chat row" — no type-based exception may be slipped in');
+
+  /* ② NO OTHER SILENT EXCLUSION. loadChats may drop a friend for exactly three
+   * reasons: pending deletion, the predicate above, and the #219 contact-request
+   * routing (incoming requestAdd → the Requests feed, not a chat row). A fourth
+   * `continue` in this loop is how a conversation disappears — make it fail here. */
+  const loadChats = hp.slice(hp.indexOf('private void loadChats()'), hp.indexOf('public static IxiNumber calculateReceivedAmount'));
+  const loop = loadChats.slice(loadChats.indexOf('foreach (Friend friend in friends)\n                {\n                    if (friend.pendingDeletion)'),
+                               loadChats.indexOf('// Sort the helper messages'));
+  ok(loop.length > 0 && (loop.match(/\bcontinue;/g) || []).length === 3,
+    'BUG-1: loadChats drops a friend for exactly THREE reasons — pendingDeletion, the null predicate, and the #219 incoming-request routing. A new exclusion must be argued for, not slipped in');
+  ok(/!friend\.approved && lm != null && lm\.type == FriendMessageType\.requestAdd && !lm\.localSender/.test(loop),
+    'BUG-1: the #219 exclusion is still narrow — an UNAPPROVED friend whose LAST message is THEIR requestAdd. An approved friend, or one who sent a follow-up, stays in the chat list');
+}
+
+/* ═══ BUG-1b + BUG-2 — END TO END against the BUILT home shell ═════════════════
+ * Everything below drives the real dispatcher and the real handlers in the shipped
+ * document, not a demo mock: window.executeUiCommand(window.addChat, 'b64'…) is
+ * byte-for-byte what Utils.sendUiCommand injects. */
+console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
+{
+  const shellPath = join(root, 'Spixi/Resources/Raw/html/index.html');
+  if (!existsSync(shellPath)) {
+    ok(false, 'built home shell exists (run build-shells.mjs before the smoke suite)');
+  } else {
+    const vc = new VirtualConsole();
+    const dom = new JSDOM(readFileSync(shellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + shellPath, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2000);
+    const W = dom.window, d = W.document;
+    const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+    const names = () => [...d.querySelectorAll('.c-chatlist-item')].map((r) => (r.querySelector('.c-chatlist-item__name') || {}).textContent);
+    const flush = (rows) => {
+      W.executeUiCommand(W.clearChats);
+      for (const r of rows) W.executeUiCommand(W.addChat, ...r.map(b64));
+      W.executeUiCommand(W.clearChatsDone);
+    };
+    const OLD_TS = Date.now() - 60000;
+    const row = (ts, excerpt, unread) => ['addr1', 'Alice', ts, 'img/spixiavatar.png', 'true', excerpt, '', String(unread), '', 'False'];
+
+    ok(typeof W.executeUiCommand === 'function' && typeof W.addChat === 'function' && typeof W.addApp === 'function',
+      'the built shell boots and registers the C#-callable page globals');
+
+    /* —— the bridge dispatcher itself (BUG-2 ①/②) —— */
+    let got = null;
+    W.__smokeSink = (a, b2) => { got = [a, b2]; };
+    const dataUri = 'data:image/png;base64,AAECAwQF=';
+    W.executeUiCommand(W.__smokeSink, dataUri, b64('Đamir ✓ 你好'));
+    ok(got && got[0] === dataUri,
+      'BUG-2①: an already-base64 data: URI arrives VERBATIM — C# no longer re-encodes a 240 KB icon to 320 KB, and the shell no longer atob()s it back');
+    ok(got && got[1] === 'Đamir ✓ 你好',
+      'BUG-2②: every OTHER argument keeps the base64 contract, unicode intact (the fast decode must not change one byte)');
+
+    /* —— BUG-1b: a deleted chat that receives a new message MUST come back —— */
+    flush([row(OLD_TS, 'hi', 0)]);
+    await sleep(120);
+    ok(names().length === 1, 'BUG-1b setup: the chat is in the list');
+    d.querySelector('.c-chatlist-item').dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    await sleep(80);
+    const menu = [...d.querySelectorAll('.c-msgmenu__item')];
+    const delItem = menu.find((b2) => /delete/i.test(b2.textContent));
+    ok(!!delItem, 'BUG-1b setup: the row menu offers Delete chat');
+    delItem.click();
+    await sleep(120);
+    [...d.querySelectorAll('.c-modal button')].find((b2) => /^delete$/i.test(b2.textContent.trim())).click();
+    await sleep(120);
+    [...d.querySelectorAll('.c-modal button')].find((b2) => /keep contact/i.test(b2.textContent)).click();
+    await sleep(150);
+    ok(names().length === 0, 'BUG-1b: deleting the chat removes the row (the delete still sticks)');
+
+    flush([row(OLD_TS, 'hi', 0)]);
+    await sleep(120);
+    ok(names().length === 0,
+      'BUG-1b: a re-flush of the SAME state keeps it deleted — the tombstone is not weakened into "any push resurrects"');
+
+    flush([row(Date.now(), 'they messaged you', 1)]);
+    await sleep(120);
+    ok(names().length === 1,
+      '★ BUG-1b: a STRUCTURAL FLUSH carrying a newer message + unread RESURRECTS the deleted chat. C# only emits a lone updateChat push when HomePage is top-of-stack, and even then it can land mid-flush — messages you cannot see are the worse failure');
+
+    /* —— BUG-2 ③/④: the apps list must not blank out mid-burst —— */
+    const appPush = () => { for (let k = 0; k < 4; k++) W.executeUiCommand(W.addApp, b64('app' + k), b64('App ' + k), 'data:image/png;base64,AAAA', b64('Pub'), b64('True'), b64('False')); };
+    const appRows = () => d.querySelectorAll('#apps-scroll .c-app-item').length;
+    W.executeUiCommand(W.clearApps); appPush();
+    await sleep(150);
+    ok(appRows() === 4, 'BUG-2 setup: 4 app rows render');
+    // C# emits every verb as its OWN EvaluateJavaScriptAsync, so a frame can land
+    // between clearApps and the first addApp. That frame used to paint an EMPTY list.
+    W.executeUiCommand(W.clearApps);
+    await sleep(150);
+    ok(appRows() === 4,
+      '★ BUG-2④: a bare clearApps does NOT blank the rendered list — the refill\'s addApp renders instead. That empty frame WAS the "flickers and always reloads some images"');
+    appPush();
+    await sleep(150);
+    ok(appRows() === 4, 'BUG-2④: the refill still lands (the deferred render is a delay, not a drop)');
+    dom.window.close();
+  }
+}
+
+/* ═══ BUG-3 — a stale search query must never silently hide content ════════════
+ * Damir F5 2026-08-13: "the group was in list, I had active search bar stuff in, we
+ * need best ux so that it resets after tapping out" / "the search bar needs to clear
+ * when we stop using it." A forgotten chats query cost him ~10 minutes and TWO
+ * phantom bug reports against a chats list that was working.
+ * THE RULE: a query is scoped to ONE VISIT to its surface — it survives scrolling,
+ * blur and drilling into a result, and it dies the moment the surface is LEFT (tab
+ * switch, takeover, Account pane). While live, the field wears the action outline
+ * (`data-active`) so an on filter is legible at a glance. */
+console.log('BUG-3 — search reset (static)');
+{
+  const sf = readFileSync(join(root, 'src/components/search-field.js'), 'utf8');
+  ok(/export function resetSearchFields\(\{ keepWithin = null \} = \{\}\)/.test(sf),
+    'BUG-3: search-field.js owns the shared reset — every surface inherits it from the component, none of them re-implements it');
+  ok(/searchFieldRegistry\.add\(el\)/.test(sf) && /if \(!el\.isConnected\) \{ searchFieldRegistry\.delete\(el\); continue; \}/.test(sf),
+    'BUG-3: every field self-registers and a detached one (a takeover that unmounted) is swept — no unregister bookkeeping for callers to forget');
+  ok(/const notify = searchFieldNotify\.get\(el\);\s*if \(notify\) notify\(''\);/.test(sf),
+    'BUG-3: a reset NOTIFIES onInput("") — it puts the consumer\'s MODEL back to unfiltered, it does not merely blank the input');
+  ok(/el\.toggleAttribute\('data-active', on\)/.test(sf),
+    'BUG-3: the field flags itself while it holds a query — the affordance is state, not a per-surface decoration');
+  ok(!/addEventListener\('blur'/.test(sf) && !/'focusout'/.test(sf),
+    'BUG-3: the reset is NOT blur-driven — blur fires when you tap a RESULT, so clearing there fights the click and discards the query of a user acting on it');
+
+  const sfCss = readFileSync(join(root, 'src/styles/components/search-field.css'), 'utf8');
+  const active = sfCss.slice(sfCss.indexOf('.c-search-field[data-active]'));
+  ok(active.length > 0 && /var\(--outline-action-default\)/.test(active) && /var\(--text-action-default\)/.test(active),
+    'BUG-3: an active filter is painted with SEMANTIC action tokens (outline + ink), not a literal colour');
+  ok(sfCss.indexOf('.c-search-field[data-active]') > sfCss.indexOf(':focus-within'),
+    'BUG-3: the active-filter rule follows :hover/:focus-within (equal specificity → source order), so a passing hover cannot un-mark a live filter');
+  ok(!/@media[^{]*\b(min|max)-width/.test(sfCss),
+    'BUG-3: no viewport media query — desktop density rides :root[data-desktop] (DESIGN_SYSTEM)');
+
+  const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(/function leaveSurfaceSearch\(keepWithin\)/.test(home)
+    && /resetSearchFields\(\{ keepWithin: keepWithin \|\| null \}\)/.test(home),
+    'BUG-3: the home shell has ONE surface-exit chokepoint, so a new exit path has one thing to call');
+  const show = home.slice(home.indexOf('function showView(navId)'), home.indexOf('NUDGE QUEUE'));
+  ok(/leaveSurfaceSearch\(isChats \? chatsView : isWallet \? walletView : isApps \? appsView : null\)/.test(show),
+    'BUG-3: a TAB SWITCH drops the query of the tab being left and KEEPS the one being entered (the field the user can actually see)');
+  ok(/function openContacts\([\s\S]{0,240}?leaveSurfaceSearch\(\);/.test(home),
+    'BUG-3: opening the contacts takeover drops it too — that is Damir\'s exact path (chats → FAB → create group → back)');
+  ok((home.match(/leaveSurfaceSearch\(\);\s*(?:\/\/[^\n]*)?\n?\s*const over = document\.createElement\('div'\);/g) || []).length === 2,
+    'BUG-3: both wallet takeovers (Receive and Send) drop it — a cover over the tab is leaving the tab');
+  ok(/setNavActive\(nav, 'account'\);[\s\S]{0,300}?leaveSurfaceSearch\(\);/.test(home),
+    'BUG-3: opening the Account peer pane drops it — the tab underneath has been left');
+  ok(/#wallet-scroll > \.c-wallet-tools\.is-pinned/.test(home) && /position: sticky/.test(home)
+    && /walletTools\.classList\.toggle\('is-pinned'/.test(home),
+    'BUG-3: the wallet tools row is the one long-lived home field INSIDE its scroller — while filtering it pins, so an active filter cannot scroll out of sight');
+  ok(!/:has\(/.test(home.slice(home.indexOf('BUG-3: an ACTIVE search filter'), home.indexOf('</style>'))),
+    'BUG-3: the pin is class-toggled, not :has() — the WebView floor is Chromium 102 (#4) and :has() lands at 105');
+}
+
+console.log('BUG-3 — built home shell, the exact scenario that bit Damir');
+{
+  const shellPath = join(root, 'Spixi/Resources/Raw/html/index.html');
+  if (!existsSync(shellPath)) {
+    ok(false, 'built home shell exists (run build-shells.mjs before the smoke suite)');
+  } else {
+    const vc = new VirtualConsole();
+    const dom = new JSDOM(readFileSync(shellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + shellPath, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2000);
+    const W = dom.window, d = W.document;
+    const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+    const rows = () => d.querySelectorAll('#chat-scroll .c-chatlist-item').length;
+    const chatSearch = () => d.querySelector('#chats-view .c-search-field__input');
+    const chatField = () => d.querySelector('#chats-view .c-search-field');
+    const type = (input, v) => { input.value = v; input.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    const tap = (sel) => { const n = d.querySelector(sel); if (n) n.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true })); return !!n; };
+
+    W.executeUiCommand(W.clearChats);
+    for (const [a, n2] of [['a1', 'Alice'], ['a2', 'Bob']]) {
+      W.executeUiCommand(W.addChat, ...[a, n2, String(Date.now()), 'img/spixiavatar.png', 'true', 'hi', '', '0', '', 'False'].map(b64));
+    }
+    W.executeUiCommand(W.clearChatsDone);
+    await sleep(150);
+    ok(rows() === 2 && !!chatSearch(), 'BUG-3 setup: two chats are listed and the chats search field is mounted');
+
+    /* ① the state itself must be legible — a filtering field is not a resting input */
+    type(chatSearch(), 'zzzzz');
+    await sleep(80);
+    ok(rows() === 0, 'BUG-3 setup: a query that matches nothing empties the list (this is what Damir was looking at)');
+    ok(chatField().hasAttribute('data-active'),
+      '★ BUG-3: while a query is on, the field carries data-active — "a filter is on" is visible at a glance, not inferred from an empty list');
+
+    /* ② DAMIR'S EXACT PATH: chats (stale query) → FAB → contacts takeover → back. */
+    ok(tap('#fab'), 'BUG-3 setup: the chats FAB exists (the path Damir took to create his group)');
+    await sleep(120);
+    ok(rows() === 2 && chatSearch().value === '',
+      '★ BUG-3: leaving chats for the contacts takeover DROPS the query — coming back from creating a group, the list is whole. This is the bug that produced two phantom reports');
+    ok(!chatField().hasAttribute('data-active'), 'BUG-3: …and the field drops its active-filter mark with the query');
+    const tako = d.querySelector('.contacts-takeover');
+    if (tako) { const c = [...tako.querySelectorAll('button')].find((b2) => /close|back|cancel/i.test(b2.getAttribute('aria-label') || b2.textContent)); if (c) c.click(); }
+    await sleep(120);
+
+    /* ③ a TAB SWITCH is leaving the surface too; the CHIP filter must survive it. */
+    tap('.c-chip[data-filter="unread"]');
+    await sleep(60);
+    type(chatSearch(), 'qqqq');
+    await sleep(80);
+    ok(chatSearch().value === 'qqqq', 'BUG-3 setup: a query is live on the chats tab, with the Unread chip selected');
+    tap('.c-bottomnav__item[data-id="wallet"]');
+    await sleep(80);
+    tap('.c-bottomnav__item[data-id="chats"]');
+    await sleep(120);
+    ok(chatSearch().value === '',
+      '★ BUG-3: leave the tab and come back — the query is gone. A filter can only be on for the surface you are currently looking at');
+    const unread = d.querySelector('.c-chip[data-filter="unread"]');
+    const allChip = d.querySelector('.c-chip[data-filter="all"]');
+    ok(unread && unread.getAttribute('aria-pressed') === 'true' && allChip.getAttribute('aria-pressed') === 'false',
+      '★ BUG-3: the CHIP filter is untouched by the reset — chip state and the text query are different things (leaveRequestsFilterIfEmpty owns the chip)');
+
+    /* ④ the surface being ENTERED keeps its own query — the reset is about leaving,
+     *    not about every navigation event. */
+    tap('.c-bottomnav__item[data-id="wallet"]');
+    await sleep(80);
+    const walletSearch = d.querySelector('#wallet-view .c-search-field__input');
+    ok(!!walletSearch, 'BUG-3 setup: the wallet search field is mounted');
+    type(walletSearch, 'ixi');
+    await sleep(80);
+    ok(d.querySelector('#wallet-scroll > .c-wallet-tools').classList.contains('is-pinned'),
+      '★ BUG-3: the wallet tools row pins while filtering — it is the one long-lived home field inside its scroller, so the live filter cannot scroll away unseen');
+    tap('.c-bottomnav__item[data-id="wallet"]');
+    await sleep(80);
+    ok(walletSearch.value === 'ixi',
+      'BUG-3: re-selecting the tab you are ALREADY on keeps the query — keepWithin covers the surface being entered, so the rule never eats a query in front of the user');
+    tap('.c-bottomnav__item[data-id="chats"]');
+    await sleep(120);
+    ok(walletSearch.value === '' && !d.querySelector('#wallet-scroll > .c-wallet-tools').classList.contains('is-pinned'),
+      '★ BUG-3: the wallet field inherits the identical rule — the fix lives in search-field.js, so Apps and Wallet cannot drift from Chats');
+    dom.window.close();
+  }
+}
+
+/* ═══ BUG-2 — the C#/bridge side of the apps-tab cost ══════════════════════════ */
+console.log('BUG-2 — apps push cost (static)');
+{
+  const utils = readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8');
+  ok(/isTransportSafeDataUri\(arg\) \? arg : escapeHtmlParameter\(arg\)/.test(utils),
+    'BUG-2①: sendUiCommand emits a transport-safe data: URI verbatim (240 KB stays 240 KB) and base64-encodes everything else');
+  ok(/public static string escapeHtmlParameter\(string str\)\s*\{\s*return Convert\.ToBase64String\(Encoding\.UTF8\.GetBytes\(str\)\);/.test(utils),
+    'BUG-2①: escapeHtmlParameter itself is UNCHANGED — the escaping contract for every other caller is untouched');
+  const gate = utils.slice(utils.indexOf('private static bool isTransportSafeDataUri'), utils.indexOf('public static void sendUiCommand'));
+  ok(/;base64,/.test(gate) && /c != '\+' && c != '\/' && c != '=' && c != ';' && c != ',' && c != '\.' && c != '-'/.test(gate),
+    'BUG-2①: the bypass is a WHITELIST — the value lands in a single-quoted JS literal, so a quote/backslash/newline (a raw path, a chat message starting with "data:") falls back to the encoded path');
+
+  const nat = readFileSync(join(root, 'src/bridge/native.js'), 'utf8');
+  ok(!/Uint8Array\.from\(bin, \(c\)/.test(nat) && /bin\.charCodeAt\(j\)/.test(nat),
+    'BUG-2②: b64ToUtf8 decodes with a plain index loop, not Uint8Array.from(bin, cb) — measured 108 ms → 3.4 ms per 5-icon tab switch in Chromium');
+  ok(/if \(i === len\) return bin;/.test(nat),
+    'BUG-2②: the ASCII fast path returns atob\'s own output (every data: URI, address and number is ASCII) — no Uint8Array, no TextDecoder');
+  ok(/a\.startsWith\('data:'\) \? a : b64ToUtf8\(a\)/.test(nat),
+    'BUG-2①: the dispatcher passes a data: URI through — unambiguous, since \':\' is outside the base64 alphabet');
+
+  const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  ok(/loadApps\(!appsPushedToShell\);/.test(hp) && !/loadApps\(true\);\s*\n\s*\}\s*\n\s*\}\s*\n\s*else if \(current_url\.Equals\("ixian:downloads"/.test(hp),
+    '★ BUG-2③: entering tab3 no longer FORCES clearApps + addApp×N — only the first entry into a fresh document, then the shouldRefreshApps gate decides');
+  ok(/appsPushedToShell = true;/.test(hp) && /appsPushedToShell = false;/.test(hp),
+    'BUG-2③: the latch is set when the rows are pushed and reset in onLoaded — a fresh document (theme flip, language reload) is always re-fed');
+  const onLoaded = hp.slice(hp.indexOf('private void onLoaded()'), hp.indexOf('setAsRoot();'));
+  ok(/appsPushedToShell = false;/.test(onLoaded),
+    'BUG-2③: the reset is in onLoaded specifically — every ixian:onload is a NEW document that holds no app rows');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

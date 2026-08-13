@@ -46,6 +46,15 @@ export function createAppIcon({ src = null, name = '', size = 48 } = {}) {
     const img = document.createElement('img');
     img.className = 'c-app-icon__img';
     img.alt = '';                          // decorative — the name label carries meaning
+    img.draggable = false;
+    // Perf (Apps-screen slowness): C# pushes each icon as a `data:image/png;base64,…`
+    // URI (HomePage.xaml.cs:2752 → Utils.imageToDataUri), i.e. a full PNG the WebView
+    // must DECODE. `decoding=async` keeps that decode off the main thread (it used to
+    // block the frame that built the row) and `loading=lazy` defers the decode of rows
+    // below the fold — with 5+ apps in grid layout that is most of them. Both are
+    // hints: an engine that ignores them behaves exactly as before.
+    img.decoding = 'async';
+    img.loading = 'lazy';
     // Graceful fallback (mirrors c-avatar): a C# icon path that doesn't resolve in a
     // self-contained shell must NOT show a broken-image glyph — drop the <img> and
     // render the gradient tile. Handler BEFORE src so a sync-cached error still fires.

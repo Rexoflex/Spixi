@@ -136,6 +136,22 @@
   -webkit-mask-size: 96px 96px;
   mask-size: 96px 96px;
 }
+/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
+   only differences are per-style mask scaling and (for Live flow) a canvas
+   face instead of a mask.
+   The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
+   its own scale: 144px puts ~10 cells across the tile, which is what makes it
+   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the
+   shared 96px rule above. */
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='matrix']::before {
+  -webkit-mask-size: 144px 144px;
+  mask-size: 144px 144px;
+}
+/* Live flow paints on a canvas child; chat-pattern.css already zeroes the tile
+   (--chat-pattern-tile: none) for this style, so nothing to hide here. The
+   face still needs the gradient ground the other two tiles get — it inherits
+   that from .c-chat-canvas. */
+
 /* Off = bare canvas gradient + a subtle diagonal slash so it reads as a distinct
    state, not a broken tile (token ink only) */
 .c-settings-swatch[data-off] .c-settings-swatch__canvas::after {

@@ -43,6 +43,20 @@
   box-shadow: 0 0 0 1px var(--outline-action-default); /* 1px border + 1px shadow ≈ spec 2px */
 }
 
+/* ★ BUG-3 — ACTIVE FILTER (Damir F5 2026-08-13: "I had active search bar stuff in").
+   A field holding a query is not a resting input: it is HIDING ROWS, so it stops
+   looking neutral and wears the ACTION outline permanently — not only while focused
+   — with the glyph and the clear affordance in action ink. Placed AFTER :hover and
+   :focus-within (equal specificity, source order decides) so the filtering state
+   out-ranks a passing hover; focus stays distinguishable because it adds the
+   box-shadow + surface change, which this rule does not touch.
+   Semantic tokens only; nothing here is density- or viewport-dependent. */
+.c-search-field[data-active] {
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+.c-search-field[data-active] .c-search-field__clear { color: var(--text-action-default); }
+
 .c-search-field__icon { flex: none; }
 
 .c-search-field__input {

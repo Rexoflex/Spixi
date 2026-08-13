@@ -47,6 +47,7 @@
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
+<link rel="stylesheet" href="../styles/components/chat-flow.css"><!-- W5: Live flow canvas layer (preview + style swatch) -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
 <style>
@@ -211,6 +212,17 @@
     clearTimeout(dlTimer); dlTimer = 0;
     downloadsEl = null; dlBuf = null;
   }
+  /* Same contract for Chat appearance (#46 audit): its live preview owns a
+   * requestAnimationFrame loop, a ResizeObserver and a document listener (the
+   * W5 "Live flow" engine). renderLayout() replaces the screen's children, so
+   * an unreleased screen leaks a loop per visit — and in pane mode setLocale /
+   * setPaneMode / onRepresented re-render while the user is still ON the
+   * screen, so they would stack without any navigation at all. */
+  let appearanceEl = null;
+  function releaseChatAppearance() {
+    if (appearanceEl && appearanceEl.release) appearanceEl.release();
+    appearanceEl = null;
+  }
   let strings = window.SL || {};   // #334 iOS-58: `let` — setLocale swaps the dict LIVE (closures read the variable)
   // Version: setVersion push (S4, SettingsPage.onLoad mirrors LaunchPage:33);
   // SPIXI_ENV seeds it if the generation step injects one.
@@ -333,19 +345,26 @@
    * dark chat derives its intensity as v × 0.36 (0.18/0.5 — keeps the #76
    * theme-tuned ratio, Standard = both theme defaults). Clamped on read so a
    * corrupted value can't blow up bubble text. */
-  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale' };
+  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle' };
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Standard (0.5, the #76 locked value). Mirrors chat.html's pre-paint
     // boot read so the Chat-appearance radio pre-selects what the chat shows.
-    let pattern = document.documentElement.hasAttribute('data-desktop') ? 0 : 0.5, textScale = 1;   // · scale M
+    const desktop = document.documentElement.hasAttribute('data-desktop');
+    let pattern = desktop ? 0 : 0.5, textScale = 1;   // · scale M
+    // W5: the STYLE default is line art (the pre-W5 look — an absent pref must
+    // change nothing). 'flow' is desktop-only, so a stored 'flow' on mobile
+    // reads back as line art, exactly what chat.html's pre-paint script applies.
+    let patternStyle = 'lineart';
     try {
       const p = parseFloat(localStorage.getItem(CHAT_PREFS.pattern));
       if (!isNaN(p)) pattern = Math.min(1, Math.max(0, p));
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
       if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
+      const st = localStorage.getItem(CHAT_PREFS.patternStyle);
+      if (st === 'matrix' || st === 'lineart' || (st === 'flow' && desktop)) patternStyle = st;
     } catch (e) {}
-    return { pattern, textScale };
+    return { pattern, textScale, patternStyle };
   }
 
   /* —— exit — the ONLY persist path is ixian:save, which persists nick + promotes
@@ -522,6 +541,7 @@
     // so keeping downloadsEl/dlBuf/dlTimer alive would retain a detached node and
     // let the 80ms settle paint into it. Re-entry rebuilds + re-requests the list.
     if (currentView !== 'downloads') releaseDownloads();
+    if (currentView !== 'chatappearance') releaseChatAppearance();
     if (!hubEl) { hubEl = buildHub(); syncSave(); }
     if (paneMode) {
       if (hubEl.parentNode !== masterWrap) {
@@ -847,14 +867,20 @@
       });
       case 'chatappearance': {
         const prefs = readChatPrefs();
-        return createChatAppearance({
+        // a re-render of THIS view rebuilds the screen too — release the
+        // outgoing instance before the new one replaces it in the DOM
+        releaseChatAppearance();
+        return (appearanceEl = createChatAppearance({
           patternOpacity: prefs.pattern,
+          patternStyle: prefs.patternStyle,
           textScale: prefs.textScale,
+          isDesktop,
           strings,
           onBack: showHub,
           onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
+          onPatternStyle: (v) => { try { localStorage.setItem(CHAT_PREFS.patternStyle, String(v)); } catch (e) {} },
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
-        });
+        }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
       // onThemeNav/onLanguageNav only in pane mode). Same commit verbs as the

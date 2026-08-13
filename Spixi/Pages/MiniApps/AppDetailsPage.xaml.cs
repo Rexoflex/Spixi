@@ -291,6 +291,40 @@ namespace SPIXI
                 return;
             }
 
+            // Damir 2026-08-13: the multi-user launch must use the REDESIGNED picker
+            // (the one group creation uses), not the legacy WalletRecipientPage. This
+            // page has no contacts roster of its own, so it hands the pick to the home
+            // shell, which owns the roster and answers with
+            // ixian:startappwith:<appId>:|<addr>… (HomePage.onStartAppWith).
+            //
+            // ★ W9-③ (Damir, Windows F5 2026-08-13): "the selection from app details
+            // closes the app details pane and returns to chat." HAND OFF FIRST, TEAR
+            // DOWN SECOND. The old order called popPageAsync() before the hand-off,
+            // and popPageAsync is not a plain call: for an overlay-mode page (#225 —
+            // which is how HomePage.onAppDetails presents this one, pinned to the
+            // detail column on a wide window) it enters closeOverlay, which queues a
+            // main-thread continuation that hides the stage, waits, detaches it and
+            // Disposes THIS page. Issuing the pick request after arming that teardown
+            // means the request rides the same main-thread queue as our own disposal
+            // — and on the iOS branch closeOverlay awaits a 250 ms slide-out first.
+            // Nothing about "close this pane" needs to happen before "open that
+            // picker", and the visible consequence of the old order is exactly what
+            // Damir describes: the pane goes, the detail column falls back to the
+            // conversation behind it, and the launch does not visibly continue.
+            // Both calls stay in ONE main-thread delegate so the order is fixed.
+            HomePage? home = HomePage.InstanceOrNull();
+            if (home != null)
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    home.pickAppTargets(appId);   // the picker must exist before this page can go
+                    popPageAsync();               // #225-aware: closes this overlay/page
+                });
+                return;
+            }
+
+            // No live home shell (should not happen — this page is opened from it):
+            // fall back to the legacy native picker rather than dropping the launch.
             var recipientPage = new WalletRecipientPage(false, false);
             recipientPage.pickSucceeded += (sender, e) =>
             {

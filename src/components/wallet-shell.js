@@ -23,6 +23,8 @@
  *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
  *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
  *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
+ *   opts.onReceive() — the zero-state CTA: opens the SAME Receive surface the
+ *   hero's Receive action opens (no new bridge verb). Omit it → no CTA.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
@@ -38,6 +40,7 @@ import { setWalletHeroCompact } from './wallet-hero.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { formatTxTimestamp } from './timestamp.js';
 import { icon } from './icons.js';
+import { createEmptyState } from './empty-state.js';
 
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
@@ -71,16 +74,49 @@ export function orderedTxs(state) {
 
 /* ————————————————————————————— tx list ————————————————————————————— */
 
-function walletEmpty(state, strings) {
+/** TRUE zero state (no ledger at all) vs NO RESULTS (Sent/Received or a search
+ *  matched nothing). Only the former gets the illustration + Receive CTA: under
+ *  a "Sent" chip that found nothing, "get your first IXI" would be wrong advice.
+ *
+ *  ★ LOAD WINDOW GATE (shared with chats-shell/apps-shell). "No activity yet" +
+ *  the illustration + "Show my address" is a CLAIM about the ledger, and the empty
+ *  model between clearPaymentActivity and the addPaymentActivity burst (which has
+ *  no done signal and is NOT reliably same-frame) is not that claim. `zeroReady:
+ *  false` → return null, i.e. NO empty node at all: a blank beat, never a false
+ *  claim. The host opens the gate once the surface has actually been given data —
+ *  or has demonstrably settled with none. A Sent/Received chip or a search miss is
+ *  a statement about the FILTER, not the ledger, so it is never gated.
+ *  Returns null while gated. */
+function walletEmpty(state, strings, opts = {}) {
+  const q = (state.query || '').trim();
+  const f = state.filter || 'all';
+  if (!q && f === 'all') {
+    if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
+    return createEmptyState({
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.svg',
+      glyph: 'wallet',                              // art blocked/missing → token glyph tile
+      title: strings.walletEmptyAll || 'No activity yet',
+      // ONE short line: the hero leaves ~360px for this whole block, and the second
+      // sentence ("share your address…") only restated the CTA. In de-de it wrapped
+      // to four lines and pushed "Show my address" clean under the bottom nav.
+      body: strings.walletEmptyBody
+        || 'Payments you send and receive show up here.',
+      actionLabel: strings.walletEmptyCta || 'Show my address',
+      actionIcon: 'qrcode',
+      onAction: opts.onReceive,
+      // The hero (balance + Send/Receive/Scan) already owns ~300px above this list,
+      // so the FULL-height rhythm pushed the CTA under the bottom nav on a 390×844
+      // phone — a zero state whose only action needs a scroll to find. compact is
+      // the house answer for an in-list state (the contacts picker rides it too).
+      compact: true,
+    });
+  }
   const el = document.createElement('div');
   el.className = 'c-wallet-empty';
   el.setAttribute('role', 'note');
-  const q = (state.query || '').trim();
-  const f = state.filter || 'all';
   el.textContent = q ? (strings.walletEmptySearch || 'No transactions match “{q}”').split('{q}').join(q)
     : f === 'sent' ? (strings.walletEmptySent || 'No sent payments yet')
-    : f === 'received' ? (strings.walletEmptyReceived || 'No received payments yet')
-    : (strings.walletEmptyAll || 'No activity yet — payments you send and receive show up here');
+    : (strings.walletEmptyReceived || 'No received payments yet');
   return el;
 }
 
@@ -107,7 +143,10 @@ export function renderWalletTxList(listEl, state, opts = {}) {
       },
     }));
   }
-  if (!txs.length) listEl.append(walletEmpty(state, strings));
+  if (!txs.length) {
+    const emptyEl = walletEmpty(state, strings, opts);
+    if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
+  }
   return listEl;
 }
 

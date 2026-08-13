@@ -84,7 +84,10 @@ export function openMessageMenu({
   if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
   if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
   if (text) item('copy', strings.copy || 'Copy', 'copy');
-  if (capabilities.select && text) item('checks', strings.select || 'Select', 'select');   // multi-select entry (#139)
+  // multi-select entry (#139). NOT gated on `text` any more: selection now also
+  // carries bulk DELETE, which a file/payment/app card supports just as well —
+  // the copy action inside selection filters to the rows that have text.
+  if (capabilities.select) item('checks', strings.select || 'Select', 'select');
   if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
   // destructive group last (§5b)
   item('trash', strings.deleteMessage || 'Delete', 'delete', true);
@@ -106,6 +109,11 @@ export function attachMessageMenu(row, opts = {}) {
   let fired = false;
 
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  /* While the log is in SELECTION mode every gesture belongs to the selection:
+     a long-press or right-click must toggle the row, not open a second surface
+     over the selection bar. Evaluated at fire time (rows are re-wired on every
+     re-render, but the mode can start and end between two of them). */
+  const selecting = () => !!(row.closest && row.closest('[data-selecting]'));
 
   target.addEventListener('pointerdown', (e) => {
     // ANY new gesture resets suppression — a right-click leaves fired=true
@@ -122,6 +130,7 @@ export function attachMessageMenu(row, opts = {}) {
     cancel();
     timer = setTimeout(() => {
       timer = null;
+      if (selecting()) return;          // selection mode owns the gesture
       fired = true;
       openMessageMenu({ row, ...opts });
     }, LONG_PRESS_MS);
@@ -144,6 +153,7 @@ export function attachMessageMenu(row, opts = {}) {
 
   target.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (selecting()) return;            // selection mode owns the gesture
     // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the same
     // moment the pointer timer fires — without this guard both paths opened
     // a sheet each (double scrim). Whichever path runs first wins.

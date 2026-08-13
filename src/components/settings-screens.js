@@ -23,7 +23,18 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
+import { attachChatFlow, detachChatFlow } from './chat-flow.js';
 
+/* W5 (Damir 2026-08-12) — pattern STYLE, orthogonal to the intensity dial below.
+ * Style picks the pattern SOURCE; intensity keeps mapping to opacity. "Off"
+ * lives ONLY in the intensity control, so there is deliberately no fourth
+ * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
+ * picker renders two options on mobile, three on desktop. */
+export const PATTERN_STYLES = [
+  { id: 'lineart', key: 'patternStyleLineArt', label: 'Line art' },
+  { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
+  { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
+];
 export const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
   { value: 0, key: 'patternOff', label: 'Off' },
   { value: 0.3, key: 'patternSubtle', label: 'Subtle' },
@@ -98,6 +109,7 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    diagonal slash treatment via [data-off] (settings-screens.css, token ink). */
 function swatchGroup({ options, current, ariaLabel, onPick }) {
   const g = document.createElement('div');
+  const faces = [];
   g.className = 'c-settings-swatches';
   g.setAttribute('role', 'radiogroup');
   g.setAttribute('aria-label', ariaLabel);
@@ -119,6 +131,7 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');   // the button's aria-label names the tile
     face.style.setProperty('--chat-pattern-opacity', String(o.value));
+    faces.push(face);
     b.append(face);
     b.addEventListener('click', () => {
       if (o.value === current) return;
@@ -129,6 +142,108 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
     g.append(b);
   }
   paint();
+  /* W5: the intensity tiles must show the pattern the user actually picked —
+     four line-art tiles under a "Data matrix" selection would be showing them a
+     level of something they aren't using. Flow tiles paint ONE still frame each
+     (the Off tile draws nothing, so its diagonal-slash treatment still reads). */
+  let swatchRaf = 0;
+  g.setSwatchStyle = (id) => {
+    // cancel a still-pending mount: a flow→lineart flip inside one frame used to
+    // let the deferred mount run AFTER the detach, leaving an orphan canvas under
+    // a tile face until the next style change (#46 audit)
+    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
+    for (const f of faces) f.dataset.chatPattern = id;
+    if (id !== 'flow') { for (const f of faces) detachChatFlow(f); return; }
+    swatchRaf = requestAnimationFrame(() => {
+      swatchRaf = 0;
+      for (const f of faces) mountFlowFace(f, FLOW_SWATCH_TUNE);
+    });
+  };
+  g.releaseSwatches = () => {
+    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
+    for (const f of faces) detachChatFlow(f);
+  };
+  return g;
+}
+
+/* pattern STYLE swatches (W5) — same grammar as the intensity swatches above
+   (native buttons, role=radio, aria-checked, localized label as aria-label +
+   title), but each face carries its OWN `data-chat-pattern`. That attribute
+   drives INHERITED custom properties in the generated chat-pattern.css, which
+   is precisely why the styles were not keyed off a descendant selector: three
+   different styles have to paint side by side in one list.
+
+   The "flow" face mounts the real engine in STILL mode — one frame, no rAF
+   loop. A live loop per swatch in a settings list is not worth the battery,
+   and a static frame is an honest picture of what the style looks like. The
+   density is stepped up for the small tile — these overrides are preview-only
+   and never reach the chat.
+
+   Re-scaled with the chat dial at the F5 of 2026-08-13: the tile is ~110×64,
+   so it keeps the chat's dash-to-gap ratio (~0.6 here vs 0.47 in the chat) at
+   roughly half the chat's absolute size, and fieldScale drops with it — at the
+   chat's own 44 a 110px tile spans barely two field units and every dash comes
+   out parallel, which is the exact "reads as still" failure the chat dial was
+   just fixed for. lineWidth stays 1: 1.25 is chunky at this size. */
+const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, fieldScale: 20 };
+
+/* Fail-soft for every flow face: attachChatFlow returns null when the WebView
+   has no 2d context. A style that can't paint must fall back to the line-art
+   TILE — a bare gradient would read as a broken tile, and the whole point of
+   keeping a resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css)
+   is that this fallback is one attribute flip. */
+function mountFlowFace(face, opts) {
+  let ctrl = null;
+  try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
+  if (!ctrl) face.dataset.chatPattern = 'lineart';
+  return ctrl;
+}
+
+function styleSwatchGroup({ options, current, ariaLabel, onPick }) {
+  const g = document.createElement('div');
+  const flowFaces = [];
+  let styleRaf = 0;
+  g.className = 'c-settings-swatches c-settings-swatches--style';
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', ariaLabel);
+  const paint = () => {
+    for (const b of g.children) b.setAttribute('aria-checked', String(b.dataset.value === current));
+  };
+  for (const o of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-swatch';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = o.id;
+    b.setAttribute('aria-label', o.label);
+    b.title = o.label;
+    const face = document.createElement('span');
+    face.className = 'c-chat-canvas c-settings-swatch__canvas';
+    face.setAttribute('aria-hidden', 'true');
+    face.dataset.chatPattern = o.id;
+    // the style tiles must show the PATTERN, not the user's current intensity —
+    // a user sitting on "Subtle" would otherwise be picking between three
+    // near-identical ghosts. Intensity has its own swatch row directly below.
+    face.style.setProperty('--chat-pattern-opacity', '0.5');
+    b.append(face);
+    if (o.id === 'flow') {
+      // mount after layout — a 0×0 face would size the backing store to 1×1
+      flowFaces.push(face);
+      styleRaf = requestAnimationFrame(() => { styleRaf = 0; mountFlowFace(face, FLOW_SWATCH_TUNE); });
+    }
+    b.addEventListener('click', () => {
+      if (o.id === current) return;
+      current = o.id;
+      paint();
+      onPick(o.id);
+    });
+    g.append(b);
+  }
+  paint();
+  g.releaseSwatches = () => {
+    if (styleRaf) { cancelAnimationFrame(styleRaf); styleRaf = 0; }
+    for (const f of flowFaces) detachChatFlow(f);
+  };
   return g;
 }
 
@@ -211,9 +326,12 @@ function screenShell(className, title, onBack) {
  */
 export function createChatAppearance({
   patternOpacity = 0.5,
+  patternStyle = 'lineart',      // W5: 'lineart' | 'matrix' | 'flow' (flow = desktop only)
   textScale = 1,
+  isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   onBack,
   onPattern,                     // (opacity) — shell sets --chat-pattern-opacity + persists
+  onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
   strings = getStrings(),
 } = {}) {
@@ -234,6 +352,31 @@ export function createChatAppearance({
   preview.append(bubbleIn, bubbleOut);
   body.append(preview);
 
+  /* W5 — STYLE first, then INTENSITY: the user picks what the pattern IS
+     before deciding how loud it is. Live flow is dropped from the list on
+     mobile (desktop-only, Damir 2026-08-12); a mobile user whose stored pref
+     somehow says 'flow' sees Line art selected, matching what chat.html's
+     pre-paint script actually applies. */
+  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'lineart';
+  const styleSec = document.createElement('div');
+  styleSec.className = 'c-settings__section';
+  const stLab = document.createElement('h3');
+  stLab.className = 'c-settings__label';
+  stLab.textContent = strings.patternStyle || 'Pattern style';
+  const styleGroup = styleSwatchGroup({
+    options: styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
+    current: styleCurrent,
+    ariaLabel: strings.patternStyle || 'Pattern style',
+    onPick: (id) => {
+      styleCurrent = id;
+      applyPreviewStyle(id);
+      if (onPatternStyle) onPatternStyle(id);
+    },
+  });
+  styleSec.append(stLab, styleGroup);
+  body.append(styleSec);
+
   const patternSec = document.createElement('div');
   patternSec.className = 'c-settings__section';
   const pLab = document.createElement('h3');
@@ -241,12 +384,13 @@ export function createChatAppearance({
   pLab.textContent = strings.patternIntensity || 'Background pattern';
   // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
   // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
-  patternSec.append(pLab, swatchGroup({
+  const intensityGroup = swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
     ariaLabel: strings.patternIntensity || 'Background pattern',
     onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', String(v)); if (onPattern) onPattern(v); },
-  }));
+  });
+  patternSec.append(pLab, intensityGroup);
   body.append(patternSec);
 
   const sizeSec = document.createElement('div');
@@ -265,7 +409,33 @@ export function createChatAppearance({
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', String(patternOpacity));
   preview.style.setProperty('--chat-text-scale', String(textScale));
+  applyPreviewStyle(styleCurrent);
+  /* The preview mounts a LIVE engine (rAF + ResizeObserver + a document
+     visibilitychange listener). settings.html's renderLayout() replaces the
+     screen's children wholesale — on Back, on setLocale, on setPaneMode, on
+     onRepresented — so without an explicit release the loop keeps running
+     against a detached node forever, and the listener pins the whole discarded
+     subtree. Every re-entry would add another. Same shape as, and released
+     alongside, releaseDownloads (#267). (#46 audit) */
+  el.release = () => {
+    detachChatFlow(preview);
+    if (styleGroup.releaseSwatches) styleGroup.releaseSwatches();
+    if (intensityGroup.releaseSwatches) intensityGroup.releaseSwatches();
+  };
   return el;
+
+  /* The big preview mirrors the chat exactly: tile styles are pure CSS (the
+     attribute switches the inherited URI), flow mounts the real engine. It runs
+     LIVE here — unlike the swatches — because this is the one place the user is
+     deciding whether they want motion at all, and it is a single canvas.
+     Declared as a hoisted function so the style section above can call it
+     before the preview's own initial paint below. */
+  function applyPreviewStyle(id) {
+    preview.dataset.chatPattern = id;
+    if (id === 'flow') mountFlowFace(preview);
+    else detachChatFlow(preview);
+    if (intensityGroup.setSwatchStyle) intensityGroup.setSwatchStyle(id);
+  }
 }
 
 /**

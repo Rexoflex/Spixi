@@ -53,12 +53,23 @@
   color: var(--text-neutral-02);
 }
 
-/* —— hero —— */
+/* —— hero —— CENTERED identity block (Damir 2026-08-12 "premium" pass): the
+   left-aligned avatar+name row read like a list item, not a profile. Portrait
+   avatar, name, then the wire name / member count — the WhatsApp/Discord
+   register, and it gives the quick-action row a natural anchor underneath. */
 .c-chat-info__hero {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-16);
+  gap: var(--spacing-12);
+  padding-block: var(--spacing-8) var(--spacing-4);
+  text-align: center;
 }
+/* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
+   via avatar.js, so its initials + presence dot are pinned here (0.38× scale,
+   the avatar.css rule of thumb). */
+.c-chat-info__hero .c-avatar__initials { font-size: 30px; }
+.c-chat-info__hero .c-avatar__dot { width: 18px; height: 18px; }
 /* #334: real hero photo → full-size viewer. The button hugs the avatar circle
    (radius-full) so the base.css :focus-visible ring draws round; state rides an
    action ring — a photo face can't tint (#43 hover coverage, tokens only). */
@@ -79,15 +90,20 @@
 .c-chat-info__avatar-view:active { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-pressed); }
 .c-chat-info__id {
   min-width: 0;                     /* long names ellipsize, never blow out (③ lesson) */
+  width: 100%;                      /* centered hero: the column is the full row, so
+                                       the ellipsis still has a box to clip against */
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--spacing-2);
 }
 .c-chat-info__name-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-4);
   min-width: 0;
+  max-width: 100%;
 }
 .c-chat-info__name {
   min-width: 0;                     /* flex item in name-row: without this its
@@ -96,8 +112,8 @@
                                        string) never ellipsizes — it overflows
                                        the hero and shoves the edit pencil off
                                        screen (#140③ / #136① class) */
-  font-size: var(--font-size-heading-xs);
-  line-height: var(--line-height-heading-xs);
+  font-size: var(--font-size-heading-sm);   /* centered hero carries one step more presence */
+  line-height: var(--line-height-heading-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
   white-space: nowrap;
@@ -213,18 +229,60 @@
 }
 .c-chat-info__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) — +25% (Damir F5 2026-07-29: 148 scanned poorly on a phone held at arm's length) */
 
-/* —— money row —— */
+/* —— action row —— WALLET-BANNER grammar (Damir 2026-08-12): the three chunky
+   44px buttons (a full-width fill + two outlines, wrapping onto two rows) are
+   now small quick actions — tonal circle + label — sitting one row under the
+   identity. Same construction as .c-wallet-hero__qa, tonal instead of on-hero. */
 .c-chat-info__money {
   display: flex;
-  flex-wrap: wrap;                  /* contact page (#144, Damir demo): Message
-                                       LEADS a full-width row, Pay + Request share
-                                       the row below as two equal columns */
+  justify-content: center;
   gap: var(--spacing-8);
 }
-.c-chat-info__money > .c-button { flex: 1; }
-/* full-width Message → basis 100% fills row 1, forcing Pay/Request to wrap to
-   row 2 (chat context has no Message, so Pay+Request stay on one row) */
-.c-chat-info__money > .c-chat-info__message { flex-basis: 100%; }
+.c-chat-info__money > .c-chat-info__qa { flex: 1; max-width: 96px; }
+/* identity + actions read as ONE header block: pull the row up out of the
+   body's 16px section rhythm (the full gap made the actions look orphaned) */
+.c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-8)); }
+/* a lone action (a group reached from the directory) hugs instead of stretching */
+.c-chat-info__money[data-count='1'] > .c-chat-info__qa { flex: none; min-width: 96px; }
+
+.c-chat-info__qa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-4) var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__qa-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-chat-info__qa-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__qa:hover .c-chat-info__qa-circle { background: var(--surface-action-tonal-hover); }
+}
+.c-chat-info__qa:active .c-chat-info__qa-circle { background: var(--surface-action-tonal-pressed); }
 
 /* —— generic row + switch —— */
 .c-chat-info__row {
@@ -497,7 +555,7 @@
 .c-chat-info__danger {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-12);
+  gap: var(--spacing-8);
 }
 .c-chat-info__danger-row {
   display: flex;
@@ -521,6 +579,15 @@
 }
 .c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }
 .c-chat-info__danger-row svg { color: currentColor; }
+/* QUIET tier (Damir 2026-08-12: "delete chat history doesn't need to be so
+   loud"): neutral ink + the grey neutral disc, regular weight. It is still a
+   bordered row in the destructive zone behind the same locked confirm — it just
+   stops competing with the irreversible action next to it. Red now MEANS
+   something (settings-shell precedent: quiet "free up space" vs danger zone). */
+.c-chat-info__danger-row[data-tone='quiet'] {
+  color: var(--text-neutral-01);
+  font-weight: var(--font-weight-regular);
+}
 
 .c-chat-info__confirm-error {
   margin: var(--spacing-8) 0 0;

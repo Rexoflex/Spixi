@@ -6,6 +6,35 @@
   gap: var(--spacing-16);
   padding: var(--spacing-16);
 }
+/* —— desktop: pane content rail (Damir 2026-08-12) ——
+   AppDetailsPage is pinned to the detail column (HomePage:2849/2857), so on a
+   wide window every row — icon+title, Permissions, Developer/Version/Size, the
+   trust line, Advanced, Uninstall — ran the full ~900px. Hold the shared pane
+   rail instead (--layout-pane-content-max, the "How to use Spixi" sublevel
+   measurement); ONLY the cover stays full-bleed (Damir).
+   MECHANISM: symmetric inline MARGINS on the children, not padding on the
+   column — a % in the column's padding resolves against the column's OWN
+   containing block, but the cover's bleed-back margin resolves against the
+   column's CONTENT box, so the two disagree and the cover lands short (first
+   cut measured 672px in a 900px pane). Margins on the children all resolve
+   against the same content box, so the rail and the bleed agree by
+   construction and nothing can overhang the viewport (no vw, no scrollbar
+   guessing). max(0px, …) collapses to today's layout on any column narrower
+   than the rail, so mobile is byte-identical; #228 platform flag, never a
+   viewport query. */
+:root[data-desktop] .c-app-details {
+  --app-details-rail-gutter: max(0px, calc((100% - var(--layout-pane-content-max)) / 2));
+}
+:root[data-desktop] .c-app-details > * { margin-inline: var(--app-details-rail-gutter); }
+/* the cover keeps bleeding all the way out — it is the one full-width element */
+:root[data-desktop] .c-app-details > .c-app-hero { margin-inline: calc(-1 * var(--spacing-16)); }
+/* edge-bleeders (scroll strips, sticky Install bar) bleed past the RAIL by the
+   same 16px they bleed past the padded column on mobile */
+:root[data-desktop] .c-app-details > .c-app-shots,
+:root[data-desktop] .c-app-details > .c-app-related,
+:root[data-desktop] .c-app-details > .c-app-details__actions {
+  margin-inline: calc(var(--app-details-rail-gutter) - var(--spacing-16));
+}
 
 /* —— hero cover (App-Store style; full-bleed over the padded container) —— */
 .c-app-hero {

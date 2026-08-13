@@ -92,6 +92,16 @@
   color: var(--text-neutral-02);
 }
 
+/* TRUE zero state (c-empty-state, compact) sits under the hero — the ONLY surface
+   where the illustration competes with 300px of chrome above it. Trim the art a
+   notch so headline + line + "Show my address" all clear the bottom nav on a
+   390×844 phone, in de-de too (the longest of the eight dictionaries). Density,
+   not a breakpoint — desktop keeps riding :root[data-desktop] in empty-state.css. */
+.c-wallet-txlist > .c-empty-state[data-compact] { padding-block-start: var(--spacing-8); }
+.c-wallet-txlist > .c-empty-state[data-compact] .c-empty-state__illo {
+  width: clamp(104px, 32vw, 148px);
+}
+
 /* —— tx detail sheet —— */
 .c-txsheet { display: flex; flex-direction: column; gap: var(--spacing-12); }
 .c-txsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }

@@ -32,7 +32,17 @@
      matches chat-pattern.css's own defaults (0.5 light / 0.18 dark = ×0.36), so
      mobile is unchanged by construction. #76 ink values untouched. Clamped so a
      corrupted value can't blow up bubble text. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),dark=document.documentElement.dataset.theme==='dark',p=NaN,t=NaN;try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));}catch(e){}if(isNaN(p))p=de?0:0.5;p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));})();</script>
+<!-- W5 (Damir 2026-08-12): the pattern STYLE pref rides the SAME pre-paint script
+     as the intensity, for the same reason — a style resolved after first paint
+     flashes the wrong pattern. It sets `data-chat-pattern` on <html>, which
+     chat-pattern.css turns into the tile custom properties (inherited, so the
+     settings swatches can override it per element). Two dials, orthogonal:
+     style picks the SOURCE, the intensity pref keeps mapping to opacity, and
+     "Off" lives ONLY in the intensity dial (there is no fourth style).
+     Live flow is DESKTOP-ONLY — a mobile client carrying the pref (restore,
+     hand-edited storage) falls back to line art here rather than burning
+     battery on a constant rAF loop. -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),dark=document.documentElement.dataset.theme==='dark',p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}if(isNaN(p))p=de?0:0.5;p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='lineart';if(s!=='lineart'&&s!=='matrix'&&s!=='flow')s='lineart';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -56,7 +66,9 @@
 <link rel="stylesheet" href="../styles/components/reactions.css">
 <link rel="stylesheet" href="../styles/components/typing-indicator.css">
 <link rel="stylesheet" href="../styles/components/scroll-latest.css">
+<link rel="stylesheet" href="../styles/components/chat-flow.css"><!-- W5: Live flow canvas layer -->
 <link rel="stylesheet" href="../styles/components/message-menu.css">
+<link rel="stylesheet" href="../styles/components/chat-select.css"><!-- multi-select: check circles + selection topbar -->
 <link rel="stylesheet" href="../styles/components/system-notice.css">
 <link rel="stylesheet" href="../styles/components/lazy-history.css">
 <!-- overlay surfaces wired in the chat depth batch (#188): c-sheet/c-modal live
@@ -458,7 +470,8 @@
     createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
-    attachMessageMenu, openTipSheet, openMemberSheet, openAttachSheet,
+    attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
+    enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
@@ -466,8 +479,91 @@
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
+    attachChatFlow, syncChatFlow, detachChatFlow, // W5: "Live flow" animated pattern style (desktop-only)
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
+
+  /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
+   * The STYLE was resolved pre-paint (data-chat-pattern on <html>, head script);
+   * the two TILE styles need nothing more — chat-pattern.css has already painted
+   * them from the inherited custom properties. Only "Live flow" needs code, and
+   * only once the bundle has parsed. Fail-soft ladder: no 2d context → fall the
+   * root attribute back to 'lineart', so a canvas-less WebView gets the doodle
+   * tile instead of a bare gradient. */
+  const chatCanvasEl = document.querySelector('.c-chat-canvas');
+  function syncFlowIfActive() {
+    if (chatCanvasEl && typeof syncChatFlow === 'function') syncChatFlow(chatCanvasEl);
+  }
+  function applyChatPatternStyle() {
+    if (!chatCanvasEl) return;
+    const flow = document.documentElement.getAttribute('data-chat-pattern') === 'flow';
+    if (!flow) { if (typeof detachChatFlow === 'function') detachChatFlow(chatCanvasEl); return; }
+    if (typeof attachChatFlow !== 'function' || !attachChatFlow(chatCanvasEl)) {
+      document.documentElement.setAttribute('data-chat-pattern', 'lineart');
+    }
+  }
+  applyChatPatternStyle();
+
+  /* —— W5 F5 (Damir 2026-08-13): a pattern pick must reach chats ALREADY OPEN ——
+   * "works, just it always need to reload chat to see changes, it doesnt auto
+   * apply to active chats." Both prefs were resolved ONCE, in the pre-paint head
+   * script, so an open chat kept its boot pattern until the WebView reloaded.
+   * The Account screen and the chat are separate WebViews over ONE file://
+   * localStorage origin, which is exactly the spixi.backup.last problem — so
+   * this reuses that grammar verbatim (settings.html, #314) rather than adding a
+   * bridge verb: storage event + focus fallback + visibilitychange + a
+   * visibility-guarded 2s poll, because WKWebView fires no cross-WebView storage
+   * event and a COVERED WebView still reports itself visible and focused.
+   * Everything is gated on an ACTUAL change of the stored pair, so the poll is a
+   * no-op read in the steady state and never repaints under a live chat.
+   *
+   * The re-resolve is the SAME ladder as the head script (platform-aware default,
+   * clamp, desktop-only Live flow, the #76 ×0.36 dark derivation), then
+   * applyChatPatternStyle() mounts or detaches the canvas. Tile-vs-canvas can
+   * never double-paint: chat-pattern.css sets --chat-pattern-tile:none under
+   * [data-chat-pattern='flow'] (::before display:none) and every non-flow style
+   * detaches the canvas first. */
+  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle' };
+  function readPatternPrefs() {
+    const de = document.documentElement.hasAttribute('data-desktop');
+    let p = NaN, s = '';
+    try {
+      p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
+      s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
+    } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
+    if (isNaN(p)) p = de ? 0 : 0.5;              // B2 (#256) platform-aware default
+    p = Math.min(1, Math.max(0, p));
+    if (s === 'flow' && !de) s = 'lineart';      // Live flow is desktop-only (battery)
+    if (s !== 'lineart' && s !== 'matrix' && s !== 'flow') s = 'lineart';
+    return { level: p, style: s };
+  }
+  function applyPatternPrefs(prefs) {
+    const r = document.documentElement;
+    const dark = r.dataset.theme === 'dark';
+    // #76 ratio, the SAME derivation as the head script and settings.html's
+    // readChatPrefs: the stored value is the LIGHT-scale pick; dark renders ×0.36.
+    r.style.setProperty('--chat-pattern-opacity', String(dark ? Math.round(prefs.level * 36) / 100 : prefs.level));
+    r.setAttribute('data-chat-pattern', prefs.style);
+    applyChatPatternStyle();     // mount / detach the flow canvas for the new style
+    syncFlowIfActive();          // …and repaint it now (reduced motion = no loop to self-heal)
+  }
+  const patternStamp = (p) => p.level + '|' + p.style;
+  let seenPatternPrefs = patternStamp(readPatternPrefs());
+  function refreshPatternPrefsIfChanged() {
+    const prefs = readPatternPrefs();
+    const stamp = patternStamp(prefs);
+    if (stamp === seenPatternPrefs) return;
+    seenPatternPrefs = stamp;
+    applyPatternPrefs(prefs);
+  }
+  window.addEventListener('storage', (e) => {
+    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style) refreshPatternPrefsIfChanged();
+  });
+  window.addEventListener('focus', refreshPatternPrefsIfChanged);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshPatternPrefsIfChanged();
+  });
+  setInterval(() => { if (!document.hidden) refreshPatternPrefsIfChanged(); }, 2000);
 
   /* #211 address-display canon: the visible chat title is the nick, or the address
    * MIDDLE-TRUNCATED (6…6) when there's no nick (or the "nick" is really the address
@@ -619,7 +715,14 @@
       : (identity.sub || ''));
   }
   function renderTopbarNow() {
+    /* Multi-select: the contextual selection bar is mounted INSIDE this slot (it
+     * covers the topbar). The wipe below would destroy it, and the topbar is
+     * rebuilt on six triggers — a presence tick mid-selection would silently drop
+     * the bar and strand the user in selection mode with no way out. Detach it,
+     * then put it back (listeners live on its own children, so they survive). */
+    const keepSelectBar = topbarHost.querySelector('.c-chatselect-bar');
     topbarHost.textContent = '';
+    if (keepSelectBar) topbarHost.append(keepSelectBar);
     const s = window.SL || {};
     // Bot channel mode (Option A): once C# has named a channel, the topbar TITLE
     // becomes the current channel name + chevron and opens the channel selector;
@@ -1567,23 +1670,25 @@
   // dropdown at the pointer with the source row highlighted (demo 06c ⑩/⑰ grammar);
   // long-press keeps the centered dialog. No-op on mobile (data-desktop absent).
   attachContextMenuAnchors({ host: overlayHost, rows: '.c-bubble-row' });
-  function wireMenu(rec, row) {
-    // Enable the context menu on CONTENT rows. Text gets copy/edit; file/payment/
-    // app cards get react + tip + delete too (Damir: "file/payment can't react or
-    // tip — change that"). react/tip/delete map to the same bridge verbs by msg id
-    // regardless of kind (the reaction pill anchors on .c-tcard/.c-fbubble too);
-    // the menu auto-hides Copy (no text) and Edit (not own text). Call logs are
-    // excluded — reacting/tipping a call record is nonsensical and they carry
-    // their own call-back affordance.
-    const kind = rec.kind || 'text';
-    if (kind === 'call') return;
-    if (rec.eventChip) return;   // #264 ⑤: a connection event isn't menuable (react/copy/delete are nonsensical)
-    // ⑪ Q1 re-review: don't ATTACH the menu while the contact is pending — an opened
-    // menu whose actions are all gated would be a dead menu (#214). onMenuAction keeps
-    // its own guard for the (harmless) case of a row wired before the lock landed.
-    if (composerLock) return;
+  /* Menuable = a CONTENT row. Text gets copy/edit; file/payment/app cards get
+   * react + tip + delete too (Damir: "file/payment can't react or tip — change
+   * that"). Call logs are excluded — reacting/tipping a call record is
+   * nonsensical and they carry their own call-back affordance; an event chip
+   * (#264 ⑤) is not a message at all. ⑪ Q1 re-review: nothing is menuable while
+   * the contact is pending — a menu whose actions are all gated is a dead menu.
+   * ★ SAME predicate feeds the selection `selectable` below, so "menuable" and
+   * "selectable" can never drift apart (a row you can Select from must stay
+   * selectable once the mode is on). */
+  function isMenuableRec(rec) {
+    if (!rec) return false;
+    if ((rec.kind || 'text') === 'call') return false;
+    if (rec.eventChip) return false;
+    if (composerLock) return false;
+    return true;
+  }
+  function menuOptsFor(rec, row) {
     const isSent = rec.direction === 'sent';
-    attachMessageMenu(row, {
+    return {
       host: overlayHost,
       text: rec.text || '',
       reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
@@ -1592,13 +1697,182 @@
         edit: bridge.cap('edit') && isSent && !!rec.text, // own text only
         tip: (!isSent && !mode.isBot && mode.type !== 2), // C# blocks tip in bots + blind groups (xaml:942)
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
-        select: false,                                    // multi-select not wired in the shell yet
+        // multi-select: offered on every menu-able row. Selection carries Copy
+        // (text rows) + bulk Delete (any row), so a file/payment card qualifies.
+        select: true,
       },
-      onAction: (action, arg) => onMenuAction(action, rec),
-    });
+      onAction: (action, arg) => onMenuAction(action, rec, row),
+    };
+  }
+  function wireMenu(rec, row) {
+    // the menu auto-hides Copy (no text) and Edit (not own text)
+    if (!isMenuableRec(rec)) return;
+    attachMessageMenu(row, menuOptsFor(rec, row));
   }
 
-  function onMenuAction(action, rec) {
+  /* ONE delete path. C# has a SINGLE-message verb only
+   * (ixian:contextAction:deleteMessage:<id> → SingleChatPage → friend.deleteMessage,
+   * which echoes deleteMessage(id) back). Bulk delete is therefore an FE LOOP over
+   * that verb — no new bridge command, nothing invented on the C# side. Each id
+   * gets its own local-delete latch so the Q12 exdel hint stays correct (A-1). */
+  function sendDeleteMessage(id) {
+    if (!mode.isBot) {
+      const lid = String(id);
+      pendingLocalDeletes.add(lid);
+      setTimeout(() => pendingLocalDeletes.delete(lid), 10000);
+    }
+    bridge.send('ixian:contextAction:deleteMessage:' + id);
+  }
+
+  /* —— multi-message selection (Damir, tonight) ————————————————————————————————
+   * WhatsApp/Telegram grammar: menu → "Select" → the log enters selection mode
+   * (check circle per row, tap toggles) and the chat topbar is REPLACED by the
+   * contextual bar (✕ · "N selected" · Copy · Delete).
+   *
+   * ENTRY, per surface (Damir: "long press to select"):
+   *  · TOUCH — long-press → the message menu, whose FIRST group carries "Select"
+   *    (Telegram's grammar). Long-press is this app's ONLY route to react / tip /
+   *    delete / report, so it cannot be spent on selection alone; WhatsApp can
+   *    only do that because its selection bar re-homes all of them in an overflow.
+   *  · DESKTOP/POINTER — ⌘/Ctrl-click a message (attachPointerSelectEntry below).
+   *    The OS-wide multi-select idiom; long-press is a poor desktop affordance and
+   *    right-click already belongs to the anchored menu.
+   *  · KEYBOARD — Shift+F10 / the Menu key opens the message menu on the focused
+   *    row (or the newest one) → Select. Inside the mode every row is tabbable,
+   *    Space toggles, Esc exits.
+   *
+   * The handle is shell-scoped because the log RE-RENDERS constantly (status
+   * ticks, new messages, deletes): renderLogNow replaces every row node, so the
+   * selection has to be re-applied by id afterwards (chatSelect.refresh()). */
+  let chatSelect = null;
+  function exitChatSelect() { if (chatSelect) chatSelect.exit(); }
+  function startChatSelect(row) {
+    if (chatSelect) return;
+    const s = window.SL || {};
+    chatSelect = enterChatSelect(box, {
+      initialRow: row,
+      host: topbarHost,                 // the bar COVERS the chat topbar (native contextual bar)
+      idOf: (r) => r.dataset.msgid || '',
+      // selectable = any row the model still knows and the menu would accept
+      // (isMenuableRec — ONE predicate, so the two can't drift). Call logs,
+      // event chips, date separators and the unread divider carry no menuable
+      // record and are skipped automatically: they get no check circle, no
+      // role=checkbox, and a tap on them does nothing.
+      selectable: (r) => isMenuableRec(model.get(r.dataset.msgid || '')),
+      textOf: (r) => { const rec = model.get(r.dataset.msgid || ''); return (rec && rec.text) || ''; },
+      senderOf: (r) => {
+        const rec = model.get(r.dataset.msgid || '');
+        if (!rec) return '';
+        if (rec.direction === 'sent') return s.you || 'You';
+        return rec.senderNick || identity.name || '';
+      },
+      strings: s,
+      onCopy: (n, okCopy) => {
+        if (!okCopy) {
+          showToast({ text: s.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: overlayHost, strings: s });
+          return;
+        }
+        showToast({
+          text: n === 1 ? (s.copied || 'Copied')
+            : (s.messagesCopied || '{n} messages copied').split('{n}').join(String(n)),
+          tone: 'success', host: overlayHost, strings: s,
+        });
+      },
+      onDelete: (items) => confirmBulkDelete(items),
+      onExit: () => { chatSelect = null; },
+    });
+    /* Land focus on the row the user long-pressed: it is now role=checkbox +
+     * tabindex, so Space keeps toggling and Esc exits. The menu sheet has already
+     * restored focus (synchronously, inside dismissOverlay) by the time we run,
+     * so this is the last word — otherwise focus drops to the detached bubble. */
+    if (chatSelect && row && typeof row.focus === 'function') row.focus({ preventScroll: true });
+  }
+
+  /* Row under a pointer/keyboard event, or null when it isn't a message. */
+  function menuableRowOf(node) {
+    const row = node && node.closest ? node.closest('.c-bubble-row') : null;
+    if (!row || !box.contains(row)) return null;
+    return isMenuableRec(model.get(row.dataset.msgid || '')) ? row : null;
+  }
+
+  /* DESKTOP/POINTER entry: ⌘/Ctrl-click enters selection with that row picked.
+   * Capture phase so the bubble's own click (file open, payment card, link) never
+   * runs underneath — the same swallow the selection component itself does once
+   * the mode is on. Deliberately NOT Shift-click: shift extends a TEXT selection
+   * in every browser and a chat is text people drag-select. On macOS Ctrl-click
+   * is a right-click, which opens the anchored menu instead — the overlay guard
+   * keeps that path from also arming a selection under the open sheet. */
+  box.addEventListener('click', (e) => {
+    if (chatSelect) return;                                   // the component owns clicks while selecting
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (document.body.dataset.overlayOpen !== undefined) return;   // a menu/sheet just took this gesture
+    const row = menuableRowOf(e.target);
+    if (!row) return;
+    e.preventDefault();
+    e.stopPropagation();
+    startChatSelect(row);
+  }, true);
+
+  /* KEYBOARD entry: Shift+F10 / the Menu key = "context menu" everywhere, and the
+   * message menu is where Select lives, so this is also the keyboard route INTO
+   * selection (out = Esc, handled by the component). Bubbles aren't focusable
+   * outside selection mode, so with nothing focused it targets the NEWEST
+   * message — the one a keyboard user is looking at. */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return;
+    if (chatSelect) return;                                   // already selecting: Space toggles, Esc exits
+    if (document.body.dataset.overlayOpen !== undefined) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    let row = menuableRowOf(ae);
+    if (!row) {
+      const rows = [...box.querySelectorAll('.c-bubble-row')];
+      for (let i = rows.length - 1; i >= 0 && !row; i--) row = menuableRowOf(rows[i]);
+    }
+    if (!row) return;
+    const rec = model.get(row.dataset.msgid || '');
+    e.preventDefault();
+    openMessageMenu({ row, ...menuOptsFor(rec, row) });
+  });
+
+  /* Bulk delete confirm — the house alertdialog (createModal role=alertdialog,
+   * destructive confirm, Cancel autofocused). Damir's ask: name the COUNT. */
+  function confirmBulkDelete(items) {
+    const s = window.SL || {};
+    const n = items.length;
+    const title = n === 1
+      ? (s.deleteSelectedOne || 'Delete this message?')
+      /* PLURALS: this dictionary is one flat key → one string (verify-locales
+       * enforces key parity + placeholder parity), so there is no per-locale
+       * plural-category machinery. The house convention is a ONE/MANY key pair
+       * where the MANY form is written count-agnostic in the languages whose
+       * plural rules split above 1 (ru/sl/sr use the "… ({n})?" construction);
+       * en/de/es/fr/pt take the natural plural, which is always correct here
+       * because this branch only ever runs for n ≥ 2. */
+      : (s.deleteSelectedMany || 'Delete {n} messages?').split('{n}').join(String(n));
+    openModal(createModal({
+      title,
+      body: s.cannotUndo || 'This action cannot be undone.',
+      role: 'alertdialog',
+      host: overlayHost,
+      strings: s,
+      actions: [
+        { label: s.cancel || 'Cancel', type: 'text', autofocus: true },
+        {
+          label: s.delete || 'Delete', type: 'fill', intent: 'destructive',
+          onClick: () => {
+            // Snapshot the ids FIRST: exiting selection re-paints rows, and each
+            // verb echoes a deleteMessage push that re-renders the log under us.
+            const ids = items.map((it) => it.id).filter(Boolean);
+            exitChatSelect();
+            for (const id of ids) sendDeleteMessage(id);
+          },
+        },
+      ],
+    }));
+  }
+
+  function onMenuAction(action, rec, row) {
     const id = rec.id;
     // ⑪ Q1 re-review: the menu is the last non-composer outbound surface — react/tip
     // both emit to a peer that hasn't accepted us. Copy/delete are local-only, but the
@@ -1609,17 +1883,12 @@
       if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
       return;
     }
+    if (action === 'select') { if (row) startChatSelect(row); return; }
     if (action === 'delete') {
-      // Q12 (A-1): latch — only a LOCAL delete may write an exdel hint. Not latched for
-      // bots (SingleChatPage:1152 gates the core delete on !friend.bot → no echo ever
-      // arrives), and the latch SELF-EXPIRES: an id C# never echoes (e.g. friend.deleteMessage
-      // returned false) must not be consumed later by a REMOTE delete of the same id.
-      if (!mode.isBot) {
-        const lid = String(id);
-        pendingLocalDeletes.add(lid);
-        setTimeout(() => pendingLocalDeletes.delete(lid), 10000);
-      }
-      bridge.send('ixian:contextAction:deleteMessage:' + id);
+      // Q12 (A-1): the local-delete latch lives in sendDeleteMessage — only a LOCAL
+      // delete may write an exdel hint, and the latch self-expires so an id C# never
+      // echoes can't be consumed later by a REMOTE delete of the same id.
+      sendDeleteMessage(id);
       return;
     }
     if (action === 'report') { bridge.send('ixian:contextAction:report:' + id); return; }
@@ -2049,6 +2318,11 @@
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
+    // Multi-select: every row node above is BRAND NEW, so the selection (kept by
+    // message id) has to be re-painted onto them. refresh() also prunes ids whose
+    // rows are gone — a bulk delete therefore empties the selection and the
+    // contextual bar closes itself once the last one lands.
+    if (chatSelect) chatSelect.refresh();
   }
 
   /* Render scheduling — two regimes:
@@ -2660,6 +2934,15 @@
       r.dataset.theme = t;
       requestAnimationFrame(() => requestAnimationFrame(() => {
         try { r.classList.remove('theme-switching'); } catch (e) {}
+        // W5: the flow canvas reads its ink from computed style each frame, so a
+        // RUNNING loop re-themes itself. Under prefers-reduced-motion there is no
+        // loop (one static frame), so the repaint has to be pushed explicitly.
+        // W5 F5: re-derive the INTENSITY too. The stored pref is the light-scale
+        // pick and dark renders it ×0.36 (#76) — that derivation used to happen
+        // once, in the pre-paint script, so a live setTheme push left dark
+        // painting the LIGHT number (0.5 where the theme wants 0.18) until the
+        // next reload. applyPatternPrefs re-runs the ladder and repaints.
+        applyPatternPrefs(readPatternPrefs());
       }));
     },
 
@@ -2712,6 +2995,8 @@
     // C#→JS acks. onChatScreenReady carries the peer address; store it so the
     // avatar hue is identity-stable even before setNickname lands.
     onChatScreenReady(address) {
+      exitChatSelect();                    // per-peer reset: a selection (and its contextual
+                                           // topbar) must never survive into another conversation
       identity.address = address || '';
       identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
       if (!identity.name) renderTopbar();
@@ -3722,7 +4007,11 @@
         // whole chat under an open panel.
         if (channelDropdown) { closeChannelSelector(); return; }   // live-state probe: nulled at close START (an exiting panel must not eat the swipe)
         const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
-        if (!(dismiss && dismiss())) bridge.send('ixian:back');
+        if (dismiss && dismiss()) return;                          // a sheet/menu sits ABOVE the selection bar
+        // SELECTION FIRST: back out of the contextual bar before it backs out of
+        // the conversation (the natives' order; the ✕ is the same exit).
+        if (chatSelect) { exitChatSelect(); return; }
+        bridge.send('ixian:back');
       }
     }, { passive: true });
   })();

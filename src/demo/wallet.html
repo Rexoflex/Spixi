@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="../styles/components/toast.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
+<link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state -->
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
 <link rel="stylesheet" href="../styles/components/wallet-receive.css">
@@ -221,7 +222,11 @@
         ? 'Would share a request for ' + amount + ' IXI (system share sheet)'
         : 'Would share your address (system share sheet)'),
       // legacy parity: ixian:sendrequest → the contact gets the payment-request chat bubble
-      onSendRequest: ({ contact, amount }) => toast('Request for ' + amount + ' IXI sent to ' + contact.name + ' (chat bubble)'),
+      // W9: ONE CTA loops this per ticked contact (legacy per-contact verb, no
+      // batch verb). Returning true = handed off; the demo never fails a send.
+      onSendRequest: ({ contact, amount }) => { void contact; void amount; return true; },
+      // W9: the all-clear confirmation — the shell toasts and leaves the surface.
+      onRequestsSent: ({ text }) => { showHome(); toast(text); },
     });
     content.replaceChildren(receive);
     content.scrollTop = 0;                                 // audit m5

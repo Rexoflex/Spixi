@@ -183,6 +183,7 @@ namespace SPIXI
                     File.Delete(source_file_path);
                 }
                 resetLanguage();
+                closeSublevelOverlays();   // W7
                 popPageAsync();
             }
             else if (current_url.Equals("ixian:error", StringComparison.Ordinal))
@@ -239,9 +240,22 @@ namespace SPIXI
             {
                 // iOS-20 (#283, S7 LANDED): Change wallet password from the Account hub —
                 // the redesigned settings_encryption.html shell on EncryptionPassword
-                // (HomePage:517 precedent). Backup's presentation grammar: pinned to the
-                // detail column while the Account is a pane, full takeover on mobile.
-                pushPageLoaded(new EncryptionPassword(), 4000, null, paneMode ? 1 : -1);   // load-then-move (N3)
+                // (HomePage:517 precedent).
+                // W7 (Damir F5, Windows: "hangs when I enter change password screen"):
+                // it used to open PINNED TO COLUMN 1 (`paneMode ? 1 : -1`) — the #265 ②
+                // Downloads bug exactly. The Account pane is FULL-SPAN minus the rail, so
+                // a col-1 pin covered only its DETAIL region: the hub stayed visible and
+                // LIVE, and every row the user then tapped opened its sublevel UNDER the
+                // password pane. Nothing moved on screen ⇒ "the Account is dead", and only
+                // a rail tab switch (HomePage:633 requestSettingsOverlayExit → the shell
+                // exits → this page is disposed) ever cleared it. Now it inherits THIS
+                // page's own stage inset and spans (column -1), i.e. it covers its opener
+                // EXACTLY: a real takeover, no live-but-blind surface left beside it. The
+                // rail keeps its #245 strip, so Account/Chats/… stay reachable, and the
+                // exit sweep below closes this pane with the Account it belongs to.
+                // Mobile (non-pane) is byte-identical: no overlay margin ⇒ Thickness.Zero.
+                pushPageLoaded(new EncryptionPassword(), 4000, null, -1, null,
+                    getOverlayStageMargin(this));   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
@@ -481,7 +495,28 @@ namespace SPIXI
             saveSettingsCore(nick);
 
             // Pop the current page from the stack
+            closeSublevelOverlays();   // W7
             popPageAsync();
+        }
+
+        /* W7 close-audit (the HomePage close-audit family: closeContactDetailsOverlays /
+         * closeFormPaneOverlays / closeTxDetailOverlays — this one belongs HERE because
+         * the page it sweeps is a SUBLEVEL of the Account, opened by this page).
+         * EncryptionPassword is presented as an overlay COVERING this page (see the
+         * ixian:encpass branch), so it must never outlive it: without this, a rail tab
+         * switch (which exits the Account through the shell) would leave the password
+         * pane parked over the next tab's detail region with its WebView alive. Nothing
+         * is lost: the password fields are never persisted (SECURITY.md §5 — they live
+         * only in the field) and closeOverlay Disposes the WebView with the page. */
+        private void closeSublevelOverlays()
+        {
+            foreach (SpixiContentPage p in getOverlayPages())
+            {
+                if (p is EncryptionPassword)
+                {
+                    removePage(p);   // #225: removing an OPEN overlay = closeOverlay
+                }
+            }
         }
 
         // #242 (S14): explicit Save on the Account pane — persist, DON'T pop. The

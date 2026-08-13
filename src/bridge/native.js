@@ -30,10 +30,25 @@
  * lock-page.js) compose shells with a bridge instance.
  */
 
-/** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string. */
+/** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string.
+ *
+ * PERF (Damir F5 2026-08-13, apps tab): `Uint8Array.from(bin, cb)` runs the callback
+ * through the iterator protocol — measured 24.6 ms for one 320 KB app-icon argument in
+ * Chromium 1194 vs 0.8 ms for the index loop below (~30×). Two paths, same result:
+ *   · ASCII (every data: URI, every address, every number, most excerpts) — `atob`
+ *     already produced the final string, so there is nothing left to decode.
+ *   · anything with a byte > 127 — plain index loop into a Uint8Array, then TextDecoder
+ *     (byte-identical to the old expression; the UTF-8 decode itself is unchanged).
+ */
 export function b64ToUtf8(b64) {
   const bin = atob(b64);
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.codePointAt(0)));
+  const len = bin.length;
+  let i = 0;
+  for (; i < len; i++) if (bin.charCodeAt(i) > 127) break;
+  if (i === len) return bin;                       // pure ASCII → atob's output IS the string
+  const bytes = new Uint8Array(len);
+  for (let j = 0; j < len; j++) bytes[j] = bin.charCodeAt(j);
+  return new TextDecoder().decode(bytes);
 }
 
 /**
@@ -92,9 +107,16 @@ export function installExecuteUiCommand(win) {
       // which previously dropped the WHOLE command (e.g. setBalance's nick is
       // null before the profile loads → the balance push vanished). Treat
       // null/undefined as an empty string so the rest of the args still deliver.
+      // PERF (Damir F5 2026-08-13): an argument that is ALREADY a `data:` URI arrives
+      // VERBATIM — Utils.sendUiCommand skips the base64 re-encode for it, because
+      // re-encoding an already-base64 240 KB icon inflated it to 320 KB on every push
+      // and cost a full atob on this side. Unambiguous: ':' is outside the base64
+      // alphabet, so a real base64 payload can never start with "data:". Everything
+      // else keeps the base64 contract exactly as before.
       for (let i = 1; i < arguments.length; i++) {
         const a = arguments[i];
-        args.push(a == null ? '' : b64ToUtf8(a));
+        if (a == null) { args.push(''); continue; }
+        args.push(typeof a === 'string' && a.startsWith('data:') ? a : b64ToUtf8(a));
       }
       if (typeof cmd !== 'function') {
         // eslint-disable-next-line no-console

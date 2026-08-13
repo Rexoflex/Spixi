@@ -10,27 +10,47 @@
  * §9 ask; shells can use navigator.share where present).
  *
  * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
- * input follows wallet-send's sanitize rules (shared export) and a contact strip
- * appears: "Send request to a contact" → onSendRequest({ contact, amount }) mirrors
- * the legacy `ixian:sendrequest` payload, amount CANONICALIZED ('12.'→'12', '.5'→'0.5',
- * '007'→'7'; audit M1 — what leaves this surface is what a legacy parser must read).
- * onSendRequest is FIRE-AND-FORGET (audit m4): the ✓ morph confirms the intent left
- * this surface, not chain/chat delivery — matching the legacy command's semantics.
+ * input follows wallet-send's sanitize rules (shared export), then a MULTI-SELECT
+ * contact list and ONE primary CTA.
+ *
+ * ★ W9 (Damir, Windows F5 2026-08-13): "when I sent a request to someone I still
+ * remain in the same screen with input active and I can add more … perhaps we can
+ * have a multiselect as for group creation and then 1 SEND REQUEST button that then
+ * confirms it was sent, and we return to wallet screen."
+ *   · The rows are the GROUP-CREATION grammar, verbatim (contacts-shell pickerRow):
+ *     role=checkbox + aria-checked + the trailing check circle; the rule/count line
+ *     under the heading is the c-contacts__minhint pattern (SAME element, same
+ *     height, text swapped — it must never reflow the list under a finger).
+ *   · The per-row send arrow is GONE, and with it the whole per-row latch (state
+ *     .latch / [data-acted] / the ✓ morph / the [data-needs-amount] arrow gate).
+ *     Selecting is not sending, so nothing on a row needs gating any more; the
+ *     amount rule moved onto the CTA, which is the only thing that can send.
+ *   · Double-fire protection SURVIVES, on the CTA (#72④): `state.sending` latches
+ *     for the length of the loop and the CTA is disabled with it.
+ *   · The bridge verb stays PER CONTACT (`ixian:sendrequest:<addr>:<amount>`, one
+ *     at a time) — this loops the existing verb, it does not invent a batch one.
+ *     onSendRequest is called once per selected contact; returning `false` (or
+ *     throwing) marks THAT recipient as not sent. PARTIAL FAILURE never navigates:
+ *     the ones that went are deselected, the ones that did not stay selected, and
+ *     the result line says so — so "try again" retries exactly the remainder.
+ *   · onRequestsSent({ amount, contacts, text }) fires only on an ALL-CLEAR run;
+ *     the shell toasts `text` and closes the takeover ("we return to wallet
+ *     screen"). Without it the component keeps its own inline success line, so a
+ *     standalone mount still confirms.
+ * Amount is CANONICALIZED before it leaves ('12.'→'12', '.5'→'0.5', '007'→'7';
+ * audit M1 — what leaves this surface is what a legacy parser must read).
  * ★ #303 (Damir, 2026-08-04 F5): the QR NEVER re-encodes to `address:send:amount` —
  * amount-request QRs aren't a supported flow, so the QR is constant `address:ixi`
- * and an entered amount drives ONLY the contact-request strip (receiving/scanning
+ * and an entered amount drives ONLY the contact list (receiving/scanning
  * `address:send:` QRs from elsewhere is untouched — setSendAddress still parses it).
- * Collapsing the reveal still clears the amount (fresh state next open).
- *
- * Request latch (audit M2/M3/M5 rework): the latch lives in STATE, not on row DOM —
- * search re-renders keep it; the acted row stays ENABLED (focus is not dropped) and
- * carries the ✓; a hidden live region announces the send; changing the amount
- * mid-latch cancels it and resets the morph (no stale "sent" against a new amount).
+ * Collapsing the reveal clears the amount AND the selection (fresh state next open):
+ * the visible QR must never encode an amount the user can no longer see.
  *
  * No FE money math here beyond sanitize — a request is a message, not a spend;
  * the bridge re-validates when the payer acts on it.
  *
- * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest }) → view
+ * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest,
+ *                       onRequestsSent }) → view
  * Free fn (#44): setRequestAmount(el, amount) — programmatic amount (tests/bridge);
  *   Numbers are expanded to plain decimals first (audit C1: String(1e-7) → '1e-7'
  *   would sanitize into '17' — a silent magnitude change).
@@ -52,11 +72,13 @@ let walletReceiveSeq = 0;                                  // aria-controls ids 
 
 export function createWalletReceive({
   address = '', contacts = [], strings = getStrings(), host,
-  onShare, onSendRequest,
+  onShare, onSendRequest, onRequestsSent,
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-wallet-receive';
-  const state = { amount: '', contactQuery: '', latch: null };   // latch: { address, timer }
+  /* W9: `selected` = the addresses ticked in the multi-select; `sending` = the
+     one-at-a-time latch that replaced the per-row one (#72④ double-fire guard). */
+  const state = { amount: '', contactQuery: '', selected: new Set(), sending: false };
 
   /* guard (audit m2): a receive surface without an address must not present a
      confidently scannable garbage QR */
@@ -74,16 +96,24 @@ export function createWalletReceive({
   const qrLabel = () => (strings.qrReceiveLabel || 'QR code — your Ixian address');
   const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
 
-  /* ——— QR card ——— */
+  /* ——— QR card ———
+   * W6 (Damir 2026-08-12): card + caption live in ONE collapsible section so
+   * "Request an amount" can animate them away upward (max-height/opacity/transform
+   * on the --duration-300 / --easing-standard tokens — the wallet-hero #114
+   * pattern; reduced motion zeroes those tokens globally, so NO media query here
+   * and no JS motion branch). */
+  const qrSection = document.createElement('div');
+  qrSection.className = 'c-wallet-receive__qr';
   const card = document.createElement('div');
   card.className = 'c-wallet-receive__qrcard';
   const qr = createQrSvg(qrValue(), { label: qrLabel() });
   card.append(qr);
-  el.append(card);
+  qrSection.append(card);
 
   const caption = document.createElement('p');
   caption.className = 'c-wallet-receive__caption';         // visible copy — announcements go to the live region
-  el.append(caption);
+  qrSection.append(caption);
+  el.append(qrSection);
 
   /* hidden live region (audit m3/M3): announces MODE TRANSITIONS and the request-sent
      confirmation — not every keystroke (the caption used to be aria-live and spammed) */
@@ -171,10 +201,14 @@ export function createWalletReceive({
   reqRow.append(reqGlyph, reqLabel, icon('chevron-down', { size: 18 }));
   el.append(reqRow);
 
+  /* W6: `hidden` cannot animate, so the reveal rides the house data-open +
+     aria-hidden pattern (settings-backup precedent). Closed state also carries a
+     negative margin that eats the parent's 16 gap — a collapsed box must leave no
+     hole where `display:none` used to leave none. */
   const reqBox = document.createElement('div');
   reqBox.className = 'c-wallet-receive__reqbox';
   reqBox.id = boxId;
-  reqBox.hidden = true;
+  reqBox.setAttribute('aria-hidden', 'true');
   el.append(reqBox);
 
   const amtRow = document.createElement('div');
@@ -199,32 +233,170 @@ export function createWalletReceive({
    * above is client-side and stays available regardless. */
   let askBox = null;
   let rows = null;
+  let hint = null;
+  let result = null;
+  let cta = null;
+  let ctaLabel = null;
   if (onSendRequest) {
     askBox = document.createElement('div');
     askBox.className = 'c-wallet-receive__ask';
-    askBox.hidden = true;
+    // W6/W9: the list is never gated as a whole and its rows are never disabled —
+    // ticking a name is not a send, so it costs nothing before an amount exists.
+    // The rule/count line below states what is still missing (c-contacts__minhint
+    // grammar), and the CTA is the only thing that can actually fire.
     const askLabel = document.createElement('h2');
     askLabel.className = 'c-wallet-receive__asklabel';
-    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-    askBox.append(askLabel);
+    askLabel.textContent = strings.requestFromWho || 'Who to request from';
+    hint = document.createElement('p');
+    hint.className = 'c-wallet-receive__hint';
+    // role=status (not note): the line SWAPS between the unmet rule and the live
+    // count in place, and that swap is the only feedback a SR user gets for a tick.
+    hint.setAttribute('role', 'status');
+    hint.textContent = strings.requestNeedsAmount || 'Enter an amount to send a request';
+    askBox.append(askLabel, hint);
     const search = createSearchField({
       placeholder: strings.searchContacts || 'Search contacts',
       onInput: (v) => renderContacts(v),
+      /* NO onSubmit. §W6 says "same for Enter-to-send IF the search field
+         supports it" — a permission to extend an EXISTING path, not to mint
+         one. Enter in a search box is a filter/dismiss gesture; wiring it to
+         "send to whoever is currently first" fires real money-request messages
+         at an arbitrary contact with no confirm step (an empty query sends to
+         the first contact in the roster, and a soft keyboard's Go key fires it
+         too). Sending stays the explicit CTA press below. (#46 audit) */
       strings,
     });
     askBox.append(search);
     rows = document.createElement('div');
     rows.className = 'c-wallet-receive__contacts';   // scrolls (Damir F5); NO card/.u-scroll — both added padding inside the request box
+    /* W9: an independent multi-select roster — the same container role group
+       creation's checkbox list carries (contacts-shell renders bare checkbox rows
+       for the group case; radiogroup is the app-pick single-select variant). */
+    rows.setAttribute('role', 'group');
+    rows.setAttribute('aria-label', strings.requestFromWho || 'Who to request from');
     askBox.append(rows);
+    /* W9 result line — the VISIBLE half of the send outcome (success or partial
+       failure). aria-hidden: the hidden live region above is the single announcer,
+       so a screen reader hears the outcome once, not twice. */
+    result = document.createElement('p');
+    result.className = 'c-wallet-receive__result';
+    result.setAttribute('aria-hidden', 'true');
+    result.hidden = true;
+    askBox.append(result);
+    /* W9 CTA — ONE primary action, carrying BOTH levers it commits: the amount and
+       how many people it goes to. On a money surface the button is the last thing
+       the eye is on, so it restates the number the user typed (a mistyped amount
+       stays visible at the moment of commitment) and the count (a stray tick is
+       visible too). "(3)" keeps it one short line in every locale; the full
+       sentence lives in aria-label. */
+    cta = createButton({
+      label: strings.sendRequest || 'Send request',
+      type: 'fill', size: 44, width: 'full',
+      disabled: true,
+      onClick: () => sendRequests(),
+    });
+    cta.classList.add('c-wallet-receive__cta');
+    ctaLabel = cta.querySelector('.c-button__label');
+    askBox.append(cta);
     reqBox.append(askBox);
   }
 
-  /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
-  function clearLatch(rerender) {
-    if (!state.latch) return;
-    clearTimeout(state.latch.timer);
-    state.latch = null;
-    if (rerender) renderContacts(state.contactQuery);      // resets morphs + re-enables rows
+  /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a
+   * keystroke never rebuilds 50 avatars or drops the list's scroll position —
+   * the same reason applyAmountGate existed before it. */
+  function selectedContacts() {
+    // filtered from the FULL roster, not the rendered rows: a selection made
+    // before a search must not be silently dropped by the search that follows.
+    return contacts.filter((c) => c && c.address && state.selected.has(c.address));
+  }
+  function syncCta() {
+    const n = state.selected.size;
+    const amount = requestable(state.amount) ? canonicalAmount(state.amount) : '';
+    const ready = !!amount && n > 0;
+    if (hint) {
+      // Damir F5 2026-07-29 (contacts-shell precedent): the line STAYS and only
+      // changes what it says — hiding it collapses its box and jumps the list.
+      hint.textContent = !amount
+        ? (strings.requestNeedsAmount || 'Enter an amount to send a request')
+        : (n ? (strings.selectedCount || '{n} selected').split('{n}').join(String(n))
+          : (strings.requestPickContacts || 'Pick at least one contact.'));
+    }
+    if (!cta) return;
+    cta.disabled = !ready || state.sending;
+    if (ctaLabel) {
+      ctaLabel.textContent = ready
+        ? (strings.requestCta || 'Request {a} IXI ({n})')
+          .split('{a}').join(amount).split('{n}').join(String(n))
+        : (strings.sendRequest || 'Send request');
+    }
+    cta.setAttribute('aria-label', ready
+      ? (strings.requestCtaLabel || 'Request {a} IXI from {n} selected')
+        .split('{a}').join(amount).split('{n}').join(String(n))
+      : (strings.sendRequest || 'Send request'));
+  }
+
+  /** W9: outcome line + the single SR announcement. tone 'ok' | 'error'. */
+  function showResult(text, tone) {
+    live.textContent = text || '';
+    if (!result) return;
+    result.textContent = text || '';
+    result.dataset.tone = tone || 'ok';
+    result.hidden = !text;
+  }
+
+  /* W9 — the ONE send path. Loops the per-contact legacy verb; never navigates on
+   * a partial failure (see docblock). #72④ lives here now: `state.sending` latches
+   * for the loop so a double-tap (or a synthetic click) cannot re-enter it. */
+  function sendRequests() {
+    if (state.sending) return;                             // #72④: a request is a message — no double fire
+    // Explicit guard, not just the disabled attribute: a programmatic/synthetic
+    // click must never get a request for "" (or for nobody) off this surface.
+    if (!requestable(state.amount)) return;
+    const targets = selectedContacts();
+    if (!targets.length) return;
+    const amount = canonicalAmount(state.amount);
+    state.sending = true;
+    syncCta();
+    showResult('', 'ok');
+    const failed = [];
+    for (const c of targets) {
+      let sent = true;
+      // One send per contact. A throw (or an explicit `false`) means THIS
+      // recipient did not go — the rest of the loop still runs, so one bad
+      // address cannot swallow the requests queued behind it.
+      try { sent = onSendRequest({ contact: c, amount }) !== false; }
+      catch (e) { sent = false; }
+      if (sent) state.selected.delete(c.address); else failed.push(c);
+    }
+    state.sending = false;
+    const sentCount = targets.length - failed.length;
+    renderContacts(state.contactQuery);                    // repaint the ticks (the sent ones cleared)
+    if (failed.length) {
+      // Stay put. The failures are still ticked, so the CTA now retries exactly
+      // the remainder — and the count in its label says how many that is.
+      showResult(sentCount
+        ? (strings.requestSentPartly || 'Sent to {n} — the rest are still selected. Try again.')
+          .split('{n}').join(String(sentCount))
+        : (strings.requestFailed || 'Couldn’t send the request. Check the address and try again.'),
+        'error');
+      syncCta();
+      return;
+    }
+    const text = sentCount === 1
+      ? (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
+        .split('{a}').join(amount).split('{name}').join(targets[0].name || targets[0].address)
+      : (strings.requestSentToMany || 'Request for {a} IXI sent to {n} contacts')
+        .split('{a}').join(amount).split('{n}').join(String(sentCount));
+    // All clear → the request is spent: clear the amount too, so a surface that
+    // stays mounted can never re-fire the same request against a stale number.
+    state.amount = '';
+    amtInput.value = '';
+    sync();
+    showResult(text, 'ok');
+    // "and we return to wallet screen" — the shell confirms (toast) and closes the
+    // takeover. No onRequestsSent (standalone mount) → the inline line above IS
+    // the confirmation and the surface stays.
+    if (onRequestsSent) onRequestsSent({ amount, contacts: targets, text });
   }
 
   function renderContacts(q) {
@@ -249,32 +421,25 @@ export function createWalletReceive({
       const t = document.createElement('span');
       t.className = 'c-wallet-receive__contactname';
       t.textContent = c.name || c.address;
-      const go = document.createElement('span');
-      go.className = 'c-wallet-receive__contactgo';
-      b.append(t, go);
-      if (state.latch && state.latch.address === c.address) {
-        // the acted row survives re-renders with its ✓ (audit M2) and stays ENABLED —
-        // disabling the focused control would drop keyboard focus to body (audit M3)
-        b.dataset.acted = '';
-        go.append(icon('check', { size: 18 }));
-      } else {
-        go.append(icon('send-2', { size: 18 }));
-        if (state.latch) b.disabled = true;                // one request in flight at a time
-      }
+      /* W9 — the group-creation row grammar (contacts-shell pickerRow): an
+         independent multi-select roster is role=checkbox + aria-checked (NOT
+         aria-pressed, which is for toggle buttons), with the trailing check
+         circle as the affordance. */
+      const check = document.createElement('span');
+      check.className = 'c-wallet-receive__check';
+      check.setAttribute('aria-hidden', 'true');
+      check.append(icon('check', { size: 16 }));
+      b.append(t, check);
+      b.setAttribute('role', 'checkbox');
+      b.setAttribute('aria-checked', String(state.selected.has(c.address)));
       b.addEventListener('click', () => {
-        if (state.latch) return;                           // #72④: a request is a message — no double fire
-        const amount = canonicalAmount(state.amount);
-        state.latch = {
-          address: c.address,
-          timer: setTimeout(() => { state.latch = null; renderContacts(state.contactQuery); }, 1600),
-        };
-        b.dataset.acted = '';
-        go.textContent = '';
-        go.append(icon('check', { size: 18 }));
-        for (const row of rows.querySelectorAll('button')) { if (row !== b) row.disabled = true; }
-        live.textContent = (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
-          .split('{a}').join(amount).split('{name}').join(c.name || c.address);
-        if (onSendRequest) onSendRequest({ contact: c, amount });
+        // A tick is not a send — no amount gate here, and no latch. Patched in
+        // place so the tapped row keeps keyboard focus (contacts-shell rule).
+        const on = !state.selected.has(c.address);
+        if (on) state.selected.add(c.address); else state.selected.delete(c.address);
+        b.setAttribute('aria-checked', String(on));
+        if (result && !result.hidden) showResult('', 'ok');   // a new pick retires a stale outcome line
+        syncCta();
       });
       rows.append(b);
     }
@@ -293,6 +458,7 @@ export function createWalletReceive({
       none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
+    syncCta();                                             // freshly built rows inherit the current rule/count line
   }
 
   function sync() {
@@ -301,28 +467,55 @@ export function createWalletReceive({
     // changes now (constant address:ixi), so announcing a "request mode" would lie.
     // The caption stays the plain receive line for the same reason.
     caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
-    if (askBox) askBox.hidden = !active;
+    // W6/W9: askBox is NEVER hidden by the amount — the list stays browsable and
+    // tickable; only the CTA reacts. Share still hides while an amount is set.
     if (shareBtn) shareBtn.hidden = active;                 // F3 (#301): no Share while an amount is set
+    syncCta();
   }
 
   amtInput.addEventListener('input', () => {
     const v = sanitizeAmount(amtInput.value);
     if (v !== amtInput.value) amtInput.value = v;
     state.amount = v;
-    clearLatch(true);                                      // a new amount invalidates a pending "sent ✓" (audit M5)
+    // W9: a new amount invalidates a stale outcome line (audit M5's honesty rule,
+    // now on the result line — there is no per-row ✓ left to go stale). The
+    // SELECTION survives: who you are asking is a different axis from how much.
+    if (result && !result.hidden) showResult('', 'ok');
     sync();
   });
 
-  reqRow.addEventListener('click', () => {
-    const open = reqBox.hidden;
-    reqBox.hidden = !open;
+  /* W6 open/close — ONE writer for the reveal state, so setRequestAmount can't
+     leave the QR half-collapsed. `data-request-open` on the root drives the QR
+     section's collapse; `data-open` drives the box; aria-hidden keeps both honest
+     for screen readers (the collapsed QR must not read, the collapsed box must not). */
+  function setOpen(open) {
+    if (open) { reqBox.dataset.open = ''; el.dataset.requestOpen = ''; }
+    else { delete reqBox.dataset.open; delete el.dataset.requestOpen; }
+    reqBox.setAttribute('aria-hidden', String(!open));
     reqRow.setAttribute('aria-expanded', String(open));
-    if (open) { amtInput.focus(); return; }
+    qrSection.setAttribute('aria-hidden', String(open));   // collapsed QR is decoration at best
+  }
+  el._reqOpen = setOpen;                                   // free-fn hook (#44), same shape as _statusBits
+  setOpen(false);                                          // one writer owns the initial state too (aria-hidden on both halves)
+
+  reqRow.addEventListener('click', () => {
+    const open = reqBox.dataset.open === undefined;
+    setOpen(open);
+    if (open) {
+      void reqBox.offsetHeight;                            // flush style so the box is focusable + the transition starts
+      try { amtInput.focus({ preventScroll: true }); } catch (e) { amtInput.focus(); }
+      reqBox.scrollTop = 0;                                // a focus scroll inside the collapsing box must not stick
+      return;
+    }
     // collapsing the section clears the request — the visible QR must never encode
-    // an amount the user can no longer see (state honesty)
+    // an amount the user can no longer see (state honesty). W9: the SELECTION goes
+    // with it; a reopened section that silently still had six people ticked is the
+    // same class of lie on the same money surface.
     amtInput.value = '';
     state.amount = '';
-    clearLatch(true);
+    state.selected.clear();
+    showResult('', 'ok');
+    renderContacts(state.contactQuery);
     sync();
   });
 
@@ -340,7 +533,12 @@ export function setRequestAmount(el, amount) {
   const box = el.querySelector('.c-wallet-receive__reqbox');
   const input = el.querySelector('.c-wallet-receive__amount');
   if (!row || !box || !input) return el;
-  if (box.hidden) { box.hidden = false; row.setAttribute('aria-expanded', 'true'); }
+  // W6: go through the component's own writer — a bare `box.hidden = false` would
+  // now leave the QR section collapsed-but-open (half state).
+  if (box.dataset.open === undefined) {
+    if (typeof el._reqOpen === 'function') el._reqOpen(true);
+    else { box.dataset.open = ''; row.setAttribute('aria-expanded', 'true'); }
+  }
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);

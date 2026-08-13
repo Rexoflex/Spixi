@@ -215,6 +215,7 @@
      demo must merge like the shell aggregation would) */
   const rowRx = new WeakMap(); // row → { reactions, tip, host }
   const rowText = new WeakMap(); // row → copyable text (#139 multi-select source of truth)
+  const selectByPhone = new Map(); // phone el → live selection handle (one selection per chat)
   const demoReact = (row, emoji, phone) => {
     const st = rowRx.get(row) || { reactions: [] };
     const r = st.reactions.find((x) => x.emoji === emoji);
@@ -272,10 +273,62 @@
     }
     return 'Han Solo';
   };
+  /* #139: selection mode on this chat's list (rows are direct box children).
+     The bar mounts over the phone's TOPBAR slot — the native contextual bar.
+     Two entries, mirroring the shell: the menu's "Select" (touch long-press) and
+     ⌘/Ctrl-click (desktop pointer). */
+  function startDemoSelect(row, phone) {
+    if (selectByPhone.get(phone)) return;
+    const sel = enterChatSelect(row.parentElement, {
+      initialRow: row, host: phone.querySelector('[id^="topbar-"]') || phone,
+      idOf: (r) => r.dataset.msgid || '',
+      selectable: (r) => !!r.dataset.msgid,          // every wired row (cards included — bulk delete)
+      textOf: (r) => rowText.get(r) || '',
+      senderOf: (r) => (r.dataset.direction === 'sent' ? 'You' : rowSender(r)),
+      onCopy: (n, okCopy) => showToast({
+        text: !okCopy ? 'Couldn’t copy — the browser refused clipboard access'
+          : n === 1 ? 'Message copied' : n + ' messages copied — paste them in the other chat',
+        tone: okCopy ? 'success' : 'error', host: phone,
+      }),
+      onDelete: (items) => {
+        const n = items.length;
+        openModal(createModal({
+          // counted confirm (Damir): the count is IN the sentence
+          title: n === 1 ? 'Delete this message?' : 'Delete ' + n + ' messages?',
+          body: 'This action cannot be undone.',
+          role: 'alertdialog', host: phone,
+          actions: [
+            { label: 'Cancel', type: 'text', autofocus: true },
+            { label: 'Delete', type: 'fill', intent: 'destructive',
+              onClick: () => {
+                const rowsToGo = items.map((it) => it.row);
+                sel.exit();
+                rowsToGo.forEach((r) => removeMessage(r));   // in-place (#86): grouping repairs itself
+                showToast({ text: n + (n === 1 ? ' message deleted' : ' messages deleted'), tone: 'info', host: phone });
+              } },
+          ],
+        }));
+      },
+      onExit: () => selectByPhone.delete(phone),
+    });
+    if (sel) { selectByPhone.set(phone, sel); row.focus({ preventScroll: true }); }
+  }
+
   const wireMenu = (row, phone, text = '') => {
     const isSent = row.dataset.direction === 'sent';
     if (!row.dataset.msgid) row.dataset.msgid = 'demo-m' + (++demoMsgSeq);   // tip target (tip-audit m2)
     if (text) rowText.set(row, text);                                        // #139 multi-select copy source
+    /* DESKTOP/POINTER entry into selection (shell parity, Damir 2026-08-12):
+       ⌘/Ctrl-click a message. Touch keeps long-press → menu → Select; Shift is
+       left alone (it extends a text selection in every browser). */
+    row.addEventListener('click', (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (row.closest('[data-selecting]')) return;              // the component owns clicks while selecting
+      if (document.body.dataset.overlayOpen !== undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      startDemoSelect(row, phone);
+    }, true);
     attachMessageMenu(row, {
       host: phone,
       text,
@@ -283,7 +336,7 @@
         get reply() { return caps.reply; },                       // §8-gated (#25)
         get edit() { return caps.edit && isSent && !!text; },     // own TEXT messages only (audit r3)
         tip: true,
-        select: !!text,                                    // #139 multi-select entry
+        select: true,                                      // #139 multi-select entry (copy + bulk delete)
         report: false,
       },
       onAction: (action, arg) => {
@@ -312,19 +365,7 @@
           }
           return;
         }
-        if (action === 'select') {
-          // #139: selection mode on this chat's list (rows are direct box children)
-          enterChatSelect(row.parentElement, {
-            initialRow: row, host: phone,
-            textOf: (r) => rowText.get(r) || '',
-            senderOf: (r) => (r.dataset.direction === 'sent' ? 'You' : rowSender(r)),
-            onCopy: (n) => showToast({
-              text: n === 1 ? 'Message copied' : n + ' messages copied — paste them in the other chat',
-              tone: 'info', host: phone,
-            }),
-          });
-          return;
-        }
+        if (action === 'select') { startDemoSelect(row, phone); return; }
         if (action === 'tip') {
           // #138 (docs/tipping-spec.md): #26-lite sheet — the sheet IS the review
           if (isSent) { showToast({ text: 'That’s your own message', tone: 'info', host: phone }); return; }

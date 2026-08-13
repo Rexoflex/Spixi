@@ -26,7 +26,9 @@
  * opts: { strings, host, capabilities:{pin,mute,favorites,…}, rowMenu,
  *         onOpen, onHandshakeBlocked(chat), onRequestAccept(req,row),
  *         onRequestDecline(req), onChatInfo(chat), onModelChange(state),
- *         onPersist(action,chat) }
+ *         onPersist(action,chat), onNewChat }
+ * onNewChat = the zero-state CTA (host opens the contacts picker, the SAME
+ * action as the FAB — no new bridge verb). Omit it and the CTA is not rendered.
  * capabilities gate BE-dependent features so they can be PARKED until BE ships
  * (#67/§8): pin/mute swipe + menu items render only when their flag is truthy.
  * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
@@ -36,6 +38,7 @@ import { createChatItem } from './chatlist-item.js';
 import { createContactRequest } from './contact-request.js';
 import { attachChatRowMenu } from './chats-row-menu.js';
 import { wrapChatRowSwipe, closeChatRowSwipe } from './chats-swipe.js';
+import { createEmptyState } from './empty-state.js';
 
 /* —————————————————————— model (pure, DOM-free, testable) —————————————————————— */
 
@@ -123,7 +126,9 @@ export function chatsUnreadTotal(chats) {
 /* ————————————————————————————— render pipeline ————————————————————————————— */
 
 /** Empty-state copy for the active filter/query (defaults; strings override).
- *  (Placeholder copy — illustrations + CTAs are a later pass, Damir.) */
+ *  This is the NO-RESULTS line: a filter or a search matched nothing. The TRUE
+ *  zero state (All, no query, nothing in the roster) is a different object —
+ *  chatsEmptyState below hands that one to the shared c-empty block. */
 function chatsEmptyCopy(state, strings) {
   const q = (state.query || '').trim();
   // split/join, not replace(): a query with $-patterns ($&, $', $1…) would be
@@ -139,7 +144,35 @@ function chatsEmptyCopy(state, strings) {
   }
 }
 
-function chatsEmptyState(state, strings) {
+/** TRUE zero state (nothing exists yet) vs NO RESULTS (a filter/search missed).
+ *  Only the former earns the illustration + CTA — an "add your first…" pitch
+ *  under a search that matched nothing reads as if the data were gone. */
+function chatsIsZero(state) {
+  return (state.filter || 'all') === 'all' && !(state.query || '').trim();
+}
+
+function chatsEmptyState(state, strings, opts = {}) {
+  if (chatsIsZero(state)) {
+    // ★ LOAD WINDOW GATE (shared with apps-shell/wallet-shell). "No chats yet" +
+    // the illustration + "Start a chat" is a CLAIM about the roster; an empty
+    // model during the clearChats→addChat×N flush is not that claim. The shell
+    // builds this list synchronously at boot, BEFORE the bridge has answered, so
+    // an ungated construction render paints the full zero state on every F5 and
+    // then pops the real rows in. zeroReady:false → NO empty node (a blank beat);
+    // the host opens the gate on the end-of-burst signal it already owns.
+    // A filter/search miss is about the QUERY, not the roster → never gated.
+    if (opts.zeroReady === false) return null;
+    return createEmptyState({
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.svg',
+      glyph: 'messages',                            // art blocked/missing → token glyph tile
+      title: strings.chatsEmptyAll || 'No chats yet',
+      body: strings.chatsEmptyBody
+        || 'Pick a contact and say hi — messages go straight to their device, end-to-end encrypted.',
+      actionLabel: strings.chatsEmptyCta || 'Start a chat',
+      actionIcon: 'message-plus',
+      onAction: opts.onNewChat,
+    });
+  }
   const el = document.createElement('div');
   el.className = 'c-chats-empty';
   el.setAttribute('role', 'note');
@@ -199,7 +232,10 @@ export function renderChatsList(listEl, state, opts = {}) {
   const timeline = orderedTimeline(state);
   for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
 
-  if (!timeline.length) listEl.append(chatsEmptyState(state, strings));
+  if (!timeline.length) {
+    const emptyEl = chatsEmptyState(state, strings, opts);
+    if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
+  }
   return listEl;
 }
 

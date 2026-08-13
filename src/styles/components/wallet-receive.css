@@ -9,6 +9,40 @@
   padding: var(--spacing-16);
 }
 
+/* —— QR section (card + caption) ——
+   W6 (Damir 2026-08-12): "Request an amount" collapses this away UPWARD instead of
+   snapping it out. Binary triggered CSS transition — the wallet-hero #114 pattern
+   (max-height + opacity + padding, here plus a small translateY for the upward
+   drift, all on ONE transition list). Reduced motion is handled globally by
+   zeroing the duration tokens (tokens.css) — no media query, no JS branch.
+   The 4px padding/-4px margin pair is shadow clearance: overflow:hidden is what
+   makes the collapse possible and would otherwise clip the card's --elevation-1. */
+.c-wallet-receive__qr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  overflow: hidden;
+  max-height: 520px;                 /* sanctioned: > natural height, enables the collapse */
+  opacity: 1;
+  padding-inline: var(--spacing-4);
+  margin-inline: calc(-1 * var(--spacing-4));
+  padding-block-end: var(--spacing-4);
+  margin-block-end: calc(-1 * var(--spacing-4));
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              transform var(--duration-300) var(--easing-standard),
+              padding-block-end var(--duration-300) var(--easing-standard),
+              margin-block-end var(--duration-300) var(--easing-standard);
+}
+.c-wallet-receive[data-request-open] .c-wallet-receive__qr {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(calc(-1 * var(--spacing-16)));
+  padding-block-end: 0;
+  margin-block-end: calc(-1 * var(--spacing-16));   /* eats the parent's gap — collapsed leaves no hole */
+  pointer-events: none;
+}
+
 /* —— QR card —— */
 .c-wallet-receive__qrcard {
   align-self: center;
@@ -100,7 +134,38 @@
   font-size: var(--font-size-body-lg);
   color: var(--text-neutral-01);
 }
-.c-wallet-receive__reqbox { display: flex; flex-direction: column; gap: var(--spacing-16); }
+/* W6: the reveal animates (it used to be a binary [hidden] snap) — house data-open
+   pattern, settings-backup precedent. `visibility` (0s, delayed to the end of the
+   close) keeps the collapsed box out of the TAB ORDER: pointer-events alone would
+   leave the amount field and the contact search keyboard-reachable behind an
+   aria-hidden box. Closed margin eats the parent gap so the collapsed state
+   occupies exactly what `display:none` used to. */
+.c-wallet-receive__reqbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  margin-block-start: calc(-1 * var(--spacing-16));
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              margin-block-start var(--duration-300) var(--easing-standard),
+              visibility 0s linear var(--duration-300);
+}
+.c-wallet-receive__reqbox[data-open] {
+  max-height: 680px;                 /* sanctioned: reveal clearance (amount + label + rule line + search + 264 list + result + CTA) */
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  margin-block-start: 0;
+  transition: max-height var(--duration-300) var(--easing-standard),
+              opacity var(--duration-300) var(--easing-standard),
+              margin-block-start var(--duration-300) var(--easing-standard),
+              visibility 0s linear 0s;
+}
 
 /* —— amount (mirrors the send entry: money is the hero) —— */
 .c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
@@ -160,17 +225,60 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover { background: var(--surface-interactive-hover); } }
+/* W9: no row is ever disabled now — ticking a name is not a send, so the list is
+   fully live from the moment it renders. (:not(:disabled) kept as a belt: nothing
+   here should ever paint a hover wash on an inert row.) */
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover:not(:disabled) { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__contact:active { background: var(--surface-interactive-pressed); }
 .c-wallet-receive__contact:disabled { cursor: default; opacity: 0.6; }
-.c-wallet-receive__contact[data-acted]:disabled { opacity: 1; }   /* the acted row keeps full ink for its ✓ */
+.c-wallet-receive__hint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
 .c-wallet-receive__contactname {
   flex: 1; min-width: 0;
   font-size: var(--font-size-body-lg);
   color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-wallet-receive__contactgo { flex: none; display: inline-flex; color: var(--icon-action-default); }
+/* W9 select circle — the SAME recipe as the group-creation picker
+   (.c-contacts__check): the empty circle is the "this row can be picked"
+   affordance, so its ring rides the muted ICON ladder (--icon-neutral-03,
+   4.30:1 light / 5.69:1 dark) and not an outline hairline token, which sits
+   near 1.1:1 on this surface, i.e. invisible (Damir F5, contacts-shell.css). */
+.c-wallet-receive__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+.c-wallet-receive__contact[aria-checked='true'] .c-wallet-receive__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+/* W9 result line — the visible half of the send outcome (the live region does the
+   announcing). Tone-switched: an all-clear run reads success, a partial failure
+   reads error and the failed rows are still ticked above it. */
+.c-wallet-receive__result {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-success);
+}
+.c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
+/* W9 CTA — the one thing on this surface that can send. Full width, primary. */
+.c-wallet-receive__cta { margin-block-start: var(--spacing-4); }
 .c-wallet-receive__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);

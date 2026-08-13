@@ -80,6 +80,14 @@ namespace SPIXI
         // #288 review (break-my-verdict): epochs reloadShell so a belt started by an
         // EARLIER reload cannot clear a suppression flag armed by a LATER one.
         private int reloadShellGen = 0;
+        // PERF (Damir F5 2026-08-13: "apps performance ... always reloads some images,
+        // flickers"): tab3 used to force loadApps(true), so EVERY switch to Apps re-pushed
+        // clearApps + addApp×N — each addApp carrying a ~240 KB data-URI icon — and
+        // reloadScreen()'d every live chat page, for a list that had not changed. This
+        // latch keeps the FIRST entry into a fresh shell forcing (nothing has been fed to
+        // that document yet); afterwards the normal shouldRefreshApps gate decides.
+        // Reset in onLoaded() — a new document knows nothing about the old one's rows.
+        private bool appsPushedToShell = false;
         private bool hideBalance = false;
 
         private bool running = false;
@@ -635,7 +643,11 @@ namespace SPIXI
                 }
                 else if (currentTab == "tab3")
                 {
-                    loadApps(true);
+                    // PERF: force ONLY when this document has never been fed (see
+                    // appsPushedToShell). Otherwise the shouldRefreshApps gate decides —
+                    // an install / uninstall / icon change still re-pushes, an unchanged
+                    // list costs nothing and the WebView keeps its decoded icons.
+                    loadApps(!appsPushedToShell);
                 }
             }
             else if (current_url.Equals("ixian:downloads", StringComparison.Ordinal))
@@ -734,6 +746,16 @@ namespace SPIXI
             {
                 string appId = current_url.Substring("ixian:startApp:".Length);
                 onStartApp(appId);
+            }
+            else if (current_url.StartsWith("ixian:startappwith:", StringComparison.Ordinal))
+            {
+                // Damir 2026-08-13 ("when launching multiuser app we get the legacy
+                // contacts list selector, it should be new one same as for group
+                // creation"): the shell picked the targets in the REDESIGNED in-shell
+                // picker and hands them over here — no WalletRecipientPage push.
+                // Checked BEFORE the startAppMulti branch below only for clarity; the
+                // two prefixes cannot collide (different literals, Ordinal).
+                onStartAppWith(current_url.Substring("ixian:startappwith:".Length));
             }
             else if (current_url.StartsWith("ixian:startAppMulti", StringComparison.Ordinal))
             {
@@ -1370,6 +1392,9 @@ namespace SPIXI
             // reloadShell, renderer crash). A stale `true` would swallow EVERY
             // hardware back (homeBack closes nothing, we return true) with no heal.
             homeShellOverlayOpen = false;
+            // …and a FRESH document holds no app rows either — the next tab3 entry must
+            // force one push (PERF latch, see appsPushedToShell).
+            appsPushedToShell = false;
 
             if (!Preferences.Default.ContainsKey("onboardingComplete"))
             {
@@ -2735,6 +2760,7 @@ namespace SPIXI
                 detailContent.updateScreen();
             }
             UIHelpers.shouldRefreshApps = false;
+            appsPushedToShell = true;   // PERF: this document now holds the app rows
 
             Utils.sendUiCommand(this, "clearApps");
 
@@ -2784,6 +2810,96 @@ namespace SPIXI
             {
                 Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
             });
+        }
+
+        /* `ixian:startappwith:<appId>:|<addr>` — the REDESIGNED multi-user app
+         * launch (Damir 2026-08-13). The shipped `ixian:startAppMulti:` verb carries
+         * NO target, so it answered by pushing the legacy WalletRecipientPage — the
+         * selector Damir is complaining about. The home shell now picks targets in
+         * the SAME in-shell picker group creation uses (contacts-shell purpose 'app')
+         * and hands the result here. Payload grammar mirrors `ixian:creategroup:`
+         * (above) minus the blind+name prefix; the CORE is HandlePickAppMultiUser-
+         * Succeeded's, minus its popPageAsync (there is no pushed page to pop — the
+         * picker is a WebView takeover the shell closed itself before sending).
+         * ★ SECURITY.md: WebView-supplied ADDRESSES only. Every one is resolved
+         * against FriendList and dropped if it is not an existing friend/group;
+         * nothing is signed or broadcast, no key/password/path crosses the bridge,
+         * and each mini-app keeps its own WebView (#221).
+         * Delta vs the legacy path: NONE behaviourally — the legacy picker consumed
+         * addresses.First() only and so does this one (the shell's picker is
+         * single-select on this path). The ONLY change Damir asked for is which
+         * picker the user sees. The payload keeps the LIST grammar (and this handler
+         * stays tolerant of a 1-element list) so a real multi-user launch needs no
+         * new verb once MiniAppPage can host one — see the fan-out note below. */
+        private void onStartAppWith(string payload)
+        {
+            string[] parts = payload.Split(new string[] { ":|" }, StringSplitOptions.None);
+            if (parts.Length < 2 || parts[0].Length < 1)
+            {
+                Logging.error("startappwith: malformed payload.");
+                return;
+            }
+            string appId = parts[0];
+            List<Friend> targets = new();
+            foreach (string a in parts[1].Split('|'))
+            {
+                if (string.IsNullOrWhiteSpace(a))
+                {
+                    continue;
+                }
+                try
+                {
+                    Friend? f = FriendList.getFriend(new Address(new ExtendedAddress(a).RoutingAddress));
+                    if (f != null && !targets.Contains(f))
+                    {
+                        targets.Add(f);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("startappwith: bad address: " + ex);
+                }
+            }
+            if (targets.Count < 1)
+            {
+                Logging.error("startappwith: no known target.");
+                return;
+            }
+
+            try
+            {
+                // SINGLE target on purpose — do NOT fan this out over `targets`.
+                // MiniAppPage still derives the session id from the app id alone
+                // ("TODO randomize session id and add support for more users",
+                // MiniAppPage.xaml.cs:48), relays outgoing data to its one
+                // friendOrGroup (sendNetworkData) and drops inbound frames from
+                // anyone else (hasUser). A second invitee would join a session the
+                // host never talks to and whose data it silently discards. True
+                // multi-user needs that MiniAppPage work FIRST; this is the one
+                // place to change once it lands.
+                Friend target = targets[0];
+                byte[] session_id = onJoinApp(appId, target);
+
+                var app_info = Node.MiniAppManager.getAppInfo(appId);
+                var msg_id = StreamProcessor.sendAppRequest(target, appId, session_id, null, app_info);
+                Node.addMessageWithType(msg_id, FriendMessageType.appSession, target.walletAddress, 0, app_info, true, null, 0, false);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("startappwith failed: " + ex.Message);
+            }
+        }
+
+        /* AppDetailsPage's multi-user launch has no contacts roster of its own — it
+         * closes itself and asks THIS shell to run the pick (same picker, one
+         * implementation). The shell answers with ixian:startappwith: above. */
+        public void pickAppTargets(string appId)
+        {
+            if (string.IsNullOrEmpty(appId))
+            {
+                return;
+            }
+            Utils.sendUiCommand(this, "pickAppTargets", appId);
         }
 
         private async void HandlePickAppMultiUserSucceeded(object sender, List<ExtendedAddress> addresses, string appId)

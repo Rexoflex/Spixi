@@ -417,7 +417,13 @@ export function createWalletReceive({
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-wallet-receive__contact';
-      b.append(createAvatar({ name: c.name, address: c.address, size: 40 }));
+      // #342 (Damir F5 item (d)): pass the photo. Option: contacts[].avatar. The roster that feeds this picker
+      // carries `avatar` (home.html requestableContacts → contactsRoster), and every
+      // other contact row in the app shows it. Only this one dropped the argument, so
+      // the request-from-a-contact list was all gradients while the chats list beside
+      // it showed real faces. `|| null` keeps the gradient fallback for a contact with
+      // no stored avatar, which is the correct render, not a failure.
+      b.append(createAvatar({ name: c.name, address: c.address, src: c.avatar || null, size: 40 }));
       const t = document.createElement('span');
       t.className = 'c-wallet-receive__contactname';
       t.textContent = c.name || c.address;

@@ -23,6 +23,7 @@ const FILES = [
   'src/components/disc.js',         // #170: per-glyph disc gradient index (pure fn)
   'src/components/timestamp.js',
   'src/components/avatar.js',
+  'src/components/pressable.js',        // #343 shared press feedback (no component deps)
   'src/components/chatlist-item.js',
   'src/components/button.js',
   'src/components/empty-state.js', // shared zero state (chats/wallet/contacts) — needs button.js

@@ -1250,6 +1250,68 @@ img, svg { display: block; max-width: 100%; }
   user-select: text;
 }
 
+/* ——— PRESS FEEDBACK (#343) — one rule set for every pressable surface —————————
+ * Driven by src/components/pressable.js, which sets data-pressed on pointerdown
+ * and clears it the moment the gesture becomes a scroll. Read that file's header
+ * for why this is not `:active`.
+ *
+ * Two grammars, because a list row and a button are different objects:
+ *   row     — background tint only. A list row that scales reads as a mistake;
+ *             iOS and Android both tint rows and neither moves them.
+ *   control — tint plus a small scale, so the press reads as a physical push.
+ *
+ * Timings: 90 ms in, 120 ms out. In must be faster than out — the response has to
+ * feel immediate, the release can relax. Both are well under the ~100 ms that
+ * reads as "instant", which is the entire point of the mechanism.
+ *
+ * NOT guarded by @media (hover: hover): unlike :hover (#43), a press is exactly
+ * what a touch device does, and it is also correct for a mouse.
+ * `background-color` is animated, not `background`, so a gradient surface
+ * (bubbles, hero) is never re-rasterised by a press. */
+/* ★ SPECIFICITY, and why the `html:root` prefix is not decoration (#343 device fix).
+   base.css loads BEFORE every component stylesheet, and `.c-chatlist-item` sets
+   `background: transparent` at (0,1,0). A plain `[data-pressed]` rule is also
+   (0,1,0), so it lost on source order and the press tint never painted — Damir on
+   Android: "no feedback effect when tapping on chat row". The strongest competing
+   component selectors are `.c-chatlist-item[aria-current]` and `:active`, both
+   (0,2,0). `html:root …` is (0,2,1), which beats them from anywhere in the cascade.
+   Do not simplify this prefix away. */
+html:root [data-pressed] {
+  transition: background-color 90ms var(--easing-standard, ease-out),
+              transform 90ms var(--easing-standard, ease-out);
+}
+html:root [data-pressed="row"] {
+  background-color: var(--surface-interactive-pressed);
+}
+/* A SELECTED row (desktop split-view) presses in its own tonal family — pressing it
+   must not flash the neutral tint over the action colour. */
+html:root [data-pressed="row"][aria-current] {
+  background-color: var(--surface-action-tonal-pressed);
+}
+html:root [data-pressed="control"] {
+  transform: scale(0.97);
+}
+/* The release transition lives on the un-pressed element, so it applies when the
+   attribute is REMOVED — a transition declared only under [data-pressed] would snap
+   back with no animation. Same prefix, same reason. */
+html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
+html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
+html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
+html:root .c-bottomnav__item, html:root .fab, html:root .c-topbar__dots {
+  transition: background-color 120ms var(--easing-standard, ease-out),
+              transform 120ms var(--easing-standard, ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  html:root [data-pressed="control"] { transform: none; }
+  html:root [data-pressed],
+  html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
+  html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
+  html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
+  html:root .c-bottomnav__item, html:root .fab, html:root .c-topbar__dots {
+    transition: none;
+  }
+}
+
 </style>
 <style>
   /* —————————————————————————————————————————————————————————————————————————

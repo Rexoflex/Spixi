@@ -416,6 +416,46 @@ console.log('wallet.html');
   const tipEl = d2.querySelector('.c-tipsheet');
   ok(!!tipEl && !!tipEl.querySelector('.c-avatar') && tipEl.querySelector('.c-tipsheet__title').textContent === 'Tip Han Solo',
     'tip sheet opens with the recipient visible (#26-lite)');
+  /* —— #342 (Damir F5 item (d)): the two LIVE money surfaces that dropped the photo.
+   * Both had the avatar in scope at the call site and simply did not pass it, so the
+   * user saw a gradient where every other contact row in the app shows a face. The
+   * tip head is the worst place for that: it is where you check WHO you are paying. */
+  {
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+    W2.Spixi.openTipSheet({
+      message: { id: 'mAv' }, recipient: { name: 'Han Solo', address: 'AVA', avatar: PNG },
+      balance: 100, host: d2.querySelector('.demo-phone'), onTip: (p, c) => c.done(),
+    });
+    await sleep(30);
+    const sheets = [...d2.querySelectorAll('.c-tipsheet')];
+    const mine = sheets[sheets.length - 1];
+    const img = mine.querySelector('.c-tipsheet__head .c-avatar img');
+    ok(!!img && img.getAttribute('src') === PNG,
+      '★ #342: the tip sheet renders the recipient PHOTO when the caller supplies one');
+    /* #342 review MAJOR-2: DISMISS this sheet before leaving the block. It is inserted
+     * mid-flow, and an undismissed sheet becomes the overlay-stack TOP — the later
+     * "Esc + scrim both held while the tip is in flight" pin then sent both events to
+     * THIS sheet instead of the locked one, so breaking the in-flight lock on a money
+     * surface would still have passed. */
+    W2.Spixi.dismissTopOverlay && W2.Spixi.dismissTopOverlay();
+    mine.remove();
+    await sleep(30);
+    const noAv = W2.Spixi.createWalletReceive({
+      address: '425HqzWpMkV3dTgJnS85CQen', strings: {},
+      contacts: [{ name: 'Han Solo', address: 'AAA', avatar: PNG },
+                 { name: 'No Photo', address: 'BBB' }],
+      onSendRequest: () => true,
+    });
+    d2.body.append(noAv);
+    noAv.querySelector('.c-wallet-receive__reqrow').click();   // the picker lives in the request sub-view
+    const rows = [...noAv.querySelectorAll('.c-wallet-receive__contact')];
+    const rowImg = (n) => rows[n] && rows[n].querySelector('.c-avatar img');
+    ok(rows.length === 2 && !!rowImg(0) && rowImg(0).getAttribute('src') === PNG,
+      '★ #342: the wallet request-from-a-contact picker renders the photo. Its roster (home.html requestableContacts) carried `avatar` all along and the row dropped the argument');
+    ok(rows.length === 2 && !rowImg(1),
+      '#342: a contact with no stored photo still gets the deterministic gradient — the fallback is the correct render, not a failure');
+    noAv.remove();
+  }
   const tchips = [...tipEl.querySelectorAll('.c-chip')];
   ok(tchips.length === 4, 'presets 1/5/10 + Custom');
   const tconfirm = [...tipEl.querySelectorAll('.c-button')].pop();
@@ -2799,6 +2839,45 @@ console.log('settings.html — lock shell (Phase 1 #4)');
   enc2.querySelector('.c-topbar .c-button').click();
   ok(enc2in.value === '' && !d.querySelector('.c-encpass'), 'back scrubs the fields before leaving (SECURITY §5)');
 
+  /* —— #343 PRESS FEEDBACK — the behaviour that separates it from :active ————————
+   * Perceived latency is the thing users called "laggy". A row that answers in 90 ms
+   * feels instant even when the data takes exactly as long as before. The mechanism is
+   * one delegated listener, so these assertions cover EVERY pressable surface at once. */
+  {
+    const pressRoot = d.createElement('div');
+    pressRoot.innerHTML = '<div class="c-chatlist-item"></div><button class="c-button"></button>';
+    d.body.append(pressRoot);
+    const detach = W.Spixi.attachPressFeedback({ root: pressRoot });
+    const row = pressRoot.querySelector('.c-chatlist-item');
+    const btn = pressRoot.querySelector('.c-button');
+    const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ #343: a press lands on pointerdown, not click. `click` fires on RELEASE, so using it would add the very delay this exists to hide');
+    row.dispatchEvent(pe('pointerup', 100, 100));
+    ok(row.dataset.pressed === undefined, '#343: the press clears on release');
+
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointermove', 100, 140));
+    ok(row.dataset.pressed === undefined,
+      '★ #343 THE RULE THAT MAKES IT NATIVE: moving past the threshold cancels the press, because that gesture is a SCROLL. Without it a flick down the chat list leaves a trail of highlighted rows — worse than no feedback at all');
+
+    btn.dispatchEvent(pe('pointerdown', 10, 10));
+    ok(btn.dataset.pressed === 'control',
+      '#343: controls get the "control" grammar (tint + scale) and rows get "row" (tint only) — a list row that scales reads as a mistake on both platforms');
+    btn.dispatchEvent(pe('pointercancel', 10, 10));
+
+    btn.disabled = true;
+    btn.dispatchEvent(pe('pointerdown', 10, 10));
+    ok(btn.dataset.pressed === undefined, '#343: a disabled control must look disabled, not pressable');
+
+    detach();
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === undefined, '#343: detach() really detaches (no listener leak across shells)');
+    pressRoot.remove();
+  }
+
   /* #341: release() — the scrub handle the Account pane needs. The standalone
    * settings_encryption.html page DIES on pop, so back-scrub plus the window
    * pagehide listener covered every exit there. The in-pane sublevel lives inside
@@ -5032,6 +5111,55 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
  * The pins here guard the two things that can go wrong quietly:
  *   1. the password values outliving the screen in a PARKED document (#315), and
  *   2. a truncated password being written to the wallet. */
+/* —— #343: instant chrome, the first-commit fade, and the message window ——————
+ * Damir, both platforms: "entering a chat and chat info is really noticeable, laggy".
+ * The log render was NOT the cause — renderLogNow already builds a detached fragment
+ * and swaps it with one replaceChildren. The cause is wall-clock BEFORE that paint:
+ * a ~1.4 MB document to parse, then one EvaluateJavaScriptAsync per message, then a
+ * 250 ms settle. These pins hold the three fixes that do not need the BE engineer. */
+console.log('#343 — instant chrome, first-commit fade, message window');
+{
+  const chatSh = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const pressJs = readFileSync(join(root, 'src/components/pressable.js'), 'utf8');
+  const baseCss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  const cfgCs = readFileSync(join(root, 'Spixi/Meta/Config.cs'), 'utf8');
+
+  ok(/<div id="chat-topbar"><div class="boot-chrome boot-chrome--topbar"/.test(chatSh)
+    && /<div id="chat-composer"><div class="boot-chrome boot-chrome--composer"/.test(chatSh),
+    '★ #343: the chat topbar and composer are painted as STATIC HTML skeletons. The engine can paint a chat-shaped screen as soon as the document parses, instead of showing a blank canvas for the whole ~870 KB bundle parse — which is the single biggest contributor to "entering a chat is laggy"');
+  ok(!/boot-chrome[\s\S]{0,400}?localStorage/.test(chatSh),
+    '★ #343 SECURITY: the skeleton carries NO identity. Caching the peer name or avatar to paint them earlier would put contact data in the file:// localStorage partition a mini-app can read (#254 ruling, security MAJOR #4). The name arrives by push instead');
+  ok(/document\.getElementById\('chat-composer'\)\.replaceChildren\(composerEl\)/.test(chatSh),
+    '#343: the real composer REPLACES the skeleton, so there is never a frame showing both');
+  ok(/\.chat-boot__spinner \{ opacity: 0; animation: chat-boot-in 160ms ease-out 300ms forwards/.test(chatSh),
+    '★ #343: the spinner only appears after 300 ms. A loader that flashes for 150 ms reads as a stutter and makes the app feel SLOWER than showing nothing at all');
+  ok(/const firstCommit = !firstRenderDone;/.test(chatSh)
+    && /if \(firstCommit\) \{[\s\S]{0,400}?requestAnimationFrame\(\(\) => requestAnimationFrame\(reveal\)\);[\s\S]{0,120}?setTimeout\(reveal, 400\);/.test(chatSh),
+    '★ #343: the log fades in ONCE, on the first commit only, with a fail-safe. Two rAFs because the opacity-0 frame must actually paint or the browser coalesces both and shows nothing; the timeout means a dropped frame can never leave the log invisible; one-shot because live messages must never re-fade the whole conversation');
+
+  ok(/'pointerdown'/.test(pressJs) && !/addEventListener\('click'/.test(pressJs),
+    '#343: press feedback is bound to pointerdown, never click');
+  ok(/PRESS_MOVE_CANCEL_PX/.test(pressJs) && /> PRESS_MOVE_CANCEL_PX\) clear\(\)/.test(pressJs),
+    '★ #343: the move-cancel rule is in the source, not just in the behavioural test above');
+  ok(/html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-color: var\(--surface-interactive-pressed\)/.test(baseCss)
+    && /html:root \[data-pressed="control"\] \{[\s\S]{0,80}?transform: scale\(0\.97\)/.test(baseCss)
+    && !/\n\[data-pressed/.test(baseCss),
+    '★ #343 DEVICE FIX: the press rules carry the html:root prefix. base.css loads BEFORE every component stylesheet, and .c-chatlist-item sets `background: transparent` at the same specificity — so an unprefixed rule lost on source order and the tint never painted at all on device. html:root is (0,2,1) and beats the component\'s (0,2,0) [aria-current] and :active rules from anywhere in the cascade');
+  ok(/html:root \[data-pressed="row"\]\[aria-current\] \{[\s\S]{0,120}?surface-action-tonal-pressed/.test(baseCss),
+    '#343: a SELECTED row presses in its own tonal family — the neutral tint must not flash over the action colour on the desktop split view');
+  ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}?\[data-pressed="control"\] \{ transform: none; \}/.test(baseCss),
+    '#343: reduced motion drops the scale and every transition');
+
+  for (const sh of ['chat', 'home', 'settings', 'contact_details']) {
+    const src = readFileSync(join(root, 'src/shells/' + sh + '.html'), 'utf8');
+    ok(/attachPressFeedback\(\);/.test(src) && /attachPressFeedback,/.test(src),
+      '#343: ' + sh + '.html attaches press feedback (one line per shell — the delegated listener covers rows created by later re-renders)');
+  }
+
+  ok(/messagesToLoad = 25;/.test(cfgCs) && !/messagesToLoad = 100;/.test(cfgCs),
+    '★ #343: the opening message window is 25, not 100. Each message is its own EvaluateJavaScriptAsync (Utils.sendUiCommand:180 → SpixiContentPage:187) and the shell waits 250 ms after the LAST one before it renders, so 100 messages meant ~100 process-boundary crossings before anything appeared. Revert this line alone to undo');
+}
+
 console.log('#341 — Change password renders inside the Account pane');
 {
   const spEnc = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
@@ -5112,6 +5240,32 @@ console.log('#341 — Change password renders inside the Account pane');
   ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__body \{[\s\S]{0,200}?padding-inline: max\(/.test(encCss)
     && !/:root\[data-desktop\] \.c-encpass__body \{[\s\S]{0,120}?padding-inline: max\(/.test(encCss),
     '#341 audit MINOR-5: the centring rail is scoped to the STANDALONE page. In the pane the detail region already caps this element, and border-box made the second rail eat the capped width — the fields measured ~380px on a 900px region and got NARROWER as the window widened');
+  /* —— C7 (#342): the desktop share button ————————————————————————————————————
+   * Damir F5: "on desktop the share button beside the address does nothing." The cause
+   * was the ladder's SHAPE. `navigator.share` EXISTS in WinUI WebView2 and REJECTS when
+   * it cannot present a system sheet; the old code swallowed every rejection with
+   * `.catch(() => {})` and RETURNED, so the clipboard fallback under it was unreachable
+   * on the one engine that needs it. The correct ladder already existed in home.html
+   * (shareReceivePayload, the A10 fix). One difference is deliberate: home falls through
+   * to `ixian:share`, and SettingsPage dispatches no such verb, so clipboard is terminal. */
+  ok(!/navigator\.share\(\{ text: addr \}\)\.catch\(\(\) => \{\}\)/.test(shEnc),
+    '★ C7 (#342): the swallow-everything catch is GONE. `.catch(() => {})` followed by `return` is what made the button a silent no-op on desktop');
+  /* Anchored INSIDE the catch: the terminal fallback call sits a few lines below it,
+   * so an unbounded window matched that one instead and the pin passed with the catch
+   * gutted. The negated group stops at the catch's own closing `});`. */
+  ok(/navigator\.share\(\{ text: addr \}\)\.catch\(\(e\) => \{(?:(?!\}\);)[\s\S])*window\.chrome && window\.chrome\.webview(?:(?!\}\);)[\s\S])*copyAddressFallback\(addr\);/.test(shEnc),
+    '★ C7 (#342): a rejection now falls through to the clipboard, and WebView2 is detected so its rejection is never mistaken for a user cancel');
+  ok(/AbortError' && !isWebView2\) return;/.test(shEnc),
+    'C7 (#342): a WebKit AbortError on a non-WebView2 engine means the sheet appeared and the user dismissed it — staying silent there is correct, and it is why the engine test is needed');
+  ok(/copyAddressFallback\(addr\);\s*\r?\n\s*\}\s*$/m.test(shEnc) || /\}\s*\r?\n\s*copyAddressFallback\(addr\);\s*\r?\n\s*\}/.test(shEnc),
+    'C7 (#342): the no-navigator.share engine (Android WebView) still reaches the same fallback');
+
+  /* #342 review MINOR-1: the behavioural avatar pins run wholly inside the components,
+   * so reverting the SHELL call site left them all green. This reads the shell. */
+  const chatEnc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  ok(/avatar: rec\.avatar\s*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.avatar : identity\.avatar\)/.test(chatEnc),
+    '★ #342 review MAJOR-1: the tip recipient photo NEVER falls back to identity.avatar in a group. identity.avatar is the GROUP photo there (SingleChatPage pushes getAvatarPath(friend)), and file/app/payment rows carry no avatar at all — so the unguarded fallback put the group face beside an individual member name, on the surface where the user checks who is about to be paid. A gradient is neutral; the wrong face is not');
+
   ok(/glyph: 'pencil', hue: 'primary', key: 'encpass',/.test(encComp),
     '#341 audit MINOR-4: the hub row carries a key, so the pane marks it aria-current with the tonal tint while its sublevel is open — it was the only sublevel opener that announced nothing');
 

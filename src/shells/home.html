@@ -355,6 +355,7 @@
     //  and nothing else in this shell toasts; re-destructure from the bundle if needed)
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
     showBackupNudge, showRatingNudge,
+    attachPressFeedback,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -426,6 +427,11 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* #343: ONE call lights up press feedback for every pressable surface in this
+     shell (src/components/pressable.js). Delegated on document, so rows created
+     later by a re-render are covered without re-attaching. A new shell needs
+     exactly this line. */
+  attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
   // Batch C (M6): on desktop, a RIGHT-CLICKED chat-row menu presents as an

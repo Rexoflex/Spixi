@@ -336,6 +336,27 @@
   --layout-composer-min: 56px;
   --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
   --layout-content-max: 840px;      /* desktop detail-pane max width */
+  /* W2 (#245 rider, Damir 2026-08-12): the desktop nav RAIL width. It is system
+     chrome — every full-viewport surface on a :root[data-desktop] shell insets by
+     this much so the rail stays visible AND clickable beside it. Was a bare 72
+     duplicated in bottomnav.css (the rail column) and in HomePage.xaml.cs
+     (railWidthDip, the Account peer-pane stage margin); this is the single FE
+     source. ⚠ CSS px == DIPs in the WebView at default zoom, so the C# constant
+     MUST be re-dialed with this token — the pairing is flagged at
+     HomePage.xaml.cs (railWidthDip) and ENFORCED: smoke-test.mjs parses this
+     declaration and that constant and fails the run if the two ever disagree, so
+     the drift cannot land silently. */
+  --layout-rail-width: 72px;
+  /* Desktop PANE CONTENT rail — the measurement the Account sublevels have used
+     since #243 ("640px cap centered", settings.html §pane) and contact_details
+     copied. Damir (2026-08-12, Windows screenshots): every pane-hosted page must
+     hold the SAME rail as the "How to use Spixi" sublevel — a form or a details
+     page stretched across a 900–1200px column reads as a wall. Full-bleed art
+     (the app-details cover) deliberately breaks OUT of it. Engages only where
+     the column is wider than the rail, so narrow panes/phones are untouched.
+     ⚠ settings.html:104 + contact_details.html:60 still carry the literal 640 —
+     adopt this token there at their next touch (out of scope in #3xx). */
+  --layout-pane-content-max: 640px;
   --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
   /* #337 audit (W4 ride-along): typed OBJECTS (payment/app/call cards, file
      rows, media tiles) hold this rail on EVERY platform — same value as
@@ -858,7 +879,21 @@
      ADD --chat-pattern-ink TO FIGMA at next mirror. */
   /* gradient stays tinted end-to-end — fading to screen-white made white
      bubbles vanish at the bottom (Damir 2026-07-03) */
-  --chat-pattern-ink: var(--primary-200);
+  /* W5 F5 2026-08-13 — "on light mode perhaps bump opacity, as its barely
+     visible on the strongest". MEASURED in Chromium (pattern-vs-gradient
+     contrast ratio, median over the inked pixels of the light canvas):
+     primary-200 gave 1.02 at Standard and 1.03 at BOLD, against dark's
+     1.12 / 1.18 — i.e. light Bold was fainter than dark SUBTLE (1.07)
+     despite carrying 2.8× the opacity. The opacity ladder was never the
+     problem: primary-200 (#b7c9f4) is all but isoluminant with the sky-blue
+     --gradient-chat wash, so multiplying alpha multiplies almost nothing.
+     The fix is the INK, one step up the same ramp the dark ink already sits
+     on: primary-400 lands light at 1.08 / 1.14 / 1.20 (Subtle/Standard/Bold)
+     — theme PARITY with dark's 1.07 / 1.12 / 1.18, so Standard stays the
+     theme default it has always been and Bold finally reads as a pattern.
+     PATTERN_LEVELS and the dark ×0.36 derivation are untouched; the dark ink
+     below is a separate value, so dark renders pixel-identical to today. */
+  --chat-pattern-ink: var(--primary-400);
   --chat-pattern-opacity: 0.5;
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
      compute font-size * this; ADOPTION in message-bubble.css lands at the

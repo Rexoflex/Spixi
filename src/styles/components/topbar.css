@@ -169,6 +169,48 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 .c-topbar__actions { display: flex; align-items: center; gap: var(--spacing-4); }
 
+/* TEXT action (topbar.js `actions[].text`) — a labelled action, not a bare glyph.
+   Apps' lone "+" did not say what it did (Damir 2026-08-12); the label does.
+   Grammar: tonal size-32 pill so it reads as an action inside the 56px bar without
+   competing with the title. It hugs its label, so a long locale (de "App hinzufügen")
+   grows the pill and the TITLE yields — hence min-width:0 on the actions row too. */
+/* ★ The 62% cap lives on the ACTIONS ROW, not on the button. A percentage max-width
+   resolves against the containing block — and the button's containing block is the
+   shrink-to-fit actions row, i.e. the button's own width. That self-reference cut the
+   pill to 62% of its natural size and rendered "A…" on a 390px phone with room to
+   spare (caught in screenshot review). The row's containing block is the BAR, which
+   has a definite width, so the cap means what it says. A CLASS, not :has() — nothing
+   else in this stylesheet relies on :has() and a WebView without it would silently
+   drop the cap. */
+.c-topbar__actions--text { min-width: 0; max-width: 62%; }
+.c-topbar .c-button.c-topbar__action--text {
+  position: relative;
+  flex: 0 1 auto;                         /* yields only after the 62% row cap bites */
+  min-width: 0;
+  max-width: 100%;
+}
+/* …and the TARGET is still 44px tall (§5b) even though the pill is drawn at 32: the
+   house hit-expander (c-splitpaste__dismiss / c-composer__attach precedent) grows the
+   pressable box block-wise only, so it never overlaps the neighbouring action. */
+.c-topbar .c-button.c-topbar__action--text::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;                          /* 32 + 6 + 6 = 44 */
+}
+.c-topbar .c-button.c-topbar__action--text .c-button__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the root-variant bar pads to spacing-16; pull the pill back to the optical edge so
+   it lines up with the 44px glyph buttons every other root bar uses */
+.c-topbar[data-variant="root"] .c-topbar__actions { margin-inline-end: calc(-1 * var(--spacing-4)); }
+/* hero bars: the tonal wash is near-white on the gradient — fall back to on-hero ink */
+.screen--hero .c-topbar .c-button.c-topbar__action--text {
+  background: var(--surface-wash-on-hero);
+  color: var(--text-topbar);
+}
+
 /* bar buttons: ink via the button's private vars ONLY — a direct `color:` here
    out-cascades button.css's :hover color (later sheet, equal specificity) and
    freezes the ink. Rest ink = topbar region token; hover/pressed step to the

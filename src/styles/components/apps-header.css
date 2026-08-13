@@ -26,16 +26,32 @@
 @media (hover: hover) and (pointer: fine) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
 .c-apps-header__toggle:active { background: var(--surface-interactive-pressed); }
 
-/* —— Explore / Discover banner —— */
+/* nothing installed: the search + layout row is dead UI (there is nothing to find
+   or to re-lay-out), so the empty state becomes the hero and the banner stays as the
+   discovery route. Set by setAppsHeaderEmpty() — attribute, not a display:none in JS. */
+.c-apps-header[data-empty] .c-apps-header__row { display: none; }
+
+/* —— Explore / Discover banner ——
+   LAYOUT CONTRACT (Damir 2026-08-12 — "align it bottom right"): the illustration is a
+   FLEX SIBLING of the copy, not an absolutely-positioned overlay. That is the whole
+   legibility guarantee: text and art can never occupy the same pixels at ANY width —
+   the copy column shrinks (min-width:0) and the art is capped at a share of the
+   banner, so there is no width where a headline sits on top of the artwork. The art
+   is pinned to the BOTTOM (align-self) and to the trailing EDGE (negative inline-end
+   margin cancelling the banner padding), and object-position keeps the subject in the
+   bottom-right corner when the box is capped narrower than the natural aspect. */
 .c-apps-explore {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  gap: var(--spacing-12);
   width: 100%;
   border: 0;
   cursor: pointer;
   text-align: start;
-  padding: var(--spacing-12);                /* Figma: spacing-12 all sides */
+  padding: var(--spacing-12);                /* Figma: spacing-12 all sides… */
+  padding-block-end: 0;                      /* …except the bottom: the art sits flush */
+  min-height: 84px;
   border-radius: var(--radius-16);
   overflow: hidden;
   /* Damir: identical in BOTH themes → pin to the theme-STABLE primitives (--primary-600
@@ -44,7 +60,14 @@
   background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
   color: var(--neutral-10);
 }
-.c-apps-explore__text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.c-apps-explore__text {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  gap: var(--spacing-4);
+  flex: 1 1 auto;
+  min-width: 0;                              /* ★ the copy column yields before it clips */
+  padding-block-end: var(--spacing-12);      /* the banner's own block-end padding, on the copy only */
+}
 .c-apps-explore__title { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); opacity: 0.85; }
 .c-apps-explore__cta {
   display: inline-flex;
@@ -56,13 +79,20 @@
 }
 .c-apps-explore__cta svg { flex: none; }
 .c-apps-explore__illo {
-  position: absolute;
-  inset-inline-end: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 132px;                             /* taller than the banner → overflows top/bottom, clipped */
+  flex: 0 1 auto;
+  align-self: flex-end;                      /* BOTTOM */
+  height: 96px;
   width: auto;
-  max-width: 48%;
+  max-width: 42%;                            /* the copy always keeps ≥58% of the banner */
   object-fit: contain;
+  object-position: bottom right;             /* RIGHT — and stays cornered when capped */
+  margin-inline-end: calc(-1 * var(--spacing-12));   /* flush to the banner's trailing edge */
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
+
+/* Desktop density (#228): the apps pane is narrower than a phone screen at the split,
+   so hold the art a touch smaller and let the copy keep its measure. */
+:root[data-desktop] .c-apps-explore { min-height: 76px; }
+:root[data-desktop] .c-apps-explore__illo { height: 84px; max-width: 38%; }

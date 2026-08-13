@@ -22,9 +22,30 @@
  *                   for groups; `ixian:newchat` stays available but unwired here.
  *   Open chat     → ixian:chat:<address>     (start; audit :259)
  *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
+ *   Launch app    → ixian:startappwith:<appId>:|<addr>   (purpose 'app')
  *
  * purpose 'start'  (FAB): Add contact + Create group actions; tap = open chat.
  * purpose 'directory' (topbar Contacts): Add contact only; tap = contact details.
+ * purpose 'app' + appId (mini-app launch target): the picker opens straight into
+ *   the SAME select grammar group creation uses, but SINGLE-select (exactly one
+ *   target, groups allowed), and the topbar ✓ emits
+ *   `ixian:startappwith:<appId>:|<addr>`.
+ *
+ *   Why a NEW verb and not the shipped `ixian:startAppMulti:<appId>`: that verb
+ *   carries NO target — HomePage.onStartAppMulti (HomePage.xaml.cs:2775) answers it
+ *   by pushing the LEGACY WalletRecipientPage(false, false) and picking the target
+ *   natively, which is exactly the screen Damir is complaining about. Its handler is
+ *   also matched with StartsWith("ixian:startAppMulti") but sliced at
+ *   "ixian:startAppMulti:".Length, so appending a target to it would land the whole
+ *   "<appId>:<address>" tail in appId. The payload grammar mirrors
+ *   `ixian:creategroup:` (HomePage.xaml.cs:447) 1:1 minus the blind+name prefix, and
+ *   feeds the SAME HandlePickAppMultiUserSucceeded core (HomePage.xaml.cs:2789):
+ *   onJoinApp + StreamProcessor.sendAppRequest for the target. That core consumes
+ *   addresses.First() only — ONE target — which is also all MiniAppPage supports
+ *   today (its session id is sha3(appId) and it relays to a single peer), so the
+ *   payload carries exactly one address: a byte-for-byte behaviour match with the
+ *   legacy page, with the redesigned picker in front of it. The list grammar is
+ *   kept so a future multi-user MiniAppPage needs no new verb.
  *
  * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
  * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
@@ -49,7 +70,7 @@ import { createContactsPicker, setPickerContacts, createGroupSetup, setGroupAvat
 const paintGroupAvatar = setGroupAvatar;
 
 export function mountContacts({
-  host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
+  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
 } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'contacts-takeover';
@@ -99,6 +120,20 @@ export function mountContacts({
     overlay.append(groupPanel);
   };
 
+  /* purpose 'app' — confirm the multi-user launch targets. Close FIRST, then send:
+   * C# pushes the MiniAppPage over the home shell (onJoinApp), and leaving this
+   * takeover mounted underneath would let a user back out of the app onto a
+   * re-armed ✓ → a duplicate session (the same MAJOR-5 hazard as group create). */
+  const startAppWith = (selected) => {
+    // ONE target — the picker is single-select on this path and C# opens a single
+    // session against a single friend/group; slice() is the belt-and-braces.
+    const addresses = (selected || []).map((c) => c && c.address).filter(Boolean).slice(0, 1);
+    // no appId = a mis-wired mount; no target = C# would only log and drop it.
+    if (!appId || addresses.length < 1) return;
+    close();
+    bridge.send('ixian:startappwith:' + appId + ':|' + addresses.join('|'));
+  };
+
   const picker = createContactsPicker({
     contacts: getRoster ? getRoster() : [],
     purpose,
@@ -109,7 +144,10 @@ export function mountContacts({
     // Create group → IN-SHELL multi-select (the picker flips itself; the topbar
     // action confirms) → onNext → the group setup panel above (#265).
     onCreateGroup: () => {},
-    onNext: (selected) => openGroupSetup(selected),
+    onNext: (selected) => {
+      if (purpose === 'app') { startAppWith(selected); return; }
+      openGroupSetup(selected);
+    },
     // start: tap opens the 1:1 conversation.
     onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
     // directory: tap opens contact details (accepted → chat-info; pending → minimal).

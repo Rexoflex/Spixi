@@ -97,6 +97,45 @@ namespace SPIXI
             return $"{(bytes / 1024.0 / 1024.0):0.##} MB";
         }
 
+        // PERF (Damir F5 2026-08-13, apps tab "always reloads some images"): imageToDataUri
+        // already produces a base64 payload ("data:image/png;base64,…"), and escapeHtmlParameter
+        // base64-encoded it a SECOND time for transport — a 240 KB app icon / avatar became
+        // 320 KB on EVERY push, and the shell paid a full atob to get back to the string C#
+        // started from. A data: URI is transport-safe on its own (RFC 2397 alphabet, no quote /
+        // backslash / newline), so sendUiCommand emits it verbatim and the shell dispatcher
+        // passes it straight through (src/bridge/native.js — ':' can never occur in base64, so
+        // "data:" is an unambiguous marker). escapeHtmlParameter itself is UNCHANGED: every
+        // other argument, and every other caller, keeps the base64 contract exactly as before.
+        //
+        // The whitelist below is the SAFETY GATE, not a convenience: the value is dropped into
+        // a single-quoted JS literal, so anything that could break out of it (quote, backslash,
+        // CR/LF, U+2028/9, backtick, ${) must fall back to the encoded path. Note imageToDataUri
+        // passes a RAW PATH through untouched when the file can't be read, and any string
+        // argument (a chat message, a nickname) can legitimately begin with "data:" — every one
+        // of those either fails the whitelist and gets encoded, or is character-for-character
+        // round-trip identical, which is all the contract requires.
+        private static bool isTransportSafeDataUri(string arg)
+        {
+            if (!arg.StartsWith("data:", StringComparison.Ordinal)
+                || arg.IndexOf(";base64,", StringComparison.Ordinal) < 0)
+            {
+                return false;
+            }
+            for (int i = 5; i < arg.Length; i++)
+            {
+                char c = arg[i];
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+                {
+                    continue;
+                }
+                if (c != '+' && c != '/' && c != '=' && c != ';' && c != ',' && c != '.' && c != '-')
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public static void sendUiCommand(SpixiContentPage contentPage, string command, params string[] arguments)
         {
             try
@@ -109,7 +148,7 @@ namespace SPIXI
                     if (arg != null)
                     {
                         sb.Append(",");
-                        sb.Append("'" + escapeHtmlParameter(arg) + "'");
+                        sb.Append("'" + (isTransportSafeDataUri(arg) ? arg : escapeHtmlParameter(arg)) + "'");
                     }
                     else
                     {

@@ -225,3 +225,35 @@
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }
+
+/* —— desktop: pane content rail + in-flow CTA (Damir 2026-08-12) ——
+   settings_encryption.html opens as a pane over the Account on desktop (W7: it
+   now COVERS its opener exactly — SettingsPage's ixian:encpass branch — where it
+   used to be pinned to the detail column alone), so the page is as wide as that
+   pane: the three fields stretched to ~900px and the sticky CTA sat at
+   the very bottom with a screen-height dead gap above it. Desktop therefore
+   (a) holds the shared pane rail (--layout-pane-content-max — the "How to use
+   Spixi" sublevel measurement) and (b) lets the body HUG its content so the
+   button lands directly under the inputs. `flex: 0 1 auto` keeps min-height:0,
+   so a short window still scrolls the form instead of clipping it.
+   MOBILE IS UNTOUCHED — bottom-pinned is right on a phone; this rides the #228
+   platform flag, never a viewport query. */
+:root[data-desktop] .c-encpass__body {
+  flex: 0 1 auto;
+  padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
+  padding-block-end: var(--spacing-16);
+}
+:root[data-desktop] .c-encpass__footer {
+  display: flex;
+  justify-content: center;
+  border-top: 0;                    /* no longer a bar edge — it is in flow now */
+  background: transparent;
+  padding-block-start: 0;
+  padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
+}
+/* hugging CTA — the desktop pane grammar (#243, mirrors the Backup sublevel's
+   `width:auto; min-width:240px` centered button) */
+:root[data-desktop] .c-encpass__footer > .c-button {
+  width: auto;
+  min-width: 240px;
+}

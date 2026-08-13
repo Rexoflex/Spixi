@@ -695,6 +695,118 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
   }, duration);
 }
 
+/* ---- src/components/empty-state.js ---- */
+/**
+ * c-empty-state — the house EMPTY STATE: illustration · headline · supporting line ·
+ * one optional CTA. Deliberately surface-agnostic so Chats / Wallet / Contacts /
+ * Apps all render the same shape from their own copy + their own `-es` art
+ * (src/assets/images/<surface>-es.svg, shipped via src/demo/images → the shells'
+ * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.svg;
+ * an external asset URL is what a file:// WebView refuses, a sibling file is fine).
+ *
+ * A missing/blocked illustration NEVER leaves a hole: the <img> onerror drops it and
+ * (when `glyph` is given) draws a token-styled glyph tile instead — the c-app-icon /
+ * c-launch illo precedent. Copy always carries the meaning, so the art is aria-hidden.
+ *
+ * createEmptyState({
+ *   illustration,          // 'images/apps-es.svg' — omit for the glyph-only shape
+ *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
+ *   title, body,           // headline + supporting line (plain text — textContent)
+ *   actionLabel, onAction, // ONE secondary CTA (tonal by house grammar)
+ *   actionIcon,            // optional leading glyph name for the CTA
+ *   actionType = 'tonal', actionSize = 44,
+ *   compact = false,       // tighter vertical rhythm (in-list, not full-screen)
+ * }) → section.c-empty-state
+ *
+ * setEmptyStateCopy(el, { title, body }) — free fn (#44), for a live copy swap.
+ */
+
+
+
+function createEmptyState({
+  illustration = null,
+  glyph = null,
+  title = '',
+  body = '',
+  actionLabel = '',
+  onAction = null,
+  actionIcon = null,
+  actionType = 'tonal',
+  actionSize = 44,
+  compact = false,
+} = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-empty-state';
+  if (compact) el.dataset.compact = '';
+
+  /* —— illustration (decorative; the copy below is the accessible content) —— */
+  const slot = document.createElement('div');
+  slot.className = 'c-empty-state__illo';
+  slot.setAttribute('aria-hidden', 'true');
+  const drawGlyph = () => {
+    slot.dataset.placeholder = '';
+    if (glyph) slot.append(icon(glyph, { size: 48 }));
+  };
+  if (illustration) {
+    const img = document.createElement('img');
+    img.className = 'c-empty-state__illo-img';
+    img.alt = '';
+    img.draggable = false;
+    img.decoding = 'async';                      // never block the first paint of the copy
+    // ~300-800 KB Figma exports. An empty state is usually built EAGERLY (the shell
+    // renders the zero case before the bridge has pushed anything) and often lives in
+    // a hidden tab — `lazy` keeps that fetch+decode out of boot until the state is
+    // genuinely on screen. It is a hint: an engine that ignores it loads as before.
+    img.loading = 'lazy';
+    // handler BEFORE src so a synchronously-failed load still fires (c-app-icon precedent)
+    img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
+    img.src = illustration;
+    slot.append(img);
+  } else {
+    drawGlyph();
+  }
+  el.append(slot);
+
+  /* —— copy —— */
+  const h = document.createElement('h2');
+  h.className = 'c-empty-state__title';
+  h.textContent = title;
+  el.append(h);
+
+  if (body) {
+    const p = document.createElement('p');
+    p.className = 'c-empty-state__body';
+    p.textContent = body;
+    el.append(p);
+  }
+
+  /* —— one secondary CTA —— */
+  if (actionLabel && onAction) {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-empty-state__action';
+    wrap.append(createButton({
+      label: actionLabel,
+      type: actionType,
+      size: actionSize,
+      icon: actionIcon ? icon(actionIcon, { size: 20 }) : null,
+      onClick: onAction,
+    }));
+    el.append(wrap);
+  }
+
+  return el;
+}
+
+/** Live copy swap (#44) — e.g. a filter-scoped empty state reusing one node. */
+function setEmptyStateCopy(el, { title, body } = {}) {
+  if (!el) return el;
+  const h = el.querySelector('.c-empty-state__title');
+  const p = el.querySelector('.c-empty-state__body');
+  if (h && title != null) h.textContent = title;
+  if (p && body != null) p.textContent = body;
+  return el;
+}
+
 /* ---- src/components/topbar.js ---- */
 /**
  * c-topbar — mirrors Figma "title bar"/"top". DECISIONS.md #16 conventions.
@@ -713,6 +825,11 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  *                                        // BUTTON (channel selector on bots, chat
  *                                        // info later — #86 bot surface)
  *   actions: [{ icon: 'phone', label: 'Call', onClick }]  // trailing icon-buttons
+ *              // `text: 'Add app'` makes ONE action a real TEXT button instead of a
+ *              // bare glyph (Apps: a lone + read as ambiguous — Damir 2026-08-12).
+ *              // It renders as a tonal size-32 pill with the glyph leading, so it
+ *              // still sits inside the 56px bar and reads as an action, not a title.
+ *              // `label` stays the accessible name; `icon` stays optional.
  * })
  * setTopbarSub(el, text) — live sub updates (typing…, presence) (#44 free fn)
  */
@@ -787,12 +904,23 @@ function createTopbar({ variant = 'view', title = '', logo = false, identity = n
     const wrap = document.createElement('div');
     wrap.className = 'c-topbar__actions';
     for (const a of actions) {
-      wrap.append(createButton({
-        type: 'text', size: 44,
-        icon: icon(a.icon),
+      const hasText = a.text != null && a.text !== '';
+      const btn = createButton({
+        // text action → tonal pill at bar scale; icon-only action → the 44 text button
+        label: hasText ? a.text : undefined,
+        type: hasText ? 'tonal' : 'text',
+        size: hasText ? 32 : 44,
+        // 16, not 18: a text action is a size-32 pill, and button.css sizes
+        // `[data-size="32"] .c-button__icon` at --size-icon-16 — an 18 request was
+        // overridden on arrival, so the glyph rasterised at a size nobody asked for.
+        icon: a.icon ? icon(a.icon, hasText ? { size: 16 } : undefined) : null,
         ariaLabel: a.label,
         onClick: a.onClick,
-      }));
+      });
+      // the ROW carries the width cap (a % max-width on the button would resolve
+      // against the shrink-to-fit row = itself, and truncate a label that fits)
+      if (hasText) { btn.classList.add('c-topbar__action--text'); wrap.classList.add('c-topbar__actions--text'); }
+      wrap.append(btn);
     }
     el.append(wrap);
   }
@@ -998,9 +1126,59 @@ function setChipSelected(el, selected) {
  * createSearchField({ placeholder = 'Search', value = '', onInput, onSubmit,
  *                     ariaLabel, strings })
  * Free fns (#44): setSearchValue(el, v) · getSearchValue(el)
+ *                 resetSearchField(el) · resetSearchFields({ keepWithin })
+ *
+ * ★ BUG-3 — A STALE FILTER MUST NEVER SILENTLY HIDE CONTENT (Damir F5 2026-08-13:
+ * "the group was in list, I had active search bar stuff in, we need best ux so
+ * that it resets after tapping out"; "the search bar needs to clear when we stop
+ * using it"). He lost ten minutes and filed two phantom bug reports against the
+ * chats list because a forgotten query was filtering a row out of it.
+ *
+ * THE RULE: a query is scoped to ONE VISIT to its surface — it survives scrolling,
+ * blurring and drilling into a result, and it is dropped the moment the user LEAVES
+ * the surface (tab switch, takeover, pane change); while it is live the field wears
+ * the ACTION outline so "a filter is on" is legible at a glance.
+ *
+ * Why not clear on blur — the obvious reading: blur fires when you tap a RESULT, so
+ * clearing there fights the click and throws away the query of a user who is acting
+ * on it (Telegram/WhatsApp keep the query while you are inside the search context
+ * and drop it when you leave it — the same line, drawn at the surface not the
+ * control). Why not a pure affordance: Damir HAD a visible field with text in it and
+ * still concluded the data was gone, so the state has to be self-cancelling, not
+ * merely legible.
+ *
+ * Two halves, both here so every surface inherits them:
+ *   · `data-active` on the wrapper whenever the field holds a query (→ CSS).
+ *   · a registry of every live field + `resetSearchFields({ keepWithin })`, which
+ *     clears each one AND notifies its `onInput('')` so the consumer's model goes
+ *     back to unfiltered. Shells call it at their surface-exit chokepoints; a field
+ *     that unmounts with its takeover (contacts, wallet send/receive, chat info)
+ *     drops out of the registry on its own — see the isConnected sweep.
+ * NOTE this touches the TEXT QUERY only. Chip filters (chats' all/unread/…, the
+ * wallet's all/sent/received) are separate state with their own lifecycle — e.g.
+ * home.html's leaveRequestsFilterIfEmpty — and are deliberately not touched here.
  */
 
 
+
+/* Every field built by this module, so a shell can reset "whatever is out there"
+ * without threading a handle through each surface. Entries whose element has been
+ * detached (a takeover closing) are swept on the next reset — no leak, no
+ * observer, and no dependency on the consumer remembering to unregister. */
+const searchFieldRegistry = new Set();
+/* field element → its onInput. Kept off the DOM node so a reset can put the
+ * CONSUMER's model back to unfiltered, not just blank the input. */
+const searchFieldNotify = new WeakMap();
+
+/** Reflect the current value into the clear button + the active-filter state. */
+function syncSearchField(el) {
+  const input = el.querySelector('.c-search-field__input');
+  const clear = el.querySelector('.c-search-field__clear');
+  const on = !!(input && input.value.length);
+  if (clear) clear.hidden = !on;
+  el.toggleAttribute('data-active', on);   // BUG-3: "this field is filtering"
+  return on;
+}
 
 function createSearchField({
   placeholder = 'Search', value = '', onInput, onSubmit, ariaLabel, strings = getStrings(),
@@ -1025,7 +1203,7 @@ function createSearchField({
   clear.hidden = !value;
   clear.append(icon('x', { size: 18 }));
 
-  const sync = () => { clear.hidden = input.value.length === 0; };
+  const sync = () => syncSearchField(el);
 
   input.addEventListener('input', () => {
     sync();
@@ -1046,6 +1224,9 @@ function createSearchField({
   });
 
   el.append(glyph, input, clear);
+  if (onInput) searchFieldNotify.set(el, onInput);
+  searchFieldRegistry.add(el);           // BUG-3: visit-scoped reset
+  syncSearchField(el);                   // a seeded `value` is already a live filter
   return el;
 }
 
@@ -1054,12 +1235,47 @@ function setSearchValue(el, v) {
   v = v == null ? '' : String(v);
   const input = el.querySelector('.c-search-field__input');
   input.value = v;
-  el.querySelector('.c-search-field__clear').hidden = v.length === 0;
+  syncSearchField(el);
 }
 
 /** Read the field's current value. */
 function getSearchValue(el) {
   return el.querySelector('.c-search-field__input').value;
+}
+
+/**
+ * BUG-3: clear ONE field and put its consumer back to unfiltered. Returns true only
+ * if a query was actually dropped, so a caller can tell "nothing was filtered" from
+ * "a filter was silently on" (and so a no-op costs no re-render).
+ */
+function resetSearchField(el) {
+  if (!el || !el.querySelector) return false;
+  const input = el.querySelector('.c-search-field__input');
+  if (!input || input.value === '') return false;
+  input.value = '';
+  syncSearchField(el);
+  const notify = searchFieldNotify.get(el);
+  if (notify) notify('');
+  return true;
+}
+
+/**
+ * BUG-3: the surface-exit reset. Clears every live field that holds a query —
+ * except any inside `keepWithin`, which is the surface being ENTERED (its own
+ * query is the one the user is looking at and must survive).
+ * Detached fields are swept here rather than on unmount: a takeover that removes
+ * its DOM has already destroyed its query, and asking every caller to unregister
+ * is exactly the kind of bookkeeping that rots.
+ * Returns how many fields were actually reset.
+ */
+function resetSearchFields({ keepWithin = null } = {}) {
+  let n = 0;
+  for (const el of Array.from(searchFieldRegistry)) {
+    if (!el.isConnected) { searchFieldRegistry.delete(el); continue; }
+    if (keepWithin && keepWithin.contains && keepWithin.contains(el)) continue;
+    if (resetSearchField(el)) n += 1;
+  }
+  return n;
 }
 
 /* ---- src/components/highlight.js ---- */
@@ -3783,6 +3999,254 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
     formatCount(count) + ' ' + (strings.unread || 'unread'));
 }
 
+/* ---- src/components/chat-flow.js ---- */
+/**
+ * c-chat-flow — "Live flow", the animated chat background pattern style
+ * (W5, Damir 2026-08-12; RE-DIALLED by the F5 of 2026-08-13).
+ *
+ * A grid of short dashes, each angled by a smooth time-drifting field. It
+ * REPLACES the static ::before tile while active — chat-pattern.css sets
+ * --chat-pattern-tile: none under [data-chat-pattern='flow'], and this module
+ * paints the canvas instead.
+ *
+ *   attachChatFlow(host)            → controller { detach, pause, resume, sync }
+ *   setChatFlowPaused(host, paused) → free fn (#44 grammar) for the shell/C#
+ *
+ * TUNING — Damir F5 2026-08-13 ("the live flow is too far away and too small so
+ * barely visible movements"), superseding his own 2026-08-12 prototype dial
+ * (0.4 · 20 · 4.5 · 1 · 95). Each complaint maps to one number, measured in
+ * Chromium against real bubbles at 1100×760 and 420×760, dpr 2:
+ *   "too far away"  → spacing 20 → 15px (dash-to-gap 0.23 → 0.47; +78% dashes).
+ *   "too small"     → dash 4.5 → 7px, lineWidth 1 → 1.25px. This is ALSO half of
+ *                     the motion fix: the dashes only ROTATE, and the endpoint
+ *                     travel produced by a given angular rate scales with dash
+ *                     length — at 4.5px a full second of drift moved an endpoint
+ *                     less than a pixel, i.e. the field was animating correctly
+ *                     and rendering the result below the resolution of the eye.
+ *   "barely visible → fieldScale 95 → 44px and speed 0.4 → 0.85 rad/s. At 95 a
+ *    movements"       1100px pane was ~11 field units wide, so neighbouring
+ *                     dashes were near-parallel and the whole field turned as
+ *                     one slab — motion with no relative motion reads as still.
+ * Measured effect: mean |Δluma| over a 1s sample went 0.37 → 1.74 (4.7×), and
+ * the share of pixels changing by ≥4/255 in one second went 2.0% → 7.6%.
+ * Cost: 0.29 → 0.42 ms per frame at 2200×1520 device px — ~1% of the 40ms
+ * budget, so the 25fps cap is untouched.
+ *
+ * DESKTOP ONLY (Damir 2026-08-12): constant animation is a battery cost on
+ * phones, so the style picker offers it only under :root[data-desktop]. This
+ * module does not enforce that — the picker and the pre-paint pref script do
+ * (a mobile device that somehow carries the pref falls back to line art).
+ *
+ * Ink + intensity are READ FROM COMPUTED STYLE every frame, never captured:
+ * a theme switch or a move of the visibility dial applies live with no
+ * re-mount. --chat-pattern-opacity 0 (visibility Off) paints nothing at all,
+ * so "Off" keeps working exactly as it does for the tiles.
+ *
+ * Budget: ~25fps (frames closer than 40ms are skipped), devicePixelRatio
+ * capped at 2, ResizeObserver-driven backing-store sizing, the rAF loop is
+ * PAUSED whenever the document is hidden, and prefers-reduced-motion renders
+ * ONE static frame with no loop at all (the reduced-motion contract is honored
+ * in JS here because the token trick in tokens.css can only reach CSS motion).
+ *
+ * STACKING (corrected after a Windows F5 regression — do not "simplify"):
+ * the canvas is the FIRST child of .c-chat-canvas at z-index:-1, and the host
+ * gets its own stacking context via [data-flow] { z-index: 0 } in
+ * chat-flow.css. A negative-z child then paints ABOVE the host's gradient
+ * background but BELOW all in-flow content. Do NOT reach for a blanket
+ * position:relative on the siblings instead: that pulls the absolutely
+ * positioned jump-to-latest FAB into flow (left-aligned FAB + a blank band
+ * above the composer).
+ */
+
+const CHAT_FLOW = {   // Damir F5 2026-08-13 (supersedes the 2026-08-12 dial)
+  speed: 0.85,               // field drift, radians of t per second
+  spacing: 15,               // CSS px between dash centres
+  dash: 7,                   // CSS px, full dash length
+  lineWidth: 1.25,           // CSS px, dash stroke weight
+  fieldScale: 44,            // CSS px per field unit
+  fps: 25,                   // frame budget (skip anything under 1000/fps ms)
+  maxDpr: 2,
+};
+
+const FRAME_MS = 1000 / CHAT_FLOW.fps;
+
+/** angle(x, y, t) — x,y in FIELD UNITS (px / fieldScale), t in drifted seconds */
+function fieldAngle(x, y, t) {
+  return 0.9 * (Math.sin(1.7 * x + t) + Math.cos(1.3 * y - 0.8 * t) + Math.sin(0.8 * (x + y) + 0.5 * t));
+}
+
+function reduceMotion() {
+  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (e) { return false; }
+}
+
+/**
+ * attachChatFlow(host, opts?)
+ *   opts.still     — paint ONE frame and never loop (the settings swatch/preview:
+ *                    a live rAF per tile in a settings list is not worth a battery)
+ *   opts.spacing / opts.dash / opts.fieldScale — preview-only density overrides.
+ *                    The CHAT never passes these: its tuning is Damir-locked.
+ */
+function attachChatFlow(host, opts = {}) {
+  if (!host || host.__chatFlow) return host && host.__chatFlow;
+  const tune = {
+    spacing: opts.spacing > 0 ? opts.spacing : CHAT_FLOW.spacing,
+    dash: opts.dash > 0 ? opts.dash : CHAT_FLOW.dash,
+    fieldScale: opts.fieldScale > 0 ? opts.fieldScale : CHAT_FLOW.fieldScale,
+    lineWidth: opts.lineWidth > 0 ? opts.lineWidth : CHAT_FLOW.lineWidth,
+  };
+  const canvas = document.createElement('canvas');
+  canvas.className = 'c-chat-flow';
+  canvas.setAttribute('aria-hidden', 'true');
+  // getContext must be treated as THROWING, not merely nullable: jsdom (the
+  // smoke harness) raises "not implemented" rather than returning null, and a
+  // hardened WebView can do the same. Either way the caller falls back to the
+  // line-art tile — a pattern style must never be able to break the shell.
+  let ctx = null;
+  try { ctx = canvas.getContext && canvas.getContext('2d'); } catch (e) { ctx = null; }
+  if (!ctx) return null;                       // no 2d context → tile fallback below
+
+  // FIRST child (see STACKING above) + the host's own stacking context
+  host.prepend(canvas);
+  host.dataset.flow = '';
+
+  let dpr = 1, w = 0, h = 0;
+  let raf = 0, last = 0, paused = false, detached = false;
+  const still = !!opts.still || reduceMotion();
+  // t0 is captured at mount, not at module load: two chats opened minutes apart
+  // should not start the field at wildly different phases.
+  const t0 = (typeof performance === 'object' && performance.now) ? performance.now() : Date.now();
+
+  function measure() {
+    const cw = host.clientWidth, ch = host.clientHeight;
+    dpr = Math.min(CHAT_FLOW.maxDpr, (typeof devicePixelRatio === 'number' && devicePixelRatio > 0) ? devicePixelRatio : 1);
+    const nw = Math.max(1, Math.round(cw * dpr));
+    const nh = Math.max(1, Math.round(ch * dpr));
+    if (nw === w && nh === h) return false;
+    w = canvas.width = nw;
+    h = canvas.height = nh;
+    return true;
+  }
+
+  function draw(tMs) {
+    if (!w || !h) return;
+    const cs = getComputedStyle(host);
+    const ink = (cs.getPropertyValue('--chat-pattern-ink') || '').trim();
+    const rawOpacity = parseFloat(cs.getPropertyValue('--chat-pattern-opacity'));
+    const opacity = isNaN(rawOpacity) ? 1 : Math.min(1, Math.max(0, rawOpacity));
+    ctx.clearRect(0, 0, w, h);
+    // visibility Off (or an ink we can't resolve) → paint NOTHING; the canvas
+    // stays mounted and transparent, so the gradient shows through untouched.
+    if (!ink || opacity <= 0) return;
+
+    const t = (tMs / 1000) * CHAT_FLOW.speed;
+    const step = tune.spacing * dpr;
+    const half = (tune.dash / 2) * dpr;
+    const unit = tune.fieldScale * dpr;   // px → field units, at device scale
+
+    ctx.globalAlpha = opacity;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = tune.lineWidth * dpr;
+    ctx.lineCap = 'round';
+    // ONE path for the whole grid — a stroke() per dash costs ~30× more and
+    // was the difference between 25fps and jank on the Windows F5 pass.
+    ctx.beginPath();
+    for (let py = step / 2; py < h + step; py += step) {
+      const yu = py / unit;
+      for (let px = step / 2; px < w + step; px += step) {
+        const a = fieldAngle(px / unit, yu, t);
+        const dx = Math.cos(a) * half, dy = Math.sin(a) * half;
+        ctx.moveTo(px - dx, py - dy);
+        ctx.lineTo(px + dx, py + dy);
+      }
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function frame(now) {
+    raf = 0;
+    if (detached || paused) return;
+    if (now - last >= FRAME_MS) { last = now; draw(now - t0); }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (detached || paused || still || raf) return;
+    raf = requestAnimationFrame(frame);
+  }
+  function stop() {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+
+  /** repaint one frame without running the loop (theme flip, dial move, resize) */
+  function sync() {
+    if (detached) return;
+    measure();
+    const now = (typeof performance === 'object' && performance.now) ? performance.now() : Date.now();
+    draw(still ? 0 : now - t0);
+  }
+
+  /* measure() reassigns canvas.width/height, which CLEARS the backing store.
+     Resetting `last` forces the very next rAF to redraw instead of being
+     skipped by the 40ms budget gate — without it, dragging a window edge
+     clears every frame while only repainting every ~50ms, and the pattern
+     strobes off and on for the whole drag (#46 audit). */
+  const ro = (typeof ResizeObserver === 'function')
+    ? new ResizeObserver(() => { if (measure()) last = 0; if (still || paused) sync(); })
+    : null;
+  if (ro) ro.observe(host);
+  else window.addEventListener('resize', sync);
+
+  // the WebView keeps running when the app is backgrounded or the chat is
+  // covered by a native page — hidden means STOP, not "draw to nobody"
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') stop();
+    else { last = 0; start(); if (still) sync(); }
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+
+  const ctrl = {
+    sync,
+    pause() { paused = true; stop(); },
+    resume() { if (!paused) return; paused = false; last = 0; start(); if (still) sync(); },
+    detach() {
+      detached = true;
+      stop();
+      if (ro) ro.disconnect(); else window.removeEventListener('resize', sync);
+      document.removeEventListener('visibilitychange', onVisibility);
+      canvas.remove();
+      delete host.dataset.flow;
+      delete host.__chatFlow;
+    },
+  };
+  host.__chatFlow = ctrl;
+
+  measure();
+  sync();          // paint frame 0 immediately — no blank canvas before rAF
+  start();
+  return ctrl;
+}
+
+/** #44 free-fn grammar: the shell (or a future C# push) parks/unparks the loop */
+function setChatFlowPaused(host, isPaused) {
+  const ctrl = host && host.__chatFlow;
+  if (!ctrl) return;
+  if (isPaused) ctrl.pause(); else ctrl.resume();
+}
+
+/** detach a live flow canvas (style switched away, or the chat is torn down) */
+function detachChatFlow(host) {
+  const ctrl = host && host.__chatFlow;
+  if (ctrl) ctrl.detach();
+}
+
+/** repaint after a theme / visibility-dial change (no-op when flow isn't up) */
+function syncChatFlow(host) {
+  const ctrl = host && host.__chatFlow;
+  if (ctrl) ctrl.sync();
+}
+
 /* ---- src/components/message-menu.js ---- */
 /**
  * c-msgmenu — message context menu (batch 3). Spec: DESIGN_SYSTEM.md §5b,
@@ -3870,7 +4334,10 @@ function openMessageMenu({
   if (capabilities.reply) item('arrow-back-up', strings.reply || 'Reply', 'reply');
   if (capabilities.edit) item('pencil', strings.edit || 'Edit', 'edit'); // own messages only — shell/caller gates
   if (text) item('copy', strings.copy || 'Copy', 'copy');
-  if (capabilities.select && text) item('checks', strings.select || 'Select', 'select');   // multi-select entry (#139)
+  // multi-select entry (#139). NOT gated on `text` any more: selection now also
+  // carries bulk DELETE, which a file/payment/app card supports just as well —
+  // the copy action inside selection filters to the rows that have text.
+  if (capabilities.select) item('checks', strings.select || 'Select', 'select');
   if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
   // destructive group last (§5b)
   item('trash', strings.deleteMessage || 'Delete', 'delete', true);
@@ -3892,6 +4359,11 @@ function attachMessageMenu(row, opts = {}) {
   let fired = false;
 
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  /* While the log is in SELECTION mode every gesture belongs to the selection:
+     a long-press or right-click must toggle the row, not open a second surface
+     over the selection bar. Evaluated at fire time (rows are re-wired on every
+     re-render, but the mode can start and end between two of them). */
+  const selecting = () => !!(row.closest && row.closest('[data-selecting]'));
 
   target.addEventListener('pointerdown', (e) => {
     // ANY new gesture resets suppression — a right-click leaves fired=true
@@ -3908,6 +4380,7 @@ function attachMessageMenu(row, opts = {}) {
     cancel();
     timer = setTimeout(() => {
       timer = null;
+      if (selecting()) return;          // selection mode owns the gesture
       fired = true;
       openMessageMenu({ row, ...opts });
     }, LONG_PRESS_MS);
@@ -3930,6 +4403,7 @@ function attachMessageMenu(row, opts = {}) {
 
   target.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (selecting()) return;            // selection mode owns the gesture
     // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the same
     // moment the pointer timer fires — without this guard both paths opened
     // a sheet each (double scrim). Whichever path runs first wins.
@@ -4269,6 +4743,10 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
  * Photo + GIF are DESIGNED-IN but FEATURE-FLAGGED (`media: false`) until the
  * BE image standard lands (#81) — the #64 voice-flag precedent.
  *
+ * TITLE-LESS since 2026-08-12 (Damir): "Share" was wrong for a grid that sends
+ * a file / payment / request / app invite INTO the chat. `strings.attachTitle`
+ * is now the sheet's ARIA name only — see the createSheet call.
+ *
  * openAttachSheet({ host, media = false, apps = true, payments = true,
  *                   onAction, strings }) → sheet
  *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
@@ -4316,7 +4794,19 @@ function openAttachSheet({ host, media = false, apps = true, payments = true, on
     grid.append(tile);
   }
 
-  const sheet = createSheet({ title: strings.attachTitle || 'Share', content: grid, host, strings });
+  /* TITLE: none (Damir 2026-08-12 — "it's titled Share, that's incorrect").
+   * Nothing here is sharing: the tiles SEND things into this conversation (a
+   * file, a payment, a payment request, an app invite), and no single noun
+   * covers all four without lying ("Attach" is file-only, "Send" mis-describes
+   * Request). WhatsApp/Telegram/iMessage all ship this grid title-less — the ⊕
+   * that opened it plus six labelled tiles are the whole affordance, and a
+   * heading only steals a sheet row. The dialog still needs an ACCESSIBLE name,
+   * so attachTitle lives on as c-sheet's aria-label fallback ("Add to chat" —
+   * the one honest umbrella for all six). */
+  const sheet = createSheet({
+    content: grid, host,
+    strings: { ...strings, sheet: strings.attachTitle || 'Add to chat' },
+  });
   openSheet(sheet);
   return sheet;
 }
@@ -5384,11 +5874,14 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getSt
  * opts: { strings, host, capabilities:{pin,mute,favorites,…}, rowMenu,
  *         onOpen, onHandshakeBlocked(chat), onRequestAccept(req,row),
  *         onRequestDecline(req), onChatInfo(chat), onModelChange(state),
- *         onPersist(action,chat) }
+ *         onPersist(action,chat), onNewChat }
+ * onNewChat = the zero-state CTA (host opens the contacts picker, the SAME
+ * action as the FAB — no new bridge verb). Omit it and the CTA is not rendered.
  * capabilities gate BE-dependent features so they can be PARKED until BE ships
  * (#67/§8): pin/mute swipe + menu items render only when their flag is truthy.
  * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
  */
+
 
 
 
@@ -5481,7 +5974,9 @@ function chatsUnreadTotal(chats) {
 /* ————————————————————————————— render pipeline ————————————————————————————— */
 
 /** Empty-state copy for the active filter/query (defaults; strings override).
- *  (Placeholder copy — illustrations + CTAs are a later pass, Damir.) */
+ *  This is the NO-RESULTS line: a filter or a search matched nothing. The TRUE
+ *  zero state (All, no query, nothing in the roster) is a different object —
+ *  chatsEmptyState below hands that one to the shared c-empty block. */
 function chatsEmptyCopy(state, strings) {
   const q = (state.query || '').trim();
   // split/join, not replace(): a query with $-patterns ($&, $', $1…) would be
@@ -5497,7 +5992,35 @@ function chatsEmptyCopy(state, strings) {
   }
 }
 
-function chatsEmptyState(state, strings) {
+/** TRUE zero state (nothing exists yet) vs NO RESULTS (a filter/search missed).
+ *  Only the former earns the illustration + CTA — an "add your first…" pitch
+ *  under a search that matched nothing reads as if the data were gone. */
+function chatsIsZero(state) {
+  return (state.filter || 'all') === 'all' && !(state.query || '').trim();
+}
+
+function chatsEmptyState(state, strings, opts = {}) {
+  if (chatsIsZero(state)) {
+    // ★ LOAD WINDOW GATE (shared with apps-shell/wallet-shell). "No chats yet" +
+    // the illustration + "Start a chat" is a CLAIM about the roster; an empty
+    // model during the clearChats→addChat×N flush is not that claim. The shell
+    // builds this list synchronously at boot, BEFORE the bridge has answered, so
+    // an ungated construction render paints the full zero state on every F5 and
+    // then pops the real rows in. zeroReady:false → NO empty node (a blank beat);
+    // the host opens the gate on the end-of-burst signal it already owns.
+    // A filter/search miss is about the QUERY, not the roster → never gated.
+    if (opts.zeroReady === false) return null;
+    return createEmptyState({
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.svg',
+      glyph: 'messages',                            // art blocked/missing → token glyph tile
+      title: strings.chatsEmptyAll || 'No chats yet',
+      body: strings.chatsEmptyBody
+        || 'Pick a contact and say hi — messages go straight to their device, end-to-end encrypted.',
+      actionLabel: strings.chatsEmptyCta || 'Start a chat',
+      actionIcon: 'message-plus',
+      onAction: opts.onNewChat,
+    });
+  }
   const el = document.createElement('div');
   el.className = 'c-chats-empty';
   el.setAttribute('role', 'note');
@@ -5557,7 +6080,10 @@ function renderChatsList(listEl, state, opts = {}) {
   const timeline = orderedTimeline(state);
   for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
 
-  if (!timeline.length) listEl.append(chatsEmptyState(state, strings));
+  if (!timeline.length) {
+    const emptyEl = chatsEmptyState(state, strings, opts);
+    if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
+  }
   return listEl;
 }
 
@@ -5914,6 +6440,15 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
     const img = document.createElement('img');
     img.className = 'c-app-icon__img';
     img.alt = '';                          // decorative — the name label carries meaning
+    img.draggable = false;
+    // Perf (Apps-screen slowness): C# pushes each icon as a `data:image/png;base64,…`
+    // URI (HomePage.xaml.cs:2752 → Utils.imageToDataUri), i.e. a full PNG the WebView
+    // must DECODE. `decoding=async` keeps that decode off the main thread (it used to
+    // block the frame that built the row) and `loading=lazy` defers the decode of rows
+    // below the fold — with 5+ apps in grid layout that is most of them. Both are
+    // hints: an engine that ignores them behaves exactly as before.
+    img.decoding = 'async';
+    img.loading = 'lazy';
     // Graceful fallback (mirrors c-avatar): a C# icon path that doesn't resolve in a
     // self-contained shell must NOT show a broken-image glyph — drop the <img> and
     // render the gradient tile. Handler BEFORE src so a sync-cached error still fires.
@@ -6083,10 +6618,27 @@ function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = 
  * Model:
  *   app:   { id, name, icon, creator }
  *   state: { apps:[], query:'', layout:'list'|'grid' }
- * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange }
+ * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange,
+ *          emptyIllustration, onAddApp }
  *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
  *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
+ *         emptyIllustration + onAddApp drive the FULL empty state (c-empty-state) shown
+ *         when nothing is installed; a search that matches nothing keeps the small note.
+ *         zeroReady:false suppresses that full empty state entirely — the surface has
+ *         not been given data yet, so it may not claim the account is empty (see ★).
+ *
+ * ★ ROW REUSE (perf). renderAppsList used to `textContent = ''` and rebuild every row,
+ * which meant a brand-new <img> — and therefore a fresh resource lookup + decode of a
+ * multi-hundred-KB `data:image/png` icon — on EVERY render. Renders are NOT rare:
+ * HomePage.loadApps(true) re-pushes clearApps + addApp-per-app on every switch to the
+ * Apps tab (HomePage.xaml.cs:636-638 → :2727), each addApp schedules a render, and
+ * every search keystroke renders too. Rows are now KEYED BY APP ID and reused whenever
+ * their visible fields are unchanged, so an identical re-push mutates ZERO DOM nodes
+ * and re-decodes ZERO images. The cache survives the intermediate EMPTY render that
+ * clearApps produces when C# dispatches its burst across frames — that is exactly the
+ * "it reloads the app images every time" symptom.
  */
+
 
 
 
@@ -6135,39 +6687,163 @@ function appsEmptyCopy(state, strings) {
   return strings.appsEmptyAll || 'No mini apps yet';
 }
 
-function appsEmptyState(state, strings) {
-  const el = document.createElement('div');
-  el.className = 'c-apps-empty';
-  el.setAttribute('role', 'note');
-  el.textContent = appsEmptyCopy(state, strings);
+/* ————————————————————— row cache (keyed reuse, see docblock) —————————————————
+ * Per-list, keyed by app id (index fallback for the id-less rows a demo may feed).
+ * Entries survive an empty render on purpose — the clearApps → addApp×N burst would
+ * otherwise throw every row (and every decoded icon) away mid-flight. Capped so an
+ * install/uninstall churn can't grow it without bound.                             */
+const listCaches = new WeakMap();
+const ROW_CACHE_MAX = 64;
+
+function cacheFor(listEl) {
+  let c = listCaches.get(listEl);
+  if (!c) { c = { rows: new Map(), live: new Map(), empty: null, emptyKind: null }; listCaches.set(listEl, c); }
+  return c;
+}
+function rowKey(app, i) {
+  return (app && app.id != null && app.id !== '') ? 'id:' + app.id : 'ix:' + i;
+}
+/** Cheap field-wise equality — deliberately NOT a joined signature string, which
+ *  would copy the whole data-URI icon on every render (the cost we came to remove). */
+function rowFresh(hit, a, layout, hasInfo, hasMenu) {
+  return !!hit
+    && hit.layout === layout
+    && hit.name === (a.name || '')
+    && hit.creator === (a.creator || '')
+    && hit.icon === (a.icon || null)
+    && hit.hasInfo === hasInfo
+    && hit.hasMenu === hasMenu;
+}
+
+/** The empty node: a full c-empty-state when NOTHING is installed (illustration +
+ *  headline + supporting line + the Add-app CTA), the quiet inline note when a
+ *  SEARCH matched nothing (an illustration for "no results" reads as an error).
+ *  Returns null when there is nothing to say yet (the LOAD WINDOW — see below). */
+function appsEmptyNode(cache, state, opts, strings) {
+  const q = (state.query || '').trim();
+  // Kind carries the SHAPE, not just the branch: a surface that renders once without
+  // art/CTA (a bare demo render, a bridge push that lands before opts are wired) must
+  // not pin an art-less node for every later render — the cached node would silently
+  // outlive the opts that were supposed to fill it.
+  const kind = q ? 'search' : 'all:' + (opts.emptyIllustration ? 'i' : '-') + (opts.onAddApp ? 'a' : '-');
+  // ★ LOAD WINDOW GATE. The illustrated state is a CLAIM about the account ("you
+  // have no mini apps") — an EMPTY MODEL is not that claim while the surface is
+  // still being filled. The shell builds this list synchronously at boot and
+  // C#'s clearApps→addApp×N burst is NOT reliably same-frame, so an ungated
+  // render paints the full zero state (art + CTA) over a list that is about to
+  // fill. `zeroReady:false` renders NO empty node at all — a blank beat, not a
+  // false claim; the host opens the gate once the surface has been given data
+  // (or has gone quiet with nothing in it). A no-match SEARCH is a statement
+  // about the QUERY, not the account, so it is never gated.
+  if (kind !== 'search' && opts.zeroReady === false) return null;
+  if (cache.empty && cache.emptyKind === kind) {
+    if (kind === 'search') cache.empty.textContent = appsEmptyCopy(state, strings);
+    return cache.empty;
+  }
+  let el;
+  if (kind === 'search') {
+    el = document.createElement('div');
+    el.className = 'c-apps-empty';
+    el.setAttribute('role', 'note');
+    el.textContent = appsEmptyCopy(state, strings);
+  } else {
+    el = createEmptyState({
+      illustration: opts.emptyIllustration || null,
+      glyph: 'apps',
+      title: strings.appsEmptyTitle || 'Mini apps, right inside Spixi',
+      body: strings.appsEmptyBody
+        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file — it takes seconds.',
+      actionLabel: opts.onAddApp ? (strings.addApp || 'Add app') : '',
+      actionIcon: 'circle-plus',
+      onAction: opts.onAddApp || null,
+    });
+    el.classList.add('c-apps-empty-state');
+  }
+  cache.empty = el;
+  cache.emptyKind = kind;
   return el;
 }
 
 /** (Re)render the whole list from the model. `state.layout` picks row vs card and
- *  sets `listEl[data-layout]` so the CSS switches between a column and a 2-up grid. */
+ *  sets `listEl[data-layout]` so the CSS switches between a column and a 2-up grid.
+ *  Rows are REUSED by app id when nothing visible changed (docblock ★) — an identical
+ *  re-push performs zero DOM mutations and zero image decodes. */
 function renderAppsList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   const layout = state.layout === 'grid' ? 'grid' : 'list';
   listEl.dataset.layout = layout;
-  listEl.textContent = '';                             // clear (detaches old rows + listeners for GC)
 
+  const cache = cacheFor(listEl);
   const apps = orderedApps(state);
-  for (const a of apps) {
-    listEl.append(createAppItem({
+  const hasInfo = !!(opts.appMenu === false && opts.onOpen);
+  const hasMenu = opts.appMenu !== false;
+
+  // Cache keys, de-duplicated. A feed CAN hand us two entries sharing an id (a
+  // double addApp for the same app, a malformed manifest): the shared key made
+  // rowFresh return the SAME element twice, `nodes` held one node twice, and the
+  // insert-before reconcile below simply MOVED it — rendering ONE row for two
+  // model entries (a silently swallowed app). Every duplicate falls back to its
+  // own index-scoped key, so the list never renders fewer rows than the model has.
+  const seenKeys = new Set();
+  const keys = apps.map((a, i) => {
+    const k = rowKey(a, i);
+    if (!seenKeys.has(k)) { seenKeys.add(k); return k; }
+    return k + '#' + i;
+  });
+
+  // Live index FIRST: a REUSED row's handlers resolve their app THROUGH this map, so
+  // a re-push (which hands us brand-new objects for the same apps) can never leave a
+  // row holding a stale reference — the bug an identity-based uninstall would hit.
+  cache.live.clear();
+  apps.forEach((a, i) => cache.live.set(keys[i], a));
+
+  const nodes = apps.map((a, i) => {
+    const key = keys[i];
+    const hit = cache.rows.get(key);
+    if (rowFresh(hit, a, layout, hasInfo, hasMenu)) return hit.el;
+    const cur = () => cache.live.get(key) || a;          // always the CURRENT model object
+    const el = createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(a) : undefined,   // tap → LAUNCH the app
+      onOpen: opts.onLaunch ? () => opts.onLaunch(cur()) : undefined,   // tap → LAUNCH the app
       // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
       // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
       // details handler exists — so a menu-driven surface (demos) never doubles up.
-      onInfo: (opts.appMenu === false && opts.onOpen) ? () => opts.onOpen(a) : undefined,
-      onMenu: opts.appMenu === false ? undefined : () => openAppMenu({
-        app: a, host: opts.host, strings,
+      onInfo: hasInfo ? () => opts.onOpen(cur()) : undefined,
+      onMenu: !hasMenu ? undefined : () => openAppMenu({
+        app: cur(), host: opts.host, strings,
         allowInvite: !!opts.onLaunchMulti,   // A9: never render a row that no-ops (#184 class)
-        onAction: (action) => applyAppAction(listEl, state, a, action, opts),
+        onAction: (action) => applyAppAction(listEl, state, cur(), action, opts),
       }),
-    }));
+    });
+    cache.rows.set(key, { el, layout, name: a.name || '', creator: a.creator || '', icon: a.icon || null, hasInfo, hasMenu });
+    return el;
+  });
+  const emptyEl = apps.length ? null : appsEmptyNode(cache, state, opts, strings);
+  if (emptyEl) nodes.push(emptyEl);
+  // data-empty = "nothing installed at all" (the illustrated state) — the CSS grows the
+  // list to fill the scroller and centres it. A no-match SEARCH is NOT this state, and
+  // neither is the gated load window (no empty node at all → no [data-empty]).
+  if (emptyEl && String(cache.emptyKind || '').startsWith('all')) listEl.dataset.empty = '';
+  else delete listEl.dataset.empty;
+
+  /* In-place reconcile: only nodes that actually MOVED are touched. A re-push of an
+   * unchanged list walks the children and mutates nothing (replaceChildren would
+   * detach + reattach every row instead). */
+  let cursor = listEl.firstChild;
+  for (const n of nodes) {
+    if (cursor === n) { cursor = cursor.nextSibling; continue; }
+    listEl.insertBefore(n, cursor);
   }
-  if (!apps.length) listEl.append(appsEmptyState(state, strings));
+  while (cursor) { const next = cursor.nextSibling; listEl.removeChild(cursor); cursor = next; }
+
+  // trim the cache oldest-first, never dropping a row that is on screen right now
+  if (cache.rows.size > ROW_CACHE_MAX) {
+    const keep = new Set(keys);
+    for (const k of [...cache.rows.keys()]) {
+      if (cache.rows.size <= ROW_CACHE_MAX) break;
+      if (!keep.has(k)) cache.rows.delete(k);
+    }
+  }
   return listEl;
 }
 
@@ -6179,7 +6855,14 @@ function applyAppAction(listEl, state, app, action, opts = {}) {
     case 'open': if (opts.onLaunch) opts.onLaunch(app); return;
     case 'details': if (opts.onOpen) opts.onOpen(app); return;
     case 'invite': if (opts.onLaunchMulti) opts.onLaunchMulti(app); return;   // A9 (#302): dual-capability app
-    case 'uninstall': state.apps = (state.apps || []).filter((a) => a !== app); break;
+    // by ID, not by object identity: rows are reused across re-pushes, so the object
+    // a handler hands back may be a different instance describing the same app.
+    case 'uninstall':
+      state.apps = (state.apps || []).filter((a) => {
+        if (a === app) return false;
+        return !(a && app && app.id != null && app.id !== '' && a.id === app.id);
+      });
+      break;
     default: return;
   }
   if (opts.onUninstall) opts.onUninstall(app);              // bridge intent (mock no-op)
@@ -6327,17 +7010,39 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
   bt2.append(document.createTextNode(ctaText), icon('arrow-right', { size: 18 }));
   btext.append(bt1, bt2);
   banner.append(btext);
+  // Illustration (Damir 2026-08-12): a FLEX SIBLING of the copy, pinned bottom-right
+  // by apps-header.css. Sibling (not an absolute overlay) is what guarantees the copy
+  // can never end up underneath the art at a narrow width. Decorative → alt="" and
+  // the banner's own aria-label carries the meaning. A missing/blocked asset simply
+  // removes itself — the banner is fully functional without it.
   if (exploreImage) {
     const illo = document.createElement('img');
     illo.className = 'c-apps-explore__illo';
-    illo.src = exploreImage;
     illo.alt = '';
+    illo.draggable = false;
+    illo.decoding = 'async';                 // ~800 KB export — never block the header's first paint
+    // …and `decoding` only defers the DECODE. The Apps tab is HIDDEN at shell boot,
+    // so without `lazy` the largest asset in the app is fetched + parsed for a
+    // surface the user may never open (empty-state.js / apps-icon.js do the same).
+    illo.loading = 'lazy';
+    illo.addEventListener('error', () => illo.remove(), { once: true });
+    illo.src = exploreImage;
     banner.append(illo);
   }
   banner.setAttribute('aria-label', bt1.textContent + ' ' + ctaText);
   banner.addEventListener('click', () => { if (onExplore) onExplore(); });
   el.append(banner);
 
+  return el;
+}
+
+/** Free fn (#44): flag the header as "nothing installed" — hides the search + layout
+ *  row (dead controls when there is nothing to search or re-lay-out) and leaves the
+ *  Explore banner, which is the discovery route the empty state points at. */
+function setAppsHeaderEmpty(el, empty) {
+  if (!el) return el;
+  if (empty) el.dataset.empty = '';
+  else delete el.dataset.empty;
   return el;
 }
 
@@ -7431,10 +8136,13 @@ function setWalletHeroCompact(el, compact) {
  *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
  *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
  *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
+ *   opts.onReceive() — the zero-state CTA: opens the SAME Receive surface the
+ *   hero's Receive action opens (no new bridge verb). Omit it → no CTA.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
  */
+
 
 
 
@@ -7479,16 +8187,49 @@ function orderedTxs(state) {
 
 /* ————————————————————————————— tx list ————————————————————————————— */
 
-function walletEmpty(state, strings) {
+/** TRUE zero state (no ledger at all) vs NO RESULTS (Sent/Received or a search
+ *  matched nothing). Only the former gets the illustration + Receive CTA: under
+ *  a "Sent" chip that found nothing, "get your first IXI" would be wrong advice.
+ *
+ *  ★ LOAD WINDOW GATE (shared with chats-shell/apps-shell). "No activity yet" +
+ *  the illustration + "Show my address" is a CLAIM about the ledger, and the empty
+ *  model between clearPaymentActivity and the addPaymentActivity burst (which has
+ *  no done signal and is NOT reliably same-frame) is not that claim. `zeroReady:
+ *  false` → return null, i.e. NO empty node at all: a blank beat, never a false
+ *  claim. The host opens the gate once the surface has actually been given data —
+ *  or has demonstrably settled with none. A Sent/Received chip or a search miss is
+ *  a statement about the FILTER, not the ledger, so it is never gated.
+ *  Returns null while gated. */
+function walletEmpty(state, strings, opts = {}) {
+  const q = (state.query || '').trim();
+  const f = state.filter || 'all';
+  if (!q && f === 'all') {
+    if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
+    return createEmptyState({
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.svg',
+      glyph: 'wallet',                              // art blocked/missing → token glyph tile
+      title: strings.walletEmptyAll || 'No activity yet',
+      // ONE short line: the hero leaves ~360px for this whole block, and the second
+      // sentence ("share your address…") only restated the CTA. In de-de it wrapped
+      // to four lines and pushed "Show my address" clean under the bottom nav.
+      body: strings.walletEmptyBody
+        || 'Payments you send and receive show up here.',
+      actionLabel: strings.walletEmptyCta || 'Show my address',
+      actionIcon: 'qrcode',
+      onAction: opts.onReceive,
+      // The hero (balance + Send/Receive/Scan) already owns ~300px above this list,
+      // so the FULL-height rhythm pushed the CTA under the bottom nav on a 390×844
+      // phone — a zero state whose only action needs a scroll to find. compact is
+      // the house answer for an in-list state (the contacts picker rides it too).
+      compact: true,
+    });
+  }
   const el = document.createElement('div');
   el.className = 'c-wallet-empty';
   el.setAttribute('role', 'note');
-  const q = (state.query || '').trim();
-  const f = state.filter || 'all';
   el.textContent = q ? (strings.walletEmptySearch || 'No transactions match “{q}”').split('{q}').join(q)
     : f === 'sent' ? (strings.walletEmptySent || 'No sent payments yet')
-    : f === 'received' ? (strings.walletEmptyReceived || 'No received payments yet')
-    : (strings.walletEmptyAll || 'No activity yet — payments you send and receive show up here');
+    : (strings.walletEmptyReceived || 'No received payments yet');
   return el;
 }
 
@@ -7515,7 +8256,10 @@ function renderWalletTxList(listEl, state, opts = {}) {
       },
     }));
   }
-  if (!txs.length) listEl.append(walletEmpty(state, strings));
+  if (!txs.length) {
+    const emptyEl = walletEmpty(state, strings, opts);
+    if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
+  }
   return listEl;
 }
 
@@ -10743,27 +11487,47 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
  * §9 ask; shells can use navigator.share where present).
  *
  * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
- * input follows wallet-send's sanitize rules (shared export) and a contact strip
- * appears: "Send request to a contact" → onSendRequest({ contact, amount }) mirrors
- * the legacy `ixian:sendrequest` payload, amount CANONICALIZED ('12.'→'12', '.5'→'0.5',
- * '007'→'7'; audit M1 — what leaves this surface is what a legacy parser must read).
- * onSendRequest is FIRE-AND-FORGET (audit m4): the ✓ morph confirms the intent left
- * this surface, not chain/chat delivery — matching the legacy command's semantics.
+ * input follows wallet-send's sanitize rules (shared export), then a MULTI-SELECT
+ * contact list and ONE primary CTA.
+ *
+ * ★ W9 (Damir, Windows F5 2026-08-13): "when I sent a request to someone I still
+ * remain in the same screen with input active and I can add more … perhaps we can
+ * have a multiselect as for group creation and then 1 SEND REQUEST button that then
+ * confirms it was sent, and we return to wallet screen."
+ *   · The rows are the GROUP-CREATION grammar, verbatim (contacts-shell pickerRow):
+ *     role=checkbox + aria-checked + the trailing check circle; the rule/count line
+ *     under the heading is the c-contacts__minhint pattern (SAME element, same
+ *     height, text swapped — it must never reflow the list under a finger).
+ *   · The per-row send arrow is GONE, and with it the whole per-row latch (state
+ *     .latch / [data-acted] / the ✓ morph / the [data-needs-amount] arrow gate).
+ *     Selecting is not sending, so nothing on a row needs gating any more; the
+ *     amount rule moved onto the CTA, which is the only thing that can send.
+ *   · Double-fire protection SURVIVES, on the CTA (#72④): `state.sending` latches
+ *     for the length of the loop and the CTA is disabled with it.
+ *   · The bridge verb stays PER CONTACT (`ixian:sendrequest:<addr>:<amount>`, one
+ *     at a time) — this loops the existing verb, it does not invent a batch one.
+ *     onSendRequest is called once per selected contact; returning `false` (or
+ *     throwing) marks THAT recipient as not sent. PARTIAL FAILURE never navigates:
+ *     the ones that went are deselected, the ones that did not stay selected, and
+ *     the result line says so — so "try again" retries exactly the remainder.
+ *   · onRequestsSent({ amount, contacts, text }) fires only on an ALL-CLEAR run;
+ *     the shell toasts `text` and closes the takeover ("we return to wallet
+ *     screen"). Without it the component keeps its own inline success line, so a
+ *     standalone mount still confirms.
+ * Amount is CANONICALIZED before it leaves ('12.'→'12', '.5'→'0.5', '007'→'7';
+ * audit M1 — what leaves this surface is what a legacy parser must read).
  * ★ #303 (Damir, 2026-08-04 F5): the QR NEVER re-encodes to `address:send:amount` —
  * amount-request QRs aren't a supported flow, so the QR is constant `address:ixi`
- * and an entered amount drives ONLY the contact-request strip (receiving/scanning
+ * and an entered amount drives ONLY the contact list (receiving/scanning
  * `address:send:` QRs from elsewhere is untouched — setSendAddress still parses it).
- * Collapsing the reveal still clears the amount (fresh state next open).
- *
- * Request latch (audit M2/M3/M5 rework): the latch lives in STATE, not on row DOM —
- * search re-renders keep it; the acted row stays ENABLED (focus is not dropped) and
- * carries the ✓; a hidden live region announces the send; changing the amount
- * mid-latch cancels it and resets the morph (no stale "sent" against a new amount).
+ * Collapsing the reveal clears the amount AND the selection (fresh state next open):
+ * the visible QR must never encode an amount the user can no longer see.
  *
  * No FE money math here beyond sanitize — a request is a message, not a spend;
  * the bridge re-validates when the payer acts on it.
  *
- * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest }) → view
+ * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest,
+ *                       onRequestsSent }) → view
  * Free fn (#44): setRequestAmount(el, amount) — programmatic amount (tests/bridge);
  *   Numbers are expanded to plain decimals first (audit C1: String(1e-7) → '1e-7'
  *   would sanitize into '17' — a silent magnitude change).
@@ -10785,11 +11549,13 @@ let walletReceiveSeq = 0;                                  // aria-controls ids 
 
 function createWalletReceive({
   address = '', contacts = [], strings = getStrings(), host,
-  onShare, onSendRequest,
+  onShare, onSendRequest, onRequestsSent,
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-wallet-receive';
-  const state = { amount: '', contactQuery: '', latch: null };   // latch: { address, timer }
+  /* W9: `selected` = the addresses ticked in the multi-select; `sending` = the
+     one-at-a-time latch that replaced the per-row one (#72④ double-fire guard). */
+  const state = { amount: '', contactQuery: '', selected: new Set(), sending: false };
 
   /* guard (audit m2): a receive surface without an address must not present a
      confidently scannable garbage QR */
@@ -10807,16 +11573,24 @@ function createWalletReceive({
   const qrLabel = () => (strings.qrReceiveLabel || 'QR code — your Ixian address');
   const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
 
-  /* ——— QR card ——— */
+  /* ——— QR card ———
+   * W6 (Damir 2026-08-12): card + caption live in ONE collapsible section so
+   * "Request an amount" can animate them away upward (max-height/opacity/transform
+   * on the --duration-300 / --easing-standard tokens — the wallet-hero #114
+   * pattern; reduced motion zeroes those tokens globally, so NO media query here
+   * and no JS motion branch). */
+  const qrSection = document.createElement('div');
+  qrSection.className = 'c-wallet-receive__qr';
   const card = document.createElement('div');
   card.className = 'c-wallet-receive__qrcard';
   const qr = createQrSvg(qrValue(), { label: qrLabel() });
   card.append(qr);
-  el.append(card);
+  qrSection.append(card);
 
   const caption = document.createElement('p');
   caption.className = 'c-wallet-receive__caption';         // visible copy — announcements go to the live region
-  el.append(caption);
+  qrSection.append(caption);
+  el.append(qrSection);
 
   /* hidden live region (audit m3/M3): announces MODE TRANSITIONS and the request-sent
      confirmation — not every keystroke (the caption used to be aria-live and spammed) */
@@ -10904,10 +11678,14 @@ function createWalletReceive({
   reqRow.append(reqGlyph, reqLabel, icon('chevron-down', { size: 18 }));
   el.append(reqRow);
 
+  /* W6: `hidden` cannot animate, so the reveal rides the house data-open +
+     aria-hidden pattern (settings-backup precedent). Closed state also carries a
+     negative margin that eats the parent's 16 gap — a collapsed box must leave no
+     hole where `display:none` used to leave none. */
   const reqBox = document.createElement('div');
   reqBox.className = 'c-wallet-receive__reqbox';
   reqBox.id = boxId;
-  reqBox.hidden = true;
+  reqBox.setAttribute('aria-hidden', 'true');
   el.append(reqBox);
 
   const amtRow = document.createElement('div');
@@ -10932,32 +11710,170 @@ function createWalletReceive({
    * above is client-side and stays available regardless. */
   let askBox = null;
   let rows = null;
+  let hint = null;
+  let result = null;
+  let cta = null;
+  let ctaLabel = null;
   if (onSendRequest) {
     askBox = document.createElement('div');
     askBox.className = 'c-wallet-receive__ask';
-    askBox.hidden = true;
+    // W6/W9: the list is never gated as a whole and its rows are never disabled —
+    // ticking a name is not a send, so it costs nothing before an amount exists.
+    // The rule/count line below states what is still missing (c-contacts__minhint
+    // grammar), and the CTA is the only thing that can actually fire.
     const askLabel = document.createElement('h2');
     askLabel.className = 'c-wallet-receive__asklabel';
-    askLabel.textContent = strings.sendRequestTo || 'Send request to a contact';
-    askBox.append(askLabel);
+    askLabel.textContent = strings.requestFromWho || 'Who to request from';
+    hint = document.createElement('p');
+    hint.className = 'c-wallet-receive__hint';
+    // role=status (not note): the line SWAPS between the unmet rule and the live
+    // count in place, and that swap is the only feedback a SR user gets for a tick.
+    hint.setAttribute('role', 'status');
+    hint.textContent = strings.requestNeedsAmount || 'Enter an amount to send a request';
+    askBox.append(askLabel, hint);
     const search = createSearchField({
       placeholder: strings.searchContacts || 'Search contacts',
       onInput: (v) => renderContacts(v),
+      /* NO onSubmit. §W6 says "same for Enter-to-send IF the search field
+         supports it" — a permission to extend an EXISTING path, not to mint
+         one. Enter in a search box is a filter/dismiss gesture; wiring it to
+         "send to whoever is currently first" fires real money-request messages
+         at an arbitrary contact with no confirm step (an empty query sends to
+         the first contact in the roster, and a soft keyboard's Go key fires it
+         too). Sending stays the explicit CTA press below. (#46 audit) */
       strings,
     });
     askBox.append(search);
     rows = document.createElement('div');
     rows.className = 'c-wallet-receive__contacts';   // scrolls (Damir F5); NO card/.u-scroll — both added padding inside the request box
+    /* W9: an independent multi-select roster — the same container role group
+       creation's checkbox list carries (contacts-shell renders bare checkbox rows
+       for the group case; radiogroup is the app-pick single-select variant). */
+    rows.setAttribute('role', 'group');
+    rows.setAttribute('aria-label', strings.requestFromWho || 'Who to request from');
     askBox.append(rows);
+    /* W9 result line — the VISIBLE half of the send outcome (success or partial
+       failure). aria-hidden: the hidden live region above is the single announcer,
+       so a screen reader hears the outcome once, not twice. */
+    result = document.createElement('p');
+    result.className = 'c-wallet-receive__result';
+    result.setAttribute('aria-hidden', 'true');
+    result.hidden = true;
+    askBox.append(result);
+    /* W9 CTA — ONE primary action, carrying BOTH levers it commits: the amount and
+       how many people it goes to. On a money surface the button is the last thing
+       the eye is on, so it restates the number the user typed (a mistyped amount
+       stays visible at the moment of commitment) and the count (a stray tick is
+       visible too). "(3)" keeps it one short line in every locale; the full
+       sentence lives in aria-label. */
+    cta = createButton({
+      label: strings.sendRequest || 'Send request',
+      type: 'fill', size: 44, width: 'full',
+      disabled: true,
+      onClick: () => sendRequests(),
+    });
+    cta.classList.add('c-wallet-receive__cta');
+    ctaLabel = cta.querySelector('.c-button__label');
+    askBox.append(cta);
     reqBox.append(askBox);
   }
 
-  /* latch helpers (audit M2/M5): state-held so re-renders keep it, amount edits kill it */
-  function clearLatch(rerender) {
-    if (!state.latch) return;
-    clearTimeout(state.latch.timer);
-    state.latch = null;
-    if (rerender) renderContacts(state.contactQuery);      // resets morphs + re-enables rows
+  /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a
+   * keystroke never rebuilds 50 avatars or drops the list's scroll position —
+   * the same reason applyAmountGate existed before it. */
+  function selectedContacts() {
+    // filtered from the FULL roster, not the rendered rows: a selection made
+    // before a search must not be silently dropped by the search that follows.
+    return contacts.filter((c) => c && c.address && state.selected.has(c.address));
+  }
+  function syncCta() {
+    const n = state.selected.size;
+    const amount = requestable(state.amount) ? canonicalAmount(state.amount) : '';
+    const ready = !!amount && n > 0;
+    if (hint) {
+      // Damir F5 2026-07-29 (contacts-shell precedent): the line STAYS and only
+      // changes what it says — hiding it collapses its box and jumps the list.
+      hint.textContent = !amount
+        ? (strings.requestNeedsAmount || 'Enter an amount to send a request')
+        : (n ? (strings.selectedCount || '{n} selected').split('{n}').join(String(n))
+          : (strings.requestPickContacts || 'Pick at least one contact.'));
+    }
+    if (!cta) return;
+    cta.disabled = !ready || state.sending;
+    if (ctaLabel) {
+      ctaLabel.textContent = ready
+        ? (strings.requestCta || 'Request {a} IXI ({n})')
+          .split('{a}').join(amount).split('{n}').join(String(n))
+        : (strings.sendRequest || 'Send request');
+    }
+    cta.setAttribute('aria-label', ready
+      ? (strings.requestCtaLabel || 'Request {a} IXI from {n} selected')
+        .split('{a}').join(amount).split('{n}').join(String(n))
+      : (strings.sendRequest || 'Send request'));
+  }
+
+  /** W9: outcome line + the single SR announcement. tone 'ok' | 'error'. */
+  function showResult(text, tone) {
+    live.textContent = text || '';
+    if (!result) return;
+    result.textContent = text || '';
+    result.dataset.tone = tone || 'ok';
+    result.hidden = !text;
+  }
+
+  /* W9 — the ONE send path. Loops the per-contact legacy verb; never navigates on
+   * a partial failure (see docblock). #72④ lives here now: `state.sending` latches
+   * for the loop so a double-tap (or a synthetic click) cannot re-enter it. */
+  function sendRequests() {
+    if (state.sending) return;                             // #72④: a request is a message — no double fire
+    // Explicit guard, not just the disabled attribute: a programmatic/synthetic
+    // click must never get a request for "" (or for nobody) off this surface.
+    if (!requestable(state.amount)) return;
+    const targets = selectedContacts();
+    if (!targets.length) return;
+    const amount = canonicalAmount(state.amount);
+    state.sending = true;
+    syncCta();
+    showResult('', 'ok');
+    const failed = [];
+    for (const c of targets) {
+      let sent = true;
+      // One send per contact. A throw (or an explicit `false`) means THIS
+      // recipient did not go — the rest of the loop still runs, so one bad
+      // address cannot swallow the requests queued behind it.
+      try { sent = onSendRequest({ contact: c, amount }) !== false; }
+      catch (e) { sent = false; }
+      if (sent) state.selected.delete(c.address); else failed.push(c);
+    }
+    state.sending = false;
+    const sentCount = targets.length - failed.length;
+    renderContacts(state.contactQuery);                    // repaint the ticks (the sent ones cleared)
+    if (failed.length) {
+      // Stay put. The failures are still ticked, so the CTA now retries exactly
+      // the remainder — and the count in its label says how many that is.
+      showResult(sentCount
+        ? (strings.requestSentPartly || 'Sent to {n} — the rest are still selected. Try again.')
+          .split('{n}').join(String(sentCount))
+        : (strings.requestFailed || 'Couldn’t send the request. Check the address and try again.'),
+        'error');
+      syncCta();
+      return;
+    }
+    const text = sentCount === 1
+      ? (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
+        .split('{a}').join(amount).split('{name}').join(targets[0].name || targets[0].address)
+      : (strings.requestSentToMany || 'Request for {a} IXI sent to {n} contacts')
+        .split('{a}').join(amount).split('{n}').join(String(sentCount));
+    // All clear → the request is spent: clear the amount too, so a surface that
+    // stays mounted can never re-fire the same request against a stale number.
+    state.amount = '';
+    amtInput.value = '';
+    sync();
+    showResult(text, 'ok');
+    // "and we return to wallet screen" — the shell confirms (toast) and closes the
+    // takeover. No onRequestsSent (standalone mount) → the inline line above IS
+    // the confirmation and the surface stays.
+    if (onRequestsSent) onRequestsSent({ amount, contacts: targets, text });
   }
 
   function renderContacts(q) {
@@ -10982,32 +11898,25 @@ function createWalletReceive({
       const t = document.createElement('span');
       t.className = 'c-wallet-receive__contactname';
       t.textContent = c.name || c.address;
-      const go = document.createElement('span');
-      go.className = 'c-wallet-receive__contactgo';
-      b.append(t, go);
-      if (state.latch && state.latch.address === c.address) {
-        // the acted row survives re-renders with its ✓ (audit M2) and stays ENABLED —
-        // disabling the focused control would drop keyboard focus to body (audit M3)
-        b.dataset.acted = '';
-        go.append(icon('check', { size: 18 }));
-      } else {
-        go.append(icon('send-2', { size: 18 }));
-        if (state.latch) b.disabled = true;                // one request in flight at a time
-      }
+      /* W9 — the group-creation row grammar (contacts-shell pickerRow): an
+         independent multi-select roster is role=checkbox + aria-checked (NOT
+         aria-pressed, which is for toggle buttons), with the trailing check
+         circle as the affordance. */
+      const check = document.createElement('span');
+      check.className = 'c-wallet-receive__check';
+      check.setAttribute('aria-hidden', 'true');
+      check.append(icon('check', { size: 16 }));
+      b.append(t, check);
+      b.setAttribute('role', 'checkbox');
+      b.setAttribute('aria-checked', String(state.selected.has(c.address)));
       b.addEventListener('click', () => {
-        if (state.latch) return;                           // #72④: a request is a message — no double fire
-        const amount = canonicalAmount(state.amount);
-        state.latch = {
-          address: c.address,
-          timer: setTimeout(() => { state.latch = null; renderContacts(state.contactQuery); }, 1600),
-        };
-        b.dataset.acted = '';
-        go.textContent = '';
-        go.append(icon('check', { size: 18 }));
-        for (const row of rows.querySelectorAll('button')) { if (row !== b) row.disabled = true; }
-        live.textContent = (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
-          .split('{a}').join(amount).split('{name}').join(c.name || c.address);
-        if (onSendRequest) onSendRequest({ contact: c, amount });
+        // A tick is not a send — no amount gate here, and no latch. Patched in
+        // place so the tapped row keeps keyboard focus (contacts-shell rule).
+        const on = !state.selected.has(c.address);
+        if (on) state.selected.add(c.address); else state.selected.delete(c.address);
+        b.setAttribute('aria-checked', String(on));
+        if (result && !result.hidden) showResult('', 'ok');   // a new pick retires a stale outcome line
+        syncCta();
       });
       rows.append(b);
     }
@@ -11026,6 +11935,7 @@ function createWalletReceive({
       none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
+    syncCta();                                             // freshly built rows inherit the current rule/count line
   }
 
   function sync() {
@@ -11034,28 +11944,55 @@ function createWalletReceive({
     // changes now (constant address:ixi), so announcing a "request mode" would lie.
     // The caption stays the plain receive line for the same reason.
     caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
-    if (askBox) askBox.hidden = !active;
+    // W6/W9: askBox is NEVER hidden by the amount — the list stays browsable and
+    // tickable; only the CTA reacts. Share still hides while an amount is set.
     if (shareBtn) shareBtn.hidden = active;                 // F3 (#301): no Share while an amount is set
+    syncCta();
   }
 
   amtInput.addEventListener('input', () => {
     const v = sanitizeAmount(amtInput.value);
     if (v !== amtInput.value) amtInput.value = v;
     state.amount = v;
-    clearLatch(true);                                      // a new amount invalidates a pending "sent ✓" (audit M5)
+    // W9: a new amount invalidates a stale outcome line (audit M5's honesty rule,
+    // now on the result line — there is no per-row ✓ left to go stale). The
+    // SELECTION survives: who you are asking is a different axis from how much.
+    if (result && !result.hidden) showResult('', 'ok');
     sync();
   });
 
-  reqRow.addEventListener('click', () => {
-    const open = reqBox.hidden;
-    reqBox.hidden = !open;
+  /* W6 open/close — ONE writer for the reveal state, so setRequestAmount can't
+     leave the QR half-collapsed. `data-request-open` on the root drives the QR
+     section's collapse; `data-open` drives the box; aria-hidden keeps both honest
+     for screen readers (the collapsed QR must not read, the collapsed box must not). */
+  function setOpen(open) {
+    if (open) { reqBox.dataset.open = ''; el.dataset.requestOpen = ''; }
+    else { delete reqBox.dataset.open; delete el.dataset.requestOpen; }
+    reqBox.setAttribute('aria-hidden', String(!open));
     reqRow.setAttribute('aria-expanded', String(open));
-    if (open) { amtInput.focus(); return; }
+    qrSection.setAttribute('aria-hidden', String(open));   // collapsed QR is decoration at best
+  }
+  el._reqOpen = setOpen;                                   // free-fn hook (#44), same shape as _statusBits
+  setOpen(false);                                          // one writer owns the initial state too (aria-hidden on both halves)
+
+  reqRow.addEventListener('click', () => {
+    const open = reqBox.dataset.open === undefined;
+    setOpen(open);
+    if (open) {
+      void reqBox.offsetHeight;                            // flush style so the box is focusable + the transition starts
+      try { amtInput.focus({ preventScroll: true }); } catch (e) { amtInput.focus(); }
+      reqBox.scrollTop = 0;                                // a focus scroll inside the collapsing box must not stick
+      return;
+    }
     // collapsing the section clears the request — the visible QR must never encode
-    // an amount the user can no longer see (state honesty)
+    // an amount the user can no longer see (state honesty). W9: the SELECTION goes
+    // with it; a reopened section that silently still had six people ticked is the
+    // same class of lie on the same money surface.
     amtInput.value = '';
     state.amount = '';
-    clearLatch(true);
+    state.selected.clear();
+    showResult('', 'ok');
+    renderContacts(state.contactQuery);
     sync();
   });
 
@@ -11073,7 +12010,12 @@ function setRequestAmount(el, amount) {
   const box = el.querySelector('.c-wallet-receive__reqbox');
   const input = el.querySelector('.c-wallet-receive__amount');
   if (!row || !box || !input) return el;
-  if (box.hidden) { box.hidden = false; row.setAttribute('aria-expanded', 'true'); }
+  // W6: go through the component's own writer — a bare `box.hidden = false` would
+  // now leave the QR section collapsed-but-open (half state).
+  if (box.dataset.open === undefined) {
+    if (typeof el._reqOpen === 'function') el._reqOpen(true);
+    else { box.dataset.open = ''; row.setAttribute('aria-expanded', 'true'); }
+  }
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);
@@ -11324,12 +12266,21 @@ function openRequestSheet({ onRequest, ...opts } = {}) {
 
 /* ---- src/components/chat-select.js ---- */
 /**
- * chat-select — multi-select messages: copy + split-paste (#139, Damir).
+ * chat-select — multi-select messages: copy + bulk delete + split-paste
+ * (#139 Damir · extended for the selection TOPBAR, Damir tonight).
  *
  * Best-practice mimicry (WhatsApp/Telegram), cheapest honest implementation:
  * · message menu → "Select" → SELECTION MODE on the message list: taps toggle
- *   rows (only rows the caller can extract text from), a count bar overlays the
- *   top of the host with Copy + Cancel, Esc exits, count 0 exits.
+ *   rows, each selectable row grows a leading CHECK CIRCLE (CSS-only, see
+ *   chat-select.css — it must survive the shell's full-log re-renders), and the
+ *   bar MOUNTS OVER THE CHAT TOPBAR (host = the topbar slot) so it reads as the
+ *   native "contextual action bar": ✕ · "N selected" · Copy · Delete.
+ *   Esc exits, count 0 exits.
+ *
+ * SELECTION IS KEYED BY MESSAGE ID, NOT BY DOM NODE. The chat shell rebuilds
+ * the WHOLE log (box.replaceChildren) on a status tick, a new message, a delete
+ * — every row node is replaced. A node-keyed selection would silently empty
+ * itself mid-gesture. Callers re-apply after their render via refresh().
  * · COPY: single message → raw text (cleanest paste anywhere); multiple →
  *   "Sender: text" one per line (Damir pick — Telegram-style provenance without
  *   timestamp noise). Written to the system clipboard AND kept in an internal
@@ -11345,8 +12296,17 @@ function openRequestSheet({ onRequest, ...opts } = {}) {
  * Clipboard write is fire-and-forget here: the BUFFER is the source of truth for
  * split-paste; onCopy(count) lets shells confirm (toast) once the write resolves.
  *
- * enterChatSelect(listEl, { initialRow, host, rowSelector, textOf, senderOf,
- *                           strings, onCopy, onExit }) → { exit }
+ * enterChatSelect(listEl, { initialRow, host, rowSelector, idOf, selectable,
+ *                           textOf, senderOf, strings, onCopy, onDelete, onExit })
+ *   → { exit, refresh, count }
+ *   onCopy(count, ok)  — ok=false means the clipboard REFUSED (file:// WebViews
+ *                        have no async clipboard); the caller must say so.
+ *   onDelete(items)    — items = [{ id, row, text, sender }] in log order. The
+ *                        component does NOT confirm and does NOT exit: bulk
+ *                        delete is the CALLER's transaction (confirm dialog +
+ *                        bridge verbs), and it may be cancelled.
+ *   refresh()          — re-apply selection after the caller re-rendered rows;
+ *                        prunes ids whose rows are gone.
  * attachSplitPaste(composerEl, { onSendEach, strings }) → detach()
  * getChatCopyBuffer() → { joined, items: [{ sender, text }] } | null
  */
@@ -11358,17 +12318,56 @@ let copyBuffer = null;
 
 function getChatCopyBuffer() { return copyBuffer; }
 
+/* Clipboard write with the legacy fallback. WKWebView on a file:// origin is not
+   a secure context → navigator.clipboard is UNDEFINED there, so the async API
+   alone silently no-ops on iOS. execCommand('copy') over an off-screen textarea
+   still works. Returns true only when something actually copied (settings.html
+   shareAddress grammar — never claim a copy we didn't make). */
+function execCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const done = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!done;
+  } catch (e) { return false; }
+}
+
+let selKeySeq = 0;
+
 function enterChatSelect(listEl, {
   initialRow = null, host, rowSelector = '.c-bubble-row',
+  idOf = (row) => row.dataset.msgid || '',
   textOf = (row) => row.dataset.copytext || '',
   senderOf = (row) => row.dataset.sender || '',
-  strings = getStrings(), onCopy, onExit,
+  selectable = null,                       // default below: anything with copyable text
+  strings = getStrings(), onCopy, onDelete, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
   listEl.dataset.selecting = '';
   const hostEl = host || listEl;
+  hostEl.classList.add('c-chatselect-host');   // positioning context: the bar covers the host (= the topbar slot)
+  const canSelect = selectable || ((row) => !!textOf(row));
+  const keys = new Set();                      // SELECTED message ids (survives re-render)
+  /* W9-④ desktop drag-to-extend state (armed far below, declared here because
+     setCount reads it — a gesture in flight must not auto-exit at 0). */
+  let drag = null;                             // { anchor, on, moved, baseline: Set }
+  let dragSwallowClick = false;
 
-  const bar = document.createElement('div');
+  /* A row without a bridge id (demo fixtures, synthetic rows) still needs a
+     stable handle for the session; stamping one keeps toggle/refresh uniform.
+     Such a key cannot survive a re-render — correct, the node is the identity. */
+  const keyOf = (row) => {
+    const id = idOf(row);
+    if (id) return String(id);
+    if (!row.dataset.selkey) row.dataset.selkey = 'k' + (++selKeySeq);
+    return row.dataset.selkey;
+  };
+
+  const bar = document.createElement('header');
   bar.className = 'c-chatselect-bar';
   bar.setAttribute('role', 'toolbar');
   bar.setAttribute('aria-label', strings.selectMessages || 'Select messages');
@@ -11377,30 +12376,81 @@ function enterChatSelect(listEl, {
   cancel.className = 'c-chatselect-bar__cancel';
   cancel.setAttribute('aria-label', strings.cancel || 'Cancel');
   cancel.append(icon('x', { size: 20 }));
+  cancel.addEventListener('click', () => exit());
   const count = document.createElement('span');
   count.className = 'c-chatselect-bar__count u-tabular';
+  count.setAttribute('role', 'status');
   count.setAttribute('aria-live', 'polite');               // count changes are announced
+  const actions = document.createElement('div');
+  actions.className = 'c-chatselect-bar__actions';
+  // Icon-only, topbar grammar (the bar IS the topbar while selecting). Copy is
+  // always offered; Delete only when the caller can actually perform one.
   const copyBtn = createButton({
-    label: strings.copy || 'Copy', type: 'fill', size: 32,
-    icon: icon('copy', { size: 16 }),
+    type: 'text', size: 44,
+    icon: icon('copy'),
+    ariaLabel: strings.copy || 'Copy',
     onClick: () => copySelected(),
   });
-  bar.append(cancel, count, copyBtn);
+  actions.append(copyBtn);
+  let deleteBtn = null;
+  if (onDelete) {
+    deleteBtn = createButton({
+      type: 'text', size: 44, intent: 'destructive',
+      icon: icon('trash'),
+      ariaLabel: strings.delete || 'Delete',
+      onClick: () => { const items = selectedItems(); if (items.length) onDelete(items); },
+    });
+    actions.append(deleteBtn);
+  }
+  bar.append(cancel, count, actions);
   hostEl.append(bar);
 
-  const selected = () => [...listEl.querySelectorAll(rowSelector)].filter((r) => r.dataset.selected !== undefined);
+  const allRows = () => [...listEl.querySelectorAll(rowSelector)];
+  const selectedRows = () => allRows().filter((r) => keys.has(keyOf(r)));
+  const selectedItems = () => selectedRows().map((row) => ({
+    id: idOf(row), row, text: textOf(row) || '', sender: senderOf(row) || '',
+  }));
 
   const setCount = () => {
-    const n = selected().length;
+    const rows = selectedRows();
+    const n = rows.length;
     count.textContent = (strings.selectedCount || '{n} selected').split('{n}').join(String(n));
-    copyBtn.disabled = n === 0;
-    if (n === 0) exit();                                   // 0 = done, like the natives
+    // Copy is only honest when at least one selected row HAS text (a lone file
+    // card has nothing to put on the clipboard); Delete works on any selection.
+    copyBtn.disabled = !rows.some((r) => !!textOf(r));
+    if (deleteBtn) deleteBtn.disabled = n === 0;
+    // W9-④: a drag that momentarily crosses zero (deselecting a range on its way
+    // to a smaller one) must NOT tear the mode down under the moving pointer —
+    // the count is only "done" once the gesture has finished.
+    if (n === 0 && !drag) exit();                          // 0 = done, like the natives
+  };
+
+  /* Mark one row's visual + a11y state. role=checkbox + aria-checked is the
+     honest reading of "tap toggles"; tabindex makes the log keyboard-operable
+     while selecting (rows are not focusable otherwise). */
+  const paint = (row) => {
+    const on = keys.has(keyOf(row));
+    if (on) row.dataset.selected = '';
+    else delete row.dataset.selected;
+    row.setAttribute('aria-checked', on ? 'true' : 'false');
+  };
+  const arm = (row) => {
+    row.setAttribute('role', 'checkbox');
+    row.tabIndex = 0;
+    paint(row);
+  };
+  const disarm = (row) => {
+    row.removeAttribute('role');
+    row.removeAttribute('aria-checked');
+    row.removeAttribute('tabindex');
+    delete row.dataset.selected;
   };
 
   const toggle = (row) => {
-    if (!textOf(row)) return;                              // nothing copyable on this row (media/cards — v2)
-    if (row.dataset.selected !== undefined) delete row.dataset.selected;
-    else row.dataset.selected = '';
+    if (!canSelect(row)) return;                           // not a selectable row — tap does nothing
+    const k = keyOf(row);
+    if (keys.has(k)) keys.delete(k); else keys.add(k);
+    paint(row);
     setCount();
   };
 
@@ -11411,39 +12461,150 @@ function enterChatSelect(listEl, {
     if (!row || !listEl.contains(row)) return;
     e.preventDefault();
     e.stopPropagation();
+    // W9-④: a click is the tail of a drag-range — the range already painted it.
+    if (dragSwallowClick) { dragSwallowClick = false; return; }
+    toggle(row);
+  };
+  const onRowKey = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    const row = e.target.closest(rowSelector);
+    if (!row || !listEl.contains(row)) return;
+    e.preventDefault();
+    e.stopPropagation();
     toggle(row);
   };
   const onKeydown = (e) => { if (e.key === 'Escape') exit(); };
+
+  /* ——— W9-④ · DESKTOP DRAG-TO-EXTEND (Damir, Windows F5 2026-08-13: "I would
+   * like auto select on windows if I click and drag a whole message or multiple")
+   *
+   * Scope, and why it is this narrow:
+   *  · ONLY inside selection mode. A drag that STARTS outside it must keep doing
+   *    what it does today — native text selection across bubbles, which is the
+   *    primary desktop reading gesture and Damir's "drag a whole message" case
+   *    when he just wants the text. Letting a drag ENTER selection mode would
+   *    take that away on every stray mouse-down in the log.
+   *  · ONLY for pointerType 'mouse' (+ primary button). Touch/pen drags in the
+   *    log are SCROLLS; preventDefault on those would wedge the conversation.
+   *    This is a capability test, not a viewport one — no media query, and no
+   *    :root[data-desktop] read either, because a mouse plugged into a phone
+   *    should get the same behaviour.
+   *  · Inside selection mode a text drag has nothing to give (taps already toggle
+   *    rows and Copy takes whole messages), so suppressing text selection FOR THE
+   *    DURATION OF THE DRAG costs nothing and is what makes the range readable.
+   *
+   * Grammar: press = anchor. The anchor's NEW state (the one a plain tap would
+   * have given it) becomes the state painted across the whole [anchor…current]
+   * range, so a drag from an unticked row selects and a drag from a ticked row
+   * deselects — the sheet-fill convention. Rows outside the range are untouched:
+   * a drag never clears a selection made somewhere else. The click that follows
+   * the drag is swallowed, or it would immediately undo the anchor. */
+  const rowsBetween = (a, b) => {
+    const all = allRows();
+    const i = all.indexOf(a), j = all.indexOf(b);
+    if (i < 0 || j < 0) return [];
+    return all.slice(Math.min(i, j), Math.max(i, j) + 1);
+  };
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const row = e.target.closest(rowSelector);
+    if (!row || !listEl.contains(row) || !canSelect(row)) return;
+    // baseline = the selection as it stands, so re-crossing rows repaints the
+    // range from truth instead of accumulating toggles.
+    drag = { anchor: row, on: !keys.has(keyOf(row)), moved: false, baseline: new Set(keys) };
+  };
+  const onPointerMove = (e) => {
+    if (!drag) return;
+    const row = e.target.closest(rowSelector);
+    if (!row || !listEl.contains(row) || !canSelect(row)) return;
+    if (row === drag.anchor && !drag.moved) return;         // still on the press target — a tap, not a drag
+    if (!drag.moved) {
+      drag.moved = true;
+      listEl.dataset.dragselect = '';                       // CSS kills text selection for the drag
+      const sel = document.getSelection && document.getSelection();
+      if (sel && sel.removeAllRanges) { try { sel.removeAllRanges(); } catch (_) {} }
+    }
+    e.preventDefault();                                     // no text selection while ranging
+    const range = rowsBetween(drag.anchor, row);
+    const inRange = new Set(range.map(keyOf));
+    keys.clear();
+    for (const k of drag.baseline) keys.add(k);             // everything outside the range keeps its state
+    for (const k of inRange) { if (drag.on) keys.add(k); else keys.delete(k); }
+    for (const r of allRows()) paint(r);
+    setCount();
+  };
+  const endDrag = () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    delete listEl.dataset.dragselect;
+    if (moved) dragSwallowClick = true;                     // the trailing click must not re-toggle the anchor
+    if (!keys.size) exit();                                 // the deferred 0 = done, now that the gesture ended
+  };
+
   listEl.addEventListener('click', onClick, true);
+  listEl.addEventListener('keydown', onRowKey, true);
+  listEl.addEventListener('pointerdown', onPointerDown, true);
+  listEl.addEventListener('pointermove', onPointerMove, true);
+  document.addEventListener('pointerup', endDrag, true);
+  document.addEventListener('pointercancel', endDrag, true);
   document.addEventListener('keydown', onKeydown);
 
+  /** Re-apply after the caller re-rendered the log (new row NODES, same ids). */
+  function refresh() {
+    if (listEl.dataset.selecting === undefined) return;
+    const live = new Set();
+    for (const row of allRows()) {
+      if (!canSelect(row)) { disarm(row); continue; }
+      live.add(keyOf(row));
+      arm(row);
+    }
+    for (const k of [...keys]) if (!live.has(k)) keys.delete(k);   // rows that went away (deleted / chat switched)
+    setCount();
+  }
+
   function copySelected() {
-    const items = selected().map((row) => ({ sender: senderOf(row) || '', text: textOf(row) }));
+    const items = selectedItems().filter((it) => it.text);
     if (!items.length) return;
     // single = raw text; multiple = "Sender: text" lines (Damir pick)
     const joined = items.length === 1 ? items[0].text
       : items.map((it) => (it.sender ? it.sender + ': ' : '') + it.text).join('\n');
-    copyBuffer = { joined, items };
-    const finish = () => { if (onCopy) onCopy(items.length); };
+    copyBuffer = { joined, items: items.map((it) => ({ sender: it.sender, text: it.text })) };
+    // Exit either way (natives close the bar on Copy) — but report the TRUTH, so
+    // the caller can toast "Couldn't copy" instead of a false confirmation.
+    const finish = (ok) => { if (onCopy) onCopy(items.length, ok); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(joined).then(finish, finish);   // buffer is the split-paste truth either way
-    } else finish();
+      navigator.clipboard.writeText(joined).then(() => finish(true), () => finish(execCopy(joined)));
+    } else finish(execCopy(joined));
     exit();
   }
 
   function exit() {
     if (listEl.dataset.selecting === undefined) return;
     delete listEl.dataset.selecting;
-    for (const r of selected()) delete r.dataset.selected;
+    for (const r of allRows()) disarm(r);
+    keys.clear();
     listEl.removeEventListener('click', onClick, true);
+    listEl.removeEventListener('keydown', onRowKey, true);
+    listEl.removeEventListener('pointerdown', onPointerDown, true);
+    listEl.removeEventListener('pointermove', onPointerMove, true);
+    document.removeEventListener('pointerup', endDrag, true);
+    document.removeEventListener('pointercancel', endDrag, true);
     document.removeEventListener('keydown', onKeydown);
+    drag = null;
+    dragSwallowClick = false;
+    delete listEl.dataset.dragselect;
+    hostEl.classList.remove('c-chatselect-host');
     bar.remove();
     if (onExit) onExit();
   }
 
+  for (const row of allRows()) { if (canSelect(row)) arm(row); }
   if (initialRow) toggle(initialRow);
-  else setCount();
-  return { exit };
+  // No initial row — or one that turned out not to be selectable: setCount lands
+  // on 0 and exits, so a selection can never open with nothing in it.
+  if (!keys.size) setCount();
+  return { exit, refresh, count: () => keys.size };
 }
 
 /** Watch a composer for a paste of the multi-copy buffer → offer to split.
@@ -11497,12 +12658,16 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  * ONE surface for 1:1 / group / bot (Damir: send-screen grammar — tap the chat
  * header, full in-phone takeover); sections render by kind + capabilities:
  *
- *   hero (avatar-64, name, 1:1 nickname edit → ixian:userdefinednick)
+ *   hero (CENTERED: avatar-80, name, 1:1 nickname edit → ixian:userdefinednick)
+ *   action row (1:1/bot; contact context leads with Message) — wallet-banner
+ *     quick actions: tonal circle + label, one centered row (Damir 2026-08-12,
+ *     supersedes the #144 two-row button block). Sits DIRECTLY under the
+ *     identity: identity → what you can do → details you rarely need.
  *   address card (not for blind groups) — FULL address, HONEST copy morph
  *     (#137: ✓ only after the clipboard write resolves), "Show QR" reveal →
  *     qr.js `address:ixi` on the --surface-qr card
- *   money row (1:1/bot only — group request semantics are a §9 ask, #139) —
- *     Pay/Request are SHELL duties (onPay/onRequest open the #139 takeover/sheet)
+ *     (money is 1:1/bot only — group request semantics are a §9 ask, #139;
+ *     Pay/Request stay SHELL duties: onPay/onRequest open the native flows)
  *   notifications toggle — rendered when capabilities.notifications; the
  *     bridge only supports groups/bots today (ixian:en/disableNotifications);
  *     1:1 ships gated off until the §9 command lands (Damir: design now, flag)
@@ -11529,6 +12694,11 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  *   'contact' = the contact page (from the contacts list / member sheet):
  *   title "Contact info", a Message action (onMessage) leads, delete-history
  *   and disappearing-messages stay chat-side.
+ *   ROOMS (kind 'group'/'bot') are context-free on this point (W9-②): they show a
+ *   LONE Message action whenever the caller supplies onMessage, and nothing at all
+ *   when it does not. That is the whole switch between "reached from the directory"
+ *   (needs a way in — the history may be deleted) and "opened on top of the
+ *   conversation you are already in" (chat.html passes no onMessage).
  *
  * Async callbacks use the house (payload, ctrl) contract — ctrl.done()/fail(msg)
  * from the bridge; each ctrl is one-shot per attempt (#138 m1).
@@ -11574,14 +12744,38 @@ function sectionLabel(text) {
 }
 
 /* tinted icon disc (#148 — the settings-family atom from base.css; Damir:
-   chat-info/contact follows the same treatment for consistency) */
-function infoDisc(glyph, hue) {
+   chat-info/contact follows the same treatment for consistency).
+   `grad:false` keeps the disc on its HUE default — needed for the quiet
+   destructive tier, where the per-glyph gradient (data-grad wins over
+   data-hue in base.css) would repaint a deliberately grey disc vivid. */
+function infoDisc(glyph, hue, { grad = true } = {}) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
-  d.dataset.grad = String(discGrad(glyph));
+  if (grad) d.dataset.grad = String(discGrad(glyph));
   d.append(icon(glyph, { size: 16 }));
   return d;
+}
+
+/* Quick action — the WALLET-BANNER grammar (c-wallet-hero__qa: tinted circle +
+   label underneath), ported to the card/screen surface as a TONAL circle.
+   Damir 2026-08-12: the full-width Message + the two 44px outline buttons read
+   "rough" and ate a third of the screen; three small quick actions sit directly
+   under the identity, exactly like the wallet banner (and WhatsApp/Discord).
+   The whole control is the target (48px circle + label ≈ 74px tall ≥ 44). */
+function infoQuickAction({ glyph, label, onClick }) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'c-chat-info__qa';
+  const circle = document.createElement('span');
+  circle.className = 'c-chat-info__qa-circle';
+  circle.append(icon(glyph, { size: 22 }));
+  const lab = document.createElement('span');
+  lab.className = 'c-chat-info__qa-label';
+  lab.textContent = label;
+  b.append(circle, lab);
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
 }
 
 function createChatInfo({
@@ -11650,8 +12844,12 @@ function createChatInfo({
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
      a demo passing online:true on a group can't grow a dot the bridge never feeds. */
+  /* 80, not 64 (Damir 2026-08-12 "premium" pass): the hero is now a CENTERED
+     identity block — a portrait-scale avatar is what makes it read as a profile
+     rather than a list row. Initials/presence-dot scale for 80 are pinned in
+     chat-info.css (avatar.css only tokenizes 24/40/48 + the old 64 hero). */
   const heroAvatar = createAvatar({
-    src: avatar, name: name, address: avatarSeed || address, size: 64,
+    src: avatar, name: name, address: avatarSeed || address, size: 80,
     online: kind === 'contact' && !!online,
   });
   /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
@@ -11784,6 +12982,56 @@ function createChatInfo({
     }
   }
 
+  /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
+     Damir 2026-08-12: the actions now sit DIRECTLY under the identity — identity →
+     what you can do → the details you rarely need (the address card used to shove
+     the primary actions half a screen down). Wallet-banner grammar: tonal circle +
+     label, three across (Message · Pay · Request); contact context leads with
+     Message, chat context has no Message (you are already in the conversation). */
+  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
+     Message action too — the whole point of putting groups back in the directory is
+     that a wiped chat history must not make the group unreachable, and without this
+     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
+     address is not a payable counterparty (peopleRoster fence, home.html). */
+  /* ★ W9-② (Damir, Windows F5 2026-08-13): "Group info — if I delete chat I can't
+     reactivate it, there's no Send message in group details."
+     iOS-26 gave the GROUP kind this action; #249 then moved BOT/channel surfaces
+     onto the same screen (`kind: 'bot'` — ContactDetails sends "group"|"bot" from
+     friend.type), and the `kind === 'group'` test below did not follow. A bot
+     channel reached from the directory therefore still dead-ended on an info
+     screen with no way into its conversation — the exact class of bug this action
+     exists to close, and (with a deleted history) the only route back in.
+     So the rule is kind-agnostic: ANY non-1:1 surface that was handed an onMessage
+     shows it alone. The in-chat takeover is untouched — chat.html passes NO
+     onMessage (you are already in the conversation), so `roomMessageOnly` is false
+     there and the whole row stays absent, exactly as yesterday's pass decided. */
+  const roomKind = kind === 'group' || kind === 'bot';
+  const roomMessageOnly = roomKind && !!onMessage;
+  if ((!roomKind || roomMessageOnly) && (onMessage || onPay || onRequest)) {
+    const money = document.createElement('div');
+    money.className = 'c-chat-info__money';
+    if ((context === 'contact' || roomMessageOnly) && onMessage) {
+      const msg = infoQuickAction({
+        glyph: 'messages', label: strings.message || 'Message', onClick: () => onMessage(),
+      });
+      msg.classList.add('c-chat-info__message');
+      money.append(msg);
+    }
+    if (onPay && !roomMessageOnly) money.append(infoQuickAction({
+      glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(),
+    }));
+    if (onRequest && !roomMessageOnly) money.append(infoQuickAction({
+      glyph: 'arrow-down-left', label: strings.request || 'Request', onClick: () => onRequest(),
+    }));
+    // a lone action (room-from-directory) hugs its label instead of stretching
+    // across the screen — a full-width circle+label reads broken
+    money.dataset.count = String(money.childElementCount);
+    // …and an EMPTY row is never appended: a 1:1 surface entered from a chat
+    // header passes onMessage but suppresses it (context 'chat'), which used to
+    // leave a bare padded div under the identity (bot case, #249).
+    if (money.childElementCount) body.append(money);
+  }
+
   /* ——— address card ———
      Groups have NO payable/shareable address at all (Damir F5 2026-07-29): a group's
      identifier is a local session id, not a wallet address, so showing it — and worse,
@@ -11850,38 +13098,6 @@ function createChatInfo({
     });
     card.append(qrRow, qrBox);
     body.append(card);
-  }
-
-  /* ——— actions (1:1/bot; groups wait on §9 room-request semantics, #139) ———
-     contact context: Message LEADS (you're not in the chat yet — member-sheet
-     precedent), Pay demotes to outline; chat context: Pay stays primary */
-  /* iOS-26 (AUDIT MINOR-3): a GROUP reached from the contacts directory needs the
-     Message action too — the whole point of putting groups back in the directory is
-     that a wiped chat history must not make the group unreachable, and without this
-     the directory dead-ends on an info screen. Money stays 1:1/bot only: a group
-     address is not a payable counterparty (peopleRoster fence, home.html). */
-  const groupMessageOnly = kind === 'group' && !!onMessage;
-  if ((kind !== 'group' || groupMessageOnly) && (onMessage || onPay || onRequest)) {
-    const money = document.createElement('div');
-    money.className = 'c-chat-info__money';
-    if ((context === 'contact' || groupMessageOnly) && onMessage) {
-      const msg = createButton({
-        label: strings.message || 'Message', type: 'fill', size: 44, width: 'full',
-        icon: icon('messages', { size: 18 }), onClick: () => onMessage(),
-      });
-      msg.classList.add('c-chat-info__message');
-      money.append(msg);
-    }
-    if (onPay && !groupMessageOnly) money.append(createButton({
-      label: strings.pay || 'Pay',
-      type: context === 'contact' && onMessage ? 'outline' : 'fill', size: 44,
-      icon: icon('arrow-up-right', { size: 18 }), onClick: () => onPay(),
-    }));
-    if (onRequest && !groupMessageOnly) money.append(createButton({
-      label: strings.request || 'Request', type: 'outline', size: 44,
-      icon: icon('arrow-down-left', { size: 18 }), onClick: () => onRequest(),
-    }));
-    body.append(money);
   }
 
   /* ——— notifications (bridge: groups/bots today; 1:1 gated — §9) ——— */
@@ -12226,11 +13442,24 @@ function createChatInfo({
   /* ——— destructive zone — every action behind a LOCKED confirm (#135-C1) ——— */
   const danger = document.createElement('div');
   danger.className = 'c-chat-info__danger';
-  const dangerRow = (label, glyph, buildOpts) => {
+  /* TWO TIERS — the settings-family grammar (createSettingsDanger: a quiet
+     "free up space" tier + a red "danger zone" tier). Damir 2026-08-12: delete
+     chat history "doesn't need to be so loud" — it clears local messages and is
+     recoverable-ish (the contact keeps their copy), so it reads as a neutral row
+     with a grey disc. Red stays RESERVED for the irreversible relationship
+     actions (remove contact / leave group), which is what makes it mean
+     something. Both rows keep the bordered card + the locked confirm. */
+  const dangerRow = (label, glyph, buildOpts, { tone = 'error' } = {}) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-chat-info__danger-row';
-    b.append(infoDisc(glyph, 'error'), document.createTextNode(label));   // #148: error disc = destructive reservation
+    b.dataset.tone = tone;
+    // #148: error disc = destructive reservation. The quiet tier drops the
+    // per-glyph gradient so the neutral hue actually survives (base.css).
+    b.append(
+      tone === 'quiet' ? infoDisc(glyph, 'neutral', { grad: false }) : infoDisc(glyph, 'error'),
+      document.createTextNode(label),
+    );
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));
@@ -12244,7 +13473,7 @@ function createChatInfo({
       bodyText: strings.deleteHistoryBody || 'Messages are removed from this device. The contact keeps their copy.',
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
-    }));
+    }), { tone: 'quiet' });
   }
   if (kind !== 'group' && onRemoveContact) {
     dangerRow(strings.removeContact || 'Remove contact', 'circle-x', () => ({
@@ -12362,6 +13591,14 @@ function setChatInfoPresence(el, online) {
  *   purpose 'directory' (topbar Contacts): action = Add contact only; tap =
  *   onViewContact (contact details) — group creation stays with the FAB (start
  *   affordance), the directory is for finding/inspecting people.
+ *   purpose 'app' (mini-app launch target): opens DIRECTLY in the SAME select
+ *   grammar group creation uses (topbar ✓ confirms → onNext(selected)), with the
+ *   differences the launch target demands: it selects EXACTLY ONE target (rows are
+ *   radios — C# opens one session against one friend/group, so a second pick would
+ *   be silently dropped), GROUPS are selectable (a mini-app can be joined against a
+ *   group friend — WalletRecipientPage(payment:false) listed groups too), and the
+ *   topbar back leaves the picker outright (there is no browse state to fall back
+ *   to). No action rows — the picker IS the task.
  *   Free fns (#44): setPickerMode(el, 'browse'|'multi') · getPickerSelection(el)
  *                   · setPickerSelection(el, addresses) · setPickerContacts(el, contacts)
  *
@@ -12393,6 +13630,7 @@ function setChatInfoPresence(el, online) {
 
 
 
+
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
   return {
@@ -12413,6 +13651,10 @@ function disc(hue, glyph) {
 /* ————————————————————————— picker ————————————————————————— */
 
 const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, opts, els }
+
+/* purpose 'app' = the multi-user mini-app launch target picker. Same multi-select
+ * grammar as group creation, different rules (min 1 · groups allowed · back exits). */
+function isAppPick(st) { return st.opts.purpose === 'app'; }
 
 /* #276 (#211 canon sweep): a nick wins; a nameless row — or one whose "nick" is
  * really its address echoed back (C# addContact sends nickname = address for
@@ -12454,7 +13696,10 @@ function pickerRow(c, st) {
   // F2: address-less contacts can't be keyed into the selection Set (falsy/dupe
   // address collapses distinct rows into one Set entry) — block them from
   // multi-select the same way pending/bot rows are blocked.
-  const blocked = multi && (c.pending || c.type === 2 || !c.address);
+  // purpose 'app': the "can't be added to GROUPS" rule (type 2 = bot) does not
+  // apply — an app invite is a stream request to one friend, not group membership.
+  // A PENDING contact still can't receive one (no accepted handshake yet).
+  const blocked = multi && (c.pending || (c.type === 2 && !isAppPick(st)) || !c.address);
 
   const row = document.createElement('button');
   row.type = 'button';
@@ -12502,11 +13747,25 @@ function pickerRow(c, st) {
     row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix + pendingReason);
   }
 
+  // A BLOCKED row (pending contact / no address) is still a child of the picker's
+  // list — and for purpose 'app' that list is a role="radiogroup". A bare element
+  // inside a radiogroup is not accountable to the group, so present it as what it
+  // is: an unavailable option (disabled radio, unchecked). Group/checkbox mode has
+  // no such container, so its blocked rows stay plain buttons.
+  if (multi && blocked && isAppPick(st)) {
+    row.setAttribute('role', 'radio');
+    row.setAttribute('aria-checked', 'false');
+    row.setAttribute('aria-disabled', 'true');
+  }
+
   if (multi && !blocked) {
     // F4: independent multi-select roster → role=checkbox/aria-checked is the
     // idiomatic mapping (not aria-pressed, which is for toggle buttons).
+    // purpose 'app' selects exactly ONE target (see APP_MAX_TARGETS), so its rows
+    // are RADIOs — mutually exclusive, and the row a tap deselects is the one that
+    // was picked before it.
     const selected = st.selected.has(c.address);
-    row.setAttribute('role', 'checkbox');
+    row.setAttribute('role', isAppPick(st) ? 'radio' : 'checkbox');
     row.setAttribute('aria-checked', String(selected));
     const check = document.createElement('span');
     check.className = 'c-contacts__check';
@@ -12515,6 +13774,18 @@ function pickerRow(c, st) {
     row.append(check);
     row.addEventListener('click', () => {
       const on = !st.selected.has(c.address);
+      if (isAppPick(st)) {
+        // single-target: a new pick REPLACES the old one. Rows are patched in
+        // place (not re-rendered) so the tapped row keeps keyboard focus.
+        for (const other of st.els.list.querySelectorAll('[aria-checked="true"]')) {
+          other.setAttribute('aria-checked', 'false');
+        }
+        st.selected.clear();
+        if (on) st.selected.add(c.address);
+        row.setAttribute('aria-checked', String(on));
+        syncNext(st);
+        return;
+      }
       if (on) st.selected.add(c.address); else st.selected.delete(c.address);
       row.setAttribute('aria-checked', String(on));
       syncNext(st);
@@ -12529,7 +13800,7 @@ function pickerRow(c, st) {
 }
 
 function renderPickerList(st) {
-  const { list, empty } = st.els;
+  const { list, empty, zero } = st.els;
   const { strings } = st.opts;
   // preserve scroll across a full rebuild — the directory roster re-flushes on
   // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
@@ -12543,28 +13814,40 @@ function renderPickerList(st) {
   // 'groups' is still selected, which left an empty list and no visible control to
   // escape it. Reset BEFORE `kind` is read below, so this render already reflects
   // the fallback (calling setKind here would re-enter and then be overwritten).
+  // purpose 'app' is the exception: its multi-select DOES list groups (a multi-user
+  // app can be joined against a group friend), so the chips stay live there.
+  const pinPeople = st.mode === 'multi' && !isAppPick(st);
   if (st.els.kinds) {
-    const hide = st.mode === 'multi' || !st.contacts.some((c) => c && c.isGroup);
+    const hide = pinPeople || !st.contacts.some((c) => c && c.isGroup);
     st.els.kinds.hidden = hide;
-    if (hide && st.mode !== 'multi' && st.kind !== 'all') {
+    if (hide && !pinPeople && st.kind !== 'all') {
       st.kind = 'all';
       if (st.els.syncKindChips) st.els.syncKindChips();
     }
   }
-  const kind = st.mode === 'multi' ? 'people' : (st.kind || 'all');
+  const kind = pinPeople ? 'people' : (st.kind || 'all');
   const kindOk = (c) => kind === 'all' || (kind === 'groups' ? !!c.isGroup : !c.isGroup);
   const matches = sortedContacts(st.contacts).filter((c) => kindOk(c) && (!needle
     || (c.name || '').toLocaleLowerCase().includes(needle)
     || (c.address || '').toLocaleLowerCase().includes(needle)));
 
   if (st.contacts.length === 0) {                 // noContacts (bridge-audit-A.md:537)
-    empty.hidden = false;
-    empty.dataset.kind = 'roster';
-    empty.querySelector('.c-contacts__empty-text').textContent =
-      strings.noContacts || 'No contacts yet — add one to start chatting securely.';
+    // MULTI (group setup) hides the Add-contact affordances entirely, so the
+    // zero state's CTA would contradict the chrome — plain note there. purpose
+    // 'app' is the exception: it has no browse state to back out into, so an
+    // empty roster with no CTA is a dead end — keep the illustration + CTA.
+    const invite = st.mode !== 'multi' || isAppPick(st);
+    if (zero) zero.hidden = !invite;              // TRUE zero state — illustration + CTA
+    empty.hidden = invite;
+    if (!invite) {
+      empty.dataset.kind = 'search';
+      empty.querySelector('.c-contacts__empty-text').textContent =
+        strings.noContacts || 'No contacts yet';
+    }
     list.hidden = true;
     return;
   }
+  if (zero) zero.hidden = true;
   if (matches.length === 0) {
     empty.hidden = false;
     empty.dataset.kind = 'search';
@@ -12586,8 +13869,10 @@ function pickerNext(st) {
   if (!st.opts.onNext) return;
   // F2 belt-and-braces: drop any falsy address that reached the Set anyway
   const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
-  if (sel.length < GROUP_MIN_MEMBERS) return;   // MAJOR-6: the action is disabled below 2
-  st.opts.onNext(sel);
+  if (sel.length < selectMin(st)) return;   // MAJOR-6: the action is disabled below the minimum
+  // belt-and-braces: the app pick is single-target (the rows are radios, and
+  // setPickerSelection is the only other way into the Set).
+  st.opts.onNext(isAppPick(st) ? sel.slice(0, APP_MAX_TARGETS) : sel);
 }
 
 /* #265 (Damir ⑤): the multi-select CONFIRM lives in the TOPBAR (top-trailing —
@@ -12596,20 +13881,39 @@ function pickerNext(st) {
  * the action stays a single compact affordance. */
 // A group needs at least TWO members (C# rejects fewer — Opus review MAJOR-6).
 const GROUP_MIN_MEMBERS = 2;
+// An app launch picks EXACTLY ONE target: C# opens one session against one
+// friend/group (MiniAppPage still derives the session id from the app id alone and
+// relays to that single peer), so a second pick would be silently dropped.
+const APP_MIN_TARGETS = 1;
+const APP_MAX_TARGETS = 1;
+function selectMin(st) { return isAppPick(st) ? APP_MIN_TARGETS : GROUP_MIN_MEMBERS; }
+// The multi-select confirm's label: "Next" (→ group setup) vs "Start" (→ launch).
+function confirmLabel(st) {
+  const { strings } = st.opts;
+  return isAppPick(st) ? (strings.startAppAction || 'Start') : (strings.next || 'Next');
+}
+// The multi-select idle title (no selection yet).
+function multiTitle(st) {
+  const { strings } = st.opts;
+  return isAppPick(st)
+    ? (strings.selectAppTargets || 'Choose who to invite')
+    : (strings.selectMembers || 'Select members');
+}
 
 function syncNext(st) {
   const n = st.selected.size;
   const { strings } = st.opts;
+  const min = selectMin(st);
   if (st.els.nextAction) {
-    st.els.nextAction.disabled = n < GROUP_MIN_MEMBERS;
+    st.els.nextAction.disabled = n < min;
     st.els.nextAction.setAttribute('aria-label',
-      (strings.next || 'Next') + (n ? ' (' + n + ')' : ''));
+      confirmLabel(st) + (n ? ' (' + n + ')' : ''));
   }
   const title = st.els.topbar && st.els.topbar.querySelector('.c-topbar__title');
   if (title) {
     title.textContent = n
       ? ((strings.selectedCount || '{n} selected').split('{n}').join(String(n)))
-      : (strings.selectMembers || 'Select members');
+      : multiTitle(st);
   }
   // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
   // isn't focusable, so SR users got nothing). State the rule in the sub-line.
@@ -12620,9 +13924,11 @@ function syncNext(st) {
   // no reflow. (role="status" makes the swap an SR announcement too.)
   if (st.els.minHint) {
     st.els.minHint.hidden = false;
-    st.els.minHint.textContent = n >= GROUP_MIN_MEMBERS
+    st.els.minHint.textContent = n >= min
       ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
-      : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.');
+      : (isAppPick(st)
+        ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
+        : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
 }
 
@@ -12631,14 +13937,16 @@ function renderPickerChrome(st) {
   const multi = st.mode === 'multi';
   const topbar = createTopbar({
     variant: 'view',
-    title: multi ? (strings.selectMembers || 'Select members') : (strings.contacts || 'Contacts'),
+    title: multi ? multiTitle(st) : (strings.contacts || 'Contacts'),
     onBack: () => {
-      if (st.mode === 'multi') setPickerMode(st.els.root, 'browse'); // back out of select, not out of the picker
+      // purpose 'app' has NO browse state to fall back to (it opens straight into
+      // multi-select), so back there means "abandon the launch" → onBack.
+      if (st.mode === 'multi' && !isAppPick(st)) setPickerMode(st.els.root, 'browse'); // back out of select, not out of the picker
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
     actions: multi
-      ? [{ icon: 'check', label: strings.next || 'Next', onClick: () => pickerNext(st) }]
+      ? [{ icon: 'check', label: confirmLabel(st), onClick: () => pickerNext(st) }]
       : [],
   });
   st.els.topbar.replaceWith(topbar);
@@ -12757,20 +14065,50 @@ function createContactsPicker({
 
   const list = document.createElement('div');
   list.className = 'c-contacts__list';
+  // purpose 'app' picks ONE target — its rows are radios, so the list is the group.
+  // A radiogroup needs an ACCESSIBLE NAME (without one it announces as an unnamed
+  // group and the user has no idea what the choice is FOR). Reuse the select-mode
+  // title this picker already shows and already translates — no new copy, and the
+  // spoken name matches the visible one. Roving tabindex / arrow-key navigation is
+  // deliberately NOT added here: that is the deferred #205 item shared with every
+  // other swatch/radio grammar in this codebase, and fixing it on one surface only
+  // would make the keyboard model inconsistent.
+  if (purpose === 'app') {
+    list.setAttribute('role', 'radiogroup');
+    list.setAttribute('aria-label', strings.selectAppTargets || 'Choose who to invite');
+  }
   st.els.list = list;
   body.append(list);
 
+  // NO-RESULTS note: a search or a People/Groups chip matched nothing. Plain
+  // line, no art, no CTA — the roster is fine, the needle just missed.
   const empty = document.createElement('div');
   empty.className = 'c-contacts__empty';
   empty.hidden = true;
-  const emptyDisc = document.createElement('span');
-  emptyDisc.className = 'c-contacts__empty-art';
-  emptyDisc.append(icon('users', { size: 32 }));
   const emptyText = document.createElement('p');
   emptyText.className = 'c-contacts__empty-text';
-  empty.append(emptyDisc, emptyText);
+  empty.append(emptyText);
   st.els.empty = empty;
   body.append(empty);
+
+  // TRUE zero state: the roster itself is empty (C# noContacts / an empty
+  // loadContacts flush). Illustration + copy + the SAME "Add contact" action
+  // the row above offers — no new verb, just a reachable one in the blank area.
+  const zero = createEmptyState({
+    illustration: 'images/contacts-es.svg',
+    glyph: 'users',                                 // art blocked/missing → token glyph tile
+    title: strings.noContacts || 'No contacts yet',
+    body: strings.contactsEmptyBody
+      || 'Add someone by their Spixi address or QR code — then you can chat and send IXI.',
+    actionLabel: strings.addContact || 'Add contact',
+    actionIcon: 'user-plus',
+    onAction: onAddContact,
+    compact: true,                                  // the takeover already shows an actions row above
+  });
+  zero.classList.add('c-contacts__zero');
+  zero.hidden = true;
+  st.els.zero = zero;
+  body.append(zero);
 
   el.append(body);
 
@@ -12778,6 +14116,11 @@ function createContactsPicker({
   // (renderPickerChrome). No footer element remains.
 
   renderPickerList(st);
+  // purpose 'app': the picker IS the multi-select — open in it, no browse detour.
+  // Routed through setPickerMode so the chrome (topbar title + ✓ confirm, hidden
+  // action rows, live min-hint) is built by exactly the same path group creation
+  // uses; nothing about this mode is a second implementation.
+  if (purpose === 'app') setPickerMode(el, 'multi');
   return el;
 }
 
@@ -13288,9 +14631,30 @@ function setGroupAvatar(el, src) {
  *                   for groups; `ixian:newchat` stays available but unwired here.
  *   Open chat     → ixian:chat:<address>     (start; audit :259)
  *   View contact  → ixian:details:<address>  (directory; audit :260 → ContactDetails)
+ *   Launch app    → ixian:startappwith:<appId>:|<addr>   (purpose 'app')
  *
  * purpose 'start'  (FAB): Add contact + Create group actions; tap = open chat.
  * purpose 'directory' (topbar Contacts): Add contact only; tap = contact details.
+ * purpose 'app' + appId (mini-app launch target): the picker opens straight into
+ *   the SAME select grammar group creation uses, but SINGLE-select (exactly one
+ *   target, groups allowed), and the topbar ✓ emits
+ *   `ixian:startappwith:<appId>:|<addr>`.
+ *
+ *   Why a NEW verb and not the shipped `ixian:startAppMulti:<appId>`: that verb
+ *   carries NO target — HomePage.onStartAppMulti (HomePage.xaml.cs:2775) answers it
+ *   by pushing the LEGACY WalletRecipientPage(false, false) and picking the target
+ *   natively, which is exactly the screen Damir is complaining about. Its handler is
+ *   also matched with StartsWith("ixian:startAppMulti") but sliced at
+ *   "ixian:startAppMulti:".Length, so appending a target to it would land the whole
+ *   "<appId>:<address>" tail in appId. The payload grammar mirrors
+ *   `ixian:creategroup:` (HomePage.xaml.cs:447) 1:1 minus the blind+name prefix, and
+ *   feeds the SAME HandlePickAppMultiUserSucceeded core (HomePage.xaml.cs:2789):
+ *   onJoinApp + StreamProcessor.sendAppRequest for the target. That core consumes
+ *   addresses.First() only — ONE target — which is also all MiniAppPage supports
+ *   today (its session id is sha3(appId) and it relays to a single peer), so the
+ *   payload carries exactly one address: a byte-for-byte behaviour match with the
+ *   legacy page, with the redesigned picker in front of it. The list grammar is
+ *   kept so a future multi-user MiniAppPage needs no new verb.
  *
  * Takeover, not a page nav: the overlay is a fixed inset:0 panel (z below sheets)
  * mounted OVER the home shell and closed via its OWN back button — it NEVER emits
@@ -13315,7 +14679,7 @@ function setGroupAvatar(el, src) {
 const paintGroupAvatar = setGroupAvatar;
 
 function mountContacts({
-  host = document.body, bridge, strings, purpose = 'start', getRoster, onClose,
+  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
 } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'contacts-takeover';
@@ -13365,6 +14729,20 @@ function mountContacts({
     overlay.append(groupPanel);
   };
 
+  /* purpose 'app' — confirm the multi-user launch targets. Close FIRST, then send:
+   * C# pushes the MiniAppPage over the home shell (onJoinApp), and leaving this
+   * takeover mounted underneath would let a user back out of the app onto a
+   * re-armed ✓ → a duplicate session (the same MAJOR-5 hazard as group create). */
+  const startAppWith = (selected) => {
+    // ONE target — the picker is single-select on this path and C# opens a single
+    // session against a single friend/group; slice() is the belt-and-braces.
+    const addresses = (selected || []).map((c) => c && c.address).filter(Boolean).slice(0, 1);
+    // no appId = a mis-wired mount; no target = C# would only log and drop it.
+    if (!appId || addresses.length < 1) return;
+    close();
+    bridge.send('ixian:startappwith:' + appId + ':|' + addresses.join('|'));
+  };
+
   const picker = createContactsPicker({
     contacts: getRoster ? getRoster() : [],
     purpose,
@@ -13375,7 +14753,10 @@ function mountContacts({
     // Create group → IN-SHELL multi-select (the picker flips itself; the topbar
     // action confirms) → onNext → the group setup panel above (#265).
     onCreateGroup: () => {},
-    onNext: (selected) => openGroupSetup(selected),
+    onNext: (selected) => {
+      if (purpose === 'app') { startAppWith(selected); return; }
+      openGroupSetup(selected);
+    },
     // start: tap opens the 1:1 conversation.
     onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
     // directory: tap opens contact details (accepted → chat-info; pending → minimal).
@@ -15456,6 +16837,17 @@ function backupCtrl(onDone, onFail) {
 
 
 
+
+/* W5 (Damir 2026-08-12) — pattern STYLE, orthogonal to the intensity dial below.
+ * Style picks the pattern SOURCE; intensity keeps mapping to opacity. "Off"
+ * lives ONLY in the intensity control, so there is deliberately no fourth
+ * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
+ * picker renders two options on mobile, three on desktop. */
+const PATTERN_STYLES = [
+  { id: 'lineart', key: 'patternStyleLineArt', label: 'Line art' },
+  { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
+  { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
+];
 const PATTERN_LEVELS = [        // --chat-pattern-opacity presets (0.5 = the #76 locked default)
   { value: 0, key: 'patternOff', label: 'Off' },
   { value: 0.3, key: 'patternSubtle', label: 'Subtle' },
@@ -15530,6 +16922,7 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    diagonal slash treatment via [data-off] (settings-screens.css, token ink). */
 function swatchGroup({ options, current, ariaLabel, onPick }) {
   const g = document.createElement('div');
+  const faces = [];
   g.className = 'c-settings-swatches';
   g.setAttribute('role', 'radiogroup');
   g.setAttribute('aria-label', ariaLabel);
@@ -15551,6 +16944,7 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');   // the button's aria-label names the tile
     face.style.setProperty('--chat-pattern-opacity', String(o.value));
+    faces.push(face);
     b.append(face);
     b.addEventListener('click', () => {
       if (o.value === current) return;
@@ -15561,6 +16955,108 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
     g.append(b);
   }
   paint();
+  /* W5: the intensity tiles must show the pattern the user actually picked —
+     four line-art tiles under a "Data matrix" selection would be showing them a
+     level of something they aren't using. Flow tiles paint ONE still frame each
+     (the Off tile draws nothing, so its diagonal-slash treatment still reads). */
+  let swatchRaf = 0;
+  g.setSwatchStyle = (id) => {
+    // cancel a still-pending mount: a flow→lineart flip inside one frame used to
+    // let the deferred mount run AFTER the detach, leaving an orphan canvas under
+    // a tile face until the next style change (#46 audit)
+    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
+    for (const f of faces) f.dataset.chatPattern = id;
+    if (id !== 'flow') { for (const f of faces) detachChatFlow(f); return; }
+    swatchRaf = requestAnimationFrame(() => {
+      swatchRaf = 0;
+      for (const f of faces) mountFlowFace(f, FLOW_SWATCH_TUNE);
+    });
+  };
+  g.releaseSwatches = () => {
+    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
+    for (const f of faces) detachChatFlow(f);
+  };
+  return g;
+}
+
+/* pattern STYLE swatches (W5) — same grammar as the intensity swatches above
+   (native buttons, role=radio, aria-checked, localized label as aria-label +
+   title), but each face carries its OWN `data-chat-pattern`. That attribute
+   drives INHERITED custom properties in the generated chat-pattern.css, which
+   is precisely why the styles were not keyed off a descendant selector: three
+   different styles have to paint side by side in one list.
+
+   The "flow" face mounts the real engine in STILL mode — one frame, no rAF
+   loop. A live loop per swatch in a settings list is not worth the battery,
+   and a static frame is an honest picture of what the style looks like. The
+   density is stepped up for the small tile — these overrides are preview-only
+   and never reach the chat.
+
+   Re-scaled with the chat dial at the F5 of 2026-08-13: the tile is ~110×64,
+   so it keeps the chat's dash-to-gap ratio (~0.6 here vs 0.47 in the chat) at
+   roughly half the chat's absolute size, and fieldScale drops with it — at the
+   chat's own 44 a 110px tile spans barely two field units and every dash comes
+   out parallel, which is the exact "reads as still" failure the chat dial was
+   just fixed for. lineWidth stays 1: 1.25 is chunky at this size. */
+const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, fieldScale: 20 };
+
+/* Fail-soft for every flow face: attachChatFlow returns null when the WebView
+   has no 2d context. A style that can't paint must fall back to the line-art
+   TILE — a bare gradient would read as a broken tile, and the whole point of
+   keeping a resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css)
+   is that this fallback is one attribute flip. */
+function mountFlowFace(face, opts) {
+  let ctrl = null;
+  try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
+  if (!ctrl) face.dataset.chatPattern = 'lineart';
+  return ctrl;
+}
+
+function styleSwatchGroup({ options, current, ariaLabel, onPick }) {
+  const g = document.createElement('div');
+  const flowFaces = [];
+  let styleRaf = 0;
+  g.className = 'c-settings-swatches c-settings-swatches--style';
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', ariaLabel);
+  const paint = () => {
+    for (const b of g.children) b.setAttribute('aria-checked', String(b.dataset.value === current));
+  };
+  for (const o of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-swatch';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = o.id;
+    b.setAttribute('aria-label', o.label);
+    b.title = o.label;
+    const face = document.createElement('span');
+    face.className = 'c-chat-canvas c-settings-swatch__canvas';
+    face.setAttribute('aria-hidden', 'true');
+    face.dataset.chatPattern = o.id;
+    // the style tiles must show the PATTERN, not the user's current intensity —
+    // a user sitting on "Subtle" would otherwise be picking between three
+    // near-identical ghosts. Intensity has its own swatch row directly below.
+    face.style.setProperty('--chat-pattern-opacity', '0.5');
+    b.append(face);
+    if (o.id === 'flow') {
+      // mount after layout — a 0×0 face would size the backing store to 1×1
+      flowFaces.push(face);
+      styleRaf = requestAnimationFrame(() => { styleRaf = 0; mountFlowFace(face, FLOW_SWATCH_TUNE); });
+    }
+    b.addEventListener('click', () => {
+      if (o.id === current) return;
+      current = o.id;
+      paint();
+      onPick(o.id);
+    });
+    g.append(b);
+  }
+  paint();
+  g.releaseSwatches = () => {
+    if (styleRaf) { cancelAnimationFrame(styleRaf); styleRaf = 0; }
+    for (const f of flowFaces) detachChatFlow(f);
+  };
   return g;
 }
 
@@ -15643,9 +17139,12 @@ function screenShell(className, title, onBack) {
  */
 function createChatAppearance({
   patternOpacity = 0.5,
+  patternStyle = 'lineart',      // W5: 'lineart' | 'matrix' | 'flow' (flow = desktop only)
   textScale = 1,
+  isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   onBack,
   onPattern,                     // (opacity) — shell sets --chat-pattern-opacity + persists
+  onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
   strings = getStrings(),
 } = {}) {
@@ -15666,6 +17165,31 @@ function createChatAppearance({
   preview.append(bubbleIn, bubbleOut);
   body.append(preview);
 
+  /* W5 — STYLE first, then INTENSITY: the user picks what the pattern IS
+     before deciding how loud it is. Live flow is dropped from the list on
+     mobile (desktop-only, Damir 2026-08-12); a mobile user whose stored pref
+     somehow says 'flow' sees Line art selected, matching what chat.html's
+     pre-paint script actually applies. */
+  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'lineart';
+  const styleSec = document.createElement('div');
+  styleSec.className = 'c-settings__section';
+  const stLab = document.createElement('h3');
+  stLab.className = 'c-settings__label';
+  stLab.textContent = strings.patternStyle || 'Pattern style';
+  const styleGroup = styleSwatchGroup({
+    options: styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
+    current: styleCurrent,
+    ariaLabel: strings.patternStyle || 'Pattern style',
+    onPick: (id) => {
+      styleCurrent = id;
+      applyPreviewStyle(id);
+      if (onPatternStyle) onPatternStyle(id);
+    },
+  });
+  styleSec.append(stLab, styleGroup);
+  body.append(styleSec);
+
   const patternSec = document.createElement('div');
   patternSec.className = 'c-settings__section';
   const pLab = document.createElement('h3');
@@ -15673,12 +17197,13 @@ function createChatAppearance({
   pLab.textContent = strings.patternIntensity || 'Background pattern';
   // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
   // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
-  patternSec.append(pLab, swatchGroup({
+  const intensityGroup = swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
     ariaLabel: strings.patternIntensity || 'Background pattern',
     onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', String(v)); if (onPattern) onPattern(v); },
-  }));
+  });
+  patternSec.append(pLab, intensityGroup);
   body.append(patternSec);
 
   const sizeSec = document.createElement('div');
@@ -15697,7 +17222,33 @@ function createChatAppearance({
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', String(patternOpacity));
   preview.style.setProperty('--chat-text-scale', String(textScale));
+  applyPreviewStyle(styleCurrent);
+  /* The preview mounts a LIVE engine (rAF + ResizeObserver + a document
+     visibilitychange listener). settings.html's renderLayout() replaces the
+     screen's children wholesale — on Back, on setLocale, on setPaneMode, on
+     onRepresented — so without an explicit release the loop keeps running
+     against a detached node forever, and the listener pins the whole discarded
+     subtree. Every re-entry would add another. Same shape as, and released
+     alongside, releaseDownloads (#267). (#46 audit) */
+  el.release = () => {
+    detachChatFlow(preview);
+    if (styleGroup.releaseSwatches) styleGroup.releaseSwatches();
+    if (intensityGroup.releaseSwatches) intensityGroup.releaseSwatches();
+  };
   return el;
+
+  /* The big preview mirrors the chat exactly: tile styles are pure CSS (the
+     attribute switches the inherited URI), flow mounts the real engine. It runs
+     LIVE here — unlike the swatches — because this is the one place the user is
+     deciding whether they want motion at all, and it is a single canvas.
+     Declared as a hoisted function so the style section above can call it
+     before the preview's own initial paint below. */
+  function applyPreviewStyle(id) {
+    preview.dataset.chatPattern = id;
+    if (id === 'flow') mountFlowFace(preview);
+    else detachChatFlow(preview);
+    if (intensityGroup.setSwatchStyle) intensityGroup.setSwatchStyle(id);
+  }
 }
 
 /**
@@ -17810,10 +19361,25 @@ function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {
  * lock-page.js) compose shells with a bridge instance.
  */
 
-/** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string. */
+/** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string.
+ *
+ * PERF (Damir F5 2026-08-13, apps tab): `Uint8Array.from(bin, cb)` runs the callback
+ * through the iterator protocol — measured 24.6 ms for one 320 KB app-icon argument in
+ * Chromium 1194 vs 0.8 ms for the index loop below (~30×). Two paths, same result:
+ *   · ASCII (every data: URI, every address, every number, most excerpts) — `atob`
+ *     already produced the final string, so there is nothing left to decode.
+ *   · anything with a byte > 127 — plain index loop into a Uint8Array, then TextDecoder
+ *     (byte-identical to the old expression; the UTF-8 decode itself is unchanged).
+ */
 function b64ToUtf8(b64) {
   const bin = atob(b64);
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.codePointAt(0)));
+  const len = bin.length;
+  let i = 0;
+  for (; i < len; i++) if (bin.charCodeAt(i) > 127) break;
+  if (i === len) return bin;                       // pure ASCII → atob's output IS the string
+  const bytes = new Uint8Array(len);
+  for (let j = 0; j < len; j++) bytes[j] = bin.charCodeAt(j);
+  return new TextDecoder().decode(bytes);
 }
 
 /**
@@ -17872,9 +19438,16 @@ function installExecuteUiCommand(win) {
       // which previously dropped the WHOLE command (e.g. setBalance's nick is
       // null before the profile loads → the balance push vanished). Treat
       // null/undefined as an empty string so the rest of the args still deliver.
+      // PERF (Damir F5 2026-08-13): an argument that is ALREADY a `data:` URI arrives
+      // VERBATIM — Utils.sendUiCommand skips the base64 re-encode for it, because
+      // re-encoding an already-base64 240 KB icon inflated it to 320 KB on every push
+      // and cost a full atob on this side. Unambiguous: ':' is outside the base64
+      // alphabet, so a real base64 payload can never start with "data:". Everything
+      // else keeps the base64 contract exactly as before.
       for (let i = 1; i < arguments.length; i++) {
         const a = arguments[i];
-        args.push(a == null ? '' : b64ToUtf8(a));
+        if (a == null) { args.push(''); continue; }
+        args.push(typeof a === 'string' && a.startsWith('data:') ? a : b64ToUtf8(a));
       }
       if (typeof cmd !== 'function') {
         // eslint-disable-next-line no-console
@@ -18625,5 +20198,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

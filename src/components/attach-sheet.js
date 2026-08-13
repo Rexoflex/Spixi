@@ -5,6 +5,10 @@
  * Photo + GIF are DESIGNED-IN but FEATURE-FLAGGED (`media: false`) until the
  * BE image standard lands (#81) — the #64 voice-flag precedent.
  *
+ * TITLE-LESS since 2026-08-12 (Damir): "Share" was wrong for a grid that sends
+ * a file / payment / request / app invite INTO the chat. `strings.attachTitle`
+ * is now the sheet's ARIA name only — see the createSheet call.
+ *
  * openAttachSheet({ host, media = false, apps = true, payments = true,
  *                   onAction, strings }) → sheet
  *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
@@ -52,7 +56,19 @@ export function openAttachSheet({ host, media = false, apps = true, payments = t
     grid.append(tile);
   }
 
-  const sheet = createSheet({ title: strings.attachTitle || 'Share', content: grid, host, strings });
+  /* TITLE: none (Damir 2026-08-12 — "it's titled Share, that's incorrect").
+   * Nothing here is sharing: the tiles SEND things into this conversation (a
+   * file, a payment, a payment request, an app invite), and no single noun
+   * covers all four without lying ("Attach" is file-only, "Send" mis-describes
+   * Request). WhatsApp/Telegram/iMessage all ship this grid title-less — the ⊕
+   * that opened it plus six labelled tiles are the whole affordance, and a
+   * heading only steals a sheet row. The dialog still needs an ACCESSIBLE name,
+   * so attachTitle lives on as c-sheet's aria-label fallback ("Add to chat" —
+   * the one honest umbrella for all six). */
+  const sheet = createSheet({
+    content: grid, host,
+    strings: { ...strings, sheet: strings.attachTitle || 'Add to chat' },
+  });
   openSheet(sheet);
   return sheet;
 }

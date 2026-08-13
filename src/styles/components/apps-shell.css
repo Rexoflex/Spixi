@@ -23,3 +23,14 @@
   line-height: var(--line-height-body-md);
 }
 .c-apps-list[data-layout="grid"] .c-apps-empty { grid-column: 1 / -1; }   /* empty spans both columns */
+
+/* NOTHING INSTALLED — the illustrated c-empty-state (not the no-search-match note).
+   The list grows to fill the scroller so the state sits optically centred instead of
+   hanging off the top; in grid layout it spans both tracks. */
+.c-apps-list[data-empty] {
+  flex: 1;                 /* when the scroller is a flex column (demo shell) */
+  min-height: 100%;        /* when it is a plain block scroller (home shell) */
+  justify-content: center;
+}
+.c-apps-list[data-empty][data-layout="grid"] { display: flex; flex-direction: column; }
+.c-apps-list .c-apps-empty-state { grid-column: 1 / -1; }

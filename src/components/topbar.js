@@ -15,6 +15,11 @@
  *                                        // BUTTON (channel selector on bots, chat
  *                                        // info later — #86 bot surface)
  *   actions: [{ icon: 'phone', label: 'Call', onClick }]  // trailing icon-buttons
+ *              // `text: 'Add app'` makes ONE action a real TEXT button instead of a
+ *              // bare glyph (Apps: a lone + read as ambiguous — Damir 2026-08-12).
+ *              // It renders as a tonal size-32 pill with the glyph leading, so it
+ *              // still sits inside the 56px bar and reads as an action, not a title.
+ *              // `label` stays the accessible name; `icon` stays optional.
  * })
  * setTopbarSub(el, text) — live sub updates (typing…, presence) (#44 free fn)
  */
@@ -89,12 +94,23 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
     const wrap = document.createElement('div');
     wrap.className = 'c-topbar__actions';
     for (const a of actions) {
-      wrap.append(createButton({
-        type: 'text', size: 44,
-        icon: icon(a.icon),
+      const hasText = a.text != null && a.text !== '';
+      const btn = createButton({
+        // text action → tonal pill at bar scale; icon-only action → the 44 text button
+        label: hasText ? a.text : undefined,
+        type: hasText ? 'tonal' : 'text',
+        size: hasText ? 32 : 44,
+        // 16, not 18: a text action is a size-32 pill, and button.css sizes
+        // `[data-size="32"] .c-button__icon` at --size-icon-16 — an 18 request was
+        // overridden on arrival, so the glyph rasterised at a size nobody asked for.
+        icon: a.icon ? icon(a.icon, hasText ? { size: 16 } : undefined) : null,
         ariaLabel: a.label,
         onClick: a.onClick,
-      }));
+      });
+      // the ROW carries the width cap (a % max-width on the button would resolve
+      // against the shrink-to-fit row = itself, and truncate a label that fits)
+      if (hasText) { btn.classList.add('c-topbar__action--text'); wrap.classList.add('c-topbar__actions--text'); }
+      wrap.append(btn);
     }
     el.append(wrap);
   }

@@ -151,7 +151,18 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  border: var(--outline-width-2) solid var(--outline-neutral-02);
+  /* ICON ink, not a hairline OUTLINE token (Damir F5: "the circles are too muted
+     while unselected, and almost invisible"). The empty circle is the AFFORDANCE
+     ("this row can be picked"), not a card edge — and --outline-neutral-02 sits at
+     1.14:1 on --surface-card in light and 1.05:1 in dark, i.e. invisible. Stepping
+     inside the outline ladder does not fix it (outline-03 = 1.42/1.20,
+     outline-04 = 1.63/1.33 — all below the 3:1 non-text floor), so the step is one
+     rung UP into the muted-icon ladder: --icon-neutral-03 = 4.30:1 light /
+     5.69:1 dark. Same class of fix as the chat selection circle
+     (chat-select.css), one rung softer because this circle sits on a CARD next to
+     text rather than on the patterned chat canvas — visibly present, still
+     clearly unselected against the filled --surface-action-default + tick. */
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
   color: transparent;
   transition: background-color var(--duration-200) var(--easing-standard),
               border-color var(--duration-200) var(--easing-standard),
@@ -163,7 +174,10 @@
   color: var(--icon-neutral-on-action);
 }
 
-/* —— empty states —— */
+/* —— empty states ——
+   Two DIFFERENT objects: `__empty` = a search/chip that matched nothing (one
+   quiet line, roster intact), `__zero` = the shared c-empty block for a roster
+   that is genuinely empty (illustration + copy + Add-contact CTA). */
 .c-contacts__empty {
   display: flex;
   flex-direction: column;
@@ -172,17 +186,11 @@
   padding: var(--spacing-32) var(--spacing-16);
   text-align: center;
 }
-.c-contacts__empty-art {
-  width: 64px;                      /* sanctioned: empty-state disc */
-  height: 64px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  background: var(--disc-primary-bg);
-  color: var(--disc-primary-ink);
+.c-contacts__zero {
+  /* the takeover body is a scroll column; let the block settle off the actions
+     row rather than hug it (the picker has no hero to push against) */
+  padding-top: var(--spacing-16);
 }
-.c-contacts__empty[data-kind='search'] .c-contacts__empty-art { display: none; }
 .c-contacts__empty-text {
   margin: 0;
   color: var(--text-neutral-02);

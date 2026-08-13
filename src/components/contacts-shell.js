@@ -10,6 +10,14 @@
  *   purpose 'directory' (topbar Contacts): action = Add contact only; tap =
  *   onViewContact (contact details) — group creation stays with the FAB (start
  *   affordance), the directory is for finding/inspecting people.
+ *   purpose 'app' (mini-app launch target): opens DIRECTLY in the SAME select
+ *   grammar group creation uses (topbar ✓ confirms → onNext(selected)), with the
+ *   differences the launch target demands: it selects EXACTLY ONE target (rows are
+ *   radios — C# opens one session against one friend/group, so a second pick would
+ *   be silently dropped), GROUPS are selectable (a mini-app can be joined against a
+ *   group friend — WalletRecipientPage(payment:false) listed groups too), and the
+ *   topbar back leaves the picker outright (there is no browse state to fall back
+ *   to). No action rows — the picker IS the task.
  *   Free fns (#44): setPickerMode(el, 'browse'|'multi') · getPickerSelection(el)
  *                   · setPickerSelection(el, addresses) · setPickerContacts(el, contacts)
  *
@@ -40,6 +48,7 @@ import { createSearchField } from './search-field.js';
 import { createBadge } from './badge.js';
 import { createChip, setChipSelected } from './chip.js';
 import { overlayId } from './overlay.js';
+import { createEmptyState } from './empty-state.js';
 
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
@@ -61,6 +70,10 @@ function disc(hue, glyph) {
 /* ————————————————————————— picker ————————————————————————— */
 
 const pickerState = new WeakMap(); // el → { mode, selected, query, contacts, opts, els }
+
+/* purpose 'app' = the multi-user mini-app launch target picker. Same multi-select
+ * grammar as group creation, different rules (min 1 · groups allowed · back exits). */
+function isAppPick(st) { return st.opts.purpose === 'app'; }
 
 /* #276 (#211 canon sweep): a nick wins; a nameless row — or one whose "nick" is
  * really its address echoed back (C# addContact sends nickname = address for
@@ -102,7 +115,10 @@ function pickerRow(c, st) {
   // F2: address-less contacts can't be keyed into the selection Set (falsy/dupe
   // address collapses distinct rows into one Set entry) — block them from
   // multi-select the same way pending/bot rows are blocked.
-  const blocked = multi && (c.pending || c.type === 2 || !c.address);
+  // purpose 'app': the "can't be added to GROUPS" rule (type 2 = bot) does not
+  // apply — an app invite is a stream request to one friend, not group membership.
+  // A PENDING contact still can't receive one (no accepted handshake yet).
+  const blocked = multi && (c.pending || (c.type === 2 && !isAppPick(st)) || !c.address);
 
   const row = document.createElement('button');
   row.type = 'button';
@@ -150,11 +166,25 @@ function pickerRow(c, st) {
     row.setAttribute('aria-label', displayName(c) + ', ' + pendingSuffix + pendingReason);
   }
 
+  // A BLOCKED row (pending contact / no address) is still a child of the picker's
+  // list — and for purpose 'app' that list is a role="radiogroup". A bare element
+  // inside a radiogroup is not accountable to the group, so present it as what it
+  // is: an unavailable option (disabled radio, unchecked). Group/checkbox mode has
+  // no such container, so its blocked rows stay plain buttons.
+  if (multi && blocked && isAppPick(st)) {
+    row.setAttribute('role', 'radio');
+    row.setAttribute('aria-checked', 'false');
+    row.setAttribute('aria-disabled', 'true');
+  }
+
   if (multi && !blocked) {
     // F4: independent multi-select roster → role=checkbox/aria-checked is the
     // idiomatic mapping (not aria-pressed, which is for toggle buttons).
+    // purpose 'app' selects exactly ONE target (see APP_MAX_TARGETS), so its rows
+    // are RADIOs — mutually exclusive, and the row a tap deselects is the one that
+    // was picked before it.
     const selected = st.selected.has(c.address);
-    row.setAttribute('role', 'checkbox');
+    row.setAttribute('role', isAppPick(st) ? 'radio' : 'checkbox');
     row.setAttribute('aria-checked', String(selected));
     const check = document.createElement('span');
     check.className = 'c-contacts__check';
@@ -163,6 +193,18 @@ function pickerRow(c, st) {
     row.append(check);
     row.addEventListener('click', () => {
       const on = !st.selected.has(c.address);
+      if (isAppPick(st)) {
+        // single-target: a new pick REPLACES the old one. Rows are patched in
+        // place (not re-rendered) so the tapped row keeps keyboard focus.
+        for (const other of st.els.list.querySelectorAll('[aria-checked="true"]')) {
+          other.setAttribute('aria-checked', 'false');
+        }
+        st.selected.clear();
+        if (on) st.selected.add(c.address);
+        row.setAttribute('aria-checked', String(on));
+        syncNext(st);
+        return;
+      }
       if (on) st.selected.add(c.address); else st.selected.delete(c.address);
       row.setAttribute('aria-checked', String(on));
       syncNext(st);
@@ -177,7 +219,7 @@ function pickerRow(c, st) {
 }
 
 function renderPickerList(st) {
-  const { list, empty } = st.els;
+  const { list, empty, zero } = st.els;
   const { strings } = st.opts;
   // preserve scroll across a full rebuild — the directory roster re-flushes on
   // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
@@ -191,28 +233,40 @@ function renderPickerList(st) {
   // 'groups' is still selected, which left an empty list and no visible control to
   // escape it. Reset BEFORE `kind` is read below, so this render already reflects
   // the fallback (calling setKind here would re-enter and then be overwritten).
+  // purpose 'app' is the exception: its multi-select DOES list groups (a multi-user
+  // app can be joined against a group friend), so the chips stay live there.
+  const pinPeople = st.mode === 'multi' && !isAppPick(st);
   if (st.els.kinds) {
-    const hide = st.mode === 'multi' || !st.contacts.some((c) => c && c.isGroup);
+    const hide = pinPeople || !st.contacts.some((c) => c && c.isGroup);
     st.els.kinds.hidden = hide;
-    if (hide && st.mode !== 'multi' && st.kind !== 'all') {
+    if (hide && !pinPeople && st.kind !== 'all') {
       st.kind = 'all';
       if (st.els.syncKindChips) st.els.syncKindChips();
     }
   }
-  const kind = st.mode === 'multi' ? 'people' : (st.kind || 'all');
+  const kind = pinPeople ? 'people' : (st.kind || 'all');
   const kindOk = (c) => kind === 'all' || (kind === 'groups' ? !!c.isGroup : !c.isGroup);
   const matches = sortedContacts(st.contacts).filter((c) => kindOk(c) && (!needle
     || (c.name || '').toLocaleLowerCase().includes(needle)
     || (c.address || '').toLocaleLowerCase().includes(needle)));
 
   if (st.contacts.length === 0) {                 // noContacts (bridge-audit-A.md:537)
-    empty.hidden = false;
-    empty.dataset.kind = 'roster';
-    empty.querySelector('.c-contacts__empty-text').textContent =
-      strings.noContacts || 'No contacts yet — add one to start chatting securely.';
+    // MULTI (group setup) hides the Add-contact affordances entirely, so the
+    // zero state's CTA would contradict the chrome — plain note there. purpose
+    // 'app' is the exception: it has no browse state to back out into, so an
+    // empty roster with no CTA is a dead end — keep the illustration + CTA.
+    const invite = st.mode !== 'multi' || isAppPick(st);
+    if (zero) zero.hidden = !invite;              // TRUE zero state — illustration + CTA
+    empty.hidden = invite;
+    if (!invite) {
+      empty.dataset.kind = 'search';
+      empty.querySelector('.c-contacts__empty-text').textContent =
+        strings.noContacts || 'No contacts yet';
+    }
     list.hidden = true;
     return;
   }
+  if (zero) zero.hidden = true;
   if (matches.length === 0) {
     empty.hidden = false;
     empty.dataset.kind = 'search';
@@ -234,8 +288,10 @@ function pickerNext(st) {
   if (!st.opts.onNext) return;
   // F2 belt-and-braces: drop any falsy address that reached the Set anyway
   const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
-  if (sel.length < GROUP_MIN_MEMBERS) return;   // MAJOR-6: the action is disabled below 2
-  st.opts.onNext(sel);
+  if (sel.length < selectMin(st)) return;   // MAJOR-6: the action is disabled below the minimum
+  // belt-and-braces: the app pick is single-target (the rows are radios, and
+  // setPickerSelection is the only other way into the Set).
+  st.opts.onNext(isAppPick(st) ? sel.slice(0, APP_MAX_TARGETS) : sel);
 }
 
 /* #265 (Damir ⑤): the multi-select CONFIRM lives in the TOPBAR (top-trailing —
@@ -244,20 +300,39 @@ function pickerNext(st) {
  * the action stays a single compact affordance. */
 // A group needs at least TWO members (C# rejects fewer — Opus review MAJOR-6).
 const GROUP_MIN_MEMBERS = 2;
+// An app launch picks EXACTLY ONE target: C# opens one session against one
+// friend/group (MiniAppPage still derives the session id from the app id alone and
+// relays to that single peer), so a second pick would be silently dropped.
+const APP_MIN_TARGETS = 1;
+const APP_MAX_TARGETS = 1;
+function selectMin(st) { return isAppPick(st) ? APP_MIN_TARGETS : GROUP_MIN_MEMBERS; }
+// The multi-select confirm's label: "Next" (→ group setup) vs "Start" (→ launch).
+function confirmLabel(st) {
+  const { strings } = st.opts;
+  return isAppPick(st) ? (strings.startAppAction || 'Start') : (strings.next || 'Next');
+}
+// The multi-select idle title (no selection yet).
+function multiTitle(st) {
+  const { strings } = st.opts;
+  return isAppPick(st)
+    ? (strings.selectAppTargets || 'Choose who to invite')
+    : (strings.selectMembers || 'Select members');
+}
 
 function syncNext(st) {
   const n = st.selected.size;
   const { strings } = st.opts;
+  const min = selectMin(st);
   if (st.els.nextAction) {
-    st.els.nextAction.disabled = n < GROUP_MIN_MEMBERS;
+    st.els.nextAction.disabled = n < min;
     st.els.nextAction.setAttribute('aria-label',
-      (strings.next || 'Next') + (n ? ' (' + n + ')' : ''));
+      confirmLabel(st) + (n ? ' (' + n + ')' : ''));
   }
   const title = st.els.topbar && st.els.topbar.querySelector('.c-topbar__title');
   if (title) {
     title.textContent = n
       ? ((strings.selectedCount || '{n} selected').split('{n}').join(String(n)))
-      : (strings.selectMembers || 'Select members');
+      : multiTitle(st);
   }
   // review MINOR-2: a mute disabled ✓ never told the user WHY (and a disabled button
   // isn't focusable, so SR users got nothing). State the rule in the sub-line.
@@ -268,9 +343,11 @@ function syncNext(st) {
   // no reflow. (role="status" makes the swap an SR announcement too.)
   if (st.els.minHint) {
     st.els.minHint.hidden = false;
-    st.els.minHint.textContent = n >= GROUP_MIN_MEMBERS
+    st.els.minHint.textContent = n >= min
       ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
-      : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.');
+      : (isAppPick(st)
+        ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
+        : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
 }
 
@@ -279,14 +356,16 @@ function renderPickerChrome(st) {
   const multi = st.mode === 'multi';
   const topbar = createTopbar({
     variant: 'view',
-    title: multi ? (strings.selectMembers || 'Select members') : (strings.contacts || 'Contacts'),
+    title: multi ? multiTitle(st) : (strings.contacts || 'Contacts'),
     onBack: () => {
-      if (st.mode === 'multi') setPickerMode(st.els.root, 'browse'); // back out of select, not out of the picker
+      // purpose 'app' has NO browse state to fall back to (it opens straight into
+      // multi-select), so back there means "abandon the launch" → onBack.
+      if (st.mode === 'multi' && !isAppPick(st)) setPickerMode(st.els.root, 'browse'); // back out of select, not out of the picker
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
     actions: multi
-      ? [{ icon: 'check', label: strings.next || 'Next', onClick: () => pickerNext(st) }]
+      ? [{ icon: 'check', label: confirmLabel(st), onClick: () => pickerNext(st) }]
       : [],
   });
   st.els.topbar.replaceWith(topbar);
@@ -405,20 +484,50 @@ export function createContactsPicker({
 
   const list = document.createElement('div');
   list.className = 'c-contacts__list';
+  // purpose 'app' picks ONE target — its rows are radios, so the list is the group.
+  // A radiogroup needs an ACCESSIBLE NAME (without one it announces as an unnamed
+  // group and the user has no idea what the choice is FOR). Reuse the select-mode
+  // title this picker already shows and already translates — no new copy, and the
+  // spoken name matches the visible one. Roving tabindex / arrow-key navigation is
+  // deliberately NOT added here: that is the deferred #205 item shared with every
+  // other swatch/radio grammar in this codebase, and fixing it on one surface only
+  // would make the keyboard model inconsistent.
+  if (purpose === 'app') {
+    list.setAttribute('role', 'radiogroup');
+    list.setAttribute('aria-label', strings.selectAppTargets || 'Choose who to invite');
+  }
   st.els.list = list;
   body.append(list);
 
+  // NO-RESULTS note: a search or a People/Groups chip matched nothing. Plain
+  // line, no art, no CTA — the roster is fine, the needle just missed.
   const empty = document.createElement('div');
   empty.className = 'c-contacts__empty';
   empty.hidden = true;
-  const emptyDisc = document.createElement('span');
-  emptyDisc.className = 'c-contacts__empty-art';
-  emptyDisc.append(icon('users', { size: 32 }));
   const emptyText = document.createElement('p');
   emptyText.className = 'c-contacts__empty-text';
-  empty.append(emptyDisc, emptyText);
+  empty.append(emptyText);
   st.els.empty = empty;
   body.append(empty);
+
+  // TRUE zero state: the roster itself is empty (C# noContacts / an empty
+  // loadContacts flush). Illustration + copy + the SAME "Add contact" action
+  // the row above offers — no new verb, just a reachable one in the blank area.
+  const zero = createEmptyState({
+    illustration: 'images/contacts-es.svg',
+    glyph: 'users',                                 // art blocked/missing → token glyph tile
+    title: strings.noContacts || 'No contacts yet',
+    body: strings.contactsEmptyBody
+      || 'Add someone by their Spixi address or QR code — then you can chat and send IXI.',
+    actionLabel: strings.addContact || 'Add contact',
+    actionIcon: 'user-plus',
+    onAction: onAddContact,
+    compact: true,                                  // the takeover already shows an actions row above
+  });
+  zero.classList.add('c-contacts__zero');
+  zero.hidden = true;
+  st.els.zero = zero;
+  body.append(zero);
 
   el.append(body);
 
@@ -426,6 +535,11 @@ export function createContactsPicker({
   // (renderPickerChrome). No footer element remains.
 
   renderPickerList(st);
+  // purpose 'app': the picker IS the multi-select — open in it, no browse detour.
+  // Routed through setPickerMode so the chrome (topbar title + ✓ confirm, hidden
+  // action rows, live min-hint) is built by exactly the same path group creation
+  // uses; nothing about this mode is a second implementation.
+  if (purpose === 'app') setPickerMode(el, 'multi');
   return el;
 }
 

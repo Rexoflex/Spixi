@@ -160,7 +160,9 @@
   flex-direction: column;
   justify-content: flex-start;
   height: 100%;
-  width: 72px;                  /* Damir F5 r2: 84 compressed the pane at min-width — TG-class 72 */
+  width: var(--layout-rail-width);   /* Damir F5 r2: 84 compressed the pane at min-width — TG-class 72.
+                                        W2: tokenized — the shells inset their full-viewport covers by
+                                        the SAME value so the rail is never covered (tokens.css §layout) */
   gap: var(--spacing-24);       /* r2: tighter with the logo on top (was 32) */
   padding-block: var(--spacing-16);
   padding-inline: var(--spacing-4);

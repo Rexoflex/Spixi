@@ -62,6 +62,7 @@
 <link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- A5 (#302): store-rating prompt -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
+<link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
@@ -188,6 +189,20 @@
     z-index: 31;                    /* between takeover (z-30) and sheet (z-40) */
     pointer-events: none;
   }
+  /* W2 (Damir, Windows F5 2026-08-12): the rail is SYSTEM CHROME on desktop —
+     always visible AND interactive. Both in-page takeovers are `position: fixed;
+     inset: 0` (above), and the rail is a STATIC flex child of body occupying
+     exactly the leading --layout-rail-width (border-box) — so the covers painted
+     straight over it. Inset them by the rail.
+     inset-inline-START, never `left`: the rail is order:-1 in a flex ROW, so it
+     flips to the trailing edge under RTL and a physical `left` would inset the
+     wrong side (same reasoning as the body::after divider above, which is why
+     that one is inset-inline-end). Logical wins the physical `inset: 0` here on
+     specificity, in either direction.
+     Mobile (no [data-desktop]) keeps the full-viewport cover — the bottom nav is
+     a BAR the takeover is meant to replace, not persistent chrome. */
+  :root[data-desktop] .contacts-takeover,
+  :root[data-desktop] .wallet-takeover { inset-inline-start: var(--layout-rail-width); }
   /* r3 (Damir screenshot): the selected/hover row tint stopped ~6px short of the
      pane edge — that's the .u-scroll classic scrollbar track + reserved gutter
      (#41). On desktop the tab scrollers hide the track entirely → full-bleed
@@ -199,6 +214,18 @@
   :root[data-desktop] #chat-scroll::-webkit-scrollbar,
   :root[data-desktop] #wallet-scroll::-webkit-scrollbar,
   :root[data-desktop] #apps-scroll::-webkit-scrollbar { width: 0; }
+  /* ★ BUG-3: an ACTIVE search filter must never scroll out of sight. The wallet
+     tools row is the one long-lived home search field that lives INSIDE its
+     scroller, so while a query is on it pins to the top of #wallet-scroll — the
+     same grammar the mobile chats header uses (chats-header.css `.is-pinned`).
+     Opaque surface so tx rows slide under it cleanly. Not density-dependent:
+     the row scrolls on desktop too, so both presentations pin. */
+  #wallet-scroll > .c-wallet-tools.is-pinned {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--surface-screen);
+  }
 </style>
 </head>
 <body>
@@ -314,11 +341,13 @@
     createWalletHero, setWalletBalance, setBalanceHidden,
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
+    resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
     createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
+    setAppsHeaderEmpty,                  // nothing installed → hide the dead search/layout row
     attachContextMenuAnchors,            // Batch C (M6): desktop sheet grammar (no-op on mobile)
     createButton,                        // iOS-22 (#314): the dev-log topbar action
     showToast,                           // iOS-22 (#314): dev-mode enable/disable feedback (toast.css already linked)
@@ -345,6 +374,55 @@
     else if (a === '2') document.documentElement.dataset.theme = 'dark';
     else if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
   })();
+
+  /* —— ZERO-STATE LOAD GATE (chats · wallet · apps) ————————————————————————
+   * An ILLUSTRATED empty state ("No chats yet" + art + "Start a chat") is a CLAIM
+   * about the user's account, and this shell builds all three lists SYNCHRONOUSLY,
+   * with an empty model, before the bridge has answered. Ungated, an F5 painted the
+   * full zero state and then popped the real rows in; and because C# emits every
+   * clearX/addX as its OWN EvaluateJavaScriptAsync (the burst is NOT reliably
+   * same-frame — see scheduleAppsRender), a mid-burst render repainted the whole
+   * zero state for a user who DOES have data on every tab re-entry.
+   *
+   * The gate is the single flag `opts.zeroReady`, read at render time by all three
+   * shell components: false = "I have not been given data yet" → render NO empty
+   * node (a blank beat, never a false claim). It opens when the surface has
+   * actually received data — or has demonstrably settled with none, so a user who
+   * genuinely has zero apps/txs/chats still reaches the illustrated state promptly:
+   *   · CHATS  has a real end-of-burst verb (clearChatsDone) + the stall watchdog —
+   *            they open the gate directly, no timer, no guessing.
+   *   · APPS/WALLET have NO done verb (see the comments at clearApps /
+   *            clearPaymentActivity), and inventing one is a bridge change. They
+   *            open it on a QUIET WINDOW: every push re-arms a short timer, so the
+   *            gate opens ZERO_SETTLE_MS after the LAST push of a burst — bounded
+   *            by the gap between pushes, not by the burst length.
+   * A clear() that lands while the surface is genuinely empty does NOT shut the
+   * gate again: the zero state a truly-empty user is looking at must not blink off
+   * and back on every time C# re-flushes the tab.
+   */
+  const ZERO_SETTLE_MS = 400;
+  function createZeroGate(gateOpts, render, settleMs) {
+    let timer = null;
+    gateOpts.zeroReady = false;                 // construction render: nothing to claim yet
+    const openAndRender = () => {
+      timer = null;
+      if (gateOpts.zeroReady) return;
+      gateOpts.zeroReady = true;
+      render();
+    };
+    return {
+      // a bridge push landed. hadRows = the surface held rows before this clear →
+      // it is a REFILL, so shut the gate for the duration of the burst.
+      push(hadRows) {
+        if (hadRows) gateOpts.zeroReady = false;
+        if (!settleMs) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(openAndRender, settleMs);
+      },
+      // an explicit end-of-burst signal (chats). The caller renders itself.
+      open() { if (timer) { clearTimeout(timer); timer = null; } gateOpts.zeroReady = true; },
+    };
+  }
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
@@ -638,6 +716,44 @@
     if (contactsView) { contactsView.close(); return true; }   // onClose nulls the handle + syncs
     return false;
   }
+  /* W2 (Damir, Windows F5 2026-08-12) — RAIL TAP WHILE A TAKEOVER IS OPEN.
+   * Until the CSS inset above, the desktop rail was physically unreachable behind
+   * the takeovers, so this case had no defined behaviour. Now it is reachable, and
+   * showView() does NOT touch contactsView / walletTakeover — the tab would have
+   * swapped SILENTLY BEHIND a still-open cover. C# already sweeps every NATIVE
+   * overlay on a tab switch (HomePage.xaml.cs:604-640: Account pane, chat-info,
+   * form pane, tx detail) but has no verb for a WebView-INTERNAL takeover, so the
+   * shell makes itself symmetric: any nav/rail tab tap dismisses the open takeover
+   * first, then switches. Mobile rides the same path (the bar is only reachable
+   * there when nothing is up), so there is one behaviour, not two.
+   * ★ Account is swept too — it is a rail TAB, not an exception. The wide Account
+   * pane is a NATIVE stage ABOVE this WebView (#245), so an un-closed takeover went
+   * INVISIBLE but stayed MOUNTED: contactsView non-null, homeOverlayLive() still
+   * true, and the next hardware back closed that invisible cover instead of the
+   * Account pane (AND-29 routing a back into a surface the user cannot see).
+   * Sheets/menus (z-40) are deliberately NOT swept: their scrim covers the rail, so
+   * a tab tap cannot happen while one is up. */
+  function closeHomeTakeovers() {
+    if (walletTakeover && walletTakeoverClose) walletTakeoverClose();   // nulls both handles + syncs
+    if (contactsView) contactsView.close();                             // onClose nulls the handle + syncs
+  }
+  /* ★ BUG-3 — LEAVING A SURFACE DROPS ITS SEARCH QUERY (Damir F5 2026-08-13: "the
+   * group was in list, I had active search bar stuff in … the search bar needs to
+   * clear when we stop using it"). His exact path was chats → FAB → contacts
+   * takeover → create group → back, and the forgotten chats query was still hiding
+   * rows when he landed; he read that as a missing group and filed two bug reports
+   * against code that was correct.
+   * `keepWithin` is the surface being ENTERED — its own field is the one the user is
+   * looking at. Everything else is by definition off-screen or behind a cover, i.e.
+   * exactly the filter that can hide content silently.
+   * The three home fields (chats/wallet/apps) live for the life of the document, so
+   * they are the only ones that can go stale; the takeover fields unmount with their
+   * DOM and are swept out of the registry by resetSearchFields itself.
+   * ★ TEXT QUERY ONLY — the chats chip filter is separate state with its own rules
+   * (leaveRequestsFilterIfEmpty); nothing here touches state.filter. */
+  function leaveSurfaceSearch(keepWithin) {
+    try { return resetSearchFields({ keepWithin: keepWithin || null }); } catch (e) { return 0; }
+  }
   /* Q5: groups/bots stay OUT of the contacts takeover (both purposes — group
    * management lives in chat info, CI7; and the 'start' picker means "pick a
    * PERSON"). The directory push carries NO type arg (addContact 5-arg,
@@ -689,11 +805,14 @@
 
   /* Open the contacts takeover via the clean bridge boundary (contacts-page.js).
    * 'start' (FAB): Add contact + Create group; tap = open chat. 'directory'
-   * (topbar): Add contact only; tap = contact details. One open at a time. */
-  function openContacts(purpose) {
+   * (topbar): Add contact only; tap = contact details. 'app' + appId (mini-app
+   * launch target): opens straight in the select grammar group creation uses, but
+   * SINGLE-select; ✓ emits ixian:startappwith:<appId>:|<addr>. One open at a time. */
+  function openContacts(purpose, appId) {
     if (contactsView) contactsView.close();       // onClose nulls the handle
+    leaveSurfaceSearch();   // BUG-3: a takeover covers the tab — its query does not outlive the visit
     contactsView = mountContacts({
-      host: document.body, bridge, strings, purpose,
+      host: document.body, bridge, strings, purpose, appId: appId || '',
       getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
       onClose: () => { contactsView = null; syncHomeOverlay(); },   // AND-29
     });
@@ -724,6 +843,9 @@
     variant: isDesktop ? 'rail' : undefined,
     logo: isDesktop,
     onChange: (id) => {
+      // W2: a tab tap dismisses an open in-page takeover BEFORE anything else —
+      // including the Account branch below (see closeHomeTakeovers).
+      closeHomeTakeovers();
       // Account is NOT an in-page tab — it's the SettingsPage WebView, which since
       // #245 opens as a PEER PANE over the list+detail area (the rail stays visible
       // beside it). Highlight Account while it's open; C# pushes onSettingsClosed
@@ -736,6 +858,9 @@
         // preserves tap order.
         deferToPaint(() => bridge.send('ixian:settings'));
         setNavActive(nav, 'account');
+        // BUG-3: the Account pane is a peer stage OVER this shell — the tab under it
+        // is left, so its query goes with the visit (same rule as a takeover).
+        leaveSurfaceSearch();
         return;
       }
       activeNav = id;
@@ -792,11 +917,30 @@
    * delete verb, so a delete can't persist to C#; without this a deleted row would
    * reappear on the very next loadChats re-flush. We remember deleted addresses for
    * the session and filter them out of a STRUCTURAL flush — so a delete actually
-   * sticks — while a LONE addChat (a real new-message event, updateChat xaml:1020)
-   * RESURRECTS the chat (they messaged you again → it should come back). Cleared on
-   * app restart (session-only). The DEEPER wipe (deleteAll = history + downloads +
-   * contact) still needs the BE verbs — this only removes the row. */
-  const deletedChats = new Set();
+   * sticks. Cleared on app restart (session-only). The DEEPER wipe (deleteAll =
+   * history + downloads + contact) still needs the BE verbs — this only removes the row.
+   *
+   * ★ BUG-1b (Damir F5 2026-08-13: "I deleted chat, then that same contact sent me
+   * messages, but I dont see it in chats list"). This one is real and was reproduced
+   * against the BUILT shell — it is NOT the "my new group is missing" report filed the
+   * same day, which Damir retracted (the group was in the list; a stale chats SEARCH
+   * QUERY was hiding it — see the search-reset rule in chats-header.js). No C# chats-
+   * list predicate was ever at fault; everything below is about the FE tombstone only.
+   * Resurrection used to depend ENTIRELY
+   * on the push SHAPE — only a LONE addChat (not inside a clear…done burst) cleared the
+   * tombstone. That signal is not reliable:
+   *   · C# only emits the lone push when HomePage is NavigationStack.Last()
+   *     (UIHelpers.insertMessage) — while a pushed page is up (Receive/Send, Downloads,
+   *     App details, a mini app) an arriving message produces a flush and nothing else;
+   *   · even when it IS emitted, every push is its own EvaluateJavaScriptAsync, so it
+   *     lands INSIDE a concurrent loadChats burst often enough to matter (the sender was
+   *     typing a moment earlier → msgTyping already set shouldRefreshContacts) and the
+   *     `chatsFlushing` guard discarded it.
+   * Either way the messages were stored, counted and unreachable — a data-visibility
+   * bug. So the tombstone now expires on EVIDENCE instead: we record the tail timestamp
+   * and unread count at delete time, and ANY push (flush or lone) that shows a newer
+   * message or a higher unread count brings the conversation back. */
+  const deletedChats = new Map();   // address → { ts, unread } captured at delete time
   /* Pin chat (6e.3, #232 ⑤): FE interim persistence — localStorage address list
    * (drafts/myLikes class; per-device, wiped with app data — accepted until CH4
    * lands the durable persist at the BE cutover). Seeded into addChat because a
@@ -855,7 +999,9 @@
     //   deleteContact        → also remove the contact (→ ixian:remove)
     onPersist: (action, chat, detail) => {
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
-        deletedChats.add(chat.address);   // no HomePage dispatch yet — intent only
+        // no HomePage dispatch yet — intent only. Capture the tail the user deleted
+        // (timestamp + unread) so a LATER message can prove itself new (BUG-1b).
+        deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
         dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
         if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
@@ -913,7 +1059,13 @@
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete/mark-read never leaves a stale chip count.
     onModelChange: () => { setNavBadge(nav, 'chats', navUnreadTotal()); setChatsHeaderCounts(header, chatsHeaderCounts()); },
+    // zero-state CTA — the SAME action as the FAB (contacts picker), no new verb
+    onNewChat: () => openContacts('start'),
   };
+
+  /* zero-state gate (see createZeroGate): chats owns a REAL end-of-burst verb, so
+   * no timer — clearChatsDone (and the stall watchdog) open it. */
+  const chatsZero = createZeroGate(opts, () => renderChatsNow(), 0);
 
   const scroller = document.getElementById('chat-scroll');
   const list = createChatsList(state, opts);
@@ -1014,6 +1166,7 @@
       if (!chatsFlushing) return;                 // normal completion — nothing to heal
       try { console.warn('[home-shell] chats flush never completed — releasing the render gate'); } catch (e) {}
       chatsFlushStalled = true;                   // render again; tombstone semantics untouched
+      chatsZero.open();                           // degrade to "render what the model holds", zero state included
       renderChatsNow();
     }, 1500);
   }
@@ -1509,6 +1662,8 @@
     // ignored; opens the user's address on explorer.ixian.io (C# Browser.OpenAsync).
     // tx-level explorer = W3, now served by the wallet_sent detail page below.
     onExplorer: () => bridge.send('ixian:explorer'),
+    // zero-state CTA — the SAME Receive takeover the hero's Receive opens (hoisted fn)
+    onReceive: () => mountWalletReceive(),
     // B3 (#256): tx tap → the FULL-PARITY detail page (redesigned wallet_sent.html).
     // HomePage:473 `ixian:txdetails:<txid>` routes wide → WalletSentPage in the
     // rightContent pane (+ a selectTx echo this shell already renders) / narrow →
@@ -1594,6 +1749,7 @@
     if (walletTakeover) return;                               // double-open guard
     const addr = cleanReceiveAddress(walletOwnAddress);
     if (!addr) { bridge.send('ixian:receiveixi'); return; }   // own address not pushed yet → native
+    leaveSurfaceSearch();   // BUG-3: the takeover covers the tab — its query ends with the visit
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
@@ -1631,9 +1787,24 @@
       // C# validates again and composes the requestFunds chat message (legacy
       // payload: `address:amount`).
       contacts: requestableContacts(),
+      /* W9 (Damir 2026-08-13): the component now MULTI-SELECTS and fires ONE CTA,
+         which loops this callback once per ticked contact — the per-contact legacy
+         verb is unchanged, there is no batch verb (none exists, and inventing one
+         would be a frozen-protocol change). Returning false marks THAT recipient as
+         not sent: the component keeps it ticked, does NOT navigate, and the CTA
+         retries exactly the remainder. `bridge.send` is location.href, so a throw
+         is the only other failure signal — the component catches it per contact. */
       onSendRequest: ({ contact, amount }) => {
-        if (!contact || !contact.address || !amount) return;
+        if (!contact || !contact.address || !amount) return false;
         bridge.send('ixian:sendrequest:' + contact.address + ':' + amount);
+        return true;
+      },
+      /* W9: "…that then confirms it was sent, and we return to wallet screen."
+         Fires only on an ALL-CLEAR run. Close FIRST, then toast onto document.body
+         — a toast hosted inside the takeover would be removed with it mid-flight. */
+      onRequestsSent: ({ text }) => {
+        if (walletTakeoverClose) walletTakeoverClose();
+        showToast({ text, tone: 'success', host: document.body, strings: walletStrings });
       },
     }));
     over.append(body);
@@ -1685,6 +1856,7 @@
   function mountWalletSend() {
     if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // v1: native signed send
     if (walletTakeover) return;                               // double-open guard
+    leaveSurfaceSearch();   // BUG-3: the takeover covers the tab — its query ends with the visit
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
@@ -1739,6 +1911,10 @@
   });
   document.getElementById('wallet-hero').append(hero);
 
+  /* zero-state gate (see createZeroGate): the payment-activity burst has NO done
+   * verb, so the gate opens on a quiet window after the last push. */
+  const walletZero = createZeroGate(walletOpts, () => scheduleWalletRender(), ZERO_SETTLE_MS);
+
   const walletScroll = document.getElementById('wallet-scroll');
   const walletList = createWalletTxList(walletState, walletOpts);
   walletOpts.listEl = walletList;   // used by setWalletQuery below
@@ -1749,9 +1925,17 @@
   // show a stale slice on the next 'All'.
   const walletTools = document.createElement('div');
   walletTools.className = 'c-wallet-tools';
+  /* BUG-3 second half — AN ACTIVE FILTER MUST STAY VISIBLE. Of the three long-lived
+   * home fields this is the only one INSIDE its scroller (#chats-header and
+   * #apps-header sit above theirs; the mobile chats header pins itself, iOS-57), so a
+   * live query here could scroll off and keep filtering unseen. Pin the tools row
+   * while a query is on — the same `is-pinned` grammar chats-header.css uses.
+   * Class-toggled from JS rather than `:has()`: the WebView floor is Chromium 102 (#4)
+   * and `:has()` only lands at 105. */
+  const syncWalletToolsPin = (q) => walletTools.classList.toggle('is-pinned', String(q || '') !== '');
   const walletSearch = createSearchField({
     placeholder: walletStrings.searchTx || 'Search transactions',
-    onInput: (v) => setWalletQuery(walletList, walletState, v, walletOpts),
+    onInput: (v) => { setWalletQuery(walletList, walletState, v, walletOpts); syncWalletToolsPin(v); },
     strings: walletStrings,
   });
   const walletFilters = createWalletFilters(walletState, {
@@ -1815,8 +1999,12 @@
   const appsState = { apps: [], query: '', layout: 'list' };
   const appsOpts = {
     strings, host: document.body,
-    // primary tap → LAUNCH. single → ixian:startApp; multi → ixian:startAppMulti;
-    // both flags → single. C# owns launch (native picker for multi) — SECURITY.md OK.
+    // primary tap → LAUNCH. single → ixian:startApp; multi → the IN-SHELL target
+    // picker (Damir 2026-08-13: "when launching multiuser app we get the legacy
+    // contacts list selector, it should be new one same as for group creation").
+    // The legacy `ixian:startAppMulti:` verb answered by pushing
+    // WalletRecipientPage — that IS the legacy selector. It stays live for the
+    // OTHER caller (app_details.html), which C# now routes back here too.
     onLaunch: (app) => {
       if (!app || app.id == null || app.id === '') return;
       // A9 (#302): a DUAL app (both flags) still launches SOLO on the primary tap —
@@ -1826,13 +2014,14 @@
       // flag also launches solo — legacy's chain had no final else, so such a tap
       // simply did nothing (index.html:649-676); that dead branch is not restored.
       const multi = !!app.isMultiUser && !app.isSingleUser;
-      bridge.send('ixian:' + (multi ? 'startAppMulti' : 'startApp') + ':' + app.id);
+      if (multi) { openContacts('app', app.id); return; }
+      bridge.send('ixian:startApp:' + app.id);
     },
     // A9 (#302): explicit multi-user launch for a dual-capability app (⋮ → "Invite a
-    // contact"). C# hands off to its native contact picker (HomePage.xaml.cs:2682).
+    // contact") — same in-shell picker as the multi-only tap above.
     onLaunchMulti: (app) => {
       if (!app || app.id == null || app.id === '') return;
-      bridge.send('ixian:startAppMulti:' + app.id);
+      openContacts('app', app.id);
     },
     // details → the app's details page (launch-mode + permissions live there); reached
     // via the ⋮ menu's "App details" action (onOpen).
@@ -1842,14 +2031,35 @@
     onUninstall: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:uninstall:' + app.id); },
     onModelChange: () => {},
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
+    // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
+    // secondary "Add app" CTA. Art ships beside the shells (build-shells.mjs:260-267,
+    // the images/backup.svg mechanism) — a `file://` WebView resolves a sibling file,
+    // never an external asset URL. Missing art degrades to the glyph tile.
+    emptyIllustration: 'images/apps-es.svg',
+    onAddApp: () => bridge.send('ixian:newapp'),   // same verb as the topbar action
   };
 
-  // Apps topbar — root style + an Add action (→ legacy AppNewPage).
+  // Apps topbar — root style + the Add action (→ legacy AppNewPage).
+  // Damir 2026-08-12: the lone "+" glyph did not say what it did → a real TEXT button.
+  // "Add app" (not "New app"): the flow INSTALLS an app that already exists — paste a
+  // link / scan a QR / pick a file (c-apps-add) — it does not author one; and it is
+  // verbatim the title of the page it opens (app_new.html:121 `strings.addApp`), so the
+  // button names its destination the way "New chat" does. The VISIBLE text is now the
+  // accessible name (c-button ignores ariaLabel once a label exists) — `label` is kept
+  // as the icon-only fallback should a caller ever drop `text`.
   const appsTopbarEl = createTopbar({
     variant: 'root', title: strings.tabApps || 'Apps',
-    actions: [{ icon: 'circle-plus', label: strings.addMiniApp || 'Add mini app', onClick: () => bridge.send('ixian:newapp') }],   // key ≠ app_new's addApp 'Add app' (A4 conflict gate)
+    actions: [{
+      icon: 'circle-plus', text: strings.addApp || 'Add app',
+      label: strings.addMiniApp || 'Add mini app',   // key ≠ app_new's addApp 'Add app' (A4 conflict gate)
+      onClick: () => bridge.send('ixian:newapp'),
+    }],
   });
   document.getElementById('apps-topbar').append(appsTopbarEl);   // #322: ref kept — the connectivity title-state also lands here
+
+  /* zero-state gate (see createZeroGate): loadApps has no done verb either, so the
+   * gate opens ZERO_SETTLE_MS after the last clearApps/addApp of a burst. */
+  const appsZero = createZeroGate(appsOpts, () => scheduleAppsRender(), ZERO_SETTLE_MS);
 
   const appsScroll = document.getElementById('apps-scroll');
   const appsList = createAppsList(appsState, appsOpts);
@@ -1862,6 +2072,10 @@
   // which stays parked. `discover:false` here only means "no in-app feed", not "no banner".
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
+    // Damir 2026-08-12: the banner gets the illustration, bottom-right. Sibling file
+    // beside the shell (build-shells.mjs copies src/demo/images → …/html/images), the
+    // images/backup.svg mechanism — an external asset URL is what file:// refuses.
+    exploreImage: 'images/explore-banner.svg',
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
     onExplore: () => bridge.send('ixian:spixiAppsLink'),
@@ -1871,6 +2085,11 @@
 
   // Batched render — loadApps clears then appends rows one-by-one with no "done"
   // signal; coalesce the burst into a single render next frame (wallet parity).
+  // NOTE the burst is NOT reliably same-frame: C# emits every clearApps/addApp as its
+  // OWN EvaluateJavaScriptAsync, so on a slow device the rAF fires mid-burst and the
+  // list renders two or three times per tab switch. renderAppsList now REUSES rows by
+  // app id across those renders (apps-shell.js ★), so the extra passes cost no DOM
+  // rebuild and — the visible symptom — no icon re-decode.
   let appsRenderQueued = false;
   function scheduleAppsRender() {
     if (appsRenderQueued) return;
@@ -1878,6 +2097,10 @@
     requestAnimationFrame(() => {
       appsRenderQueued = false;
       renderAppsList(appsList, appsState, appsOpts);
+      // dead controls off while there is nothing installed (search/layout toggle).
+      // Gated on the SAME flag as the empty state: collapsing the header during the
+      // load window and re-expanding it when the rows land is a visible layout jump.
+      setAppsHeaderEmpty(appsHeader, !(appsState.apps || []).length && appsOpts.zeroReady !== false);
     });
   }
 
@@ -1901,6 +2124,12 @@
     walletView.hidden = !isWallet;
     appsView.hidden = !isApps;
     placeholderView.hidden = isChats || isWallet || isApps;
+    /* ★ BUG-3: a tab switch LEAVES a surface, so the surface it leaves drops its
+     * search query — the tab you come back to is never still filtered by something
+     * you typed a session ago and cannot see. The INCOMING view is kept: that field
+     * is on screen, and re-entering a tab you never left mid-query is a no-op.
+     * Chip filters are untouched (see leaveSurfaceSearch). */
+    leaveSurfaceSearch(isChats ? chatsView : isWallet ? walletView : isApps ? appsView : null);
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
@@ -2134,6 +2363,29 @@
     // setNavActive after it is then a consistent no-op, and the real fallback
     // when there was no tab hand-off.
     onSettingsClosed() { consumeLandTab(); setNavActive(nav, activeNav); },
+
+    // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
+    // page has no contacts roster of its own, so C# hands the target pick back to
+    // this shell — the SAME picker the apps tab uses (Damir: "it should be new one
+    // same as for group creation"). The picker answers with
+    // ixian:startappwith:<appId>:|<addr>… ; an empty id is dropped by mountContacts.
+    // ★ W9-③ (Damir: "the selection from app details … returns to chat"): park the
+    // shell on APPS before the picker opens. The app-details pane is a native
+    // surface ABOVE this WebView, so whatever tab was underneath it is what the
+    // user is dropped onto the moment that pane closes — and on the abandon path
+    // (picker back) that is the ONLY thing left on screen. Chats is the wrong
+    // answer for a launch that started in Apps; the tab the app lives on is the
+    // right one. Same chokepoint the nav uses, so the C# side stays in sync.
+    pickAppTargets(appId) {
+      if (!appId) return;
+      if (activeNav !== 'apps') {
+        activeNav = 'apps';
+        setNavActive(nav, 'apps');
+        showView('apps');
+        deferToPaint(() => bridge.send('ixian:tab:' + (NAV_TO_TAB.apps || 'apps')));
+      }
+      openContacts('app', String(appId));
+    },
     /* ——— chats (wired) ——————————————————————————————————————————————————— */
 
     // Batch start of a FULL flush: reset the model + enter flushing mode so the
@@ -2141,6 +2393,10 @@
     clearChats() {
       chatsFlushing = true;
       armChatsFlushWatchdog();          // iOS-28 belt: a half-run flush must not latch the list dead
+      // Zero-state gate: a re-flush over a roster that HAD rows must not flash
+      // "No chats yet" mid-burst; a re-flush over an already-empty roster leaves
+      // the gate open so the state the user is looking at doesn't blink.
+      chatsZero.push(((state.chats || []).length + (state.requests || []).length) > 0);
 
       // CH2: keep a row that's inside its ≥3s handshake hold so a C# re-flush during
       // those 3s can't cut the "Establishing…" state short (Damir). Normal flush (no
@@ -2165,15 +2421,22 @@
       // (the CONTACT stays pending in the picker even if its row was deleted).
       const isReqRow = isRequestSentPush(excerpt_msg, type);
       if (isReqRow) requestAddrs.add(wallet); else requestAddrs.delete(wallet);
-      // Deleted this session (CH3 tombstone): a STRUCTURAL flush must keep it gone;
-      // a LONE addChat (a real new-message event) RESURRECTS it (they messaged you).
-      if (deletedChats.has(wallet)) {
-        if (chatsFlushing) return;              // reflush → stay deleted
-        deletedChats.delete(wallet);            // new message → bring it back
-      }
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
       const n = Number(unread) || 0;
+      // Deleted this session (CH3 tombstone): a STRUCTURAL re-flush of the SAME state
+      // must keep it gone. ★ BUG-1b: but EVIDENCE OF NEW ACTIVITY resurrects it in EVERY
+      // push path, flush included — a message newer than the tail the user deleted, or an
+      // unread count above the one they deleted at. Never trust the push shape alone: a
+      // lone updateChat is not emitted at all unless HomePage is top-of-stack, and when it
+      // is it can still land mid-flush (see deletedChats). Messages you cannot see are a
+      // worse failure than a row that comes back.
+      const tomb = deletedChats.get(wallet);
+      if (tomb) {
+        const revived = (t && t > tomb.ts) || n > tomb.unread;
+        if (revived || !chatsFlushing) deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
+        else return;                            // re-flush, nothing new → stay deleted
+      }
       const chat = {
         address: wallet,
         name: from || '',
@@ -2254,6 +2517,7 @@
     clearChatsDone() {
       chatsFlushing = false;
       disarmChatsFlushWatchdog();
+      chatsZero.open();                 // the roster is authoritative now — an empty one may say so
       // B-7: the model is authoritative now → drop hints for addresses that no
       // longer have a row (contact removed natively — no addChat ever expires it).
       pruneExdelHints();
@@ -2351,6 +2615,7 @@
     // sync BOTH the nav highlight and the visible view.
     selectTab(tab) {
       const navId = TAB_TO_NAV[tab] || tab;
+      closeHomeTakeovers();   // W2: the incoming push has the same hole as onChange
       setNavActive(nav, navId);
       showView(navId);
     },
@@ -2379,6 +2644,7 @@
 
     // Batch start: reset tx model + sync the active filter chip. Render (empty) next frame.
     clearPaymentActivity(filter) {
+      walletZero.push((walletState.txs || []).length > 0);   // refill → no "No activity yet" mid-burst
       walletState.txs = [];
       const f = (filter === 'sent' || filter === 'received') ? filter : 'all';
       walletState.filter = f;
@@ -2432,6 +2698,7 @@
           : { timeText: time || '' }),
         // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
       });
+      walletZero.push(false);      // re-arm the quiet window: the burst is still running
       scheduleWalletRender();
     },
 
@@ -2443,10 +2710,16 @@
 
     /* ——— apps (wired, tab3) ————————————————————————————————————————————————— */
 
-    // Batch start: reset the model, render (empty) next frame.
+    // Batch start: reset the model. PERF (Damir F5 2026-08-13, "flickers"): this used to
+    // schedule a render of the EMPTY model, and loadApps has no done verb — so whenever the
+    // rAF won the race against the next addApp (C# emits each one as its own
+    // EvaluateJavaScriptAsync) every row was detached from the DOM and re-attached a frame
+    // later. The row cache meant no re-decode, but a blank frame is exactly the flicker.
+    // The refill's own addApp renders instead; a genuinely EMPTY flush (last app uninstalled)
+    // still renders when the zero gate's quiet window opens.
     clearApps() {
+      appsZero.push((appsState.apps || []).length > 0);   // refill → no illustrated state mid-burst
       appsState.apps = [];
-      scheduleAppsRender();
     },
 
     // One installed app (HomePage.xaml.cs:1567):
@@ -2468,6 +2741,7 @@
         isSingleUser: isSingleUser === 'true' || isSingleUser === 'True' || isSingleUser === true,
         isMultiUser: isMultiUser === 'true' || isMultiUser === 'True' || isMultiUser === true,
       });
+      appsZero.push(false);        // re-arm the quiet window: the burst is still running
       scheduleAppsRender();
     },
 

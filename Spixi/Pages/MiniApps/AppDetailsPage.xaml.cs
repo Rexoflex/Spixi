@@ -299,19 +299,28 @@ namespace SPIXI
             //
             // ★ W9-③ (Damir, Windows F5 2026-08-13): "the selection from app details
             // closes the app details pane and returns to chat." HAND OFF FIRST, TEAR
-            // DOWN SECOND. The old order called popPageAsync() before the hand-off,
-            // and popPageAsync is not a plain call: for an overlay-mode page (#225 —
-            // which is how HomePage.onAppDetails presents this one, pinned to the
-            // detail column on a wide window) it enters closeOverlay, which queues a
-            // main-thread continuation that hides the stage, waits, detaches it and
-            // Disposes THIS page. Issuing the pick request after arming that teardown
-            // means the request rides the same main-thread queue as our own disposal
-            // — and on the iOS branch closeOverlay awaits a 250 ms slide-out first.
-            // Nothing about "close this pane" needs to happen before "open that
-            // picker", and the visible consequence of the old order is exactly what
-            // Damir describes: the pane goes, the detail column falls back to the
-            // conversation behind it, and the launch does not visibly continue.
-            // Both calls stay in ONE main-thread delegate so the order is fixed.
+            // DOWN SECOND.
+            //
+            // #340 audit (C-MINOR-6) CORRECTS THIS RATIONALE — the previous wording claimed
+            // "the old order called popPageAsync() before the hand-off". It did not: at
+            // 40f74cf4 onStartAppMulti pushed WalletRecipientPage and contained no pop at
+            // all; the pop lived in HandlePickAppMultiUserSucceeded, i.e. it ran AFTER the
+            // user picked. There was no order to reverse. What Damir saw is that closing
+            // this overlay (tagged formpane, column 1) drops the detail column back to the
+            // conversation behind it — and that still happens, because we still pop. What
+            // actually saves the flow is home.pickAppTargets parking the shell on the APPS
+            // tab before it opens the picker (src/shells/home.html), so neither the launch
+            // nor the abandon path can end on the chats list. Keep that in mind before
+            // "simplifying" the shell side away: it is load-bearing, this ordering is not.
+            //
+            // The ordering is still the right way round and is kept deliberately: popping
+            // first would arm closeOverlay's main-thread teardown (hide → wait → detach →
+            // Dispose THIS page, +250 ms slide-out on iOS) before the pick request is
+            // issued. Note the two calls do NOT execute inside one delegate as previously
+            // claimed — pickAppTargets → sendUiCommand → sendMessage re-queues the eval onto
+            // the main thread — but the eval is queued BEFORE closeOverlay's own
+            // continuations, so the effective order holds. popPageAsync is idempotent
+            // (overlayStack.Remove guard), so a double tap cannot double-pop.
             HomePage? home = HomePage.InstanceOrNull();
             if (home != null)
             {

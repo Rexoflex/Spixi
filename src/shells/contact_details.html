@@ -125,6 +125,7 @@
   const {
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
+    attachPressFeedback,
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -144,6 +145,11 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* #343: ONE call lights up press feedback for every pressable surface in this
+     shell (src/components/pressable.js). Delegated on document, so rows created
+     later by a re-render are covered without re-attaching. A new shell needs
+     exactly this line. */
+  attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
   const dbg = (...a) => { try { console.debug('[contact-details]', ...a); } catch (_) {} };

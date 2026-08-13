@@ -167,6 +167,7 @@
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     createEncPassScreen, ENC_DELIM,
+    attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
@@ -256,6 +257,11 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* #343: ONE call lights up press feedback for every pressable surface in this
+     shell (src/components/pressable.js). Delegated on document, so rows created
+     later by a re-render are covered without re-attaching. A new shell needs
+     exactly this line. */
+  attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
   const root = document.getElementById('settings-root');
@@ -1050,9 +1056,11 @@
     return paneMode ? getEmpty() : hubEl;
   }
 
-  // Share own address (6e.2). navigator.share where the WebView exposes it
-  // (never assumed — WinUI WebView2 may not); fallback = clipboard + "Copied"
-  // toast so the row is never a dead end. Errors (incl. user-cancel) are benign.
+  // Share own address (6e.2). Fallback = clipboard + "Copied" toast, so the row is
+  // never a dead end.
+  // ⚠ C7 (#342) CORRECTS THIS COMMENT: WinUI WebView2 DOES expose navigator.share, and
+  // it REJECTS when it cannot present a sheet — so "errors are benign" was wrong, and
+  // acting on it is what made the button a silent no-op on desktop. See shareAddress.
   // #235b (Opus review MINOR-2): navigator.clipboard is UNDEFINED on non-secure /
   // older WebView2 origins → `.writeText` threw into a silent catch (no copy, no
   // feedback). Now: guard clipboard existence, fall back to execCommand, and if
@@ -1068,13 +1076,24 @@
       return !!ok;
     } catch (e) { return false; }
   }
-  function shareAddress({ address }) {
-    const addr = address || state.address;
-    if (!addr) return;
-    if (navigator.share) {
-      navigator.share({ text: addr }).catch(() => {});
-      return;
-    }
+  /* C7 (#342, Damir F5: "on desktop the share button beside the address does nothing").
+   * CONFIRMED DEFECT, and the cause was the ladder's SHAPE, not a missing capability.
+   * The old code took `navigator.share` as proof that sharing works, swallowed every
+   * rejection with `.catch(() => {})`, and RETURNED — so the clipboard fallback below
+   * it was unreachable on the one engine that needs it. WinUI WebView2 DOES expose
+   * navigator.share and DOES reject when it cannot present a system sheet. The button
+   * therefore did exactly nothing on desktop, silently.
+   * The correct ladder already existed in the sibling shell (home.html
+   * shareReceivePayload, the A10 fix). This mirrors it, with one difference: home has
+   * `ixian:share` as its third rung, and SettingsPage dispatches no such verb, so the
+   * clipboard IS the terminal fallback here.
+   *  1. navigator.share first, inside the click's activation window.
+   *  2. On rejection: a WebKit AbortError means the sheet appeared and the user
+   *     dismissed it — that is not a failure, so stay silent. WebView2 is detected
+   *     through window.chrome.webview and always falls through, because its rejection
+   *     means "I could not show a sheet".
+   *  3. Clipboard, then execCommand, then an error toast. The row always answers. */
+  function copyAddressFallback(addr) {
     const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
     const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: document.body, strings }); };   // fallback = the dict value (A4 conflict gate)
     try {
@@ -1082,6 +1101,21 @@
         navigator.clipboard.writeText(addr).then(ok, fail);
       } else { fail(); }
     } catch (e) { fail(); }
+  }
+  function shareAddress({ address }) {
+    const addr = address || state.address;
+    if (!addr) return;
+    if (navigator.share) {
+      try {
+        navigator.share({ text: addr }).catch((e) => {
+          const isWebView2 = !!(window.chrome && window.chrome.webview);
+          if (e && e.name === 'AbortError' && !isWebView2) return;   // user cancelled — not a failure
+          copyAddressFallback(addr);
+        });
+        return;
+      } catch (e) { /* threw synchronously → fall through */ }
+    }
+    copyAddressFallback(addr);
   }
 
   // #274 review MAJOR-1: renderLayout, NOT showHub — showHub() re-set currentView to

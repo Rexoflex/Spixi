@@ -62,7 +62,12 @@ function openAmountSheet({
   /* head — recipient VISIBLE at the confirm moment (#26-lite) */
   const head = document.createElement('div');
   head.className = 'c-tipsheet__head';
-  head.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+  // #342 (Damir F5 item (d)): the recipient's photo at the confirm moment.
+  // Option: recipient.avatar — an image source, or null for the gradient. This head
+  // is the one place the user checks WHO is about to be paid, so a gradient where every
+  // other surface shows a face is the worst place to drop it. The caller now supplies
+  // `avatar`; `|| null` keeps the gradient for a contact with no stored photo.
+  head.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
   const htext = document.createElement('div');
   htext.className = 'c-tipsheet__headtext';
   const title = document.createElement('h2');

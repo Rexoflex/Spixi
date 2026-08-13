@@ -138,3 +138,29 @@ PASS on device: iOS-54 connecting-state · keyboard (smooth, no topbar dip) · s
 | iOS-65 | **Full-size media/avatar viewer: the top-left ✕ doesn't work + is hard to spot.** Root: the close sat in a top bar with no safe-area inset → on iOS edge-to-edge it's UNDER the status bar (not tappable). | **FIXED (#336)** — close moved to a prominent bottom-centered button (56px, visible circle) clear of the notch + home indicator (safe-area insets); top bar keeps only caption/Save with the top inset. media-viewer.js/.css. |
 | iOS-56b | **Edge-swipe back does NOT work in SUBSCREENS on iOS** (settings sublevels, contact details, etc.) — only in CHAT (iOS-56 was chat-scoped). Damir wants it everywhere a subscreen is open. | OPEN — next session. iOS-56's shell edge-swipe lever (chat.html) needs generalizing to the other overlay-presented shells (settings sublevels, contact_details, app_details, etc.) OR a shared native `UIScreenEdgePanGestureRecognizer` on overlay-presented pages routed through the same back path (the #325/#326 machinery; #294 measure-first). |
 | iOS-66 | **Account screen SNAPS to the bottom on a language change** — not premium. Suspect: the setLocale live re-render (#334 iOS-58) rebuilds the hub and the scroll lands at the bottom (interaction with the #336 hub-scroll-restore, or the re-render reflow). | **FIXED (#337, audit root cause — the suspect was right):** the #336 `hubScrollTop` was a never-consumed LATCH saved at the last sublevel visit (About/Chat-appearance sit at the hub bottom → latch ≈ max), and every hub render detach/re-attached the hub node (scroller resets to 0) then re-applied the stale latch → clamp to BOTTOM. Fix: setLocale captures the LIVE scroll, the restore consumes one-shot, an already-mounted hub is never re-attached (also heals the parked-Account scroll loss + the desktop-pane pick). Device-verify: scroll the hub, pick a language → hub stays put. |
+
+## iOS-67 — FAB → contacts picker is unresponsive, then exits to the chats list (Damir, 2026-08-13, iPhone 15 device, #341 build)
+
+**Report:** tap the FAB to start a new chat. The contacts list appears but does not
+respond to taps — no chat starts. After a few more taps the surface closes and the
+user is back on the chats list.
+
+**Not reproduced on Android or Windows in the same build.** iOS only, device.
+
+**Leading hypothesis (unverified):** the taps are not reaching the rows. "Dead, then
+closes after N taps" is the signature of taps landing on the SCRIM instead of the
+picker content — a stacking-order difference, not a logic bug. WebKit builds a new
+containing block for `transform`, `filter` and `backdrop-filter` in places Chromium
+does not, so an overlay layer that sits correctly on Android can sit ABOVE its own
+content on iOS. Each tap is then a light-dismiss, and the overlay closes on the one
+that finally registers.
+
+**The decisive test (Safari → Develop → AI15 → console, with the picker open):**
+```js
+document.elementFromPoint(innerWidth / 2, innerHeight / 2)
+```
+· returns a `.c-contacts__*` row  → the stacking is fine, the fault is in the handler.
+· returns a scrim / overlay element → confirmed, and the fix is a z-index or
+  stacking-context correction in overlay.css, scoped to the picker.
+
+**Do NOT fix before this test runs.** Rule #215.

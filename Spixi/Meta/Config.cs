@@ -54,7 +54,16 @@ namespace SPIXI.Meta
 
         // Default SPIXI settings
         public static bool defaultXamarinAnimations = false;
-        public static uint messagesToLoad = 100; // Number of chat messages to load in each chunk
+        public static uint messagesToLoad = 25;  // #343: chat messages per chunk. Was 100.
+                                                 // Opening a chat pushes ONE EvaluateJavaScriptAsync per message
+                                                 // (Utils.sendUiCommand:180 -> SpixiContentPage:187), and the shell
+                                                 // then waits 250 ms after the LAST one before its single render.
+                                                 // 100 messages therefore meant ~100 process-boundary crossings
+                                                 // before anything appeared - the measured cause of "entering a chat
+                                                 // is laggy". 25 fills a phone screen with room to spare; load-more
+                                                 // fetches the next chunk with the same constant. Revert this line
+                                                 // alone to undo. The real fix is batching the push (be-cutover, the
+                                                 // addMessages verb in docs/chat-transport-spec.md).
         public static ulong txConfirmationBlocks = 10; // Number of blocks until transaction is confirmed
 
         // Push notifications OneSignal AppID

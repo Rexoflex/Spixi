@@ -1238,6 +1238,68 @@ img, svg { display: block; max-width: 100%; }
   user-select: text;
 }
 
+/* ——— PRESS FEEDBACK (#343) — one rule set for every pressable surface —————————
+ * Driven by src/components/pressable.js, which sets data-pressed on pointerdown
+ * and clears it the moment the gesture becomes a scroll. Read that file's header
+ * for why this is not `:active`.
+ *
+ * Two grammars, because a list row and a button are different objects:
+ *   row     — background tint only. A list row that scales reads as a mistake;
+ *             iOS and Android both tint rows and neither moves them.
+ *   control — tint plus a small scale, so the press reads as a physical push.
+ *
+ * Timings: 90 ms in, 120 ms out. In must be faster than out — the response has to
+ * feel immediate, the release can relax. Both are well under the ~100 ms that
+ * reads as "instant", which is the entire point of the mechanism.
+ *
+ * NOT guarded by @media (hover: hover): unlike :hover (#43), a press is exactly
+ * what a touch device does, and it is also correct for a mouse.
+ * `background-color` is animated, not `background`, so a gradient surface
+ * (bubbles, hero) is never re-rasterised by a press. */
+/* ★ SPECIFICITY, and why the `html:root` prefix is not decoration (#343 device fix).
+   base.css loads BEFORE every component stylesheet, and `.c-chatlist-item` sets
+   `background: transparent` at (0,1,0). A plain `[data-pressed]` rule is also
+   (0,1,0), so it lost on source order and the press tint never painted — Damir on
+   Android: "no feedback effect when tapping on chat row". The strongest competing
+   component selectors are `.c-chatlist-item[aria-current]` and `:active`, both
+   (0,2,0). `html:root …` is (0,2,1), which beats them from anywhere in the cascade.
+   Do not simplify this prefix away. */
+html:root [data-pressed] {
+  transition: background-color 90ms var(--easing-standard, ease-out),
+              transform 90ms var(--easing-standard, ease-out);
+}
+html:root [data-pressed="row"] {
+  background-color: var(--surface-interactive-pressed);
+}
+/* A SELECTED row (desktop split-view) presses in its own tonal family — pressing it
+   must not flash the neutral tint over the action colour. */
+html:root [data-pressed="row"][aria-current] {
+  background-color: var(--surface-action-tonal-pressed);
+}
+html:root [data-pressed="control"] {
+  transform: scale(0.97);
+}
+/* The release transition lives on the un-pressed element, so it applies when the
+   attribute is REMOVED — a transition declared only under [data-pressed] would snap
+   back with no animation. Same prefix, same reason. */
+html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
+html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
+html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
+html:root .c-bottomnav__item, html:root .fab, html:root .c-topbar__dots {
+  transition: background-color 120ms var(--easing-standard, ease-out),
+              transform 120ms var(--easing-standard, ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  html:root [data-pressed="control"] { transform: none; }
+  html:root [data-pressed],
+  html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
+  html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
+  html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
+  html:root .c-bottomnav__item, html:root .fab, html:root .c-topbar__dots {
+    transition: none;
+  }
+}
+
 </style>
 <style data-src="../styles/components/button.css">
 /* c-button — mirrors Figma button/{32,44,56}/{default,destructive}, type=fill|tonal|outline|text.
@@ -2511,6 +2573,139 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
     el.append(dot);
   }
   return el;
+}
+
+/* ---- src/components/pressable.js ---- */
+/**
+ * pressable — one delegated press-feedback mechanism for every shell (#343).
+ *
+ * WHY THIS EXISTS. The gap the user notices is not the one between the tap and the
+ * data; it is the one between the tap and ANY response. A row that stays inert for
+ * 300 ms reads as broken, and the same row with a 90 ms tint reads as instant, even
+ * when the data takes exactly as long. This buys perceived latency. It does not fix
+ * real latency, and it is not a substitute for doing so.
+ *
+ * WHY DELEGATED, NOT PER-COMPONENT. Every component that wanted this would otherwise
+ * grow its own listeners, its own cancel rules and its own drift. One document-level
+ * listener plus one CSS block means a new component gets correct press behaviour by
+ * adding its class to PRESSABLE_ROW or PRESSABLE_CONTROL below — nothing else.
+ *
+ * WHY pointerdown, NOT :active OR click.
+ *   · `click` fires on RELEASE. Using it would add the very delay we are hiding.
+ *   · CSS `:active` is unreliable on iOS: WebKit only applies it when a touch
+ *     handler is bound, and it does not cancel on scroll — so dragging a list
+ *     lights up every row the finger crosses.
+ *   · `pointerdown` fires on contact, on every engine we ship to, with one API.
+ *
+ * ★ THE PART THAT MAKES IT FEEL NATIVE, NOT BROKEN: a press is CANCELLED as soon as
+ * the finger moves past PRESS_MOVE_CANCEL_PX, or the pointer leaves, or a scroll starts.
+ * Without that rule a flick down a chat list leaves a trail of highlighted rows —
+ * which is worse than no feedback at all. Native list rows behave exactly this way.
+ *
+ * attachPressFeedback({ root, rows, controls }) → detach()
+ *   Call ONCE per shell, after the first render. Idempotent per root.
+ *   New shell? One line: attachPressFeedback().
+ */
+
+/* Rows take a background tint only. A list row that scales looks like a button and
+   reads as a mistake on both platforms — iOS and Android both tint list rows. */
+const PRESSABLE_ROW = [
+  '.c-chatlist-item',
+  '.c-contacts__row',
+  '.c-txlist-item',
+  '.c-settings__row',
+  '.c-app-item',
+  '.c-apps-recents__item',
+  '.c-wallet-receive__contact',
+].join(',');
+
+/* Controls take a tint AND a small scale — the press reads as a physical push. */
+const PRESSABLE_CONTROL = [
+  '.c-button',
+  '.c-chip',
+  '.c-bottomnav__item',
+  '.fab',
+  '.c-topbar__dots',
+].join(',');
+
+const PRESS_MOVE_CANCEL_PX = 10;      // finger travel that turns a press into a scroll
+const PRESS_SAFETY_MS = 1200;         // a pointerup we never saw must not strand a highlight
+
+const pressAttached = new WeakSet();
+
+function attachPressFeedback({
+  root = document, rows = PRESSABLE_ROW, controls = PRESSABLE_CONTROL,
+} = {}) {
+  const host = root === document ? document : root;
+  if (pressAttached.has(host)) return () => {};
+  pressAttached.add(host);
+
+  const selector = rows + ',' + controls;
+  let el = null, startX = 0, startY = 0, safety = 0;
+
+  const clear = () => {
+    clearTimeout(safety); safety = 0;
+    if (!el) return;
+    delete el.dataset.pressed;
+    el = null;
+  };
+
+  const onDown = (e) => {
+    // Primary pointer only: a right-click, a second finger or a stylus barrel press
+    // must not paint a press state the user did not ask for.
+    if (e.button != null && e.button !== 0) return;
+    // `=== false`, not `!`: an engine that does not populate isPrimary (or a
+    // synthesised event) must still get feedback. Only an explicit secondary
+    // pointer — a second finger mid-gesture — is rejected.
+    if (e.isPrimary === false) return;
+    clear();
+    const t = e.target && e.target.closest ? e.target.closest(selector) : null;
+    if (!t) return;
+    // Disabled controls must look disabled, not pressable. aria-disabled covers the
+    // components that stay focusable on purpose (a11y sweep #205).
+    if (t.disabled || t.getAttribute('aria-disabled') === 'true') return;
+    el = t;
+    el.dataset.pressed = t.matches(controls) ? 'control' : 'row';
+    startX = e.clientX; startY = e.clientY;
+    safety = setTimeout(clear, PRESS_SAFETY_MS);
+  };
+
+  const onMove = (e) => {
+    if (!el) return;
+    // ★ The scroll rule. Past the threshold this gesture is a scroll, not a tap.
+    if (Math.abs(e.clientX - startX) > PRESS_MOVE_CANCEL_PX
+      || Math.abs(e.clientY - startY) > PRESS_MOVE_CANCEL_PX) clear();
+  };
+
+  // passive: these never call preventDefault, and saying so keeps scrolling on the
+  // compositor. A non-passive listener here would cost the very smoothness we want.
+  const opts = { passive: true };
+  host.addEventListener('pointerdown', onDown, opts);
+  host.addEventListener('pointermove', onMove, opts);
+  host.addEventListener('pointerup', clear, opts);
+  host.addEventListener('pointercancel', clear, opts);
+  host.addEventListener('dragstart', clear, opts);
+  // Scroll can start without a pointermove that crosses the threshold (momentum,
+  // a nested scroller, a keyboard-driven scroll). Capture catches every scroller.
+  host.addEventListener('scroll', clear, { passive: true, capture: true });
+  // A page hidden mid-press (app backgrounded, overlay opened) must not come back
+  // with a row still lit.
+  const onHide = () => clear();
+  window.addEventListener('pagehide', onHide);
+  document.addEventListener('visibilitychange', onHide);
+
+  return function detach() {
+    clear();
+    pressAttached.delete(host);
+    host.removeEventListener('pointerdown', onDown, opts);
+    host.removeEventListener('pointermove', onMove, opts);
+    host.removeEventListener('pointerup', clear, opts);
+    host.removeEventListener('pointercancel', clear, opts);
+    host.removeEventListener('dragstart', clear, opts);
+    host.removeEventListener('scroll', clear, { capture: true });
+    window.removeEventListener('pagehide', onHide);
+    document.removeEventListener('visibilitychange', onHide);
+  };
 }
 
 /* ---- src/components/chatlist-item.js ---- */
@@ -14087,7 +14282,13 @@ function createWalletReceive({
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-wallet-receive__contact';
-      b.append(createAvatar({ name: c.name, address: c.address, size: 40 }));
+      // #342 (Damir F5 item (d)): pass the photo. Option: contacts[].avatar. The roster that feeds this picker
+      // carries `avatar` (home.html requestableContacts → contactsRoster), and every
+      // other contact row in the app shows it. Only this one dropped the argument, so
+      // the request-from-a-contact list was all gradients while the chats list beside
+      // it showed real faces. `|| null` keeps the gradient fallback for a contact with
+      // no stored avatar, which is the correct render, not a failure.
+      b.append(createAvatar({ name: c.name, address: c.address, src: c.avatar || null, size: 40 }));
       const t = document.createElement('span');
       t.className = 'c-wallet-receive__contactname';
       t.textContent = c.name || c.address;
@@ -14282,7 +14483,12 @@ function openAmountSheet({
   /* head — recipient VISIBLE at the confirm moment (#26-lite) */
   const head = document.createElement('div');
   head.className = 'c-tipsheet__head';
-  head.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+  // #342 (Damir F5 item (d)): the recipient's photo at the confirm moment.
+  // Option: recipient.avatar — an image source, or null for the gradient. This head
+  // is the one place the user checks WHO is about to be paid, so a gradient where every
+  // other surface shows a face is the worst place to drop it. The caller now supplies
+  // `avatar`; `|| null` keeps the gradient for a contact with no stored photo.
+  head.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
   const htext = document.createElement('div');
   htext.className = 'c-tipsheet__headtext';
   const title = document.createElement('h2');
@@ -22406,7 +22612,7 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();
 
 </script>

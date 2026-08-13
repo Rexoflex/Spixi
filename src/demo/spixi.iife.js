@@ -342,6 +342,13 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
  *     lights up every row the finger crosses.
  *   · `pointerdown` fires on contact, on every engine we ship to, with one API.
  *
+ * ★ WHY `touchstart` IS ALSO BOUND (device fix, Damir on Android: "it tints, but it's
+ * abrupt with delay"). On Android WebView, pointer events are SYNTHESISED from touch
+ * events, and the synthesis waits on gesture disambiguation — so `pointerdown` can
+ * arrive tens of milliseconds after the finger lands. `touchstart` fires on contact.
+ * Both are bound; the second one to arrive finds the same element already pressed and
+ * is a no-op, so there is no double work and no risk of divergence.
+ *
  * ★ THE PART THAT MAKES IT FEEL NATIVE, NOT BROKEN: a press is CANCELLED as soon as
  * the finger moves past PRESS_MOVE_CANCEL_PX, or the pointer leaves, or a scroll starts.
  * Without that rule a flick down a chat list leaves a trail of highlighted rows —
@@ -388,6 +395,10 @@ function attachPressFeedback({
   const selector = rows + ',' + controls;
   let el = null, startX = 0, startY = 0, safety = 0;
 
+  /* One reader for both event shapes — a TouchEvent carries coordinates on
+     touches[0], a PointerEvent carries them on the event itself. */
+  const pos = (e) => (e.touches && e.touches[0]) || e;
+
   const clear = () => {
     clearTimeout(safety); safety = 0;
     if (!el) return;
@@ -399,6 +410,8 @@ function attachPressFeedback({
     // Primary pointer only: a right-click, a second finger or a stylus barrel press
     // must not paint a press state the user did not ask for.
     if (e.button != null && e.button !== 0) return;
+    // A multi-finger gesture (pinch, two-finger scroll) is not a tap.
+    if (e.touches && e.touches.length > 1) { clear(); return; }
     // `=== false`, not `!`: an engine that does not populate isPrimary (or a
     // synthesised event) must still get feedback. Only an explicit secondary
     // pointer — a second finger mid-gesture — is rejected.
@@ -411,20 +424,26 @@ function attachPressFeedback({
     if (t.disabled || t.getAttribute('aria-disabled') === 'true') return;
     el = t;
     el.dataset.pressed = t.matches(controls) ? 'control' : 'row';
-    startX = e.clientX; startY = e.clientY;
+    const p0 = pos(e);
+    startX = p0.clientX; startY = p0.clientY;
     safety = setTimeout(clear, PRESS_SAFETY_MS);
   };
 
   const onMove = (e) => {
     if (!el) return;
+    const p = pos(e);
     // ★ The scroll rule. Past the threshold this gesture is a scroll, not a tap.
-    if (Math.abs(e.clientX - startX) > PRESS_MOVE_CANCEL_PX
-      || Math.abs(e.clientY - startY) > PRESS_MOVE_CANCEL_PX) clear();
+    if (Math.abs(p.clientX - startX) > PRESS_MOVE_CANCEL_PX
+      || Math.abs(p.clientY - startY) > PRESS_MOVE_CANCEL_PX) clear();
   };
 
   // passive: these never call preventDefault, and saying so keeps scrolling on the
   // compositor. A non-passive listener here would cost the very smoothness we want.
   const opts = { passive: true };
+  host.addEventListener('touchstart', onDown, opts);   // fires on contact (Android)
+  host.addEventListener('touchmove', onMove, opts);
+  host.addEventListener('touchend', clear, opts);
+  host.addEventListener('touchcancel', clear, opts);
   host.addEventListener('pointerdown', onDown, opts);
   host.addEventListener('pointermove', onMove, opts);
   host.addEventListener('pointerup', clear, opts);
@@ -442,6 +461,10 @@ function attachPressFeedback({
   return function detach() {
     clear();
     pressAttached.delete(host);
+    host.removeEventListener('touchstart', onDown, opts);
+    host.removeEventListener('touchmove', onMove, opts);
+    host.removeEventListener('touchend', clear, opts);
+    host.removeEventListener('touchcancel', clear, opts);
     host.removeEventListener('pointerdown', onDown, opts);
     host.removeEventListener('pointermove', onMove, opts);
     host.removeEventListener('pointerup', clear, opts);

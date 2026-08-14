@@ -53,9 +53,12 @@ and changes what "W10" even means.
 5. **A5 / W4b** — the centre-out row fill. Its own unit. Damir does NOT want press
    feedback removed; he wants this instead of the current flat tint.
 6. **W1** — the chat-info treatment, only after a measurement says what it waits on.
-7. **D1 reply-to** — the verdict CHANGED on 2026-08-15 and it is no longer BE-blocked.
-   Read the D1 section of the findings doc before you plan it. The load-bearing rule:
-   reference by message ID and resolve locally, never embed the quoted text.
+7. **D1 reply-to** — ★ DESIGN LOCKED by Damir on 2026-08-15, and no longer BE-blocked.
+   Read the D1 section of the findings doc in full before you plan it. In short: no
+   protocol change, the reference rides in the body as a message ID, the quote is
+   resolved LOCALLY and its text is never sent, and tapping the quote jumps to the
+   referenced message. Three small C# pieces; the FE half is already built behind
+   `bridge.cap('reply')`. Verify the two-device id round-trip BEFORE building (#215).
 
 ## Rules that apply to every batch
 

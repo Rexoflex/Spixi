@@ -36,12 +36,27 @@ const DEVICE_CSS =
 
 /**
  * Inline one HTML file into a self-contained string.
+ *
+ * ★ #345 EXTERNALS. `opts.external` is a Map of source href → sibling filename.
+ * A ref in that map is NOT inlined; it is rewritten to the sibling name and the
+ * caller writes that file next to the shell. This exists because of a MEASURED
+ * cost: on Android every screen open reads the whole shell, runs a localize pass
+ * over it and base64-encodes it into a data: URL, and that cost is LINEAR in file
+ * size (measured on a Galaxy A52: empty_detail 222 KB = 16 ms · index 1625 KB =
+ * 114 ms · chat 2019 KB = 172 ms, i.e. ~0.08 ms/KB). The shared bundle, strings,
+ * icons and base CSS are ~1.3 MB of that, duplicated into all 22 shells — 26 MB of
+ * identical bytes re-read and re-encoded on every single navigation.
+ * Relative refs resolve because Android loads the document with a BaseUrl
+ * (loadDataWithBaseURL), and iOS/Windows load from a directory that already holds
+ * sibling assets — the `images/` folder has shipped this way since #176.
+ *
  * @param {string} inPath absolute path to the source HTML
- * @param {object} [opts] { device=true, strict=true }
+ * @param {object} [opts] { device=true, strict=true, external=Map }
  * @returns {string} self-contained HTML
  */
 export function inlineHtml(inPath, opts = {}) {
-  const { device = true, strict = true } = opts;
+  const { device = true, strict = true, external = new Map() } = opts;
+  const externalNames = new Set(external.values());
   const htmlDir = dirname(inPath);
   let html = readFileSync(inPath, 'utf8');
 
@@ -50,6 +65,7 @@ export function inlineHtml(inPath, opts = {}) {
 
   // 2. <link rel="stylesheet" href="X"> → <style>…</style> (fonts inlined)
   html = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']([^"']+)["']\s*\/?>/gi, (m, href) => {
+    if (external.has(href)) return `<link rel="stylesheet" href="${external.get(href)}">`;
     const cssPath = resolve(htmlDir, href);
     let css = readFileSync(cssPath, 'utf8');
     css = inlineFonts(css, dirname(cssPath));
@@ -58,6 +74,10 @@ export function inlineHtml(inPath, opts = {}) {
 
   // 3. <script src="Y"></script> → <script>…</script>
   html = html.replace(/<script\s+src=["']([^"']+)["']\s*>\s*<\/script>/gi, (m, src) => {
+    // An external stays a REAL <script src>. It must keep its document order and
+    // must NOT be defer/async: the shells destructure window.Spixi in a following
+    // inline script, so the bundle has to have executed by then.
+    if (external.has(src)) return `<script src="${external.get(src)}"></script>`;
     const jsPath = resolve(htmlDir, src);
     const js = readFileSync(jsPath, 'utf8');
     return `<script data-src="${src}">\n${js}\n</script>`;
@@ -76,7 +96,10 @@ export function inlineHtml(inPath, opts = {}) {
     .replace(/<style[\s\S]*?<\/style>/gi, '');
   const leftover = [...chrome.matchAll(/[\s"'<](?:href|src)=["']([^"']+)["']/gi)]
     .map((x) => x[1])
-    .filter((u) => !/^(data:|#|ixian:|https?:|\/\/|mailto:|tel:)/.test(u));
+    .filter((u) => !/^(data:|#|ixian:|https?:|\/\/|mailto:|tel:)/.test(u))
+    // #345: a declared external is an INTENDED sibling ref, not a missed inline.
+    // The gate still catches everything else, which is the point of keeping it.
+    .filter((u) => !externalNames.has(u));
   if (leftover.length) {
     const msg = `unresolved relative refs remain: ${JSON.stringify([...new Set(leftover)])}`;
     if (strict) throw new Error(msg);

@@ -1,0 +1,1010 @@
+/* ==========================================================================
+   Spixi design tokens — GENERATED from Figma "Spixi-App" variables.
+   DO NOT EDIT BY HAND. To update: change variables in Figma, then ask Claude
+   to re-extract ("re-sync tokens"). Figma is the source of truth.
+
+   Tier mapping (mirrors Figma collections):
+     1. primitives  ("Spixi - primitives")  → static, mode-less
+     2. keys        ("keys", "keys-responsive") → static aliases; type switches
+        via the PLATFORM flag :root[data-desktop] (#228 — set once at shell
+        boot from desktop-OS detection; NOT a viewport query)
+     3. tokens      ("tokens")              → light values on :root,
+        dark overrides under [data-theme="dark"] (set by JS from OS
+        preference + manual override via the existing ixian:appearance flow)
+
+   Name mapping: slashes → hyphens; "colors/" and "region/" dropped.
+     colors/surface/neutral/01      → --surface-neutral-01
+     colors/surface/region/topbar   → --surface-topbar
+     spacing/16                     → --spacing-16
+   Negative spacing has no CSS var — use calc(-1 * var(--spacing-40)).
+   Extracted: 2026-07-02 (incl. region tokens + mis-binding fixes).
+   ========================================================================== */
+
+/* ==========================================================================
+   1. PRIMITIVES
+   ========================================================================== */
+:root {
+  /* color/grey */
+  --grey-10: #f9fafb;
+  --grey-50: #edf0f2;
+  --grey-100: #e8ecee;
+  --grey-200: #dde2e9;
+  --grey-300: #c7cbd1;
+  --grey-400: #bbbec4;
+  --grey-430: #9198a1;
+  --grey-460: #6a717c;
+  --grey-490: #4f5664;
+  --grey-500: #31343a;
+  --grey-600: #292d33;
+  --grey-700: #202328;
+  --grey-800: #1b1f23;
+  --grey-900: #13171b;
+  --grey-950: #131415;
+  --grey-1000: #111213;
+
+  /* color/brand */
+  --brand-50: #e9ecf3;
+  --brand-100: #c9d5ed;
+  --brand-200: #b7c9f4;
+  --brand-300: #98b5fc;
+  --brand-400: #769dff;
+  --brand-500: #507af9;
+  --brand-600: #3050bd;
+  --brand-700: #233a85;
+  --brand-800: #192853;
+  --brand-900: #0d1324;
+  --brand-950: #05080f;
+
+  /* color/blue — #241/#244 semantic-primitive rework (Damir 2026-07-10 r2 —
+     the #241 set read too muted): re-anchored on #0B87B4 at 500 (links/info;
+     replaces the indigo that sat too close to brand). All four scales = OKLCH,
+     brand-ladder lightness, constant anchor hue, gamut-clamped; generator at
+     outputs/gen-scales*.js session scratch. ⚠ MIRROR TO FIGMA (primitives). */
+  --blue-50: #e8edef;
+  --blue-100: #c7d8e0;
+  --blue-200: #b2cfde;
+  --blue-300: #8dbfd9;
+  --blue-400: #64acd0;
+  --blue-500: #0b87b4;   /* ANCHOR (Damir r2) */
+  --blue-600: #006588;
+  --blue-700: #004863;
+  --blue-800: #0d2f3f;
+  --blue-900: #0a161c;
+  --blue-950: #05090b;
+
+  /* color/red — #244: re-anchored on #B12525 at 600 (error/destructive — the
+     exact hex IS the error surface). #241's old-scale note stands (the pre-#241
+     scale was irregular: 50 darker than 100, crimson mid-steps). */
+  --red-50: #f3eae8;
+  --red-100: #ecccc8;
+  --red-200: #f1bab4;
+  --red-300: #f49c92;
+  --red-400: #f1786e;
+  --red-500: #e34540;
+  --red-600: #b12525;   /* ANCHOR (Damir r2) */
+  --red-700: #781918;
+  --red-800: #4c1714;
+  --red-900: #220d0b;
+  --red-950: #0e0605;
+
+  /* color/orange — #244: re-anchored on #EF9132 at 400 (its lightness home —
+     a bright accent orange); warning surfaces keep the deeper generated 600
+     under white text (6.9:1). */
+  --orange-50: #f1ebe5;
+  --orange-100: #e7d0bd;
+  --orange-200: #e9c09f;
+  --orange-300: #eaa66c;
+  --orange-400: #ef9132;   /* ANCHOR (Damir r2) */
+  --orange-500: #c26d00;
+  --orange-600: #884b00;
+  --orange-700: #623400;
+  --orange-800: #432200;
+  --orange-900: #201003;
+  --orange-950: #0d0703;
+
+  /* color/green — #244: re-anchored on #26994C at 500 (its lightness home —
+     the vivid green = presence dot / fresh-success step); 600 carries the
+     surfaces/text under white (6.3:1). */
+  --green-50: #e9eee9;
+  --green-100: #c9dacb;
+  --green-200: #b4d3b9;
+  --green-300: #91c69b;
+  --green-400: #69b67a;
+  --green-500: #26994c;   /* ANCHOR (Damir r2) */
+  --green-600: #007030;
+  --green-700: #075022;
+  --green-800: #10341a;
+  --green-900: #0a170d;
+  --green-950: #050906;
+
+  /* color/purple */
+  --purple-50: #f5f3f6;
+  --purple-100: #eae6ef;
+  --purple-200: #d6c2eb;
+  --purple-300: #b792dd;
+  --purple-400: #a373d4;
+  --purple-500: #8436d3;
+  --purple-600: #6b27b0;
+  --purple-700: #51287b;
+  --purple-800: #381d53;
+  --purple-900: #1f122b;
+  --purple-950: #0d0811;
+
+  /* type */
+  /* B1 — NATIVE UI FONT (Damir 2026-07-09, punch-list; DECISIONS #226): system-ui
+     EVERYWHERE — the WhatsApp/Viber model (SF Pro on iOS/macOS, Segoe UI Variable on
+     Windows, device face/Roboto on Android). Web fonts render soft in a WebView —
+     the un-native tell. Sora survives ONLY as the brand display face
+     (--font-display: topbar wordmark; hero brand moments opt in explicitly).
+     Source Sans 3 RETIRES from the UI (face kept in base.css, nothing references
+     it; shell preloads removed). Figma type mirror pending. */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Sora", system-ui, sans-serif; /* brand wordmark/hero ONLY */
+  --font-primary: var(--font-ui);               /* headings, display (was Sora) */
+  --font-secondary: var(--font-ui);             /* body, labels (was Source Sans 3) */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+}
+
+/* ==========================================================================
+   2. KEYS — mode-less aliases ("keys" collection)
+   ========================================================================== */
+:root {
+  /* color/neutral → grey */
+  --neutral-10: var(--grey-10);
+  --neutral-50: var(--grey-50);
+  --neutral-100: var(--grey-100);
+  --neutral-200: var(--grey-200);
+  --neutral-300: var(--grey-300);
+  --neutral-400: var(--grey-400);
+  --neutral-430: var(--grey-430);
+  --neutral-460: var(--grey-460);
+  --neutral-490: var(--grey-490);
+  --neutral-500: var(--grey-500);
+  --neutral-600: var(--grey-600);
+  --neutral-700: var(--grey-700);
+  --neutral-800: var(--grey-800);
+  --neutral-900: var(--grey-900);
+  --neutral-950: var(--grey-950);
+  --neutral-1000: var(--grey-1000);
+
+  /* color/primary → brand */
+  --primary-50: var(--brand-50);
+  --primary-100: var(--brand-100);
+  --primary-200: var(--brand-200);
+  --primary-300: var(--brand-300);
+  --primary-400: var(--brand-400);
+  --primary-500: var(--brand-500);
+  --primary-600: var(--brand-600);
+  --primary-700: var(--brand-700);
+  --primary-800: var(--brand-800);
+  --primary-900: var(--brand-900);
+  --primary-950: var(--brand-950);
+
+  /* color/accent → brand (same ramp as primary today; separable later) */
+  --accent-50: var(--brand-50);
+  --accent-100: var(--brand-100);
+  --accent-200: var(--brand-200);
+  --accent-300: var(--brand-300);
+  --accent-400: var(--brand-400);
+  --accent-500: var(--brand-500);
+  --accent-600: var(--brand-600);
+  --accent-700: var(--brand-700);
+  --accent-800: var(--brand-800);
+  --accent-900: var(--brand-900);
+  --accent-950: var(--brand-950);
+
+  /* color/info → blue */
+  --info-50: var(--blue-50);
+  --info-100: var(--blue-100);
+  --info-200: var(--blue-200);
+  --info-300: var(--blue-300);
+  --info-400: var(--blue-400);
+  --info-500: var(--blue-500);
+  --info-600: var(--blue-600);
+  --info-700: var(--blue-700);
+  --info-800: var(--blue-800);
+  --info-900: var(--blue-900);
+  --info-950: var(--blue-950);
+
+  /* color/success → green */
+  --success-50: var(--green-50);
+  --success-100: var(--green-100);
+  --success-200: var(--green-200);
+  --success-300: var(--green-300);
+  --success-400: var(--green-400);
+  --success-500: var(--green-500);
+  --success-600: var(--green-600);
+  --success-700: var(--green-700);
+  --success-800: var(--green-800);
+  --success-900: var(--green-900);
+  --success-950: var(--green-950);
+
+  /* color/warning → orange */
+  --warning-50: var(--orange-50);
+  --warning-100: var(--orange-100);
+  --warning-200: var(--orange-200);
+  --warning-300: var(--orange-300);
+  --warning-400: var(--orange-400);
+  --warning-500: var(--orange-500);
+  --warning-600: var(--orange-600);
+  --warning-700: var(--orange-700);
+  --warning-800: var(--orange-800);
+  --warning-900: var(--orange-900);
+  --warning-950: var(--orange-950);
+
+  /* color/error → red */
+  --error-50: var(--red-50);
+  --error-100: var(--red-100);
+  --error-200: var(--red-200);
+  --error-300: var(--red-300);
+  --error-400: var(--red-400);
+  --error-500: var(--red-500);
+  --error-600: var(--red-600);
+  --error-700: var(--red-700);
+  --error-800: var(--red-800);
+  --error-900: var(--red-900);
+  --error-950: var(--red-950);
+
+  /* spacing (keys-responsive; identical desktop/mobile) */
+  --spacing-0: 0px;
+  --spacing-2: 2px;
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-40: 40px;
+  --spacing-48: 48px;
+  --spacing-64: 64px;
+  --spacing-80: 80px;
+  --spacing-100: 100px;
+  --spacing-120: 120px;
+
+  /* corner-radius */
+  --radius-0: 0px;
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-32: 32px;
+  --radius-full: 800px;
+
+  /* outline-width */
+  --outline-width-0: 0px;
+  --outline-width-1: 1px;
+  --outline-width-2: 2px;
+  --outline-width-4: 4px;
+
+  /* size */
+  --size-icon-16: 16px;
+  --size-icon-20: 20px;
+  --size-icon-24: 24px;
+  --size-icon-32: 32px;
+  --size-avatar-24: 24px;
+  --size-avatar-32: 32px;
+  --size-avatar-40: 40px;
+  --size-avatar-48: 48px; /* chat/contact list rows */
+  --size-avatar-56: 56px;
+  --size-avatar-96: 96px;
+  --size-target-min: 44px;
+
+  /* layout */
+  --layout-bar-top: 56px;
+  --layout-bar-bottom: 64px;
+  --layout-composer-min: 56px;
+  --layout-breakpoint-split: 700px; /* LAYOUT-only split threshold (HomePage two-pane); type/density = :root[data-desktop] (#228), never a viewport query */
+  --layout-content-max: 840px;      /* desktop detail-pane max width */
+  /* W2 (#245 rider, Damir 2026-08-12): the desktop nav RAIL width. It is system
+     chrome — every full-viewport surface on a :root[data-desktop] shell insets by
+     this much so the rail stays visible AND clickable beside it. Was a bare 72
+     duplicated in bottomnav.css (the rail column) and in HomePage.xaml.cs
+     (railWidthDip, the Account peer-pane stage margin); this is the single FE
+     source. ⚠ CSS px == DIPs in the WebView at default zoom, so the C# constant
+     MUST be re-dialed with this token — the pairing is flagged at
+     HomePage.xaml.cs (railWidthDip) and ENFORCED: smoke-test.mjs parses this
+     declaration and that constant and fails the run if the two ever disagree, so
+     the drift cannot land silently. */
+  --layout-rail-width: 72px;
+  /* Desktop PANE CONTENT rail — the measurement the Account sublevels have used
+     since #243 ("640px cap centered", settings.html §pane) and contact_details
+     copied. Damir (2026-08-12, Windows screenshots): every pane-hosted page must
+     hold the SAME rail as the "How to use Spixi" sublevel — a form or a details
+     page stretched across a 900–1200px column reads as a wall. Full-bleed art
+     (the app-details cover) deliberately breaks OUT of it. Engages only where
+     the column is wider than the rail, so narrow panes/phones are untouched.
+     ⚠ settings.html:104 + contact_details.html:60 still carry the literal 640 —
+     adopt this token there at their next touch (out of scope in #3xx). */
+  --layout-pane-content-max: 640px;
+  --layout-bubble-max: 360px;       /* chat bubble max width (responsive-ready; 320→360 #334, Damir dial — desktop/tablet binding edge) */
+  /* #337 audit (W4 ride-along): typed OBJECTS (payment/app/call cards, file
+     rows, media tiles) hold this rail on EVERY platform — same value as
+     bubble-max on mobile (byte-identical render), but NOT raised to 680 under
+     [data-desktop]: .c-tcard is `width:` (fixed, not hugging), so the W4 raise
+     made mostly-empty payment cards 680px wide on desktop. Dial: raise here if
+     Damir wants wider desktop cards/tiles. */
+  --layout-card-max: 360px;
+}
+
+/* ==========================================================================
+   2b. RESPONSIVE TYPE KEYS — mobile values on :root; desktop overrides under
+   :root[data-desktop] (#228 platform flag, NOT a viewport query — see §2b below)
+   ("keys-responsive" + "typography" collections)
+   ========================================================================== */
+:root {
+  --font-size-display-lg: 36px;  --line-height-display-lg: 44px;  --tracking-display-lg: -1.5px;
+  --font-size-display-md: 28px;  --line-height-display-md: 36px;  --tracking-display-md: -1.5px;
+  --font-size-heading-lg: 26px;  --line-height-heading-lg: 32px;  --tracking-heading-lg: -1px;
+  --font-size-heading-md: 22px;  --line-height-heading-md: 28px;  --tracking-heading-md: -1px;
+  --font-size-heading-sm: 20px;  --line-height-heading-sm: 24px;  --tracking-heading-sm: -0.5px;
+  --font-size-heading-xs: 18px;  --line-height-heading-xs: 24px;  --tracking-heading-xs: -0.5px;
+  --font-size-label-lg: 18px;    --line-height-label-lg: 28px;    --tracking-label-lg: -0.5px;
+  --font-size-label-md: 16px;    --line-height-label-md: 24px;    --tracking-label-md: -0.5px;
+  --font-size-label-sm: 14px;    --line-height-label-sm: 20px;    --tracking-label-sm: -0.5px;
+  --font-size-label-xs: 12px;    --line-height-label-xs: 16px;    --tracking-label-xs: -0.5px;
+  --font-size-body-lg: 18px;     --line-height-body-lg: 28px;     --tracking-body-lg: -0.25px;
+  --font-size-body-md: 16px;     --line-height-body-md: 24px;     --tracking-body-md: 0px;
+  --font-size-body-sm: 14px;     --line-height-body-sm: 20px;     --tracking-body-sm: 0px;
+  --font-size-body-xs: 12px;     --line-height-body-xs: 16px;     --tracking-body-xs: 0px;
+}
+
+/* B3/R2 — desktop DENSITY step (font-size-audit §2, DECISIONS #226 🟡 Damir
+   dials at F5): desktop apps read SMALLER than mobile, not bigger — 24px
+   screen titles + 18px list names were the "reads huge vs Telegram" factor.
+   heading-lg/display keep their large desktop values (hero/launch only).
+   DIAL 2 (2026-07-10, Damir post-F5 "smaller, TG/Discord parity"): titles
+   20→18, heading-xs 18→16, row names 15→14 (=TG), NEW body-md 16→15
+   (bubbles/body — midpoint of TG 14 / Discord 16), NEW label-lg 18→16 +
+   label-sm 14→13. body-xs/label-xs stay 12 (legibility floor, R5). Dial 3
+   considered + RETRACTED same day (Damir: bubble size OK — per-user tuning
+   rides the Chat-appearance text-size pref, --chat-text-scale, 6e.2).
+   TRIGGER (#228, Damir): PLATFORM flag `:root[data-desktop]` — set once at
+   shell boot (desktop OS detection), NOT a viewport query. Type stays
+   constant while the window resizes (TG/Discord behavior; the old
+   @media 700px flipped type at the pane-split threshold — min window is
+   480 logical, so narrowed desktop windows got phone-scale text). The 700px
+   split threshold remains layout-only (HomePage). Phone-frame demos in a
+   wide desktop browser no longer inherit desktop sizes (#226 caveat gone). */
+:root[data-desktop] {
+  /* W4 (#336, Windows F5): bubbles capped out narrow (~1/3 of a wide pane). The
+     mobile cap (360, #334) stays; desktop raises the px edge so the 82% binds on
+     modest panes and this caps the rest. VALUE = Damir dial (asked 640-720). */
+  --layout-bubble-max: 680px;
+  --font-size-display-lg: 56px;  --line-height-display-lg: 64px;  --tracking-display-lg: -2px;
+  --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
+  --font-size-heading-lg: 36px;  --line-height-heading-lg: 44px;
+  --font-size-heading-md: 28px;  --line-height-heading-md: 28px;
+  --font-size-heading-sm: 18px;  --line-height-heading-sm: 24px;   /* screen titles */
+  --font-size-heading-xs: 16px;  --line-height-heading-xs: 22px;
+  --font-size-body-lg: 14px;     --line-height-body-lg: 20px;      /* chat-row names */
+  --font-size-body-md: 15px;     --line-height-body-md: 21px;      /* bubbles/body copy */
+  --font-size-body-sm: 13px;     --line-height-body-sm: 18px;      /* excerpts */
+  --font-size-label-lg: 16px;    --line-height-label-lg: 24px;     /* large buttons */
+  --font-size-label-md: 14px;    --line-height-label-md: 20px;     /* buttons/inputs */
+  --font-size-label-sm: 13px;    --line-height-label-sm: 18px;
+  --tracking-label-lg: -0.25px;  --tracking-label-md: -0.25px;
+  --tracking-label-sm: -0.25px;  --tracking-label-xs: -0.25px;
+  --tracking-body-md: -0.25px;   --tracking-body-sm: -0.25px;
+  --tracking-body-xs: -0.25px;
+}
+
+/* Weight-per-role (from "typography" composites):
+   display/heading = --font-primary semibold; label = --font-secondary semibold
+   (label-xs bold); body = --font-secondary regular. Utility classes live in base.css. */
+
+/* ==========================================================================
+   3. TOKENS — semantic tier ("tokens" collection). Light on :root,
+   dark under [data-theme="dark"].
+   ========================================================================== */
+:root {
+  /* surface/neutral */
+  --surface-neutral-01: var(--neutral-10);
+  --surface-neutral-02: var(--neutral-50);
+  --surface-neutral-03: var(--neutral-100);
+  --surface-neutral-04: var(--neutral-200);
+  --surface-neutral-inverse-01: var(--neutral-900);
+  --surface-neutral-inverse-02: var(--neutral-800);
+  --surface-neutral-inverse-03: var(--neutral-500);
+  --surface-neutral-disabled: var(--neutral-200);
+
+  /* surface/semantic */
+  --surface-accent: var(--accent-600);
+  --surface-accent-hover: var(--accent-700);
+  --surface-accent-inverse: var(--accent-50);
+  --surface-info: var(--info-500);
+  --surface-info-inverse: var(--info-100);
+  --surface-success: var(--success-600);
+  --surface-success-inverse: var(--success-100);
+  --surface-warning: var(--warning-600);
+  --surface-warning-inverse: var(--warning-100);
+  --surface-error: var(--error-600);
+  --surface-error-inverse: var(--error-100);
+
+  /* surface/action */
+  --surface-action-default: var(--primary-600);
+  --surface-action-hover: var(--primary-700);
+  --surface-action-pressed: var(--primary-800);
+  --surface-action-disabled: var(--neutral-200);
+  --surface-action-tonal-default: var(--primary-100);
+  --surface-action-tonal-hover: var(--primary-200);
+  --surface-action-tonal-pressed: var(--primary-300);
+  --surface-action-tonal-disabled: var(--neutral-200);
+
+  /* surface/destructive */
+  --surface-destructive-default: var(--error-600);
+  --surface-destructive-hover: var(--error-700);
+  --surface-destructive-pressed: var(--error-800);
+  --surface-destructive-disabled: var(--neutral-200);
+  --surface-destructive-tonal-default: var(--error-100);
+  --surface-destructive-tonal-hover: var(--error-200);
+  --surface-destructive-tonal-pressed: var(--error-300);
+  --surface-destructive-tonal-disabled: var(--neutral-200);
+
+  /* surface/region */
+  --surface-screen: var(--neutral-10);
+  --surface-topbar: var(--neutral-10);
+  --text-topbar: var(--neutral-950);
+  --icon-topbar: var(--neutral-950);
+  --surface-bottombar: var(--neutral-10);
+  --surface-composer: var(--neutral-10);
+  --surface-card: var(--neutral-50);
+  --surface-card-raised: var(--neutral-100);
+  --surface-bubble-sent: var(--primary-600);
+  --surface-bubble-received: var(--neutral-10); /* white — pops on the pattern canvas (Damir 2026-07-03) */
+  --surface-input: var(--neutral-50);
+  --surface-qr: var(--neutral-10);
+  --on-qr: #131415; /* QR module ink — FIXED dark in both themes (scan contrast on the near-white card) */
+  --surface-presence-online: var(--success-500);
+  --surface-progress-track: var(--neutral-200);
+  --surface-progress-fill: var(--primary-600);
+  --surface-hero: var(--primary-600);
+
+  /* text/icon on hero */
+  --text-on-hero: var(--neutral-10);
+  --text-on-hero-muted: var(--primary-200);
+  --icon-on-hero: var(--neutral-10);
+
+  /* surface/interactive — shared states for list rows, menu items, icon buttons.
+     Focus = outline-focus ring (never a fill); disabled = text-neutral-disabled + opacity, no surface. */
+  --surface-interactive-hover: var(--neutral-50);
+  --surface-interactive-pressed: var(--neutral-100);
+  --surface-interactive-selected: var(--primary-50);
+  --surface-menu: var(--neutral-10);
+
+  /* text */
+  --text-neutral-01: var(--neutral-950);
+  --text-neutral-02: var(--neutral-490);
+  --text-neutral-inverse-01: var(--neutral-10);
+  --text-neutral-inverse-02: var(--neutral-300);
+  --text-neutral-disabled: var(--neutral-460);
+  --text-neutral-on-action: var(--neutral-10);
+  --text-neutral-on-disabled: var(--neutral-460);
+  --text-action-default: var(--primary-600);
+  --text-action-hover: var(--primary-700);
+  --text-action-pressed: var(--primary-800);
+  --text-action-disabled: var(--neutral-400);
+  --text-accent: var(--accent-600);
+  --text-info: var(--info-700);
+  --text-info-inverse: var(--info-300);
+  /* #244: LINK role (Damir: the new blue is for "links and similar") — its own
+     token so links stop riding text-action (brand) and can diverge from it.
+     info-600 on light = 6.3:1. */
+  --text-link: var(--info-600);
+  --text-link-hover: var(--info-700);
+  --text-success: var(--success-600);
+  --text-success-inverse: var(--success-300);
+  --text-warning: var(--warning-700);
+  --text-warning-inverse: var(--warning-300);
+  --text-error: var(--error-600);
+  --text-error-inverse: var(--error-200);
+
+  /* text/region */
+  --text-bubble-sent: var(--neutral-10);
+  --text-bubble-sent-meta: var(--primary-100); /* audit: primary-200 was 4.3:1 at 12px — sub-AA */
+  --text-bubble-received: var(--neutral-950);
+  --text-bubble-received-meta: var(--neutral-490);
+  /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
+     green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
+  --icon-bubble-read: var(--success-300);
+  /* iOS-16 (#283, amends #80): delivered was success-400 — one green shade off
+     read's success-300, indistinguishable at 16px on the vivid bubble (Damir:
+     "hard to tell states apart"). WhatsApp grammar instead: sent ✓ and
+     delivered ✓✓ share the NEUTRAL meta ink (shape carries the difference);
+     read ✓✓ ALONE goes green — color = "they've seen it", nothing else. */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+  --icon-bubble-failed: var(--error-200);
+
+  /* icon */
+  --icon-neutral-01: var(--neutral-950);
+  --icon-neutral-02: var(--neutral-490);
+  --icon-neutral-03: var(--neutral-460);
+  --icon-neutral-inverse-01: var(--neutral-100);
+  --icon-neutral-inverse-02: var(--neutral-300);
+  --icon-neutral-disabled: var(--neutral-400);
+  --icon-neutral-on-action: var(--neutral-10);
+  --icon-neutral-on-disabled: var(--neutral-460);
+  --icon-action-default: var(--primary-600);
+  --icon-action-hover: var(--primary-700);
+  --icon-action-pressed: var(--primary-800);
+  --icon-action-disabled: var(--neutral-400);
+  --icon-accent: var(--accent-600);
+  --icon-info: var(--info-700);
+  --icon-info-inverse: var(--info-300);
+  --icon-success: var(--success-600);
+  --icon-success-inverse: var(--success-300);
+  --icon-warning: var(--warning-700);
+  --icon-warning-inverse: var(--warning-300);
+  --icon-error: var(--error-600);
+  --icon-error-inverse: var(--error-200);
+  --icon-importance-01: var(--info-200);
+  --icon-importance-02: var(--info-300);
+  --icon-importance-03: var(--info-300);
+  --icon-importance-04: var(--info-400);
+  --icon-importance-05: var(--info-400);
+
+  /* outline */
+  --outline-neutral-01: var(--neutral-100);
+  --outline-neutral-02: var(--neutral-200);
+  --outline-neutral-03: var(--neutral-300);
+  --outline-neutral-04: var(--neutral-400);
+  --outline-neutral-inverse-01: var(--neutral-950);
+  --outline-neutral-inverse-02: var(--neutral-800);
+  --outline-neutral-disabled: var(--neutral-400);
+  --outline-action-default: var(--primary-600);
+  --outline-action-hover: var(--primary-700);
+  --outline-action-pressed: var(--primary-800);
+  --outline-action-disabled: var(--neutral-300);
+  --outline-accent: var(--accent-600);
+  --outline-accent-inverse: var(--accent-200);
+  --outline-info: var(--info-600);
+  --outline-info-inverse: var(--info-200);
+  --outline-success: var(--success-600);
+  --outline-success-inverse: var(--success-200);
+  --outline-warning: var(--warning-600);
+  --outline-warning-inverse: var(--warning-300);
+  --outline-error: var(--error-600);
+  --outline-error-inverse: var(--error-200);
+
+  /* outline/region */
+  --outline-input: var(--neutral-300);
+  --outline-focus: var(--primary-600);
+}
+
+[data-theme="dark"] {
+  /* surface/neutral */
+  --surface-neutral-01: var(--neutral-900);
+  --surface-neutral-02: var(--neutral-800);
+  --surface-neutral-03: var(--neutral-700);
+  --surface-neutral-04: var(--neutral-600);
+  --surface-neutral-inverse-01: var(--neutral-100);
+  --surface-neutral-inverse-02: var(--neutral-200);
+  --surface-neutral-inverse-03: var(--neutral-500);
+  --surface-neutral-disabled: var(--neutral-600);
+
+  /* surface/semantic */
+  --surface-accent: var(--accent-300);
+  --surface-accent-hover: var(--accent-200);
+  --surface-accent-inverse: var(--accent-900);
+  --surface-info: var(--info-400);
+  --surface-info-inverse: var(--info-900);
+  --surface-success: var(--success-300);
+  --surface-success-inverse: var(--success-900);
+  --surface-warning: var(--warning-400);
+  --surface-warning-inverse: var(--warning-900);
+  --surface-error: var(--error-400);
+  --surface-error-inverse: var(--error-800);
+
+  /* surface/action */
+  --surface-action-default: var(--primary-400);
+  --surface-action-hover: var(--primary-300);
+  --surface-action-pressed: var(--primary-200);
+  --surface-action-disabled: var(--neutral-700);
+  --surface-action-tonal-default: var(--primary-800);
+  --surface-action-tonal-hover: var(--primary-600);
+  --surface-action-tonal-pressed: var(--primary-500);
+  --surface-action-tonal-disabled: var(--neutral-700);
+
+  /* surface/destructive */
+  --surface-destructive-default: var(--error-300);
+  --surface-destructive-hover: var(--error-400);
+  --surface-destructive-pressed: var(--error-500);
+  --surface-destructive-disabled: var(--neutral-700);
+  --surface-destructive-tonal-default: var(--error-800);
+  --surface-destructive-tonal-hover: var(--error-600);
+  --surface-destructive-tonal-pressed: var(--error-500);
+  --surface-destructive-tonal-disabled: var(--neutral-700);
+
+  /* surface/region */
+  --surface-screen: var(--neutral-900);
+  --surface-topbar: var(--neutral-900);
+  --text-topbar: var(--neutral-100);
+  --icon-topbar: var(--neutral-100);
+  --surface-bottombar: var(--neutral-900);
+  --surface-composer: var(--neutral-900);
+  --surface-card: var(--neutral-800);
+  --surface-card-raised: var(--neutral-700);
+  --surface-bubble-sent: var(--primary-600); /* saturated solid fallback for --gradient-bubble-sent (was primary-400, too pale for white text) */
+  --surface-bubble-received: var(--neutral-700);
+  --surface-input: var(--neutral-800);
+  --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
+  --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
+  --surface-presence-online: var(--success-400);
+  --surface-progress-track: var(--neutral-700);
+  --surface-progress-fill: var(--primary-400);
+  --surface-hero: var(--primary-800);
+
+  /* text/icon on hero */
+  --text-on-hero: var(--neutral-100);
+  --text-on-hero-muted: var(--primary-300);
+  --icon-on-hero: var(--neutral-100);
+
+  /* surface/interactive */
+  --surface-interactive-hover: var(--neutral-800);
+  --surface-interactive-pressed: var(--neutral-700);
+  --surface-interactive-selected: var(--primary-900);
+  --surface-menu: var(--neutral-700); /* elevated surfaces lighten in dark mode */
+
+  /* text */
+  --text-neutral-01: var(--neutral-100);
+  --text-neutral-02: var(--neutral-400);
+  --text-neutral-inverse-01: var(--neutral-900);
+  --text-neutral-inverse-02: var(--neutral-800);
+  --text-neutral-disabled: var(--neutral-430);
+  --text-neutral-on-action: var(--neutral-950);
+  --text-neutral-on-disabled: var(--neutral-400);
+  --text-action-default: var(--primary-400);
+  --text-action-hover: var(--primary-300);
+  --text-action-pressed: var(--primary-300);
+  --text-action-disabled: var(--neutral-500);
+  --text-accent: var(--accent-300);
+  --text-info: var(--info-300);
+  --text-info-inverse: var(--info-800);
+  /* #244: link role, dark — light blue on dark surfaces (9.1:1 on screen). */
+  --text-link: var(--info-300);
+  --text-link-hover: var(--info-200);
+  --text-success: var(--success-400);
+  --text-success-inverse: var(--success-800);
+  --text-warning: var(--warning-400);
+  --text-warning-inverse: var(--warning-800);
+  --text-error: var(--error-300);
+  --text-error-inverse: var(--error-800);
+
+  /* text/region */
+  --text-bubble-sent: var(--neutral-10);          /* WHITE on the saturated outgoing bubble (Damir 2026-07-07 — was neutral-950/black) */
+  --text-bubble-sent-meta: var(--neutral-300);    /* dimmed white meta (was primary-800/dark, invisible on a deep bubble) */
+  --text-bubble-received: var(--neutral-100);
+  --text-bubble-received-meta: var(--neutral-400);
+  /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
+     old 700/800 values were tuned for the pale primary-400 bubble). */
+  --icon-bubble-read: var(--success-300);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta); /* iOS-16 (#283): neutral like sent — see light-mode note */
+  --icon-bubble-failed: var(--error-200);
+
+  /* icon */
+  --icon-neutral-01: var(--neutral-100);
+  --icon-neutral-02: var(--neutral-400);
+  --icon-neutral-03: var(--neutral-430);
+  --icon-neutral-inverse-01: var(--neutral-900);
+  --icon-neutral-inverse-02: var(--neutral-800);
+  --icon-neutral-disabled: var(--neutral-500);
+  --icon-neutral-on-action: var(--neutral-950);
+  --icon-neutral-on-disabled: var(--neutral-400);
+  --icon-action-default: var(--primary-400);
+  --icon-action-hover: var(--primary-300);
+  --icon-action-pressed: var(--primary-200);
+  --icon-action-disabled: var(--neutral-500);
+  --icon-accent: var(--accent-300);
+  --icon-info: var(--info-300);
+  --icon-info-inverse: var(--info-800);
+  --icon-success: var(--success-400);
+  --icon-success-inverse: var(--success-800);
+  --icon-warning: var(--warning-400);
+  --icon-warning-inverse: var(--warning-700);
+  --icon-error: var(--error-300);
+  --icon-error-inverse: var(--error-800);
+  --icon-importance-01: var(--info-600);
+  --icon-importance-02: var(--info-500);
+  --icon-importance-03: var(--info-500);
+  --icon-importance-04: var(--info-400);
+  --icon-importance-05: var(--info-400);
+
+  /* outline */
+  --outline-neutral-01: var(--neutral-800);
+  --outline-neutral-02: var(--neutral-700);
+  --outline-neutral-03: var(--neutral-600);
+  --outline-neutral-04: var(--neutral-500);
+  --outline-neutral-inverse-01: var(--neutral-50);
+  --outline-neutral-inverse-02: var(--neutral-200);
+  --outline-neutral-disabled: var(--neutral-600);
+  --outline-action-default: var(--primary-400);
+  --outline-action-hover: var(--primary-300);
+  --outline-action-pressed: var(--primary-200);
+  --outline-action-disabled: var(--neutral-500);
+  --outline-accent: var(--accent-300);
+  --outline-accent-inverse: var(--accent-800);
+  --outline-info: var(--info-300);
+  --outline-info-inverse: var(--info-800);
+  --outline-success: var(--success-400);
+  --outline-success-inverse: var(--success-800);
+  --outline-warning: var(--warning-400);
+  --outline-warning-inverse: var(--warning-900);
+  --outline-error: var(--error-300);
+  --outline-error-inverse: var(--error-800);
+
+  /* outline/region */
+  --outline-input: var(--neutral-600);
+  --outline-focus: var(--primary-400);
+}
+
+/* ==========================================================================
+   4. CODE-ONLY TOKENS — not represented in Figma (see DESIGN_SYSTEM.md §2)
+   ========================================================================== */
+:root {
+  /* z-index */
+  --z-0: 0;
+  --z-10: 10;  /* sticky (date headers) */
+  --z-20: 20;  /* bars: top/bottom/composer */
+  --z-30: 30;  /* dropdown, context menu */
+  --z-40: 40;  /* bottom sheet + scrim */
+  --z-50: 50;  /* modal */
+  --z-60: 60;  /* call bar — must stay above modals */
+  --z-70: 70;  /* toast / alert */
+
+  /* motion */
+  --duration-100: 100ms; /* micro: hover, toggle */
+  --duration-200: 200ms; /* standard: sheets, dropdowns */
+  --duration-300: 300ms; /* view transitions */
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --easing-decelerate: cubic-bezier(0, 0, 0, 1);
+  --easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
+
+  /* opacity */
+  --opacity-disabled: 0.4;
+  --opacity-scrim: 0.6;
+
+  /* chat bubble sizing (DECISIONS.md #14):
+     bubble rule = max-width: min(var(--bubble-max-pct), var(--layout-bubble-max))
+     75%→82% #334 (Damir dial: wider bubbles; the % is the PHONE binding edge —
+     ~300px on a 393px viewport; typed cards + media tiles ride the same tokens) */
+  --bubble-max-pct: 82%;
+
+  /* balance figures: tabular numerals so digits align and don't jitter on update
+     (Sora + Source Sans 3 both ship tnum). Usage: .u-tabular { font-feature-settings: "tnum" 1; } */
+}
+
+/* Contextual region override (DECISIONS.md #20): hero screens repaint the top
+   region by reassigning region tokens in scope — components underneath don't change. */
+.screen--hero {
+  --surface-topbar: var(--surface-hero);
+  --text-topbar: var(--text-on-hero);
+  --icon-topbar: var(--icon-on-hero);
+}
+
+:root {
+
+  /* scrim (keys have no alpha colors — value = grey-1000 #111213 @ 60%;
+     plain rgba for conservative WebView baseline) */
+  --surface-scrim: rgba(17, 18, 19, 0.6);
+
+  /* hero gradient overlay (code-only: Figma variables can't hold gradients —
+     lives as a fill on the hero components there). Usage:
+     background: var(--gradient-hero-overlay), var(--surface-hero); */
+  --gradient-hero-overlay: linear-gradient(180deg, rgba(49, 13, 80, 0.45) 0%, rgba(102, 74, 151, 0.45) 100%);
+
+  /* lock-screen brand gradient (#160, Damir: "brutally cool, multiple angles,
+     purple/dark/blue"). FIXED-DARK both themes — the lock screen pins its
+     subtree [data-theme="dark"], this token never flips. Multi-angle build:
+     3 corner radials (purple / blue / cyan — the demo avatar-gradient hue
+     family) over a 215° near-black base. Raw rgba sanctioned like
+     --gradient-hero-overlay (gradients = code-only tokens). */
+  /* Softened 2026-07-08 (Damir: less saturation, gentler, "slightly blurred"):
+     halved blob alphas + muted hues toward grey + wider radial falloff (feathered
+     edges) + compressed base lightness (lower stop-to-stop contrast). Alphas =
+     strength, radial extent % = blur/feather, base lightness spread = base contrast
+     — the dials, Damir's final call. */
+  --gradient-lock:
+    radial-gradient(150% 100% at 50% -25%, rgba(132, 108, 200, 0.22) 0%, rgba(132, 108, 200, 0) 70%),
+    radial-gradient(90% 65% at 90% 16%, rgba(190, 120, 175, 0.07) 0%, rgba(190, 120, 175, 0) 72%),
+    radial-gradient(105% 75% at 6% 84%, rgba(80, 120, 190, 0.13) 0%, rgba(80, 120, 190, 0) 70%),
+    radial-gradient(75% 55% at 86% 98%, rgba(90, 170, 175, 0.06) 0%, rgba(90, 170, 175, 0) 68%),
+    linear-gradient(200deg, #201a38 0%, #191830 45%, #10111f 100%);
+
+  /* launch/welcome brand gradient (Damir premium round 2026-07-06: "more
+     premium colors" than --gradient-lock). Aurora build, FIXED-DARK like the
+     lock: a violet crown halo behind the logo, a faint magenta glint
+     upper-right, deep sapphire lower-left, a teal whisper bottom-right, over
+     a violet-ink 200° base. The 5 layers + alphas are Damir's dials; if he
+     converges the lock onto this recipe, retire --gradient-lock into it.
+     Raw rgba sanctioned (gradients = code-only tokens). */
+  /* #264 (Damir: "soften like the lock" — the #206⑥ recipe applied to launch):
+     halved blob alphas + hues muted toward grey + wider radial falloff (feathered
+     edges) + compressed base lightness spread. Launch keeps its violet identity;
+     the same four dials as the lock (alphas / extents / stops / base) — Damir
+     art-directs live. Pre-soften values in git history. */
+  --gradient-launch:
+    radial-gradient(150% 100% at 50% -25%, rgba(126, 100, 224, 0.25) 0%, rgba(126, 100, 224, 0) 70%),
+    radial-gradient(90% 65% at 90% 16%, rgba(200, 118, 178, 0.08) 0%, rgba(200, 118, 178, 0) 72%),
+    radial-gradient(105% 75% at 6% 84%, rgba(78, 116, 200, 0.14) 0%, rgba(78, 116, 200, 0) 70%),
+    radial-gradient(75% 55% at 86% 98%, rgba(88, 178, 172, 0.06) 0%, rgba(88, 178, 172, 0) 68%),
+    linear-gradient(200deg, #1b163c 0%, #131230 45%, #0b0c1a 100%);
+
+  /* chat canvas (Damir 2026-07-03): doodle pattern tile + themed gradient.
+     PREMIUM TREATMENT (2026-07-03): pattern renders as a data-URI MASK
+     (src/styles/chat-pattern.css, generated by scripts/generate-chat-pattern.mjs)
+     inked with --chat-pattern-ink — theme-colored, not white ("white isn't
+     premium", Damir). Two dials per theme: ink (color) + opacity (intensity).
+     ✅ LOCKED (Damir 2026-07-03, via demo switcher): "Primary soft" —
+     light primary-200 / dark primary-800, opacity 0.5 both modes.
+     ADD --chat-pattern-ink TO FIGMA at next mirror. */
+  /* gradient stays tinted end-to-end — fading to screen-white made white
+     bubbles vanish at the bottom (Damir 2026-07-03) */
+  /* W5 F5 2026-08-13 — "on light mode perhaps bump opacity, as its barely
+     visible on the strongest". MEASURED in Chromium (pattern-vs-gradient
+     contrast ratio, median over the inked pixels of the light canvas):
+     primary-200 gave 1.02 at Standard and 1.03 at BOLD, against dark's
+     1.12 / 1.18 — i.e. light Bold was fainter than dark SUBTLE (1.07)
+     despite carrying 2.8× the opacity. The opacity ladder was never the
+     problem: primary-200 (#b7c9f4) is all but isoluminant with the sky-blue
+     --gradient-chat wash, so multiplying alpha multiplies almost nothing.
+     The fix is the INK, one step up the same ramp the dark ink already sits
+     on: primary-400 lands light at 1.08 / 1.14 / 1.20 (Subtle/Standard/Bold)
+     — theme PARITY with dark's 1.07 / 1.12 / 1.18, so Standard stays the
+     theme default it has always been and Bold finally reads as a pattern.
+     PATTERN_LEVELS and the dark ×0.36 derivation are untouched; the dark ink
+     below is a separate value, so dark renders pixel-identical to today. */
+  --chat-pattern-ink: var(--primary-400);
+  --chat-pattern-opacity: 0.5;
+  /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
+     compute font-size * this; ADOPTION in message-bubble.css lands at the
+     chat-shell integration pass (flagged) — the settings preview uses it now. */
+  --chat-text-scale: 1;
+  /* light gradient v2 (Damir 2026-07-03, 2nd round): sky-blue diagonal wash,
+     alphas composited over surface-screen (the trailing color layer). Raw
+     rgba sanctioned like --gradient-hero-overlay (gradients = code-only
+     tokens); soften dial = the two alphas. TOKEN-CANDIDATE colors at next
+     Figma mirror. Replaces primary-100→50; recheck canvas-tuned inks
+     (scroll thumb -03, datesep) at UX review. */
+  /* canvas base = the SOLID color layer under the gradient wash. Split out so a
+     surface (e.g. desktop, docs/desktop-split-spec.md item 2) can drop the doodle
+     pattern AND swap the base without touching the gradient overlay itself. */
+  --chat-canvas-base: var(--surface-screen);
+  --gradient-chat: linear-gradient(195deg, rgba(170, 220, 245, 0.5) 0%, rgba(24, 146, 206, 0.5) 100%), var(--chat-canvas-base);
+  /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
+     (Damir 2026-07-07). White text (--text-bubble-sent) rides on top. This is the
+     ONE line to tune the sent-bubble look (Damir owns the final palette); the solid
+     --surface-bubble-sent is the fallback. TOKEN-CANDIDATE at next Figma mirror. */
+  --gradient-bubble-sent: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-600) 100%);
+  /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
+     white glyph, so the same fills read in light AND dark). Assigned per-glyph by
+     discGrad() so discs don't repeat; error = reserved destructive red. Raw hex
+     sanctioned like the other --gradient-* code-only tokens. */
+  --disc-grad-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --disc-grad-2: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  --disc-grad-3: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  --disc-grad-4: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+  --disc-grad-5: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  --disc-grad-6: linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);
+  --disc-grad-7: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
+  --disc-grad-8: linear-gradient(135deg, #84cc16 0%, #22c55e 100%);
+  --disc-grad-9: linear-gradient(135deg, #d946ef 0%, #a855f7 100%);
+  --disc-grad-10: linear-gradient(135deg, #fb923c 0%, #ef4444 100%);
+  --disc-grad-11: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+  --disc-grad-12: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  --disc-grad-13: linear-gradient(135deg, #14b8a6 0%, #22d3ee 100%);
+  --disc-grad-14: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+  --disc-grad-error: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+
+  /* state washes over strong surfaces (hero gradient, success call bar) —
+     mirrored in Figma as colors/surface/region/wash-* (alpha primitives);
+     same value both modes: washes are relative to the surface they sit on */
+  --surface-wash-on-hero: rgba(255, 255, 255, 0.12);
+  --surface-wash-on-hero-pressed: rgba(255, 255, 255, 0.18);
+  --surface-wash-on-success: rgba(0, 0, 0, 0.08);
+  --surface-wash-on-success-pressed: rgba(0, 0, 0, 0.14);
+
+  /* on-scrim inks (audit r3): the scrim stays DARK in both modes, so its inks
+     are MODE-LESS — the on-action inks flip to near-black in dark mode and
+     vanished on media-tile scrim pills. ADD TO FIGMA at next mirror. */
+  --text-on-scrim: var(--neutral-10);
+  --icon-on-scrim: var(--neutral-10);
+
+  /* settings row-icon discs (#147 — Damir: tinted per-row badges, the
+     Telegram/reference grammar; plain neutral glyphs read flat). Soft disc +
+     strong ink per semantic hue; pairs flip per theme below. DS-DOC at next
+     mirror pass. error is RESERVED for destructive rows. */
+  --disc-primary-bg: var(--primary-100);   --disc-primary-ink: var(--primary-600);
+  --disc-accent-bg: var(--accent-100);     --disc-accent-ink: var(--accent-600);
+  --disc-info-bg: var(--info-100);         --disc-info-ink: var(--info-600);
+  --disc-success-bg: var(--success-100);   --disc-success-ink: var(--success-600);
+  --disc-warning-bg: var(--warning-100);   --disc-warning-ink: var(--warning-600);
+  --disc-error-bg: var(--error-100);       --disc-error-ink: var(--error-600);
+  --disc-neutral-bg: var(--neutral-100);   --disc-neutral-ink: var(--neutral-600);
+
+  /* theme-picker preview tiles (#147): FIXED light/dark paints — a preview
+     must show its OWN mode regardless of the active theme (the --surface-qr
+     fixed-pair precedent). Mode-less by design. */
+  --preview-light-surface: var(--neutral-10);
+  --preview-light-line: var(--neutral-200);
+  --preview-dark-surface: var(--neutral-950);
+  --preview-dark-line: var(--neutral-700);
+
+  /* switch control (#148 — Damir: the off-track/knob pair was near-invisible
+     on card surfaces in both modes; the on-action knob ink goes near-black in
+     dark). Dedicated pair per mode; ON track stays --surface-action-default. */
+  --switch-track-off: var(--neutral-200);
+  --switch-knob: var(--neutral-10);
+
+  /* input ON A CARD (#150③): --surface-input === --surface-card in BOTH modes
+     (neutral-50/-800 twins) — fields vanish on the #147/#148 card sections.
+     Carded containers REASSIGN --surface-input to this (the #20 contextual
+     region-override precedent — no component overrides). Inset reading:
+     slightly darker than the card in light, deeper than it in dark. */
+  --surface-input-on-card: var(--neutral-100);
+
+  /* elevation — light: shadows */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(17, 18, 19, 0.06), 0 1px 3px rgba(17, 18, 19, 0.1);
+  --elevation-2: 0 2px 6px rgba(17, 18, 19, 0.08), 0 4px 12px rgba(17, 18, 19, 0.1);
+  --elevation-3: 0 8px 16px rgba(17, 18, 19, 0.12), 0 12px 32px rgba(17, 18, 19, 0.14);
+}
+
+[data-theme="dark"] {
+  /* settings row-icon discs — dark pairs (#147) */
+  --disc-primary-bg: var(--primary-900);   --disc-primary-ink: var(--primary-300);
+  --disc-accent-bg: var(--accent-900);     --disc-accent-ink: var(--accent-300);
+  --disc-info-bg: var(--info-900);         --disc-info-ink: var(--info-300);
+  --disc-success-bg: var(--success-900);   --disc-success-ink: var(--success-300);
+  --disc-warning-bg: var(--warning-900);   --disc-warning-ink: var(--warning-300);
+  --disc-error-bg: var(--error-900);       --disc-error-ink: var(--error-300);
+  --disc-neutral-bg: var(--neutral-800);   --disc-neutral-ink: var(--neutral-300);
+
+  /* switch control — dark pair (#148) */
+  --switch-track-off: var(--neutral-700);
+  --switch-knob: var(--neutral-100);
+
+  /* input on a card — dark (#150③): deeper than the neutral-800 card = inset */
+  --surface-input-on-card: var(--neutral-900);
+
+  /* elevation — dark: shadows read poorly; raised surfaces use surface-card(-raised) */
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
+
+  /* chat canvas — base = --surface-neutral-01 (resolves to neutral-900 in dark,
+     Damir 2026-07-07) with a subtle premium glow so it reads gradient-like
+     (Telegram), not flat; the theme-ink line pattern (chat-pattern.css) overlays
+     on top. Tune the glow alpha/position here. */
+  /* pattern ink + chat base + sent bubble — Damir exact values 2026-07-07:
+     pattern overlay = hsla(242,76%,72%), chat base = surface-neutral-01,
+     sent bubble = 180deg #353FB7→#2046A7. These are the dark-mode tuning lines. */
+  --chat-pattern-ink: hsla(242, 76%, 72%, 1);
+  /* dark pattern intensity reduced 60% then another 10% (0.5 → 0.2 → 0.18),
+     Damir F5 2026-07-08 — the dark doodle overlay read too strong on the
+     neutral-950 canvas. Light mode unchanged at 0.5 (different surface + ink). */
+  --chat-pattern-opacity: 0.18;
+  /* dark canvas base (see light-mode note): desktop swaps this to --neutral-1000
+     for a solid grey-1000 under the gradient overlay (desktop-split-spec item 2). */
+  --chat-canvas-base: var(--surface-neutral-01);
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--chat-canvas-base);
+  /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
+     (Damir 2026-07-07); white text rides on top. */
+  --gradient-bubble-sent: linear-gradient(180deg, #353FB7 0%, #2046A7 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-100: 0ms;
+    --duration-200: 0ms;
+    --duration-300: 0ms;
+  }
+}
+
+

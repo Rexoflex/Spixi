@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inlineHtml } from './lib/inline.mjs';
+import { inlineHtml, inlineFonts } from './lib/inline.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = join(root, 'Spixi', 'Resources', 'Raw', 'html');
@@ -257,6 +257,65 @@ function shellBundleSymbols(src) {
 
 mkdirSync(OUT_DIR, { recursive: true });
 
+/* ————————————————————————————————————————————————————————————————————————————
+ * #345 SHARED EXTERNALS — the measured fix for slow screen entry.
+ *
+ * THE MEASUREMENT (Damir's Galaxy A52 5G, PerfTrace, not a guess). Opening a chat
+ * cost 498 ms; 453 ms of it happened BEFORE the shell announced itself:
+ *   generatePage(chat.html) = 172 ms   read asset + localizeHtml + MAUI base64
+ *   loadPage -> shell onLoad = 281 ms  data: URL handover, decode, parse, execute
+ * and generatePage is LINEAR in file size — 222 KB = 16 ms, 1625 KB = 114 ms,
+ * 2019 KB = 172 ms (~0.08 ms/KB).
+ *
+ * THE CAUSE. Every shell inlined the SAME ~1.3 MB of shared payload: the component
+ * bundle, the strings dictionary, the icon sprite and the base/token CSS. Across 22
+ * shells that is ~26 MB of identical bytes, and Android re-read, re-localized and
+ * re-base64-encoded all of it on EVERY navigation.
+ *
+ * THE FIX. Emit those six once, beside the shells, and reference them. chat.html
+ * falls from ~2019 KB to ~370 KB, so its generatePage leg should fall to ~30 ms.
+ * Per-shell CSS and per-shell page script stay INLINE — they are not shared, so
+ * externalising them would only add requests.
+ *
+ * WHY THIS IS SAFE ON EVERY PLATFORM. Android loads the document with a BaseUrl
+ * (loadDataWithBaseURL), so relative refs resolve; `AllowFileAccess` and
+ * `AllowFileAccessFromFileURLs` are already true. iOS, MacCatalyst and Windows load
+ * from a directory that already receives the whole html tree (symlink on Apple,
+ * copy on Windows). The `images/` folder beside the shells has worked this way
+ * since #176 — this is the same mechanism, not a new one.
+ *
+ * WHAT IS DELIBERATELY NOT DONE. The Android WebView keeps `CacheMode.NoCache`.
+ * Caching these files would be a further win, but a cached stale bundle after an
+ * app update is exactly the #285/#287/#288 shipped-stale-artefact class. The 140 ms
+ * above does not depend on caching. Chase the cache later, with a measurement and a
+ * content-hashed filename.
+ * ———————————————————————————————————————————————————————————————————————————— */
+const EXTERNALS = [
+  { src: 'src/demo/spixi.iife.js',        out: 'spixi.bundle.js',       ref: '../demo/spixi.iife.js' },
+  { src: 'src/demo/strings.iife.js',      out: 'spixi.strings.js',      ref: '../demo/strings.iife.js' },
+  { src: 'src/components/icons.iife.js',  out: 'spixi.icons.js',        ref: '../components/icons.iife.js' },
+  { src: 'src/styles/tokens.css',         out: 'spixi.tokens.css',      ref: '../styles/tokens.css',      css: true },
+  { src: 'src/styles/base.css',           out: 'spixi.base.css',        ref: '../styles/base.css',        css: true },
+  { src: 'src/styles/chat-pattern.css',   out: 'spixi.chat-pattern.css', ref: '../styles/chat-pattern.css', css: true },
+];
+const externalMap = new Map();
+{
+  let shared = 0;
+  for (const e of EXTERNALS) {
+    const abs = join(root, e.src);
+    if (!existsSync(abs)) { console.warn(`  ! external missing, will stay inline: ${e.src}`); continue; }
+    let body = readFileSync(abs, 'utf8');
+    // CSS keeps its fonts inlined as data: URIs — the font is 44 KB and lives in
+    // exactly one shared file now, so there is nothing to gain by a second request.
+    if (e.css) body = inlineFonts(body, dirname(abs));
+    writeFileSync(join(OUT_DIR, e.out), body);
+    externalMap.set(e.ref, e.out);
+    shared += body.length;
+    console.log(`  · external  ${e.out.padEnd(24)} ${(body.length / 1024).toFixed(0).padStart(5)} KB   ← ${e.src}`);
+  }
+  console.log(`  · ${(shared / 1024).toFixed(0)} KB shared once instead of ${(shared * 22 / 1024 / 1024).toFixed(1)} MB duplicated across 22 shells\n`);
+}
+
 // Copy the demos' runtime illustrations (referenced from JS as images/… — not
 // static <img>, so the inliner can't reach them). With them beside the shells,
 // relative `images/…` refs resolve; missing ones already fail-soft in-component.
@@ -271,7 +330,22 @@ let n = 0;
 for (const key of keys) {
   const s = SHELLS[key];
   if (!s) { console.warn(`  ? unknown shell "${key}" — known: ${Object.keys(SHELLS).join(', ')}`); continue; }
-  let html = inlineHtml(join(root, s.in), { device: true, strict: true }); // strict: throws on unresolved refs
+  let html = inlineHtml(join(root, s.in), { device: true, strict: true, external: externalMap }); // strict: throws on unresolved refs
+  /* #345 BOOT GUARD. The bundle now arrives at RUNTIME, so a missing or blocked
+     file turns `const { … } = window.Spixi` into a TypeError behind a blank screen —
+     the exact failure the build-time preflight below was written to prevent, moved
+     from build time to device time. This says so on screen instead. It costs one
+     line and it is the difference between "the app is broken" and a fixable report. */
+  // ⚠ Only shells that ACTUALLY reference the bundle get the guard. empty_detail.html
+  // never carried it (it is icons + base + tokens only, 9 KB), so an unconditional
+  // guard fired a false alarm in the desktop detail pane — Damir saw the red panel
+  // beside a perfectly healthy chats list on the first Windows run.
+  if (html.includes('spixi.bundle.js')) html = html.replace(/<\/body>/i,
+    '<script>if(!window.Spixi){console.error("SPIXI: bundle did not load");'
+    + 'document.documentElement.innerHTML='
+    + '\'<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">'
+    + 'Spixi could not load spixi.bundle.js.\\n\\nThe shell and its shared assets must sit in the '
+    + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs</pre>\';}</script>\n</body>');
   // launch: inject the per-file boot view BEFORE any script runs (the shell reads
   // window.__LAUNCH_VIEW__ to pick welcome/create/restore/retry/tail).
   if (s.bootView) {

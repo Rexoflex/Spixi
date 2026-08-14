@@ -554,6 +554,7 @@ namespace SPIXI
 
         private void onLoad()
         {
+            PerfTrace.mark("shell onLoad");   // #344 — DEBUG only
             Utils.sendUiCommand(this, "onChatScreenReady", friend.walletAddress.ToString());
 
             // X1 follow-up: push the peer's (or group's) avatar so the chat TOPBAR shows it
@@ -1285,6 +1286,9 @@ namespace SPIXI
 
         public void loadMessages()
         {
+            PerfTrace.mark("loadMessages start");   // #344 — DEBUG only
+            long t344 = PerfTrace.now();
+            int n344 = 0;
             var messages = friend.getMessages(selectedChannel, (int)messagesToShow);
             if (messages == null
                 || messages.Count == 0)
@@ -1343,6 +1347,7 @@ namespace SPIXI
                     try
                     {
                         insertMessage(message, selectedChannel);
+                        n344++;   // #344 — DEBUG only
                     }catch(Exception e)
                     {
                         Logging.error("Error loading message: {0}", e);
@@ -1350,6 +1355,12 @@ namespace SPIXI
                     updateReactions(message);
                 }
             }
+            // #344 measurement scaffold — DEBUG only. Each insertMessage is its own
+            // EvaluateJavaScriptAsync (Utils.sendUiCommand:180 -> SpixiContentPage:187),
+            // so this span is the per-message process-boundary cost. If it dominates,
+            // the fix is the addMessages batch verb (docs/chat-transport-spec.md, #298).
+            PerfTrace.span("loadMessages pushed " + n344 + " msgs", t344);
+            PerfTrace.mark("loadMessages done");
         }
 
         public string resolveNick(string senderNick, Address senderAddress)

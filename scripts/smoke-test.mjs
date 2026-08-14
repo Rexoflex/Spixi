@@ -5117,6 +5117,44 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
  * and swaps it with one replaceChildren. The cause is wall-clock BEFORE that paint:
  * a ~1.4 MB document to parse, then one EvaluateJavaScriptAsync per message, then a
  * 250 ms settle. These pins hold the three fixes that do not need the BE engineer. */
+/* —— #345: the shared payload leaves the shells ————————————————————————————————
+ * MEASURED CAUSE (PerfTrace on Damir's Galaxy A52, not a hypothesis): opening a chat
+ * cost 498 ms and 453 ms of it happened before the shell said a word —
+ * generatePage(chat.html) 172 ms, then 281 ms of handover, decode, parse and execute.
+ * generatePage is LINEAR in file size: 222 KB = 16 ms, 1625 KB = 114 ms, 2019 KB =
+ * 172 ms. Every shell inlined the SAME ~1.6 MB of bundle, strings, icons and base CSS,
+ * so Android re-read, re-localized and re-base64-encoded 26 MB of duplicate bytes
+ * across the app's 22 screens. Now emitted ONCE, beside the shells. */
+console.log('#345 — shared bundle, strings, icons and base CSS are external');
+{
+  const htmlDir = join(root, 'Spixi/Resources/Raw/html');
+  const SHARED = ['spixi.bundle.js', 'spixi.strings.js', 'spixi.icons.js',
+                  'spixi.tokens.css', 'spixi.base.css', 'spixi.chat-pattern.css'];
+  for (const f of SHARED) {
+    ok(existsSync(join(htmlDir, f)),
+      '#345: ' + f + ' is emitted beside the shells — relative refs resolve because Android loads with a BaseUrl and Apple/Windows receive the whole html tree, exactly as images/ has since #176');
+  }
+  const chatBuilt = readFileSync(join(htmlDir, 'chat.html'), 'utf8');
+  const indexBuilt = readFileSync(join(htmlDir, 'index.html'), 'utf8');
+
+  ok(/<script src="spixi\.bundle\.js"><\/script>/.test(chatBuilt)
+    && /<script src="spixi\.strings\.js"><\/script>/.test(chatBuilt)
+    && /<script src="spixi\.icons\.js"><\/script>/.test(chatBuilt),
+    '★ #345: the shells REFERENCE the shared payload instead of carrying it. No defer, no async, and in document order — the shells destructure window.Spixi in a following inline script, so the bundle must have executed by then');
+  ok(!/window\.Spixi = \{ getStrings: getStrings/.test(chatBuilt),
+    '★ #345: the 858 KB bundle is no longer INSIDE chat.html. That inlining is what made generatePage cost 172 ms, and the cost is linear in bytes');
+  ok(chatBuilt.length < 600 * 1024 && indexBuilt.length < 500 * 1024,
+    '★ #345 THE POINT: chat.html is under 600 KB (was 2019 KB) and index.html under 500 KB (was 1625 KB). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~30 ms');
+  ok(!/if\(!window\.Spixi\)/.test(readFileSync(join(htmlDir, 'empty_detail.html'), 'utf8')),
+    '★ #345: empty_detail.html gets NO boot guard. It is the one shell that never carried the bundle (icons + base + tokens, 9 KB), so an unconditional guard fired a FALSE alarm — Damir saw the red panel in the desktop detail pane beside a perfectly healthy chats list');
+  ok(/if\(!window\.Spixi\)\{console\.error\("SPIXI: bundle did not load"\)/.test(chatBuilt),
+    '★ #345 BOOT GUARD: the bundle now arrives at RUNTIME, so a missing or blocked file would turn the shells\' `const { … } = window.Spixi` into a TypeError behind a BLANK screen. The build-time preflight cannot cover that any more, so the shell says so on screen instead');
+
+  const inlineLib = readFileSync(join(root, 'scripts/lib/inline.mjs'), 'utf8');
+  ok(/externalNames\.has\(u\)/.test(inlineLib) && /if \(external\.has\(src\)\) return/.test(inlineLib),
+    '#345: the inliner\'s strict gate still throws on an UNDECLARED relative ref — only refs explicitly declared external are exempt, so a genuinely missed <img> or <link> still fails the build');
+}
+
 console.log('#343 — instant chrome, first-commit fade, message window');
 {
   const chatSh = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');

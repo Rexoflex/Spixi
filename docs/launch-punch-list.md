@@ -121,3 +121,32 @@ Effort marks:
 - **A nickname change does not refresh the chats list** — handoff item (c).
 - **Avatars do not render on all surfaces** — handoff item (d). The screens are not named yet.
 - **The image cache has no limit** — handoff item (g), and G2 above.
+
+## H3 — desktop dark-mode colour pass (Damir, 2026-08-14) — ⏳ LATE, NEEDS DAMIR'S COLOURS
+
+**Damir has already changed the screen title and the selected states on desktop from the
+brand accent to NEUTRAL.** This item is to finish that pass properly and to supply the
+values. 🟡 **BLOCKED ON DAMIR: he provides the colours. Do not pick them.**
+
+**Why the direction is right.** On desktop three "you are here" signals are visible at
+once — the rail tab, the filter chip and the selected list row. If all three carry the
+accent, none of them reads as primary and the surface reads as busy. Reserve saturation
+for ACTION and ATTENTION (primary button, unread badge, links). Use neutral elevation
+for STRUCTURE (titles, selected rows, the active rail item). A screen title is structure,
+not an action, so it should not be accent-coloured at all.
+
+Dark mode sharpens this: saturated blue on near-black has lower effective contrast than
+on white, and large areas of it visually vibrate.
+
+**Two things to verify when the colours land:**
+
+1. **Keep ONE accent anchor** so the app does not feel dead — normally the rail's active
+   indicator or the unread badge. Neutral everywhere costs the interface its pulse.
+2. **The neutral selected state must still be legible.** On a dark surface a selection
+   generally needs at least a 4-6% lightness step before it reads as selected rather
+   than as a rendering artefact. Check `--surface-interactive-selected` in
+   `src/styles/tokens.css`. Selection also carries `aria-current`, so the non-colour cue
+   for accessibility already exists — but a sighted user still has to see it at a glance.
+
+Related: **A3** (white glyph/initials on avatars) and **A4** (widen the avatar gradient
+range) are the same class of problem. Do all three in one colour pass.

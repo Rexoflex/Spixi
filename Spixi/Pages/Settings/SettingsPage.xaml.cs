@@ -729,7 +729,19 @@ namespace SPIXI
 
                 Preferences.Default.Remove("onboardingComplete");
                 Preferences.Default.Remove("lockenabled");
-                Preferences.Default.Remove("waletpass");
+                // ★ #346 (review of #341/#342): the key was spelled "waletpass" — one 'l'.
+                // Every WRITE uses "walletpass" (here :336, EncryptionPassword :85,
+                // LaunchCreatePage :197, LaunchRestorePage :139, LaunchRetryPage :64) and
+                // every READ uses "walletpass" (Node.cs :248/:252, BackupPage :144). So this
+                // line removed a key that has never existed, and the wallet password — stored
+                // in PLAINTEXT, see the two "TODO: encrypt the password" markers — survived
+                // the one action whose whole meaning is "destroy the wallet". It stayed in
+                // Android SharedPreferences / iOS NSUserDefaults, which unencrypted device
+                // backups include, until the user happened to create or restore another
+                // wallet on the same install.
+                // The same typo at LaunchCreatePage :192 and LaunchRestorePage :135 is
+                // harmless — both Set("walletpass", …) on the next lines.
+                Preferences.Default.Remove("walletpass");
 
                 SpixiLocalization.addCustomString("OnboardingComplete", "false");
 

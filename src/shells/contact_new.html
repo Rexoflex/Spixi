@@ -34,6 +34,25 @@
   body { display: flex; flex-direction: column; overflow: hidden; }
   #add-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #add-root > * { flex: 1; min-height: 0; }
+  /* ★ I2 (#347, Damir): DESKTOP FORMPANE GRAMMAR — the content was full-width.
+     ixian:newcontact pins this page to the detail column on a wide window
+     (HomePage.xaml.cs:502-511, the shared "formpane" tag), so on desktop it is a pane
+     and must read like every other pane sublevel: the TITLE BAR spans the full width,
+     and the CONTENT below it locks at the 640px cap, centered. This is the same rule
+     the Account pane applies to Change password (settings.html:105), which is the
+     reference Damir named. The CTA stays width:'full' and therefore fills the cap, not
+     the pane — again matching Change password.
+     Its sibling in the same pane, app_new.html:38, has always capped (at 560px), so
+     this shell was the odd one out.
+     🟡 DIAL: 640 here vs 560 there is a visible difference in one column. One line in
+     either file makes them identical — Damir's call, not a silent change.
+     DESKTOP ONLY. Mobile keeps the full-bleed takeover (#242: pane grammar is
+     desktop-only, mobile untouched). */
+  :root[data-desktop] .c-contacts-add > :not(.c-topbar) {
+    width: 100%;
+    max-width: 640px;
+    margin-inline: auto;
+  }
   /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
      parse / before first render (mirrors contact_details.html); the first
      replaceChildren render swaps it out, so the load gap is never blank. */

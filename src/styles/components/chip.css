@@ -18,9 +18,12 @@
   white-space: nowrap;
   position: relative;
   /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
+  /* transform = the #343 press release; declared here so base.css never has to
+     out-specify (and therefore replace) this shorthand — see #346. */
   transition: background-color var(--duration-100) var(--easing-standard),
               color var(--duration-100) var(--easing-standard),
-              border-color var(--duration-100) var(--easing-standard);
+              border-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* extended tap area (#50): chips are 26/30px visual (line-height + 8 padding

@@ -50,9 +50,14 @@
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
   white-space: nowrap;
+  /* `transform` is the #343 press release (base.css sets data-pressed="control" →
+     scale(0.97); this animates the way back). It lives HERE, not in base.css: a
+     base.css rule strong enough to win would REPLACE this whole shorthand — that is
+     the #346 clobber that killed the morph width below. */
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
-              border-color var(--duration-200) var(--easing-standard);
+              border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* width animates only during the success morph (JS sets data-morphing) —
@@ -61,6 +66,7 @@
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
               border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard),
               width var(--duration-200) var(--easing-standard);
 }
 
@@ -1603,6 +1609,6 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
-<script>if(!window.Spixi){console.error("SPIXI: bundle did not load");document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load spixi.bundle.js.\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';}</script>
+<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
 </body>
 </html>

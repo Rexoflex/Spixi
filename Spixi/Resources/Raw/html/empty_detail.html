@@ -148,5 +148,6 @@
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
+<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
 </body>
 </html>

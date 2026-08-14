@@ -86,9 +86,14 @@
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
   white-space: nowrap;
+  /* `transform` is the #343 press release (base.css sets data-pressed="control" →
+     scale(0.97); this animates the way back). It lives HERE, not in base.css: a
+     base.css rule strong enough to win would REPLACE this whole shorthand — that is
+     the #346 clobber that killed the morph width below. */
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
-              border-color var(--duration-200) var(--easing-standard);
+              border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* width animates only during the success morph (JS sets data-morphing) —
@@ -97,6 +102,7 @@
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
               border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard),
               width var(--duration-200) var(--easing-standard);
 }
 
@@ -2607,9 +2613,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   white-space: nowrap;
   position: relative;
   /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
+  /* transform = the #343 press release; declared here so base.css never has to
+     out-specify (and therefore replace) this shorthand — see #346. */
   transition: background-color var(--duration-100) var(--easing-standard),
               color var(--duration-100) var(--easing-standard),
-              border-color var(--duration-100) var(--easing-standard);
+              border-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* extended tap area (#50): chips are 26/30px visual (line-height + 8 padding
@@ -4005,6 +4014,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }
+  /* ★ #346 (review of #343): this rule is PRE-#343 and the ad2c7ca revert took it out
+     with the #343 delay rule that sat beside it. Without it the span is an empty
+     display:inline box that paints NOTHING, so the log was a blank rectangle for the
+     whole entry window — worse than the state the revert meant to restore. #343 only
+     ever argued the spinner should be DELAYED, never removed. */
+  .chat-boot__spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--border-subtle, rgba(128,128,128,0.22));
+    border-top-color: var(--icon-accent, #1892ce);
+    animation: chat-boot-spin 0.8s linear infinite;
+  }
   @keyframes chat-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: none; } }
   /* avatar flash guard: keep the topbar avatar invisible (slot reserved) until the
@@ -5843,7 +5863,18 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     openTipSheet({
       message: { id: rec.id, excerpt: rec.text || undefined },
       recipient: {
-        name: rec.senderNick || identity.name || identity.address || '',
+        // ★ #346 (review of #342): this ladder must match the avatar ladder below,
+        // and it did not. `identity.name` is the GROUP's name in a group chat (C#
+        // pushes setNickname for the group), so a member who has not set a nickname
+        // — the exact case senderHasNick exists for — produced "Tip <group name>"
+        // beside that member's real photo, on the surface where the user checks who
+        // is about to be paid. Same reasoning, same fix: the group roster first, then
+        // the truncated address (#211 canon), and identity.name ONLY in a 1:1 chat.
+        name: rec.senderNick
+          || (mode.isMulti ? (groupRoster.get(rec.senderAddress) || {}).name : identity.name)
+          || (rec.senderAddress ? truncateAddressMiddle(rec.senderAddress) : '')
+          || (mode.isMulti ? '' : (identity.address ? truncateAddressMiddle(identity.address) : ''))
+          || '',
         address: rec.senderAddress || identity.address || '',
         // #342 (Damir F5 item (d)): the photo was in scope here all along and was
         // never passed. Order matters, and #342 review MAJOR-1 explains why:
@@ -7833,6 +7864,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
-<script>if(!window.Spixi){console.error("SPIXI: bundle did not load");document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load spixi.bundle.js.\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';}</script>
+<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
 </body>
 </html>

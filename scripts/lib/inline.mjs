@@ -83,6 +83,41 @@ export function inlineHtml(inPath, opts = {}) {
     return `<script data-src="${src}">\n${js}\n</script>`;
   });
 
+  /* 3b. ★ #346 (review of #345) — CATCH THE SCRIPT TAGS STEP 3 CANNOT SEE.
+     Step 3 matches only a bare `<script src="X"></script>`. A tag carrying any extra
+     attribute — `<script defer src="…">`, `<script src="…" async>`, a type or a nonce —
+     is not inlined, and step 5 then deletes every `<script …>…</script>` block BEFORE
+     it scans for stray refs, so the miss is invisible. The build succeeds and ships a
+     shell pointing at a path that does not exist beside it: a blank screen with no
+     build error. Worse since #345, because the comment in step 3 tells the next author
+     the bundle "must NOT be defer/async" — i.e. it names the one attribute that silently
+     switches the gate off.
+     Anything still carrying a src here is either a real miss or an external we just
+     rewrote. Fail on the first, allow the second. */
+  // Strip script BODIES but keep their opening tags, so a script tag built as a
+  // STRING at runtime cannot false-positive. scan.html does exactly that: it injects
+  // `<script src="js/html5-qrcode.min.js">` on demand, and that must stay a runtime
+  // ref (the file is co-located, and a missing lib degrades to an honest 'denied' CTA).
+  const tagsOnly = html.replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, '$1</script>');
+  /* `\ssrc=`, NOT `\bsrc=` — #346 review MAJOR-3. `-` is a non-word character, so `\b`
+     matches inside `data-src=`, which is the attribute step 3 writes onto every script
+     it successfully inlines. The gate therefore rejected the inliner's OWN output:
+     `build-shells.mjs apps` and `build-shells.mjs payments` — both named in this
+     script's usage block — died with a message blaming an attribute that was not
+     there. Requiring whitespace before `src` matches the real attribute and not a
+     suffix of another one. */
+  const unhandled = [...tagsOnly.matchAll(/<script\b([^>]*\ssrc=["']([^"']+)["'][^>]*)>/gi)]
+    .map((m) => m[2])
+    .filter((u) => !/^(data:|https?:|\/\/)/.test(u))
+    .filter((u) => !externalNames.has(u));
+  if (unhandled.length) {
+    const msg = `<script src> not inlined — the tag carries an extra attribute `
+      + `(defer/async/type/nonce), which the inliner does not handle: `
+      + `${JSON.stringify([...new Set(unhandled)])}`;
+    if (strict) throw new Error(msg);
+    console.warn('  ! ' + msg);
+  }
+
   // 4. device override
   if (device) html = html.replace(/<\/head>/i, DEVICE_CSS + '\n</head>');
 

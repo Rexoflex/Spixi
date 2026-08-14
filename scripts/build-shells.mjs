@@ -180,7 +180,19 @@ function shellBundleSymbols(src) {
   const exposed = readBundleExports();
   const problems = [];
   const seen = new Set();
-  for (const key of keys) {
+  /* ★ #346 (review of #345). This loop walked `keys` — the shells being built. That
+     was correct while every shell inlined its OWN copy of the bundle, because a subset
+     build left the rest self-consistent. Since #345 there is ONE spixi.bundle.js behind
+     all 21 consumers, and it is rewritten unconditionally below, OUTSIDE the shell loop.
+     So `build-shells.mjs chat` — an invocation this script's own header advertises, and
+     one CLAUDE.md has used repeatedly — republished the bundle for every shell while
+     checking only chat.html. Reproduced: drop one export, build `chat`, and the
+     untouched settings.html gets `createSettingsHub === undefined`. The boot guard does
+     not catch it either, because `window.Spixi` DOES exist — so the Account screen is
+     dead with nothing but a console error, verbatim the outcome this preflight was
+     written to prevent.
+     Preflight EVERY shell, always. The cost is reading 22 files. */
+  for (const key of Object.keys(SHELLS)) {
     const s = SHELLS[key];
     if (!s || seen.has(s.in)) continue;                 // launch: 5 outputs, ONE source
     seen.add(s.in);
@@ -233,6 +245,34 @@ function shellBundleSymbols(src) {
       ]);
     }
     console.log('  · strings-iife preflight OK — the document-locale side effect is present');
+
+    /* ★ #346 BOOT-GUARD PROBE PREFLIGHT. The guard proves a stylesheet applied by
+       reading ONE custom property out of it. Rename that property and every shell
+       paints a red "could not load" panel over a perfectly healthy app, with nothing
+       to catch it. Assert the probes here, where a rename fails the build.
+       ⚠ r2 MINOR-2/3: this runs BEFORE anything is written (it used to sit inside the
+       EXTERNALS loop, which had already written three files by the time it fired — so
+       "Nothing was written." was a lie and it left a NEW bundle beside 22 OLD shells,
+       the version-skew state #258 §5.6 exists to prevent). It also strips comments
+       first and allows whitespace before the colon: a commented-out declaration used
+       to PASS, and legal `--spacing-16 : 16px` used to FAIL. */
+    for (const [rel, token] of [['src/styles/tokens.css', '--spacing-16'],
+      ['src/styles/base.css', '--spixi-base-css']]) {
+      let css;
+      try { css = readFileSync(join(root, rel), 'utf8'); } catch { continue; }
+      const live = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+      if (!new RegExp(token.replace(/-/g, '\\-') + '\\s*:').test(live)) {
+        die([
+          `${rel} no longer defines ${token}, which the #345 boot guard reads to prove`,
+          'this stylesheet applied. Renaming it would make every shell show the red',
+          '"could not load" panel over a healthy app.',
+          '',
+          `Fix: keep ${token}, or update the guard in scripts/build-shells.mjs to match.`,
+          'Nothing was written.',
+        ]);
+      }
+    }
+    console.log('  · boot-guard probe preflight OK — both stylesheet load sentinels are present');
   } catch (e) {
     if (e && e.code === 'ENOENT') {
       die([`${STRINGS_REL} is MISSING. Fix: node scripts/build-strings-iife.mjs`, 'Nothing was written.']);
@@ -340,12 +380,40 @@ for (const key of keys) {
   // never carried it (it is icons + base + tokens only, 9 KB), so an unconditional
   // guard fired a false alarm in the desktop detail pane — Damir saw the red panel
   // beside a perfectly healthy chats list on the first Windows run.
-  if (html.includes('spixi.bundle.js')) html = html.replace(/<\/body>/i,
-    '<script>if(!window.Spixi){console.error("SPIXI: bundle did not load");'
+  /* ★ #346 (review of #345) — the guard now NAMES the asset that actually failed, and
+     covers more than one of the six.
+     Two defects it fixes. (1) It only tested `window.Spixi`, so a missing
+     spixi.strings.js left the app running in English in every locale and a missing
+     tokens/base CSS left it completely unstyled — both silent, both exactly the
+     invisible-failure class the strings preflight above exists to prevent. (2) The
+     bundle's first line reads `window.SpixiIcons.icon`, so a missing spixi.icons.js
+     makes the BUNDLE throw before it assigns `window.Spixi` — and the panel then blamed
+     spixi.bundle.js, sending the first triage step at the wrong file.
+     Each probe is gated on the shell actually referencing that asset, which is what
+     kept empty_detail.html from a false alarm; the CSS probe reads a token that only
+     tokens.css defines. Load order stays icons → strings → bundle. */
+  const guards = [];
+  if (html.includes('spixi.icons.js'))   guards.push('!window.SpixiIcons&&"spixi.icons.js"');
+  if (html.includes('spixi.strings.js')) guards.push('!window.SpixiStrings&&"spixi.strings.js"');
+  if (html.includes('spixi.bundle.js'))  guards.push('!window.Spixi&&"spixi.bundle.js"');
+  if (html.includes('spixi.tokens.css')) guards.push(
+    '!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css"');
+  if (html.includes('spixi.base.css')) guards.push(
+    '!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"');
+  /* ★ #346 review r2 MINOR-1: gate on `guards.length` ALONE, not on the bundle.
+     empty_detail.html references icons, tokens and base but not the bundle, so gating
+     on the bundle skipped the whole block and that shell could render completely
+     unstyled with no message — the desktop resting pane, silently broken. The original
+     #345 false alarm came from an UNCONDITIONAL `!window.Spixi` probe; per-asset gating
+     is what prevents it, and it prevents it here too, because empty_detail simply gets
+     no bundle probe. */
+  if (guards.length) html = html.replace(/<\/body>/i,
+    '<script>(function(){var m=[' + guards.join(',') + '].filter(Boolean);if(!m.length)return;'
+    + 'console.error("SPIXI: shared asset did not load: "+m.join(", "));'
     + 'document.documentElement.innerHTML='
     + '\'<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">'
-    + 'Spixi could not load spixi.bundle.js.\\n\\nThe shell and its shared assets must sit in the '
-    + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs</pre>\';}</script>\n</body>');
+    + 'Spixi could not load: \'+m.join(", ")+\'\\n\\nThe shell and its shared assets must sit in the '
+    + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs</pre>\';})();</script>\n</body>');
   // launch: inject the per-file boot view BEFORE any script runs (the shell reads
   // window.__LAUNCH_VIEW__ to pick welcome/create/restore/retry/tail).
   if (s.bootView) {

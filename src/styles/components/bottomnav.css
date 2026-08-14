@@ -38,8 +38,13 @@
   justify-content: center;
   position: relative;
   /* select/deselect ink fade (durations zero out under prefers-reduced-motion
-     via token override); the pill itself lives on ::before below */
-  transition: color var(--duration-200) var(--easing-standard);
+     via token override); the pill itself lives on ::before below.
+     background-color + transform = the #343 press release, declared here rather
+     than in base.css: a base.css rule strong enough to win replaces this shorthand
+     and the ink fade dies while the ::before pill keeps animating (#346). */
+  transition: color var(--duration-200) var(--easing-standard),
+              background-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* tonal pill = ::before layer so it can grow in / shrink out under the content */

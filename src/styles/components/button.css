@@ -29,9 +29,14 @@
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
   white-space: nowrap;
+  /* `transform` is the #343 press release (base.css sets data-pressed="control" →
+     scale(0.97); this animates the way back). It lives HERE, not in base.css: a
+     base.css rule strong enough to win would REPLACE this whole shorthand — that is
+     the #346 clobber that killed the morph width below. */
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
-              border-color var(--duration-200) var(--easing-standard);
+              border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 
 /* width animates only during the success morph (JS sets data-morphing) —
@@ -40,6 +45,7 @@
   transition: background-color var(--duration-200) var(--easing-standard),
               color var(--duration-200) var(--easing-standard),
               border-color var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard),
               width var(--duration-200) var(--easing-standard);
 }
 

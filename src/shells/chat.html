@@ -221,6 +221,17 @@
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }
+  /* ★ #346 (review of #343): this rule is PRE-#343 and the ad2c7ca revert took it out
+     with the #343 delay rule that sat beside it. Without it the span is an empty
+     display:inline box that paints NOTHING, so the log was a blank rectangle for the
+     whole entry window — worse than the state the revert meant to restore. #343 only
+     ever argued the spinner should be DELAYED, never removed. */
+  .chat-boot__spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--border-subtle, rgba(128,128,128,0.22));
+    border-top-color: var(--icon-accent, #1892ce);
+    animation: chat-boot-spin 0.8s linear infinite;
+  }
   @keyframes chat-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .chat-boot__spinner { animation: none; } }
   /* avatar flash guard: keep the topbar avatar invisible (slot reserved) until the
@@ -2058,7 +2069,18 @@
     openTipSheet({
       message: { id: rec.id, excerpt: rec.text || undefined },
       recipient: {
-        name: rec.senderNick || identity.name || identity.address || '',
+        // ★ #346 (review of #342): this ladder must match the avatar ladder below,
+        // and it did not. `identity.name` is the GROUP's name in a group chat (C#
+        // pushes setNickname for the group), so a member who has not set a nickname
+        // — the exact case senderHasNick exists for — produced "Tip <group name>"
+        // beside that member's real photo, on the surface where the user checks who
+        // is about to be paid. Same reasoning, same fix: the group roster first, then
+        // the truncated address (#211 canon), and identity.name ONLY in a 1:1 chat.
+        name: rec.senderNick
+          || (mode.isMulti ? (groupRoster.get(rec.senderAddress) || {}).name : identity.name)
+          || (rec.senderAddress ? truncateAddressMiddle(rec.senderAddress) : '')
+          || (mode.isMulti ? '' : (identity.address ? truncateAddressMiddle(identity.address) : ''))
+          || '',
         address: rec.senderAddress || identity.address || '',
         // #342 (Damir F5 item (d)): the photo was in scope here all along and was
         // never passed. Order matters, and #342 review MAJOR-1 explains why:

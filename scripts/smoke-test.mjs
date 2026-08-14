@@ -2863,6 +2863,52 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     ok(row.dataset.pressed === undefined,
       '★ #343 THE RULE THAT MAKES IT NATIVE: moving past the threshold cancels the press, because that gesture is a SCROLL. Without it a flick down the chat list leaves a trail of highlighted rows — worse than no feedback at all');
 
+    /* ★ #346 (review of #343): a CANCELLED gesture must stay cancelled until it ENDS.
+       The module binds both touchstart and pointerdown because Android synthesises
+       pointer events late — and onDown used to clear() unconditionally, so that late
+       pointerdown re-armed the press touchmove had just cancelled AND restarted the
+       travel threshold from the new origin. Exactly the trail of lit rows during a
+       flick that the rule above exists to prevent. Mid-flick re-arm first: */
+    row.dispatchEvent(pe('pointerdown', 100, 140));
+    ok(row.dataset.pressed === undefined,
+      '★ #346: a late second-stream pointerdown does NOT re-arm a press that already became a scroll. Android fires touchstart on contact and pointerdown tens of ms later, so this is the ordinary Android flick, not an edge case');
+    // …and the gesture ending releases the latch, so the NEXT real tap still works.
+    row.dispatchEvent(pe('pointerup', 100, 140));
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ #346: the cancel latch clears on pointerup/touchend, so a genuine next tap is unaffected. A latch that stranded would kill press feedback for the rest of the session');
+    row.dispatchEvent(pe('pointerup', 100, 100));
+
+    /* ★ #346 review MAJOR-1: a scroll with NO finger down must not latch. The capture
+       listener sees momentum scrolling long after touchend, and programmatic scrolls
+       (scroll-to-newest-message, focus() pulling an input into view) with no gesture at
+       all. Latching on those killed the FIRST tap after any scroll for up to 1200 ms. */
+    pressRoot.dispatchEvent(new W.Event('scroll', { bubbles: true }));
+    d.dispatchEvent(new W.Event('scroll'));
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ #346 review MAJOR-1: the tap straight after a settled fling still lights up. Measured in Chromium before the fix: no feedback at 100/500/900/1150 ms after the last momentum scroll event, feedback at 1400 ms — the PRESS_SAFETY_MS backstop, not the gesture');
+    row.dispatchEvent(pe('pointerup', 100, 100));
+
+    /* ★ #346 review r2 MINOR-4: a gesture that ends with NO end event (the WebView
+       swallowed it, an overlay took the finger) used to leave the in-flight flag set,
+       so the next scroll re-latched and the FOLLOWING tap lost its feedback. A
+       single-touch touchstart can only begin a gesture, so it releases the latch. */
+    const te = (type, x, y, n = 1) => {
+      const ev = new W.Event(type, { bubbles: true });
+      ev.touches = Array.from({ length: n }, () => ({ clientX: x, clientY: y }));
+      ev.isPrimary = true; return ev;
+    };
+    row.dispatchEvent(te('touchstart', 100, 100));   // gesture starts, never ends
+    // NOTE: dispatch on pressRoot, which IS the attach host here. A scroll dispatched
+    // on `document` never reaches a listener bound to pressRoot, and this pin was dead
+    // until that was corrected.
+    pressRoot.dispatchEvent(new W.Event('scroll', { bubbles: true }));
+    row.dispatchEvent(te('touchstart', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ #346 review r2 MINOR-4: a touchstart releases a latch stranded by a gesture that produced no end event. Without it the next tap after ANY later scroll silently lost its feedback');
+    row.dispatchEvent(te('touchend', 100, 100));
+
     btn.dispatchEvent(pe('pointerdown', 10, 10));
     ok(btn.dataset.pressed === 'control',
       '#343: controls get the "control" grammar (tint + scale) and rows get "row" (tint only) — a list row that scales reads as a mistake on both platforms');
@@ -5145,14 +5191,78 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
     '★ #345: the 858 KB bundle is no longer INSIDE chat.html. That inlining is what made generatePage cost 172 ms, and the cost is linear in bytes');
   ok(chatBuilt.length < 600 * 1024 && indexBuilt.length < 500 * 1024,
     '★ #345 THE POINT: chat.html is under 600 KB (was 2019 KB) and index.html under 500 KB (was 1625 KB). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~30 ms');
-  ok(!/if\(!window\.Spixi\)/.test(readFileSync(join(htmlDir, 'empty_detail.html'), 'utf8')),
-    '★ #345: empty_detail.html gets NO boot guard. It is the one shell that never carried the bundle (icons + base + tokens, 9 KB), so an unconditional guard fired a FALSE alarm — Damir saw the red panel in the desktop detail pane beside a perfectly healthy chats list');
-  ok(/if\(!window\.Spixi\)\{console\.error\("SPIXI: bundle did not load"\)/.test(chatBuilt),
+  /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
+     probe. #345 gated the whole block on the bundle, which meant the one shell that
+     never carries it could render completely unstyled with no message: the desktop
+     resting pane, silently broken. The original false alarm came from an
+     UNCONDITIONAL `!window.Spixi` probe, and per-asset gating is what prevents it. */
+  {
+    const emptyBuilt = readFileSync(join(htmlDir, 'empty_detail.html'), 'utf8');
+    ok(/SPIXI: shared asset did not load/.test(emptyBuilt) && !/!window\.Spixi&&/.test(emptyBuilt),
+      '★ #345/#346: empty_detail.html is guarded for the assets it DOES reference and carries NO bundle probe. An unconditional guard fired a false alarm here — Damir saw the red panel in the desktop detail pane beside a perfectly healthy chats list — but no guard at all let it render unstyled in silence');
+  }
+  ok(/SPIXI: shared asset did not load/.test(chatBuilt),
     '★ #345 BOOT GUARD: the bundle now arrives at RUNTIME, so a missing or blocked file would turn the shells\' `const { … } = window.Spixi` into a TypeError behind a BLANK screen. The build-time preflight cannot cover that any more, so the shell says so on screen instead');
+
+  /* ★ #346 (review of #345) — the guard covered ONE of the six shared files and blamed
+     the wrong one. It tested only `window.Spixi`, so a missing spixi.strings.js left
+     every locale silently English and a missing tokens/base CSS left the app unstyled,
+     both with no message. And because the bundle's first line reads
+     `window.SpixiIcons.icon`, a missing icons file makes the BUNDLE throw before it
+     assigns window.Spixi — so the panel blamed spixi.bundle.js and sent triage to the
+     wrong file. Probes are gated on the shell actually referencing each asset, which is
+     what keeps empty_detail.html quiet. */
+  ok(/!window\.SpixiIcons&&"spixi\.icons\.js"/.test(chatBuilt)
+    && /!window\.SpixiStrings&&"spixi\.strings\.js"/.test(chatBuilt)
+    && /--spacing-16[\s\S]{0,40}spixi\.tokens\.css/.test(chatBuilt)
+    && /--spixi-base-css[\s\S]{0,40}spixi\.base\.css/.test(chatBuilt),
+    '★ #346 BOOT GUARD covers icons, strings, tokens AND base CSS — and NAMES the file that failed. A silent English-everywhere or unstyled app is the invisible-failure class the strings preflight exists to prevent');
+  {
+    const bs = readFileSync(join(root, 'scripts/build-shells.mjs'), 'utf8');
+    ok(/:root \{ --spixi-base-css: 1; \}/.test(readFileSync(join(root, 'src/styles/base.css'), 'utf8'))
+      && /boot-guard probe preflight OK/.test(bs),
+      '★ #346 review MINOR-1: base.css carries a load sentinel, and the BUILD fails if either probe token is renamed. Without the sentinel 59 KB of reset and layout could vanish with no message; without the build check, renaming the token would paint a red error panel over a healthy app in every shell');
+    /* ★ r2 MINOR-2/3: the probe check must run BEFORE any file is written, strip
+       comments, and tolerate whitespace before the colon. As first written it sat
+       inside the EXTERNALS loop — so it printed "Nothing was written." after writing
+       three files, leaving a NEW bundle beside 22 OLD shells — and it was a raw
+       substring test, so a commented-out declaration PASSED and legal
+       `--spacing-16 : 16px` FAILED. */
+    ok(bs.indexOf('boot-guard probe preflight OK') < bs.indexOf('mkdirSync(OUT_DIR')
+      && /replace\(\/\\\/\\\*\[\\s\\S\]\*\?\\\*\\\/\/g, ' '\)/.test(bs)
+      && /token\.replace\(\/-\/g, '\\\\-'\) \+ '\\\\s\*:'/.test(bs),
+      '★ #346 review r2 MINOR-2/3: the probe preflight runs before ANY write (so "Nothing was written." is true and no bundle/shell version skew can result), strips comments, and allows whitespace before the colon');
+  }
+  ok(chatBuilt.indexOf('spixi.icons.js"].filter') < 0
+    && /\[!window\.SpixiIcons[\s\S]{0,200}!window\.Spixi&&"spixi\.bundle\.js"/.test(chatBuilt),
+    '★ #346: the probes run in LOAD ORDER (icons → strings → bundle), so the ROOT CAUSE is named first when a failure cascades — icons missing makes the bundle throw too');
 
   const inlineLib = readFileSync(join(root, 'scripts/lib/inline.mjs'), 'utf8');
   ok(/externalNames\.has\(u\)/.test(inlineLib) && /if \(external\.has\(src\)\) return/.test(inlineLib),
     '#345: the inliner\'s strict gate still throws on an UNDECLARED relative ref — only refs explicitly declared external are exempt, so a genuinely missed <img> or <link> still fails the build');
+
+  /* ★ #346 (review of #345) — two BUILD-PIPELINE holes #345 opened, both proven by
+     mutation before these pins were written. */
+  const shellsScript = readFileSync(join(root, 'scripts/build-shells.mjs'), 'utf8');
+  ok(/const problems = \[\];[\s\S]{0,1200}?for \(const key of Object\.keys\(SHELLS\)\) \{/.test(shellsScript)
+    && /for \(const key of keys\) \{[\s\S]{0,400}?inlineHtml\(/.test(shellsScript),
+    '★ #346: the bundle preflight walks EVERY shell, not the subset being built. Since #345 there is ONE spixi.bundle.js behind all 21 consumers and it is rewritten unconditionally — so `build-shells.mjs chat` republished it for everybody while checking only chat.html. Reproduced: drop an export, build `chat`, and settings.html gets createSettingsHub === undefined with the boot guard silent, because window.Spixi DOES exist');
+  ok(/\\ssrc=\["'\]/.test(inlineLib) && !/\\bsrc=\["'\]/.test(inlineLib),
+    '★ #346 review MAJOR-3: the gate requires WHITESPACE before src. `\\b` matches inside `data-src=`, which is the attribute step 3 writes onto every script it successfully inlines — so the gate rejected the inliner\'s OWN output and `build-shells.mjs apps` and `payments`, both named in this script\'s usage block, died blaming an attribute that was not there');
+  /* ★ #346 review r2 NIT-3: a BEHAVIOURAL check, because a source regex cannot tell a
+     working gate from a broken one. Running the inliner with an EMPTY external map is
+     exactly what `build-shells.mjs apps` and `payments` do — every script gets inlined
+     and stamped `data-src="…"`, which is the attribute the first cut of the gate
+     rejected. This must not throw. */
+  try {
+    const { inlineHtml } = await import('../scripts/lib/inline.mjs');
+    inlineHtml(join(root, 'src/shells/lock.html'), { device: true, strict: true, external: new Map() });
+    ok(true, '★ #346 review r2: the inliner accepts its OWN `data-src` output. `build-shells.mjs apps` and `payments` inline every script rather than externalising it, and the first cut of the new gate hard-failed both, blaming an attribute that was not there');
+  } catch (e) {
+    ok(false, '★ #346 review r2: the inliner accepts its OWN `data-src` output — it threw: ' + e.message);
+  }
+  ok(/<script src> not inlined/.test(inlineLib) && /tagsOnly/.test(inlineLib),
+    '★ #346: a <script src> carrying defer/async/type/nonce is now a BUILD FAILURE. The inliner matched only the bare tag, and the leftover scan strips every script block before it looks — so such a tag was neither inlined nor flagged, and the shell shipped pointing at a file that is not beside it: a blank screen, no build error. The scan strips script BODIES first, so scan.html\'s runtime-injected html5-qrcode tag cannot false-positive');
 }
 
 console.log('#343 — instant chrome, first-commit fade, message window');
@@ -5172,8 +5282,17 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     '★ #343 REVERTED ON DEVICE EVIDENCE: no instant-chrome skeleton, no delayed spinner, no first-commit fade. Re-adding any of them without a measurement re-introduces a regression Damir already saw');
   ok(/'pointerdown'/.test(pressJs) && /'touchstart'/.test(pressJs) && !/addEventListener\('click'/.test(pressJs),
     '★ #343 device fix: BOTH touchstart and pointerdown are bound, never click. On Android WebView pointer events are synthesised from touch events and wait on gesture disambiguation, so pointerdown alone arrived late — Damir read it as "abrupt with delay". touchstart fires on contact');
-  ok(/PRESS_MOVE_CANCEL_PX/.test(pressJs) && /> PRESS_MOVE_CANCEL_PX\) clear\(\)/.test(pressJs),
+  ok(/PRESS_MOVE_CANCEL_PX/.test(pressJs) && /> PRESS_MOVE_CANCEL_PX\) cancelGesture\(\)/.test(pressJs),
     '★ #343: the move-cancel rule is in the source, not just in the behavioural test above');
+  ok(/if \(cancelled\) return;/.test(pressJs)
+    && /cancelExpiry = setTimeout\(\(\) => \{ cancelled = false; \}, PRESS_SAFETY_MS\)/.test(pressJs)
+    && !/'scroll', clear/.test(pressJs) && !/'dragstart', clear/.test(pressJs),
+    '★ #346: cancel and END are different events. scroll/dragstart/threshold CANCEL (latch, no re-arm); pointerup/touchend END (latch released). The timer is only a backstop for an end event that never arrives, so a missed pointerup cannot kill press feedback for the session');
+  ok(/const cancelGesture = \(\) => \{\s*\r?\n\s*if \(pointerDown\) \{/.test(pressJs)
+    && /pointerDown = true;\s*\r?\n\s*\/\/ A cancelled gesture/.test(pressJs),
+    '★ #346 review MAJOR-1: the latch arms ONLY while a finger is down. The capture scroll listener also sees momentum AFTER touchend, and a programmatic scroll (scroll-to-newest, focus() pulling an input into view, the keyboard reflow) with no gesture at all — measured in Chromium, the first tap up to 1150 ms after a fling settled got NO feedback, which is the very symptom this module cures, and it self-healed on the second tap');
+  ok(!/'\.c-topbar__dots'/.test(pressJs),
+    '★ #346: .c-topbar__dots is NOT a control. It is the iOS-48/#314 animated "Connecting…" ellipsis, built aria-hidden — a decorative inline node. The real topbar actions already match .c-button because topbar.js builds them with createButton');
   ok(/html:root \[data-pressed\] \{ transition: none; \}/.test(baseCss)
     && /html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-color: var\(--surface-interactive-pressed\)/.test(baseCss)
     && /html:root \[data-pressed="control"\] \{[\s\S]{0,80}?transform: scale\(0\.97\)/.test(baseCss)
@@ -5181,8 +5300,93 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     '★ #343 DEVICE FIX: the press rules carry the html:root prefix. base.css loads BEFORE every component stylesheet, and .c-chatlist-item sets `background: transparent` at the same specificity — so an unprefixed rule lost on source order and the tint never painted at all on device. html:root is (0,2,1) and beats the component\'s (0,2,0) [aria-current] and :active rules from anywhere in the cascade');
   ok(/html:root \[data-pressed="row"\]\[aria-current\] \{[\s\S]{0,120}?surface-action-tonal-pressed/.test(baseCss),
     '#343: a SELECTED row presses in its own tonal family — the neutral tint must not flash over the action colour on the desktop split view');
-  ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}?\[data-pressed="control"\] \{ transform: none; \}/.test(baseCss),
-    '#343: reduced motion drops the scale and every transition');
+  /* ★ #346: the old pin said "drops the scale and every transition" and only ever
+     verified the scale — deleting the whole `transition: none` half left it passing. */
+  ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}?\[data-pressed="control"\] \{ transform: none; \}/.test(baseCss)
+    && /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,700}?html:root \.fab \{\s*\n?\s*transition: none;/.test(baseCss),
+    '#343/#346: reduced motion drops the scale AND every press transition — both halves verified, not just the scale');
+
+  /* ★ #346 (review of #343) — THE PRESS RELEASE RULE MUST NOT CLOBBER COMPONENTS.
+     `transition` is a shorthand: it REPLACES, it never merges. The first cut listed all
+     twelve pressable selectors at `html:root …` (0,2,1), which beat every component rule
+     and silently deleted their declarations in ALL 22 shells — including the 18 that
+     never call attachPressFeedback(). Measured damage: .c-button[data-morphing] lost
+     `width`, so the #29 success morph stopped animating; .c-bottomnav__item lost `color`,
+     so the #39 select ink-fade snapped while the ::before pill beside it kept animating;
+     .c-chip and the list rows slowed from their intentional 100 ms to 200 ms.
+     The rule may now list ONLY components that declare no transition of their own. */
+  {
+    const compDir = join(root, 'src/styles/components');
+    const compCss = readdirSync(compDir).filter((f) => f.endsWith('.css'))
+      .map((f) => readFileSync(join(compDir, f), 'utf8')).join('\n');
+    const probe = new JSDOM('<!doctype html><html><head><style>' + baseCss + '</style><style>'
+      + compCss + '</style></head><body>'
+      + '<button class="c-button" data-morphing id="m"></button>'
+      + '<button class="c-button" id="b"></button>'
+      + '<button class="c-bottomnav__item" id="n"></button>'
+      + '<button class="c-chip" id="c"></button>'
+      + '<div class="c-chatlist-item" id="r"></div>'
+      + '<div class="c-settings__row" id="sr"></div>'
+      + '<div class="c-txlist-item" id="tx"></div>'
+      + '<div class="c-contacts__row" id="cr"></div>'
+      + '<button class="fab" id="f"></button>'
+      // …and the same set again, pressed, to prove INSTANT ON survives the cascade.
+      + '<div class="c-chatlist-item" id="pr" data-pressed="row"></div>'
+      + '<div class="c-contacts__row" id="pcr" data-pressed="row"></div>'
+      + '<div class="c-app-item" id="pai" data-pressed="row"></div>'
+      + '<div class="c-apps-recents__item" id="par" data-pressed="row"></div>'
+      + '<div class="c-wallet-receive__contact" id="pwr" data-pressed="row"></div>'
+      + '<button class="c-button" id="pb" data-pressed="control"></button>'
+      + '<button class="fab" id="pf" data-pressed="control"></button></body></html>');
+    const pw = probe.window;
+    const tr = (id) => pw.getComputedStyle(pw.document.getElementById(id)).transition;
+    ok(/width/.test(tr('m')) && /transform/.test(tr('m')),
+      '★ #346: .c-button[data-morphing] keeps `width` AND gains `transform`. button.css:39 exists solely to animate width during the #29 success morph, and the press rule had deleted it');
+    ok(/color/.test(tr('n')) && /background-color/.test(tr('n')) && /transform/.test(tr('n')),
+      '★ #346: .c-bottomnav__item keeps its #39 `color` ink-fade and gains the press properties. Losing `color` made the icon ink snap while the ::before pill still animated — one control animating two ways');
+    ok(/--duration-100/.test(tr('c')) && /--duration-100/.test(tr('r')),
+      '★ #346: .c-chip and the list rows keep their INTENTIONAL 100 ms micro-interaction timing (chip.css:20), which the 200 ms blanket had overridden');
+    ok(/border-color/.test(tr('b')) && /transform/.test(tr('b')),
+      '#346: .c-button keeps color/border-color (the #28/#49 outline and text hover ink) and gains the press transform');
+    ok(/transform/.test(tr('f')),
+      '#346: components that declare NO transition of their own still get the release rule from base.css — .fab is a control, so it takes transform too');
+    /* Scope the check to the RELEASE rule. The reduced-motion block below it legitimately
+       names every pressable selector, because `transition: none` there is the point. */
+    const releaseRule = baseCss.slice(
+      baseCss.indexOf('/* The release transition lives on'),
+      baseCss.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    ok(releaseRule.length > 100
+      && !/html:root \.c-button|html:root \.c-chip|html:root \.c-bottomnav__item|html:root \.c-chatlist-item|html:root \.c-txlist-item|html:root \.c-settings__row/.test(releaseRule),
+      '★ #346 THE RULE ITSELF: the release rule must not name a component that declares its own transition. Adding one back re-opens the clobber for every shell at once');
+    /* ★ #346 review MINOR-3: the pin above is NEGATIVE, so deleting the release rule
+       outright left it green — and that would leave the contacts picker, apps tab,
+       recents strip and wallet-receive picker with no release fade at all. Positive
+       probe for the row half; .fab above already covers the control half. */
+    ok(/background-color/.test(tr('cr')),
+      '★ #346: the four components that declare NO transition of their own still GET the release fade from base.css. Deleting the rule would make their tint snap off, and only a positive probe catches that');
+    /* ★ #346 review r2 NIT-2: .c-settings__row and .c-txlist-item were REMOVED from the
+       base.css list on the grounds that they declare their own transition. Nothing held
+       them to that, so deleting the component declaration would make the press snap off
+       with a green suite. */
+    ok(/background-color/.test(tr('sr')) && /background-color/.test(tr('tx')),
+      '★ #346 review r2: .c-settings__row and .c-txlist-item still declare their OWN background-color transition — which is why base.css correctly does not name them. Drop it in the component and the press release snaps off with nothing else to catch it');
+
+    /* ★ #346 review MAJOR-1: INSTANT ON must beat the release rules. Both are (0,2,1),
+       so the winner is whichever is declared LAST. The instant-on rule used to sit
+       ABOVE them and lost for exactly the five selectors the release rule names — the
+       FAB and four row families ramped their tint in over 200 ms while the chat rows
+       beside them snapped. Two press grammars in one flow, on the "start a chat" path. */
+    for (const [id, what] of [['pr', '.c-chatlist-item'], ['pcr', '.c-contacts__row'],
+      ['pai', '.c-app-item'], ['par', '.c-apps-recents__item'],
+      ['pwr', '.c-wallet-receive__contact'], ['pb', '.c-button'], ['pf', '.fab']]) {
+      ok(/^(none|)$/.test(tr(id).trim()) || tr(id).trim() === 'none',
+        '★ #346: ' + what + ' has NO transition while pressed — the tint appears instantly. A 200 ms ramp in is what Damir read as "abrupt with delay", which is why the in-state is no transition at all');
+    }
+    pw.close();
+  }
+
+  ok(/\.chat-boot__spinner \{[\s\S]{0,220}?animation: chat-boot-spin/.test(chatSh),
+    '★ #346 (review of the #343 revert): .chat-boot__spinner has a BOX again. That sizing rule is PRE-#343 and the revert took it out beside the #343 delay rule, leaving an empty display:inline span that paints nothing — so the chat log was a blank rectangle for the whole entry window, WORSE than the state the revert meant to restore. #343 only ever argued the spinner should be delayed, never removed');
 
   for (const sh of ['chat', 'home', 'settings', 'contact_details']) {
     const src = readFileSync(join(root, 'src/shells/' + sh + '.html'), 'utf8');
@@ -5192,6 +5396,26 @@ console.log('#343 — instant chrome, first-commit fade, message window');
 
   ok(/messagesToLoad = 25;/.test(cfgCs) && !/messagesToLoad = 100;/.test(cfgCs),
     '★ #343: the opening message window is 25, not 100. Each message is its own EvaluateJavaScriptAsync (Utils.sendUiCommand:180 → SpixiContentPage:187) and the shell waits 250 ms after the LAST one before it renders, so 100 messages meant ~100 process-boundary crossings before anything appeared. Revert this line alone to undo');
+}
+
+/* —— I2 (#347): the desktop add-contact pane had full-width content ——————————
+ * ixian:newcontact pins ContactNewPage to the detail column on a wide window
+ * (HomePage.xaml.cs:502-511, the shared "formpane" tag), so on desktop this page IS a
+ * pane and has to read like one. Its sibling in the same pane, app_new.html, has always
+ * capped its content; contact_new.html never did, so the form ran the full width of the
+ * column while everything beside it was constrained. */
+console.log('I2 (#347) — desktop add-contact pane grammar');
+{
+  const cnSrc = readFileSync(join(root, 'src/shells/contact_new.html'), 'utf8');
+  const cnBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html', 'contact_new.html'), 'utf8');
+  ok(/:root\[data-desktop\] \.c-contacts-add > :not\(\.c-topbar\) \{[\s\S]{0,160}?max-width: 640px;[\s\S]{0,80}?margin-inline: auto;/.test(cnSrc),
+    '★ I2 (#347): the add-contact CONTENT locks at the 640px cap, centered — the same rule the Account pane applies to Change password (settings.html:105), which is the reference Damir named');
+  ok(/:root\[data-desktop\]/.test(cnSrc.slice(cnSrc.indexOf('.c-contacts-add > :not(.c-topbar)') - 60, cnSrc.indexOf('.c-contacts-add > :not(.c-topbar)') + 10)),
+    '★ I2 (#347): the cap is DESKTOP-GATED. Mobile keeps the full-bleed takeover — pane grammar is desktop-only and mobile stays untouched (#242)');
+  ok(/:not\(\.c-topbar\)/.test(cnSrc),
+    '★ I2 (#347): the TITLE BAR is excluded, so it spans the whole pane while only the content below it is capped — #245b, the grammar every other sublevel follows');
+  ok(/max-width: 640px/.test(cnBuilt),
+    'I2 (#347): the rule reached the BUILT shell, not just the source');
 }
 
 console.log('#341 — Change password renders inside the Account pane');
@@ -5299,9 +5523,25 @@ console.log('#341 — Change password renders inside the Account pane');
   const chatEnc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   ok(/avatar: rec\.avatar\s*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.avatar : identity\.avatar\)/.test(chatEnc),
     '★ #342 review MAJOR-1: the tip recipient photo NEVER falls back to identity.avatar in a group. identity.avatar is the GROUP photo there (SingleChatPage pushes getAvatarPath(friend)), and file/app/payment rows carry no avatar at all — so the unguarded fallback put the group face beside an individual member name, on the surface where the user checks who is about to be paid. A gradient is neutral; the wrong face is not');
+  /* ★ #346 (review of #342): the NAME ladder one line above the avatar ladder had the
+     very fallback the avatar ladder was written to remove. */
+  ok(/name: rec\.senderNick\s*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.name : identity\.name\)/.test(chatEnc)
+    && !/name: rec\.senderNick \|\| identity\.name/.test(chatEnc),
+    '★ #346: the tip recipient NAME follows the same ladder as the photo. identity.name is the GROUP name in a group, so a member who set no nickname — the case senderHasNick exists for — produced "Tip <group name>" beside that member\'s real face. #342 fixed the photo and left the caption saying something else');
 
   ok(/glyph: 'pencil', hue: 'primary', key: 'encpass',/.test(encComp),
     '#341 audit MINOR-4: the hub row carries a key, so the pane marks it aria-current with the tonal tint while its sublevel is open — it was the only sublevel opener that announced nothing');
+
+  /* ★ #346 (review of #341/#342) — the plaintext wallet password survived "delete
+     wallet". Verified by grep at the time: every WRITE and every READ of this
+     preference uses "walletpass"; onDeleteWallet removed "waletpass", one 'l', a key
+     that has never existed. The value is plaintext (two "TODO: encrypt the password"
+     markers in the tree), so it stayed in Android SharedPreferences / iOS
+     NSUserDefaults — which unencrypted device backups include — after the one action
+     whose whole meaning is "destroy the wallet". */
+  ok(/Preferences\.Default\.Remove\("walletpass"\)/.test(spEnc)
+    && !/Preferences\.Default\.Remove\("waletpass"\)/.test(spEnc),
+    '★ #346: onDeleteWallet removes "walletpass" — the key that is actually written. The typo made the delete a no-op and left the plaintext wallet password on disk');
 
   // The behavioural half of this batch — release() must actually scrub — lives in
   // the settings-demo block above, where a jsdom window with the bundle is already

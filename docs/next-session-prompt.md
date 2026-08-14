@@ -60,6 +60,17 @@ and changes what "W10" even means.
    referenced message. Three small C# pieces; the FE half is already built behind
    `bridge.cap('reply')`. Verify the two-device id round-trip BEFORE building (#215).
 
+## ★ The security handover gate — applies to every batch from now on
+
+`docs/security-handover-gate.md`, referenced as a ground rule in `CLAUDE.md`. Damir's bar:
+**the redesign must introduce NOTHING.** Before the app goes to the BE engineer, an
+introduced-vs-inherited sweep runs over the delta from `0e85a4b8`; anything WE introduced
+is fixed first, and he sees only his own legacy. The sweep runs LAST, but **apply the lens
+while building** — any batch that adds an `ixian:` verb, a `spixi.*` storage key, a WebView
+setting, an HTML sink, a network fetch or a log line has to ask the question as it goes.
+Three items are already known to be ours and must be fixed: MAJOR #3, MAJOR #6, and the
+`spixi.draft.*` plaintext key.
+
 ## Rules that apply to every batch
 
 * Verify a plan against the code before you build it. A recent loop found six briefed

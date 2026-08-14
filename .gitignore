@@ -453,3 +453,10 @@ ios-build.log
 
 # throwaway Xcode signing project (2026-07-27 device bring-up)
 spixi-test/
+
+# transfer scratch and git-lock debris (see DECISIONS #346)
+_*.tgz
+_*.patch
+_gitlock_trash/
+_to_delete/
+_to_delete_*

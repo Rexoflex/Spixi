@@ -231,13 +231,29 @@ namespace SPIXI
             {
                 running = true;
 
+                /* ★ D-9 (Damir, 2026-08-15): A CRASH THAT COULD NOT ANNOUNCE ITSELF.
+                 * He restarted after a delete-account and got a BLACK SCREEN — no error,
+                 * no dialog, nothing. The debugger caught an unhandled exception in this
+                 * lambda, with Spixi.WinUI.App.InitializeComponent still on the stack.
+                 * The catches below are total, so the ONLY way an exception escapes is if
+                 * the REPORTING throws: displaySpixiAlert hosts on
+                 * Application.Current.MainPage, and this runs while MainPage is still
+                 * being assigned. On WinUI a ContentDialog with no usable XamlRoot throws.
+                 * So the error path died while describing the error.
+                 * Rules now: LOG FIRST — the log is the only channel guaranteed to work —
+                 * and never let the alert take the process down with it.
+                 * ⚠ This does NOT fix the underlying start failure. That is D-6: an
+                 * account wipe leaves the wallet behind, so startup skips the launch page
+                 * and comes straight here to a HomePage whose account data is gone. This
+                 * only guarantees that any future start failure is VISIBLE. */
                 Task.Run(async () =>
                 {
                     try
                     {
                         if (!Node.start())
                         {
-                            await displaySpixiAlert("Fatal exception", "Fatal exception has occurred, please send the log files to the developers.", "OK");
+                            Logging.error("Node.start() returned false — the node did not start.");
+                            await safeFatalAlert("Fatal exception", "Fatal exception has occurred, please send the log files to the developers.");
                             return;
                         }
                         Node.connectToNetwork();
@@ -246,14 +262,30 @@ namespace SPIXI
                     {
                         Logging.error("Fatal IO error has occurred: " + e);
                         string ioErrorMessage = "Fatal error has occurred. This may be due to insufficient disk space. Please check your device storage and send the log files to the developers.\n\nError: " + e.Message;
-                        await displaySpixiAlert("Fatal Exception", ioErrorMessage, "OK");
+                        await safeFatalAlert("Fatal Exception", ioErrorMessage);
                     }
                     catch (Exception e)
                     {
                         Logging.error("Fatal error has occurred: " + e);
-                        await displaySpixiAlert("Fatal Exception", "Fatal error has occurred. Please send the log files to the developers.\n\nError: " + e.Message, "OK");
+                        await safeFatalAlert("Fatal Exception", "Fatal error has occurred. Please send the log files to the developers.\n\nError: " + e.Message);
                     }
                 });
+            }
+        }
+
+        /* ★ D-9: an alert that cannot be presented must not kill the process.
+         * The message is already in the log by the time this runs, so a swallowed
+         * presentation failure loses nothing — while an unhandled one loses everything,
+         * because it takes the app down to a black screen with no explanation. */
+        private async Task safeFatalAlert(string title, string body)
+        {
+            try
+            {
+                await displaySpixiAlert(title, body, "OK");
+            }
+            catch (Exception alertEx)
+            {
+                Logging.error("Could not present the fatal-error alert (the app is likely still starting): " + alertEx);
             }
         }
 
@@ -1488,6 +1520,44 @@ namespace SPIXI
             // untouched. Narrow windows keep the full-span takeover.
             bool wide = rightContent.IsVisible;
 
+            /* ★ A9 (#348, Damir Android F5): "in LANDSCAPE, with Account selected, the
+             * left strip is not covered and the bottom controls are not visible."
+             *
+             * Both halves come from ONE false premise. The peer-pane inset exists to
+             * leave the home shell's 72dip NAV RAIL visible beside the Account pane, and
+             * the settings shell hides its own bottom nav in pane mode because that rail
+             * is supposed to be the exit (settings.html:86). But the rail is drawn by the
+             * home WEBVIEW and is gated on `:root[data-desktop]`, which is a UA sniff
+             * that never fires on Android (home.html:11 — the UA carries "Android").
+             *
+             * So on Android there IS no rail. The only test in the app was a 700-DIP
+             * WIDTH check (OnPageSizeChanged:262), and a landscape phone is 700-950 DIP
+             * wide — so it took the desktop branch, the 72dip strip was left uncovered
+             * over a mobile layout that has nothing there, and the shell hid its own tab
+             * bar in favour of a rail that does not exist. No full tab bar anywhere.
+             *
+             * The pane is now gated on the same thing the rail is: a DESKTOP idiom.
+             * WinUI and Mac Catalyst report Desktop; Android and iOS — phone or tablet —
+             * do not, which matches the UA sniff exactly, iPad included. A landscape
+             * phone now gets the mobile takeover, with its own working bottom nav.
+             *
+             * ★ It gates the PARK/RE-PRESENT guard below as well, deliberately. Parking
+             * is documented narrow-only (#315), and that guard read the same raw `wide`.
+             * If only the branch had changed, a landscape Android Account would park on
+             * close and then be refused a re-present forever — a hidden live WebView per
+             * open. One boolean drives both, so the two can never disagree. */
+            // ★ review MAJOR-10: PLATFORM, not Idiom. DeviceInfo.Idiom is posture-dependent
+            // — a Surface with the keyboard detached reports Tablet, and Mac Catalyst
+            // reports Tablet under the default "Scaled to Match iPad" configuration — while
+            // the shells' UA sniff sets data-desktop on BOTH regardless of posture. Gating
+            // on Idiom would therefore hand a detached Surface the mobile branch while its
+            // WebView still drew the desktop rail: the A9 symptom relocated, not removed.
+            // Platform matches the sniff exactly and cannot drift with how the device is
+            // held. It is also the lever every other platform test in this repo uses
+            // (HomePage:692/:696/:2628, SpixiContentPage:932).
+            bool railPane = wide && (DeviceInfo.Platform == DevicePlatform.WinUI
+                                     || DeviceInfo.Platform == DevicePlatform.MacCatalyst);
+
             // iOS-46 route (a) (#315): NARROW mode keeps ONE warm SettingsPage across
             // opens — close parks it (hidden, WebView alive), a re-tap re-presents it
             // in place: no construction, no ~1.6MB shell reboot, no data re-flush =
@@ -1499,7 +1569,7 @@ namespace SPIXI
             SpixiContentPage? parked = SpixiContentPage.getParkedOverlay();
             if (parked is SettingsPage parkedSettings)
             {
-                if (!wide && !parkedSettings.isPaneMode
+                if (!railPane && !parkedSettings.isPaneMode
                     && SpixiContentPage.representParkedOverlay(parkedSettings))
                 {
                     return;
@@ -1516,7 +1586,7 @@ namespace SPIXI
                 SpixiContentPage.disposeParkedOverlay();
             }
 
-            if (wide)
+            if (railPane)
             {
                 pushPageLoaded(new SettingsPage(true, leftPaneWidth - railWidthDip), 4000, "settings", -1,
                     null, new Thickness(railWidthDip, 0, 0, 0));

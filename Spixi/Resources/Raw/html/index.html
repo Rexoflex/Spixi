@@ -238,12 +238,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -759,19 +771,41 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
   /* 100ms intentional: micro-interaction duration for row hover (token comment "100ms micro: hover") */
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
+     background-color stays at its intentional 100ms micro duration. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 /* dual-pane ACTIVE chat — the neutral interactive-selected (primary-900 in dark)
    was barely visible on the near-black canvas; use the action-tonal surface so the
    open conversation reads clearly (Damir 2026-07-07). */
-.c-chatlist-item[aria-current] { background: var(--surface-action-tonal-default); }
+.c-chatlist-item[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
+     would revert to the neutral gradient the instant the press ends, flashing grey
+     over the action colour for the length of the close. */
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+}
 @media (hover: hover) and (pointer: fine) {
-  .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
-  .c-chatlist-item[aria-current]:hover { background: var(--surface-action-tonal-hover); }
+  .c-chatlist-item:hover { background-color: var(--surface-interactive-hover); }
+  .c-chatlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
 }
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
-.c-chatlist-item:active { background: var(--surface-interactive-pressed); }
-.c-chatlist-item[aria-current]:active { background: var(--surface-action-tonal-pressed); }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-chatlist-item:active { background-size: 100% 100%; }
+.c-chatlist-item[aria-current]:active { background-size: 100% 100%; }
 
 .c-chatlist-item__content {
   display: flex;
@@ -1974,9 +2008,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
-.c-contacts__row:not(:disabled):active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-contacts__row:not(:disabled):active { background-size: 100% 100%; }
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of
    a disabled row (explaining WHY it's blocked). */
@@ -2328,13 +2375,46 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
   /* 100ms intentional: micro-interaction, matches chatlist row hover */
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
+     background-color stays at its intentional 100ms micro duration. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
+}
+/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
+   The wallet row was left on --surface-interactive-selected while the chats list
+   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
+   the two lists showed DIFFERENT selected colours in the same desktop window. The
+   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
+   (home.html) — it had stopped doing so. The rule now lives here, beside this
+   row's own hover and pressed rules and in the same order as the chat row, so the
+   two lists cannot drift apart again. */
+.c-txlist-item[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
+     would revert to the neutral gradient the instant the press ends, flashing grey
+     over the action colour for the length of the close. */
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-txlist-item:hover { background: var(--surface-interactive-hover); }
+  .c-txlist-item:hover { background-color: var(--surface-interactive-hover); }
+  .c-txlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
 }
 /* :active AFTER the hover block so pressed wins (source order at equal specificity) */
-.c-txlist-item:active { background: var(--surface-interactive-pressed); }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-txlist-item:active { background-size: 100% 100%; }
+.c-txlist-item[aria-current]:active { background-size: 100% 100%; }
 
 /* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
    + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
@@ -3052,12 +3132,25 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 /* W9: no row is ever disabled now — ticking a name is not a send, so the list is
    fully live from the moment it renders. (:not(:disabled) kept as a belt: nothing
    here should ever paint a hover wash on an inert row.) */
-@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover:not(:disabled) { background: var(--surface-interactive-hover); } }
-.c-wallet-receive__contact:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover:not(:disabled) { background-color: var(--surface-interactive-hover); } }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-wallet-receive__contact:active { background-size: 100% 100%; }
 .c-wallet-receive__contact:disabled { cursor: default; opacity: 0.6; }
 .c-wallet-receive__hint {
   margin: 0;
@@ -3380,7 +3473,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 /* c-app-item — installed mini-app, list ROW or grid CARD (spec §2.1).
    Two sibling buttons: __open (big tap target) + __menu (⋮ overflow). */
 
-.c-app-item { position: relative; }
+.c-app-item {
+  position: relative;
+  /* ★ A5 (#348) review r3: the fill lives on __open ALONE, not here.
+     pressable.js flags this WRAPPER, but __open is the box that PAINTS, and it paints
+     ABOVE the wrapper — so a fill here is occluded for the whole row. r2 put it on both
+     boxes and made it worse: __open is in no transition rule, so it SNAPPED to an opaque
+     flat tint over the wrapper's correctly-animated sweep. Two fills would also grow
+     from two different centres, because __menu offsets __open's centre to the left.
+     base.css flips the size on `[data-pressed="row"] .c-app-item__open`. */
+}
 
 /* —— the tap target (icon + text) —— */
 .c-app-item__open {
@@ -3395,9 +3497,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   padding: var(--spacing-8) var(--spacing-12);
   border-radius: var(--radius-12);
   color: var(--text-neutral-01);
+  /* ★ A5 (#348): the centre-out press fill. __open is the box that paints this row, so
+     it owns the fill — and it needs its OWN transition, because `transition` does not
+     inherit and base.css names the wrapper, not this child. Without it the fill snaps
+     to an opaque flat tint, which is the exact effect A5 exists to remove. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
-@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
-.c-app-item__open:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background-color: var(--surface-interactive-hover); } }
+.c-app-item__open:active { background-size: 100% 100%; }
 
 .c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
 .c-app-item__name {
@@ -3445,7 +3557,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 /* —— GRID (card) —— */
 .c-app-item[data-layout="grid"] {
   min-width: 0;                              /* grid child must shrink below content so names truncate */
-  background: var(--surface-neutral-02);
+  /* A5 (#348) review MAJOR-3: background-COLOR, not the shorthand. This rule is on the
+     pressed element itself at (0,2,0) and a shorthand here resets the fill image, so the
+     grid card had no press feedback at all. */
+  background-color: var(--surface-neutral-02);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
 }
@@ -3619,8 +3734,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      the wrapper is the flex item — the banner inside needs no flex rule) */
   #chats-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
-  .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
+  /* selected tx row (two-pane selectTx) — W4a (#348): the rule moved INTO
+     txlist-item.css so it sits beside the chat row's identical rule and cannot
+     drift again. This shell override is deliberately gone; do not re-add it. */
   /* Explore banner is VISIBLE (A2, Damir 2026-07-09) → LINKS OUT to the Spixi mini-apps
      website in the external browser (ixian:spixiAppsLink, HomePage:278 Browser.OpenAsync
      — does NOT navigate this WebView away). An outbound web link is compliant; only an
@@ -3641,6 +3757,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     background: var(--surface-action-default); color: var(--text-neutral-on-action);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     box-shadow: var(--elevation-2); z-index: var(--z-10);
+    /* A7 (#348, Damir F5): tapping the FAB left a rectangle behind for about half
+       a second. That is the Android WebView tap highlight — the compositor paints
+       it ABOVE page content as the element's BORDER BOX, which is why a circular
+       button leaves a rectangle, and it outlives the takeover that mounts over it
+       (the takeover only occludes by z-order; the FAB stays in the DOM under it).
+       Every other pressable in the project already resets this — button.css:29,
+       bottomnav.css:35, chip.css:17, the list rows — and there is no global
+       reset in base.css. The FAB was simply the one that was missed. */
+    -webkit-tap-highlight-color: transparent;
   }
   @media (hover: hover) and (pointer: fine) { .fab:hover { background: var(--surface-action-hover); } } /* #334 AND-18 guard */
   .fab:active { background: var(--surface-action-pressed); }

@@ -76,6 +76,11 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
       const word = document.createElement('span');
       word.className = 'c-topbar__word';   // iOS-47 (#314): Sora is scoped to THIS class — the wordmark alone (#226/B1)
       word.textContent = title || 'Spixi';
+      /* ★ I-5 (Damir, 2026-08-15): the accent ink belongs to the LOGOTYPE, not to the
+         root variant. CSS cannot select a parent by its child without :has(), and the
+         WebView baseline is conservative CSS — so the branch that BUILDS the logotype
+         flags it, and topbar.css keys off the flag. */
+      titleEl.dataset.logotype = '';
       titleEl.append(mark, word);
     } else if (variant === 'root') {
       // iOS-47/48 (#314): plain root titles (Apps; desktop Chats) also get an inner

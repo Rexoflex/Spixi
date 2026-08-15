@@ -42,13 +42,29 @@
      the Account pane applies to Change password (settings.html:105), which is the
      reference Damir named. The CTA stays width:'full' and therefore fills the cap, not
      the pane — again matching Change password.
-     Its sibling in the same pane, app_new.html:38, has always capped (at 560px), so
-     this shell was the odd one out.
-     🟡 DIAL: 640 here vs 560 there is a visible difference in one column. One line in
-     either file makes them identical — Damir's call, not a silent change.
-     DESKTOP ONLY. Mobile keeps the full-bleed takeover (#242: pane grammar is
-     desktop-only, mobile untouched). */
-  :root[data-desktop] .c-contacts-add > :not(.c-topbar) {
+     W11 (#348, Damir): 640 for BOTH add-screens — app_new.html:38 moves up from 560
+     to match, and both now use this identical rule.
+     ★ W10 (#348) — THE GATE CHANGED, and that is the fix. The rule, the DOM and the
+     ancestor chain were all verified correct against the BUILT artifact with a real
+     CSS engine, and the live packaged copy on the test machine (ll_contact_new.html)
+     carries this block — so the cap was never missing, it simply never matched. Its
+     ONE precondition was `:root[data-desktop]`, a UA sniff in the WebView, and this
+     was the only one of the three add-screens that depended on it (Change password
+     caps on `body[data-pane]`, a C# PUSH; app_new capped with no gate at all).
+     Rather than bet on a signal we cannot confirm, the gate is now a WIDTH test —
+     the same signal C# already uses for the pane breakpoint
+     (HomePage.OnPageSizeChanged — `Width < 700`), and it needs nothing from the UA.
+     Mobile portrait is below 700 and keeps the full-bleed takeover (A8 = correct by
+     design). 🟡 DIAL: a landscape PHONE is above 700 and now gets the cap too. That
+     reads better than a full-bleed form on a 900px-wide phone, but it is a visible
+     change on Android landscape.
+     ★ review MINOR-8/9: the WIDTH GATE IS GONE TOO. A media query only moved the problem
+     — it abandoned the cap in the 640-700 band (a small landscape phone, a resized
+     desktop window, a detail column between 640 and 700), so the two add-screens still
+     disagreed across the device range. An UNCONDITIONAL cap is what app_new.html always
+     had, it needs no signal at all, and it changes nothing on a phone in portrait: a
+     393px viewport is already narrower than 640. */
+  .c-contacts-add > :not(.c-topbar) {
     width: 100%;
     max-width: 640px;
     margin-inline: auto;

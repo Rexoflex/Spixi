@@ -211,12 +211,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -885,13 +897,29 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   text-align: start;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
+     background-color stays at its intentional 100ms micro duration. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 .c-settings__row--static { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings__row:not(.c-settings__row--static):hover { background: var(--surface-interactive-hover); }
+  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-interactive-hover); }
 }
-.c-settings__row:not(.c-settings__row--static):active { background: var(--surface-interactive-pressed); }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-settings__row:not(.c-settings__row--static):active { background-size: 100% 100%; }
 .c-settings__row-label {
   display: flex;
   align-items: center;

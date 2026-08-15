@@ -351,12 +351,25 @@ function syncNext(st) {
   }
 }
 
+/* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
+   Both entries used to read "Contacts", so the FAB — which already announces
+   itself as "New chat" (home.html:666) — opened a screen with a different name.
+   'start'     → "New chat"  (the FAB: pick someone to talk to)
+   'directory' → "Contacts"  (the topbar entry: browse the roster)
+   'app'       → multi-select, so it never reaches this branch.
+   The key already exists and is already used on this flow (en-us.js:376). */
+function pickerTitle(st) {
+  const { strings, purpose } = st.opts;
+  if (purpose === 'start') return strings.newChat || 'New chat';
+  return strings.contacts || 'Contacts';
+}
+
 function renderPickerChrome(st) {
   const { strings } = st.opts;
   const multi = st.mode === 'multi';
   const topbar = createTopbar({
     variant: 'view',
-    title: multi ? multiTitle(st) : (strings.contacts || 'Contacts'),
+    title: multi ? multiTitle(st) : pickerTitle(st),
     onBack: () => {
       // purpose 'app' has NO browse state to fall back to (it opens straight into
       // multi-select), so back there means "abandon the launch" → onBack.
@@ -394,7 +407,9 @@ export function createContactsPicker({
   };
   pickerState.set(el, st);
 
-  st.els.topbar = createTopbar({ variant: 'view', title: strings.contacts || 'Contacts', onBack });
+  // A7: the FIRST paint must already carry the purpose-correct title — this
+  // topbar is what the user sees before any re-render (pickerTitle, above).
+  st.els.topbar = createTopbar({ variant: 'view', title: pickerTitle(st), onBack });
   el.append(st.els.topbar);
 
   const body = document.createElement('div');

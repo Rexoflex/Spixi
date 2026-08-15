@@ -643,6 +643,7 @@ export const ptbr = {
   tipFailed: "Não foi possível enviar a gorjeta. Tente novamente.",
   tipInsufficient: "IXI insuficiente para esta gorjeta.",
   tipName: "Dar gorjeta a {name}",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Gorjeta dada",
   today: "Hoje",
   torch: "Lanterna",

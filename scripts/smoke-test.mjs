@@ -4604,9 +4604,20 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#315: re-present refuses when ANY overlay is open — the parked stage kept its old grid position, so presenting under a newer stage would layer it invisibly; the caller falls back to fresh-construct');
   ok(/setOverlayHost[\s\S]{0,3000}?disposeParkedOverlay\(\);/.test(scp),
     '#315: a re-created overlay host tears the parked page down with the stale overlays (same orphan class)');
-  ok(/if \(!wide && !parkedSettings\.isPaneMode[\s\S]{0,140}?representParkedOverlay\(parkedSettings\)\)/.test(hp)
+  ok(/if \(!railPane && !parkedSettings\.isPaneMode[\s\S]{0,140}?representParkedOverlay\(parkedSettings\)\)/.test(hp)
     && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(hp),
-    '#315: HomePage re-presents ONLY narrow + non-pane (pane geometry does not survive a breakpoint crossing); any mismatch disposes the parked instance BEFORE constructing fresh — never two live SettingsPages');
+    '#315: HomePage re-presents ONLY when it is NOT the rail pane and the parked page was built non-pane (pane geometry does not survive a mode crossing); any mismatch disposes the parked instance BEFORE constructing fresh — never two live SettingsPages');
+  /* ★ A9 (#348): the Account peer-pane is gated on a DESKTOP IDIOM, not on raw width.
+     The pane exists to leave the home nav RAIL visible, and that rail is drawn by the
+     home WebView behind `:root[data-desktop]` — a UA sniff that never fires on Android.
+     A landscape phone is 700-950 DIP wide, so the old width-only test handed it the
+     desktop branch: a 72dip strip left uncovered over a layout with no rail in it, and
+     a settings shell that hid its own tab bar in favour of that missing rail. */
+  ok(/bool railPane = wide && \(DeviceInfo\.Platform == DevicePlatform\.WinUI[\s\S]{0,120}?DevicePlatform\.MacCatalyst\)/.test(hp)
+    && !/DeviceIdiom\.Desktop/.test(hp),
+    '★ A9 (#348): the Account pane gate is the PLATFORM, never the IDIOM. Idiom is posture-dependent — a Surface with its keyboard detached reports Tablet, Mac Catalyst reports Tablet by default — while the shells set data-desktop on both regardless. Gating on Idiom relocates the A9 symptom instead of removing it');
+  ok(/if \(railPane\)\s*\r?\n\s*\{\s*\r?\n\s*pushPageLoaded\(new SettingsPage\(true, leftPaneWidth - railWidthDip\)/.test(hp),
+    '★ A9 (#348): ONE boolean drives the branch AND the re-present guard above it. Gating only the branch would park every landscape-Android Account and then refuse to re-present it — a hidden live WebView per open');
   ok(/pushPageLoaded\(new SettingsPage\(\), 4000, "settings", -1, null, default, true\)/.test(hp),
     '#315: only the NARROW Account push parks (wide keeps the #245 pane lifecycle unchanged)');
   ok(/public bool isPaneMode \{ get \{ return paneMode; \} \}/.test(sp),
@@ -5294,7 +5305,7 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   ok(!/'\.c-topbar__dots'/.test(pressJs),
     '★ #346: .c-topbar__dots is NOT a control. It is the iOS-48/#314 animated "Connecting…" ellipsis, built aria-hidden — a decorative inline node. The real topbar actions already match .c-button because topbar.js builds them with createButton');
   ok(/html:root \[data-pressed\] \{ transition: none; \}/.test(baseCss)
-    && /html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-color: var\(--surface-interactive-pressed\)/.test(baseCss)
+    && /html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-size: 100% 100%/.test(baseCss)
     && /html:root \[data-pressed="control"\] \{[\s\S]{0,80}?transform: scale\(0\.97\)/.test(baseCss)
     && !/\n\[data-pressed/.test(baseCss),
     '★ #343 DEVICE FIX: the press rules carry the html:root prefix. base.css loads BEFORE every component stylesheet, and .c-chatlist-item sets `background: transparent` at the same specificity — so an unprefixed rule lost on source order and the tint never painted at all on device. html:root is (0,2,1) and beats the component\'s (0,2,0) [aria-current] and :active rules from anywhere in the cascade');
@@ -5333,9 +5344,18 @@ console.log('#343 — instant chrome, first-commit fade, message window');
       // …and the same set again, pressed, to prove INSTANT ON survives the cascade.
       + '<div class="c-chatlist-item" id="pr" data-pressed="row"></div>'
       + '<div class="c-contacts__row" id="pcr" data-pressed="row"></div>'
-      + '<div class="c-app-item" id="pai" data-pressed="row"></div>'
+      + '<div class="c-app-item" id="pai" data-pressed="row"><button class="c-app-item__open" id="paio"></button></div>'
       + '<div class="c-apps-recents__item" id="par" data-pressed="row"></div>'
       + '<div class="c-wallet-receive__contact" id="pwr" data-pressed="row"></div>'
+      // A5 (#348) review: the rest/pressed pair for EVERY row family, plus the two
+      // selected variants — the coverage hole that let the .c-app-item break ship green.
+      + '<div class="c-app-item" id="ai"><button class="c-app-item__open" id="aio"></button></div>'
+      + '<div class="c-apps-recents__item" id="ar"></div>'
+      + '<div class="c-wallet-receive__contact" id="wr"></div>'
+      + '<div class="c-settings__row" id="psr" data-pressed="row"></div>'
+      + '<div class="c-txlist-item" id="ptx" data-pressed="row"></div>'
+      + '<div class="c-chatlist-item" id="rsel" aria-current="true"></div>'
+      + '<div class="c-txlist-item" id="txsel" aria-current="true"></div>'
       + '<button class="c-button" id="pb" data-pressed="control"></button>'
       + '<button class="fab" id="pf" data-pressed="control"></button></body></html>');
     const pw = probe.window;
@@ -5376,11 +5396,133 @@ console.log('#343 — instant chrome, first-commit fade, message window');
        ABOVE them and lost for exactly the five selectors the release rule names — the
        FAB and four row families ramped their tint in over 200 ms while the chat rows
        beside them snapped. Two press grammars in one flow, on the "start a chat" path. */
+    for (const [id, what] of [['pb', '.c-button'], ['pf', '.fab']]) {
+      ok(/^(none|)$/.test(tr(id).trim()) || tr(id).trim() === 'none',
+        '★ #346: ' + what + ' has NO transition while pressed — the tint appears instantly. A 200 ms ramp in is what Damir read as "abrupt with delay", which is why the in-state is no transition at all. CONTROLS keep this; A5 (#348) changed ROWS only');
+    }
+    /* ★ A5 / W4b (#348, Damir): a ROW fills from the CENTRE OUTWARD instead of flashing
+       a flat tint, which he read as a flicker. The fill IS motion, so rows are the one
+       exception to instant-on — and that exception only works because the row rule is
+       declared AFTER `html:root [data-pressed] { transition: none; }`. Both are (0,2,1),
+       so source order is the entire mechanism: move it back above and every row snaps to
+       full width with no sweep, silently restoring the flat tint. */
     for (const [id, what] of [['pr', '.c-chatlist-item'], ['pcr', '.c-contacts__row'],
       ['pai', '.c-app-item'], ['par', '.c-apps-recents__item'],
-      ['pwr', '.c-wallet-receive__contact'], ['pb', '.c-button'], ['pf', '.fab']]) {
-      ok(/^(none|)$/.test(tr(id).trim()) || tr(id).trim() === 'none',
-        '★ #346: ' + what + ' has NO transition while pressed — the tint appears instantly. A 200 ms ramp in is what Damir read as "abrupt with delay", which is why the in-state is no transition at all');
+      ['pwr', '.c-wallet-receive__contact']]) {
+      ok(/background-size/.test(tr(id)),
+        '★ A5 (#348): ' + what + ' animates background-size WHILE PRESSED — that transition is the centre-out sweep, and it must out-order the instant-on rule to exist at all');
+    }
+    /* ★ A5 (#348) review — MUTATION-HONEST, and the first cut was NOT.
+       `/100%/` was matched by the REST value `0% 100%`, so the pin that claimed to prove
+       the sweep completes passed with base.css's size flip deleted outright — the one
+       line that makes the fill happen. `/0%/` was satisfied inside `100%` the same way.
+       Both now compare the size EXACTLY, and every row family is probed rather than one.
+       The review also found the fill on the wrong element for .c-app-item, which stayed
+       green because the only other pin checked that a transition STRING mentioned
+       background-size. So the probe reads the element that actually carries
+       data-pressed. */
+    const fillOf = (id) => {
+      const st = pw.getComputedStyle(pw.document.getElementById(id));
+      return { img: st.backgroundImage, pos: st.backgroundPosition, size: st.backgroundSize };
+    };
+    for (const [rest, pressed, what] of [['r', 'pr', '.c-chatlist-item'],
+      ['cr', 'pcr', '.c-contacts__row'], ['aio', 'paio', '.c-app-item__open'],
+      ['ar', 'par', '.c-apps-recents__item'], ['wr', 'pwr', '.c-wallet-receive__contact'],
+      ['sr', 'psr', '.c-settings__row'], ['tx', 'ptx', '.c-txlist-item']]) {
+      const a = fillOf(rest), b = fillOf(pressed);
+      ok(/linear-gradient/.test(a.img),
+        '★ A5 (#348): ' + what + ' carries the fill image AT REST. Declaring it only under [data-pressed] leaves the release nothing to shrink, and putting it on a CHILD of the pressed element (the .c-app-item mistake this pin now catches) means the size flip can never reach it');
+      ok(a.size === '0% 100%',
+        '★ A5 (#348): ' + what + ' rests at EXACTLY `0% 100%` — zero wide, full height. A substring test here passed with the whole pressed rule deleted');
+      ok(/center/.test(a.pos),
+        '★ A5 (#348): ' + what + ' grows from the CENTRE. Without background-position the fill wipes in from the leading edge — a different effect, and not the one that was asked for');
+      ok(b.size === '100% 100%',
+        '★ A5 (#348): ' + what + ' reaches EXACTLY `100% 100%` while pressed — the sweep completes and covers the row');
+      ok(/linear-gradient/.test(b.img),
+        '★ A5 (#348): ' + what + ' still HAS an image while pressed — the [aria-current] and [data-pressed] rules do not reset it. NOTE the honest scope: jsdom never matches :hover or :active on these probe nodes, so the shorthand sweep for THOSE states is the source-level pin below, not this one');
+    }
+    /* ★ A5 (#348) review r2 — THE SWEEP jsdom CANNOT DO. The probe nodes carry only
+       data-pressed / aria-current, so no :hover or :active rule is ever exercised. A
+       `background` SHORTHAND in one of those states resets background-image and kills the
+       fill on a real device while every computed-style pin above stays green. Read the
+       source instead: no state rule for a row family may use the shorthand.
+       This is exactly how the .c-app-item break survived the first round. */
+    {
+      /* ★ review r4: `c-app-item__open` is listed EXPLICITLY. The `(?![\w-])` boundary
+         below exists so `.c-app-item__info` (a different element) is not flagged — but `_`
+         matches `[\w-]`, so it silently excluded `__open` too, which is exactly the box
+         the fill now lives on. A `background` shorthand in its :hover or :active would
+         have killed the apps sweep with the whole suite green. */
+      const ROWCLS = ['c-chatlist-item', 'c-txlist-item', 'c-settings__row', 'c-contacts__row',
+        'c-app-item', 'c-app-item__open', 'c-apps-recents__item', 'c-wallet-receive__contact'];
+      /* ★ review r3 — THREE FALSE NEGATIVES fixed. The first version read only the
+         component folder plus two shells, examined only the FIRST `background:` in each
+         rule (so a rule opening with `background: transparent` — and two shipped row
+         rules do — hid every later shorthand), and missed a legal `background : red`. */
+      const shellDir = join(root, 'src/shells');
+      const cssFiles = readdirSync(compDir).filter((f) => f.endsWith('.css'))
+        .map((f) => ['src/styles/components/' + f, readFileSync(join(compDir, f), 'utf8')])
+        .concat([['src/styles/base.css', baseCss]])
+        .concat(readdirSync(shellDir).filter((f) => f.endsWith('.html'))
+          .map((f) => ['src/shells/' + f, readFileSync(join(shellDir, f), 'utf8')]));
+      const offenders = [];
+      for (const [name, txt] of cssFiles) {
+        for (const m of txt.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+          const sel = m[1];
+          const body = m[2];
+          // EVERY shorthand in the rule, not just the first, and `background : x` too
+          const decls = [...body.matchAll(/(?:^|;)\s*background\s*:\s*([^;]+)/g)].map((d) => d[1].trim());
+          if (decls.length === 0) continue;
+          /* ★ review r5: `background: transparent` is exempt ONLY in a rule that
+             re-declares the image — that is the BASE rule, where the reset is followed by
+             the fill. In a STATE rule it resets background-image to none and kills the
+             sweep just as surely as a colour would, so it must still be flagged. */
+          if (decls.every((v) => /^transparent\b/.test(v)) && /background-image\s*:/.test(body)) continue;
+          /* Only a rule that applies TO the row matters. A descendant rule
+             (`.c-contacts__row[aria-checked] .c-contacts__check`) paints a CHILD and
+             cannot reset the row's own background — and a substring test would also
+             flag `.c-app-item__info`, which is a different element entirely. So test
+             the LAST compound of each comma-separated selector, on a class boundary. */
+          for (const one of sel.split(',')) {
+            const last = one.trim().split(/[\s>+~]+/).pop() || '';
+            for (const c of ROWCLS) {
+              if (new RegExp('\\.' + c + '(?![\\w-])').test(last)) {
+                offenders.push(name + ' :: ' + one.trim());
+              }
+            }
+          }
+        }
+      }
+      ok(offenders.length === 0,
+        '★ A5 (#348): NO `background` shorthand targets a pressable row family in any state. A shorthand resets background-image, so one of these silently deletes the centre-out fill on device while every jsdom pin stays green' + (offenders.length ? ' — found: ' + offenders.join(' | ') : ''));
+      ok(/\.c-chatlist-item:active \{ background-size: 100% 100%; \}/.test(readFileSync(join(compDir, 'chatlist-item.css'), 'utf8')),
+        '★ A5 (#348) review r2: :active DRIVES the fill instead of covering it. It used to paint the identical colour flat across the row, and :active lands together with data-pressed on every Chromium engine — so the flat tint hid the sweep and the press still read as the flicker this change exists to remove');
+      ok(/html:root \[data-pressed="row"\] \.c-app-item__open \{[\s\S]{0,80}?background-size: 100% 100%/.test(baseCss),
+        '★ A5 (#348): .c-app-item is the one family whose PRESSED element is not the PAINTED one — pressable.js flags the wrapper, the child __open draws the row, so the size flip has to reach the child');
+      /* ★ review r3: and the CHILD must carry its own transition. `transition` does not
+         inherit, and base.css names the wrapper — so without this the fill SNAPS to an
+         opaque flat tint, which is the exact effect A5 exists to remove. r2 shipped that
+         and every pin stayed green, because the probe DOM had no __open child at all. */
+      /* ★ review r4: assert a NON-ZERO duration. A substring test passed on
+         `background-size 0ms`, which snaps — the exact effect this pin guards against. */
+      ok(/background-size\s+(?!0m?s\b)[^,]+/.test(pw.getComputedStyle(pw.document.getElementById('aio')).transition),
+        '★ A5 (#348) review r3: .c-app-item__open declares its OWN background-size transition. It is the box that paints the apps row, it paints ABOVE the wrapper, and transition does not inherit — without this the apps family is the one family the centre-out fill never reaches');
+      /* ★ review r5: jsdom does not evaluate @media (prefers-reduced-motion), so this is
+         a SOURCE pin or it is nothing. __open's transition hard-codes 140ms rather than a
+         --duration-* token, so the token-zeroing under reduce never reaches it — being
+         named in this list is the only thing that stops the apps row animating for a user
+         who asked it not to. */
+      ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,700}?html:root \.c-app-item__open,/.test(baseCss),
+        '★ A5 (#348) review r5: .c-app-item__open is named in the reduced-motion list. It is the ONE row family whose transition is not token-driven, so nothing else can zero it');
+      ok(!/\.c-app-item \{[^}]*background-image/.test(readFileSync(join(compDir, 'apps-item.css'), 'utf8')),
+        '★ A5 (#348) review r3: the fill is on __open ALONE. Declaring it on the wrapper TOO put an untransitioned opaque tint directly over the wrapper\'s own animated sweep, and grew two fills from two different centres');
+    }
+
+    /* The selected row closes in its own tonal family; without its own image it would
+       revert to the neutral gradient the instant the press ended. */
+    for (const [id, what] of [['rsel', '.c-chatlist-item[aria-current]'], ['txsel', '.c-txlist-item[aria-current]']]) {
+      ok(/tonal-pressed|linear-gradient\(var\(--surface-action-tonal-pressed\)/.test(fillOf(id).img) && fillOf(id).size === '0% 100%',
+        '★ A5 (#348): ' + what + ' carries its OWN tonal fill at rest, so the close does not flash the neutral grey over the action colour');
     }
     pw.close();
   }
@@ -5404,14 +5546,236 @@ console.log('#343 — instant chrome, first-commit fade, message window');
  * pane and has to read like one. Its sibling in the same pane, app_new.html, has always
  * capped its content; contact_new.html never did, so the form ran the full width of the
  * column while everything beside it was constrained. */
+/* —— #348 W14 · W2 · W8 — the batch the r2 reviewer found had NO pins at all ————— */
+console.log('#348 — W14 delete · W2 auto-save · W8 tip + blindness');
+{
+  const sp348  = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const scp348 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  const sh348  = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const ch348  = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+
+  /* —— W14: the freeze —— */
+  ok(/MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\r?\n\s*\{\s*\r?\n\s*MainThread\.BeginInvokeOnMainThread\(\(\) => \{ deleteWalletWork\(\); \}\);/.test(sp348),
+    '★ W14 (#348): the delete work leaves the WebView navigation callback, and does it in TWO hops. LockPage raises authSucceeded BEFORE it closes itself, and its close posts its own teardown — so a single hop is enqueued AHEAD of that and the user watches the whole wipe behind an opaque lock');
+  ok(!/wipeAccountData\(\);[\s\S]{0,400}?onLoad\(\);/.test(sp348) && /private void wipeAccountData\(\)/.test(sp348),
+    '★ W14 (#348): onLoad() is GONE from the delete path. It re-read the nickname, own-avatar path and primary address that the lines above it had just deleted — an NRE there escaped through authSucceeded, so LockPage never closed and hardware back was swallowed. That was the permanent freeze');
+  ok(/popToRootAsync\(\);[\s\S]{0,1400}?SpixiContentPage\.disposeParkedOverlay\(\);/.test(sp348) && !/disposeParkedOverlay\(\);[\s\S]{0,200}?popToRootAsync\(\);/.test(sp348),
+    '★ W14 (#348): the parked overlay is disposed AFTER the pop, not before. The non-rail Account push carries parkOnClose, so popToRootAsync PARKS this page — and disposing first is a no-op, because nothing is parked yet. Left parked, the WIPED account stays warm and re-presentable');
+  ok(!/deleteInFlight = false;\s*\r?\n\s*goToWelcome\(\);/.test(sp348),
+    '★ W14 (#348): the latch is NOT cleared on a route that navigates away. LockPage can raise authSucceeded twice (password, then a late biometric), and clearing it let the second one re-run the wipe and push a SECOND LaunchPage');
+
+  ok(/IxianHandler\.getWalletList\(\)\.Count > 0/.test(readFileSync(join(root, 'Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'), 'utf8')),
+    '★ W14 (#348): LaunchRestorePage refuses while a wallet exists, exactly as LaunchCreatePage does. Delete-account now routes to welcome and KEEPS the wallet, so a live wallet can sit behind onboarding — and Restore was the one door that would have run straight over it');
+
+  /* —— W2: auto-save —— */
+  ok(/onLock: \(next, ctrl\) => \{[^\n]*?ctrl\.done\(\); state\.dirtyLock = true; syncSave\(\); \}/.test(sh348)
+    && /onAvatarRemove: \(ctrl\) => \{[^\n]*?ctrl\.done\(\); syncSave\(\); \}/.test(sh348),
+    '★ W2 (#348): onLock and onAvatarRemove must NOT auto-save. bridge.send is a bare location.href with no queue, so two verbs in one task coalesce last-wins — ixian:apply would clobber ixian:lock:on / ixian:remove, and the save would then write the value the dropped verb was supposed to set');
+  ok(/if \(lockSaved === undefined\) \{ lockSaved = v; state\.dirtyLock = false; \}/.test(sh348)
+    && /else if \(v !== lockSaved\) \{ lockSaved = v; state\.dirtyLock = true; autoSave\(\); \}/.test(sh348),
+    '★ W2 (#348): app-lock is persisted from C#\'s CONFIRMATION push, which is the only value C# actually holds. Saving at toggle time would persist the PRE-AUTH value on the OFF direction and clear the dirty flag with it — leaving the lock permanently on');
+  ok(/lockEnabled = true;[\s\S]{0,700}?Utils\.sendUiCommand\(this, "setLockEnabled", lockEnabled\.ToString\(\)\);/.test(sp348),
+    '★ W2 (#348): the lock ON path CONFIRMS too. Auto-save removes the Save control, so without this push enabling the lock had no persist trigger and no affordance at all');
+  ok(/let exitSent = false;/.test(sh348) && /if \(exitSent\) return;[^\n]*\r?\n\s*exitSent = true;/.test(sh348),
+    '★ W2 (#348): the outbound-verb latch is SEPARATE from the render latch. `exiting` freezes painting and self-heals; `exitSent` stops a second exit verb');
+  ok(/exiting = false;\s*\r?\n\s*exitSent = false;\s*\r?\n\s*rebuildQueued = false;/.test(sh348),
+    '★ W2 (#348): the heal releases BOTH latches. Holding exitSent forever turned a frozen pane into one that can never be closed — HomePage only ASKS the shell to exit and waits for an answer that would never come again');
+  ok(!/renderLayout\(\);\s*\r?\n\s*syncSave\(\);\s*\r?\n\s*\}, EXIT_HEAL_MS\)/.test(sh348),
+    '★ W2 (#348): the heal must NOT renderLayout. Rebuilding the current view re-runs buildScreen, and the downloads sublevel EMITS ixian:loadDownloads — a fresh verb out of a page that is mid-pop, which is the stray-verb class the latch exists to stop');
+
+  /* —— W8: tip + blindness —— */
+  {
+    /* ★ review r3: the first version of this pin matched the TEXT anywhere in the file,
+       so moving the guard BELOW every dereference left it green — and the guard's whole
+       value is its position. Slice from the assignment to the first `tx.` use and require
+       the null check inside that window. */
+    // NOTE the second indexOf is anchored at `tipStart` — an earlier payment handler in
+    // this same file has its own `IxiNumber balance = …` line, and an unanchored search
+    // found THAT one, producing an empty slice and a pin that could never fail.
+    const tipStart = scp348.indexOf('var tx = prepTx.transaction;');
+    const tipEnd = scp348.indexOf('IxiNumber balance = IxianHandler.getWalletBalance', tipStart);
+    // ★ review r4: if the anchor line ever disappears, indexOf returns -1 and
+    // slice(tipStart, -1) would silently become "the rest of the file" — degenerating
+    // this placement pin into a text-exists pin. Require a real window.
+    ok(tipStart >= 0 && tipEnd > tipStart,
+      '★ W8 (#348): the tip block still has both anchors the placement pin slices between');
+    const tipSlice = scp348.slice(tipStart, tipEnd);
+    // Structural, not length-bounded: the guard must appear inside the window, must be
+    // preceded by NO dereference, and must return before the window ends. An earlier
+    // version capped the gap at 1500 chars and broke the moment the block grew a comment.
+    /* ★ review r5: TWO defeats closed.
+       (a) the pre-guard test named three members (amount|fee|id), so inserting
+           `tx.toList` or `tx.pubKey` above the guard left this green while reproducing
+           the crash exactly. It is now ANY member.
+       (b) the return test accepted any `return;` later in the window, so gutting the
+           guard to a log-and-fall-through also stayed green. It is now scoped to the
+           guard's OWN block, found by brace matching.
+       Comments are stripped first, so prose mentioning `tx.fee` cannot false-positive. */
+    const stripCs = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const tipCode = stripCs(tipSlice);
+    const guardAt = tipCode.indexOf('if (tx == null)');
+    let guardBody = '';
+    if (guardAt >= 0) {
+      let i = tipCode.indexOf('{', guardAt), depth = 0, j = i;
+      for (; j < tipCode.length && i >= 0; j++) {
+        if (tipCode[j] === '{') depth++;
+        else if (tipCode[j] === '}') { depth--; if (depth === 0) break; }
+      }
+      guardBody = i >= 0 ? tipCode.slice(i, j + 1) : '';
+    }
+    ok(guardAt >= 0
+      && !/\btx\.\w/.test(tipCode.slice(0, guardAt))
+      && /\breturn;/.test(guardBody),
+      '★ W8 (#348): the tip null-check sits BETWEEN the assignment and the first dereference. prepareTransactionFrom RETURNS NULL on insufficient funds, and the throw escapes onNavigating before e.Cancel — so the WebView navigated to the raw ixian: URL and destroyed the conversation');
+  }
+  ok(/if \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\)/.test(scp348),
+    '★ W8 (#348): the tip guard FAILS CLOSED on missing metadata. The old `bot || (Group && …)` short-circuited for a bot and never touched botInfo; a friend can also BECOME a bot after onLoad computed the chat type, so botInfo is genuinely null here');
+  ok(!/modal_title = String\.Format\(SpixiLocalization\._SL\("chat-modal-tip-title"\)/.test(scp348),
+    '★ D-11 (#348b, audit): the tip TITLE ladder is GONE, not merely written. The audit proved it was DEAD CODE — both branches answer through sendTipResult, which carries no title, so modal_title was assigned and never read, and C# emits no warning for that. Damir\'s complaint ("Tip <group name>?") is fixed by removing that alert entirely; the name he sees is the tip sheet header, which the shell already resolves correctly');
+  ok(/mode\.blind \? \(\(window\.SL \|\| \{\}\)\.hiddenMember/.test(ch348)
+    && /senderIsAddress: \(!isSent && mode\.isMulti && !mode\.blind/.test(ch348),
+    '★ W8 (#348) SECURITY: in a blind chat the sender LABEL carries no address. Gating only the member sheet made it worse — the label then took message-bubble\'s no-sheet branch, which puts the full address in title, in aria-label, and one tap from the clipboard');
+  ok(/onSenderClick: \(!isSent && !mode\.blind/.test(ch348),
+    '★ W8 (#348) SECURITY: a blind chat opens no member sheet. C# does not mask for bots — insertMessage sends senderAddress verbatim for bot||Group with no blindness test');
+  ok(/mode\.blindKnown = \(t !== 3\) \|\| \(blindString !== undefined\)/.test(ch348),
+    '★ W8 (#348): "no 7th argument" is UNKNOWN blindness for a bot, not "not blind". An exe that predates the argument still blocks tip for every bot, so offering it there would be the dead button this batch removes');
+}
+
+/* —— #348b — the F5 follow-up batch (I-8 · D-10/I-7 · D-11 · D-9② · I-5) ————————— */
+console.log('#348b — F5 follow-up fixes');
+{
+  const scpB  = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  const hpB   = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const chB   = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const tbCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
+  const tbJs  = readFileSync(join(root, 'src/components/topbar.js'), 'utf8');
+  const baseB = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+  /* ★ mutation harness 2026-08-15: the "answer the sheet" pins measure the DISTANCE from a
+     catch to its sendTipResult, so a comment written between the two turned the suite red
+     with the code correct. Measure on comment-free text — the pin then tracks the CODE,
+     which is what it is for, and a future explanatory comment cannot break it. */
+  const scpNC = scpB.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /* —— I-8: the press fill's colour and speed (Damir's dial) —— */
+  const ROWFILES = ['chatlist-item', 'txlist-item', 'settings-shell', 'contacts-shell',
+    'wallet-receive', 'apps-item', 'apps-recents'];
+  for (const f of ROWFILES) {
+    const css = readFileSync(join(root, 'src/styles/components/' + f + '.css'), 'utf8');
+    ok(/background-image: linear-gradient\(var\(--surface-action-tonal-default\), var\(--surface-action-tonal-default\)\)/.test(css),
+      '★ I-8 (#348b): ' + f + ' fills with --surface-action-tonal-DEFAULT — what a SELECTED row actually paints. ★ The audit caught the first cut matching the token NAME (--surface-interactive-selected) instead of the LOOK: that token was abandoned on this very surface in 2026-07 because it is "barely visible on the near-black canvas", measured at 1.027:1 in dark and DARKER than the surface it sits on. Re-adopting it would have shipped a defect Damir had already rejected');
+  }
+  ok(/html:root \[data-pressed="row"\],\s*\r?\n\s*html:root \[data-pressed="row"\] \.c-app-item__open \{[\s\S]{0,900}?transition: background-size var\(--duration-300\)/.test(baseB),
+    '★ I-8 (#348b): the press OPEN runs at --duration-300, and the .c-app-item__open CHILD is in the same rule. pressable.js flags the wrapper but the child is the box that paints, and it carries its own 220 ms ACCELERATE declaration — without the child selector the apps row opens on the opposite easing family from the other six');
+
+  /* —— ★ D-10 / I-7: the tip result channel, and the frozen-sheet hazard it creates —— */
+  ok(/onTip: \(payload, ctrl\) => \{[\s\S]{0,900}?tipCtrl = ctrl;/.test(chB)
+    && !/onTip: \(payload, ctrl\) => \{[\s\S]{0,400}?ctrl\.done\(\);/.test(chB),
+    '★ D-10 (#348b): the tip sheet WAITS for C#. ctrl.done() used to fire the instant the verb was emitted, so a failed tip showed a green "Tipped" under an Insufficient Balance dialog — the UI claiming a payment happened when it had not');
+  ok(/setTipResult\(status, body, msgId\)/.test(chB) && /c\.fail\(body \|\| sl\.tipFailed/.test(chB),
+    '★ D-10 (#348b): the shell renders the FAILURE BODY inline through the sheet\'s own fail() path — the path that has existed since #74 and was never called');
+  ok(/tipWait = setTimeout\(/.test(chB) && /tipNoAnswer/.test(chB),
+    '★ D-10 (#348b): a backstop timer exists. While a tip is in flight the sheet disables light-dismiss and Esc (money-in-flight), so an answer that never arrives would strand the user in a frozen sheet — a WORSE failure than the bug being fixed');
+  {
+    /* ★ THE INVARIANT THIS BATCH LIVES OR DIES ON: every exit from the tip case must
+       answer exactly once. A silent return leaves the sheet frozen. Slice the case and
+       require a sendTipResult in front of each `return;`. */
+    const tipStart = scpB.indexOf('case "tip":');
+    const tipEnd = scpB.indexOf('case "sendContactRequest":', tipStart);
+    const body = scpB.slice(tipStart, tipEnd).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const returns = [...body.matchAll(/\breturn;/g)];
+    const answered = returns.every((m) => /sendTipResult\(/.test(body.slice(Math.max(0, m.index - 400), m.index)));
+    ok(tipStart >= 0 && tipEnd > tipStart && returns.length >= 5 && answered,
+      '★ D-10 (#348b): EVERY early return in the tip case calls sendTipResult first. Adding a silent return here strands the sheet frozen with dismissal disabled — this pin is the only thing standing between a future edit and that state');
+    ok(/sendTipResult\(true, ""\)/.test(body),
+      '★ D-10 (#348b): the SUCCESS path answers too — the sheet morphs and closes, and the native confirmation alert is gone rather than duplicated');
+  }
+
+  /* —— D-11: name the person, not the group —— */
+  /* ★ audit: EVERY exit must answer, and a THROW is an exit. */
+  /* ★ r2 M7: the first version only required A try near the case and A catch that
+     answers — a fence narrowed to the guard block, leaving prepareTransactionFrom,
+     addReaction, sendReaction and addTransaction OUTSIDE it, passed unchanged. Anchor on
+     the money lines being INSIDE the fenced region. */
+  ok((() => {
+    const cs = scpNC.indexOf('case "tip":');
+    if (cs < 0) return false;
+    const tm = /\btry\b/.exec(scpNC.slice(cs));
+    if (!tm) return false;
+    const ts = cs + tm.index;
+    const ce = scpNC.indexOf('catch (Exception tipEx)', ts);
+    if (ce < ts) return false;
+    const fenced = scpNC.slice(ts, ce);
+    return /Node\.prepareTransactionFrom/.test(fenced)
+        && /friend\.addReaction/.test(fenced)
+        && /IxianHandler\.addTransaction/.test(fenced)
+        && /sendTipResult\(true, ""\)/.test(fenced);
+  })()
+    && /catch \(Exception tipEx\)[\s\S]{0,300}?sendTipResult\(false,/.test(scpNC)
+    && /catch \(Exception idEx\)[\s\S]{0,300}?sendTipResult\(false,/.test(scpNC),
+    '★ D-10 (#348b, audit): the tip case is WRAPPED. The early returns each answered, but a throw did not — and the sheet disables light-dismiss and Esc while money is in flight, so an escaping exception stranded the user in a frozen sheet. It also stops a process crash: onNavigating dispatches this bare, so an unhandled exception out of a MAUI Navigating handler kills the app on Android and iOS');
+  ok(/setTipResult", ok \? "1" : "0", body \?\? "", tipMsgIdHex/.test(scpB)
+    && /tipMsgIdHex = msg_id_hex;/.test(scpB)          // ← r2: without this the id is always ""
+    && /tipFor = rec\.id;/.test(chB)                    // ← r2: without this tipFor is always ''
+    && /if \(msgId && tipFor && msgId !== tipFor\) return;/.test(chB),
+    '★ D-10 (#348b, audit): the answer is CORRELATED with its message. Neither direction carried an id, so a late answer for tip A could resolve a sheet the user had since opened on message B — morphing B green on A\'s result and dropping B\'s real answer');
+  /* ★ r2 M3 — THE WORST DEFEAT FOUND. The first version pinned the C# push and the
+     shell's cap CHECK, but not the shell's setCaps HANDLER. Delete the handler and C#
+     emits executeUiCommand(setCaps,…) against an undefined identifier, the cap never
+     lands, bridge.cap('tipResult') is permanently false, and 100% of tips take the
+     ctrl.done() fallback — the exact green-"Tipped"-over-a-failed-payment bug D-10
+     exists to remove — with the whole suite green. */
+  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && /setCaps", "tipResult"/.test(scpB)
+    && /setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(chB),
+    '★ D-10 (#348b, audit): the wait is CAPABILITY-GATED. A new shell on an old exe would otherwise freeze 12 s after a SUCCESSFUL tip and then claim it may have failed; an old shell on a new exe would show no error at all. Both combinations were worse than the bug being fixed');
+  ok(/showToast\(\{ text: \(sl\.tipConfirm[\s\S]{0,80}?\.replace\('\{a\}', amt\)/.test(chB)
+    && /tipAmt = payload\.amount;/.test(chB),   // ← r2: without it the toast prints "Tip  IXI"
+    '★ D-10 (#348b, audit): success RESTATES THE AMOUNT. Removing the native alert also removed the only place that said what was paid — the morph reads "Tipped" and the reaction pill carries a txid, not a value, so the figure had vanished from a money flow');
+
+  /* —— D-9②: a crash must be able to announce itself —— */
+  ok(/private async Task safeFatalAlert\(string title, string body\)/.test(hpB)
+    && /catch \(Exception alertEx\)/.test(hpB),
+    '★ D-9② (#348b): the fatal-error alert cannot take the process down. displaySpixiAlert hosts on Application.Current.MainPage and this runs while MainPage is still being assigned — on WinUI that throws, and the throw escaped as a BLACK SCREEN with no message');
+  ok(/Logging\.error\("Node\.start\(\) returned false[\s\S]{0,200}?safeFatalAlert/.test(hpB),
+    '★ D-9② (#348b): LOG FIRST, then attempt the alert. The log is the only channel guaranteed to work while the app is still starting');
+  ok(!/await displaySpixiAlert\("Fatal/.test(hpB),
+    '★ D-9② (#348b): no unguarded fatal alert remains in the start path');
+
+  /* —— I-5: only the logotype keeps the accent —— */
+  ok(/\.c-topbar\[data-variant="root"\] \.c-topbar__title\[data-logotype\] \{ color: var\(--text-action-default\); \}/.test(tbCss)
+    && !/\.c-topbar\[data-variant="root"\] \.c-topbar__title \{[^}]*color: var\(--text-action-default\)/.test(tbCss),
+    '★ I-5 (#348b): the accent ink is scoped to the LOGOTYPE, not to the root variant. Root is what every tab screen uses, so Apps, Wallet and Account all inherited a brand colour meant for the wordmark alone');
+  ok(/titleEl\.dataset\.logotype = '';/.test(tbJs),
+    '★ I-5 (#348b): the flag is set by the branch that BUILDS the logotype. CSS cannot select a parent by its child without :has(), and the WebView baseline is conservative CSS');
+  ok(/\.screen--hero \.c-topbar\[data-variant="root"\] \.c-topbar__title \{ color: var\(--text-topbar\); \}/.test(tbCss),
+    '★ I-5 (#348b): the HERO rule survives. The fix removes a colour rather than adding one, so a plain root title inherits --text-topbar — the same primitives as --text-neutral-01 outside the hero, and correctly --text-on-hero inside it. Hard-setting neutral-01 would have fixed four screens and broken the fifth');
+}
+
 console.log('I2 (#347) — desktop add-contact pane grammar');
 {
   const cnSrc = readFileSync(join(root, 'src/shells/contact_new.html'), 'utf8');
   const cnBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html', 'contact_new.html'), 'utf8');
-  ok(/:root\[data-desktop\] \.c-contacts-add > :not\(\.c-topbar\) \{[\s\S]{0,160}?max-width: 640px;[\s\S]{0,80}?margin-inline: auto;/.test(cnSrc),
-    '★ I2 (#347): the add-contact CONTENT locks at the 640px cap, centered — the same rule the Account pane applies to Change password (settings.html:105), which is the reference Damir named');
-  ok(/:root\[data-desktop\]/.test(cnSrc.slice(cnSrc.indexOf('.c-contacts-add > :not(.c-topbar)') - 60, cnSrc.indexOf('.c-contacts-add > :not(.c-topbar)') + 10)),
-    '★ I2 (#347): the cap is DESKTOP-GATED. Mobile keeps the full-bleed takeover — pane grammar is desktop-only and mobile stays untouched (#242)');
+  ok(/\n\s*\.c-contacts-add > :not\(\.c-topbar\) \{[\s\S]{0,160}?max-width: 640px;[\s\S]{0,80}?margin-inline: auto;/.test(cnSrc),
+    '★ I2 (#347) + W10/W11 (#348): the add-contact CONTENT locks at the 640px cap, centered');
+  /* ★ review MINOR-8/9: UNGATED. The first cut swapped the UA sniff for a
+     `@media (min-width: 700px)` test, which abandoned the cap in the 640-700 band — a
+     small landscape phone, a resized desktop window, a detail column between 640 and 700
+     — so the two add-screens still disagreed across the device range. app_new.html has
+     always capped unconditionally; both now do, at the same value. A phone in portrait
+     is ~393px and was never affected either way. */
+  ok(!/@media[^\n]*\n?\s*\.c-contacts-add > :not\(\.c-topbar\)/.test(cnSrc)
+    && /max-width: 640px; margin: 0 auto;/.test(readFileSync(join(root, 'src/shells/app_new.html'), 'utf8')),
+    '★ W11 (#348): BOTH add-screens cap at 640, with no gate on either. A gate on one and not the other is the drift this pair keeps producing');
+  /* ★ W10 (#348) — THE GATE, and it is the fix. Damir F5\'d this as still full width.
+     The rule, the DOM and the ancestor chain were all verified correct against the BUILT
+     artifact with a real CSS engine, and the live packaged copy on his machine carried
+     the block — so the cap was never missing, it simply never matched. Its ONE
+     precondition was `:root[data-desktop]`, a UA sniff, and this was the only one of the
+     three add-screens that depended on it (Change password caps on `body[data-pane]`, a
+     C# PUSH; app_new capped with no gate at all). It is now a WIDTH test — the same
+     signal C# uses for its own pane breakpoint (HomePage.OnPageSizeChanged, `Width < 700`)
+     — so it needs nothing from the UA. */
+  ok(!/:root\[data-desktop\][^\n]*\.c-contacts-add/.test(cnSrc),
+    '★ W10 (#348): the cap does NOT depend on the desktop UA sniff. Putting it back behind :root[data-desktop] restores the exact failure Damir reported');
   ok(/:not\(\.c-topbar\)/.test(cnSrc),
     '★ I2 (#347): the TITLE BAR is excluded, so it spans the whole pane while only the content below it is capped — #245b, the grammar every other sublevel follows');
   ok(/max-width: 640px/.test(cnBuilt),
@@ -5469,7 +5833,7 @@ console.log('#341 — Change password renders inside the Account pane');
 
   ok(/case 'encpass': \{[\s\S]{0,700}?releaseEncpass\(\);[\s\S]{0,200}?createEncPassScreen\(/.test(shEnc),
     '★ #341 audit MAJOR-1 (shell): the case releases the PREVIOUS screen before it builds a new one. renderLayout skips the release while the user is ON this view but still rebuilds — a second tap on the live hub row, a window resize (setPaneMode), setLocale, onRepresented — and each one left the old FILLED form detached with its three plaintext values');
-  ok(/releaseEncpass\(\);\s*\r?\n\s*exiting = true;\s*\r?\n\s*bridge\.send\('ixian:save:/.test(shEnc),
+  ok(/releaseEncpass\(\);\s*\r?\n\s*exitSent = true;\s*\r?\n\s*exiting = true;\s*\r?\n\s*armExitHeal\(\);[^\n]*\r?\n\s*bridge\.send\('ixian:save:/.test(shEnc),
     '#341 audit MAJOR-2 (shell): commitSave\'s POP path scrubs before it latches `exiting` — after that renderLayout bails, so nothing could scrub later. #341 review MINOR-6 is honest about the reach: the shipped exe pushes settingsApply, so the live Save returns earlier and STAYS on the page, where the ordinary release still runs. This pin guards the old-exe fallback');
 
   /* —— #341 REVIEW ROUND 2: what the break-my-verdict pass found —————————————— */

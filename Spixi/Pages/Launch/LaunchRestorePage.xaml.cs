@@ -54,6 +54,23 @@ namespace SPIXI
                     return;
                 }
 
+                /* ★ W14 (#348, Damir's call): the SAME guard LaunchCreatePage already has.
+                 * Delete-account now routes to the welcome screen and deliberately KEEPS
+                 * the wallet, so a live wallet can sit behind onboarding for the first
+                 * time. Create refuses in that state (LaunchCreatePage:162-169); Restore
+                 * had no equivalent check, so it was the one door that would have run
+                 * over the wallet the user had just chosen to keep.
+                 * Same honest alert, same shape, same strings as Create. */
+                if (IxianHandler.getWalletList().Count > 0)
+                {
+                    displaySpixiAlert(SpixiLocalization._SL("intro-new-walletexists-title") ?? "Account already exists",
+                        SpixiLocalization._SL("intro-new-walletexists-text") ?? "An account already exists on this device. Restart Spixi to continue with it.",
+                        SpixiLocalization._SL("global-dialog-ok") ?? "OK");
+                    e.Cancel = true;
+                    Utils.sendUiCommand(this, "removeLoadingOverlay");
+                    return;
+                }
+
                 string password = split[1]; // Todo: secure this
                 if(!onRestore(password))
                 {

@@ -213,12 +213,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -693,13 +705,46 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
   /* 100ms intentional: micro-interaction, matches chatlist row hover */
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
+     background-color stays at its intentional 100ms micro duration. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
+}
+/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
+   The wallet row was left on --surface-interactive-selected while the chats list
+   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
+   the two lists showed DIFFERENT selected colours in the same desktop window. The
+   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
+   (home.html) — it had stopped doing so. The rule now lives here, beside this
+   row's own hover and pressed rules and in the same order as the chat row, so the
+   two lists cannot drift apart again. */
+.c-txlist-item[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
+     would revert to the neutral gradient the instant the press ends, flashing grey
+     over the action colour for the length of the close. */
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-txlist-item:hover { background: var(--surface-interactive-hover); }
+  .c-txlist-item:hover { background-color: var(--surface-interactive-hover); }
+  .c-txlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
 }
 /* :active AFTER the hover block so pressed wins (source order at equal specificity) */
-.c-txlist-item:active { background: var(--surface-interactive-pressed); }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-txlist-item:active { background-size: 100% 100%; }
+.c-txlist-item[aria-current]:active { background-size: 100% 100%; }
 
 /* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
    + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */

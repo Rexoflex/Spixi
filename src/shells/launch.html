@@ -54,6 +54,34 @@
   #launch-root > .c-launch { flex: 1; min-height: 0; }
   #launch-root .c-launch__view,
   #launch-root .c-launch__tail { padding-top: env(safe-area-inset-top); }
+
+  /* W15 (#348): on a wide window the FORM views (create / restore / retry) and
+     the onboarding tail stretched their content from edge to edge. Cap the
+     CONTENT COLUMN only.
+       · .c-launch keeps the full-bleed --gradient-launch — the brand surface is
+         never capped.
+       · The hero and tour art size themselves (min(46vw,176px) / min(58vw,232px)
+         in launch-shell.css), so the illustrations are untouched.
+       · The topbar is excluded, exactly as contact_new.html does it, so Back
+         stays at the screen edge.
+       · The welcome view needs nothing — its carousel is already max-width 360
+         and its CTAs 320 (launch-shell.css).
+     GATED ON WIDTH, not on the desktop UA sniff: the sniff is the suspected
+     cause of W10, and a width test is the same signal C# already uses for its
+     own pane breakpoint (HomePage.OnPageSizeChanged — `Width < 700`).
+     ★ review NIT-15: cap the body's CHILDREN, not the body. .c-launch__body is the
+     scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
+     in from the window edge on a wide window. The footer and the tail step are not
+     scrollers, so they cap directly. */
+  @media (min-width: 700px) {
+    #launch-root .c-launch__body > *,
+    #launch-root .c-launch__footer,
+    #launch-root .c-launch__tail-step {
+      width: 100%;
+      max-width: 640px;
+      margin-inline: auto;
+    }
+  }
 </style>
 </head>
 <body>

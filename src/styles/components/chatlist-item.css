@@ -14,19 +14,41 @@
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
   /* 100ms intentional: micro-interaction duration for row hover (token comment "100ms micro: hover") */
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
+     background-color stays at its intentional 100ms micro duration. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 /* dual-pane ACTIVE chat — the neutral interactive-selected (primary-900 in dark)
    was barely visible on the near-black canvas; use the action-tonal surface so the
    open conversation reads clearly (Damir 2026-07-07). */
-.c-chatlist-item[aria-current] { background: var(--surface-action-tonal-default); }
+.c-chatlist-item[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
+     would revert to the neutral gradient the instant the press ends, flashing grey
+     over the action colour for the length of the close. */
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+}
 @media (hover: hover) and (pointer: fine) {
-  .c-chatlist-item:hover { background: var(--surface-interactive-hover); }
-  .c-chatlist-item[aria-current]:hover { background: var(--surface-action-tonal-hover); }
+  .c-chatlist-item:hover { background-color: var(--surface-interactive-hover); }
+  .c-chatlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
 }
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
-.c-chatlist-item:active { background: var(--surface-interactive-pressed); }
-.c-chatlist-item[aria-current]:active { background: var(--surface-action-tonal-pressed); }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-chatlist-item:active { background-size: 100% 100%; }
+.c-chatlist-item[aria-current]:active { background-size: 100% 100%; }
 
 .c-chatlist-item__content {
   display: flex;

@@ -643,6 +643,7 @@ export const esco = {
   tipFailed: "No se pudo enviar la propina. Inténtalo de nuevo.",
   tipInsufficient: "No hay suficiente IXI para esta propina.",
   tipName: "Dar propina a {name}",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Propina dada",
   today: "Hoy",
   torch: "Linterna",

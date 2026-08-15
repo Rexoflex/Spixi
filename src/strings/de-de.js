@@ -643,6 +643,7 @@ export const dede = {
   tipFailed: "Das Trinkgeld konnte nicht gesendet werden. Bitte versuch es erneut.",
   tipInsufficient: "Nicht genug IXI für dieses Trinkgeld.",
   tipName: "{name} Trinkgeld geben",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Trinkgeld gegeben",
   today: "Heute",
   torch: "Taschenlampe",

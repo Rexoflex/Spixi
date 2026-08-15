@@ -524,6 +524,13 @@ namespace SPIXI
                 {
                     // Turn on lock
                     lockEnabled = true;
+                    // ★ W2 (#348) review r2 MAJOR: CONFIRM it. The shell persists app-lock
+                    // from this push (it is the only value C# actually holds), and the OFF
+                    // direction already answers with one from HandleAuthSucceeded. Without
+                    // a matching push the ON direction had no save trigger at all — and no
+                    // Save control either, because auto-save removes it — so enabling the
+                    // lock silently never reached Preferences.
+                    Utils.sendUiCommand(this, "setLockEnabled", lockEnabled.ToString());
                 }
                 else
                 {
@@ -711,6 +718,70 @@ namespace SPIXI
 
         }
 
+        /* ★ W14 (#348) — THE FREEZE, and the routing.
+         *
+         * Damir's Windows F5: "delete account and delete wallet should ALWAYS return to
+         * the welcome screen. The app froze."
+         *
+         * WHY IT FROZE. Both verbs arrive as a WebView navigation. The chain
+         *   LockPage.onNavigating → doUnlock → performUnlock → authSucceeded(...)
+         * is entirely SYNCHRONOUS, and `e.Cancel = true` is only reached at the END of
+         * onNavigating (LockPage:138). So every one of these ran INSIDE the WebView2
+         * navigation callback, on the UI thread, with the browser pump blocked:
+         * seven storage/history deletes, a full node shutdown that blocks on two
+         * GetAwaiter().GetResult() calls (Node.cs:536/:552) and on a Thread.Join() of a
+         * worker that sleeps one second (TransferManager:308), then a page pop and a push.
+         *
+         * WHY IT COULD FREEZE FOR GOOD. onDeleteAccount ended with onLoad(), which reads
+         * the very state the lines above it had just deleted — the nickname (onLoad:126),
+         * the own-avatar path (:153) and, after a wallet delete, the primary address
+         * (:143). One exception there propagated out through authSucceeded, so LockPage
+         * never reached its own close (LockPage:167-175) and the lock stayed up with
+         * hardware back swallowed (LockPage:182, HomePage:2516). No way out but a kill.
+         *
+         * THE FIX, in three parts:
+         *   1. Both handlers now POST their work and return, so onNavigating completes
+         *      immediately and the lock can close before the work starts.
+         *   2. The work is wrapped, and the route to welcome runs in a `finally`. An
+         *      exception can no longer strand the user behind a lock.
+         *   3. onLoad() is gone from the delete path. Nothing re-reads deleted state.
+         *
+         * WHAT IS DELIBERATELY NOT CHANGED: the teardown still runs on the UI thread, so
+         * a long wipe still blocks for its duration. That is a DURATION, not a hang, and
+         * per #294 it does not get optimised before it is measured — PerfTrace marks are
+         * in place below and the numbers ride the same Release run that owes the Android
+         * PERF figures. Moving IxianHandler.shutdown() to a background thread is not the
+         * free win it looks like: it calls HomePage.stop() (Node.cs:595), which touches
+         * the visual tree. */
+        private bool deleteInFlight = false;
+
+        /* Route to the welcome screen. Damir: BOTH destructive actions end here.
+         * Before this, `ixian:deletea` navigated nowhere at all (punch list E1) — the
+         * user was left sitting on the Account pane with an emptied account. */
+        private void goToWelcome()
+        {
+            try
+            {
+                popToRootAsync();
+                // ★ review r2 MAJOR-2: AFTER the pop, not before. The non-rail Account push
+                // carries parkOnClose (#315), so popToRootAsync PARKS this page instead of
+                // disposing it — and calling dispose first was a guaranteed no-op, because
+                // at that moment the page is still OPEN and nothing is parked yet.
+                // Left parked, the wiped account's document stays live and warm: old
+                // nickname, old avatar, old wallet address, re-presentable on the next
+                // Account tap (representParkedOverlay deliberately does not re-run onLoad).
+                // It also strands `deleteInFlight = true` on that instance, which then
+                // silently swallowed the NEXT delete the user authenticated for.
+                SpixiContentPage.disposeParkedOverlay();
+                hostNav.PushAsync(new LaunchPage(), Config.defaultXamarinAnimations);   // #225: root nav
+                // Todo: also remove the parent page without causing memory leaks
+            }
+            catch (Exception ex)
+            {
+                Logging.error("W14: could not route to the welcome screen: " + ex);
+            }
+        }
+
         public void onDeleteWallet(object sender, EventArgs<bool> e)
         {
             bool succeeded = e.Value;
@@ -718,52 +789,107 @@ namespace SPIXI
             {
                 return;
             }
-
-            if (IxianHandler.getWalletStorage().deleteWallet())
+            if (deleteInFlight)
             {
-                // Also delete the account
-                onDeleteAccount(sender, e);
+                return;
+            }
+            deleteInFlight = true;
 
-                // Stop network activity
-                NetworkUtils.isolate();
+            // Leave the WebView navigation callback FIRST — see the W14 note above.
+            // ★ review MAJOR-1: TWO hops, not one. LockPage raises authSucceeded and only
+            // then closes itself, and its close posts its own visual teardown — so a
+            // single hop from here is enqueued AHEAD of that teardown and the user watches
+            // the whole wipe behind a fully opaque lock. Re-posting from inside the first
+            // hop puts this work behind the lock's hide.
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                MainThread.BeginInvokeOnMainThread(() => { deleteWalletWork(); });
+            });
+        }
 
-                Preferences.Default.Remove("onboardingComplete");
-                Preferences.Default.Remove("lockenabled");
-                // ★ #346 (review of #341/#342): the key was spelled "waletpass" — one 'l'.
-                // Every WRITE uses "walletpass" (here :336, EncryptionPassword :85,
-                // LaunchCreatePage :197, LaunchRestorePage :139, LaunchRetryPage :64) and
-                // every READ uses "walletpass" (Node.cs :248/:252, BackupPage :144). So this
-                // line removed a key that has never existed, and the wallet password — stored
-                // in PLAINTEXT, see the two "TODO: encrypt the password" markers — survived
-                // the one action whose whole meaning is "destroy the wallet". It stayed in
-                // Android SharedPreferences / iOS NSUserDefaults, which unencrypted device
-                // backups include, until the user happened to create or restore another
-                // wallet on the same install.
-                // The same typo at LaunchCreatePage :192 and LaunchRestorePage :135 is
-                // harmless — both Set("walletpass", …) on the next lines.
-                Preferences.Default.Remove("walletpass");
+        private void deleteWalletWork()
+        {
+            bool walletGone = false;
+            try
+            {
+                walletGone = IxianHandler.getWalletStorage().deleteWallet();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("W14: deleteWallet threw: " + ex);
+            }
 
-                SpixiLocalization.addCustomString("OnboardingComplete", "false");
+            if (walletGone)
+            {
+                try
+                {
+                    /* ★ review r3 + r4: clear the wallet LIST first — FIRST, before any
+                     * other statement in this block. The wallet FILE is already gone by
+                     * this point, and every line below can throw (a locked or corrupt
+                     * RocksDB is the obvious one). If one does, the catch logs, the
+                     * finally still routes to welcome, and the user arrives with no
+                     * wallet file but a populated wallet list — where Create AND Restore
+                     * both refuse with "An account already exists on this device".
+                     * A welcome screen with no door. r3 moved this line up but left six
+                     * throwing statements in front of it, which did not close the hole. */
+                    IxianHandler.wallets.Clear();
 
-                PendingTransactions.clear();
-                Node.storage.deleteData();
-                Node.activityStorage.deleteData();
-                Node.tiv.clearCache();
+                    // Also delete the account
+                    wipeAccountData();
 
-                IxianHandler.wallets.Clear();
+                    // Stop network activity
+                    NetworkUtils.isolate();
 
-                IxianHandler.shutdown();
+                    Preferences.Default.Remove("onboardingComplete");
+                    Preferences.Default.Remove("lockenabled");
+                    // ★ #346 (review of #341/#342): the key was spelled "waletpass" — one 'l'.
+                    // Every WRITE uses "walletpass" (here :336, EncryptionPassword :85,
+                    // LaunchCreatePage :197, LaunchRestorePage :139, LaunchRetryPage :64) and
+                    // every READ uses "walletpass" (Node.cs :248/:252, BackupPage :144). So this
+                    // line removed a key that has never existed, and the wallet password — stored
+                    // in PLAINTEXT, see the two "TODO: encrypt the password" markers — survived
+                    // the one action whose whole meaning is "destroy the wallet". It stayed in
+                    // Android SharedPreferences / iOS NSUserDefaults, which unencrypted device
+                    // backups include, until the user happened to create or restore another
+                    // wallet on the same install.
+                    // The same typo at LaunchCreatePage :192 and LaunchRestorePage :135 is
+                    // harmless — both Set("walletpass", …) on the next lines.
+                    Preferences.Default.Remove("walletpass");
 
-                // Remove the settings page
-                popToRootAsync();
+                    SpixiLocalization.addCustomString("OnboardingComplete", "false");
 
-                // Show the launch page
-                hostNav.PushAsync(new LaunchPage(), Config.defaultXamarinAnimations);   // #225: root nav
+                    PendingTransactions.clear();
+                    Node.storage.deleteData();
+                    Node.activityStorage.deleteData();
+                    Node.tiv.clearCache();
 
-                // Todo: also remove the parent page without causing memory leaks
+                    PerfTrace.mark("W14 shutdown start");
+                    IxianHandler.shutdown();
+                    PerfTrace.mark("W14 shutdown done");
+                }
+                catch (Exception ex)
+                {
+                    // The wallet file is already gone by this point, so there is no
+                    // usable "stay here" state to fall back to. Log it and still land
+                    // the user on welcome.
+                    Logging.error("W14: wallet teardown threw: " + ex);
+                }
+                finally
+                {
+                    // ★ review MINOR-5: NOT reset. LockPage can raise authSucceeded twice
+                    // (password + a late biometric completion), and clearing the flag here
+                    // let the second one re-run the wipe and push a SECOND LaunchPage. This
+                    // route navigates away, so the page has no further use for the latch.
+                    goToWelcome();
+                }
             }
             else
             {
+                // The wallet is STILL THERE. Routing to welcome would be a lie, and it
+                // would strand a live wallet behind an onboarding screen — so this is
+                // the one branch that stays put. 🟡 Damir: say the word if you want
+                // welcome here too.
+                deleteInFlight = false;
                 displaySpixiAlert(SpixiLocalization._SL("settings-deletew-error-title"), SpixiLocalization._SL("settings-deletew-error-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
 
@@ -776,7 +902,49 @@ namespace SPIXI
             {
                 return;
             }
+            if (deleteInFlight)
+            {
+                return;
+            }
+            deleteInFlight = true;
 
+            // Leave the WebView navigation callback FIRST, and let the lock hide before the
+            // wipe starts (two hops — see the note in onDeleteWallet).
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                try
+                {
+                    wipeAccountData();
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("W14: account wipe threw: " + ex);
+                }
+                finally
+                {
+                    // ★ review MINOR-5: one-shot, see onDeleteWallet.
+                    // W14: `ixian:deletea` used to navigate NOWHERE (punch list E1) and
+                    // instead called onLoad(), which re-read the account it had just
+                    // deleted. Both are gone: the user lands on welcome, and that IS
+                    // the confirmation — the same reasoning the save path already uses
+                    // ("the page pop IS the confirmation").
+                    // The old "Account deleted" alert is dropped with it. It was also
+                    // the WRONG alert on the wallet route, which reached this method and
+                    // therefore told the user their ACCOUNT was deleted after they asked
+                    // to delete the WALLET.
+                    goToWelcome();
+                }
+                });
+            });
+        }
+
+        /* The account wipe itself, with no navigation and no alert, so the wallet route
+         * can reuse it without inheriting either. */
+        private void wipeAccountData()
+        {
+            PerfTrace.mark("W14 account wipe start");
             IxianHandler.localStorage.deleteAllAvatars();
             IxianHandler.localStorage.deleteAccountFile();
             IxianHandler.localStorage.deleteAllDownloads();
@@ -784,10 +952,7 @@ namespace SPIXI
             FriendList.deleteEntireHistory();
             FriendList.deleteAccounts();
             FriendList.clear();
-
-            onLoad();
-
-            displaySpixiAlert(SpixiLocalization._SL("settings-deleteda-title"), SpixiLocalization._SL("settings-deleteda-text"), SpixiLocalization._SL("global-dialog-ok"));
+            PerfTrace.mark("W14 account wipe done");
         }
 
         public void onDeleteHistory()

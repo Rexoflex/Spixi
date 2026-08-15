@@ -194,6 +194,12 @@ public partial class App : Application
                 Node.preStart();
                 if (!Node.start())
                 {
+                    // ★ D-9② sibling (audit 2026-08-15): the SAME failure as the HomePage
+                    // start path, on the resume branch — and it threw with no log line and
+                    // no alert, straight out of the App lifecycle. That is Damir's black
+                    // screen, reached a different way. Log before it goes up, so the
+                    // failure is at least explicable from ixian.log.
+                    Logging.error("App: Node.start() returned false on resume — the node did not restart.");
                     throw new Exception("Error starting Node");
                 }
                 Node.connectToNetwork();
@@ -424,7 +430,13 @@ public partial class App : Application
                     Node.preStart();
                     if (!Node.start())
                     {
-                        throw new Exception("Error starting Node");
+                        // ★ D-9② sibling (audit 2026-08-15): the SAME failure as the HomePage
+                    // start path, on the resume branch — and it threw with no log line and
+                    // no alert, straight out of the App lifecycle. That is Damir's black
+                    // screen, reached a different way. Log before it goes up, so the
+                    // failure is at least explicable from ixian.log.
+                    Logging.error("App: Node.start() returned false on resume — the node did not restart.");
+                    throw new Exception("Error starting Node");
                     }
                     Node.connectToNetwork();
                 }

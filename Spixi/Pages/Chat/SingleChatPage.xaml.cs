@@ -254,6 +254,21 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "setSelectedChannel", channel.index.ToString(), "fa-globe-africa", channel.channelName);
                     selectedChannel = sel_channel;
                     loadMessages();
+                    /* W1 (#348, Damir F5: "worst in the Spixi bot group"). The shell holds
+                     * the log back during a load BURST and paints on whichever comes first:
+                     * this push, or a 250 ms fallback timer that every insert re-arms
+                     * (chat.html:2443-2462). `onChatScreenLoaded` was pushed from exactly
+                     * ONE place — onLoad (:733) — so a bot channel switch never sent it and
+                     * ALWAYS paid the full fallback, every single time.
+                     * This is the whole 250 ms, not a guess: on the normal open the push
+                     * lands on the dispatch queue right behind the last message, so the
+                     * timer never expires there. Measure-first (#294) is satisfied because
+                     * nothing is being optimised — a missing signal is being sent.
+                     * The other two silent callers (onLoadMore :415, reloadScreen :1959)
+                     * are deliberately NOT touched: load-more PREPENDS into a live log and
+                     * reloadScreen re-enters on OnAppearing, so `endLoadPhase()` there needs
+                     * its own reasoning and its own F5. 🟡 Candidates, not this batch. */
+                    Utils.sendUiCommand(this, "onChatScreenLoaded");
                 }
             }
             else if (current_url.StartsWith("ixian:contextAction:"))
@@ -649,7 +664,14 @@ namespace SPIXI
                 string cost_text = String.Format(SpixiLocalization._SL("chat-message-cost-bar"), friend.metaData.botInfo.cost.ToString() + " IXI");
                 bool send_notification = friend.metaData.botInfo.sendNotification;
 
-                Utils.sendUiCommand(this, "setChatMode", chat_type.ToString(), friend.metaData.botInfo.cost.ToString(), cost_text, friend.metaData.botInfo.admin.ToString(), friend.metaData.botInfo.serverDescription, send_notification.ToString());
+                // W8 (#348): 7th arg = blindness, ADDITIVE (same shape as the
+                // getAppInfo extension in #214 — the 1:1 push below stays 4-arg and
+                // the shell defaults a missing arg to false).
+                // It is needed because chat_type CANNOT express a blind bot: a bot is
+                // 3 whether or not it hides addresses (:604-608), so "2" means blind
+                // GROUP only. Without this the shell would offer a tip on a blind bot
+                // and C# would refuse it — a dead button.
+                Utils.sendUiCommand(this, "setChatMode", chat_type.ToString(), friend.metaData.botInfo.cost.ToString(), cost_text, friend.metaData.botInfo.admin.ToString(), friend.metaData.botInfo.serverDescription, send_notification.ToString(), friend.metaData.botInfo.hideParticipantAddresses.ToString());
                 setChannelSelectorUnread();
 
                 selectedChannel = 0; // TODO: remove this after groupchat UI improvements
@@ -674,6 +696,10 @@ namespace SPIXI
             {
                 Utils.sendUiCommand(this, "setChatMode", "0", "0.00000000", "", "False");
             }
+            // ★ audit: declare that THIS build answers a tip with setTipResult. A new shell
+            // on an old exe would otherwise wait 12 s after a SUCCESSFUL tip and then say it
+            // may have failed; without the cap it keeps the old immediate-confirm behaviour.
+            Utils.sendUiCommand(this, "setCaps", "tipResult");
 
             warningDisplayed = false;
             unreadIndicatorDisplayed = false;
@@ -942,6 +968,27 @@ namespace SPIXI
             }
         }
 
+        /* ★ D-10 / I-7 (Damir F5 2026-08-15): THE TIP RESULT CHANNEL.
+         * The tip sheet used to morph to a green "Tipped" the instant the verb was
+         * emitted, because the shell called ctrl.done() unconditionally — so a failed
+         * tip showed SUCCESS with a native error dialog on top of it. On a money
+         * surface the UI must not claim a payment happened.
+         * The sheet already has a complete inline failure path; it was never told.
+         * `setEncPassResult` (#341) is the precedent: an inline flow has no page pop to
+         * read as success, so C# has to answer.
+         * ★ EVERY exit from the tip case MUST call this exactly once. A missing answer
+         * leaves the sheet frozen with money-in-flight dismissal disabled, which is a
+         * worse failure than the one being fixed. Damir's ruling (I-7): the body is
+         * composed HERE and the shell only renders it — no balance, and no headroom
+         * signal, ever crosses into the chat WebView. */
+        private string tipMsgIdHex = "";
+        private void sendTipResult(bool ok, string body)
+        {
+            // ★ audit: the id goes back with the answer. Without it a late result could
+            // resolve a tip sheet the user had since opened on a DIFFERENT message.
+            Utils.sendUiCommand(this, "setTipResult", ok ? "1" : "0", body ?? "", tipMsgIdHex ?? "");
+        }
+
         public void onAcceptFriendRequest()
         {
             friend.approved = true;
@@ -1110,59 +1157,237 @@ namespace SPIXI
                 data = msg_id_hex.Substring(sep_offset + 1);
                 msg_id_hex = msg_id_hex.Substring(0, sep_offset);
             }
-            byte[] msg_id = Crypto.stringToHash(msg_id_hex);
+            /* ★ review r2: stringToHash is OUTSIDE the tip fence, and the fence's own
+             * comment names it as one of the throws it exists to contain. It is not a
+             * theoretical gap: a malformed or truncated id throws here, the tip case is
+             * never entered, nothing answers, and BOTH consequences land in full — the
+             * sheet frozen with dismissal disabled until the 12 s backstop, and an
+             * unhandled exception out of a MAUI Navigating handler, which kills the
+             * process on Android and iOS. Fence the prologue too. */
+            tipMsgIdHex = msg_id_hex;   // ★ audit: correlate the tip answer with its message
+            byte[] msg_id;
+            try
+            {
+                msg_id = Crypto.stringToHash(msg_id_hex);
+            }
+            catch (Exception idEx)
+            {
+                Logging.error("Context action received a malformed message id: " + idEx);
+                if (action == "tip")
+                {
+                    sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
+                }
+                return;
+            }
             switch(action)
             {
                 case "tip":
-                    if (friend.bot
-                        || (friend.type == FriendType.Group && friend.metaData.botInfo.hideParticipantAddresses))
+                    /* ★ audit 2026-08-15 — EVERY EXIT MUST ANSWER, INCLUDING A THROW.
+                     * The sheet disables light-dismiss and Esc while money is in flight, so
+                     * an unanswered exit strands the user in a frozen sheet until the 12 s
+                     * backstop fires. The early returns below each report; a THROW did not.
+                     * The exposed lines are real: Crypto.stringToHash on a malformed id,
+                     * new IxiNumber on a malformed amount, prepareTransactionFrom — and,
+                     * worst, sendReaction / addTransaction AFTER addReaction has already
+                     * committed the local tip pill.
+                     * ★ It also prevents a CRASH: onNavigating dispatches this bare, so an
+                     * escaping exception leaves a MAUI Navigating handler unhandled, which
+                     * takes the process down on Android and iOS.
+                     * ⚠ Correction to the older comments in this method: several claim a
+                     * throw escapes "before e.Cancel = true (:424)". That is WRONG —
+                     * e.Cancel is set at the TOP of onNavigating (:106) and :424 is a
+                     * redundant re-set. The real consequence is the crash above, which is
+                     * worse than what those comments describe, so every guard still stands. */
+                    try
                     {
-                        Logging.error("Send IXI is not supported in this chat.");
-                        return;
+                    // W8 (#348, Damir F5): tip is now allowed in BOT groups. It was
+                    // blocked for every bot, which is why the option was missing there
+                    // while a normal group still had it.
+                    // BLIND chats stay blocked, and the test had to move to say so
+                    // correctly: a bot is chat_type 3 REGARDLESS of
+                    // hideParticipantAddresses (onLoad:604-608), so a blind BOT would
+                    // have fallen straight through a `friend.type == Group` test and
+                    // reached the money path with a hidden sender. The flag is now
+                    // read for bots AND groups, and never for a 1:1 — botInfo is null
+                    // there, and onLoad only waits for it when chat_type > 0 (:622).
+                    // ★ review MAJOR-14/MINOR-16: FAIL CLOSED on missing metadata.
+                    // The old `friend.bot || (Group && …botInfo…)` short-circuited for a
+                    // bot and never touched botInfo; this predicate reads it for bots too,
+                    // and botInfo genuinely can be null here — this file null-guards the
+                    // identical expression twice (:596, :2042), and a friend can BECOME a
+                    // bot after onLoad computed chat_type (joinBot creates it as Normal,
+                    // the metadata lands later, and nothing re-runs onLoad). Without this
+                    // the NRE escapes onNavigating before `e.Cancel = true`, so the WebView
+                    // navigates to the raw ixian: URL — the documented MAJOR class.
+                    // Unknown blindness means we do not pay: refuse.
+                    if (friend.bot || friend.type == FriendType.Group)
+                    {
+                        if (friend.metaData == null || friend.metaData.botInfo == null)
+                        {
+                            Logging.error("Send IXI: chat metadata is not loaded yet.");
+                            sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
+                            return;
+                        }
+                        if (friend.metaData.botInfo.hideParticipantAddresses)
+                        {
+                            Logging.error("Send IXI is not supported in this chat.");
+                            sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
+                            return;
+                        }
                     }
 
                     FriendMessage msg = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                    // The message must exist before anything reads it. Find() returns
+                    // null for an id that is not in THIS channel, and every line below
+                    // is on the money path.
+                    if (msg == null)
+                    {
+                        Logging.error("Tip target message was not found in this channel.");
+                        sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
+                        return;
+                    }
                     ExtendedAddress sender_address = new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null);
                     if (friend.bot
                        || (friend.type == FriendType.Group && !friend.metaData.botInfo.hideParticipantAddresses))
                     {
+                        // This bot branch existed already but was DEAD — the guard above
+                        // returned for every bot before it could run. It is the author's
+                        // own intent for how a bot tip resolves its recipient, and it is
+                        // what now carries the bot case.
+                        // Guard the address: Ixian-Core 0.9.8k stopped storing
+                        // senderAddress on 1:1 messages, and an own or system post in a
+                        // channel can carry none either. Paying a null recipient is not
+                        // a thing we do.
+                        if (msg.senderAddress == null)
+                        {
+                            // ★ review r2 MEDIUM: this must not be silent. The shell cannot
+                            // predict it — the `senderAddress` slot it receives is seeded
+                            // with friend.nickname when the message carries no address
+                            // (:1508-1512), so the FE's own guard sees a non-empty string
+                            // and offers Tip. Answer honestly instead of dropping it.
+                            Logging.error("Tip target message carries no sender address.");
+                            // ★ review r3: chat-modal-tip-title is "Tip {0}?" — a FORMAT
+                            // string. Passed raw it printed a literal {0} in every locale.
+                            sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
+                            return;
+                        }
                         sender_address = new ExtendedAddress(msg.senderAddress, AddressPaymentFlag.OfflineTag, null);
                     }
                     IxiNumber amount = new IxiNumber(data);
                     var prepTx = Node.prepareTransactionFrom(IxianHandler.getWalletStorage().getPrimaryAddress(), sender_address, amount);
                     var tx = prepTx.transaction;
+                    // ★ review r2 CRITICAL: prepareTransactionFrom RETURNS NULL — on
+                    // insufficient funds (Node.cs:938) and on a foreign from-address
+                    // (:883). Every line below dereferences tx, so an over-balance tip
+                    // threw an NRE, and the throw escapes onNavigating before
+                    // `e.Cancel = true` (:424) — so the WebView then navigated to the raw
+                    // ixian: URL and destroyed the conversation document.
+                    // The tip sheet cannot catch this for us: the shell opens it with
+                    // `balance: null` on purpose (chat.html:2124), because C# owns the real
+                    // balance check. This IS that check.
+                    // WalletSend2Page:113-118 is the precedent for the shape.
+                    if (tx == null)
+                    {
+                        // ★ review r3: say WHY. prepareTransactionFrom checks the balance
+                        // itself (check_balance defaults true, Node.cs:936-946), so this
+                        // branch IS the insufficient-funds case in practice — and
+                        // "Invalid Amount" told a user with 5 IXI trying to tip 50 that
+                        // their amount was malformed. Reuse the balance wording, which
+                        // exists for exactly this and names both numbers.
+                        // ★ review r4: {0} is "Total cost of the transaction", NOT the
+                        // amount. Passing the bare amount produced "cost is 10, balance
+                        // is 10" for a user with exactly 10 IXI — two identical numbers
+                        // under "Insufficient Balance", and a retry loop, because the
+                        // shortfall is the FEE. calculateTransactionFee re-prepares with
+                        // check_balance:false and returns exactly that delta (Node.cs:870).
+                        IxiNumber tip_total = amount;
+                        try
+                        {
+                            tip_total = amount + Node.calculateTransactionFee(IxianHandler.getWalletStorage().getPrimaryAddress(), sender_address, amount);
+                        }
+                        catch (Exception fee_ex)
+                        {
+                            Logging.warn("Could not compute the tip fee for the balance message: " + fee_ex);
+                        }
+                        string short_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), tip_total, IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress()));
+                        // ★ I-7 (Damir): INLINE. C# composes the sentence — it owns the
+                        // numbers — and the shell only renders it.
+                        sendTipResult(false, short_body);
+                        return;
+                    }
                     var relayNodeAddresses = prepTx.relayNodeAddresses;
                     IxiNumber balance = IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress());
                     if(tx.amount <= 0)
                     {
-                        displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amount-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        sendTipResult(false, SpixiLocalization._SL("wallet-error-amount-text"));
                         return;
                     }
+                    // ★ review r3: a BELT, not the live path — the guard above already
+                    // returns for an over-balance tip. Kept because `check_balance` is
+                    // Ixian-Core's behaviour, not ours, and #215 says do not assume it.
                     if (tx.amount + tx.fee > balance)
                     {
                         string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), tx.amount + tx.fee, balance);
-                        displaySpixiAlert(SpixiLocalization._SL("wallet-error-balance-title"), alert_body, SpixiLocalization._SL("global-dialog-ok"));
+                        sendTipResult(false, alert_body);
                     }
                     else
                     {
-                        string nick = friend.nickname;
-                        if (friend.bot)
-                        {
-                            nick = friend.users.getUser(sender_address.RoutingAddress).getNick();
-                        }
-                        string modal_title = String.Format(SpixiLocalization._SL("chat-modal-tip-title"), nick);
+                        /* ★ D-11 RESOLVED BY DELETION (audit 2026-08-15).
+                         * Damir's complaint was that the tip ALERT asked "Tip <group name>?"
+                         * instead of naming the member. A nick ladder was written here to
+                         * fix it — and the audit proved the whole thing was DEAD CODE: both
+                         * branches below now answer through sendTipResult, which carries no
+                         * title, so `modal_title` was assigned and never read. C# emits no
+                         * warning for that, so nothing would have caught it.
+                         * The complaint is fixed by D-10 instead: that alert is GONE. The
+                         * name the user sees is the tip sheet's own header, which the shell
+                         * already resolves correctly (chat.html openTipForMessage — roster
+                         * name, then the truncated address, never the group).
+                         * Deleting beats keeping a ladder that computes a string nobody
+                         * reads. */
                         if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msg_id, "tip:" + tx.id), selectedChannel))
                         {
                             updateReactions(msg_id, selectedChannel);
                             StreamProcessor.sendReaction(friend, msg_id, "tip:" + tx.id, selectedChannel);
                             IxianHandler.addTransaction(tx, relayNodeAddresses, new() { sender_address }, null, true);
-                            string modal_body = String.Format(SpixiLocalization._SL("chat-modal-tip-confirmed-body"), nick, amount.ToString() + " IXI");
-                            displaySpixiAlert(modal_title, modal_body, SpixiLocalization._SL("global-dialog-ok"));
+                            // D-10: the SHEET is the confirmation now — it morphs and closes,
+                            // and the tip pill lands over the message via addReactions. The
+                            // native alert on top of that was a second, redundant channel.
+                            sendTipResult(true, "");
                         }
                         else
                         {
-                            displaySpixiAlert(modal_title, SpixiLocalization._SL("chat-modal-tip-error-body"), SpixiLocalization._SL("global-dialog-ok"));
+                            // 🟡 D-12: this is the "you already tipped this message" case in
+                            // practice (Damir proved the one-tip rule by testing, and it holds
+                            // in legacy too) — but Friend.addReaction is Ixian-Core and can
+                            // refuse for reasons we cannot enumerate, so the copy stays
+                            // generic until the BE engineer confirms. It is at least INLINE
+                            // and on the sheet now, instead of a native dialog.
+                            sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
                         }
+                    }
+                    }
+                    catch (Exception tipEx)
+                    {
+                        /* The sheet is WAITING. Answer it, then let the log carry the detail.
+                         *
+                         * 🟡 KNOWN RESIDUAL (review r2 finding 2b, logged in
+                         * docs/f5-findings-2026-08-15.md under D-10). This answer is always
+                         * "not sent". friend.addReaction above commits the tip pill to the
+                         * LOCAL store before sendReaction and addTransaction run, so a throw
+                         * in either of those two leaves the sheet saying "failed" over a
+                         * message that already carries a tip pill.
+                         * It is NOT fixed here, on purpose:
+                         *   · an honest third answer ("unsure") needs a new string in 13
+                         *     locale files — the same block that holds D-12;
+                         *   · rolling the reaction back needs a remove counterpart to
+                         *     Friend.addReaction, which is Ixian-Core, and this repository
+                         *     holds no evidence that one exists (#215: zero C# without
+                         *     evidence). The BE engineer answers this.
+                         * Before #348 the same throw escaped into onNavigating and destroyed
+                         * the conversation document, so this catch is still the big win. */
+                        Logging.error("Tip failed with an exception: " + tipEx);
+                        sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
                     }
                     break;
 

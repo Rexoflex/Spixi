@@ -139,9 +139,11 @@
 
   /* selected row tint — reserved for desktop per #33; the token pair channel-sheet
      already uses for its selected row. aria-current is set by the pane routers. */
-  .dt-list .c-settings__row[aria-current] { background: var(--surface-interactive-selected); }
-  .dt-list .c-txlist-item[aria-current] { background: var(--surface-interactive-selected); }
-  .dt-list .c-app-item[aria-current] .c-app-item__open { background: var(--surface-interactive-selected); }
+  .dt-list .c-settings__row[aria-current] { background-color: var(--surface-action-tonal-default); }  /* A5/W4a (#348): shorthand wiped the press fill, and the colour disagreed with production */
+  /* W4a (#348): the tx row's selected treatment now comes from txlist-item.css
+     (the chat-row tokens). The demo override is gone so the demo cannot show a
+     colour production does not use. */
+  .dt-list .c-app-item[aria-current] .c-app-item__open { background-color: var(--surface-interactive-selected); }
 
   /* wallet: compact hero in the 280–520 pane (spec §2.2 — DEMO wrapper class,
      component CSS untouched; flag ①: proportions are art-directable live) */

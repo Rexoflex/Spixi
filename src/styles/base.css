@@ -252,13 +252,66 @@ img, svg { display: block; max-width: 100%; }
    picker all ramped their tint in over 200 ms while the chat rows beside them snapped —
    two press grammars in one flow, on the "start a chat" path. It is now declared AFTER
    the release rules. Do not move it back up. */
+/* ★ A5 / W4b (#348, Damir): a ROW now fills from the CENTRE OUTWARD instead of
+   flashing a flat tint.
+   ★ I-8 (Damir, after F5): the fill paints THE SELECTED SURFACE — and the audit caught
+   that "the selected colour" is NOT the token called --surface-interactive-selected.
+   Since 2026-07-07 a selected row paints --surface-action-tonal-DEFAULT; the older token
+   was ABANDONED on this exact surface for this exact reason, and chatlist-item.css still
+   carries the note: "the neutral interactive-selected (primary-900 in dark) was barely
+   visible on the near-black canvas". Matching the token NAME instead of the LOOK would
+   have re-shipped a defect Damir already rejected — measured at 1.027:1 against the dark
+   canvas, and DARKER than the surface it paints on, i.e. no visible press at all in dark
+   theme, and none whatsoever for a reduced-motion user who has no sweep to fall back on.
+   So: press now fills to what "selected" actually looks like. Open 200 -> 300 ms, close
+   140 -> 220 ms. An ALREADY-selected row keeps --surface-action-tonal-pressed, one step
+   deeper inside the family it is already painted in.
+   The flat tint read as a flicker — it arrived and left with no
+   direction, so it looked like a glitch rather than a response. A fill that grows out
+   of the middle of the row reads as the row acknowledging the touch, and it buys the
+   same perceived latency with less startle.
+
+   HOW: a one-colour linear-gradient as the row's background IMAGE, centred, sized 0%
+   wide at rest and 100% wide while pressed. Transitioning background-size is what
+   sweeps it open.
+
+   WHY NOT A PSEUDO-ELEMENT STATE LAYER (the obvious build): the pressed tokens are
+   OPAQUE (--neutral-100 / --neutral-700, tokens.css:478/651), so an overlay would
+   cover the row's own text. Keeping the fill in the BACKGROUND means it always paints
+   under the content, with no stacking context, no z-index and no per-component child
+   rules — and it cannot hide anything.
+   Controls are untouched: they keep the instant tint plus the scale push, which is the
+   right grammar for a button and is not what Damir asked to change.
+
+   🟡 DIAL: on release the fill retracts to the centre rather than fading. It is
+   symmetric and it is quick, but it is a choice — say so and it becomes a fade.
+   ★ review r3: the "selected + hovered drops the image" edge documented here is GONE —
+   both selected-hover rules were converted to background-color in this same batch
+   (chatlist-item.css, txlist-item.css). No known edge remains.
+
+   ★ WHERE THE REST STATE LIVES: in each row COMPONENT's own rule, declared AFTER that
+   component's `background` shorthand. It was written here first and that was wrong —
+   `background: transparent` is a SHORTHAND and resets background-image, so the two
+   files were fighting over one property across a specificity boundary. Real browsers
+   resolve it our way; jsdom did not, which is how the smoke probe caught it, and a
+   construction the test harness cannot verify is a construction that rots.
+   Same rule, same file, after the shorthand: no fight, and it is verifiable.
+   Only the PRESSED half is state, so only the pressed half belongs here. */
 html:root [data-pressed="row"] {
-  background-color: var(--surface-interactive-pressed);
+  background-size: 100% 100%;
+}
+/* ★ A5 (#348) review r2: .c-app-item is the only family whose pressed element is not
+   the painted one — pressable.js flags the wrapper, the child __open draws the row. */
+html:root [data-pressed="row"] .c-app-item__open {
+  background-size: 100% 100%;
 }
 /* A SELECTED row (desktop split-view) presses in its own tonal family — pressing it
-   must not flash the neutral tint over the action colour. */
+   must not flash the neutral tint over the action colour.
+   (0,3,1) on purpose: it has to beat the selected-row HOVER rule at (0,3,0), which
+   would otherwise wipe the image out from under the press. */
 html:root [data-pressed="row"][aria-current] {
-  background-color: var(--surface-action-tonal-pressed);
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+  background-size: 100% 100%;
 }
 html:root [data-pressed="control"] {
   transform: scale(0.97);
@@ -279,9 +332,10 @@ html:root [data-pressed="control"] {
    their own declaration instead — see button.css, chip.css and bottomnav.css. The list
    rows already transitioned `background-color`, which is all a row press needs.
    Before adding a selector here, check the component does not declare a transition. */
-html:root .c-contacts__row, html:root .c-app-item,
-html:root .c-apps-recents__item, html:root .c-wallet-receive__contact {
-  transition: background-color 200ms var(--easing-standard, ease-out);
+html:root .c-contacts__row, html:root .c-apps-recents__item,
+html:root .c-wallet-receive__contact {
+  transition: background-color 200ms var(--easing-standard, ease-out),
+              background-size 220ms var(--easing-accelerate, ease-in);   /* A5 close, I-8 slowed */
 }
 html:root .fab {
   transition: background-color 200ms var(--easing-standard, ease-out),
@@ -291,11 +345,29 @@ html:root .fab {
    rule that must beat both the release rules here and every component's own
    declaration, so it goes at the end of the press block. */
 html:root [data-pressed] { transition: none; }
+/* ★ A5 (#348): ROWS are the ONE exception to instant-on, and this rule must therefore
+   be declared AFTER it — both are (0,2,1), so source order is the whole mechanism.
+   The centre-out fill IS motion; with `transition: none` it would snap to full width
+   and be indistinguishable from the flat tint it replaces. Controls keep instant-on.
+   Under prefers-reduced-motion every --duration-* token is already 0ms
+   (tokens.css:1004-1006), so the fill degrades to exactly that flat tint. */
+html:root [data-pressed="row"],
+html:root [data-pressed="row"] .c-app-item__open {
+  /* ★ I-8 (Damir, after F5 2026-08-15): SLOWER. 200 ms read as an abrupt jump — he asked
+     for a press that ARRIVES rather than snaps. 300 ms is the view-transition token and
+     about the ceiling before a press starts to feel laggy. Dial on device.
+     ★ audit: the __open CHILD is listed too. pressable.js flags the WRAPPER but the child
+     is the box that paints, and it carries its own 220 ms ACCELERATE declaration — so
+     without this line the apps row opened on the opposite easing family from the other
+     six. Two press grammars in one app is the #346 defect, again. */
+  transition: background-size var(--duration-300) var(--easing-decelerate, ease-out);
+}
 @media (prefers-reduced-motion: reduce) {
   html:root [data-pressed="control"] { transform: none; }
   html:root [data-pressed],
   html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
-  html:root .c-settings__row, html:root .c-app-item, html:root .c-apps-recents__item,
+  html:root .c-settings__row, html:root .c-app-item, html:root .c-app-item__open,
+  html:root .c-apps-recents__item,
   html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
   html:root .c-bottomnav__item, html:root .fab {
     transition: none;

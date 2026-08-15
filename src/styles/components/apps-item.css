@@ -1,7 +1,16 @@
 /* c-app-item — installed mini-app, list ROW or grid CARD (spec §2.1).
    Two sibling buttons: __open (big tap target) + __menu (⋮ overflow). */
 
-.c-app-item { position: relative; }
+.c-app-item {
+  position: relative;
+  /* ★ A5 (#348) review r3: the fill lives on __open ALONE, not here.
+     pressable.js flags this WRAPPER, but __open is the box that PAINTS, and it paints
+     ABOVE the wrapper — so a fill here is occluded for the whole row. r2 put it on both
+     boxes and made it worse: __open is in no transition rule, so it SNAPPED to an opaque
+     flat tint over the wrapper's correctly-animated sweep. Two fills would also grow
+     from two different centres, because __menu offsets __open's centre to the left.
+     base.css flips the size on `[data-pressed="row"] .c-app-item__open`. */
+}
 
 /* —— the tap target (icon + text) —— */
 .c-app-item__open {
@@ -16,9 +25,19 @@
   padding: var(--spacing-8) var(--spacing-12);
   border-radius: var(--radius-12);
   color: var(--text-neutral-01);
+  /* ★ A5 (#348): the centre-out press fill. __open is the box that paints this row, so
+     it owns the fill — and it needs its OWN transition, because `transition` does not
+     inherit and base.css names the wrapper, not this child. Without it the fill snaps
+     to an opaque flat tint, which is the exact effect A5 exists to remove. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
-@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background: var(--surface-interactive-hover); } }
-.c-app-item__open:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background-color: var(--surface-interactive-hover); } }
+.c-app-item__open:active { background-size: 100% 100%; }
 
 .c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
 .c-app-item__name {
@@ -66,7 +85,10 @@
 /* —— GRID (card) —— */
 .c-app-item[data-layout="grid"] {
   min-width: 0;                              /* grid child must shrink below content so names truncate */
-  background: var(--surface-neutral-02);
+  /* A5 (#348) review MAJOR-3: background-COLOR, not the shorthand. This rule is on the
+     pressed element itself at (0,2,0) and a shorthand here resets the fill image, so the
+     grid card had no press feedback at all. */
+  background-color: var(--surface-neutral-02);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
 }

@@ -1,8 +1,10 @@
 Read `docs/handoff-2026-08-15c.md` first. It is the live state.
 
-⚠ Three handoff files are MISNAMED. `docs/handoff-2026-08-16.md`, `-17.md` and `-18.md` were
-all written on **2026-08-13** and are OLDER than the file above. Read the date in the header,
-not the file name.
+It is the ONLY handoff in `docs/`. Everything consumed lives in `docs/archive/` under its
+original filename. ⚠ If you go digging there, three NAMES lie:
+`docs/archive/handoff-2026-08-16.md`, `-17.md` and `-18.md` were all written on
+**2026-08-13** and are OLDER than the file above. Read the date in the header, never the
+file name.
 
 Then read `docs/f5-findings-2026-08-15.md`. That is the work list — twelve defects and nine
 ideas from a Windows F5 pass, each already triaged with file:line evidence, an owner and an

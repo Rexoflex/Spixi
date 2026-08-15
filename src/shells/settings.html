@@ -104,7 +104,10 @@
   body[data-pane] .sd-detail > * { flex: 1; min-height: 0; width: 100%; }
   body[data-pane] .sd-detail > :not(.sd-empty) > :not(.c-topbar) { width: 100%; max-width: 640px; margin-inline: auto; }
   /* selected hub row while its sublevel is open (#33 desktop selection, #194 tint) */
-  body[data-pane] .c-settings__row[aria-current="true"] { background: var(--surface-action-tonal-default); }
+  /* A5 (#348) review MAJOR-4: background-COLOR. This is (0,3,1) — the SAME specificity
+     as base.css's pressed selected-row rule — and it is declared later, so the shorthand
+     silently reset the fill image and the selected hub row had no press feedback. */
+  body[data-pane] .c-settings__row[aria-current="true"] { background-color: var(--surface-action-tonal-default); }
   body[data-pane] .c-settings__themes { padding: var(--spacing-16); }
   body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
   body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
@@ -189,6 +192,8 @@
    * → changing ONLY the photo never showed Save. Track the pick explicitly: set
    * on ixian:avatar, consumed by the NEXT loadAvatar push, cleared on remove. */
   let avatarPickPending = false;
+  // W2 (#348): last app-lock value C# confirmed. undefined until the boot push.
+  let lockSaved;
   // Q1-② (#267): the mounted Downloads sublevel (pane-only; null otherwise).
   // clearFiles/addFile bursts land on whichever instance is current.
   let downloadsEl = null;
@@ -412,9 +417,57 @@
   // mid-pop was the flicker our code contributed on Save (#199). The empty-Apps
   // landing after the pop is a HomePage boot-tab problem (home agent), not ours.
   let exiting = false;
+  // W2 (#348) review MAJOR-4: the OUTBOUND-verb latch. Distinct from `exiting`, which
+  // only gates painting and self-heals. This one is one-shot for the document's life.
+  let exitSent = false;
+  /* ★ W2 (#348) — THE LATCH HAD NO RESET PATH ON DESKTOP, and it freezes the whole
+     document, not just one control: `exiting` makes renderLayout bail (:577) and
+     scheduleRebuild bail (:839), so nothing repaints and the last painted frame — a
+     stale check icon included — stays on screen for good.
+     The ONLY reset is onRepresented (:1345), and C# pushes that from the narrow-mode
+     park/re-present path alone (SpixiContentPage:514, gated by HomePage:1502 `!wide`).
+     Parking is documented narrow-only, so a PANE that latches and then survives has
+     nothing to un-latch it.
+     This is a self-heal, not a guess about which path leaves it alive: the latch
+     exists to swallow a second exit verb while the page pops, and a pop takes well
+     under this. If we are still here afterwards, the exit did not happen — so drop
+     the latch and repaint.
+     Pane only, deliberately. A PARKED page is supposed to stay latched: it is alive
+     but hidden, and un-latching it would restart the #314 backup poll behind the
+     user's back. Pane mode is desktop, parking is narrow — they never overlap. */
+  let exitHeal = 0;
+  const EXIT_HEAL_MS = 2500;
+  /* ★ review MAJOR-4 reshaped this. The heal originally called renderLayout(), and
+     renderLayout REBUILDS the current view — and buildScreen('downloads') is not inert,
+     it emits `ixian:loadDownloads`. A pane sitting on the Downloads sublevel would have
+     fired a fresh navigation out of a page that is mid-pop: exactly the class of stray
+     verb the `exiting` latch was added for (#199).
+     So the heal now unblocks RENDERING only, and the verb gate is a separate latch that
+     never heals. `exiting` gates paints; `exitSent` gates outbound exit verbs. A second
+     onExitRequest — HomePage fires it from four sites — is still swallowed. */
+  function armExitHeal() {
+    if (!paneMode) return;
+    clearTimeout(exitHeal);
+    exitHeal = setTimeout(() => {
+      if (!exiting) return;
+      /* ★ review r2 MAJOR-9: release the VERB gate too. Holding exitSent forever turned
+         "frozen pane" into "usable pane you can never close" — HomePage's tab switch only
+         asks (requestSettingsOverlayExit → onExitRequest) and waits for the shell to
+         answer with ixian:back, so a pane that never answers again sits over every other
+         tab for good, and auto-save has removed the back arrow that used to save the user.
+         Re-emitting is safe HERE precisely because the first verb provably did nothing:
+         2500 ms later this document is still alive, so no pop is in flight to disturb. */
+      exiting = false;
+      exitSent = false;
+      rebuildQueued = false;
+      syncSave();          // no renderLayout: the next real interaction repaints
+    }, EXIT_HEAL_MS);
+  }
   function exitSettings() {
-    if (exiting) return;
+    if (exitSent) return;          // the verb gate — never healed
+    exitSent = true;
     exiting = true;
+    armExitHeal();
     // #341 SECURITY: scrub the password sublevel HERE too. `exiting` makes
     // renderLayout bail, so the usual release path never runs on this route — and
     // this document is PARKED, not destroyed (#315), so unscrubbed fields would
@@ -447,7 +500,9 @@
     // while the form holds three plaintext passwords — and once `exiting` is true
     // renderLayout bails, so no later render can scrub them.
     releaseEncpass();
+    exitSent = true;
     exiting = true;
+    armExitHeal();                 // W2: same self-heal on the legacy persist-and-pop
     bridge.send('ixian:save:' + state.name);
   }
 
@@ -691,7 +746,10 @@
       // Save (Damir, legacy parity) — explicit commit + pop via the single-fire
       // latch. ixian:save persists nick + language + lock + promotes avatar-tmp,
       // THEN pops the page (§2). Fires exactly once; no local re-render/morph.
-      onSave: commitSave,
+      // W2 (#348): the explicit control exists ONLY as the legacy-exe fallback.
+      // createSettingsHub builds no action at all when onSave is absent
+      // (settings-shell.js:338), so auto-save simply has no check icon.
+      onSave: autoSaveOn() ? undefined : commitSave,
 
       // About / How to use / Contributors — STATIC in-hub views, zero-C# (no bridge verb).
       onAbout: showAbout,
@@ -705,11 +763,22 @@
       // Share address (6e.2, #148⑤ row beside copy) — OS share sheet where the
       // WebView exposes it (navigator.share), else clipboard + toast. No bridge
       // verb exists (§9 wallet-receive precedent) — zero-C# by design.
-      onShare: shareAddress,
+      // W9 (#348, Damir): MOBILE ONLY. On desktop this button had no distinct
+      // behaviour left — WebView2 exposes no navigator.share, so after #342 its
+      // only path was the clipboard fallback, i.e. a duplicate of the copy control
+      // built right beside it (settings-shell.js:542 vs :571). Removing it on
+      // desktop removes a redundant control; it does NOT undo C7, because mobile
+      // still gets the real system share sheet.
+      // The gate is the UA sniff, and its failure direction is safe: the sniff
+      // cannot fire on Android/iOS (their UA carries Android/Mobile), so the worst
+      // case is that a desktop keeps a harmless duplicate — never that a phone
+      // loses its share sheet.
+      onShare: isDesktop ? undefined : shareAddress,
 
       // nickname — held local; empty is blocked by the component (legacy ixian:error).
       // Persisted on exit via ixian:save (immediate save would pop the page).
-      onNickname: (nick, ctrl) => { state.name = nick; state.dirtyNick = nick !== state.savedName; ctrl.done(); syncSave(); },
+      // W2: fires once per edit (component commits on Enter/blur, not per keystroke).
+      onNickname: (nick, ctrl) => { state.name = nick; state.dirtyNick = nick !== state.savedName; ctrl.done(); autoSave(); },
 
       // avatar pick — opens the native C# picker (ixian:avatar → loadAvatar(tmp) push).
       // Close the sheet keeping the current tile; the tmp arrives via loadAvatar and
@@ -719,6 +788,12 @@
       // avatar remove — immediate C#-side (deleteOwnAvatar) → pushes showRemoveAvatar('0') + default loadAvatar.
       // Clear dirtyAvatar: a prior pick left avatar-tmp.jpg on disk; without this, exit would
       // ixian:save → applyAvatar() promotes that leftover tmp and RESURRECTS the removed avatar.
+      /* ★ W2 (#348) review MAJOR-3: NO auto-save here either — same one-navigation
+         collision as onLock. `ixian:apply` would clobber `ixian:remove`, so the avatar
+         would stay on disk and stay visible to every contact while this shell had
+         already painted the gradient and toasted "Settings saved".
+         Nothing is lost by omitting it: the remove is immediate C#-side and answers with
+         showRemoveAvatar + a default loadAvatar push. */
       onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); avatarPickPending = false; state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); syncSave(); },
 
       // theme — apply locally for instant feedback, then the legacy verb (C# reloads the page).
@@ -763,6 +838,18 @@
       // r3: a toggle is only persisted by onSaveSettings → mark dirty (Save shows,
       // exit saves). OFF still runs the C# LockPage auth first; a canceled auth
       // leaves the C# field unchanged, so the save is a harmless no-op then.
+      /* ★ W2 (#348) review MAJOR-1 + MAJOR-2 — DO NOT auto-save here. Two reasons, and
+         each one alone is disqualifying:
+         1. bridge.send is a raw `location.href` assignment with NO queue (native.js:63).
+            Two of them in one task coalesce last-wins — the #185 lesson home.html:706
+            already documents. `ixian:apply` would CLOBBER `ixian:lock:on`, so C# would
+            never flip the field and the save would write the OLD value while the toggle
+            read ON and the toast said "Settings saved".
+         2. Turning the lock OFF is not resolved here at all: `ixian:lock:off` opens a
+            LockPage auth modal, and the field only changes later in HandleAuthSucceeded.
+            Saving now would persist the PRE-AUTH value and clear the dirty flag with it —
+            leaving app-lock permanently ON with no way to remove it.
+         The save is driven by C#'s CONFIRMATION instead — see setLockEnabled below. */
       onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); state.dirtyLock = true; syncSave(); },
 
       // backup — #243: in the pane it opens as a SUBLEVEL (the same c-settings-backup
@@ -796,8 +883,41 @@
 
   // Save shows ONLY with unsaved changes (Damir F5 r2) — dirty lives in the
   // shell, so every dirty flip routes through here (rebuilds re-derive it too).
+  // W2 (#348): with auto-save on, the control is not built at all, so this is a
+  // no-op there and stays correct for the legacy fallback below.
   function syncSave() {
     if (hubEl) setSettingsSaveVisible(hubEl, !!(state.dirtyNick || state.dirtyAvatar || state.dirtyLock));
+  }
+
+  /* ★ W2 (#348, Damir's call): AUTO-SAVE. The Account screen showed a bare check
+     icon that gave no sign of having done anything — and the model he assumed, and
+     that the gap audit already agreed, is that a settings screen just saves.
+     Every settings change now persists as it is made and confirms with a toast; the
+     explicit control is gone.
+
+     autoSaveOn() is the gate. Auto-save needs ixian:apply, the verb that persists
+     WITHOUT popping the page (S14, SettingsPage:441). An older exe does not dispatch
+     it and does not push the cap, and there the ONLY way to save is the popping
+     ixian:save — which cannot be fired on every edit. That build keeps the explicit
+     control exactly as before. New shell on an old exe therefore still works.
+
+     ★ WHY THE TRIGGERS ARE WHERE THEY ARE — the security lens (handover gate).
+     Saving the nickname calls FriendList.broadcastNicknameChange (SettingsPage:678),
+     which tells EVERY contact. Auto-saving on a typing debounce would broadcast each
+     half-typed nickname to all of them. It does not, and it cannot: the component
+     commits the nickname on Enter or BLUR only (settings-shell.js:523/:531), so
+     onNickname already fires once per edit — the same number of broadcasts the
+     explicit Save produced. Avatar and app-lock are single discrete acts.
+     Nothing here adds a verb, a key or a sink. */
+  function autoSaveOn() { return bridge.cap('settingsApply'); }
+  function autoSave() {
+    if (!autoSaveOn()) { syncSave(); return; }   // legacy exe: show the control instead
+    /* ★ review MINOR-12: nothing dirty, nothing to do. Every apply runs the WHOLE of
+       saveSettingsCore — a language-file reload, an account-file write and an avatar
+       promotion (SettingsPage:660-687) — so an edit that ends where it started must not
+       trigger one, and must not toast "Settings saved" for a no-op. */
+    if (!(state.dirtyNick || state.dirtyAvatar || state.dirtyLock)) { syncSave(); return; }
+    commitSave();
   }
 
   function rebuildHub() {
@@ -1185,7 +1305,19 @@
     setAppearance(idx) { const n = parseInt(idx, 10); state.theme = isNaN(n) ? 0 : n; applyTheme(state.theme); scheduleRebuild(); },
 
     // setLockEnabled(bool.ToString()) — onLoad:52 + lock-off auth resolution (HandleAuthSucceeded:241)
-    setLockEnabled(s) { state.lockEnabled = (s === 'True' || s === 'true' || s === true); scheduleRebuild(); },
+    /* ★ W2 (#348): this push is the AUTHORITATIVE app-lock value — the boot value at
+       onLoad, and the post-auth resolution when the user turns the lock off. It is
+       therefore the only safe place to persist it: one verb per task, and the value is
+       the one C# actually holds.
+       `lockSaved` starts undefined, so the FIRST push (boot) only records the baseline
+       and never writes. */
+    setLockEnabled(s) {
+      const v = (s === 'True' || s === 'true' || s === true);
+      state.lockEnabled = v;
+      if (lockSaved === undefined) { lockSaved = v; state.dirtyLock = false; }
+      else if (v !== lockSaved) { lockSaved = v; state.dirtyLock = true; autoSave(); }
+      scheduleRebuild();
+    },
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },
@@ -1208,9 +1340,11 @@
       // sniff stays as a fallback for the imageToDataUri raw-path failure mode.
       // Initial load / post-remove default pushes arrive with no pick pending →
       // not dirty, so a stale pick can't get promoted on the next exit.
+      let pickLanded = false;
       if (avatarPickPending && p) {
         state.dirtyAvatar = true;
         avatarPickPending = false;
+        pickLanded = true;
       } else {
         // Consume the latch on a non-pick push too (Opus #246): a CANCELED picker
         // (or a default/empty re-push after cancel) reaches this branch with p===''.
@@ -1223,6 +1357,13 @@
         state.dirtyAvatar = !!p && /avatar-tmp/i.test(p);
       }
       scheduleRebuild();
+      // W2 (#348): promote a fresh pick immediately. This also ends a real footgun —
+      // a non-save exit sends ixian:back, and ixian:back DELETES avatar-tmp.jpg
+      // (SettingsPage:184-189), so picking a photo and then leaving by any route that
+      // was not Save silently threw the photo away.
+      // ONLY on a landed pick: the boot and post-remove pushes take the else branch,
+      // and auto-saving on those would write on every page load.
+      if (pickLanded) autoSave();
     },
 
     // setVersion(version) — S4 (SettingsPage.onLoad, mirrors LaunchPage:33);
@@ -1283,6 +1424,11 @@
       // bridge.cap('encpass') at BUILD time — if the hub happened to render
       // before this push landed (boot ordering), rebuild so the row appears.
       scheduleRebuild();
+      /* ★ W2 (#348) review MINOR-10: an edit committed BEFORE this push took the
+         legacy branch and only revealed the check icon — and this rebuild then removes
+         that icon, because auto-save is on now. Without this the edit would sit dirty
+         with no affordance at all until exit. Flush it. */
+      autoSave();
     },
 
     // Q1-② (#267): downloads list pushed by SettingsPage itself (ixian:loadDownloads
@@ -1344,7 +1490,9 @@
     // (which pauses on `exiting` — a parked page must not tick timers).
     onRepresented() {
       exiting = false;
+      exitSent = false;            // W2: a re-presented document may exit again
       rebuildQueued = false;
+      clearTimeout(exitHeal);      // W2: the re-present IS the reset; drop any pending heal
       // #46 r2 MAJOR-1: reconcile the dirty machinery with what the PARKING EXIT
       // already persisted — every reachable park routes through exitSettings,
       // which sent ixian:save:<name> when dirty, so at park time shell-state ==

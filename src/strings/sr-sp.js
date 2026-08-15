@@ -643,6 +643,7 @@ export const srsp = {
   tipFailed: "Napojnica nije mogla biti poslata. Pokušajte ponovo.",
   tipInsufficient: "Nema dovoljno IXI za ovu napojnicu.",
   tipName: "Napojnica za {name}",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Napojnica data",
   today: "Danas",
   torch: "Baterijska lampa",

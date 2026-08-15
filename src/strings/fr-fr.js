@@ -643,6 +643,7 @@ export const frfr = {
   tipFailed: "Le pourboire n'a pas pu être envoyé. Veuillez réessayer.",
   tipInsufficient: "Pas assez d'IXI pour ce pourboire.",
   tipName: "Donner un pourboire à {name}",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Pourboire envoyé",
   today: "Aujourd'hui",
   torch: "Lampe",

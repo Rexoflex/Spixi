@@ -642,6 +642,7 @@
   "tipFailed": "The tip could not be sent. Please try again.",
   "tipInsufficient": "Not enough IXI for this tip.",
   "tipName": "Tip {name}",
+  "tipNoAnswer": "No answer from the app. The tip may not have been sent.",
   "tipped": "Tipped",
   "today": "Today",
   "torch": "Torch",

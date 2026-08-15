@@ -37,6 +37,12 @@
   padding: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* A5 (#348): the centre-out press fill — see chatlist-item.css for the reasoning.
+     The image lives here; base.css only flips background-size while pressed. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 
 .c-apps-recents__name {

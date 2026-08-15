@@ -35,7 +35,14 @@
   body { display: flex; flex-direction: column; overflow: hidden; }
   #topbar-slot { flex: none; }
   #add-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  #add-scroll > .c-apps-add { max-width: 560px; margin: 0 auto; }
+  /* W11 (#348, Damir): 640 for BOTH add-screens. This shell capped at 560 and
+     capped UNCONDITIONALLY; contact_new.html capped at 640 behind a gate. They
+     now use the identical rule and the identical value.
+     Unconditional, exactly as this shell always was — only the value moved, 560 -> 640.
+     A review of the first cut found that gating it on width abandoned the cap in the
+     560-700 band (a small landscape phone, a narrow desktop window), which made the two
+     add-screens LESS consistent than the value it replaced. */
+  #add-scroll > .c-apps-add { max-width: 640px; margin: 0 auto; }
   /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
      parse / before first render (mirrors contact_details.html); the first
      replaceChildren render swaps it out, so the load gap is never blank. */

@@ -213,12 +213,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -791,7 +803,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   body { display: flex; flex-direction: column; overflow: hidden; }
   #topbar-slot { flex: none; }
   #add-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  #add-scroll > .c-apps-add { max-width: 560px; margin: 0 auto; }
+  /* W11 (#348, Damir): 640 for BOTH add-screens. This shell capped at 560 and
+     capped UNCONDITIONALLY; contact_new.html capped at 640 behind a gate. They
+     now use the identical rule and the identical value.
+     Unconditional, exactly as this shell always was — only the value moved, 560 -> 640.
+     A review of the first cut found that gating it on width abandoned the cap in the
+     560-700 band (a small landscape phone, a narrow desktop window), which made the two
+     add-screens LESS consistent than the value it replaced. */
+  #add-scroll > .c-apps-add { max-width: 640px; margin: 0 auto; }
   /* Boot spinner — static, theme-colored loader shown during the ~1MB bundle
      parse / before first render (mirrors contact_details.html); the first
      replaceChildren render swaps it out, so the load gap is never blank. */

@@ -1,14 +1,21 @@
-Read `docs/handoff-2026-08-15.md` first. It is the live state. Then read
-`docs/f5-findings-2026-08-14.md` — that is the work list, 19 findings from a Windows and
-Android F5 pass, each already triaged with file:line evidence. Do not re-derive them.
+Read `docs/handoff-2026-08-15c.md` first. It is the live state.
 
-Write all output in ASD-STE100 Simplified Technical English. This applies to chat, docs,
-code comments and commit messages. See the language rule in `CLAUDE.md`.
+⚠ Three handoff files are MISNAMED. `docs/handoff-2026-08-16.md`, `-17.md` and `-18.md` were
+all written on **2026-08-13** and are OLDER than the file above. Read the date in the header,
+not the file name.
 
-Verify the state before you plan anything. Handoffs in this project have been wrong about
+Then read `docs/f5-findings-2026-08-15.md`. That is the work list — twelve defects and nine
+ideas from a Windows F5 pass, each already triaged with file:line evidence, an owner and an
+effort. **Do not re-derive them.**
+
+Write all output in ASD-STE100 Simplified Technical English. This applies to chat, docs, code
+comments and commit messages. See the language rule in `CLAUDE.md`.
+
+**Verify the state before you plan anything.** Handoffs in this project have been wrong about
 the commit state more than once. Check `git --no-optional-locks log --oneline -3` and
-`git --no-optional-locks status --porcelain` yourself. Expect two committed cleanup
-commits on top of `7c9ed942`, and the #346 + #347 batch UNCOMMITTED in the working tree.
+`git --no-optional-locks status --porcelain` yourself. Batches **#348** and **#348b** were on
+Damir's disk and uncommitted when the last session ended. Confirm whether he has committed
+and pushed them. If he has not, that is step one and nothing else starts before it.
 
 Set up a cloud twin first. The Windows working tree is mixed CRLF and
 `scripts/build-demo-bundle.mjs` cannot parse a CRLF component, so it fails on Damir's PC.
@@ -16,84 +23,123 @@ Clone the twin and do all building and testing there:
 
 ```
 git clone --depth 1 https://github.com/Rexoflex/Spixi.git
+cd Spixi
 git fetch --depth 30 origin redesign/frontend && git checkout FETCH_HEAD
 npm install jsdom --no-save
 ```
 
-Ship results back as a tarball through `SendUserFile` plus `device_commit_files`, then
-`tar xzf --overwrite` on his machine. The mount CANNOT unlink, so never rely on
-`git checkout -- .` there.
+Ship results back as a tarball through `SendUserFile` + `device_commit_files`, then
+`tar xzf <name>.tar.gz`. **Do not pass `--overwrite`** — Windows `tar.exe` is bsdtar, it
+rejects the flag and it overwrites by default. **The mount CANNOT unlink**, so never plan a
+step that deletes a file on the mount. Damir is on PowerShell, not CMD.
 
-## FIRST ACTION — settle W1 and W10
+## FIRST ACTION
 
-Two F5 failures are probably stale packaged assets, not real defects. Every item that
-failed is a change inside a shell; every visual item that passed comes from the external
-files added by #345; `obj/bin` was not wiped before that F5. The probe is in the handoff.
-Ask Damir to run it before you plan anything, because a positive result removes two items
-and changes what "W10" even means.
+⚠ **Read D-14 first.** An Ixian-Core `0.9.8k` regression (commit `5643e5b`) nulls the sender
+address on every BOT-chat message, because a bot chat's friend is `FriendType.Normal` and the
+new test has no `bot` exception. It breaks tipping in every bot room and it is **not ours**.
+One word in Core fixes it. It is BE item 1. Check whether the engineer has shipped it before
+you plan any tipping work.
 
-## The work, in order
+**The Android pass is OWED.** Three items in #348 and #348b have never run on a touch device:
+**A9** (Android landscape Account), **A7** (the FAB residue), and **A5 / I-8** (the centre-out
+press fill on touch — Windows tested it with a mouse only). The **Android Release `PERF`
+numbers** are owed as well. ★ `PerfTrace` **must be deleted before any release** and it stays
+in the tree until those numbers exist.
 
-0. **W15** — desktop create/restore render full width. `src/shells/launch.html` has no
-   width rule at all and is the source for five built files, so one cap fixes create,
-   restore, retry and the onboarding tail. These are art-directed screens: cap the
-   CONTENT column, leave the hero illustration and gradient alone.
-1. **W14** — delete account and delete wallet must ALWAYS return to the welcome screen,
-   and the app FROZE. The freeze outranks everything else on the list. The routing half
-   is known (punch-list E1); the freeze is new and unexplained.
-2. **W2** — the Account save control does nothing. Both halves look wired (C# pushes the
-   `settingsApply` cap and handles `ixian:apply:`; the shell has the handler and sends
-   it), so find where it actually breaks before changing anything. Damir asked what it
-   SHOULD do: the recommendation on record is auto-save with a "Saved" toast and no
-   check icon.
-3. **A9** landscape Account pane · **A7** FAB residue rectangle and the "Contacts" title
-   that should read "New chat".
-4. **W4a** · **W9** (desktop only — it stays on mobile) · **W11** · **W8** — cheap and
-   certain, see the findings doc.
-5. **A5 / W4b** — the centre-out row fill. Its own unit. Damir does NOT want press
-   feedback removed; he wants this instead of the current flat tint.
-6. **W1** — the chat-info treatment, only after a measurement says what it waits on.
-7. **D1 reply-to** — ★ DESIGN LOCKED by Damir on 2026-08-15, and no longer BE-blocked.
-   Read the D1 section of the findings doc in full before you plan it. In short: no
-   protocol change, the reference rides in the body as a message ID, the quote is
-   resolved LOCALLY and its text is never sent, and tapping the quote jumps to the
-   referenced message. Three small C# pieces; the FE half is already built behind
-   `bridge.cap('reply')`. Verify the two-device id round-trip BEFORE building (#215).
+Give Damir a short device runsheet for these, one step at a time, and wait for each result.
 
-## ★ The security handover gate — applies to every batch from now on
+## ★ AND A SESSION OF ITS OWN: TIPPING + GROUP BEHAVIOUR
 
-`docs/security-handover-gate.md`, referenced as a ground rule in `CLAUDE.md`. Damir's bar:
-**the redesign must introduce NOTHING.** Before the app goes to the BE engineer, an
-introduced-vs-inherited sweep runs over the delta from `0e85a4b8`; anything WE introduced
-is fixed first, and he sees only his own legacy. The sweep runs LAST, but **apply the lens
-while building** — any batch that adds an `ixian:` verb, a `spixi.*` storage key, a WebView
-setting, an HTML sink, a network fetch or a log line has to ask the question as it goes.
-Three items are already known to be ours and must be fixed: MAJOR #3, MAJOR #6, and the
-`spixi.draft.*` plaintext key.
+**Damir, 2026-08-15:** *"tipping and group behavior needs its own separate session that we
+need to test out everything."* Do NOT fold this into a mixed batch again — this session
+proved why. Give it one dedicated device session that walks the whole surface:
 
-## Rules that apply to every batch
+- **Tipping:** 1:1 · private group · bot room · over balance · twice on one message · after
+  an account restore · the amount and its digit grouping (**I-6**).
+- **Groups:** leave · kick · ban · delete · add member · rename · re-avatar — each one as
+  OWNER and as member, in a normal group, a bot room and a blind room.
 
-* Verify a plan against the code before you build it. A recent loop found six briefed
-  plans defective, two of which would have shipped something worse than the stub.
-* ★ Measure before you optimise (#294). This project has paid twice for guessing.
-* Zero C# unless you have evidence (#215). Ixian-Core is NOT in this repo.
-* Smoke must stay green: `node scripts/smoke-test.mjs` → `BASELINE OK — 1540 pass / the 4
-  KNOWN pre-existers`.
-* Add a mutation-honest pin for every fix and PROVE it fails when you revert the fix.
-  Three pins in the last batch were dead on first write and only mutation testing caught
-  them.
-* bundle BEFORE shells, always.
-* Damir makes all commits. Do not commit unless he asks.
-* Add a row to `DECISIONS.md` for every significant decision, when you make it.
-* Run the #46 adversarial loop on anything substantial: disjoint read-only auditors →
-  fixes → a FRESH reviewer told to break your verdict → repeat until clean. The last one
-  found three MAJORs in its own fixes.
+**D-4 · D-10 residual · D-12 · D-14 · D-15 · CI7** all live in that surface, and most need a
+BE answer first. **Get the BE answers BEFORE the session** or it becomes another triage pass.
 
-## Two things that save time
+## Then, in this order
 
-* A .NET SDK installs in the cloud container: `apt-get install -y dotnet-sdk-8.0`.
-  Roslyn `csc` over the changed files finds syntax errors in seconds. NuGet is NOT
-  reachable, so compile against the shared framework with `-nostdlib` and explicit `-r:`
-  references if you need to run something.
-* The full smoke test takes more than 45 s, so the device bridge kills it. Run it in the
-  twin.
+1. ★ **D-16 — the press fill.** Damir saw it at F5 and chose to DEFER rather than ship it
+   unaudited. Two defects in one: the sweep is only as long as the click (`pressable.js` holds
+   `data-pressed` only between `pointerdown` and `pointerup`, and `base.css:300` flips
+   `background-size` only while it is present), and a selected, hovered row lands on
+   `--surface-action-tonal-hover` = `primary-600` — which is also `--surface-action-default`,
+   the filled BUTTON surface. Fix A + B first (a ~250 ms floor with the #346 cancel latch
+   still winning; ease the selected-row hover in at the fill duration). Do C — the token ramp
+   — **with I-2**, same disease one step apart. ⚠ This is the ONE shared press mechanism and
+   **#343 is the precedent**: #46 loop and mutation pins required.
+2. **D-17** — the Apps search field appears then disappears on a first visit with an empty
+   list. FE, small. Read #340 C-MAJOR-1a/b/c first; same surface.
+3. **I-10** — the app pane feels slow to open. ⚠ **MEASURE FIRST (#294).** One `PerfTrace`
+   reading. #340 BUG-2② is the prime suspect.
+4. **D-9** — finish the delete-account story on device. The alert-safety half (D-9②) is built;
+   the black-screen and the "account exists" dead end need a device test.
+5. **Cheap and unblocked:** I-2 (an outline on the selected chip), I-6 (digit grouping in the
+   tip amount — a money-safety item).
+6. **D-6** (account tier copy), only when the BE engineer answers. Damir is asking him.
+7. **I-1 + the welcome flicker**, as ONE native transition treatment. ★ **MOBILE ONLY** — on
+   desktop the chat is a pinned pane in a grid column, not a pushed page. Gate on
+   `DeviceInfo.Platform`, never on `DeviceInfo.Idiom` (it is posture-dependent) and never on
+   the window width. Measure on the A52 before you judge it (#294, and #343 is the precedent).
+8. **D1 — reply-to.** ★ **DESIGN LOCKED** by Damir on 2026-08-15, and no longer BE-blocked.
+   Read the D1 section of the findings doc in full before you plan it. In short: no protocol
+   change, the reference rides in the body as a message ID, the quote is resolved LOCALLY and
+   its text is never sent, and tapping the quote jumps to the referenced message. **Three
+   small C# pieces; the FE half is already built behind `bridge.cap('reply')`.**
+   **Verify the two-device id round-trip BEFORE you build** (#215).
+9. **The security sweep, LAST.**
+
+⚠ **A5 and CI7 stay BLOCKED.** Group rename and add-member are still not available in
+Ixian-Core. **Do not plan around them.**
+
+## EIGHT questions for the BE engineer
+
+They are listed with evidence at the end of `docs/f5-findings-2026-08-15.md`. **Item 1 (D-14,
+the `0.9.8k` bot-chat sender-address regression) is urgent and is one word.** Item 7 — *can a
+reaction be REMOVED?* — unblocks two open items at once (the D-10 residual and D-12).
+
+## The rules
+
+- Verify a plan against the code before you build it.
+- Measure before you optimise (**#294**).
+- **Zero C# unless you have evidence** (**#215**). Ixian-Core is NOT in this repo.
+- Smoke stays green at **BASELINE OK — 1627 pass / the 4 known pre-existers
+  (#136 · #149③ · M5 · B3)**.
+- **Every fix gets a mutation-honest pin, and you must PROVE it fails when reverted.**
+- Bundle BEFORE shells.
+- **Damir makes all commits.**
+- Add a `DECISIONS.md` row for every significant decision, when you make it.
+- Run the **#46 loop** on anything substantial — disjoint auditors, then a fresh reviewer told
+  to break your verdict, and repeat until a round finds no product defect.
+
+## ★ The security handover gate — this persists
+
+**The redesign must introduce NOTHING.** Before the app goes to the BE engineer, an
+introduced-vs-inherited security sweep runs over the whole delta from the fork point
+`0e85a4b8`. **One question per finding: does this exposure exist at the baseline?**
+No → we introduced it → we fix it before handover. Yes → legacy → he sees it untouched. He
+must see only his own legacy issues, never ours.
+
+The sweep runs LAST, but **apply the lens while you build**. Any batch that adds an `ixian:`
+verb, a `spixi.*` localStorage key, a WebView setting, an `innerHTML`/`eval` sink, a network
+fetch, or a log line must ask the question as it goes.
+
+★ **Reply-to is the one to watch** — its body marker is a new parsing surface for
+peer-controlled content.
+
+⚠ **Three items are already known to be OURS and must be fixed before handover:**
+**MAJOR #3** (the spoofable chat link-open confirm modal — we built the linkify and the
+modal, legacy had neither), **MAJOR #6** (the mini-app WebView regressions from the iOS
+bring-up), and the **`spixi.draft.*`** key, which holds the user's own unsent message text
+in plaintext in a partition third-party mini-app code may be able to read. All three are in
+`docs/security-handover-gate.md`, which `CLAUDE.md` names as a ground rule.
+
+⚠ There is **no .NET in the cloud container** and the install is blocked. Damir's build is the
+first compiler pass over any C# you write. Say so plainly, and run a comment-aware brace and
+paren balance scan as a weak substitute.

@@ -1111,6 +1111,11 @@ function createTopbar({ variant = 'view', title = '', logo = false, identity = n
       const word = document.createElement('span');
       word.className = 'c-topbar__word';   // iOS-47 (#314): Sora is scoped to THIS class — the wordmark alone (#226/B1)
       word.textContent = title || 'Spixi';
+      /* ★ I-5 (Damir, 2026-08-15): the accent ink belongs to the LOGOTYPE, not to the
+         root variant. CSS cannot select a parent by its child without :has(), and the
+         WebView baseline is conservative CSS — so the branch that BUILDS the logotype
+         flags it, and topbar.css keys off the flag. */
+      titleEl.dataset.logotype = '';
       titleEl.append(mark, word);
     } else if (variant === 'root') {
       // iOS-47/48 (#314): plain root titles (Apps; desktop Chats) also get an inner
@@ -5182,7 +5187,18 @@ function openMemberSheet({
     }));
     const nameRow = document.createElement('span');
     nameRow.className = 'c-member__name';
-    nameRow.textContent = member.name || member.address || '';
+    /* W8 (#348, Damir F5): a member with no nickname put the FULL base58 address
+       in the sheet's TITLE. That is the #211 truncation canon, and this was the
+       last surface still missing it — same guard as contacts-shell.js:83 and
+       chat.html:577, because C# sends nickname = address for an unnamed contact,
+       so "has a name" must also mean "the name is not just the address".
+       The address itself is UNAFFECTED: it stays FULL and copyable in the address
+       field below, which is the whole point of this sheet (#99 — the nickname is
+       spoofable, the address is the truth). Only the title is a name. */
+    const memberHasNick = !!member.name && member.name !== member.address;
+    nameRow.textContent = memberHasNick
+      ? member.name
+      : (member.address ? truncateAddressMiddle(member.address, 9, 6) : (member.name || ''));
     // #249 loop C-1: mirror the member-row Owner/Admin badge in the sheet's
     // identity block (row and sheet must not disagree about who owns the group).
     if (member.owner || member.admin) {
@@ -14168,12 +14184,25 @@ function syncNext(st) {
   }
 }
 
+/* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
+   Both entries used to read "Contacts", so the FAB — which already announces
+   itself as "New chat" (home.html:666) — opened a screen with a different name.
+   'start'     → "New chat"  (the FAB: pick someone to talk to)
+   'directory' → "Contacts"  (the topbar entry: browse the roster)
+   'app'       → multi-select, so it never reaches this branch.
+   The key already exists and is already used on this flow (en-us.js:376). */
+function pickerTitle(st) {
+  const { strings, purpose } = st.opts;
+  if (purpose === 'start') return strings.newChat || 'New chat';
+  return strings.contacts || 'Contacts';
+}
+
 function renderPickerChrome(st) {
   const { strings } = st.opts;
   const multi = st.mode === 'multi';
   const topbar = createTopbar({
     variant: 'view',
-    title: multi ? multiTitle(st) : (strings.contacts || 'Contacts'),
+    title: multi ? multiTitle(st) : pickerTitle(st),
     onBack: () => {
       // purpose 'app' has NO browse state to fall back to (it opens straight into
       // multi-select), so back there means "abandon the launch" → onBack.
@@ -14211,7 +14240,9 @@ function createContactsPicker({
   };
   pickerState.set(el, st);
 
-  st.els.topbar = createTopbar({ variant: 'view', title: strings.contacts || 'Contacts', onBack });
+  // A7: the FIRST paint must already carry the purpose-correct title — this
+  // topbar is what the user sees before any re-render (pickerTitle, above).
+  st.els.topbar = createTopbar({ variant: 'view', title: pickerTitle(st), onBack });
   el.append(st.els.topbar);
 
   const body = document.createElement('div');

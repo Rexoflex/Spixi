@@ -213,12 +213,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -511,9 +523,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
+  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
+     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
+     row's own `background`, so no state rule's `background` shorthand can wipe them
+     out from under the sweep. Every state rule below sets background-COLOR for the
+     same reason: a colour is all any of them ever meant to set. */
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background: var(--surface-interactive-hover); } }
-.c-contacts__row:not(:disabled):active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
+     the identical colour flat across the whole row, and :active lands together with
+     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
+     press still read exactly as the flicker Damir asked us to remove. */
+.c-contacts__row:not(:disabled):active { background-size: 100% 100%; }
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of
    a disabled row (explaining WHY it's blocked). */
@@ -1107,13 +1132,29 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      the Account pane applies to Change password (settings.html:105), which is the
      reference Damir named. The CTA stays width:'full' and therefore fills the cap, not
      the pane — again matching Change password.
-     Its sibling in the same pane, app_new.html:38, has always capped (at 560px), so
-     this shell was the odd one out.
-     🟡 DIAL: 640 here vs 560 there is a visible difference in one column. One line in
-     either file makes them identical — Damir's call, not a silent change.
-     DESKTOP ONLY. Mobile keeps the full-bleed takeover (#242: pane grammar is
-     desktop-only, mobile untouched). */
-  :root[data-desktop] .c-contacts-add > :not(.c-topbar) {
+     W11 (#348, Damir): 640 for BOTH add-screens — app_new.html:38 moves up from 560
+     to match, and both now use this identical rule.
+     ★ W10 (#348) — THE GATE CHANGED, and that is the fix. The rule, the DOM and the
+     ancestor chain were all verified correct against the BUILT artifact with a real
+     CSS engine, and the live packaged copy on the test machine (ll_contact_new.html)
+     carries this block — so the cap was never missing, it simply never matched. Its
+     ONE precondition was `:root[data-desktop]`, a UA sniff in the WebView, and this
+     was the only one of the three add-screens that depended on it (Change password
+     caps on `body[data-pane]`, a C# PUSH; app_new capped with no gate at all).
+     Rather than bet on a signal we cannot confirm, the gate is now a WIDTH test —
+     the same signal C# already uses for the pane breakpoint
+     (HomePage.OnPageSizeChanged — `Width < 700`), and it needs nothing from the UA.
+     Mobile portrait is below 700 and keeps the full-bleed takeover (A8 = correct by
+     design). 🟡 DIAL: a landscape PHONE is above 700 and now gets the cap too. That
+     reads better than a full-bleed form on a 900px-wide phone, but it is a visible
+     change on Android landscape.
+     ★ review MINOR-8/9: the WIDTH GATE IS GONE TOO. A media query only moved the problem
+     — it abandoned the cap in the 640-700 band (a small landscape phone, a resized
+     desktop window, a detail column between 640 and 700), so the two add-screens still
+     disagreed across the device range. An UNCONDITIONAL cap is what app_new.html always
+     had, it needs no signal at all, and it changes nothing on a phone in portrait: a
+     393px viewport is already narrower than 640. */
+  .c-contacts-add > :not(.c-topbar) {
     width: 100%;
     max-width: 640px;
     margin-inline: auto;

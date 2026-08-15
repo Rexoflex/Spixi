@@ -92,8 +92,9 @@
      the wrapper is the flex item — the banner inside needs no flex rule) */
   #chats-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  /* selected tx row (two-pane selectTx) — mirrors the chats-list selected treatment */
-  .c-txlist-item[aria-current="true"] { background: var(--surface-interactive-selected); }
+  /* selected tx row (two-pane selectTx) — W4a (#348): the rule moved INTO
+     txlist-item.css so it sits beside the chat row's identical rule and cannot
+     drift again. This shell override is deliberately gone; do not re-add it. */
   /* Explore banner is VISIBLE (A2, Damir 2026-07-09) → LINKS OUT to the Spixi mini-apps
      website in the external browser (ixian:spixiAppsLink, HomePage:278 Browser.OpenAsync
      — does NOT navigate this WebView away). An outbound web link is compliant; only an
@@ -114,6 +115,15 @@
     background: var(--surface-action-default); color: var(--text-neutral-on-action);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     box-shadow: var(--elevation-2); z-index: var(--z-10);
+    /* A7 (#348, Damir F5): tapping the FAB left a rectangle behind for about half
+       a second. That is the Android WebView tap highlight — the compositor paints
+       it ABOVE page content as the element's BORDER BOX, which is why a circular
+       button leaves a rectangle, and it outlives the takeover that mounts over it
+       (the takeover only occludes by z-order; the FAB stays in the DOM under it).
+       Every other pressable in the project already resets this — button.css:29,
+       bottomnav.css:35, chip.css:17, the list rows — and there is no global
+       reset in base.css. The FAB was simply the one that was missed. */
+    -webkit-tap-highlight-color: transparent;
   }
   @media (hover: hover) and (pointer: fine) { .fab:hover { background: var(--surface-action-hover); } } /* #334 AND-18 guard */
   .fab:active { background: var(--surface-action-pressed); }

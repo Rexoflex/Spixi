@@ -247,12 +247,24 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  color: var(--text-action-default);
   font-weight: var(--font-weight-bold);
   /* iOS-47 (#314): the display face moved OFF the title — it hit ANY root-variant
      title text (the Apps tab rendered "Apps" in Sora) while #226/B1 reserves Sora
      for the WORDMARK alone. The wordmark span rule below carries it. */
 }
+/* ★ I-5 (Damir, 2026-08-15): ONLY THE LOGOTYPE KEEPS THE ACCENT.
+   The accent ink used to sit on the root VARIANT, and root is what every tab screen
+   uses — so Apps, Wallet and Account all inherited a brand colour meant for the
+   wordmark alone. Pushed screens use the `view` variant, which has no colour rule, so
+   those were already correct.
+   ★ The fix REMOVES a colour rather than adding one. A plain root title now inherits
+   --text-topbar from .c-topbar, which resolves to the same primitives as
+   --text-neutral-01 (neutral-950 light / neutral-100 dark, tokens.css) — exactly what
+   Damir asked for — AND it keeps working inside the Wallet hero, where --text-topbar
+   correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
+   given the right colour on four screens and broken the fifth.
+   The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -4474,7 +4486,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
-  const mode = { type: 0, isBot: false, isMulti: false, admin: false, notifications: true, costText: '', description: '' };
+  const mode = { type: 0, isBot: false, isMulti: false, blind: false, blindKnown: true, admin: false, notifications: true, costText: '', description: '' };
 
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
@@ -5065,8 +5077,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // A nameless sender is one with no nick AND one whose "nick" is really its
       // own address (some C# paths pass the address as the nick fallback) — both
       // must render truncated + copyable, not a full untruncated address label.
-      sender: (!isSent && mode.isMulti) ? (senderHasNick(rec) ? rec.senderNick : (rec.senderAddress || null)) : null,
-      senderIsAddress: (!isSent && mode.isMulti && !senderHasNick(rec) && !!rec.senderAddress),
+      /* ★ W8 (#348) review r2 MAJOR — SECURITY, and the first fix made this WORSE.
+         Gating onSenderClick alone closed the member sheet but pushed the label into
+         message-bubble.js's no-sheet branch, which sets title=<full address>,
+         aria-label="Copy address: <full address>" and a ONE-TAP CLIPBOARD COPY. In a
+         blind chat that put the address on the row instead of behind a sheet.
+         C# does not mask for us here: insertMessage sends senderAddress verbatim for
+         `bot || Group` with no blindness test, and resolveNick falls back to the address
+         as the nick — so senderHasNick is false and the raw address arrives.
+         In a blind chat the label is now a neutral placeholder and carries no address at
+         all. This covers blind GROUPS too, which were never protected on this surface. */
+      sender: (!isSent && mode.isMulti)
+        ? (mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')
+                      : (senderHasNick(rec) ? rec.senderNick : (rec.senderAddress || null)))
+        : null,
+      senderIsAddress: (!isSent && mode.isMulti && !mode.blind && !senderHasNick(rec) && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
       name: senderHasNick(rec) ? rec.senderNick : '',
       address: rec.senderAddress || '',
@@ -5076,7 +5101,16 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // label + avatar open the member sheet — the ONLY way to reach a NAMED
       // sender's full address (nick labels aren't copyable; the address is)
       // (Damir F5 2026-07-08). Blind groups (type 2) hide identities → no tap.
-      onSenderClick: (!isSent && (mode.type === 1 || mode.type === 3) && (rec.senderAddress || rec.senderNick))
+      /* ★ W8 (#348) review MAJOR-5 — SECURITY. `mode.type === 3` admits a BLIND BOT,
+         and C# does NOT mask addresses for bots (the [Unknown] substitution in
+         loadContacts is `type == Group && hideParticipantAddresses` only, xaml:552-560;
+         the per-message push sends senderAddress verbatim for `bot || Group`, :1492).
+         So tapping a sender in a blind bot channel opened a sheet showing that
+         participant's FULL wallet address — in a chat whose entire purpose is to hide
+         it. A blind GROUP was protected only by accident, because type 2 is not in the
+         list. This is OUR surface (the member sheet is #99, legacy had none), so under
+         the handover gate it is ours to fix. */
+      onSenderClick: (!isSent && !mode.blind && (mode.type === 1 || mode.type === 3) && (rec.senderAddress || rec.senderNick))
         ? () => openMember(rec) : null,
       // resend has NO SingleChatPage case (dead verb) — gate the Retry affordance
       // behind cap('resend') so a failed message shows an HONEST "Not delivered"
@@ -5500,7 +5534,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       capabilities: {
         reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
         edit: bridge.cap('edit') && isSent && !!rec.text, // own text only
-        tip: (!isSent && !mode.isBot && mode.type !== 2), // C# blocks tip in bots + blind groups (xaml:942)
+        /* W8 (#348, Damir F5): tip is offered in BOT groups now — the Spixi bot group
+           had no Tip while a normal group did. BLIND chats keep no tip: a tip pays the
+           message's SENDER, and a blind chat hides who that is. mode.blind, not
+           `type !== 2` — a blind BOT is type 3 (see setChatMode).
+           ★ review MINOR-6: a tip in a multi-party chat resolves the recipient from the
+           MESSAGE's sender address, and C# refuses when it has none (a system or relayed
+           post in a bot channel). Require it here so the row never offers a button C#
+           will silently drop.
+           ★ review MINOR-7: `blindKnown` degrades against an exe that predates the 7th
+           setChatMode argument. Such a build still blocks tip for EVERY bot, so offering
+           it there would be a dead button — the same failure this batch is removing. */
+        tip: (!isSent && !mode.blind && (!mode.isMulti || !!rec.senderAddress)
+              && (!mode.isBot || mode.blindKnown)),
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
         // multi-select: offered on every menu-able row. Selection carries Copy
         // (text rows) + bulk Delete (any row), so a file/payment card qualifies.
@@ -5569,7 +5615,23 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         const rec = model.get(r.dataset.msgid || '');
         if (!rec) return '';
         if (rec.direction === 'sent') return s.you || 'You';
-        return rec.senderNick || identity.name || '';
+        /* ★ W8 (#348) review r3 MAJOR — SECURITY. This is the multi-select COPY path,
+           and it was the last surface still carrying the address in a blind chat.
+           C#'s resolveNick falls back to `nick = senderAddress.ToString()` (xaml:1487),
+           so `rec.senderNick` IS the raw address for a member with no nickname — and
+           chat-select joins it as "<sender>: <text>" straight into the clipboard.
+           Two taps: Select, then Copy. Same class as the bubble-label leak, one layer
+           deeper. A blind chat now copies the neutral placeholder, and a nickless
+           sender in a normal group copies no identity rather than an address. */
+        if (mode.blind) return s.hiddenMember || 'Hidden member';
+        if (senderHasNick(rec)) return rec.senderNick;
+        /* ★ review r4: a NON-blind group keeps attribution — most Ixian members set no
+           nickname, and dropping the sender entirely left a multi-person copy with no way
+           to tell who said what, which is the whole reason the multi-line form exists.
+           The address is already on the bubble in a non-blind chat, so this reveals
+           nothing new; it uses the #211 truncation canon rather than the raw base58. */
+        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';
+        return identity.name || '';
       },
       strings: s,
       onCopy: (n, okCopy) => {
@@ -5723,7 +5785,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     openMemberSheet({
       host: overlayHost,
       member: { name: rec.senderNick || '', address: rec.senderAddress || '', avatar: rec.avatar || null },
-      blind: false,
+      // ★ review MAJOR-5: belt for the gate above — if any future caller reaches here in
+      // a blind chat, the sheet renders its hidden-identity state instead of an address.
+      blind: mode.blind,
       relation: 'none',
       onRequest: rec.senderAddress
         ? () => bridge.send('ixian:sendContactRequest:' + rec.senderAddress) : null,
@@ -5797,7 +5861,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       avatar: identity.avatar || null,       // real 1:1/bot/group photo (C# addThem/setAvatar); gradient fallback
       avatarSeed: identity.address || identity.name || '',
       members: collectGroupMembers(),        // best-effort; memberCount falls back to members.length
-      blind: mode.type === 2,                // blind group: identities hidden
+      blind: mode.blind,                     // blind group OR blind bot: identities hidden (#348)
       notifications: mode.notifications,
       // groups/bots have en/disableNotifications; admin gates kick/ban. media +
       // selfDestruct stay OFF (no bridge verb, §9).
@@ -5894,12 +5958,50 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       },
       balance: null,
       host: overlayHost,
+      /* ★ D-10 / I-7 (Damir F5 2026-08-15): WAIT FOR THE ANSWER.
+         `ctrl.done()` used to fire the instant the verb was emitted, so the button
+         morphed to a green "Tipped" even when the tip failed — Damir screenshotted a
+         success morph under an "Insufficient Balance" dialog. On a money surface the UI
+         must never claim a payment happened.
+         C# now answers with setTipResult (SingleChatPage.sendTipResult); EVERY exit from
+         its tip case reports exactly once. The sheet's own fail(msg) path — inline error,
+         retry kept, overlay unfrozen — has existed since #74 and was simply never called.
+         ★ The 12 s backstop is not decoration. While a tip is in flight the sheet
+         disables light-dismiss and Esc (money-in-flight, C1), so an answer that never
+         arrives — an old exe with no setTipResult, a dropped push — would strand the user
+         in a frozen sheet. That is worse than the bug being fixed. */
       onTip: (payload, ctrl) => {
+        const sl = window.SL || {};
+        /* ★ audit: an exe that predates setTipResult never answers, and waiting for an
+           answer that cannot come would freeze the sheet for 12 s after a SUCCESSFUL tip
+           and then tell the user it may have failed. Gate on the capability, exactly as
+           blindKnown does for setChatMode. Without the cap we keep the old behaviour. */
+        if (!bridge.cap('tipResult')) {
+          bridge.send('ixian:contextAction:tip:' + rec.id + ':' + payload.amount);
+          ctrl.done();
+          return;
+        }
+        clearTimeout(tipWait);
+        tipCtrl = ctrl;
+        tipFor = rec.id;                 // ★ audit: correlate — see setTipResult
+        tipAmt = payload.amount;
         bridge.send('ixian:contextAction:tip:' + rec.id + ':' + payload.amount);
-        ctrl.done();   // the tip pill / wallet tx land via the bridge (addReactions)
+        tipWait = setTimeout(() => {
+          if (!tipCtrl) return;
+          const c = tipCtrl; tipCtrl = null; tipFor = ''; tipAmt = '';
+          c.fail(sl.tipNoAnswer || 'No answer from the app. The tip may not have been sent.');
+        }, 12000);
       },
     });
   }
+
+  /* ★ D-10: the pending tip sheet's controller, and its backstop timer. One tip is in
+     flight at a time — the sheet latches its own confirm button (#72④) — so a single
+     slot is correct. */
+  let tipCtrl = null;
+  let tipWait = 0;
+  let tipFor = '';      // ★ audit: the message id this pending tip belongs to
+  let tipAmt = '';      // ★ audit: the amount, so success can restate it
 
   /* composer ⊕ → attach sheet (tile grid) replacing the legacy native attach bar.
    *   file    → ixian:sendfile            (native picker)
@@ -6548,15 +6650,26 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   const handlers = {
     /* ——— header + mode (wired) ——————————————————————————————————————————— */
 
-    // setChatMode(type, cost, costText, admin, botDescription, notificationsString)
+    // setChatMode(type, cost, costText, admin, botDescription, notificationsString, blindString)
     // type: 0 = 1:1, 1 = private group, 2 = blind group, 3 = bot (chat.js:152).
     // Arg 5 is a legacy MISNOMER kept for shape parity: C# passes
     // friend.metaData.botInfo.serverDescription into it (xaml.cs:612). There is no
     // separate "botDescription" anywhere in either tree.
-    setChatMode(type, cost, costText, admin, botDescription, notificationsString) {
+    // Arg 7 (W8, #348) is ADDITIVE and may be absent: the 1:1 push is 4-arg
+    // (xaml.cs:675) and an older C# sends 6. Missing → false, which is correct for
+    // every case it can be missing in.
+    setChatMode(type, cost, costText, admin, botDescription, notificationsString, blindString) {
       const t = Number(type) || 0;
       mode.type = t;
       mode.isBot = (t === 3);
+      /* W8 (#348): blindness is its own signal, because the TYPE cannot carry it.
+         Type 2 is a blind GROUP, but a bot is type 3 whether or not it hides
+         participant addresses — so `type !== 2` was never a complete blind test.
+         Anything that needs a real sender identity must gate on mode.blind. */
+      mode.blind = (t === 2) || asBool(blindString);
+      // ★ review MINOR-7: did this exe actually TELL us? A 6-arg push leaves blindString
+      // undefined, and "undefined" is not "not blind" for a bot — it is "unknown".
+      mode.blindKnown = (t !== 3) || (blindString !== undefined);
       // isMulti = shows per-sender labels + avatars: private/blind GROUPS *and*
       // BOT channels (Damir F5: bot-group messages showed no nick/avatar because
       // bots are type 3). Legacy set the sender for `friend.bot || Group`
@@ -6862,6 +6975,50 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
     // the whole history in ONE render, pin to the bottom, and put the caret in the
     // composer so the user can type immediately without tapping it (Damir).
+    /* ★ D-10 (#348 follow-up): setTipResult('1'|'0', body).
+       '1' → the sheet morphs and closes; the tip pill lands separately via addReactions.
+       '0' → body is rendered INLINE by the sheet's own fail() path. C# composes the body
+       because it owns the numbers — per Damir's I-7 ruling, no balance and no headroom
+       signal is pushed into this WebView.
+       Guarded: a result with no sheet open is dropped, and a second result for the same
+       attempt is ignored by the component's one-shot. */
+    setTipResult(status, body, msgId) {
+      const sl = window.SL || {};
+      /* ★ audit: CORRELATE. Neither direction carried an id, so a late answer for tip A
+         could resolve a sheet the user had since opened on message B — morphing B green
+         on A's result, and dropping B's real answer. An id that does not match the
+         pending tip is not ours; leave the pending one alone. */
+      if (msgId && tipFor && msgId !== tipFor) return;
+      clearTimeout(tipWait);
+      const c = tipCtrl;
+      const amt = tipAmt;
+      tipCtrl = null; tipFor = ''; tipAmt = '';
+      if (!c) return;
+      if (status === '1' || status === 1 || status === true) {
+        c.done();
+        /* ★ audit: RESTATE THE AMOUNT. Removing the native alert also removed the only
+           place that said WHAT was paid — the sheet morph reads "Tipped" and the reaction
+           pill carries a txid, not a value, so the figure vanished. The toast is the
+           shell's own announcement and needs nothing from C#. */
+        try {
+          showToast({ text: (sl.tipConfirm || 'Tip {a} IXI').replace('{a}', amt), tone: 'success', host: overlayHost, strings: sl });
+        } catch (e) { /* the morph already confirmed; a toast failure must not matter */ }
+      } else {
+        c.fail(body || sl.tipFailed || 'The tip could not be sent. Please try again.');
+      }
+    },
+
+    /* setCaps('a,b,…') — #242 grammar, first used in this shell for tipResult. C#
+       declares which OPTIONAL verbs THIS build answers, so a new shell on an old exe
+       degrades instead of waiting forever. Mutates the bridge's capability object in
+       place; bridge.cap() reads the same reference. */
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => {
+        c = c.trim();
+        if (c) bridge.capabilities[c] = true;
+      });
+    },
+
     onChatScreenLoaded() {
       // End the load burst and paint the WHOLE history in ONE render (spinner →
       // conversation, no intermediate empty-notice frame). Always renders (even

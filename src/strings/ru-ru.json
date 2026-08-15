@@ -642,6 +642,7 @@
   "tipFailed": "Не удалось отправить чаевые. Попробуйте ещё раз.",
   "tipInsufficient": "Недостаточно IXI для этих чаевых.",
   "tipName": "Чаевые {name}",
+  "tipNoAnswer": "No answer from the app. The tip may not have been sent.",
   "tipped": "Чаевые отправлены",
   "today": "Сегодня",
   "torch": "Фонарик",

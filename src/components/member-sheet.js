@@ -23,7 +23,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
@@ -74,7 +74,18 @@ export function openMemberSheet({
     }));
     const nameRow = document.createElement('span');
     nameRow.className = 'c-member__name';
-    nameRow.textContent = member.name || member.address || '';
+    /* W8 (#348, Damir F5): a member with no nickname put the FULL base58 address
+       in the sheet's TITLE. That is the #211 truncation canon, and this was the
+       last surface still missing it — same guard as contacts-shell.js:83 and
+       chat.html:577, because C# sends nickname = address for an unnamed contact,
+       so "has a name" must also mean "the name is not just the address".
+       The address itself is UNAFFECTED: it stays FULL and copyable in the address
+       field below, which is the whole point of this sheet (#99 — the nickname is
+       spoofable, the address is the truth). Only the title is a name. */
+    const memberHasNick = !!member.name && member.name !== member.address;
+    nameRow.textContent = memberHasNick
+      ? member.name
+      : (member.address ? truncateAddressMiddle(member.address, 9, 6) : (member.name || ''));
     // #249 loop C-1: mirror the member-row Owner/Admin badge in the sheet's
     // identity block (row and sheet must not disagree about who owns the group).
     if (member.owner || member.admin) {

@@ -643,6 +643,7 @@ export const slsi = {
   tipFailed: "Napitnine ni bilo mogoče poslati. Poskusite znova.",
   tipInsufficient: "Ni dovolj IXI za to napitnino.",
   tipName: "Napitnina za {name}",
+  tipNoAnswer: "No answer from the app. The tip may not have been sent.",
   tipped: "Napitnina dana",
   today: "Danes",
   torch: "Svetilka",

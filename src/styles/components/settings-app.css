@@ -36,12 +36,23 @@
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  /* ★ D-16 r3 (Opus finding 2): the file row joins the CANONICAL press family —
+     before this, the Downloads screen had two grammars in the wrong direction
+     (the destructive "Delete all" row was the responsive one while every file row
+     was dead on iOS, where bare :active is unreliable). Same block as the other
+     seven families: the fill image + centred origin live in the SAME rule as the
+     row's own background, state rules set background-COLOR only. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              background-size 220ms var(--easing-accelerate, ease-in);
+  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0% 100%;
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings-dl__open:hover { background: var(--surface-interactive-hover); }
+  .c-settings-dl__open:hover { background-color: var(--surface-interactive-hover); }
 }
-.c-settings-dl__open:active { background: var(--surface-interactive-pressed); }
+.c-settings-dl__open:active { background-size: 100% 100%; }
 .c-settings-dl__meta {
   min-width: 0;
   display: flex;

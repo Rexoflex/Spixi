@@ -362,13 +362,94 @@ html:root [data-pressed="row"] .c-app-item__open {
      six. Two press grammars in one app is the #346 defect, again. */
   transition: background-size var(--duration-300) var(--easing-decelerate, ease-out);
 }
+/* ★ D-16 (#351): THE RELEASE AFTERLIFE — the fill COMPLETES, then FADES IN PLACE.
+   pressable.js keeps data-pressed alive until --duration-300 has elapsed since the
+   press (the completion floor), so the sweep always reaches 100% — a 60 ms click no
+   longer freezes it at 65% (Damir's recording). Then release is a FADE, never the
+   reverse sweep (Damir: "it should not fade out in the opposite direction while the
+   chat opens"). The retract transition on the components now runs ONLY for cancels
+   (scroll/drag), where an instant-ish disappearance is correct.
+   HOW THE FADE WORKS WITHOUT A PSEUDO-ELEMENT (the image cannot animate opacity):
+   "hold" lands in the same frame data-pressed leaves — a flat background-COLOR
+   identical to the fill, transition: none, so the sweep image collapses invisibly
+   underneath it. One committed frame later "out" fades that colour away at
+   --duration-200. A [aria-current] row holds tonal-PRESSED and fades to
+   tonal-DEFAULT — its own selected paint — so the fade lands seamlessly on the
+   colour the row keeps. Mid-fade selection re-targets IN PLACE only where the
+   attribute is patched in place — wallet tx rows (applyTxSelection); a CHAT row
+   that becomes selected is REPLACED by renderChatsList, which CUTS the fade (the
+   accepted A-3 dial, see pressable.js).
+   SPECIFICITY (r3-corrected, Opus finding 3): value-scoped selectors only, so
+   "hold" and "out" never fight each other across the [aria-current] axis. The
+   generic pair and the [aria-current] variants are EQUAL at (0,4,1) —
+   :not(.c-app-item) contributes a class — so the variants win on SOURCE ORDER
+   alone: they are declared after, and a smoke pin freezes that order. The fix-B
+   hover rules sit at (0,5,0) but carry only a TRANSITION and are inert during
+   press/fade via their own :not() guards; the hover colour (the D-16 cause-B
+   landing) arrives after the fade, eased by fix B.
+   .c-app-item: the WRAPPER carries the attribute, the __open CHILD paints (same
+   split as the sweep above) — the wrapper is forced transparent so the flat colour
+   can never tint the menu/info buttons beside the child. */
+/* ★ D-16 r2 (audit B-1/B-2/B-3) — the SPECIFICITY of these rules is load-bearing.
+   The doubled attribute ([data-pressfade="hold"][data-pressfade]) lifts each rule
+   one class step: three row families gate :hover behind :not() (settings/contacts/
+   wallet-receive → (0,3,0)), and at the first cut's (0,2,1) the hover colour beat
+   the fade on every mouse device — a hard pop at the hold frame and no fade at all.
+   :not(.c-app-item) EXCLUDES the app WRAPPER instead of forcing it transparent:
+   the first cut's forced-transparent wrapper deleted the GRID card's own
+   neutral-02 surface for the length of the fade (a card blink on every press).
+   The [aria-current] variants are EQUAL specificity — :not() cancels their extra
+   attribute — and win on their LATER source order, which a smoke pin freezes.
+   ★ The hold trick REQUIRES OPAQUE tonal tokens: the sweep image retract-snaps
+   invisibly only because the flat hold colour fully covers it. A semi-transparent
+   --surface-action-tonal-* would expose a reverse band under the fade. */
+html:root [data-pressfade="hold"][data-pressfade]:not(.c-app-item) {
+  transition: none;
+  background-color: var(--surface-action-tonal-default);
+}
+html:root [data-pressfade="out"][data-pressfade]:not(.c-app-item) {
+  transition: background-color var(--duration-200) var(--easing-standard, ease-out);
+  background-color: transparent;
+}
+/* Audit B-5: under a stationary mouse the fade must LAND on the hover wash, not
+   dip through transparent and pop back up. Selected rows are excluded — they fade
+   to their own tonal-default and fix B then eases the hover in. */
+@media (hover: hover) and (pointer: fine) {
+  html:root [data-pressfade="out"][data-pressfade]:hover:not([aria-current]):not(.c-app-item) {
+    background-color: var(--surface-interactive-hover);
+  }
+}
+html:root [data-pressfade="hold"][data-pressfade][aria-current] {
+  background-color: var(--surface-action-tonal-pressed);
+}
+html:root [data-pressfade="out"][data-pressfade][aria-current] {
+  background-color: var(--surface-action-tonal-default);
+}
+/* .c-app-item: the wrapper carries the attribute, the __open CHILD paints — and
+   ONLY the child. The wrapper keeps its own surface (grid layout paints a card). */
+html:root .c-app-item[data-pressfade="hold"] .c-app-item__open {
+  transition: none;
+  background-color: var(--surface-action-tonal-default);
+}
+html:root .c-app-item[data-pressfade="out"] .c-app-item__open {
+  transition: background-color var(--duration-200) var(--easing-standard, ease-out);
+  background-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  html:root .c-app-item[data-pressfade="out"] .c-app-item__open:hover {
+    background-color: var(--surface-interactive-hover);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   html:root [data-pressed="control"] { transform: none; }
-  html:root [data-pressed],
+  html:root [data-pressed], html:root [data-pressfade],
+  html:root [data-pressfade] .c-app-item__open,
   html:root .c-chatlist-item, html:root .c-contacts__row, html:root .c-txlist-item,
   html:root .c-settings__row, html:root .c-app-item, html:root .c-app-item__open,
   html:root .c-apps-recents__item,
-  html:root .c-wallet-receive__contact, html:root .c-button, html:root .c-chip,
+  html:root .c-wallet-receive__contact,
+  html:root .c-settings-dl__open, /* D-16 r4: every press family — a pin derives membership */
+  html:root .c-button, html:root .c-chip,
   html:root .c-bottomnav__item, html:root .fab {
     transition: none;
   }

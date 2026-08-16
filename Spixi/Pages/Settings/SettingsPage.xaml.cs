@@ -748,11 +748,12 @@ namespace SPIXI
          *
          * WHAT IS DELIBERATELY NOT CHANGED: the teardown still runs on the UI thread, so
          * a long wipe still blocks for its duration. That is a DURATION, not a hang, and
-         * per #294 it does not get optimised before it is measured — PerfTrace marks are
-         * in place below and the numbers ride the same Release run that owes the Android
-         * PERF figures. Moving IxianHandler.shutdown() to a background thread is not the
-         * free win it looks like: it calls HomePage.stop() (Node.cs:595), which touches
-         * the visual tree. */
+         * per #294 it does not get optimised before it is measured. The #344 PerfTrace
+         * scaffold was deleted in #350 (the release rule) with this duration still
+         * unread — if the wipe ever needs a number, re-add two Logging.info stamps
+         * around IxianHandler.shutdown() below. Moving it to a background thread is not
+         * the free win it looks like: it calls HomePage.stop() (Node.cs:595), which
+         * touches the visual tree. */
         private bool deleteInFlight = false;
 
         /* Route to the welcome screen. Damir: BOTH destructive actions end here.
@@ -863,9 +864,7 @@ namespace SPIXI
                     Node.activityStorage.deleteData();
                     Node.tiv.clearCache();
 
-                    PerfTrace.mark("W14 shutdown start");
                     IxianHandler.shutdown();
-                    PerfTrace.mark("W14 shutdown done");
                 }
                 catch (Exception ex)
                 {
@@ -944,7 +943,6 @@ namespace SPIXI
          * can reuse it without inheriting either. */
         private void wipeAccountData()
         {
-            PerfTrace.mark("W14 account wipe start");
             IxianHandler.localStorage.deleteAllAvatars();
             IxianHandler.localStorage.deleteAccountFile();
             IxianHandler.localStorage.deleteAllDownloads();
@@ -952,7 +950,6 @@ namespace SPIXI
             FriendList.deleteEntireHistory();
             FriendList.deleteAccounts();
             FriendList.clear();
-            PerfTrace.mark("W14 account wipe done");
         }
 
         public void onDeleteHistory()

@@ -39,8 +39,17 @@
   background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chatlist-item:hover { background-color: var(--surface-interactive-hover); }
-  .c-chatlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
+  /* ★ #353 (Damir, F5 video 2026-08-16): a SELECTED row gets NO hover tint — it
+     stays on its own tonal-default under the cursor. The old tonal-hover paint
+     was primary-600 in dark = the filled BUTTON surface (D-16 cause B); this
+     removal supersedes fix B AND the fix-C token re-dial for rows.
+     :not([aria-current]) is LOAD-BEARING: without it this later rule would beat
+     the selected [aria-current] paint by source order at equal specificity and
+     hover the selected row GREY.
+     ⚠ This rule must stay TRANSITION-FREE: at (0,3,0) it out-specifies the
+     base.css reduced-motion kill at (0,2,1) — a transition added here silently
+     escapes reduced motion (the audit B-4 trap fix B fell into). */
+  .c-chatlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
 }
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
   /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint

@@ -427,8 +427,19 @@ namespace SPIXI
         private void onLoadMore()
         {
             messagesToShow += Config.messagesToLoad;
+            // D-18 (#354): Ixian-Core Friend.getMessages(channel, msg_count) reads
+            // storage only when the channel is uncached or msg_count != 100
+            // (Friend.cs:910; 0.9.8k = commit 097341a — no git tag exists).
+            // A request of exactly 100 returns the stale cache from the previous
+            // window (75 messages). Then loadMessages() counts 75 < 100 and hides
+            // the load-more pill, with more history still on disk. Step over the
+            // poisoned value. Keep this guard until Core replaces the magic-number
+            // cache test (BE question 9).
+            if (messagesToShow == 100)
+            {
+                messagesToShow += Config.messagesToLoad;
+            }
             loadMessages();
-
         }
 
         private void onContactDetails()

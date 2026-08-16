@@ -2554,14 +2554,15 @@
   /* ————————————————————————————————————————————————————————————————————————
    * A1 (#302) — "Show older messages".
    *
-   * Chat history beyond the last 100 messages per channel was unreachable: C# is
-   * fully alive (onLoadMore :151-153 grows the window +100 :371-376 and re-flushes
-   * via loadMessages :1234) but nothing in the shell emitted the verb, and
+   * Chat history beyond the last window per channel was unreachable: C# is
+   * fully alive (onLoadMore grows the window by Config.messagesToLoad — 25 since
+   * #343, and #354 steps over the poisoned exact-100 window — then re-flushes
+   * via loadMessages) but nothing in the shell emitted the verb, and
    * clearMessages threw its `showMore` argument away.
    *
    * End-of-history needs NO heuristic — C# already tells us: loadMessages pushes
-   * show_more="false" whenever the returned count is below the window (:1246-1249)
-   * and on the empty-history path (:1239-1244).
+   * show_more="false" whenever the returned count is below the window (:1536-1537)
+   * and on the empty-history path (:1531).
    *
    * The transport is a full teardown + re-add of the whole grown window, which is
    * why this is a BUTTON and not a scroll trigger: infinite scroll on top of a
@@ -2601,7 +2602,7 @@
   }
 
   function requestOlder() {
-    if (loadingOlder) return;            // each tap costs +100 rows of C# window, permanently
+    if (loadingOlder) return;   // each tap grows the C# window by Config.messagesToLoad, permanently
     loadingOlder = true;
 
     /* Take the anchor BEFORE the re-flush. Element+offset, not a scrollHeight

@@ -7413,6 +7413,55 @@ console.log('BUG-2 — apps push cost (static)');
     '★ #340 (C-MINOR-3): startappwith rejects an id that names no installed app BEFORE it invites anyone. MiniApp.id comes verbatim out of a downloaded appinfo.spixi with no charset validation, so an id containing the ":|" delimiter mis-splits — worst case a real address lands in parts[0] and we send a network app-invite plus a chat card for an app that does not exist, then open a blank WebView');
 }
 
+/* —— #354/#355 — D-18 load-more dead end · AND-38 balance-toggle flash ——————— */
+console.log('#354/#355 — D-18 poisoned-window guard · AND-38 balance tap highlight');
+{
+  const scp354 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  /* comment-free text (mutation-harness rule 2026-08-15): the pin tracks CODE shape,
+     so a future explanatory comment inside onLoadMore cannot break it. */
+  const scpNC354 = scp354.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  ok(/private void onLoadMore\(\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*if \(messagesToShow == 100\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*\}\s*loadMessages\(\);/.test(scpNC354),
+    '★ D-18 (#354): onLoadMore steps OVER the exact-100 window. Ixian-Core Friend.getMessages re-reads storage only when the channel is uncached OR msg_count != 100 (Friend.cs:910; 0.9.8k = commit 097341a, no git tag exists) — a request of exactly 100 returns the stale previous window, loadMessages counts it short (the show_more test at :1536) and kills the pill with history still on disk. #343 cut the chunk to 25, so the THIRD press died at 75 rows (absent ≥25 arrivals mid-chat). Delete the guard and the dead end returns');
+  /* r2 (Opus MINOR-2): strip comments BEFORE matching, and anchor on the full
+     assignment with its semicolon — "= 250" and a "was 25" trailing comment both
+     evaded the first cut of this pin. */
+  const cfgNC354 = readFileSync(join(root, 'Spixi/Meta/Config.cs'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  ok(/messagesToLoad = 25;/.test(cfgNC354),
+    '★ D-18 (#354): the #343 chunk dial stands at 25 (Config.cs:57). If this value moves, re-walk the poisoned-window arithmetic in onLoadMore — only a window of EXACTLY 100 hits the Core cache test, and the guard must still be reachable on the new step sequence');
+  const whCssRaw354 = readFileSync(join(root, 'src/styles/components/wallet-hero.css'), 'utf8');
+  /* r3 (Opus r2 MINOR-4): strip CSS comments BEFORE any structural test — a rule
+     narrowed to one target with the other two names parked in a comment above it
+     evaded the r2 cut of this pin. */
+  const whCss354 = whCssRaw354.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* r2 (Opus MINOR-7): pin the BEHAVIOUR, not the formatting — any selector order
+     or line layout passes, as long as one rule block carries the kill and names
+     all three toggle targets. some(), not find(): the __qa rule ALSO kills the
+     tap highlight (pre-existing, :104). */
+  ok(whCss354.split('}').some((b) => b.includes('-webkit-tap-highlight-color: transparent')
+    && ['__balance', '__compactbal', '__eye'].every((s) => b.includes('.c-wallet-hero' + s))),
+    '★ AND-38 (#355): all three balance-toggle tap targets kill the NATIVE Android tap highlight — the "pressed state across the row" was the OS highlight over the click-bearing balance block, not pressable.js (no press family matches the hero ancestry; home.html:290 mounts the hero directly in #wallet-view)');
+  ok((() => {
+    /* brace-scan, not a regex: the eye's :active must sit INSIDE the desktop media
+       block, and exist exactly once — a second, bare copy anywhere would re-paint
+       the wash on Android and evade a substring test. */
+    const mIdx = whCss354.indexOf('@media (hover: hover) and (pointer: fine) {');
+    if (mIdx < 0) return false;
+    let depth = 0; let mEnd = -1;
+    for (let i = whCss354.indexOf('{', mIdx); i < whCss354.length; i++) {
+      if (whCss354[i] === '{') depth++;
+      else if (whCss354[i] === '}') { depth--; if (!depth) { mEnd = i; break; } }
+    }
+    if (mEnd < 0) return false;
+    const mediaBlock = whCss354.slice(mIdx, mEnd);
+    /* r3 (Opus r2 MINOR-3): whitespace-tolerant — a three-line reformat of the
+       rule is not a defect and must pass. */
+    return /\.c-wallet-hero__eye:active\s*\{\s*background:\s*var\(--surface-wash-on-hero-pressed\);\s*\}/.test(mediaBlock)
+      && (whCss354.match(/\.c-wallet-hero__eye:active/g) || []).length === 1;
+  })(),
+    '★ AND-38 r2 (#355, Opus MINOR-5): the eye\'s :active wash is DESKTOP-GATED like its hover — the eye IS the balance toggle, and Damir\'s dial says the toggle shows no pressed state; a bare :active would keep painting the wash on every Android tap. The quick-action circles keep their ungated :active by design (navigation, not the toggle)');
+}
+
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.
  * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known

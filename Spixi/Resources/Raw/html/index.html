@@ -2669,12 +2669,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-wallet-hero__eye:focus-visible,
 .c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
 
-/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline) */
+/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline).
+   AND-38 r2 (#355): the eye's :active moved INSIDE the desktop gate. The eye is
+   the balance toggle, and the toggle shows no pressed paint outside this gate
+   (Damir's dial, from the A52). A fine-pointer press keeps its feedback — that
+   includes a finger tap on a hover-capable hybrid, an accepted edge. The
+   quick-action circles keep their ungated :active — they navigate, they are
+   not the toggle. */
 @media (hover: hover) and (pointer: fine) {
   .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
   .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
+  .c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
 }
-.c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
 .c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
 
 /* tap-to-hide affordance (Damir #135): the whole balance block + compact balance toggle.
@@ -2683,6 +2689,17 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-wallet-hero__balance { cursor: pointer; }
 .c-wallet-hero__compactbal { cursor: pointer; pointer-events: none; }
 .c-wallet-hero[data-compact] .c-wallet-hero__compactbal { pointer-events: auto; }
+
+/* AND-38 (#355): the balance toggle shows NO pressed state — the value just swaps
+   (Damir's dial, 2026-08-16). All three tap targets carry a click handler, so
+   Android paints its native tap highlight across the whole block without this.
+   pressable.js is not involved: no press family matches the hero ancestry
+   (home.html:290 — the hero sits directly in #wallet-view). */
+.c-wallet-hero__balance,
+.c-wallet-hero__compactbal,
+.c-wallet-hero__eye {
+  -webkit-tap-highlight-color: transparent;
+}
 
 </style>
 <style data-src="../styles/components/wallet-shell.css">

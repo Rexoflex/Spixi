@@ -6,18 +6,19 @@ original filename. ⚠ If you go digging there, three NAMES lie:
 **2026-08-13** and are OLDER than the file above. Read the date in the header, never the
 file name.
 
-Then read `docs/f5-findings-2026-08-15.md`. That is the work list — twelve defects and nine
-ideas from a Windows F5 pass, each already triaged with file:line evidence, an owner and an
-effort. **Do not re-derive them.**
+Then read `docs/f5-findings-2026-08-15.md`. That is the work list — **17 defects and 11
+ideas**, each already triaged with file:line evidence, an owner and an effort. **Do not
+re-derive them.**
 
 Write all output in ASD-STE100 Simplified Technical English. This applies to chat, docs, code
 comments and commit messages. See the language rule in `CLAUDE.md`.
 
 **Verify the state before you plan anything.** Handoffs in this project have been wrong about
-the commit state more than once. Check `git --no-optional-locks log --oneline -3` and
-`git --no-optional-locks status --porcelain` yourself. Batches **#348** and **#348b** were on
-Damir's disk and uncommitted when the last session ended. Confirm whether he has committed
-and pushed them. If he has not, that is step one and nothing else starts before it.
+the commit state more than once — including this one, mid-session. Check
+`git --no-optional-locks log --oneline -3` and `git --no-optional-locks status --porcelain`
+yourself. **Expect a CLEAN tree at `0a8cf16`**, with `99e2106` (#348 + #348b) beneath it and
+`f11286a` beneath that. If the tree is dirty or those commits are missing, stop and sort that
+out before anything else.
 
 Set up a cloud twin first. The Windows working tree is mixed CRLF and
 `scripts/build-demo-bundle.mjs` cannot parse a CRLF component, so it fails on Damir's PC.
@@ -35,76 +36,58 @@ Ship results back as a tarball through `SendUserFile` + `device_commit_files`, t
 rejects the flag and it overwrites by default. **The mount CANNOT unlink**, so never plan a
 step that deletes a file on the mount. Damir is on PowerShell, not CMD.
 
-## FIRST ACTION
+## ★ DAMIR'S RULE FOR THIS PHASE (2026-08-15)
 
-⚠ **Read D-14 first.** An Ixian-Core `0.9.8k` regression (commit `5643e5b`) nulls the sender
-address on every BOT-chat message, because a bot chat's friend is `FriendType.Normal` and the
-new test has no `bot` exception. It breaks tipping in every bot room and it is **not ours**.
-One word in Core fixes it. It is BE item 1. Check whether the engineer has shipped it before
-you plan any tipping work.
+**"We need to focus on fixing stuff and finalizing our work load as agreed, and we just leave
+BE dependent stuff for last part."**
 
-**The Android pass is OWED.** Three items in #348 and #348b have never run on a touch device:
-**A9** (Android landscape Account), **A7** (the FAB residue), and **A5 / I-8** (the centre-out
-press fill on touch — Windows tested it with a mouse only). The **Android Release `PERF`
-numbers** are owed as well. ★ `PerfTrace` **must be deleted before any release** and it stays
-in the tree until those numbers exist.
+Follow it literally. **§9 of the handover splits every open item into table A (build now,
+nothing external blocks it) and table B (parked until the engineer answers).** Work table A
+top to bottom. Do NOT open a table B item, and do not design around one — if a plan needs a
+BE answer, it belongs in table B and it waits.
 
-Give Damir a short device runsheet for these, one step at a time, and wait for each result.
+⚠ **Before you plan anything, check whether the BE answers arrived.** Two of them change
+table A: **Q1 (D-14)** is a one-word Core fix that restores tipping in bot rooms, and
+**Q2** decides whether the Leave half of D-15 can be built.
 
-## ★ AND A SESSION OF ITS OWN: TIPPING + GROUP BEHAVIOUR
+## FIRST ACTION — the Android pass. It is OWED.
 
-**Damir, 2026-08-15:** *"tipping and group behavior needs its own separate session that we
-need to test out everything."* Do NOT fold this into a mixed batch again — this session
-proved why. Give it one dedicated device session that walks the whole surface:
+Three items in #348 and #348b have **never run on a touch device**: **A9** (Android landscape
+Account), **A7** (the FAB residue), and **A5 / I-8** (the centre-out press fill on touch —
+Windows tested it with a mouse only). The **Release `PERF` numbers** are owed as well.
+★ `PerfTrace` **must be deleted before any release** and it stays in the tree until those
+numbers exist.
 
-- **Tipping:** 1:1 · private group · bot room · over balance · twice on one message · after
-  an account restore · the amount and its digit grouping (**I-6**).
-- **Groups:** leave · kick · ban · delete · add member · rename · re-avatar — each one as
-  OWNER and as member, in a normal group, a bot room and a blind room.
+Give Damir a short device runsheet, one step at a time, and wait for each result.
 
-**D-4 · D-10 residual · D-12 · D-14 · D-15 · CI7** all live in that surface, and most need a
-BE answer first. **Get the BE answers BEFORE the session** or it becomes another triage pass.
+## Then work table A in order
 
-## Then, in this order
+The full table with owners and effort is in the handover. In short:
 
-1. ★ **D-16 — the press fill.** Damir saw it at F5 and chose to DEFER rather than ship it
-   unaudited. Two defects in one: the sweep is only as long as the click (`pressable.js` holds
-   `data-pressed` only between `pointerdown` and `pointerup`, and `base.css:300` flips
-   `background-size` only while it is present), and a selected, hovered row lands on
-   `--surface-action-tonal-hover` = `primary-600` — which is also `--surface-action-default`,
-   the filled BUTTON surface. Fix A + B first (a ~250 ms floor with the #346 cancel latch
-   still winning; ease the selected-row hover in at the fill duration). Do C — the token ramp
-   — **with I-2**, same disease one step apart. ⚠ This is the ONE shared press mechanism and
-   **#343 is the precedent**: #46 loop and mutation pins required.
-2. **D-17** — the Apps search field appears then disappears on a first visit with an empty
-   list. FE, small. Read #340 C-MAJOR-1a/b/c first; same surface.
-3. **I-10** — the app pane feels slow to open. ⚠ **MEASURE FIRST (#294).** One `PerfTrace`
-   reading. #340 BUG-2② is the prime suspect.
-4. **D-9** — finish the delete-account story on device. The alert-safety half (D-9②) is built;
-   the black-screen and the "account exists" dead end need a device test.
-5. **Cheap and unblocked:** I-2 (an outline on the selected chip), I-6 (digit grouping in the
-   tip amount — a money-safety item).
-6. **D-6** (account tier copy), only when the BE engineer answers. Damir is asking him.
-7. **I-1 + the welcome flicker**, as ONE native transition treatment. ★ **MOBILE ONLY** — on
-   desktop the chat is a pinned pane in a grid column, not a pushed page. Gate on
-   `DeviceInfo.Platform`, never on `DeviceInfo.Idiom` (it is posture-dependent) and never on
-   the window width. Measure on the A52 before you judge it (#294, and #343 is the precedent).
-8. **D1 — reply-to.** ★ **DESIGN LOCKED** by Damir on 2026-08-15, and no longer BE-blocked.
-   Read the D1 section of the findings doc in full before you plan it. In short: no protocol
-   change, the reference rides in the body as a message ID, the quote is resolved LOCALLY and
-   its text is never sent, and tapping the quote jumps to the referenced message. **Three
-   small C# pieces; the FE half is already built behind `bridge.cap('reply')`.**
-   **Verify the two-device id round-trip BEFORE you build** (#215).
-9. **The security sweep, LAST.**
+**D-16** (the press fill — it does not finish on a fast click, and a selected hovered row
+lands on `--surface-action-tonal-hover` = `primary-600`, which is also
+`--surface-action-default`, the filled BUTTON surface) → **I-2 + D-16 fix C together**, one
+token pass → **D-17** → **I-6** → **D-5** → **D-9** → ★ **D1 reply-to** → **I-1 + the welcome
+flicker** → **I-10 / I-9** (measure first) → the honest halves of **D-4** and **D-15** →
+**D-1 part B** → **D-7 + I-11 together** (both are copy across 13 locale files — one locale
+round, not two) → **I-3** → and **the security sweep LAST**.
 
-⚠ **A5 and CI7 stay BLOCKED.** Group rename and add-member are still not available in
-Ixian-Core. **Do not plan around them.**
+⚠ **D-16 changes the ONE shared press mechanism and #343 is the precedent** — a motion change
+that passed review and made chat entry worse on device, reverted the same night. **#46 loop
+and mutation pins are required.**
 
-## EIGHT questions for the BE engineer
+★ **Tipping and group behaviour still get their own device session** (Damir, 2026-08-15).
+Walk the whole surface: tip in a 1:1 · a private group · a bot room · over balance · twice on
+one message · after a restore. Groups: leave · kick · ban · delete · add member · rename ·
+re-avatar, each as OWNER and as member, in a normal group, a bot room and a blind room.
 
-They are listed with evidence at the end of `docs/f5-findings-2026-08-15.md`. **Item 1 (D-14,
-the `0.9.8k` bot-chat sender-address regression) is urgent and is one word.** Item 7 — *can a
-reaction be REMOVED?* — unblocks two open items at once (the D-10 residual and D-12).
+## Table B — the eight BE questions, for reference only
+
+Do not build against these. They are listed with file:line evidence at the end of
+`docs/f5-findings-2026-08-15.md`, and as a table in §9B of the handover.
+**Q1 (D-14)** is urgent and is one word. **Q7** — *can a reaction be REMOVED?* — unblocks two
+items at once (D-12 and the D-10 residual). **A5 and CI7 stay BLOCKED**: group rename and
+add-member are not in Core, so do not plan around them.
 
 ## The rules
 

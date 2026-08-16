@@ -70,3 +70,29 @@ AND-5 ✅ built (L3 onboarding `ixian:backup` + stamp) · AND-6 ✅ built (surfa
 | AND-29 v2 | Wallet **Receive** back still exited (its shell takeover open never pushed state — only contacts did; v1 **Send** is a native page, so it was fine) + "**some sheets also exit**" (overlay.js sheets/menus were untracked). | **FIXED (#336)** — wallet takeover opens now push `ixian:homeoverlay`; state also mirrors `body[data-overlay-open]` via a MutationObserver; `homeBack` closes the top SHEET (dismissTopOverlay) before a takeover. Device-verify Receive + a row-menu/create-group sheet. |
 | Splash-anim | Damir F5: barely noticeable, mark too big + clipped by the splash circle, dots too fast — "far from premium, revert to basic". | **REVERTED (#336)** — the two windowSplashScreen*AnimatedIcon lines removed → the clean #334 static blue splash. `drawable/spixi_splash_{logo,anim}.xml` kept for a future round (needs proper icon artwork sized to the Android-12 66% safe circle + one slower motion). |
 | AND-30 | **Member sheet (from a group) offers "Add contact" even when the person is ALREADY a contact** — should show basic actions (Send message / View profile) instead (the #14 "bonkers" note; the desktop demo already handles this). Root: the member sheet has no relation datum (chat shell: "relation defaults 'none' — no contact roster"). | OPEN — next session. Needs a relation flag (already-contact vs not) threaded to the member sheet (roster check or a small C# relation push) → swap the request action for Message/View-profile when known. |
+
+## Android pass 2026-08-16 (#349) — the owed #348/#348b device run, Release PERF, landscape findings
+
+**Verdicts:** A9 landscape Account ✅ · A7 FAB residue + "New chat" title ✅ (5 fast taps clean) ·
+A5/I-8 press fill on touch ✅ (hold = smooth centre-out fill; tx row identical) · reduced motion ✅
+(instant flat tint; needs an app restart to take effect — accepted) · OS high-contrast /
+highlight-buttons settings show no visible change in Spixi — no action, a11y is by design.
+**Open leg:** flick-scroll cancel (not enough chats at test time; the account now has them).
+**The press spec grew during the pass** — no retract on activation, fill always completes on a
+tap — that is the D-16 build, not an AND row. See DECISIONS #349.
+
+**Release `PERF` numbers (A52, Release, 2026-08-16) — the owed measurement:**
+chat open tap→loaded = **234 ms cold / 212 ms warm / 229 ms** (generatePage 55–89 ms ·
+handover+parse ~120 ms · push 19–25 msgs 9–36 ms). Chat info generatePage = 78 ms.
+**Verdict (#294): no segment dominates; no further chat-entry work is justified.
+The `PerfTrace` deletion is UNBLOCKED** (it must be gone before any release).
+
+| # | Finding | Status |
+|---|---------|--------|
+| AND-31 | **Landscape wallet: only the small visible strip of the tx LIST scrolls** — the hero eats the height, so the grab area is tiny. Same class to check on all main screens in landscape | OPEN — landscape round |
+| AND-32 | **Landscape apps: the Explore banner stays STICKY while the empty state scrolls** under it | OPEN — landscape round |
+| AND-33 | **Landscape tx details: the surface is cut off and does not scroll.** Half of it falls to the logged R6 tx-detail rework; the cut-off itself is its own defect | OPEN — landscape round (with R6) |
+| AND-34 | **Chat appearance: the text-size preview squeezes in landscape.** Check every view in landscape | OPEN — landscape round |
+| AND-35 | ★ Damir dial (x-plat FE, copy + order): in Chat appearance, move the TEXT SIZE control ABOVE the pattern control · rename "Pattern style" → **"Background"** · rename "Background pattern" → **"Opacity"**. Strings = one locale round | OPEN — ride a locale round |
+| AND-36 | **Rotating landscape → portrait leaves the last-active chat row HIGHLIGHTED** on the chats list, persistently. The selected-row state never clears on mobile after rotation | OPEN — FE, home shell |
+| AND-37 | **OS back over an open Account bottom sheet (language, appearance, theme) lands on CHATS** instead of closing the sheet. The settings shell has no sheet-state push, so native back pops the whole page — the AND-29b class, unapplied to settings.html | OPEN — FE + small C#, AND-29 family |

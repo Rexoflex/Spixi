@@ -1,3 +1,5 @@
+> ⚠ **SUPERSEDED 2026-08-16.** Read `docs/handoff-2026-08-16b.md` instead. The FIRST ACTION (the Android pass) ran and passed; PerfTrace is deleted; D-16 is built.
+
 Read `docs/handoff-2026-08-15c.md` first. It is the live state.
 
 It is the ONLY handoff in `docs/`. Everything consumed lives in `docs/archive/` under its

@@ -83,7 +83,13 @@
   const {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
+    attachPressFeedback,
   } = window.Spixi;
+  /* D-16 r2/r3 (audits C-4 + Opus finding 2): this shell renders the Downloads
+     surface — the FILE rows (.c-settings-dl__open, a press family since r3) and
+     one destructive .c-settings__row — and was the one rows-bearing shell without
+     the shared press mechanism. */
+  attachPressFeedback();
   const strings = window.SL || {};
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by

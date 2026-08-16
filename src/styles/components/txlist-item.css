@@ -44,8 +44,10 @@
   background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-txlist-item:hover { background-color: var(--surface-interactive-hover); }
-  .c-txlist-item[aria-current]:hover { background-color: var(--surface-action-tonal-hover); }
+  /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
+     see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
+     ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
+  .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
 }
 /* :active AFTER the hover block so pressed wins (source order at equal specificity) */
   /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint

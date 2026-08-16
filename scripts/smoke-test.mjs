@@ -2856,7 +2856,12 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     ok(row.dataset.pressed === 'row',
       '★ #343: a press lands on pointerdown, not click. `click` fires on RELEASE, so using it would add the very delay this exists to hide');
     row.dispatchEvent(pe('pointerup', 100, 100));
-    ok(row.dataset.pressed === undefined, '#343: the press clears on release');
+    /* ★ D-16 (#351) — THE CONTRACT FLIPPED HERE, deliberately. Until #351 this pin
+       asserted the press clears on release, and that instant clear was the defect:
+       a 60 ms click froze the sweep at ~65% and the row snapped (Damir's recording).
+       A committed ROW press now SURVIVES the release until the fill completes. */
+    ok(row.dataset.pressed === 'row',
+      '★ D-16 (#351): a row press SURVIVES pointerup — the completion floor holds data-pressed until --duration-300 has elapsed, so a fast click plays the same full sweep as a hold. If this cleared instantly, the fill would freeze mid-width and snap');
 
     row.dispatchEvent(pe('pointerdown', 100, 100));
     row.dispatchEvent(pe('pointermove', 100, 140));
@@ -2883,12 +2888,21 @@ console.log('settings.html — lock shell (Phase 1 #4)');
        listener sees momentum scrolling long after touchend, and programmatic scrolls
        (scroll-to-newest-message, focus() pulling an input into view) with no gesture at
        all. Latching on those killed the FIRST tap after any scroll for up to 1200 ms. */
+    /* ★ D-16 r2 (audit C-1, mutation-proven): this pin must run on a FRESH row.
+       The pointerup above leaves `row` in its afterlife with data-pressed still
+       set, so a latch regression's early-return in onDown would leave the LEFTOVER
+       attribute for the assertion to read — the pin passed with the very defect it
+       gates re-introduced. row2 has no history, so the assertion reads only what
+       THIS pointerdown armed. */
+    const row2 = d.createElement('div');
+    row2.className = 'c-chatlist-item';
+    pressRoot.append(row2);
     pressRoot.dispatchEvent(new W.Event('scroll', { bubbles: true }));
     d.dispatchEvent(new W.Event('scroll'));
-    row.dispatchEvent(pe('pointerdown', 100, 100));
-    ok(row.dataset.pressed === 'row',
+    row2.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row2.dataset.pressed === 'row',
       '★ #346 review MAJOR-1: the tap straight after a settled fling still lights up. Measured in Chromium before the fix: no feedback at 100/500/900/1150 ms after the last momentum scroll event, feedback at 1400 ms — the PRESS_SAFETY_MS backstop, not the gesture');
-    row.dispatchEvent(pe('pointerup', 100, 100));
+    row2.dispatchEvent(pe('pointerup', 100, 100));
 
     /* ★ #346 review r2 MINOR-4: a gesture that ends with NO end event (the WebView
        swallowed it, an overlay took the finger) used to leave the in-flight flag set,
@@ -2921,6 +2935,65 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     detach();
     row.dispatchEvent(pe('pointerdown', 100, 100));
     ok(row.dataset.pressed === undefined, '#343: detach() really detaches (no listener leak across shells)');
+    pressRoot.remove();
+  }
+
+  /* ★ D-16 (#351) — the press AFTERLIFE, timed with real timers. jsdom cannot
+   * resolve the duration tokens, so readMs falls back to 300/200 ms — which makes
+   * these deterministic. The margins are wide on purpose (CI timer jitter). */
+  {
+    const pressRoot = d.createElement('div');
+    pressRoot.innerHTML = '<div class="c-chatlist-item"></div><button class="c-button"></button>';
+    d.body.append(pressRoot);
+    const detach = W.Spixi.attachPressFeedback({ root: pressRoot });
+    const row = pressRoot.querySelector('.c-chatlist-item');
+    const btn = pressRoot.querySelector('.c-button');
+    const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+
+    // 1. A fast tap: the floor holds, then the fade runs, then everything is clean.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointerup', 100, 100));
+    await sleep(120);
+    ok(row.dataset.pressed === 'row' && row.dataset.pressfade === undefined,
+      '★ D-16 (#351): 120 ms after a fast tap the sweep is STILL RUNNING (data-pressed held by the floor, no fade yet) — the release did not truncate the fill');
+    await sleep(320);
+    ok(row.dataset.pressed === undefined && /^(hold|out)$/.test(row.dataset.pressfade || ''),
+      '★ D-16 (#351): after the floor the press hands off to the FADE (data-pressfade hold→out) — a flat colour fading in place, never the reverse sweep');
+    await sleep(400);
+    ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
+      '★ D-16 (#351): the afterlife CLEANS UP — both attributes gone, no timer strands a lit row');
+
+    // 2. A press that became a scroll earns no fill and no fade.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointermove', 100, 140));
+    row.dispatchEvent(pe('pointerup', 100, 140));
+    await sleep(360);
+    ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
+      '★ D-16 (#351): a scroll-cancelled press gets NO afterlife — Damir: "if someone wants to scroll, nothing fills"');
+
+    // 3. pointercancel (the system took the gesture) aborts, never completes.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointercancel', 100, 100));
+    await sleep(360);
+    ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
+      '★ D-16 (#351): pointercancel is an ABORT, not a lift — on Android a cancel IS the scroll takeover, and completing on it would light every flicked row');
+
+    // 4. Controls keep the instant release.
+    btn.dispatchEvent(pe('pointerdown', 10, 10));
+    btn.dispatchEvent(pe('pointerup', 10, 10));
+    ok(btn.dataset.pressed === undefined && btn.dataset.pressfade === undefined,
+      '★ D-16 (#351): a CONTROL still clears on release instantly — the floor and the fade are row grammar only');
+
+    // 5. A re-press mid-fade interrupts the fade and re-arms the sweep.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointerup', 100, 100));
+    await sleep(360);
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === 'row' && row.dataset.pressfade === undefined,
+      '★ D-16 (#351): pressing a row mid-fade cancels its afterlife and re-arms the press — the fade and a new sweep never fight over one element');
+    row.dispatchEvent(pe('pointercancel', 100, 100));
+
+    detach();
     pressRoot.remove();
   }
 
@@ -5314,7 +5387,7 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   /* ★ #346: the old pin said "drops the scale and every transition" and only ever
      verified the scale — deleting the whole `transition: none` half left it passing. */
   ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}?\[data-pressed="control"\] \{ transform: none; \}/.test(baseCss)
-    && /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,700}?html:root \.fab \{\s*\n?\s*transition: none;/.test(baseCss),
+    && /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,900}?html:root \.fab \{\s*\n?\s*transition: none;/.test(baseCss),
     '#343/#346: reduced motion drops the scale AND every press transition — both halves verified, not just the scale');
 
   /* ★ #346 (review of #343) — THE PRESS RELEASE RULE MUST NOT CLOBBER COMPONENTS.
@@ -5354,6 +5427,9 @@ console.log('#343 — instant chrome, first-commit fade, message window');
       + '<div class="c-wallet-receive__contact" id="wr"></div>'
       + '<div class="c-settings__row" id="psr" data-pressed="row"></div>'
       + '<div class="c-txlist-item" id="ptx" data-pressed="row"></div>'
+      // D-16 r3 (Opus finding 2): the Downloads file row joined the family.
+      + '<button class="c-settings-dl__open" id="dl"></button>'
+      + '<button class="c-settings-dl__open" id="pdl" data-pressed="row"></button>'
       + '<div class="c-chatlist-item" id="rsel" aria-current="true"></div>'
       + '<div class="c-txlist-item" id="txsel" aria-current="true"></div>'
       + '<button class="c-button" id="pb" data-pressed="control"></button>'
@@ -5408,7 +5484,7 @@ console.log('#343 — instant chrome, first-commit fade, message window');
        full width with no sweep, silently restoring the flat tint. */
     for (const [id, what] of [['pr', '.c-chatlist-item'], ['pcr', '.c-contacts__row'],
       ['pai', '.c-app-item'], ['par', '.c-apps-recents__item'],
-      ['pwr', '.c-wallet-receive__contact']]) {
+      ['pwr', '.c-wallet-receive__contact'], ['pdl', '.c-settings-dl__open']]) {
       ok(/background-size/.test(tr(id)),
         '★ A5 (#348): ' + what + ' animates background-size WHILE PRESSED — that transition is the centre-out sweep, and it must out-order the instant-on rule to exist at all');
     }
@@ -5428,7 +5504,8 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     for (const [rest, pressed, what] of [['r', 'pr', '.c-chatlist-item'],
       ['cr', 'pcr', '.c-contacts__row'], ['aio', 'paio', '.c-app-item__open'],
       ['ar', 'par', '.c-apps-recents__item'], ['wr', 'pwr', '.c-wallet-receive__contact'],
-      ['sr', 'psr', '.c-settings__row'], ['tx', 'ptx', '.c-txlist-item']]) {
+      ['sr', 'psr', '.c-settings__row'], ['tx', 'ptx', '.c-txlist-item'],
+      ['dl', 'pdl', '.c-settings-dl__open']]) {
       const a = fillOf(rest), b = fillOf(pressed);
       ok(/linear-gradient/.test(a.img),
         '★ A5 (#348): ' + what + ' carries the fill image AT REST. Declaring it only under [data-pressed] leaves the release nothing to shrink, and putting it on a CHILD of the pressed element (the .c-app-item mistake this pin now catches) means the size flip can never reach it');
@@ -5454,7 +5531,8 @@ console.log('#343 — instant chrome, first-commit fade, message window');
          the fill now lives on. A `background` shorthand in its :hover or :active would
          have killed the apps sweep with the whole suite green. */
       const ROWCLS = ['c-chatlist-item', 'c-txlist-item', 'c-settings__row', 'c-contacts__row',
-        'c-app-item', 'c-app-item__open', 'c-apps-recents__item', 'c-wallet-receive__contact'];
+        'c-app-item', 'c-app-item__open', 'c-apps-recents__item', 'c-wallet-receive__contact',
+        'c-settings-dl__open'];   // D-16 r3: the Downloads file row joined the family
       /* ★ review r3 — THREE FALSE NEGATIVES fixed. The first version read only the
          component folder plus two shells, examined only the FIRST `background:` in each
          rule (so a rule opening with `background: transparent` — and two shipped row
@@ -5530,7 +5608,10 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   ok(/\.chat-boot__spinner \{[\s\S]{0,220}?animation: chat-boot-spin/.test(chatSh),
     '★ #346 (review of the #343 revert): .chat-boot__spinner has a BOX again. That sizing rule is PRE-#343 and the revert took it out beside the #343 delay rule, leaving an empty display:inline span that paints nothing — so the chat log was a blank rectangle for the whole entry window, WORSE than the state the revert meant to restore. #343 only ever argued the spinner should be delayed, never removed');
 
-  for (const sh of ['chat', 'home', 'settings', 'contact_details']) {
+  /* D-16 r2 (audit C-4): downloads.html joined — it renders .c-settings__row rows
+     and was the one rows-bearing shell without the mechanism (two press grammars
+     for the same row family across Account sublevel vs standalone takeover). */
+  for (const sh of ['chat', 'home', 'settings', 'contact_details', 'downloads']) {
     const src = readFileSync(join(root, 'src/shells/' + sh + '.html'), 'utf8');
     ok(/attachPressFeedback\(\);/.test(src) && /attachPressFeedback,/.test(src),
       '#343: ' + sh + '.html attaches press feedback (one line per shell — the delegated listener covers rows created by later re-renders)');
@@ -5658,7 +5739,8 @@ console.log('#348b — F5 follow-up fixes');
 
   /* —— I-8: the press fill's colour and speed (Damir's dial) —— */
   const ROWFILES = ['chatlist-item', 'txlist-item', 'settings-shell', 'contacts-shell',
-    'wallet-receive', 'apps-item', 'apps-recents'];
+    'wallet-receive', 'apps-item', 'apps-recents',
+    'settings-app'];   // D-16 r3: the Downloads file row joined the family
   for (const f of ROWFILES) {
     const css = readFileSync(join(root, 'src/styles/components/' + f + '.css'), 'utf8');
     ok(/background-image: linear-gradient\(var\(--surface-action-tonal-default\), var\(--surface-action-tonal-default\)\)/.test(css),
@@ -5666,6 +5748,107 @@ console.log('#348b — F5 follow-up fixes');
   }
   ok(/html:root \[data-pressed="row"\],\s*\r?\n\s*html:root \[data-pressed="row"\] \.c-app-item__open \{[\s\S]{0,900}?transition: background-size var\(--duration-300\)/.test(baseB),
     '★ I-8 (#348b): the press OPEN runs at --duration-300, and the .c-app-item__open CHILD is in the same rule. pressable.js flags the wrapper but the child is the box that paints, and it carries its own 220 ms ACCELERATE declaration — without the child selector the apps row opens on the opposite easing family from the other six');
+
+  /* —— ★ D-16 (#351): the fill COMPLETES, then FADES — the afterlife, at source —— */
+  {
+    const pjs = readFileSync(join(root, 'src/components/pressable.js'), 'utf8');
+    const bcss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+    ok(/if \(el && el\.dataset\.pressed === 'row'\) \{[\s\S]{0,240}?handoff\(elm, pressStart, gestureViaTouch/.test(pjs),
+      '★ D-16 (#351): endGesture hands a committed ROW press to the afterlife instead of clearing — deleting this resurrects the sweep frozen at 65% from the Damir recording');
+    ok(/'touchcancel', abortGesture/.test(pjs) && /'pointercancel', abortGesture/.test(pjs)
+      && !/'touchcancel', endGesture/.test(pjs) && !/'pointercancel', endGesture/.test(pjs),
+      '★ D-16 (#351): touchcancel/pointercancel bind the ABORT, never the release — on Android a cancel IS the scroll takeover, and a release there plays a full fill on every flick');
+    ok(/readMs\('--duration-300', FILL_FALLBACK_MS\)/.test(pjs)
+      && /readMs\('--duration-200', FADE_FALLBACK_MS\)/.test(pjs)
+      && /fillMs - \(performance\.now\(\) - pressedAt\)/.test(pjs) && !/Date\.now\(\)/.test(pjs),
+      '★ D-16 (#351): the floor reads the LIVE duration tokens and the MONOTONIC clock — a wall-clock step backwards between press and release would hold the tint for the size of the step (audit A-2)');
+    ok(/if \(fadeMs <= 0\) \{ killAfterlife\(elm\); return; \}/.test(pjs),
+      '★ D-16 (#351): reduced motion skips the fade states entirely — holding a flat tint over two rAFs with 0ms transitions serves nobody');
+    ok(/killAfterlife\(t\);/.test(pjs)
+      && /const onHide = \(\) => \{ abortGesture\(\); killAllAfterlives\(\); \};/.test(pjs),
+      '★ D-16 (#351): a re-press interrupts its target’s afterlife, and hiding the page kills them ALL — no fade timer may strand a lit row across an overlay or a backgrounding');
+    ok(/a\.t3 = setTimeout\(\(\) => killAfterlife\(elm\), Math\.max\(remaining, 0\) \+ fadeMs \+ 1500\);/.test(pjs)
+      && /clearTimeout\(a\.t1\); clearTimeout\(a\.t2\); clearTimeout\(a\.t3\);/.test(pjs),
+      '★ D-16 r2 (audit A-5): every afterlife carries an UNCONDITIONAL timer backstop and killAfterlife clears it — a rAF stall on a covered-but-not-hidden WebView must not strand a flat-tinted row until vsync resumes');
+    ok(/if \(gh && !e\.touches && e\.pointerType !== 'mouse' && e\.pointerType !== 'pen'\s*\r?\n?\s*&& gh\.viaTouch && \(performance\.now\(\) - gh\.at\) < 800\) return;/.test(pjs),
+      '★ D-16 r2/r3 (audit A-1 + Opus 4c): the GHOST guard — a late synthesised pointerdown after a committed TOUCH tap must not kill the earned afterlife and re-arm a spurious press. pointerType exempts a REAL mouse/pen (a hybrid laptop finger-tap-then-click must keep its feedback); a real second touch tap begins with touchstart and passes');
+    ok(/const gh = t && afterlives\.get\(t\);[\s\S]{0,700}?return;\s*\r?\n\s*clear\(\);\s*\r?\n\s*if \(!t\) return;/.test(pjs),
+      '★ D-16 r3 (Opus finding 5): the ghost guard runs BEFORE clear() — a ghost for row A must not kill a live press already armed on row B; the old order wiped B mid-sweep and B’s release then found nothing to complete');
+    ok(/const stampTouch = \(e\) => \{\s*\r?\n?\s*if \(e && \(e\.touches \|\| e\.changedTouches\)\) lastTouchTs = performance\.now\(\);/.test(pjs)
+      && (pjs.match(/stampTouch\(e\);/g) || []).length >= 4,
+      '★ D-16 r3 (Opus finding 4a): lastTouchTs is stamped on EVERY touch-stream event (down/move/end/cancel) — stamping only touchstart left any press held over a second unprotected, because the release evaluates the window and the start was too old by then');
+    ok(/handoff\(elm, pressStart, gestureViaTouch \|\| !!\(e && \(e\.touches \|\| e\.changedTouches\)\)\)/.test(pjs)
+      && /gestureViaTouch = !!e\.touches \|\| \(performance\.now\(\) - lastTouchTs\) < 300;/.test(pjs)
+      && /viaTouch: viaTouch === true,/.test(pjs),
+      '★ D-16 r4 (Opus finding 2): viaTouch is PER-GESTURE state decided at ARM time and passed into handoff explicitly — deriving it at release from lastTouchTs raced Chromium’s pointerup-before-touchend order, and a still one-second press shipped unprotected');
+    ok((() => {
+      const rmStart = bcss.indexOf('@media (prefers-reduced-motion: reduce)');
+      if (rmStart < 0) return false;
+      const fabAt = bcss.indexOf('html:root .fab', rmStart);
+      if (fabAt < 0) return false;
+      const rmBlock = bcss.slice(rmStart, fabAt + 60);
+      const rowsM = pjs.match(/PRESSABLE_ROW = \[([\s\S]*?)\]\.join/);
+      if (!rowsM) return false;
+      /* r5 (Opus NIT-1): derive from the LAST compound of EVERY quoted entry, and
+         fail on an entry that is not class-shaped — the first cut silently skipped
+         attribute/element-qualified entries and only read a descendant's first class. */
+      const entries = [...rowsM[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+      const classes = entries.map((sel) => {
+        const last = sel.trim().split(/[\s>+~]+/).pop() || '';
+        const cm = last.match(/^\.([a-z0-9_-]+)/i);
+        return cm ? cm[1] : null;
+      });
+      return entries.length >= 8
+        && classes.every((c) => c && rmBlock.includes('html:root .' + c));
+    })(),
+      '★ D-16 r4 (Opus finding 1): EVERY class in PRESSABLE_ROW appears in the base.css reduced-motion kill list — a family missing from it plays its literal 220ms close under reduced motion. Membership is DERIVED from the source array (last compound, fail-loud on non-class entries), so the next family cannot repeat the settings-dl miss');
+    ok(/'\.c-settings__row:not\(\.c-settings__row--static\)'/.test(pjs),
+      '★ D-16 r2 (audit B-6): STATIC settings rows are excluded from the press mechanism — the CSS already gates :hover/:active behind :not(--static), and a committed fill+fade on the version row reads as a broken action');
+    ok(/'\.c-settings-dl__open',/.test(pjs),
+      '★ D-16 r3 (Opus finding 2): the Downloads FILE row is in PRESSABLE_ROW — without it the screen has two press grammars the wrong way round: the destructive "Delete all" row responsive, every file row dead on iOS where bare :active is unreliable');
+    ok(/html:root \[data-pressfade="hold"\]\[data-pressfade\]:not\(\.c-app-item\) \{\s*transition: none;\s*background-color: var\(--surface-action-tonal-default\)/.test(bcss),
+      '★ D-16 (#351): HOLD = the fill colour as a FLAT background-color with transition: none. The DOUBLED attribute is load-bearing (audit B-1): three row families gate :hover behind :not() at (0,3,0), and at (0,2,1) the hover colour beat the fade on every mouse device — a hard pop and no fade at all');
+    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:not\(\.c-app-item\) \{\s*transition: background-color var\(--duration-200\) var\(--easing-standard, ease-out\);\s*background-color: transparent/.test(bcss),
+      '★ D-16 (#351): OUT fades ONLY background-color at --duration-200 — listing background-size here re-animates the collapsed image and resurrects the reverse sweep');
+    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-interactive-hover\)/.test(bcss),
+      '★ D-16 r2 (audit B-5): under a stationary mouse the fade LANDS on the hover wash — without this the row dips through transparent and pops back up 100ms later, a bounce under the cursor');
+    ok(/html:root \[data-pressfade="hold"\]\[data-pressfade\]\[aria-current\] \{\s*background-color: var\(--surface-action-tonal-pressed\)/.test(bcss)
+      && /html:root \[data-pressfade="out"\]\[data-pressfade\]\[aria-current\] \{[\s\S]{0,180}?background-color: var\(--surface-action-tonal-default\)/.test(bcss),
+      '★ D-16 (#351): a SELECTED row holds tonal-PRESSED and fades to tonal-DEFAULT — its own selected paint — so the fade lands seamlessly. Mid-fade re-target happens where aria-current is patched IN PLACE (wallet tx rows); a chat row is replaced by the re-render, the accepted A-3 cut');
+    ok((() => {
+      const gh1 = bcss.indexOf('html:root [data-pressfade="hold"][data-pressfade]:not(.c-app-item)');
+      const ga1 = bcss.indexOf('html:root [data-pressfade="hold"][data-pressfade][aria-current]');
+      const gh2 = bcss.indexOf('html:root [data-pressfade="out"][data-pressfade]:not(.c-app-item)');
+      const ga2 = bcss.indexOf('html:root [data-pressfade="out"][data-pressfade][aria-current]');
+      return gh1 >= 0 && ga1 >= 0 && gh2 >= 0 && ga2 >= 0 && gh1 < ga1 && gh2 < ga2;
+    })(),
+      '★ D-16 r3 (Opus finding 3): the [aria-current] fade variants are EQUAL specificity to the generic pair — :not(.c-app-item) contributes a class, so both sit at (0,4,1) — and they win on SOURCE ORDER alone. This pin freezes that order: move the variants above the pair and a selected row fades to TRANSPARENT, blanking the open conversation’s row for 200ms');
+    ok(/html:root \.c-app-item\[data-pressfade="hold"\] \.c-app-item__open \{\s*transition: none/.test(bcss)
+      && /html:root \.c-app-item\[data-pressfade="out"\] \.c-app-item__open \{\s*transition: background-color var\(--duration-200\)/.test(bcss)
+      && !/\.c-app-item\[data-pressfade="hold"\],[\s\S]{0,80}?background-color: transparent/.test(bcss),
+      '★ D-16 r2 (audit B-2): .c-app-item — the attribute rides the wrapper, ONLY the __open child paints the fade, and NO rule forces the wrapper transparent — the first cut deleted the GRID card’s own neutral-02 surface for the length of the fade (a card blink on every press)');
+    ok(/\[data-pressed\], html:root \[data-pressfade\],/.test(bcss),
+      '★ D-16 (#351): the reduced-motion block covers [data-pressfade] too — the CSS belt under the JS skip');
+    const tok351 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+    ok(/--duration-300: 300ms/.test(tok351) && /--duration-200: 200ms/.test(tok351)
+      && /--duration-300: 0ms/.test(tok351) && /--duration-200: 0ms/.test(tok351),
+      '★ D-16 r2 (audit C-2): the duration tokens EXIST and the reduced-motion block zeroes them — readMs falls back silently on a rename, which would keep normal timing but break the reduced-motion collapse');
+    for (const [f, sel] of [['chatlist-item', '\\.c-chatlist-item'], ['txlist-item', '\\.c-txlist-item']]) {
+      const css = readFileSync(join(root, 'src/styles/components/' + f + '.css'), 'utf8');
+      /* ★ #353 (Damir, F5 video): a SELECTED row has NO hover tint. This SUPERSEDES
+         fix B and the row half of fix C — the tonal-hover paint was the filled
+         BUTTON surface in dark, and Damir cut the state rather than re-dial it. */
+      const noLegit = css.replace(/:not\(\[aria-current\]\)/g, '');
+      ok(new RegExp(sel + ':hover:not\\(\\[aria-current\\]\\) \\{ background-color: var\\(--surface-interactive-hover\\); \\}').test(css)
+        && !new RegExp(sel + '[^,{]*\\[aria-current\\][^,{]*:hover|' + sel + '[^,{]*:hover[^,{]*\\[aria-current\\]').test(noLegit),
+        '★ #353 (Damir): ' + f + ' — NO hover rule paints a selected row (either compound order), and the plain hover carries :not([aria-current]). The :not() is LOAD-BEARING: without it the later grey hover rule beats the selected [aria-current] paint on source order at equal specificity, and the open conversation’s row hovers GREY');
+      /* ★ #353 review NIT-1: this single declaration is now the SOLE selected-row
+         paint in every state outside the fade window — deleting it left the open
+         conversation’s row TRANSPARENT with the whole suite green. */
+      ok(new RegExp(sel + '\\[aria-current\\] \\{[^}]*background-color: var\\(--surface-action-tonal-default\\)').test(css),
+        '★ #353 (Opus NIT-1): ' + f + ' — the [aria-current] rest rule carries background-color tonal-default. #353 made it the ONLY selected paint; without this pin its deletion ships an invisible selection');
+    }
+  }
 
   /* —— ★ D-10 / I-7: the tip result channel, and the frozen-sheet hazard it creates —— */
   ok(/onTip: \(payload, ctrl\) => \{[\s\S]{0,900}?tipCtrl = ctrl;/.test(chB)

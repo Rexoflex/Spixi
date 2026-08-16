@@ -107,6 +107,17 @@ D-10 in `docs/f5-findings-2026-08-15.md`.
 ⚠ This list is **not assumed complete.** It is what is known today. The sweep exists
 because the security doc was never written as an introduced-vs-inherited census.
 
+### #349–#351 — the Android pass, the PerfTrace deletion, D-16 (2026-08-16)
+
+| Item | file:line | Verdict | Action |
+|---|---|---|---|
+| **#350 deletes `PerfTrace` and its call sites** | `Spixi/Utils/PerfTrace.cs` (gone) + four .cs files | **REMOVES exposure** | The scaffold logged timing lines into `ixian.log` and logcat unconditionally. Deletion-only diff; the log surface SHRINKS |
+| **#351 `data-pressfade` — a NEW DOM attribute** | `pressable.js`, `base.css` | No exposure | Set and removed by our own JS on row elements. Never persisted, never logged, never sent. No `spixi.*` key, no `ixian:` verb, no `innerHTML`/`eval` sink, no fetch, no WebView setting |
+| **#351 downloads.html attaches the press mechanism + the file row joins the family** | `src/shells/downloads.html`, `settings-app.css` | No exposure | Presentation only. The file-name handling (textContent, encodeURIComponent on the verbs) is untouched |
+| **#349 runsheet + findings docs** | docs only | No exposure | The PERF numbers quoted contain timings only |
+
+**The batch adds no verb, no key, no sink, no fetch, no WebView setting, and no log line.**
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

@@ -1677,7 +1677,6 @@ namespace SPIXI
                 // the previous one only after it is visible → seamless switching,
                 // nothing detaches, nothing can flicker.
                 bool wide = rightContent.IsVisible;
-                PerfTrace.tap("chat open");   // #344 measurement scaffold — ⚠ NOT compiled out, DELETE before release
                 pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1);
                 if (wide)
                 {

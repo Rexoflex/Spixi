@@ -113,14 +113,9 @@ namespace SPIXI
             // dark bg breaks light mode — that was the reported light-mode dark flash).
             applyPageSurfaceColor();
 
-            // #344 measurement scaffold — ⚠ NOT compiled out, DELETE before release. This span is the asset read, the
-            // localize pass over ~1.4 MB, and on Android the base64 encode into a data: URL.
-            long t344 = PerfTrace.now();
             _webView.Source = generatePage(html_file_name);
-            PerfTrace.span("generatePage(" + html_file_name + ")", t344);
             _webView.Navigated += webViewNavigated;
             _webView.Navigating += webViewNavigating;
-            PerfTrace.mark("loadPage returned");
         }
 
         private void applyPageSurfaceColor()
@@ -173,7 +168,6 @@ namespace SPIXI
 
         protected async void webViewNavigated(object? sender, WebNavigatedEventArgs e)
         {
-            PerfTrace.mark("webView Navigated");   // #344 — ⚠ NOT compiled out, DELETE before release
             if (pageLoaded = await checkIfPageLoaded())
             {
                 processMessageQueue();

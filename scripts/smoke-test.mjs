@@ -8485,19 +8485,25 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
       'N56 (built): tokens + row rules reached the shipped output');
     ok(/-webkit-tap-highlight-color: transparent;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('.c-bubble-row {'), nc(chatBuilt).indexOf('.c-bubble-row {') + 400)),
       'N36b (built): the row-level tap-highlight kill reached the shipped chat shell');
-    ok(/margin-top: calc\(-1 \* var\(--spacing-2\)\);/.test(read('Spixi/Resources/Raw/html/settings.html')),
-      'N59 (built): the sub pull-up reached the shipped Account shell');
+    {
+      const bs = read('Spixi/Resources/Raw/html/settings.html');
+      ok(/\.c-settings__row-label--stack \.c-disc \{[\s\S]{0,120}?position: absolute;/.test(bs)
+        && !/margin-top: calc\(-1 \* var\(--spacing-2\)\)/.test(bs),
+        'N59b (built): the group-centred disc reached the shipped Account shell and the first-cut pull-up is gone');
+    }
     ok(/avatarCacheFor/.test(read('Spixi/Resources/Raw/html/spixi.bundle.js')),
       'N58 (built, r2-hardened): the avatar decode cache reached the SHIPPED bundle (Raw/html — not the demo intermediate; the #285/#288 stale-artifact class)');
   }
 
-  /* —— N59: Account row title↔sub gap —— */
+  /* —— N59 → N59b: Account row title↔sub gap + group centring —— */
   {
     const css = nc(read('src/styles/components/settings-shell.css'));
-    const stack = css.slice(css.indexOf('.c-settings__row-label--stack'), css.indexOf('.c-settings__row-label--stack') + 220);
-    ok(/gap: 0;/.test(stack)
-      && /\.c-settings__row-sub,\s*\.c-settings__backup-sub \{\s*margin-top: calc\(-1 \* var\(--spacing-2\)\);/.test(css),
-      'N59: the stack gap is 0 and the sub pulls up by spacing-2 — the visible gap was mostly the 32px disc\'s dead space below the centred title');
+    const stack = css.slice(css.indexOf('.c-settings__row-label--stack'), css.indexOf('.c-settings__row-label--stack') + 320);
+    ok(/position: relative;/.test(stack) && /gap: 0;/.test(stack)
+      && /padding-inline-start: calc\(32px \+ var\(--spacing-12\)\);/.test(stack)
+      && /\.c-settings__row-label--stack \.c-disc \{\s*position: absolute;\s*inset-inline-start: 0;\s*top: 50%;\s*transform: translateY\(-50%\);\s*\}/.test(css)
+      && !/margin-top: calc\(-1 \* var\(--spacing-2\)\)/.test(css),
+      '★ N59b (Damir screenshot): the disc centres against the title+sub GROUP — the disc leaves the flow, the stack carries the gutter, and the first cut\'s sub pull-up is GONE (it left the text block bottom-weighted against the disc)');
   }
 
   /* —— N36b: the Android select-mode flash candidate —— */

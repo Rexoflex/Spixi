@@ -1,5 +1,12 @@
 # F5 checklist — the #375/#376 fix batch (2026-08-17)
 
+> **RESULTS (Damir, 2026-08-17): ALL PASS.** Android legs 1–7 + 18 ✓ · reading
+> set 8–12 ✓ (no chat-entry lag reported → A52 re-measure dormant) · 13–17 ✓.
+> N59 amended same day → **N59b** (group-centred disc, Damir screenshot). ⚠ The
+> N57 SYMPTOM RE-OBSERVED in normal use — the §⑤ protocol run is still owed and
+> is now the top Damir action. Batch committed per the message below. CONSUMED.
+
+
 **LANGUAGE RULE: ASD-STE100.**
 
 Build first, in this order (components + shells + strings + C# changed):

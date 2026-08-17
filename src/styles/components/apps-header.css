@@ -31,6 +31,19 @@
    discovery route. Set by setAppsHeaderEmpty() — attribute, not a display:none in JS. */
 .c-apps-header[data-empty] .c-apps-header__row { display: none; }
 
+/* ★ D-17 (#359): the UNKNOWN window — the shell has not yet learned whether the
+   list has rows (appsOpts.zeroReady is closed and no row has ever rendered). The
+   row is INVISIBLE but keeps its box, so neither outcome moves anything:
+   · first knowledge = rows      → the row turns visible in the SAME render frame
+     the rows paint; height was already reserved, so nothing below jumps.
+   · first knowledge = empty     → data-unknown is swapped for data-empty in the
+     same frame the illustrated zero state first renders; the ghost row collapses
+     into a paint that was blank anyway.
+   Pre-D-17 the row painted DURING the unknown window and the zero-gate opening
+   then yanked it (~400 ms later): the field appeared, vanished, and the content
+   jumped (Damir F5 2026-08-15). visibility (not display) is the whole fix. */
+.c-apps-header[data-unknown] .c-apps-header__row { visibility: hidden; }
+
 /* —— Explore / Discover banner ——
    LAYOUT CONTRACT (Damir 2026-08-12 — "align it bottom right"): the illustration is a
    FLEX SIBLING of the copy, not an absolutely-positioned overlay. That is the whole

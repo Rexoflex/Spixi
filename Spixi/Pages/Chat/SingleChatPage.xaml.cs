@@ -671,7 +671,10 @@ namespace SPIXI
                     sleep_cnt++;
                 }
 
-                string cost_text = String.Format(SpixiLocalization._SL("chat-message-cost-bar"), friend.metaData.botInfo.cost.ToString() + " IXI");
+                // ★ I-6 r2 (#360, loop r1 MINOR-8): the bot cost bar was the one C#-composed
+                // amount left on raw IxiNumber.ToString() — a 0.005 IXI room rendered
+                // "0.00500000 IXI" directly above the alerts #360 fixed.
+                string cost_text = String.Format(SpixiLocalization._SL("chat-message-cost-bar"), Utils.amountToLocalizedDisplayString(friend.metaData.botInfo.cost) + " IXI");
                 bool send_notification = friend.metaData.botInfo.sendNotification;
 
                 // W8 (#348): 7th arg = blindness, ADDITIVE (same shape as the
@@ -837,7 +840,8 @@ namespace SPIXI
                         IxiNumber balance = IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress());
                         if (tx.amount + tx.fee > balance)
                         {
-                            string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), tx.amount + tx.fee, balance);
+                            // ★ I-6 (#360): amounts in composed sentences render in the app language
+                            string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(tx.amount + tx.fee), Utils.amountToLocalizedDisplayString(balance));
                             displaySpixiAlert(SpixiLocalization._SL("wallet-error-balance-title"), alert_body, SpixiLocalization._SL("global-dialog-ok"));
                             return;
                         }
@@ -1270,11 +1274,12 @@ namespace SPIXI
                         // a thing we do.
                         if (msg.senderAddress == null)
                         {
-                            // ★ review r2 MEDIUM: this must not be silent. The shell cannot
-                            // predict it — the `senderAddress` slot it receives is seeded
-                            // with friend.nickname when the message carries no address
-                            // (:1508-1512), so the FE's own guard sees a non-empty string
-                            // and offers Tip. Answer honestly instead of dropping it.
+                            // ★ review r2 MEDIUM: this must not be silent. Answer honestly
+                            // instead of dropping it. (History: before #356 the slot was
+                            // seeded with friend.nickname on a null-address message, so the
+                            // FE guard saw a non-empty string and offered Tip; #356 sends ""
+                            // and the FE guard now suppresses Tip on those rows — this
+                            // branch remains as the belt for an old shell on a new exe.)
                             Logging.error("Tip target message carries no sender address.");
                             // ★ review r3: chat-modal-tip-title is "Tip {0}?" — a FORMAT
                             // string. Passed raw it printed a literal {0} in every locale.
@@ -1319,7 +1324,8 @@ namespace SPIXI
                         {
                             Logging.warn("Could not compute the tip fee for the balance message: " + fee_ex);
                         }
-                        string short_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), tip_total, IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress()));
+                        // ★ I-6 (#360): amounts in composed sentences render in the app language
+                        string short_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(tip_total), Utils.amountToLocalizedDisplayString(IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress())));
                         // ★ I-7 (Damir): INLINE. C# composes the sentence — it owns the
                         // numbers — and the shell only renders it.
                         sendTipResult(false, short_body);
@@ -1337,7 +1343,8 @@ namespace SPIXI
                     // Ixian-Core's behaviour, not ours, and #215 says do not assume it.
                     if (tx.amount + tx.fee > balance)
                     {
-                        string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), tx.amount + tx.fee, balance);
+                        // ★ I-6 (#360): amounts in composed sentences render in the app language
+                        string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(tx.amount + tx.fee), Utils.amountToLocalizedDisplayString(balance));
                         sendTipResult(false, alert_body);
                     }
                     else
@@ -1656,7 +1663,13 @@ namespace SPIXI
             string address = friend.nickname;
             if(address == "")
             {
-                address = message.senderAddress.ToString();
+                // ★ Loop r1 MAJOR-5 (#356 rider): senderAddress is Address? and Core
+                // 0.9.8k nulls it for FriendType.Normal — with an EMPTY friend
+                // nickname (one empty `nick` push persists "") this line NRE'd on
+                // every row: history load swallowed it per-row and the chat rendered
+                // permanently empty. Null → the slot stays "", the shell's honest
+                // fallbacks take over.
+                address = message.senderAddress != null ? message.senderAddress.ToString() : "";
             }
             string nick = "";
             if (!message.localSender)
@@ -1668,6 +1681,21 @@ namespace SPIXI
                     {
                         address = message.senderAddress.ToString();
                     }
+                    else
+                    {
+                        // ★ D-19 (#356): a multi-chat row with NO sender address must not
+                        // ship the GROUP's nickname in the address slot. The shell renders
+                        // that slot middle-truncated with a copy affordance (Damir's dial
+                        // 2026-07-07 — written for REAL addresses), so the group's own name
+                        // arrived styled as the sender's address ("Spixi …p Chat"), wearing
+                        // the group's avatar, and polluted the member sheet as a phantom
+                        // member keyed by the group name. Ixian-Core 0.9.8k stores every
+                        // bot-room message address-less (5643e5b nulls FriendType.Normal;
+                        // BE question 1), so this is now the COMMON case there, not a corner.
+                        // An empty slot is the honest answer: the shell renders its
+                        // "Hidden member" placeholder and wires no copy, no member sheet.
+                        address = "";
+                    }
                     nick = resolveNick(message.senderNick, message.senderAddress);
                 }
 
@@ -1675,7 +1703,18 @@ namespace SPIXI
                 if(message.senderAddress != null)
                 {
                     avatar = IxianHandler.localStorage.getAvatarPath(message.senderAddress.ToString());
-                }else
+                }
+                else if (friend.bot || friend.type == FriendType.Group)
+                {
+                    // ★ D-19 (#356): same rule for the photo — a sender-less multi-chat row
+                    // must not wear the GROUP's avatar; it gets the neutral sentinel (the
+                    // shell renders its gradient fallback). Direct assignment, not null —
+                    // `string avatar` is non-nullable and this file builds warning-clean
+                    // (r2 NIT-8). The 1:1 branch under this keeps the friend's photo:
+                    // there the friend IS the sender.
+                    avatar = "img/spixiavatar.png";
+                }
+                else
                 {
                     avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
                 }

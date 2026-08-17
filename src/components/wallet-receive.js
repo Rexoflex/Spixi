@@ -60,7 +60,7 @@ import { createButton } from './button.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createQrSvg } from './qr.js';                     // #303: setQrValue import dropped — the QR never re-encodes
-import { sanitizeAmount, canonicalAmount } from './money.js';   // #143: shared money module
+import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
 
 /** '0', '0.', '' → not a requestable amount (plain receive stays). */
@@ -326,12 +326,12 @@ export function createWalletReceive({
     if (ctaLabel) {
       ctaLabel.textContent = ready
         ? (strings.requestCta || 'Request {a} IXI ({n})')
-          .split('{a}').join(amount).split('{n}').join(String(n))
+          .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(n))
         : (strings.sendRequest || 'Send request');
     }
     cta.setAttribute('aria-label', ready
       ? (strings.requestCtaLabel || 'Request {a} IXI from {n} selected')
-        .split('{a}').join(amount).split('{n}').join(String(n))
+        .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(n))
       : (strings.sendRequest || 'Send request'));
   }
 
@@ -384,9 +384,9 @@ export function createWalletReceive({
     }
     const text = sentCount === 1
       ? (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
-        .split('{a}').join(amount).split('{name}').join(targets[0].name || targets[0].address)
+        .split('{a}').join(groupAmountDisplay(amount)).split('{name}').join(targets[0].name || targets[0].address)
       : (strings.requestSentToMany || 'Request for {a} IXI sent to {n} contacts')
-        .split('{a}').join(amount).split('{n}').join(String(sentCount));
+        .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(sentCount));
     // All clear → the request is spent: clear the amount too, so a surface that
     // stays mounted can never re-fire the same request against a stale number.
     state.amount = '';
@@ -479,9 +479,20 @@ export function createWalletReceive({
     syncCta();
   }
 
-  amtInput.addEventListener('input', () => {
-    const v = sanitizeAmount(amtInput.value);
-    if (v !== amtInput.value) amtInput.value = v;
+  amtInput.addEventListener('input', (e) => {
+    // ★ I-6 (#360): locale-grouped display in the field; canonical value in
+    // state (#77 wire untouched). Caret follows the digit count. Loop r1
+    // CRITICAL-1: per-edit inverse for typing/deletion, settled heuristic
+    // only for paste/synthetic dispatches.
+    const disp = amtInput.value;
+    const caret = amtInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      amtInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     state.amount = v;
     // W9: a new amount invalidates a stale outcome line (audit M5's honesty rule,
     // now on the result line — there is no per-row ✓ left to go stale). The
@@ -548,7 +559,9 @@ export function setRequestAmount(el, amount) {
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);
-  input.value = plain;
+  // ★ I-6 (#360): seed the DISPLAY form — the handler ungroups what it reads,
+  // and a raw '.'-decimal canonical in a ','-decimal locale could misread.
+  input.value = groupAmountDisplay(plain);
   input.dispatchEvent(new Event('input', { bubbles: true }));
   return el;
 }

@@ -2678,36 +2678,55 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
 
 /* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
-   action ink; pressed-on-unselected keeps its outline so the two stay distinct */
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct.
+   ★ I-2 (#358): the selected chip now carries an OUTLINE — a selected chip and a
+   tonal button both paint --surface-action-tonal-default, so "selected" and
+   "button" rendered identically (same disease as D-16 fix C, one ramp step
+   apart). The outline is a state ladder (default/hover/pressed). The border
+   SLOT already exists on every chip (--outline-width-1, transparent when
+   unused), so no layout shift — the #51 lesson.
+   ★ Loop r1 MAJOR-6: the selected PRESS keeps the DEFAULT fill — the old
+   tonal-pressed fill put the pressed outline at 2.31:1 in dark (200-on-500),
+   under the 1.4.11 bar exactly when the outline is doing its job. Press
+   feedback = outline default→pressed + ink + the #343 scale; the fill holds.
+   (Dial rider on the F5 checklist: say if the press wants its wash back.)
+   ★ Loop r1 MAJOR-7: every hover/active pair carries the SAME :not() chain —
+   the old ladder claimed "source order at equal specificity" while hover
+   out-specified active by one pseudo-class, so the pressed rung never painted
+   on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
+   match :active) from wearing the selected skin (loop r1 MINOR).
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
 .c-chip[aria-pressed="true"] {
   background: var(--surface-action-tonal-default);
-  border-color: transparent;
+  border-color: var(--outline-action-default);
   color: var(--text-action-default);
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
 @media (hover: hover) and (pointer: fine) {
-  .c-chip:not(:disabled):hover {
+  .c-chip:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-neutral-02);
     border-color: var(--outline-action-hover);
     color: var(--text-action-hover);
   }
-  .c-chip[aria-pressed="true"]:not(:disabled):hover {
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-action-tonal-hover);
-    border-color: transparent;
+    border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
     color: var(--text-action-hover);
   }
 }
 
-/* pressed AFTER hover (source order at equal specificity — pressed wins) */
-.c-chip:active {
+/* pressed AFTER hover — same specificity as its hover twin, later in source */
+.c-chip:not(:disabled):not([data-readonly]):active {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-pressed);
   color: var(--text-action-pressed);
 }
-.c-chip[aria-pressed="true"]:active {
-  background: var(--surface-action-tonal-pressed);
-  border-color: transparent;
+.c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
+  border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
   color: var(--text-action-pressed);
 }
 
@@ -5040,7 +5059,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         && !a.eventChip && !b.eventChip   // #264 ⑤: event chips stand alone — never group
         && (a.kind || 'text') === 'text' && (b.kind || 'text') === 'text'
         && a.direction === b.direction
-        && (a.senderAddress || '') === (b.senderAddress || '')
+        /* ★ D-19 r2 (#356, loop r1 MAJOR-4): the run key falls back to the NICK.
+           Core 0.9.8k stores every bot-room row address-less, so an address-only
+           key merged ALL received rows into one run — Bob's message rendered
+           under Alice's label (label on 'first' only) with the anonymous row's
+           avatar (avatar on 'last'). address || nick keeps named senders apart;
+           rows with NEITHER share '' and merge with each other only — they are
+           indistinguishable by construction, and each run head says so
+           ("Hidden member"), never a name. */
+        && (a.senderAddress || a.senderNick || '') === (b.senderAddress || b.senderNick || '')
         && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
       const withPrev = cont(prev, r, ids[i]);
       const withNext = cont(r, next, i < ids.length - 1 ? ids[i + 1] : null);
@@ -5089,7 +5116,16 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          all. This covers blind GROUPS too, which were never protected on this surface. */
       sender: (!isSent && mode.isMulti)
         ? (mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')
-                      : (senderHasNick(rec) ? rec.senderNick : (rec.senderAddress || null)))
+                      : (senderHasNick(rec) ? rec.senderNick
+                        /* ★ D-19 (#356): no nick AND no address → an HONEST placeholder,
+                           reusing the blind-chat string. Core 0.9.8k stores bot-room rows
+                           address-less (5643e5b; BE q1), and the old null here rendered NO
+                           label, so an anonymous run read as the previous sender's — and
+                           before the C# half stopped it, the slot carried the GROUP's own
+                           name styled as a copyable address. senderIsAddress and
+                           onSenderClick both key off the empty address, so the placeholder
+                           gets no copy affordance and no member sheet. */
+                        : (rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member'))))
         : null,
       senderIsAddress: (!isSent && mode.isMulti && !mode.blind && !senderHasNick(rec) && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
@@ -5630,7 +5666,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
            to tell who said what, which is the whole reason the multi-line form exists.
            The address is already on the bubble in a non-blind chat, so this reveals
            nothing new; it uses the #211 truncation canon rather than the raw base58. */
-        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';
+        /* ★ D-19 r2 (#356, loop r1 MINOR): a no-nick, no-address row copies the SAME
+           placeholder the bubble shows — '' broke the r4 attribution rule this very
+           comment defends (unattributed lines interleaved with attributed ones). */
+        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : (s.hiddenMember || 'Hidden member');
         return identity.name || '';
       },
       strings: s,

@@ -71,36 +71,55 @@
 .c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
 
 /* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
-   action ink; pressed-on-unselected keeps its outline so the two stay distinct */
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct.
+   ★ I-2 (#358): the selected chip now carries an OUTLINE — a selected chip and a
+   tonal button both paint --surface-action-tonal-default, so "selected" and
+   "button" rendered identically (same disease as D-16 fix C, one ramp step
+   apart). The outline is a state ladder (default/hover/pressed). The border
+   SLOT already exists on every chip (--outline-width-1, transparent when
+   unused), so no layout shift — the #51 lesson.
+   ★ Loop r1 MAJOR-6: the selected PRESS keeps the DEFAULT fill — the old
+   tonal-pressed fill put the pressed outline at 2.31:1 in dark (200-on-500),
+   under the 1.4.11 bar exactly when the outline is doing its job. Press
+   feedback = outline default→pressed + ink + the #343 scale; the fill holds.
+   (Dial rider on the F5 checklist: say if the press wants its wash back.)
+   ★ Loop r1 MAJOR-7: every hover/active pair carries the SAME :not() chain —
+   the old ladder claimed "source order at equal specificity" while hover
+   out-specified active by one pseudo-class, so the pressed rung never painted
+   on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
+   match :active) from wearing the selected skin (loop r1 MINOR).
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
 .c-chip[aria-pressed="true"] {
   background: var(--surface-action-tonal-default);
-  border-color: transparent;
+  border-color: var(--outline-action-default);
   color: var(--text-action-default);
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
 @media (hover: hover) and (pointer: fine) {
-  .c-chip:not(:disabled):hover {
+  .c-chip:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-neutral-02);
     border-color: var(--outline-action-hover);
     color: var(--text-action-hover);
   }
-  .c-chip[aria-pressed="true"]:not(:disabled):hover {
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-action-tonal-hover);
-    border-color: transparent;
+    border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
     color: var(--text-action-hover);
   }
 }
 
-/* pressed AFTER hover (source order at equal specificity — pressed wins) */
-.c-chip:active {
+/* pressed AFTER hover — same specificity as its hover twin, later in source */
+.c-chip:not(:disabled):not([data-readonly]):active {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-pressed);
   color: var(--text-action-pressed);
 }
-.c-chip[aria-pressed="true"]:active {
-  background: var(--surface-action-tonal-pressed);
-  border-color: transparent;
+.c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
+  border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
   color: var(--text-action-pressed);
 }
 

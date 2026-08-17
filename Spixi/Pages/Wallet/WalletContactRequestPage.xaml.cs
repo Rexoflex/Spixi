@@ -129,7 +129,8 @@ namespace SPIXI
             IxiNumber fee = Node.calculateTransactionFee(IxianHandler.primaryWalletAddress, to, amount);
             if (_amount + fee > availableBalance)
             {
-                string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), _amount + fee, availableBalance);
+                // ★ I-6 (#360): amounts in composed sentences render in the app language
+                string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(_amount + fee), Utils.amountToLocalizedDisplayString(availableBalance));
                 displaySpixiAlert(SpixiLocalization._SL("wallet-error-balance-title"), alert_body, SpixiLocalization._SL("global-dialog-ok"));
                 return;
             }

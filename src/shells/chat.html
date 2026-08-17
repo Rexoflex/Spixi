@@ -1234,7 +1234,15 @@
         && !a.eventChip && !b.eventChip   // #264 ⑤: event chips stand alone — never group
         && (a.kind || 'text') === 'text' && (b.kind || 'text') === 'text'
         && a.direction === b.direction
-        && (a.senderAddress || '') === (b.senderAddress || '')
+        /* ★ D-19 r2 (#356, loop r1 MAJOR-4): the run key falls back to the NICK.
+           Core 0.9.8k stores every bot-room row address-less, so an address-only
+           key merged ALL received rows into one run — Bob's message rendered
+           under Alice's label (label on 'first' only) with the anonymous row's
+           avatar (avatar on 'last'). address || nick keeps named senders apart;
+           rows with NEITHER share '' and merge with each other only — they are
+           indistinguishable by construction, and each run head says so
+           ("Hidden member"), never a name. */
+        && (a.senderAddress || a.senderNick || '') === (b.senderAddress || b.senderNick || '')
         && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
       const withPrev = cont(prev, r, ids[i]);
       const withNext = cont(r, next, i < ids.length - 1 ? ids[i + 1] : null);
@@ -1283,7 +1291,16 @@
          all. This covers blind GROUPS too, which were never protected on this surface. */
       sender: (!isSent && mode.isMulti)
         ? (mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')
-                      : (senderHasNick(rec) ? rec.senderNick : (rec.senderAddress || null)))
+                      : (senderHasNick(rec) ? rec.senderNick
+                        /* ★ D-19 (#356): no nick AND no address → an HONEST placeholder,
+                           reusing the blind-chat string. Core 0.9.8k stores bot-room rows
+                           address-less (5643e5b; BE q1), and the old null here rendered NO
+                           label, so an anonymous run read as the previous sender's — and
+                           before the C# half stopped it, the slot carried the GROUP's own
+                           name styled as a copyable address. senderIsAddress and
+                           onSenderClick both key off the empty address, so the placeholder
+                           gets no copy affordance and no member sheet. */
+                        : (rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member'))))
         : null,
       senderIsAddress: (!isSent && mode.isMulti && !mode.blind && !senderHasNick(rec) && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
@@ -1824,7 +1841,10 @@
            to tell who said what, which is the whole reason the multi-line form exists.
            The address is already on the bubble in a non-blind chat, so this reveals
            nothing new; it uses the #211 truncation canon rather than the raw base58. */
-        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';
+        /* ★ D-19 r2 (#356, loop r1 MINOR): a no-nick, no-address row copies the SAME
+           placeholder the bubble shows — '' broke the r4 attribution rule this very
+           comment defends (unattributed lines interleaved with attributed ones). */
+        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : (s.hiddenMember || 'Hidden member');
         return identity.name || '';
       },
       strings: s,

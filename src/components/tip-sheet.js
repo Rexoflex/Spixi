@@ -30,7 +30,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { setOverlayOpts } from './overlay.js';
-import { sanitizeAmount, toUnits, canonicalAmount } from './money.js';   // #143: shared money module (was the cross-feature 🟡)
+import { sanitizeAmount, toUnits, canonicalAmount, ungroupAmountInput, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 function amountSheetCopy(kind, strings) {
   return kind === 'request' ? {
@@ -112,7 +112,7 @@ function openAmountSheet({
       if (state.sending) return;
       selectChip(e.currentTarget);
       delete customRow.dataset.ghost;                      // slot was always there — just becomes visible
-      state.amount = sanitizeAmount(customInput.value);
+      state.amount = sanitizeAmount(ungroupAmountInput(customInput.value));   // ★ I-6 (#360): SETTLED read — the field holds a display form, not a mid-edit
       sync();
       customInput.focus();
     },
@@ -132,10 +132,21 @@ function openAmountSheet({
   customInput.inputMode = 'decimal';
   customInput.placeholder = '0';
   customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
-  customInput.addEventListener('input', () => {
+  customInput.addEventListener('input', (e) => {
     if (state.sending) return;
-    const v = sanitizeAmount(customInput.value);
-    if (v !== customInput.value) customInput.value = v;
+    // ★ I-6 (#360): locale-grouped display in the field; canonical in state —
+    // the money-safety surface Damir named first ("easy to know how much we
+    // are sending"). Wire layer (#77) untouched. Loop r1 CRITICAL-1: per-edit
+    // inverse for typing/deletion; settled heuristic only for paste/synthetic.
+    const disp = customInput.value;
+    const caret = customInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      customInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { customInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     state.amount = v;
     sync();
   });
@@ -217,7 +228,9 @@ function openAmountSheet({
     if (over) guard.textContent = strings.tipInsufficient || 'Not enough IXI for this tip.';
     confirm.disabled = !valid();
     const label = confirm.querySelector('.c-button__label') || confirm;
-    label.textContent = valid() ? copy.confirm.split('{a}').join(a) : copy.idle;
+    // ★ I-6 r2 (#360, loop r1 MINOR-5): the confirm label reads in the field's own
+    // convention (the PAYLOAD stays canonical — `a` is what leaves the sheet).
+    label.textContent = valid() ? copy.confirm.split('{a}').join(groupAmountDisplay(a)) : copy.idle;
   }
   sync();
 

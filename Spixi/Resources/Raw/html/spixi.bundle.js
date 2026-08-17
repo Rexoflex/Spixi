@@ -87,10 +87,163 @@ function canonicalAmount(amount) {
   return s;
 }
 
+/* ★ I-6 (#360): locale-aware digit grouping — DISPLAY ONLY (Damir 2026-08-16:
+ * APP-GLOBAL, "the appropriate 3,000,000 or 3.000.000"). The wire format
+ * (sanitizeAmount → canonicalAmount payloads, #77) never carries separators;
+ * everything below is a render-time skin, and ungroupAmountInput is its exact
+ * inverse at the input boundary. The locale is the APP LANGUAGE (docLocale(),
+ * the same source timestamps use) so dates and amounts always agree with the
+ * language on screen. Grouping and the decimal separator travel TOGETHER —
+ * "3.000" is three thousand in sl and three point zero in en, so a display
+ * that grouped in one convention and kept '.' decimals would be actively
+ * misleading. CLDR (Intl.NumberFormat) supplies both, incl. lakh/crore and
+ * min-grouping-digits locales, via BigInt so Ixian-scale integers never touch
+ * float precision (#135-M1 lesson). */
+
+
+const nfCache = new Map();   // locale → Intl.NumberFormat (integer grouping)
+function localeNumberFormat(locale) {
+  const loc = locale || docLocale();
+  let nf = nfCache.get(loc);
+  if (!nf) {
+    try { nf = new Intl.NumberFormat(loc); } catch (e) { nf = new Intl.NumberFormat('en-US'); }
+    nfCache.set(loc, nf);
+  }
+  return nf;
+}
+
+/** The locale's group + decimal separators (display layer only). */
+function localeSeps(locale) {
+  const parts = (() => {
+    try { return localeNumberFormat(locale).formatToParts(1234567.8); } catch (e) { return []; }
+  })();
+  const seps = { group: ',', decimal: '.' };
+  for (const p of parts) {
+    if (p.type === 'group') seps.group = p.value;
+    if (p.type === 'decimal') seps.decimal = p.value;
+  }
+  return seps;
+}
+
+/** Full-precision display grouping: the INT part groups per locale, the decimal
+ *  separator becomes the locale's, the fraction is passed through VERBATIM —
+ *  callers own the precision rule (inputs keep every typed digit; the ≤2-dp
+ *  law lives in formatIxiAmount). Non-amount strings pass through untouched.
+ *  Leading-zero ints stay ungrouped (mid-typing '007' must not be rewritten). */
+function groupAmountDisplay(value, locale) {
+  const s = String(value == null ? '' : value).trim();
+  const m = s.match(/^([+-]?)([\d,]*)(\.(\d*))?$/);
+  if (!m || (m[2] === '' && m[3] == null)) return s;
+  const seps = localeSeps(locale);
+  const digits = m[2].replace(/,/g, '');
+  let grouped = digits;
+  if (digits.length > 3 && digits[0] !== '0') {
+    try { grouped = localeNumberFormat(locale).format(BigInt(digits)); } catch (e) { /* keep plain */ }
+  }
+  return m[1] + grouped + (m[3] != null ? seps.decimal + (m[4] || '') : '');
+}
+
+/** Inverse of the display skin for SETTLED strings only — QR/deeplink seeds,
+ *  programmatic sets, pastes: canonical forms, our own display forms, or a
+ *  grouped string from outside. Symmetric heuristic, both separator families:
+ *  a separator forming exactly-3-digit runs is GROUPING and is stripped; any
+ *  other use keeps its decimal meaning. So en '1,500'→1500 but '12,5'→12.5
+ *  (#135-M2 preserved via sanitizeAmount), and sl '1.500'→1500 but a canonical
+ *  '1500.5' passes through exactly. Whitespace groupers (fr NNBSP, CH
+ *  apostrophe) are never decimals and always strip.
+ *  ⚠ NOT for per-keystroke reads — a MID-EDIT display ("1,2345", the settled
+ *  "1,234" plus one digit) is not a settled pattern, falls through, and the
+ *  #135-M2 comma rule then reads it as a decimal: a 10000× error (loop r1
+ *  CRITICAL-1). Typing and deletion go through amountEditToCanonical below. */
+function ungroupAmountInput(display, locale) {
+  const seps = localeSeps(locale);
+  // \s covers the NBSP/NNBSP/thin-space groupers (fr); ' is the CH grouper.
+  let s = String(display == null ? '' : display).replace(/[\s']/g, '');
+  if (seps.decimal === '.') {
+    if (/^[+-]?\d{1,3}(,\d{3})+(\.\d*)?$/.test(s)) s = s.replace(/,/g, '');
+  } else {
+    if (/^[+-]?\d{1,3}(\.\d{3})+(,\d*)?$/.test(s)) s = s.replace(/\./g, '');
+    s = s.replace(/,/g, '.');
+  }
+  return s;
+}
+
+/** Per-EDIT inverse (loop r1 CRITICAL-1): the field's separators are OURS —
+ *  the display layer wrote them — so on a typing or deletion edit every locale
+ *  group separator is stripped unconditionally; no pattern-guessing on a
+ *  mid-edit string. The ONE ambiguous character is a separator the user JUST
+ *  typed ('.' or ','): that is DECIMAL INTENT regardless of locale (a sl
+ *  numpad emits '.', an en habit types ','), so the caller passes
+ *  InputEvent.data and the just-typed char at caret-1 is marked before the
+ *  strip and restored as '.'. Deletions (data == null) cannot create decimal
+ *  intent — plain strip. Result feeds sanitizeAmount; the wire (#77) is
+ *  untouched. */
+function amountEditToCanonical(display, caret, data, locale) {
+  const seps = localeSeps(locale);
+  let s = String(display == null ? '' : display);
+  const c = caret | 0;
+  const MARK = '\u0000';   // not whitespace, not a grouper: survives both strips below
+  if ((data === ',' || data === '.') && c > 0 && s[c - 1] === data) {
+    s = s.slice(0, c - 1) + MARK + s.slice(c);
+  }
+  s = s.split(seps.group).join('').replace(/[\s']/g, '');
+  if (seps.decimal !== '.') s = s.split(seps.decimal).join('.');
+  s = s.split(MARK).join('.');
+  return s;
+}
+
+/** Route an amount-input read to the right inverse. ★ r2 MAJOR-1: the router
+ *  keys on PRE-EDIT EMPTINESS, not on inputType — a paste/drop INTO a
+ *  non-empty field edits a string whose separators are OURS (the mid-edit
+ *  class), so it must take the per-edit strip; inputType routing sent it to
+ *  the settled heuristic and re-opened the r1 CRITICAL on the paste path
+ *  ("1,234" + pasted "5" → 1.2345). The settled heuristic now runs ONLY when
+ *  the field held no amount before the edit (first fill: QR/deeplink seeds,
+ *  synthetic dispatches, paste into empty — where outside conventions like
+ *  en "12,5" must keep their #135-M2 decimal reading). `hadAmount` is the
+ *  caller's pre-edit state.amount truthiness — the canonical mirror of the
+ *  field, no extra tracking. InsertText still carries ev.data so a just-typed
+ *  separator stays decimal intent. */
+function amountInputToCanonical(display, caret, ev, locale, hadAmount) {
+  if (hadAmount) {
+    const data = ev && ev.inputType === 'insertText' ? ev.data : null;
+    return amountEditToCanonical(display, caret, data, locale);
+  }
+  return ungroupAmountInput(display, locale);
+}
+
+/** Caret restore for a re-formatted amount input: the caret sits after the same
+ *  COUNT OF DIGITS it sat after in the old display — separators shift freely
+ *  around it, digits never do. */
+function amountCaretAfterFormat(oldDisplay, oldCaret, newDisplay) {
+  const o = String(oldDisplay || ''), n = String(newDisplay || '');
+  let digitsBefore = 0;
+  for (let i = 0; i < Math.min(oldCaret | 0, o.length); i++) if (/\d/.test(o[i])) digitsBefore++;
+  if (!digitsBefore) {
+    // loop r1 MAJOR-2: a caret with no digit before it must NOT slam to 0 —
+    // typing '.' first in a ','-decimal locale reformats to ',' and the old
+    // `return 0` then built the number BACKWARDS ('.','5','2' → "52,").
+    // Land after the leading non-digit run (i.e. just before the first digit),
+    // capped by where the caret actually was.
+    if ((oldCaret | 0) === 0) return 0;
+    let lead = 0;
+    while (lead < n.length && !/\d/.test(n[lead])) lead++;
+    return lead;
+  }
+  let seen = 0;
+  for (let i = 0; i < n.length; i++) {
+    if (/\d/.test(n[i])) { seen++; if (seen === digitsBefore) return i + 1; }
+  }
+  return n.length;
+}
+
 /** Display rule for IXI amounts: ≤2 decimals, truncated (never rounded), EXCEPT
  *  a nonzero amount is never shown as "0" — a sub-0.01 transfer keeps enough
  *  precision to read (#76/#77 amended, Damir 2026-07-07: "show the real amount"
- *  after a payment card rendered a small receipt as "0 IXI"). */
+ *  after a payment card rendered a small receipt as "0 IXI").
+ *  ★ I-6 (#360): the result now renders in the APP LANGUAGE's convention —
+ *  integer part locale-grouped, decimal separator the locale's. Bridge commas
+ *  in the input are treated as grouping and re-grouped per locale. */
 function formatIxiAmount(value) {
   const m = String(value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
   if (!m) return String(value);
@@ -104,7 +257,7 @@ function formatIxiAmount(value) {
     const full = rawFrac.replace(/0+$/, '');
     if (full) frac = full;
   }
-  return sign + int + (frac ? '.' + frac : '');
+  return groupAmountDisplay(sign + int.replace(/,/g, '') + (frac ? '.' + frac : ''));
 }
 
 /* ---- src/components/disc.js ---- */
@@ -9341,10 +9494,24 @@ function createWalletSend({
   amtInput.inputMode = 'decimal';
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.amount || 'Amount');
-  amtInput.addEventListener('input', () => {
-    const v = sanitizeAmount(amtInput.value);
-    if (v !== amtInput.value) amtInput.value = v;
+  amtInput.addEventListener('input', (e) => {
+    // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
+    // canonical '.'-decimal ungrouped value lives in state.amount and is the
+    // only thing the wire layer ever sees (#77 untouched). Caret rides the
+    // digit count, so inserted separators never displace it.
+    // Loop r1 CRITICAL-1: typing/deletion edits take the per-edit inverse
+    // (strip OUR separators unconditionally; a just-typed '.'/',' is decimal
+    // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
+    const disp = amtInput.value;
+    const caret = amtInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
     state.amount = v;
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      amtInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     sync();
   });
   const unit = document.createElement('span');
@@ -9365,14 +9532,14 @@ function createWalletSend({
       openModal(createModal({
         title: strings.maxTitle || 'Send your entire balance?',
         body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
-          .split('{m}').join(fromUnits(maxU > 0n ? maxU : 0n)),
+          .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
         content: maxWarn,
         role: 'alertdialog', host,
         actions: [
           { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
           { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
             state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
-            amtInput.value = state.amount;
+            amtInput.value = groupAmountDisplay(state.amount); // ★ I-6 (#360): display form in the field
             sync();
           } },
         ],
@@ -9383,7 +9550,7 @@ function createWalletSend({
 
   const availLine = document.createElement('p');
   availLine.className = 'c-wallet-send__meta u-tabular';
-  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(fromUnits(balU));
+  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
   amtSec.append(availLine);
 
   const feeLine = document.createElement('p');
@@ -9420,8 +9587,11 @@ function createWalletSend({
   function sync() {
     const a = amountU();
     const total = a > 0n ? a + feeU : feeU;
+    // ★ I-6 r2 (#360, loop r1 MINOR-5): same convention as the available line one
+    // row up — a grouped line above an ungrouped '.'-decimal line was the exact
+    // mixed convention the money.js header warns against, on one screen.
     feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
-      .split('{f}').join(fromUnits(feeU)).split('{t}').join(fromUnits(total));
+      .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
     const over = a > 0n && a + feeU > balU;
     insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
     if (over) insuff.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
@@ -9462,11 +9632,13 @@ function createWalletSend({
       rr.append(l, v);
       return rr;
     };
-    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent
+    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent.
+    // ★ I-6 (#360): grouped for READING, full precision kept — separators are the
+    // user's only defence against a mistyped zero at exactly this moment.
     rowsBox.append(
-      row(strings.amount || 'Amount', fromUnits(aU) + ' IXI'),
-      row(strings.fee || 'Fee', fromUnits(feeU) + ' IXI'),
-      row(strings.total || 'Total', fromUnits(aU + feeU) + ' IXI'),
+      row(strings.amount || 'Amount', groupAmountDisplay(fromUnits(aU)) + ' IXI'),
+      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeU)) + ' IXI'),
+      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeU)) + ' IXI'),
     );
     content.append(rowsBox);
 
@@ -9546,7 +9718,11 @@ function setSendAddress(el, scanned) {
   if (input) { input.value = address; input.focus(); }
   if (parts[1] === 'send' && parts[2]) {
     const amt = el.querySelector('.c-wallet-send__amount');
-    if (amt) { amt.value = parts[2]; amt.dispatchEvent(new Event('input', { bubbles: true })); }
+    // ★ I-6 (#360): seed the field with the DISPLAY form — the input handler
+    // ungroups what it reads, and a raw canonical '1.500' (one-and-a-half with
+    // typed zeros) dropped straight into a ','-decimal locale would read as
+    // grouping (1500, a 1000× error). The display form round-trips exactly.
+    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
   }
   return el;
 }
@@ -12230,12 +12406,12 @@ function createWalletReceive({
     if (ctaLabel) {
       ctaLabel.textContent = ready
         ? (strings.requestCta || 'Request {a} IXI ({n})')
-          .split('{a}').join(amount).split('{n}').join(String(n))
+          .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(n))
         : (strings.sendRequest || 'Send request');
     }
     cta.setAttribute('aria-label', ready
       ? (strings.requestCtaLabel || 'Request {a} IXI from {n} selected')
-        .split('{a}').join(amount).split('{n}').join(String(n))
+        .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(n))
       : (strings.sendRequest || 'Send request'));
   }
 
@@ -12288,9 +12464,9 @@ function createWalletReceive({
     }
     const text = sentCount === 1
       ? (strings.requestSentTo || 'Request for {a} IXI sent to {name}')
-        .split('{a}').join(amount).split('{name}').join(targets[0].name || targets[0].address)
+        .split('{a}').join(groupAmountDisplay(amount)).split('{name}').join(targets[0].name || targets[0].address)
       : (strings.requestSentToMany || 'Request for {a} IXI sent to {n} contacts')
-        .split('{a}').join(amount).split('{n}').join(String(sentCount));
+        .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(sentCount));
     // All clear → the request is spent: clear the amount too, so a surface that
     // stays mounted can never re-fire the same request against a stale number.
     state.amount = '';
@@ -12383,9 +12559,20 @@ function createWalletReceive({
     syncCta();
   }
 
-  amtInput.addEventListener('input', () => {
-    const v = sanitizeAmount(amtInput.value);
-    if (v !== amtInput.value) amtInput.value = v;
+  amtInput.addEventListener('input', (e) => {
+    // ★ I-6 (#360): locale-grouped display in the field; canonical value in
+    // state (#77 wire untouched). Caret follows the digit count. Loop r1
+    // CRITICAL-1: per-edit inverse for typing/deletion, settled heuristic
+    // only for paste/synthetic dispatches.
+    const disp = amtInput.value;
+    const caret = amtInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      amtInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     state.amount = v;
     // W9: a new amount invalidates a stale outcome line (audit M5's honesty rule,
     // now on the result line — there is no per-row ✓ left to go stale). The
@@ -12452,7 +12639,9 @@ function setRequestAmount(el, amount) {
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);
-  input.value = plain;
+  // ★ I-6 (#360): seed the DISPLAY form — the handler ungroups what it reads,
+  // and a raw '.'-decimal canonical in a ','-decimal locale could misread.
+  input.value = groupAmountDisplay(plain);
   input.dispatchEvent(new Event('input', { bubbles: true }));
   return el;
 }
@@ -12572,7 +12761,7 @@ function openAmountSheet({
       if (state.sending) return;
       selectChip(e.currentTarget);
       delete customRow.dataset.ghost;                      // slot was always there — just becomes visible
-      state.amount = sanitizeAmount(customInput.value);
+      state.amount = sanitizeAmount(ungroupAmountInput(customInput.value));   // ★ I-6 (#360): SETTLED read — the field holds a display form, not a mid-edit
       sync();
       customInput.focus();
     },
@@ -12592,10 +12781,21 @@ function openAmountSheet({
   customInput.inputMode = 'decimal';
   customInput.placeholder = '0';
   customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
-  customInput.addEventListener('input', () => {
+  customInput.addEventListener('input', (e) => {
     if (state.sending) return;
-    const v = sanitizeAmount(customInput.value);
-    if (v !== customInput.value) customInput.value = v;
+    // ★ I-6 (#360): locale-grouped display in the field; canonical in state —
+    // the money-safety surface Damir named first ("easy to know how much we
+    // are sending"). Wire layer (#77) untouched. Loop r1 CRITICAL-1: per-edit
+    // inverse for typing/deletion; settled heuristic only for paste/synthetic.
+    const disp = customInput.value;
+    const caret = customInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      customInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { customInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     state.amount = v;
     sync();
   });
@@ -12677,7 +12877,9 @@ function openAmountSheet({
     if (over) guard.textContent = strings.tipInsufficient || 'Not enough IXI for this tip.';
     confirm.disabled = !valid();
     const label = confirm.querySelector('.c-button__label') || confirm;
-    label.textContent = valid() ? copy.confirm.split('{a}').join(a) : copy.idle;
+    // ★ I-6 r2 (#360, loop r1 MINOR-5): the confirm label reads in the field's own
+    // convention (the PAYLOAD stays canonical — `a` is what leaves the sheet).
+    label.textContent = valid() ? copy.confirm.split('{a}').join(groupAmountDisplay(a)) : copy.idle;
   }
   sync();
 
@@ -20666,5 +20868,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

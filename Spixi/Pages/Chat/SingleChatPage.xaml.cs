@@ -294,59 +294,10 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:sendContactRequest:"))
             {
-                Address address = new Address(current_url.Substring("ixian:sendContactRequest:".Length));
-                // #334 loop MINOR-5: the roster includes a SELF row (#249) with a live
-                // request button — mirror ContactNewPage:174-178's self guard too.
-                if (address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
-                {
-                    // #336 (Damir F5 #10): a valid own/known address is NOT "Invalid Address" — friendlier, accurate title.
-                    // #337 audit: ?? fallbacks — _SL returns NULL under the 5 hidden OS-culture
-                    // locales (#258/#335 class; the two NEW title keys are absent there), so the
-                    // alert rendered TITLE-LESS for that cohort (displaySpixiAlert try/catches,
-                    // so no crash — reviewer r2 corrected the "dies silently" first read).
-                    displaySpixiAlert(SpixiLocalization._SL("contact-self-title") ?? "That's your address", SpixiLocalization._SL("contact-new-invalid-address-self-text") ?? "The address you have entered is your own address.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
-                    return;
-                }
-                // #334 AND-17(a): an already-known member (any state — previously
-                // requested, pending, tombstoned) made addFriend return null and the
-                // tap died SILENTLY while the member sheet offered a live button.
-                // Mirror ContactNewPage:180-193: heal pendingDeletion, surface the
-                // already-exists case instead of dropping the tap.
-                Friend existing = FriendList.getFriend(address);
-                if (existing != null && existing.pendingDeletion)
-                {
-                    FriendList.removeFriend(existing);
-                    UIHelpers.shouldRefreshContacts = true;
-                    existing = null;
-                }
-                if (existing != null)
-                {
-                    // #336 (Damir F5 #10): friendlier + accurate ("Already in your contacts").
-                    // #337 audit: ?? fallbacks — hidden-locale _SL null must not strip the title (see self-guard above).
-                    displaySpixiAlert(SpixiLocalization._SL("contact-exists-title") ?? "Already in your contacts", SpixiLocalization._SL("contact-new-invalid-address-exists-text") ?? "This contact is already added.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
-                }
-                else
-                {
-                    Friend new_friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, address, null, address.ToString(), null, null, 0);
-                    if (new_friend != null)
-                    {
-                        new_friend.save();
-
-                        UIHelpers.shouldRefreshContacts = true;
-
-                        StreamProcessor.sendContactRequest(new_friend);
-                        // #334 AND-17(b): ContactNewPage:203 stamps the outgoing request
-                        // with a requestAddSent status message — the M5 "Request sent"
-                        // row + Requests chip KEY on that marker. This path never wrote
-                        // it, so member-sheet requests were SENT but INVISIBLE in the
-                        // chats list until the peer accepted (Damir, bot group 2026-08-11).
-                        Node.addMessageWithType(null, FriendMessageType.requestAddSent, address, 0, "", true);
-                        if (new_friend.approved)
-                        {
-                            CoreProtocolMessage.resubscribeEvents();
-                        }
-                    }
-                }
+                // N26 (#366): body moved VERBATIM to SpixiContentPage.sendContactRequestGuarded
+                // (#334 AND-17 guards intact) — ContactDetails' member sheet shares it now.
+                // The helper also hardened the address parse (try/catch, A-4 rule).
+                sendContactRequestGuarded(current_url.Substring("ixian:sendContactRequest:".Length));
             }
             else if (current_url.StartsWith("ixian:kick:"))
             {
@@ -570,7 +521,14 @@ namespace SPIXI
                     }
                     address = "[Unknown]";
                 }
-                Utils.sendUiCommand(this, "addContact",  address, nick, avatar, role.ToString());
+                // D-5 (#366): trailing relation. Loop m2: gate on the BROAD blind
+                // predicate (botInfo.hideParticipantAddresses), NOT the '[Unknown]'
+                // mask — the mask fires for blind GROUPS only, and a blind BOT's
+                // roster rows would otherwise carry an is-in-your-contacts hint
+                // (the #348 MAJOR-5 masking gap, must not widen under the gate).
+                bool relBlind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                string relation = relBlind ? "" : contactRelationFor(contactAddress);
+                Utils.sendUiCommand(this, "addContact",  address, nick, avatar, role.ToString(), relation);
             }
         }
 
@@ -1731,6 +1689,19 @@ namespace SPIXI
             // "img/..." sentinels pass through unchanged.
             avatar = Utils.imageToDataUri(avatar);
 
+            // D-5/N26 (#366): per-sender RELATION for the member sheet — received
+            // multi-chat rows only ("" elsewhere; the shell treats "" as none).
+            // Never for a blind chat: a relation on a masked row is an identity
+            // hint (the FE gates the member sheet off there anyway — belt both sides).
+            // Loop n2: only the STANDARD text push consumes it — gate the FriendList
+            // scan on the type so payment/file/app/call rows don't pay for it.
+            string relation = "";
+            bool relationBlind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+            if (message.type == FriendMessageType.standard && !message.localSender && !relationBlind && (friend.bot || friend.type == FriendType.Group))
+            {
+                relation = contactRelationFor(message.senderAddress);
+            }
+
             if (message.type == FriendMessageType.requestFunds)
             {
                 string status = SpixiLocalization._SL("chat-payment-status-waiting-confirmation");
@@ -1966,7 +1937,9 @@ namespace SPIXI
             {
                 // Normal chat message
                 // Call webview methods on the main UI thread only
-                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString());
+                // D-5/N26 (#366): trailing `relation` arg — ADDITIVE (an older shell
+                // ignores extras; a missing arg reads as undefined → 'none' FE-side).
+                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString(), relation);
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)

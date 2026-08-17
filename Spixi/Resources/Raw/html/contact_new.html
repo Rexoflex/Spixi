@@ -1033,19 +1033,25 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 </style><!-- overlay stack (scrim) for the incoming-call overlay -->
 <style data-src="../styles/components/avatar.css">
-/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #37).
-   Hues (--av-h1/--av-h2) come from JS per identity; S/L below are themed so the
-   gradient tracks the mode: light = deep gradient + white ink (inverse-01),
-   dark = pastel gradient + dark ink (inverse-01 flips). */
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).
+   N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
+   the 12 gradients below are hand-tuned per anchor and serve BOTH themes
+   (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
+   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
 
-:root {
-  --avatar-grad-s1: 58%; --avatar-grad-l1: 48%;
-  --avatar-grad-s2: 55%; --avatar-grad-l2: 34%;
-}
-[data-theme="dark"] {
-  --avatar-grad-s1: 52%; --avatar-grad-l1: 62%;
-  --avatar-grad-s2: 48%; --avatar-grad-l2: 48%;
-}
+.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -1059,7 +1065,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      only (below) so a light photo still separates from a light surface. Outer
      size unchanged (border-box) → photo and gradient variants render the same
      footprint + identical circular mask. */
-  color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
+  /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
+     everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
+     c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
+  color: #fff; /* initials/glyph over gradient */
   overflow: visible;
 }
 
@@ -1080,9 +1089,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
 
 .c-avatar[data-placeholder] {
+  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
+     still paints a legible gradient instead of a transparent disc. */
   background-image: linear-gradient(135deg,
-    hsl(var(--av-h1, 0), var(--avatar-grad-s1), var(--avatar-grad-l1)),
-    hsl(var(--av-h2, 40), var(--avatar-grad-s2), var(--avatar-grad-l2)));
+    var(--av-c1, hsl(215, 62%, 50%)),
+    var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {

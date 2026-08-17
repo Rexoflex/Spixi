@@ -7,6 +7,7 @@ using Microsoft.Maui.Controls.Xaml;
 using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
+using System.Collections.Generic;
 using System.Web;
 
 namespace SPIXI
@@ -147,7 +148,8 @@ namespace SPIXI
                     }
                     address = "[Unknown]";
                 }
-                Utils.sendUiCommand(this, "addMember", address, nick, avatar, contact.Value.getPrimaryRole().ToString());
+                // D-5/N26 (#366): trailing relation ("" on blind rows — no identity hints).
+                Utils.sendUiCommand(this, "addMember", address, nick, avatar, contact.Value.getPrimaryRole().ToString(), blind ? "" : contactRelationFor(contactAddress));
             }
         }
 
@@ -258,6 +260,13 @@ namespace SPIXI
                     StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 0 }, 0, true);
                 }
             }
+            else if (current_url.StartsWith("ixian:sendContactRequest:"))
+            {
+                // N26 (#366): the group-info member sheet's Add-contact — the SAME
+                // guarded path SingleChatPage uses (SpixiContentPage helper: self
+                // guard · pendingDeletion heal · exists alert · requestAddSent marker).
+                sendContactRequestGuarded(current_url.Substring("ixian:sendContactRequest:".Length));
+            }
             else if (current_url.StartsWith("ixian:kick:"))
             {
                 // #248: admin kick/ban — mirrors SingleChatPage.onKickUser/onBanUser.
@@ -337,7 +346,44 @@ namespace SPIXI
                 }
                 else
                 {
-                    displaySpixiAlert(SpixiLocalization._SL("contact-details-cannotremovecontact-title"), SpixiLocalization._SL("contact-details-cannotremovecontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    // N27 (#367): removeFriend refuses when the contact is in a group
+                    // (Core isFriendInGroup — computed and DISCARDED there). Re-run the
+                    // same predicate with the result KEPT and NAME the blocking groups
+                    // in the shell (removeBlocked push, name/address pairs — each arg
+                    // transport-escaped; the shell renders via textContent). The legacy
+                    // alert stays as the fallback for the empty-enumeration edge (a
+                    // refusal this enumeration cannot explain must still say something).
+                    List<string> blockers = new List<string>();
+                    try
+                    {
+                        // Loop n4: snapshot the reference ONCE — sortFriends() reassigns
+                        // the field without a lock, so lock+iterate must use one object.
+                        var friendsRef = FriendList.friends;
+                        lock (friendsRef)   // Core locks this same object in isFriendInGroup
+                        {
+                            foreach (Friend f in friendsRef)
+                            {
+                                if (f.type == FriendType.Group && f.users != null && f.users.hasUser(friend.walletAddress))
+                                {
+                                    blockers.Add(f.nickname ?? "");
+                                    blockers.Add(f.walletAddress.ToString());
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("removeBlocked enumeration: " + ex.Message);
+                        blockers.Clear();
+                    }
+                    if (blockers.Count > 0)
+                    {
+                        Utils.sendUiCommand(this, "removeBlocked", blockers.ToArray());
+                    }
+                    else
+                    {
+                        displaySpixiAlert(SpixiLocalization._SL("contact-details-cannotremovecontact-title"), SpixiLocalization._SL("contact-details-cannotremovecontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    }
                 }
             }
             return false;

@@ -129,7 +129,7 @@ function pickerRow(c, st) {
     row.dataset.blocked = '';
   }
 
-  row.append(createAvatar({ src: c.avatar || null, name: c.name || '', address: c.address || '', size: 48, online: !!c.online }));
+  row.append(createAvatar({ src: c.avatar || null, name: c.name || '', address: c.address || '', size: 48, online: !!c.online, group: !!c.isGroup }));
 
   const col = document.createElement('span');
   col.className = 'c-contacts__col';

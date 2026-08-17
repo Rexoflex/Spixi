@@ -4981,7 +4981,9 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     const t = readFileSync(join(root, 'Spixi/Resources/Raw/lang/' + l + '.txt'), 'utf8');
     return /contact-self-title\s*=/.test(t) && /contact-exists-title\s*=/.test(t);
   }), '#337 #10: contact-self-title + contact-exists-title present in all 8 locales');
-  const scp337 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  // #366 REBASED: the guarded body moved VERBATIM to SpixiContentPage
+  // .sendContactRequestGuarded (shared with ContactDetails) — the pin follows it.
+  const scp337 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
   ok(/_SL\("contact-self-title"\) \?\? /.test(scp337) && /_SL\("contact-exists-title"\) \?\? /.test(scp337),
     '#337 #10: both alert sites carry ??-fallbacks (the #334 L5 hidden-locale lesson)');
   // Splash: static blue only — the animated icon stays reverted.
@@ -7871,6 +7873,231 @@ console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press 
     ok(/illustration: 'images\/onboarding\/rate\.png'/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
       'N14a: the PRODUCTION shell passes the rate-me art to the nudge (N45 ships the file)');
   }
+}
+
+console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#365) · N26/D-5 relation (#366) · N27 remove-blocked (#367)');
+{
+  const read = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— N1 (#364): the anchor palette, COMPUTED contrast gate ————————————— */
+  const avCss = read('src/styles/components/avatar.css');
+  const pairRe = /\[data-hue="(\d+)"\]\s*\{\s*--av-c1: hsl\((\d+),\s*(\d+)%,\s*(\d+)%\);\s*--av-c2: hsl\((\d+),\s*(\d+)%,\s*(\d+)%\);/g;
+  const pairs = [...avCss.matchAll(pairRe)].map((m) => m.slice(1).map(Number));
+  ok(pairs.length === 12 && pairs.every((p, i) => p[0] === i),
+    'N1: avatar.css carries exactly 12 [data-hue] gradient pairs, indexed 0..11');
+  const hsl2lum = (h, s, l) => {
+    s /= 100; l /= 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r, g, b;
+    if (h < 60) [r, g, b] = [c, x, 0]; else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x]; else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c]; else [r, g, b] = [c, 0, x];
+    const f = (v) => { v += m; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const whiteContrast = (h, s, l) => 1.05 / (hsl2lum(h, s, l) + 0.05);
+  ok(pairs.every((p) => whiteContrast(p[1], p[2], p[3]) >= 4.5 && whiteContrast(p[4], p[5], p[6]) >= 4.5),
+    'N1 ★: every anchor gradient measures >= 4.5:1 under white ink at BOTH stops — computed here, not asserted');
+  ok(/\.c-avatar \{[\s\S]{0,900}?color: #fff;/.test(avCss),
+    'N1: avatar ink is literal #fff in BOTH themes (the c-disc #170 grammar)');
+  ok(!/--avatar-grad-s1/.test(avCss) && !/text-neutral-inverse-01/.test(avCss),
+    'N1: the #37 per-theme S/L vars + flipping ink token are fully retired from avatar.css');
+  const avJs = read('src/components/avatar.js');
+  ok(/icon\(group \? 'users' : 'user-circle'/.test(avJs),
+    'N1: the placeholder glyph branches on group — users vs user-circle');
+  ok(/const ini = \(!group && name\)/.test(avJs),
+    'N1: initials are person-only — a NAMED group still shows the group glyph');
+  // group-flag threading, one pin per consumer (silent drops were the old failure mode)
+  ok(/group: type === 'group'/.test(read('src/components/chatlist-item.js')),
+    'N1: chatlist rows thread type→group into the avatar (the silently-dropped `type` is consumed now)');
+  ok(/group: !!identity\.group/.test(read('src/components/topbar.js')),
+    'N1: the chat topbar identity threads group');
+  ok(/group: kind !== 'contact'/.test(read('src/components/chat-info.js')),
+    'N1: the chat-info hero threads group (group/bot kinds)');
+  ok(/group: !!c\.isGroup/.test(read('src/components/contacts-shell.js')),
+    'N1: contacts picker rows thread isGroup');
+  ok(/group: chat\.type === 'group'/.test(read('src/components/chats-row-menu.js')),
+    'N1: the row-menu/delete peer header threads type');
+  ok(/group: !!mode\.isMulti/.test(read('src/shells/chat.html')),
+    'N1: chat.html passes mode.isMulti as the topbar group flag');
+
+  /* —— N26/D-5 (#366) + N27 (#367): C# source pins ————————————————————— */
+  const scp366 = read('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const base366 = read('Spixi/Utils/SpixiContentPage.cs');
+  const cd366 = read('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+  ok(/public static string contactRelationFor\(Address address\)/.test(base366)
+    && /return "self";/.test(base366) && /return "contact";/.test(base366)
+    && /return "pending";/.test(base366) && /return "none";/.test(base366),
+    'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
+  ok(/errorSending\.ToString\(\), relation\);/.test(scp366),
+    'D-5: the per-message addMe/addThem push carries the trailing relation arg');
+  ok(/relation = contactRelationFor\(message\.senderAddress\);/.test(scp366)
+    && /!message\.localSender && !relationBlind/.test(scp366),
+    'D-5 ★: relation is computed ONLY for received multi-chat rows and NEVER for a blind chat (identity-hint belt)');
+  // loop m2 REBASED: the '[Unknown]' key masked blind GROUPS only — the broad
+  // botInfo predicate covers blind BOTS too (the #348 MAJOR-5 gap must not widen).
+  ok(/"addContact", {2}address, nick, avatar, role\.ToString\(\), relation\);/.test(scp366)
+    && /string relation = relBlind \? "" : contactRelationFor\(contactAddress\)/.test(scp366),
+    'D-5: the roster addContact push carries relation, gated on the BROAD blind predicate (blind bots included)');
+  ok(/message\.type == FriendMessageType\.standard && !message\.localSender && !relationBlind/.test(scp366),
+    'D-5 (loop n2): the relation FriendList scan runs only for STANDARD rows — typed rows do not pay for it');
+  ok(/"addMember", address, nick, avatar, contact\.Value\.getPrimaryRole\(\)\.ToString\(\), blind \? "" : contactRelationFor\(contactAddress\)\);/.test(cd366),
+    'D-5: ContactDetails addMember carries relation ("" on blind rows)');
+  ok(/public void sendContactRequestGuarded\(string str_address\)/.test(base366)
+    && /sendContactRequestGuarded\(current_url\.Substring\("ixian:sendContactRequest:"\.Length\)\);/.test(scp366)
+    && /sendContactRequestGuarded\(current_url\.Substring\("ixian:sendContactRequest:"\.Length\)\);/.test(cd366),
+    'N26 ★: BOTH pages route ixian:sendContactRequest through the ONE guarded helper (self guard · heal · exists alert · requestAddSent marker)');
+  ok(/catch \(Exception ex\)\s*\{\s*Logging\.warn\("sendContactRequest: invalid address payload/.test(base366),
+    'N26: the address payload parse is try/catch-guarded (A-4 rule — the old SingleChatPage parse was bare)');
+  ok(/FriendMessageType\.requestAddSent/.test(base366),
+    'N26: the requestAddSent marker (#334 AND-17b) survived the move');
+  // N27: enumerate-and-name, with the legacy alert as the empty-enumeration fallback
+  ok(/f\.type == FriendType\.Group && f\.users != null && f\.users\.hasUser\(friend\.walletAddress\)/.test(cd366)
+    && /sendUiCommand\(this, "removeBlocked", blockers\.ToArray\(\)\)/.test(cd366),
+    'N27 ★: a refused remove enumerates the blocking groups (Core discards the list; C# re-runs the predicate and KEEPS it)');
+  // loop n4 REBASED: the reference is snapshotted once (sortFriends reassigns
+  // the field lock-free) — lock and iterate must use the same object.
+  ok(/var friendsRef = FriendList\.friends;/.test(cd366) && /lock \(friendsRef\)/.test(cd366),
+    'N27: the enumeration snapshots + locks ONE friends reference (Core lock parity, TOCTOU closed)');
+  ok(/contact-details-cannotremovecontact-title/.test(cd366),
+    'N27: the legacy alert survives as the empty-enumeration fallback (a refusal must always say something)');
+
+  /* —— N26/D-5 + N27: shell source pins ————————————————————————————— */
+  const chat366 = read('src/shells/chat.html');
+  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation\)/.test(chat366),
+    'D-5: chat.html addThem accepts the trailing relation (the old signature silently discarded trailing args)');
+  ok(/const RELATIONS = new Set\(\['contact', 'pending', 'none', 'self'\]\);/.test(chat366),
+    'D-5: pushed relation values are validated against the closed vocabulary');
+  ok(/addContact\(address, nick, avatar, role, relation\)/.test(chat366),
+    'D-5: the roster handler stopped discarding trailing args');
+  ok(/requestedMembers\.add\(rec\.senderAddress\);/.test(chat366) && /requestedMembers\.clear\(\);/.test(chat366),
+    'N26: the in-flight request latch exists AND resets per-peer (onChatScreenReady)');
+  ok(/onRequest: \(rec\.senderAddress && relation === 'none'\)/.test(chat366),
+    'N26 ★: the request button only exists for a true stranger — contact/pending/self/latched all stay inert');
+  ok(/owner: isOwnerAddr\(rec\.senderAddress\)/.test(chat366),
+    'N34: the member sheet carries the owner flag (matches the bubble chip)');
+  ok(/roleBadge: \(!isSent && mode\.isMulti && !mode\.blind && isOwnerAddr\(rec\.senderAddress\)\)/.test(chat366),
+    'N34 ★ (loop MAJOR-1): the chip gate carries !mode.blind — a blind chat must never mark one hidden member as Owner');
+  ok(/if \(isOwnerAddr\(m\.address\)\) m\.owner = true;/.test(chat366),
+    'N34 (loop NIT-3): collectGroupMembers uses the ONE isOwnerAddr predicate, no inline drift copy');
+  // loop r2 MAJOR-1: relation must survive ALL THREE collect steps + the latch —
+  // an ACTIVE contact falling to 'none' re-arms the request button (the D-5 inversion).
+  ok(/relation: prev\.relation \|\| rec\.relation \|\| ''/.test(chat366)
+    && /relation: prev\.relation \|\| ''/.test(chat366)
+    && /requestedMembers\.has\(m\.address\) && \(m\.relation \|\| 'none'\) === 'none'\) m\.relation = 'pending'/.test(chat366),
+    'D-5 ★ (loop r2 MAJOR-1a): collectGroupMembers carries relation through steps 2+3 and applies the latch');
+  const chatOnReq = chat366.indexOf('onContactRequest: (m) => {');
+  ok(chatOnReq >= 0 && /requestedMembers\.add\(m\.address\);/.test(chat366.slice(chatOnReq, chatOnReq + 400)),
+    'N26 (loop r2 MAJOR-1b): the chat takeover onContactRequest feeds the latch like its two siblings');
+  const cdet366 = read('src/shells/contact_details.html');
+  ok(/addMember\(address, nick, avatar, role, relation\)/.test(cdet366)
+    && /\? 'pending' : \(m\.relation \|\| ''\)/.test(cdet366),
+    'D-5: contact_details stores + forwards the member relation (latch-aware)');
+  ok(/onContactRequest: \(m\) => \{\s*\n\s*if \(m && m\.address && m\.address !== '\[Unknown\]'\)/.test(cdet366),
+    'N26: the group-info surface wires Add-contact, masked rows never emit');
+  ok(/\(onContactRequest && \(m\.relation \|\| 'none'\) === 'none'\)/.test(read('src/components/chat-info.js')),
+    'N26: chat-info gates the request closure on relation none (self/unknown stay inert)');
+  // loop n3: anchor the slice — a renamed helper must FAIL this pin, not
+  // degrade it to a one-character vacuous match.
+  const rbIdx = cdet366.indexOf('function openRemoveBlockedModal');
+  ok(rbIdx >= 0 && /removeBlocked\(\) \{/.test(cdet366) && !/innerHTML/.test(cdet366.slice(rbIdx, rbIdx + 1800)),
+    'N27: the shell handler + modal exist and build via textContent only (group names are peer-controlled)');
+  ok(/max-height: 40vh;/.test(cdet366) && /lightDismiss: true/.test(cdet366),
+    'N27 ★ (loop M1): the blocking-group list scrolls (never pushes OK past the clip) and the scrim dismisses (no Esc, no hardware-back wiring on this shell)');
+  ok(/\.c-modal \{ max-height: calc\(100% - 32px\); overflow-y: auto; \}/.test(cdet366),
+    'N27 (loop r2 MINOR-1): the MODAL itself caps + scrolls — fixed chrome alone must not push OK off a short landscape viewport');
+  ok(/requestedMembers\.has\(m\.address\)/.test(cdet366) && /requestedMembers\.add\(m\.address\)/.test(cdet366),
+    'N26 (loop m1): the contact_details request latch survives change-gated panel rebuilds');
+  /* —— N27 strings in all 8 built dictionaries ————————————————————— */
+  const locales366 = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp'];
+  ok(locales366.every((l) => {
+    const t = read('src/strings/' + l + '.js');
+    return /removeBlockedTitle/.test(t) && /removeBlockedIntro/.test(t) && /removeBlockedPath/.test(t);
+  }), 'N27: the three remove-blocked keys exist in all 8 built dictionaries');
+}
+
+{
+  /* —— behavior pins over the live bundle (components.html) ————————————— */
+  const dom = await load('components.html');
+  const S = dom.window.Spixi, d = dom.window.document;
+
+  // N1: anchors + quantization
+  const hues = S.IDENTITY_HUES;
+  const circ = (a, b) => Math.min((a - b + 360) % 360, (b - a + 360) % 360);
+  let minD = 999;
+  for (let i = 0; i < hues.length; i++) for (let j = i + 1; j < hues.length; j++) minD = Math.min(minD, circ(hues[i], hues[j]));
+  // >= 18°: the one 18° pair (22/40, orange vs amber) separates FURTHER by
+  // lightness (L 43% vs 35% in avatar.css) — every other pair is >= 22° apart.
+  ok(Array.isArray(hues) && hues.length === 12 && minD >= 18,
+    'N1: 12 anchors, minimum pairwise hue distance >= 18° — the four-similar-greens class is structural now');
+  ok(hues.every((h) => !(h > 45 && h < 90)),
+    'N1: no anchor inside the illegible yellow band (50-80)');
+  const samples = Array.from({ length: 200 }, (_, i) => 'addr' + i + 'x' + (i * 7919));
+  ok(samples.every((s) => hues.includes(S.hashHue(s)) && S.hashHue(s) === hues[S.identityIndex(s)]),
+    'N1: hashHue quantizes onto the anchor set — sender labels and avatars stay in agreement (single source)');
+
+  // N1: createAvatar behavior
+  const person = S.createAvatar({ name: 'Han Solo', address: 'someaddr' });
+  ok(person.querySelector('.c-avatar__initials') && person.querySelector('.c-avatar__initials').textContent === 'HS'
+    && /^\d+$/.test(person.dataset.hue || '') && Number(person.dataset.hue) < 12,
+    'N1: person placeholder keeps initials + gains the anchor index (data-hue)');
+  const grp = S.createAvatar({ name: 'Camping Group Alpha', group: true });
+  ok(!grp.querySelector('.c-avatar__initials') && !!grp.querySelector('svg'),
+    'N1 ★: a NAMED group renders the group glyph, never initials');
+  const anon = S.createAvatar({});
+  // null-safe on purpose: a mutated/reverted glyph branch must FAIL this pin,
+  // not throw and silently skip the rest of the block (mutation-run lesson)
+  const grpSvg = grp.querySelector('svg'), anonSvg = anon.querySelector('svg');
+  ok(!!grpSvg && !!anonSvg && grpSvg.innerHTML !== anonSvg.innerHTML,
+    'N1: the group glyph is a DIFFERENT glyph from the person fallback');
+  const rowG = S.createChatItem({ name: 'Mexico Trip', type: 'group', timestamp: Date.now(), excerpt: { type: 'text', text: 'x' } });
+  ok(!!rowG.querySelector('.c-avatar svg') && !rowG.querySelector('.c-avatar__initials'),
+    'N1: a group chat ROW wears the group glyph end-to-end (type threads through createChatItem)');
+  const rowP = S.createChatItem({ name: 'Ana Bell', timestamp: Date.now(), excerpt: { type: 'text', text: 'x' } });
+  ok(!!rowP.querySelector('.c-avatar__initials'),
+    'N1: a person chat row keeps initials (no false group flags)');
+
+  // N34: the owner chip
+  const bub = S.createMessageBubble({ direction: 'received', position: 'first', text: 'hi', sender: 'Han Solo', name: 'Han Solo', address: 'addr1', roleBadge: 'Owner' });
+  const senderEl = bub.querySelector('.c-bubble__sender');
+  const chipEl = senderEl && senderEl.querySelector('.c-bubble__role');
+  ok(!!senderEl && senderEl.hasAttribute('data-has-role') && !!chipEl && chipEl.textContent === 'Owner',
+    'N34: roleBadge renders the Owner chip INSIDE the sender row (data-has-role flips the flex layout)');
+  const bub2 = S.createMessageBubble({ direction: 'received', position: 'first', text: 'hi', sender: 'Han Solo', name: 'Han Solo', address: 'addr1' });
+  const sender2 = bub2.querySelector('.c-bubble__sender');
+  ok(!!sender2 && !sender2.hasAttribute('data-has-role') && !bub2.querySelector('.c-bubble__role'),
+    'N34: no roleBadge → the plain label path is untouched');
+  // grouping repair carries the chip (the label element moves; the chip is its child)
+  const wrap = d.createElement('div');
+  d.body.append(wrap);
+  const head = S.createMessageBubble({ direction: 'received', position: 'first', text: 'one', sender: 'Han Solo', name: 'Han Solo', address: 'addr1', roleBadge: 'Owner' });
+  const tail = S.createMessageBubble({ direction: 'received', position: 'last', text: 'two', sender: null });
+  wrap.append(head, tail);
+  S.removeMessage(head);
+  ok(tail.dataset.position === 'single' && !!tail.querySelector('.c-bubble__role'),
+    'N34 ★: deleting the run head moves the sender label WITH its Owner chip to the heir');
+
+  // N26: the member sheet relation states drive the CTA honestly
+  const sheetHost = d.createElement('div');
+  d.body.append(sheetHost);
+  const mk = (relation, onRequest) => S.openMemberSheet({
+    host: sheetHost, member: { name: 'Ana', address: 'addrX' }, relation, onRequest, strings: {},
+  });
+  const sContact = mk('contact', () => {});
+  ok(!!sContact.querySelector('.c-badge') && ![...sContact.querySelectorAll('button')].some((b) => /contact request/i.test(b.textContent)),
+    'N26: relation contact → badge, NO request button (the D-5 wrong-offer is dead)');
+  sContact.remove();
+  const sPending = mk('pending', () => {});
+  ok(![...sPending.querySelectorAll('button')].some((b) => /contact request/i.test(b.textContent)),
+    'N26: relation pending → no second request');
+  sPending.remove();
+  const sNone = mk('none', () => {});
+  ok([...sNone.querySelectorAll('button')].some((b) => /contact request/i.test(b.textContent)),
+    'N26: a true stranger still gets the request button');
+  sNone.remove();
+  wrap.remove(); sheetHost.remove();
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

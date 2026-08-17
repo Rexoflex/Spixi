@@ -119,6 +119,9 @@ export function createChatItem({
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
+  // N1 (#364): rows carry `type` ('group' | '1to1'; home.html CH1 kind) — it was
+  // silently dropped before. Groups/bots now wear the group-glyph avatar.
+  type = '',
   selected = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement('button');
@@ -134,7 +137,7 @@ export function createChatItem({
   const hasNick = !!name && name !== address;
   const displayName = hasNick ? name : (address ? truncateAddressMiddle(address) : (name || ''));
 
-  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online }));
+  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online, group: type === 'group' }));
 
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';

@@ -88,6 +88,76 @@ namespace SPIXI
             return amount_string;
         }
 
+        // ★ I-6 (#360): locale-aware DISPLAY formatting for amounts inside
+        // C#-COMPOSED sentences (alert / tip-sheet bodies): the integer part
+        // grouped and the decimal mark chosen by the APP LANGUAGE
+        // (SpixiLocalization), so alerts agree with every FE surface. Damir's
+        // repro: "333333333.03000000" in the balance alert was unreadable.
+        // ★ Loop r1 MAJOR-3: alerts keep FULL precision (trailing zeros
+        // trimmed) — NO 2-dp cap. These sentences exist to expose a SHORTFALL,
+        // and the shortfall is usually the fee (0.005 IXI): a 2-dp cap renders
+        // "cost is 10, balance is 10" — the exact bug the r4 note above the
+        // tip site documents. The ≤2-dp law (#76/#77) is for display
+        // SUMMARIES; an alert is an exactness surface, like the review sheet.
+        // String-only — an IxiNumber never passes through a float — and DISPLAY
+        // only: bridge pushes and payloads keep the canonical format (#77).
+        public static string amountToLocalizedDisplayString(IxiNumber amount)
+        {
+            string s = amount.ToString();
+            bool neg = s.StartsWith("-");
+            if (neg) s = s.Substring(1);
+            string int_part = s;
+            string frac_full = "";
+            int dot = s.IndexOf('.');
+            if (dot >= 0)
+            {
+                int_part = s.Substring(0, dot);
+                frac_full = s.Substring(dot + 1);
+            }
+            string frac = frac_full.TrimEnd('0');
+            string group_sep = ",", dec_sep = ".";
+            // ★ r2 MAJOR-2: resolve the culture ONLY for languages the SHELL also
+            // localizes (build-strings-iife: a language with no FE dictionary keeps
+            // <html lang="en">, so the whole shell groups en-style). Without this
+            // gate an it/id/lt user got en-convention amounts on every FE surface
+            // and native-convention amounts in the alerts — the exact mixed
+            // convention I-6 exists to prevent, introduced BY the batch. When a
+            // dictionary ships for one of these, add it here AND there.
+            string lang = SPIXI.Lang.SpixiLocalization.getCurrentLanguage();
+            switch (lang)
+            {
+                case "de-de": case "es-co": case "fr-fr": case "pt-br":
+                case "ru-ru": case "sl-si": case "sr-sp": case "en-us":
+                    try
+                    {
+                        var ci = System.Globalization.CultureInfo.GetCultureInfo(lang);
+                        group_sep = ci.NumberFormat.NumberGroupSeparator;
+                        dec_sep = ci.NumberFormat.NumberDecimalSeparator;
+                    }
+                    catch (Exception)
+                    {
+                        // unresolvable tag ("sr-sp" on some runtimes) → keep en defaults
+                    }
+                    break;
+                default:
+                    // no FE dictionary → the shell renders en — match it
+                    break;
+            }
+            if (int_part.Length > 3)
+            {
+                var sb = new StringBuilder();
+                int lead = int_part.Length % 3;
+                if (lead > 0) sb.Append(int_part, 0, lead);
+                for (int i = lead; i < int_part.Length; i += 3)
+                {
+                    if (sb.Length > 0) sb.Append(group_sep);
+                    sb.Append(int_part, i, 3);
+                }
+                int_part = sb.ToString();
+            }
+            return (neg ? "-" : "") + int_part + (frac != "" ? dec_sep + frac : "");
+        }
+
         public static string bytesToHumanFormatString(long bytes)
         {
             if (bytes < 1024)

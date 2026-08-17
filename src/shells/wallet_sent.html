@@ -127,6 +127,7 @@
     truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
     createButton,                        // #285: the per-view reveal button
     formatTxTimestamp,                   // iOS-55 (#325): epoch → localized display (docLocale)
+    groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js)
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -161,10 +162,9 @@
   /* —— helpers ——————————————————————————————————————————————————————————————— */
   // Display grouping only (legacy wallet_sent.html:175 amountWithCommas) — the
   // detail is the authoritative record, so decimals stay VERBATIM (no 2dp clamp).
-  function amountWithCommas(n) {
-    const parts = String(n).split('.');
-    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
-  }
+  // ★ I-6 (#360): separators now follow the APP LANGUAGE (money.js
+  // groupAmountDisplay — group + decimal mark travel together), not hard commas.
+  const amountWithCommas = (n) => groupAmountDisplay(n);
   // 'true'→confirmed · 'false'→pending · 'unknown'→unknown · anything else→failed
   // (mirrors the legacy enum + home.html walletStatus).
   function statusFrom(confirmed) {

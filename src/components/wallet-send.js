@@ -31,7 +31,7 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
 import { setOverlayOpts } from './overlay.js';
 import { icon } from './icons.js';
-import { sanitizeAmount, toUnits } from './money.js';   // #143: shared money module
+import { sanitizeAmount, toUnits, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
    sanitize/canonical helpers now live in money.js (#143 dedupe). */
@@ -239,10 +239,24 @@ export function createWalletSend({
   amtInput.inputMode = 'decimal';
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.amount || 'Amount');
-  amtInput.addEventListener('input', () => {
-    const v = sanitizeAmount(amtInput.value);
-    if (v !== amtInput.value) amtInput.value = v;
+  amtInput.addEventListener('input', (e) => {
+    // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
+    // canonical '.'-decimal ungrouped value lives in state.amount and is the
+    // only thing the wire layer ever sees (#77 untouched). Caret rides the
+    // digit count, so inserted separators never displace it.
+    // Loop r1 CRITICAL-1: typing/deletion edits take the per-edit inverse
+    // (strip OUR separators unconditionally; a just-typed '.'/',' is decimal
+    // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
+    const disp = amtInput.value;
+    const caret = amtInput.selectionStart;
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
     state.amount = v;
+    const shown = groupAmountDisplay(v);
+    if (shown !== disp) {
+      amtInput.value = shown;
+      const c = amountCaretAfterFormat(disp, caret, shown);
+      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
+    }
     sync();
   });
   const unit = document.createElement('span');
@@ -263,14 +277,14 @@ export function createWalletSend({
       openModal(createModal({
         title: strings.maxTitle || 'Send your entire balance?',
         body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
-          .split('{m}').join(fromUnits(maxU > 0n ? maxU : 0n)),
+          .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
         content: maxWarn,
         role: 'alertdialog', host,
         actions: [
           { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
           { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
             state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
-            amtInput.value = state.amount;
+            amtInput.value = groupAmountDisplay(state.amount); // ★ I-6 (#360): display form in the field
             sync();
           } },
         ],
@@ -281,7 +295,7 @@ export function createWalletSend({
 
   const availLine = document.createElement('p');
   availLine.className = 'c-wallet-send__meta u-tabular';
-  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(fromUnits(balU));
+  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
   amtSec.append(availLine);
 
   const feeLine = document.createElement('p');
@@ -318,8 +332,11 @@ export function createWalletSend({
   function sync() {
     const a = amountU();
     const total = a > 0n ? a + feeU : feeU;
+    // ★ I-6 r2 (#360, loop r1 MINOR-5): same convention as the available line one
+    // row up — a grouped line above an ungrouped '.'-decimal line was the exact
+    // mixed convention the money.js header warns against, on one screen.
     feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
-      .split('{f}').join(fromUnits(feeU)).split('{t}').join(fromUnits(total));
+      .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
     const over = a > 0n && a + feeU > balU;
     insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
     if (over) insuff.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
@@ -360,11 +377,13 @@ export function createWalletSend({
       rr.append(l, v);
       return rr;
     };
-    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent
+    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent.
+    // ★ I-6 (#360): grouped for READING, full precision kept — separators are the
+    // user's only defence against a mistyped zero at exactly this moment.
     rowsBox.append(
-      row(strings.amount || 'Amount', fromUnits(aU) + ' IXI'),
-      row(strings.fee || 'Fee', fromUnits(feeU) + ' IXI'),
-      row(strings.total || 'Total', fromUnits(aU + feeU) + ' IXI'),
+      row(strings.amount || 'Amount', groupAmountDisplay(fromUnits(aU)) + ' IXI'),
+      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeU)) + ' IXI'),
+      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeU)) + ' IXI'),
     );
     content.append(rowsBox);
 
@@ -444,7 +463,11 @@ export function setSendAddress(el, scanned) {
   if (input) { input.value = address; input.focus(); }
   if (parts[1] === 'send' && parts[2]) {
     const amt = el.querySelector('.c-wallet-send__amount');
-    if (amt) { amt.value = parts[2]; amt.dispatchEvent(new Event('input', { bubbles: true })); }
+    // ★ I-6 (#360): seed the field with the DISPLAY form — the input handler
+    // ungroups what it reads, and a raw canonical '1.500' (one-and-a-half with
+    // typed zeros) dropped straight into a ','-decimal locale would read as
+    // grouping (1500, a 1000× error). The display form round-trips exactly.
+    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
   }
   return el;
 }

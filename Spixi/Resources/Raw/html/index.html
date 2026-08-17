@@ -1022,36 +1022,55 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
 
 /* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
-   action ink; pressed-on-unselected keeps its outline so the two stay distinct */
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct.
+   ★ I-2 (#358): the selected chip now carries an OUTLINE — a selected chip and a
+   tonal button both paint --surface-action-tonal-default, so "selected" and
+   "button" rendered identically (same disease as D-16 fix C, one ramp step
+   apart). The outline is a state ladder (default/hover/pressed). The border
+   SLOT already exists on every chip (--outline-width-1, transparent when
+   unused), so no layout shift — the #51 lesson.
+   ★ Loop r1 MAJOR-6: the selected PRESS keeps the DEFAULT fill — the old
+   tonal-pressed fill put the pressed outline at 2.31:1 in dark (200-on-500),
+   under the 1.4.11 bar exactly when the outline is doing its job. Press
+   feedback = outline default→pressed + ink + the #343 scale; the fill holds.
+   (Dial rider on the F5 checklist: say if the press wants its wash back.)
+   ★ Loop r1 MAJOR-7: every hover/active pair carries the SAME :not() chain —
+   the old ladder claimed "source order at equal specificity" while hover
+   out-specified active by one pseudo-class, so the pressed rung never painted
+   on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
+   match :active) from wearing the selected skin (loop r1 MINOR).
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
 .c-chip[aria-pressed="true"] {
   background: var(--surface-action-tonal-default);
-  border-color: transparent;
+  border-color: var(--outline-action-default);
   color: var(--text-action-default);
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
 @media (hover: hover) and (pointer: fine) {
-  .c-chip:not(:disabled):hover {
+  .c-chip:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-neutral-02);
     border-color: var(--outline-action-hover);
     color: var(--text-action-hover);
   }
-  .c-chip[aria-pressed="true"]:not(:disabled):hover {
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-action-tonal-hover);
-    border-color: transparent;
+    border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
     color: var(--text-action-hover);
   }
 }
 
-/* pressed AFTER hover (source order at equal specificity — pressed wins) */
-.c-chip:active {
+/* pressed AFTER hover — same specificity as its hover twin, later in source */
+.c-chip:not(:disabled):not([data-readonly]):active {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-pressed);
   color: var(--text-action-pressed);
 }
-.c-chip[aria-pressed="true"]:active {
-  background: var(--surface-action-tonal-pressed);
-  border-color: transparent;
+.c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
+  border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
   color: var(--text-action-pressed);
 }
 
@@ -3681,6 +3700,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    discovery route. Set by setAppsHeaderEmpty() — attribute, not a display:none in JS. */
 .c-apps-header[data-empty] .c-apps-header__row { display: none; }
 
+/* ★ D-17 (#359): the UNKNOWN window — the shell has not yet learned whether the
+   list has rows (appsOpts.zeroReady is closed and no row has ever rendered). The
+   row is INVISIBLE but keeps its box, so neither outcome moves anything:
+   · first knowledge = rows      → the row turns visible in the SAME render frame
+     the rows paint; height was already reserved, so nothing below jumps.
+   · first knowledge = empty     → data-unknown is swapped for data-empty in the
+     same frame the illustrated zero state first renders; the ghost row collapses
+     into a paint that was blank anyway.
+   Pre-D-17 the row painted DURING the unknown window and the zero-gate opening
+   then yanked it (~400 ms later): the field appeared, vanished, and the content
+   jumped (Damir F5 2026-08-15). visibility (not display) is the whole fix. */
+.c-apps-header[data-unknown] .c-apps-header__row { visibility: hidden; }
+
 /* —— Explore / Discover banner ——
    LAYOUT CONTRACT (Damir 2026-08-12 — "align it bottom right"): the illustration is a
    FLEX SIBLING of the copy, not an absolutely-positioned overlay. That is the whole
@@ -4037,6 +4069,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
     showBackupNudge, showRatingNudge,
     attachPressFeedback,
+    formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -5302,16 +5335,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   // decimals) — legacy home.js re-applied these in JS (spixi.js:151/436). Port
   // them so the redesigned wallet groups + rounds identically. Balance keeps
   // legacy precision (commas only); tx amounts round to 2 dp then group.
-  function amountWithCommas(n) {
-    const parts = String(n).split('.');
-    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
-  }
-  function limitToTwoDecimals(s) {
-    const cleaned = String(s).trim().replace(/^([+-])\s*/, '$1');
-    const num = parseFloat(cleaned);
-    if (isNaN(num)) return String(s);   // fall back to the original, never "NaN"
-    return num.toFixed(2);
-  }
+  /* ★ I-6 (#360): the hardcoded-comma amountWithCommas port and the ROUNDING
+   * limitToTwoDecimals are gone — locale grouping + the #76/#77 truncation law
+   * now come from money.js (groupAmountDisplay / formatIxiAmount, docLocale). */
 
   // Explorer copy is address-scoped (only `ixian:explorer` exists — BE gap W3);
   // the per-tx sheet button must not imply tx-specificity.
@@ -5767,6 +5793,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
     onExplore: () => bridge.send('ixian:spixiAppsLink'),
   });
+  // ★ D-17 (#359): born UNKNOWN — the search/layout row holds its box invisibly
+  // until the surface first learns its state (rows landed, or the zero gate
+  // opened). One-way: scheduleAppsRender removes the GHOST on first knowledge
+  // and it never returns — tab re-entry refills (#340: zeroReady closes during
+  // a burst) keep today's behaviour for the row itself.
+  // ★ Loop r1 MAJOR-8: a WATCHDOG bounds the unknown window. The zero gate is
+  // only armed by apps bridge traffic, and the #340 latch means one dropped
+  // tab3 push has NO second chance — without a bound, that failure hid the
+  // search field and the layout toggle for the whole session (pre-D-17 it at
+  // least showed live controls). Same philosophy as the chats stall watchdog:
+  // degrade to "render what you have", never latch a dead surface.
+  appsHeader.dataset.unknown = '';
+  setTimeout(() => { delete appsHeader.dataset.unknown; }, 1500);
   document.getElementById('apps-header').append(appsHeader);
   appsScroll.append(appsList);
 
@@ -5784,6 +5823,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     requestAnimationFrame(() => {
       appsRenderQueued = false;
       renderAppsList(appsList, appsState, appsOpts);
+      // ★ D-17 (#359): first knowledge — rows exist, or the zero gate opened.
+      // Drop the unknown ghost exactly once, in the same frame the answer paints.
+      if ('unknown' in appsHeader.dataset
+        && ((appsState.apps || []).length || appsOpts.zeroReady !== false)) {
+        delete appsHeader.dataset.unknown;
+      }
       // dead controls off while there is nothing installed (search/layout toggle).
       // Gated on the SAME flag as the empty state: collapsing the header during the
       // load window and re-expanding it when the rows land is a visible layout jump.
@@ -6310,13 +6355,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     /* ——— wallet (wired, tab2) —————————————————————————————————————————————— */
 
     // setBalance(balance, fiatBalance, nick) — C# sends UN-grouped amounts
-    // (Utils.amountToHumanFormatString truncates decimals only). Group them like
-    // legacy home.js:84-87 (amountWithCommas), and prefix fiat with "$".
+    // (Utils.amountToHumanFormatString truncates decimals only). Group them in
+    // the app language (★ I-6 #360, money.js groupAmountDisplay), "$" on fiat.
     setBalance(balance, fiatBalance, _nick) {
       walletRawBalance = balance || '';   // RAW (un-grouped) — the Send compose does money math on it
       setWalletBalance(hero, {
-        balance: balance ? amountWithCommas(balance) : '',
-        fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + amountWithCommas(fiatBalance) : '',
+        balance: balance ? groupAmountDisplay(balance) : '',
+        fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + groupAmountDisplay(fiatBalance) : '',
       });
     },
 
@@ -6345,11 +6390,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
       const dirIn = String(received) === '1';
       const status = walletStatus(confirmed);
       const sign = dirIn ? '+' : '-';
-      // amount/fiat arrive UNSIGNED + UN-grouped. Round the amount to 2 dp then
-      // group both (legacy home.js:298-299: amountWithCommas(limitToTwoDecimals())).
+      // amount/fiat arrive UNSIGNED + UN-grouped. ★ I-6 (#360): IXI truncates
+      // ≤2 dp + groups per app language (formatIxiAmount, the #76/#77 reference —
+      // the legacy port ROUNDED via parseFloat); fiat groups, decimals verbatim.
       // Sign by direction; failed rows stay unsigned per Figma (txlist-item comment).
-      const amtN = amount ? amountWithCommas(limitToTwoDecimals(amount)) : '';
-      const ftN = fiat ? amountWithCommas(fiat) : '';
+      const amtN = amount ? formatIxiAmount(amount) : '';
+      const ftN = fiat ? groupAmountDisplay(fiat) : '';
       const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
       const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
       // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4

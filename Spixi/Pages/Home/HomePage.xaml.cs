@@ -141,7 +141,9 @@ namespace SPIXI
 
         public bool devMode = false;
 
-        private bool warningDisplayed = false;
+        // ★ Loop r1 (#357 r2): volatile like appsPushedToShell one screen up — written on the UI
+        // thread (onLoaded, reload, reloadShell), read+written on Node.updateUILoop's pool tick.
+        private volatile bool warningDisplayed = false;
         private int connectivityWarningDelayCounter = 0;
 
         // Interal cache object to store contact status items
@@ -1465,6 +1467,24 @@ namespace SPIXI
 
             Utils.sendUiCommand(this, "setHideBalance", hideBalance.ToString());
 
+            // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed
+            // is a C# field, so it survives every shell reload (language re-bake, theme, WebView
+            // recovery) — the offline branch of updateScreen then tests !warningDisplayed and
+            // never re-pushes, so a fresh document while OFFLINE showed normal titles.
+            // SingleChatPage already resets its own latch on every load (:714); this is the
+            // HomePage half. Belt-and-braces with the reload()/reloadShell() resets —
+            // ixian:onload is a known-racy handshake on WinUI (#340 C-MAJOR-1c).
+            // ★ Loop r1 (#357 r2): push the ANSWER, not just the flag. An OnAppearing tick
+            // during the reload window can QUEUE a "Connecting…" push into the fresh
+            // document and set the latch; the onLoaded reset then wiped the latch AFTER
+            // that push painted, and the online branch (`if (warningDisplayed)`) never
+            // sent the clear — a fresh document could wear "Connecting…" while online.
+            // An unconditional clear makes the fresh document's state KNOWN-empty; the
+            // updateScreen() call below re-pushes the warning within a tick if the app
+            // is really offline (and the update-available banner re-pushes every tick).
+            Utils.sendUiCommand(this, "showWarning", "");
+            warningDisplayed = false;
+
             try
             {
                 updateScreen();
@@ -2759,6 +2779,9 @@ namespace SPIXI
             // #340 (C-MAJOR-1): the rows die with the document. Don't wait for the fresh
             // one to say ixian:onload — if that handshake is lost the apps tab never heals.
             appsPushedToShell = false;
+            // ★ D-20 (#357): the connectivity warning dies with the document too — reset its
+            // latch so the next updateScreen tick re-pushes "Connecting…" while offline.
+            warningDisplayed = false;
             base.reload();
             removeDetailContent();
         }
@@ -2777,6 +2800,7 @@ namespace SPIXI
             // down mid-pick: exactly the #285 round-2 bug this flag exists to prevent.
             int gen = ++reloadShellGen;
             appsPushedToShell = false;   // #340 (C-MAJOR-1): same as reload(), which this bypasses
+            warningDisplayed = false;    // ★ D-20 (#357): language re-bake ate "Connecting…" while offline (Damir 2026-08-16)
             base.reload();
             // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE
             // Navigated→readyState flush; on WinUI that can race the fresh document

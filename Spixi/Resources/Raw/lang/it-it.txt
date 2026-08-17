@@ -132,6 +132,7 @@ chat-offline = Offline
 chat-waiting-for-response = In Attesa di Risposta
 chat-text-too-long = Testo troppo lungo.
 chat-member-count = {0} membri
+chat-member-count-one = 1 membro
 chat-context-pin-message = Fissa Messaggio
 chat-context-copy-message = Copia Messaggio
 chat-context-copy-selected = Copia Selezionato

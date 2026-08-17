@@ -485,6 +485,7 @@
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
+    isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     attachChatFlow, syncChatFlow, detachChatFlow, // W5: "Live flow" animated pattern style (desktop-only)
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
@@ -791,7 +792,7 @@
          aria-label (button.js:43), and an aria-label overrides nested content —
          a badge <span> inside would be announced to nobody. Count-free wording
          deliberately: see the dot rationale at setUnreadIndicator. */
-      backLabel: (s.back || 'Back') + (unreadElsewhere ? ' — ' + (s.unreadElsewhere || 'Unread messages') : ''),
+      backLabel: (s.back || 'Back') + (unreadElsewhere ? ', ' + (s.unreadElsewhere || 'Unread messages') : ''),
       actions,
     });
 
@@ -1103,9 +1104,10 @@
    * gate (!mode.blind) themselves — this predicate is identity-match only. */
   const isOwnerAddr = (a) => !!(groupOwner && a && a !== '[Unknown]' && a === groupOwner);
   /* D-5/N26 (#366): the relation vocabulary the bridge may push (trailing arg on
-   * addThem/addContact). Anything else — incl. undefined from an old exe —
-   * degrades to '' = unknown, which the member sheet treats as 'none'. */
-  const RELATIONS = new Set(['contact', 'pending', 'none', 'self']);
+   * addThem/addContact). 'pending-in' = an INCOMING request (#371 — badge
+   * copy only; same no-button/no-money shape as 'pending'). Anything else —
+   * incl. undefined from an old exe — degrades to '' = unknown ('none'). */
+  const RELATIONS = new Set(['contact', 'pending', 'pending-in', 'none', 'self']);   // R2 (#371): + incoming-pending
   /* Session latch: after the user taps "Send contact request" in the member
    * sheet, later opens show 'pending' immediately — C#'s relation only refreshes
    * on the next message push. Per-peer reset in onChatScreenReady. */
@@ -1133,7 +1135,7 @@
     const set = new Set();
     for (const [, m] of groupRoster) { if (m && m.name) set.add(m.name); }
     for (const [, n] of groupNicks) { if (n) set.add(n); }
-    for (const rec of model.values()) { if (rec && rec.senderNick && rec.senderNick !== rec.senderAddress) set.add(rec.senderNick); }  // seen senders (addThem)
+    for (const rec of model.values()) { if (rec && senderHasNick(rec)) set.add(rec.senderNick); }  // seen senders (addThem; the ONE nick predicate — r2 F-2)
     if (!mode.isMulti && identity.name) set.add(identity.name);   // 1:1 peer nick
     for (const s of selfMentionKeys()) set.add(s);                // my own nick is a valid @target too
     return [...set];
@@ -1154,8 +1156,8 @@
     for (const [, m] of groupRoster) { if (m && m.name && !by.has(m.name)) by.set(m.name, { name: m.name, address: m.address || '', avatar: m.avatar || null }); }
     for (const [addr, n] of groupNicks) { if (n && !by.has(n)) by.set(n, { name: n, address: addr || '', avatar: null }); }
     for (const rec of model.values()) {                       // seen senders (addThem) — before any roster load
-      const nm = rec && rec.senderNick;
-      if (nm && nm !== rec.senderAddress && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
+      const nm = rec && senderHasNick(rec) ? rec.senderNick : '';   // the ONE nick predicate (r2 F-2)
+      if (nm && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
     }
     return [...by.values()];
   }
@@ -1179,8 +1181,14 @@
   // True when a row has a REAL display nick (not empty, and not just its own
   // address echoed back as the nick) — nameless senders fall through to the
   // truncated + copyable address treatment (Damir F5, 2026-07-07).
+  /* Loop r2 F-2 (#373) BELT: an address-SHAPED nick is not a nick. The equality
+     guard below cannot fire when the address slot is EMPTY (the Core 0.9.8k
+     common case) — if Core ever stores the address string in senderNick on such
+     a row, the nick-first ladder would render it in a BLIND room. Same shape
+     guard as the roster ingests; a real 30+ base58-only nick degrades to the
+     placeholder/address rung — the safe direction. */
   const senderHasNick = (rec) =>
-    !!rec.senderNick && rec.senderNick !== rec.senderAddress;
+    !!rec.senderNick && rec.senderNick !== rec.senderAddress && !isPseudoAddressNick(rec.senderNick);
 
   /* typing pill — appended while typing is on, removed on timeout / new message,
    * and always kept LAST (shell duty mirrored from the demo). */
@@ -1256,8 +1264,9 @@
            under Alice's label (label on 'first' only) with the anonymous row's
            avatar (avatar on 'last'). address || nick keeps named senders apart;
            rows with NEITHER share '' and merge with each other only — they are
-           indistinguishable by construction, and each run head says so
-           ("Hidden member"), never a name. */
+           indistinguishable by construction. D-19b (#370): such a run renders
+           with NO label on non-blind surfaces (legacy parity) and the
+           "Hidden member" placeholder in blind rooms — never a name either way. */
         && (a.senderAddress || a.senderNick || '') === (b.senderAddress || b.senderNick || '')
         && Math.abs(a.ts - b.ts) < GROUP_WINDOW;
       const withPrev = cont(prev, r, ids[i]);
@@ -1295,28 +1304,27 @@
       // A nameless sender is one with no nick AND one whose "nick" is really its
       // own address (some C# paths pass the address as the nick fallback) — both
       // must render truncated + copyable, not a full untruncated address label.
-      /* ★ W8 (#348) review r2 MAJOR — SECURITY, and the first fix made this WORSE.
-         Gating onSenderClick alone closed the member sheet but pushed the label into
-         message-bubble.js's no-sheet branch, which sets title=<full address>,
-         aria-label="Copy address: <full address>" and a ONE-TAP CLIPBOARD COPY. In a
-         blind chat that put the address on the row instead of behind a sheet.
-         C# does not mask for us here: insertMessage sends senderAddress verbatim for
-         `bot || Group` with no blindness test, and resolveNick falls back to the address
-         as the nick — so senderHasNick is false and the raw address arrives.
-         In a blind chat the label is now a neutral placeholder and carries no address at
-         all. This covers blind GROUPS too, which were never protected on this surface. */
+      /* ★ W8 (#348) review r2 MAJOR — SECURITY. C# does not mask for us here:
+         insertMessage sends senderAddress verbatim for `bot || Group` with no
+         blindness test, and resolveNick falls back to the address as the nick —
+         so senderHasNick guards the echo and the blind arm below never renders
+         an address (no title, no copy, no sheet — plain span only).
+         ★ D-19b (#370, the #369 AMENDED ladder — supersedes the #356 ladder):
+         1. A real nickname ALWAYS wins — in blind rooms too (Damir: "keep
+            nicknames visible in blind groups, only addresses are completely
+            hidden"). A nick reveals no address; senderHasNick keeps the
+            address-echo out of this arm.
+         2. Blind + nameless → the "Hidden member" placeholder. NEVER an address.
+         3. Non-blind + nameless → the truncated copyable address when the row
+            has one (C# now reverse-resolves roster-known nicks, so this arm is
+            rare), else NOTHING — legacy parity (#369: no "Hidden member" on any
+            non-blind surface; the public Spixi bot room must never render
+            masked). Anonymous rows share the '' run key and merge with each
+            other only, so an unlabeled run never reads as a named sender's. */
       sender: (!isSent && mode.isMulti)
-        ? (mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')
-                      : (senderHasNick(rec) ? rec.senderNick
-                        /* ★ D-19 (#356): no nick AND no address → an HONEST placeholder,
-                           reusing the blind-chat string. Core 0.9.8k stores bot-room rows
-                           address-less (5643e5b; BE q1), and the old null here rendered NO
-                           label, so an anonymous run read as the previous sender's — and
-                           before the C# half stopped it, the slot carried the GROUP's own
-                           name styled as a copyable address. senderIsAddress and
-                           onSenderClick both key off the empty address, so the placeholder
-                           gets no copy affordance and no member sheet. */
-                        : (rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member'))))
+        ? (senderHasNick(rec) ? rec.senderNick
+          : (mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')
+                        : (rec.senderAddress || null)))
         : null,
       senderIsAddress: (!isSent && mode.isMulti && !mode.blind && !senderHasNick(rec) && !!rec.senderAddress),
       showAvatar: (!isSent && mode.isMulti),
@@ -1849,25 +1857,21 @@
         const rec = model.get(r.dataset.msgid || '');
         if (!rec) return '';
         if (rec.direction === 'sent') return s.you || 'You';
-        /* ★ W8 (#348) review r3 MAJOR — SECURITY. This is the multi-select COPY path,
-           and it was the last surface still carrying the address in a blind chat.
+        /* ★ W8 (#348) review r3 MAJOR — SECURITY. This is the multi-select COPY path.
            C#'s resolveNick falls back to `nick = senderAddress.ToString()` (xaml:1487),
            so `rec.senderNick` IS the raw address for a member with no nickname — and
            chat-select joins it as "<sender>: <text>" straight into the clipboard.
-           Two taps: Select, then Copy. Same class as the bubble-label leak, one layer
-           deeper. A blind chat now copies the neutral placeholder, and a nickless
-           sender in a normal group copies no identity rather than an address. */
-        if (mode.blind) return s.hiddenMember || 'Hidden member';
+           senderHasNick keeps that echo out of the nick arm, so a blind chat never
+           copies an address.
+           ★ D-19b (#370): the SAME amended ladder as the bubble label —
+           nick always (blind included; a nick is already on the bubble) ·
+           blind + nameless → the placeholder (attribution without identity) ·
+           non-blind + nameless → truncated address, or NO attribution when the
+           row has none (legacy parity, #369 — the placeholder is dead on
+           non-blind surfaces; chat-select renders an empty sender as bare text). */
         if (senderHasNick(rec)) return rec.senderNick;
-        /* ★ review r4: a NON-blind group keeps attribution — most Ixian members set no
-           nickname, and dropping the sender entirely left a multi-person copy with no way
-           to tell who said what, which is the whole reason the multi-line form exists.
-           The address is already on the bubble in a non-blind chat, so this reveals
-           nothing new; it uses the #211 truncation canon rather than the raw base58. */
-        /* ★ D-19 r2 (#356, loop r1 MINOR): a no-nick, no-address row copies the SAME
-           placeholder the bubble shows — '' broke the r4 attribution rule this very
-           comment defends (unattributed lines interleaved with attributed ones). */
-        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : (s.hiddenMember || 'Hidden member');
+        if (mode.blind) return s.hiddenMember || 'Hidden member';
+        if (mode.isMulti) return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';
         return identity.name || '';
       },
       strings: s,
@@ -2209,8 +2213,15 @@
         // beside that member's real photo, on the surface where the user checks who
         // is about to be paid. Same reasoning, same fix: the group roster first, then
         // the truncated address (#211 canon), and identity.name ONLY in a 1:1 chat.
-        name: rec.senderNick
-          || (mode.isMulti ? (groupRoster.get(rec.senderAddress) || {}).name : identity.name)
+        // Loop B-6 (#370) + r2 F-3 (#373): senderHasNick on rung 1 AND the shape
+        // guard on the ROSTER rung — C#'s resolveNick echoes the address into the
+        // roster nick for a nameless non-blind member, so rung 2 re-introduced
+        // the full-base58 payee name B-6 had just removed. Either echo now falls
+        // through to the truncated-address rung (#211 canon).
+        name: (senderHasNick(rec) ? rec.senderNick : '')
+          || (mode.isMulti
+                ? ((n) => (n && !isPseudoAddressNick(n)) ? n : '')(((groupRoster.get(rec.senderAddress) || {}).name || ''))
+                : identity.name)
           || (rec.senderAddress ? truncateAddressMiddle(rec.senderAddress) : '')
           || (mode.isMulti ? '' : (identity.address ? truncateAddressMiddle(identity.address) : ''))
           || '',
@@ -3482,11 +3493,17 @@
       const addr = String(address || '');
       if (!addr) return;
       const key = addr === '[Unknown]' ? ('blind:' + (nick || '')) : addr;
+      /* D-19b (#370): a blind-masked row whose "nick" is the legacy
+         "x"+<address> pseudo-key must not DISPLAY that value — it is the
+         address the mask hides. The raw value stays in `key` (stable per-member
+         identity); the display name goes empty, so the member list shows the
+         placeholder and the @-mention sources skip the row. */
+      const displayNick = (addr === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '');
       const raw = avatar ? String(avatar).replace(/\\/g, '/') : '';
       const av = raw && !/spixiavatar\.png$|spixi-group-avatar\.png$/.test(raw) ? raw : null;
       const prev = groupRoster.get(key) || {};
       groupRoster.set(key, {
-        address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null,
+        address: addr, name: displayNick || prev.name || '', avatar: av || prev.avatar || null,
         relation: RELATIONS.has(relation) ? relation : (prev.relation || ''),
       });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
@@ -3729,7 +3746,7 @@
     mentionFabBadge.hidden = n <= 1;                     // show a count only when >1 pending
     if (n > 1) mentionFabBadge.textContent = n > 99 ? '99+' : String(n);
     const base = (window.SL && window.SL.jumpToMention) || 'Jump to mention';
-    mentionFab.setAttribute('aria-label', n > 1 ? base + ' — ' + n : base);
+    mentionFab.setAttribute('aria-label', n > 1 ? base + ', ' + n : base);
   }
   function resetMentionTracking() { loadMentionSeen(); }   // per-peer: restore the durable seen set
   mentionFab.addEventListener('click', () => {

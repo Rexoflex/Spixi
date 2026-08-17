@@ -36,7 +36,7 @@ export function showIncomingCall({
   el.setAttribute('role', 'alertdialog');
   el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-label',
-    (strings.incomingCall || 'Incoming voice call') + (caller.name ? ' — ' + caller.name : ''));
+    (strings.incomingCall || 'Incoming voice call') + (caller.name ? ', ' + caller.name : ''));
   el.tabIndex = -1;
 
   const id = document.createElement('div');

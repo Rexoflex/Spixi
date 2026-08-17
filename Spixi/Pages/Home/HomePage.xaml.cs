@@ -1698,10 +1698,10 @@ namespace SPIXI
                 // nothing detaches, nothing can flicker.
                 bool wide = rightContent.IsVisible;
                 pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1);
-                if (wide)
-                {
-                    Utils.sendUiCommand(this, "selectChat", friend.walletAddress.ToString());
-                }
+                // N49 (#370): the selectChat highlight rides onOverlayPresented now —
+                // the push here was the A-1 fire-and-forget class (#362 logged it): a
+                // staged page can be dropped before present, leaving a highlight on a
+                // row whose conversation never opened. Same move as N24's selectApp.
             });
         }
 
@@ -2486,6 +2486,15 @@ namespace SPIXI
             else if (overlay is SingleChatPage)
             {
                 fromChat = false;
+                // N49 (#370, #369 F5): drop the chats-list row highlight when the
+                // conversation closes — it stayed tinted for the whole session.
+                // Tag-replace ordering (the N24/AppDetailsPage branch below): switching
+                // conversations closes the OLD chat AFTER the new one presented and
+                // pushed its own highlight — clear only when NO conversation remains.
+                if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))
+                {
+                    Utils.sendUiCommand(this, "selectChat", "");
+                }
                 // #247: a conversation's info pane has no life of its own — closing
                 // the chat closes it (no dirty state; commits are per-action).
                 closeContactDetailsOverlays();
@@ -2530,6 +2539,23 @@ namespace SPIXI
         // load); no room anymore → the pane degrades to the full-span takeover.
         public override void onOverlayPresented(SpixiContentPage overlay)
         {
+            if (overlay is SingleChatPage presentedChat)
+            {
+                // N49 (#370): the chats-list row highlight is pushed at PRESENT time —
+                // the one moment the conversation provably exists (the N24/A-1 grammar;
+                // the old push at the pushPageLoaded call site could highlight a row
+                // whose staged page was dropped). WIDE only (loop r2 F-1): on a phone
+                // the takeover's CLOSE ANIMATION reveals the list BEFORE the clear
+                // lands, so an unconditional stamp painted the just-left row tinted
+                // for the whole slide-out — and cost two render passes per open.
+                // (Named presentedChat, not scp — a lambda at the end of this method
+                // already declares scp; the shadow would be CS0136.)
+                if (rightContent.IsVisible)
+                {
+                    Utils.sendUiCommand(this, "selectChat", presentedChat.friend.walletAddress.ToString());
+                }
+                return;
+            }
             if (overlay is AppDetailsPage)
             {
                 // N24 (loop A-1): the apps-tab row highlight is pushed at PRESENT
@@ -2642,6 +2668,16 @@ namespace SPIXI
             if (SpixiContentPage.getTopOverlay() is SettingsPage sp && sp.pageLoaded)
             {
                 Utils.sendUiCommand(sp, "onBack");
+                return true;
+            }
+            // N50 (#370, #369 F5): a ContactDetails overlay with an open SHELL
+            // overlay (the remove-blocked modal, a member sheet) consumes back
+            // inside the shell first — closeTopOverlay below would pop the whole
+            // page from under the modal. Same slot as the SettingsPage route
+            // above; the shell self-heals a stale flag (cdBack re-syncs).
+            if (SpixiContentPage.getTopOverlay() is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen)
+            {
+                Utils.sendUiCommand(cd, "cdBack");
                 return true;
             }
             // #225: hardware/host back closes the top NATIVE overlay first.

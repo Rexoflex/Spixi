@@ -43,7 +43,7 @@ export function createChip({
   if (dismissible) {
     // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)
     el.dataset.dismissible = '';
-    el.setAttribute('aria-label', label + ' — ' + (strings.remove || 'remove'));
+    el.setAttribute('aria-label', label + ', ' + (strings.remove || 'remove'));
     const x = icon('x', { size: CHIP_DISMISS_SIZE[size] || 16 });
     x.classList.add('c-chip__dismiss');
     el.append(x);

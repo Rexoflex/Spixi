@@ -51,7 +51,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
@@ -135,6 +135,7 @@ export function createChatInfo({
   memberCount = 0,
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
+  amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
   txs = [],                      // txlist-item opts (1:1 activity), newest first
@@ -239,7 +240,10 @@ export function createChatInfo({
   const sub = document.createElement('span');
   sub.className = 'c-chat-info__sub';
   if (kind === 'group') {
-    sub.textContent = `${memberCount || members.length} ${strings.members || 'members'}`;
+    // R2 (#371): "1 member", not "1 members" — whole-phrase key so locales with
+    // richer plural rules translate the complete singular line.
+    const n = memberCount || members.length;
+    sub.textContent = n === 1 ? (strings.memberOne || '1 member') : `${n} ${strings.members || 'members'}`;
   } else if (nickname && nickname !== name) {
     sub.textContent = name;       // override active → the wire name stays visible
   }
@@ -247,6 +251,20 @@ export function createChatInfo({
   // unappended node made the wire name silently vanish); hidden when empty
   sub.hidden = !sub.textContent;
   idCol.append(sub);
+  /* N48 (#370): MY OWN owner status. Rendered in the HERO for BLIND rooms only —
+     there the roster carries no owner ADDRESS (C# suppresses it), so no ROW can
+     wear the Owner chip; the hero is the one reliable place. (The self row may
+     still show my NICK when I have one — loop B-9 — but the roster stays
+     chip-less either way.) Non-blind rooms already badge the self ROW via the
+     owner-address match (#248); doubling it here would repeat the same fact
+     twice on one screen (extend on Damir's word — logged dial). */
+  // GROUPS only, matching the C# gate (loop A-5/F-5): a bot room's getOwner()
+  // is unreliable, so no arm may render the claim even if a push ever carries it.
+  if (amOwner && blind && kind === 'group') {
+    const selfRole = createBadge({ type: 'info', weight: 'tonal', label: strings.youAreOwner || 'You are the owner' });
+    selfRole.classList.add('c-chat-info__self-role');
+    idCol.append(selfRole);
+  }
   hero.append(idCol);
   body.append(hero);
 
@@ -689,7 +707,9 @@ export function createChatInfo({
       members.splice(i, 1);
       count = Math.max(0, count - 1);
       countLabel.textContent = (strings.membersTitle || 'Members') + ' (' + count + ')';
-      sub.textContent = count + ' ' + (strings.members || 'members');   // hero line too
+      // R2 (#371, loop B-3): the SECOND hero-sub writer — kick a member out of a
+      // 2-person group and the plural form regressed to "1 members" here.
+      sub.textContent = count === 1 ? (strings.memberOne || '1 member') : count + ' ' + (strings.members || 'members');
       renderMembers();
     }
 
@@ -710,7 +730,9 @@ export function createChatInfo({
         row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
-        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
+        // Loop B-5 (#370): the nameless non-blind fallback follows the #211 canon —
+        // the member SHEET already truncates the same address one tap deeper.
+        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
         row.append(nm);
         if (m.owner) {
           // #248 (Damir): the group owner gets an "Owner" chip (owner identity via

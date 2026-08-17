@@ -26,10 +26,10 @@ const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc
 
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
-  if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ' — ' + what;
-  if (state === 'loading') return (strings.loading || 'Loading') + ' — ' + what;
-  if (state === 'failed') return (strings.retry || 'Retry') + ' — ' + what;
-  return (strings.open || 'Open') + ' — ' + what;
+  if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ', ' + what;
+  if (state === 'loading') return (strings.loading || 'Loading') + ', ' + what;
+  if (state === 'failed') return (strings.retry || 'Retry') + ', ' + what;
+  return (strings.open || 'Open') + ', ' + what;
 }
 
 export function createMediaBubble({

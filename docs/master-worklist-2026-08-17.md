@@ -5,6 +5,13 @@ Damir's list 1 + list 2, deduplicated, reconciled against the live plan
 and what is already built. New items get stable IDs **N1–N45** so sessions can
 reference them. Duplicates between the two lists are merged and noted.
 
+*2026-08-17 (late): the D-19b family + N48/N49/N50 + the R2 round are BUILT
+(#370–#373). Struck below. N4 stays open (needs its own session). N51–N55
+added from Damir's #370-era F5 walk (all code-verified). Also struck:
+the FIVE #361 rows this doc predated (N5 · N24 · N36 · N38 · N45) — the §F
+item-2 "bug batch" proposal became the #361 batch the same day, and only the
+R1/R2 strikes were ever applied here.*
+
 ---
 
 ## A. Already DONE — strike from both lists
@@ -35,14 +42,23 @@ reference them. Duplicates between the two lists are merged and noted.
 |---|---|---|---|
 | **N13** | Onboarding **Backup now does nothing** at account creation. Data-loss class — highest of the new bugs | C# + FE | triage |
 | **N40** | **D-21 candidate:** "Connecting…" stops showing on a LIVE document after long app use while offline. Distinct from D-20 (fresh documents). Prime suspect already on file: the update-available branch starves the connectivity block (loop r1 note on #357); second suspect the delay-counter. Needs one repro session | C# | triage |
-| **N5** | Account "Delete data" card not responsive — truncates on small screens, whole button-card clips on narrow desktop | FE | S |
+| ~~**N5**~~ | **BUILT #361** (danger-sub wrap + min-width chain + the master-column clamp; #362 refined; F5 pass #363) | FE | done |
 | **N10** | App-invite **Cancel in chat doesn't work** — should cancel, keep the bubble, say "Canceled" on BOTH ends | C# here + maybe BE (counterpart side) | triage |
 | **N33** | Group file transfer only relays from the CREATOR when members aren't mutually connected; others' files reach the creator only | **BE / protocol → new Table B q11** | BE |
-| **N36** | Select mode: selecting/deselecting messages must show ONLY the selected color — no pressed flash (pressable opt-out in select mode) | FE | S |
-| **N49** | Deselecting a chat leaves the ROW highlighted (desktop; selected tint not cleared on convo close) — #369 F5 find | FE | S |
-| **N50** | contact_details: OS back must dismiss the top overlay (remove-blocked modal) BEFORE popping the page — the shell has no dismissTopOverlay back wiring (#368 loop named it, #369 F5 hit it) | FE | XS |
+| ~~**N36**~~ | **BUILT #361** (pressable bails in `[data-selecting]`, in-bubble controls pointer-dead). The Android A4 flash is a DIFFERENT layer → **N36b** — RE-OBSERVED by Damir 2026-08-17 (repro gate met) → promoted into the N51+ fix batch | FE | done |
+| ~~**N49**~~ | **BUILT #370** — highlight rides onOverlayPresented (wide only, r2 F-1) + guarded clear on close | FE | done |
+| ~~**N50**~~ | **BUILT #370** — cdoverlay/cdBack wiring (homeoverlay grammar) + onLoad reset + HomePage route | FE | done |
 | **N15** | Group typing indicator shows NOTHING (bot + private). Sender attribution is a known BE ask (be-cutover C21); whether the GENERIC pill can show in groups may be ours — triage first | triage → likely split | M |
 | **N39** | Request/cancel story: payment request has no cancel (does sender-side bubble delete revoke it?); outgoing contact-request delete should prompt revoke + explain (legacy `ixian:undorequest` EXISTS — likely buildable without BE) | C# here + FE | M |
+| **N51** | ★ Android OS back over a chat BOTTOM SHEET (attach/share/pay) EXITS THE CHAT instead of closing the sheet. VERIFIED class: chat is a HomePage overlay, so back → `closeTopOverlay()` pops the whole SingleChatPage — the shell's overlay.js sheet is invisible to C#. Fix = the N50/#370 cdoverlay/cdBack grammar applied to chat.html (+ the hand-rolled channel selector needs its own arm, like the edge-swipe path has). SAME FAMILY as AND-37 (settings.html) — do both in one pass | C# + FE | S |
+| **N52** | @FAB jump: the target message must briefly HIGHLIGHT (a pulse is claimed at chat.html:3672 — verify why it does not read on device before building) · history window 25 → ≥50 before "Load more" (`Config.messagesToLoad`, ONE line — ⚠ #343 deliberately cut it 100→25 in the perf era, and every row is its own EvaluateJavaScriptAsync marshal (#298), so re-measure chat-entry on the A52 after the bump) | FE + C# 1-line | S |
+| **N53** | No new-message indicator while scrolled up. VERIFIED gap: chat.html creates `createScrollToLatest({ target: box })` but NEVER calls `setScrollLatestCount` — the badge plumbing shipped in #74 and was never fed. Wire live arrivals → count while scrolled up, reset at bottom | FE | S |
+| **N54** | Typing indicator YANKS the view to the bottom while reading older messages. VERIFIED: `showTyping()` does unconditional `box.scrollTop = box.scrollHeight` (chat.html:1214). Gate it on the existing `nearBottom()` predicate (line 1416 precedent) | FE | XS |
+| **N55** | No visible feedback after sending a contact request (scan flow or any other). The verb is fire-and-forget (no ack push) → OPTIMISTIC toast "Contact request sent" at the emit sites (contacts shell scan-return, member sheet, contact_details, chat request pane), the house fire-and-forget pattern | FE | S |
+| **N57** | ★ Group message VISIBILITY appears to require a DIRECT connection to the sender (Damir, #374 F5: "if I am not connected to a user in group I don't see his messages; legacy worked without this, owner needed to be connected only"). INVESTIGATE THOROUGHLY: 2-device repro first — do the messages never ARRIVE (BE relay, the MESSAGE twin of N33/q11) or arrive-and-hide (ours)? No build until the layer is known (#215) | triage → likely BE | triage |
+| **N58** | Chats-list avatar PHOTOS flicker on EVERY entry to the chats screen (from a chat or another tab) — the apps-list flicker class. Suspects: full row rebuild re-creating <img data:URI> nodes on tab re-entry (the #340 BUG-2② decode-cache precedent cut 108ms→3.4ms). Verify the mechanism, then cache | FE | S |
+| **N59** | Reduce the gap between an Account row title and its subtitle (Damir dial at the #374 F5, on the I-11 stack) | FE | XS |
+| **N56** | Pinned chat rows get a VERY LIGHT tint for visibility (Damir 2026-08-17). This is the visual-marker dial #236 left open ("NO visual pin marker yet — Damir dial") — a pin glyph landed later (`chatlist-item.js:156` renders `pin` 16px), the row surface never did. Needs `pinned` on the row surface (a `data-pinned` hook + a wash token both themes) — mind the ladder: selected tint (`aria-current`) > pinned wash > hover; contrast-check dark. Rides the N51–N55 batch | FE | XS |
 
 ## D. NEW — buildable, grouped into rounds
 
@@ -53,14 +69,14 @@ reference them. Duplicates between the two lists are merged and noted.
 - ~~**N26** member-sheet Add contact~~ **BUILT #366** (relation rides the bridge; BOTH surfaces; request-payment NOT built — no address-bearing money verb on SingleChatPage, logged)
 - ~~**N27** name the blocking groups~~ **BUILT #367** (in-shell modal; path-out is text — tap-through = follow-up dial)
 
-**R2 — Copy & locale round (with D-7 + I-11 + AND-35)**
-- **N3** Copy sweep: remove em-dashes app-wide, simpler friendlier voice; shorten the apps empty-state line (sl text supplied). (S)
-- **N4** Locale expansion: audit existing translations, pick the launch 15–20 languages, add FE dictionaries (⚠ it/id/lt/cn/ja have C# strings but NO FE dictionary — the #360 residual; dictionary + Utils.cs culture gate move TOGETHER), button-label overflow audit per language. (L)
-- **N32** Zero balance shows `0.00` (IXI + fiat) — tiny dial against the trailing-zero trim; needs its own pin. (XS)
+**R2 — Copy & locale round — ✅ RUN 2026-08-17 (#371; D-7 + I-11 + AND-35 + the one-liners)**
+- ~~**N3**~~ **#371 partial**: apps empty-state = Damir's short line · 17 aria joiners de-dashed · de-de 40 + sl-si 2 en-dashes rewritten. OPEN residue: the "simpler friendlier voice" app-wide sweep has NO target list (ask Damir) · ru copula dashes + lt-lt legacy dashes = Damir's call
+- **N4** Locale expansion: audit existing translations, pick the launch 15–20 languages, add FE dictionaries (⚠ it/id/lt/cn/ja have C# strings but NO FE dictionary — the #360 residual; dictionary + Utils.cs culture gate move TOGETHER), button-label overflow audit per language. (L) — **SKIPPED in #371, needs its own session**
+- ~~**N32**~~ built #361
 
 **R3 — Art & atmosphere round (with the I-3 design round)**
 - **N14** Nudges/notices: security notice redesign + subtle blue-ish top-center radial gradient (transparent bottom) on security notice, backup nudge (dialog on Windows / sheet on mobile) and rating nudge; rating nudge uses the `rate-me` illustration from images/. (M)
-- **N45** Apply the saved PNG illustrations (the untracked `images/*.png` in your git status). Answer: pick per asset by actual bytes — PNG usually wins for painterly art (the 800 KB explore SVG class), SVG wins for flat line art and stays crisp at any scale; ship 1x/2x PNGs where PNG wins. (S)
+- ~~**N45**~~ **BUILT #361** (PNG-per-asset by bytes, 13 sites rewired, rating-nudge illustration grammar = N14a; #362 fixed 2 demo refs)
 - **N21** Chat pattern: dig up the legacy lineart pattern; make ALL levels more subtle — current subtle becomes the new strongest. (S–M)
 - **N19** Connecting/loading: animated gradient line as the topbar's bottom border — decide connecting-only vs shared loading affordance (design dial first). (M)
 
@@ -73,16 +89,17 @@ reference them. Duplicates between the two lists are merged and noted.
 
 **R6 — Notifications round**
 - **N35** Per-chat notification toggle must work on private groups (works on bot only today) + a global toggle · Android: tapping an OS notification deep-links STRAIGHT into that chat (today: chat list first, slow) · combine multiple notifications from the same chat into one (MessagingStyle grouping). (M–L)
+  - *Damir repro 2026-08-17: 15 messages from one sender = 15 tray rows. VERIFIED cause: `SPushService.showLocalNotification` calls `manager.Notify(messageId, ...)` with a UNIQUE id per message; `SetGroup(data)` is set but no group SUMMARY exists, so Android never collapses. NO FE lever exists (the tray is native). Damir dial 2026-08-17: goes to the BE ENGINEER, not us — logged as **be-cutover NT1** (cheap interim = stable per-chat id + SetNumber; proper fix = MessagingStyle + summary, pairs with this round's deep-link ask). Ask politely at the cutover.*
 
 **R7 — Wallet & money round**
 - **N25** TX details: collapse address/date/fee/txid under "See details" + chevron. (S–M)
 - **N31** Tipping should not ALSO create a payment bubble — verify what creates it, then dial. (S triage)
-- **N38** Desktop: hide the dead Share button (wallet receive AND the account address row — same disease, one fix). (XS)
+- ~~**N38**~~ **BUILT** — account half #348-W9, wallet-receive half #361 (same `isDesktopPresentation` predicate)
 - **N43** Search bars appear only when content overflows (chats + wallet; wallet also only once the hero is minimized) — dial then build. (S–M)
 
 **R8 — Desktop round**
 - **N9** Send/Receive live in the detail pane instead of overtaking the wallet — tradeoffs on request. (design dial)
-- **N24** Apps: highlight the list row whose details are open. (XS)
+- ~~**N24**~~ **BUILT #361** (+#362: aria-current on `__open`, present-time push — the precedent N49 copied)
 - **N29** Very wide window: left-align bubbles vs centered max-width column (WhatsApp style, affects composer) — dial. (design)
 - **N30** Sounds: desktop incoming chat/payment + a desktop-specific toggle; mobile send/receive/tx sounds. (M)
 
@@ -102,7 +119,7 @@ reference them. Duplicates between the two lists are merged and noted.
 | **N28** | "Do we need skeletons??" | Chat-info: yes (I-9, measured first). App-wide: no — zero-gates + reserved boxes are working; skeletons only where a real measured wait exists |
 | **N46** | Delete-flow rework: BRANDED checkboxes + a UX pass (#369, Damir: off-brand) | ★ REMIND Damir near master-list completion — his explicit ask |
 | **N47** | Support nickname RESET to address-only? (#369 B3 — today a nick cannot be removed) | Dial |
-| **N48** | Blind groups: show MY OWN owner status (self-only `amOwner` push, no identity leak) | Dial GIVEN (#369): build with the D-19 family batch — same C# area |
+| ~~**N48**~~ | **BUILT #370** (groups-only, loop A-5; hero chip in blind rooms) | done |
 
 ## F. Sequencing proposal (your rule: fix and finalize, BE last)
 

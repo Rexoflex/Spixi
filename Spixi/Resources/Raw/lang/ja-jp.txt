@@ -132,6 +132,7 @@ chat-offline = オフライン
 chat-waiting-for-response = 応答待ち
 chat-text-too-long = テキストが長すぎます
 chat-member-count = {0} 人のメンバー
+chat-member-count-one = 1 人のメンバー
 chat-context-pin-message = メッセージを固定
 chat-context-copy-message = メッセージをコピー
 chat-context-copy-selected = 選択部分をコピー

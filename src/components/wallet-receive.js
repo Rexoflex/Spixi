@@ -134,7 +134,7 @@ export function createWalletReceive({
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ' — ' + (strings.yourAddress || 'Your address');
+  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
   copy.append(icon('copy', { size: 16 }));
   let copyTimer = null;

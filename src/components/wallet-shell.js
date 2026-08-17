@@ -348,7 +348,7 @@ function copyButton(value, label, strings = getStrings()) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'c-txsheet__copy';
-  const idleLabel = (strings.copy || 'Copy') + ' — ' + label;
+  const idleLabel = (strings.copy || 'Copy') + ', ' + label;
   btn.setAttribute('aria-label', idleLabel);
   btn.append(icon('copy', { size: 16 }));
   btn.addEventListener('click', () => {

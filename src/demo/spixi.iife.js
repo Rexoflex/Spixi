@@ -437,6 +437,23 @@ function truncateAddressMiddle(s, head = 6, tail = 6) {
   return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
 }
 
+/* D-19b (#370): detect an ADDRESS-BEARING "nick" on a blind-masked roster row.
+   C# masks the address slot with '[Unknown]' but the NICK slot can still carry
+   the address in TWO encodings (loop B-1): the legacy "x" + <base58> pseudo-key
+   (SingleChatPage.loadContacts / ContactDetails.loadMembers — nameless member),
+   and the RAW base58 echo (resolveNick falls back to senderAddress.ToString();
+   ContactDetails falls back to local_fr.nickname, which IS the address for an
+   unnamed contact — the #276/#279 echo class). Rendered verbatim either one IS
+   the address a blind room hides (#369 amendment). Shells test roster names
+   with this at INGEST — on '[Unknown]'-masked rows ONLY — and blank the DISPLAY
+   name (the raw value stays usable as a key). Base58 alphabet, 30+ chars, with
+   an optional leading x: a real nick of that shape is implausible, and the
+   failure mode in a blind room is a placeholder instead of a strange name —
+   the safe direction. */
+function isPseudoAddressNick(name) {
+  return /^x?[1-9A-HJ-NP-Za-km-z]{30,}$/.test(String(name == null ? '' : name));
+}
+
 function initials(name) {
   const trimmed = name.trim();
   // must start with a letter (any script) — empty/whitespace-only and
@@ -1712,7 +1729,7 @@ function createChip({
   if (dismissible) {
     // whole-chip trigger; glyph is decorative (aria-hidden via icon factory)
     el.dataset.dismissible = '';
-    el.setAttribute('aria-label', label + ' — ' + (strings.remove || 'remove'));
+    el.setAttribute('aria-label', label + ', ' + (strings.remove || 'remove'));
     const x = icon('x', { size: CHIP_DISMISS_SIZE[size] || 16 });
     x.classList.add('c-chip__dismiss');
     el.append(x);
@@ -3043,7 +3060,7 @@ function createMessageBubble({
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'c-bubble-row__avatar-btn';
-        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ' — ' + name : ''));
+        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ', ' + name : ''));
         b.addEventListener('click', onSenderClick);
         b.append(av);
         gutter.append(b);
@@ -3078,7 +3095,7 @@ function createMessageBubble({
         // named OR nameless → member sheet (full address + copy live there)
         if (copyable) {
           s.title = address;                                    // full address on hover
-          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ', ' + address);
         }
         s.addEventListener('click', onSenderClick);
       } else {
@@ -3101,7 +3118,7 @@ function createMessageBubble({
       // the copyable variant sets an explicit aria-label (overrides content) —
       // keep the role audible there too
       if (copyable && s.hasAttribute('aria-label')) {
-        s.setAttribute('aria-label', s.getAttribute('aria-label') + ' · ' + roleBadge);
+        s.setAttribute('aria-label', s.getAttribute('aria-label') + ', ' + roleBadge);   // R2 (#371): spoken-punctuation canon
       }
     }
     el.append(s);
@@ -3117,7 +3134,7 @@ function createMessageBubble({
       q.type = 'button';
       q.addEventListener('click', onReplyClick);
       q.setAttribute('aria-label',
-        (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
+        (strings.replyTo || 'Show replied message') + (reply.sender ? ', ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     // media/typed originals show a small identifier (Damir 2026-07-03):
@@ -4625,7 +4642,7 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
   }
   badge.textContent = formatCount(count);
   el.setAttribute('aria-label',
-    (strings.scrollToLatest || 'Scroll to latest messages') + ' — ' +
+    (strings.scrollToLatest || 'Scroll to latest messages') + ', ' +
     formatCount(count) + ' ' + (strings.unread || 'unread'));
 }
 
@@ -5073,10 +5090,10 @@ const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc
 
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
-  if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ' — ' + what;
-  if (state === 'loading') return (strings.loading || 'Loading') + ' — ' + what;
-  if (state === 'failed') return (strings.retry || 'Retry') + ' — ' + what;
-  return (strings.open || 'Open') + ' — ' + what;
+  if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ', ' + what;
+  if (state === 'loading') return (strings.loading || 'Loading') + ', ' + what;
+  if (state === 'failed') return (strings.retry || 'Retry') + ', ' + what;
+  return (strings.open || 'Open') + ', ' + what;
 }
 
 function createMediaBubble({
@@ -5682,10 +5699,16 @@ function openMemberSheet({
         }));
         content.append(payRow);
       }
-    } else if (relation === 'pending') {
+    } else if (relation === 'pending' || relation === 'pending-in') {
+      // R2 (#371, the #366 copy follow-up): an INCOMING pending request reads
+      // "Request received" — "Request sent" was a lie for a member who asked US.
+      // Same safety shape either way: badge only, no button, no money.
       const badge = createBadge({
         type: 'info', weight: 'tonal',
-        label: strings.requestSent || 'Request sent', icon: 'clock-hour-10',
+        label: relation === 'pending-in'
+          ? (strings.requestReceived || 'Request received')
+          : (strings.requestSent || 'Request sent'),
+        icon: 'clock-hour-10',
       });
       badge.classList.add('c-member__relation');
       content.append(badge);
@@ -5909,7 +5932,7 @@ function showIncomingCall({
   el.setAttribute('role', 'alertdialog');
   el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-label',
-    (strings.incomingCall || 'Incoming voice call') + (caller.name ? ' — ' + caller.name : ''));
+    (strings.incomingCall || 'Incoming voice call') + (caller.name ? ', ' + caller.name : ''));
   el.tabIndex = -1;
 
   const id = document.createElement('div');
@@ -7158,7 +7181,7 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
     const infoBtn = document.createElement('button');
     infoBtn.type = 'button';
     infoBtn.className = 'c-app-item__info';
-    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ' — ' + name : ''));
+    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ', ' + name : ''));
     infoBtn.append(icon('info-circle', { size: 24 }));
     infoBtn.addEventListener('click', (e) => { e.stopPropagation(); onInfo({ id, name, creator }, infoBtn); });
     el.append(infoBtn);
@@ -7171,7 +7194,7 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
     const menuBtn = document.createElement('button');
     menuBtn.type = 'button';
     menuBtn.className = 'c-app-item__menu';
-    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ', ' + name : ''));
     menuBtn.append(icon('dots', { size: 24 }));
     menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
     el.append(menuBtn);
@@ -7392,8 +7415,11 @@ function appsEmptyNode(cache, state, opts, strings) {
       illustration: opts.emptyIllustration || null,
       glyph: 'apps',
       title: strings.appsEmptyTitle || 'Mini apps, right inside Spixi',
+      // N3 (#371, Damir text — launch-punch-list B4): ONE short line. The old
+      // three-sentence body repeated the Add instructions the CTA + add screen
+      // already carry. Slovenian is Damir's exact wording; other locales follow it.
       body: strings.appsEmptyBody
-        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file. It takes seconds.',
+        || 'Games, tools and AI that run directly in your chats.',
       actionLabel: opts.onAddApp ? (strings.addApp || 'Add app') : '',
       actionIcon: 'circle-plus',
       onAction: opts.onAddApp || null,
@@ -9122,7 +9148,7 @@ function copyButton(value, label, strings = getStrings()) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'c-txsheet__copy';
-  const idleLabel = (strings.copy || 'Copy') + ' — ' + label;
+  const idleLabel = (strings.copy || 'Copy') + ', ' + label;
   btn.setAttribute('aria-label', idleLabel);
   btn.append(icon('copy', { size: 16 }));
   btn.addEventListener('click', () => {
@@ -12295,7 +12321,7 @@ function createWalletReceive({
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ' — ' + (strings.yourAddress || 'Your address');
+  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
   copy.append(icon('copy', { size: 16 }));
   let copyTimer = null;
@@ -13511,6 +13537,7 @@ function createChatInfo({
   memberCount = 0,
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
+  amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
   txs = [],                      // txlist-item opts (1:1 activity), newest first
@@ -13615,7 +13642,10 @@ function createChatInfo({
   const sub = document.createElement('span');
   sub.className = 'c-chat-info__sub';
   if (kind === 'group') {
-    sub.textContent = `${memberCount || members.length} ${strings.members || 'members'}`;
+    // R2 (#371): "1 member", not "1 members" — whole-phrase key so locales with
+    // richer plural rules translate the complete singular line.
+    const n = memberCount || members.length;
+    sub.textContent = n === 1 ? (strings.memberOne || '1 member') : `${n} ${strings.members || 'members'}`;
   } else if (nickname && nickname !== name) {
     sub.textContent = name;       // override active → the wire name stays visible
   }
@@ -13623,6 +13653,20 @@ function createChatInfo({
   // unappended node made the wire name silently vanish); hidden when empty
   sub.hidden = !sub.textContent;
   idCol.append(sub);
+  /* N48 (#370): MY OWN owner status. Rendered in the HERO for BLIND rooms only —
+     there the roster carries no owner ADDRESS (C# suppresses it), so no ROW can
+     wear the Owner chip; the hero is the one reliable place. (The self row may
+     still show my NICK when I have one — loop B-9 — but the roster stays
+     chip-less either way.) Non-blind rooms already badge the self ROW via the
+     owner-address match (#248); doubling it here would repeat the same fact
+     twice on one screen (extend on Damir's word — logged dial). */
+  // GROUPS only, matching the C# gate (loop A-5/F-5): a bot room's getOwner()
+  // is unreliable, so no arm may render the claim even if a push ever carries it.
+  if (amOwner && blind && kind === 'group') {
+    const selfRole = createBadge({ type: 'info', weight: 'tonal', label: strings.youAreOwner || 'You are the owner' });
+    selfRole.classList.add('c-chat-info__self-role');
+    idCol.append(selfRole);
+  }
   hero.append(idCol);
   body.append(hero);
 
@@ -14065,7 +14109,9 @@ function createChatInfo({
       members.splice(i, 1);
       count = Math.max(0, count - 1);
       countLabel.textContent = (strings.membersTitle || 'Members') + ' (' + count + ')';
-      sub.textContent = count + ' ' + (strings.members || 'members');   // hero line too
+      // R2 (#371, loop B-3): the SECOND hero-sub writer — kick a member out of a
+      // 2-person group and the plural form regressed to "1 members" here.
+      sub.textContent = count === 1 ? (strings.memberOne || '1 member') : count + ' ' + (strings.members || 'members');
       renderMembers();
     }
 
@@ -14086,7 +14132,9 @@ function createChatInfo({
         row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
-        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : m.address);
+        // Loop B-5 (#370): the nameless non-blind fallback follows the #211 canon —
+        // the member SHEET already truncates the same address one tap deeper.
+        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
         row.append(nm);
         if (m.owner) {
           // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
@@ -16960,6 +17008,9 @@ function createSettingsHub({
   if (onChatAppearance) prefs.card.append(settingRow({
     glyph: 'messages', hue: 'primary',
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
+    // I-11 (#371): subs on SOME rows only — where the label alone does not say
+    // what is inside (15c A14: one line, truncates; write to the width).
+    sub: strings.chatAppearanceSub || 'Background, opacity and text size',
     onClick: () => onChatAppearance(),
   }).section);
 
@@ -16978,6 +17029,7 @@ function createSettingsHub({
   if (onLock) sec.card.append(authSwitchRow({
     glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
+    sub: strings.appLockSub || 'Password check when Spixi opens',   // I-11 (#371)
     checked: lockEnabled,
     failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',
     onToggle: onLock,
@@ -17061,6 +17113,7 @@ function createSettingsHub({
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
+    sub: strings.downloadsSub || 'Files you received in chats',   // I-11 (#371)
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
@@ -17932,11 +17985,11 @@ function createChatAppearance({
   styleSec.className = 'c-settings__section';
   const stLab = document.createElement('h3');
   stLab.className = 'c-settings__label';
-  stLab.textContent = strings.patternStyle || 'Pattern style';
+  stLab.textContent = strings.patternStyle || 'Background';
   const styleGroup = styleSwatchGroup({
     options: styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
     current: styleCurrent,
-    ariaLabel: strings.patternStyle || 'Pattern style',
+    ariaLabel: strings.patternStyle || 'Background',
     onPick: (id) => {
       styleCurrent = id;
       applyPreviewStyle(id);
@@ -17944,23 +17997,23 @@ function createChatAppearance({
     },
   });
   styleSec.append(stLab, styleGroup);
-  body.append(styleSec);
+  // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
+  // this section (build order unchanged; only the visual order flips).
 
   const patternSec = document.createElement('div');
   patternSec.className = 'c-settings__section';
   const pLab = document.createElement('h3');
   pLab.className = 'c-settings__label';
-  pLab.textContent = strings.patternIntensity || 'Background pattern';
+  pLab.textContent = strings.patternIntensity || 'Opacity';
   // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
   // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
   const intensityGroup = swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
-    ariaLabel: strings.patternIntensity || 'Background pattern',
+    ariaLabel: strings.patternIntensity || 'Opacity',
     onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', String(v)); if (onPattern) onPattern(v); },
   });
   patternSec.append(pLab, intensityGroup);
-  body.append(patternSec);
 
   const sizeSec = document.createElement('div');
   sizeSec.className = 'c-settings__section';
@@ -17973,7 +18026,9 @@ function createChatAppearance({
     ariaLabel: strings.textSize || 'Message text size',
     onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
   }));
-  body.append(sizeSec);
+  // AND-35 (#371, Damir dial): Text size first, then Background (style), then
+  // Opacity (intensity) — the pattern pair reads as one topic under two labels.
+  body.append(sizeSec, styleSec, patternSec);
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', String(patternOpacity));
@@ -20969,5 +21024,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

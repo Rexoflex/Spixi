@@ -363,11 +363,11 @@ export function createChatAppearance({
   styleSec.className = 'c-settings__section';
   const stLab = document.createElement('h3');
   stLab.className = 'c-settings__label';
-  stLab.textContent = strings.patternStyle || 'Pattern style';
+  stLab.textContent = strings.patternStyle || 'Background';
   const styleGroup = styleSwatchGroup({
     options: styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
     current: styleCurrent,
-    ariaLabel: strings.patternStyle || 'Pattern style',
+    ariaLabel: strings.patternStyle || 'Background',
     onPick: (id) => {
       styleCurrent = id;
       applyPreviewStyle(id);
@@ -375,23 +375,23 @@ export function createChatAppearance({
     },
   });
   styleSec.append(stLab, styleGroup);
-  body.append(styleSec);
+  // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
+  // this section (build order unchanged; only the visual order flips).
 
   const patternSec = document.createElement('div');
   patternSec.className = 'c-settings__section';
   const pLab = document.createElement('h3');
   pLab.className = 'c-settings__label';
-  pLab.textContent = strings.patternIntensity || 'Background pattern';
+  pLab.textContent = strings.patternIntensity || 'Opacity';
   // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
   // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity)
   const intensityGroup = swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
-    ariaLabel: strings.patternIntensity || 'Background pattern',
+    ariaLabel: strings.patternIntensity || 'Opacity',
     onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', String(v)); if (onPattern) onPattern(v); },
   });
   patternSec.append(pLab, intensityGroup);
-  body.append(patternSec);
 
   const sizeSec = document.createElement('div');
   sizeSec.className = 'c-settings__section';
@@ -404,7 +404,9 @@ export function createChatAppearance({
     ariaLabel: strings.textSize || 'Message text size',
     onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
   }));
-  body.append(sizeSec);
+  // AND-35 (#371, Damir dial): Text size first, then Background (style), then
+  // Opacity (intensity) — the pattern pair reads as one topic under two labels.
+  body.append(sizeSec, styleSec, patternSec);
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', String(patternOpacity));

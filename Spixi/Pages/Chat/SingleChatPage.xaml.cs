@@ -9,6 +9,7 @@ using SPIXI.Meta;
 using SPIXI.MiniApps;
 using SPIXI.VoIP;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -1232,7 +1233,32 @@ namespace SPIXI
                         // senderAddress on 1:1 messages, and an own or system post in a
                         // channel can carry none either. Paying a null recipient is not
                         // a thing we do.
-                        if (msg.senderAddress == null)
+                        // ★ D-19b (#370): a NAMED address-less row gets one repair try —
+                        // the same roster reverse-resolve insertMessage used to offer the
+                        // Tip button (exact single match; blind rooms never reach this
+                        // branch — the hideParticipantAddresses guard above refused).
+                        // Re-resolving AT SPEND TIME is deliberate: if the roster changed
+                        // since render (a second member now shares the nick), the match
+                        // goes ambiguous and the tip refuses instead of paying the wrong
+                        // person.
+                        Address? tipTarget = msg.senderAddress;
+                        if (tipTarget == null)
+                        {
+                            tipTarget = reverseResolveSenderByNick(msg.senderNick);
+                            // ★ A-2 (#370) RENDER→SPEND BINDING: the resolve must equal
+                            // the address this page PUSHED for this row — the address the
+                            // user is looking at in the sheet. A roster change between
+                            // render and spend (or a row the FE never got an address for)
+                            // refuses instead of silently paying somewhere else.
+                            if (tipTarget != null
+                                && (!resolvedSenderByMsgId.TryGetValue(msg_id_hex, out string shownAddr)
+                                    || shownAddr != tipTarget.ToString()))
+                            {
+                                Logging.error("Tip target resolve does not match the rendered sender.");
+                                tipTarget = null;
+                            }
+                        }
+                        if (tipTarget == null)
                         {
                             // ★ review r2 MEDIUM: this must not be silent. Answer honestly
                             // instead of dropping it. (History: before #356 the slot was
@@ -1246,7 +1272,7 @@ namespace SPIXI
                             sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
                             return;
                         }
-                        sender_address = new ExtendedAddress(msg.senderAddress, AddressPaymentFlag.OfflineTag, null);
+                        sender_address = new ExtendedAddress(tipTarget, AddressPaymentFlag.OfflineTag, null);
                     }
                     IxiNumber amount = new IxiNumber(data);
                     var prepTx = Node.prepareTransactionFrom(IxianHandler.getWalletStorage().getPrimaryAddress(), sender_address, amount);
@@ -1589,6 +1615,90 @@ namespace SPIXI
             return nick;
         }
 
+        // R2 (#371): "1 member", not "1 members" — a whole-phrase singular id so
+        // every locale translates the complete line. A lang file without the new
+        // id (partial/legacy translation) falls back to the plural format string;
+        // the sub can never go null/empty from a dictionary miss.
+        private string memberCountText(long count)
+        {
+            if (count == 1)
+            {
+                string one = SpixiLocalization._SL("chat-member-count-one");
+                if (!string.IsNullOrEmpty(one))
+                {
+                    return one;
+                }
+            }
+            return String.Format(SpixiLocalization._SL("chat-member-count") ?? "{0} members", count);
+        }
+
+        /* ★ D-19b (#370): REVERSE-RESOLVE a sender nick to its roster address.
+         * Core 0.9.8k stores bot-room rows address-less (5643e5b; BE q1), so a
+         * named row lost its member sheet, copy and tip target. The roster
+         * (friend.users) still maps address → nick; this walks it the other way.
+         * MONEY SAFETY: an EXACT SINGLE match only — two members can share a
+         * nick, and a wrong match here becomes a copyable address and a tip
+         * recipient for the wrong person. Ambiguous = null.
+         * BLIND: never — a blind room must not hand out any address. Unknown
+         * blindness (botInfo not loaded yet) fails closed the same way. */
+        /* ★ D-19b loop A-2 (#370): RENDER→SPEND BINDING for reverse-resolved rows.
+         * The roster mutates (nick rewrites, leavers, the 500-cap eviction), so a
+         * spend-time re-resolve alone could pay an address the user never SAW: the
+         * sheet showed the render-time address, the verb carries only msgid:amount.
+         * insertMessage records the address it pushed per message id; the tip case
+         * requires the spend-time resolve to EQUAL it, else it refuses honestly.
+         * ConcurrentDictionary: writes ride loadMessages under lock(messages),
+         * reads ride onNavigating. Keyed by id hex — repopulated on every load. */
+        private readonly ConcurrentDictionary<string, string> resolvedSenderByMsgId = new ConcurrentDictionary<string, string>();
+
+        private Address? reverseResolveSenderByNick(string nick)
+        {
+            if (string.IsNullOrEmpty(nick))
+            {
+                return null;
+            }
+            if (friend.metaData == null || friend.metaData.botInfo == null
+                || friend.metaData.botInfo.hideParticipantAddresses)
+            {
+                return null;
+            }
+            Address? match = null;
+            try
+            {
+                // Snapshot + lock one reference: BotUsers reassigns nothing, but its
+                // own methods serialize on `contacts` — iterate under the same lock
+                // so a concurrent roster write cannot break the enumeration.
+                var users = friend.users;
+                if (users == null)
+                {
+                    return null;
+                }
+                lock (users.contacts)
+                {
+                    foreach (var contact in users.contacts)
+                    {
+                        var contactNick = contact.Value?.getNick();
+                        if (string.IsNullOrEmpty(contactNick) || contactNick != nick)
+                        {
+                            continue;
+                        }
+                        if (match != null)
+                        {
+                            // Second member with the same nick → ambiguous → no address.
+                            return null;
+                        }
+                        match = contact.Key;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("reverseResolveSenderByNick: " + ex.Message);
+                return null;
+            }
+            return match;
+        }
+
         public void insertMessage(FriendMessage message, int channel)
         {
             if(channel != selectedChannel)
@@ -1632,16 +1742,18 @@ namespace SPIXI
                 address = message.senderAddress != null ? message.senderAddress.ToString() : "";
             }
             string nick = "";
+            // ★ D-19b (#370): the ONE sender identity for this row. Starts as the
+            // stored address; a named-but-address-less multi row may repair it below
+            // via the roster reverse-resolve. Address, avatar and relation all read
+            // THIS variable so the three can never disagree.
+            Address? resolvedSender = message.senderAddress;
             if (!message.localSender)
             {
                 if (friend.bot
                     || friend.type == FriendType.Group)
                 {
-                    if (message.senderAddress != null)
-                    {
-                        address = message.senderAddress.ToString();
-                    }
-                    else
+                    nick = resolveNick(message.senderNick, message.senderAddress);
+                    if (message.senderAddress == null)
                     {
                         // ★ D-19 (#356): a multi-chat row with NO sender address must not
                         // ship the GROUP's nickname in the address slot. The shell renders
@@ -1652,17 +1764,25 @@ namespace SPIXI
                         // member keyed by the group name. Ixian-Core 0.9.8k stores every
                         // bot-room message address-less (5643e5b nulls FriendType.Normal;
                         // BE question 1), so this is now the COMMON case there, not a corner.
-                        // An empty slot is the honest answer: the shell renders its
-                        // "Hidden member" placeholder and wires no copy, no member sheet.
-                        address = "";
+                        // ★ D-19b (#370): for a NAMED row the roster can repair the slot —
+                        // reverse-resolve the nick (exact single match, never blind). This
+                        // restores the member sheet, copy and tip for roster-known senders
+                        // in the public Spixi room. No match → the slot stays "" (an
+                        // anonymous row renders with no label — legacy parity, #369).
+                        resolvedSender = reverseResolveSenderByNick(nick);
+                        if (resolvedSender != null && message.id != null)
+                        {
+                            // A-2 binding: remember what THIS row will display.
+                            resolvedSenderByMsgId[Crypto.hashToString(message.id)] = resolvedSender.ToString();
+                        }
                     }
-                    nick = resolveNick(message.senderNick, message.senderAddress);
+                    address = resolvedSender != null ? resolvedSender.ToString() : "";
                 }
 
                 prefix = "addThem";
-                if(message.senderAddress != null)
+                if(resolvedSender != null)
                 {
-                    avatar = IxianHandler.localStorage.getAvatarPath(message.senderAddress.ToString());
+                    avatar = IxianHandler.localStorage.getAvatarPath(resolvedSender.ToString());
                 }
                 else if (friend.bot || friend.type == FriendType.Group)
                 {
@@ -1699,7 +1819,9 @@ namespace SPIXI
             bool relationBlind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
             if (message.type == FriendMessageType.standard && !message.localSender && !relationBlind && (friend.bot || friend.type == FriendType.Group))
             {
-                relation = contactRelationFor(message.senderAddress);
+                // D-19b (#370): reads resolvedSender — a reverse-resolved row gets the
+                // same relation treatment as an addressed one (blind still excluded).
+                relation = contactRelationFor(resolvedSender);
             }
 
             if (message.type == FriendMessageType.requestFunds)
@@ -2229,7 +2351,7 @@ namespace SPIXI
                 {
                     userCount = friend.metaData.botInfo.userCount;
                 }
-                Utils.sendUiCommand(this, "setOnlineStatus", String.Format(SpixiLocalization._SL("chat-member-count"), userCount));
+                Utils.sendUiCommand(this, "setOnlineStatus", memberCountText(userCount));
             }
             else if (friend.type == FriendType.Group)
             {
@@ -2255,7 +2377,7 @@ namespace SPIXI
                     {
                         groupMemberCount = friend.users.contacts.Count;
                     }
-                    string groupCountText = String.Format(SpixiLocalization._SL("chat-member-count"), groupMemberCount);
+                    string groupCountText = memberCountText(groupMemberCount);
                     if (groupCountText != lastGroupCountPushed)
                     {
                         lastGroupCountPushed = groupCountText;

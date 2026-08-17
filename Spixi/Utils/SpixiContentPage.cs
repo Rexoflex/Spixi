@@ -2238,9 +2238,15 @@ namespace SPIXI
                 Friend fr = FriendList.getFriend(address);
                 if (fr == null || fr.pendingDeletion) return "none";
                 if (fr.approved && fr.state == FriendState.Approved) return "contact";
-                // RequestSent AND RequestReceived both land here: no request button,
-                // no money actions — the honest safe bucket (badge says "Request sent";
-                // a "Request received" variant is a copy follow-up, logged in #366).
+                // R2 (#371, the #366 copy follow-up): RequestReceived gets its own
+                // token so the badge can say "Request received" instead of the lie
+                // "Request sent". Same safety class as 'pending': no request button,
+                // no money actions. An OLD shell treats the unknown token as '' →
+                // unknown → it may show a request button; shells and exe ship
+                // together, so the skew exists only in stale-artifact dev runs.
+                if (fr.state == FriendState.RequestReceived) return "pending-in";
+                // RequestSent AND every legacy non-Approved state land here: no
+                // request button, no money actions — the honest safe bucket.
                 return "pending";
             }
             catch (Exception ex)

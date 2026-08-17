@@ -169,10 +169,16 @@ export function openMemberSheet({
         }));
         content.append(payRow);
       }
-    } else if (relation === 'pending') {
+    } else if (relation === 'pending' || relation === 'pending-in') {
+      // R2 (#371, the #366 copy follow-up): an INCOMING pending request reads
+      // "Request received" — "Request sent" was a lie for a member who asked US.
+      // Same safety shape either way: badge only, no button, no money.
       const badge = createBadge({
         type: 'info', weight: 'tonal',
-        label: strings.requestSent || 'Request sent', icon: 'clock-hour-10',
+        label: relation === 'pending-in'
+          ? (strings.requestReceived || 'Request received')
+          : (strings.requestSent || 'Request sent'),
+        icon: 'clock-hour-10',
       });
       badge.classList.add('c-member__relation');
       content.append(badge);

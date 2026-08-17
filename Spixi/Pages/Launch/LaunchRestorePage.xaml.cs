@@ -63,8 +63,13 @@ namespace SPIXI
                  * Same honest alert, same shape, same strings as Create. */
                 if (IxianHandler.getWalletList().Count > 0)
                 {
-                    displaySpixiAlert(SpixiLocalization._SL("intro-new-walletexists-title") ?? "Account already exists",
-                        SpixiLocalization._SL("intro-new-walletexists-text") ?? "An account already exists on this device. Restart Spixi to continue with it.",
+                    /* D-7 (#371): RESTORE gets its OWN copy. The Create message
+                     * ("restart to continue with it") answers a question the
+                     * restoring user did not ask and names no way forward — one
+                     * dangerous door had become zero doors. This one names the
+                     * path out (findings §D-7, correct regardless of D-6). */
+                    displaySpixiAlert(SpixiLocalization._SL("intro-restore-walletexists-title") ?? "Account already on this device",
+                        SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account, tap Delete wallet, then open Restore again.",
                         SpixiLocalization._SL("global-dialog-ok") ?? "OK");
                     e.Cancel = true;
                     Utils.sendUiCommand(this, "removeLoadingOverlay");

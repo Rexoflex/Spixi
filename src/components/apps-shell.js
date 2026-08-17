@@ -140,8 +140,11 @@ function appsEmptyNode(cache, state, opts, strings) {
       illustration: opts.emptyIllustration || null,
       glyph: 'apps',
       title: strings.appsEmptyTitle || 'Mini apps, right inside Spixi',
+      // N3 (#371, Damir text — launch-punch-list B4): ONE short line. The old
+      // three-sentence body repeated the Add instructions the CTA + add screen
+      // already carry. Slovenian is Damir's exact wording; other locales follow it.
       body: strings.appsEmptyBody
-        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file. It takes seconds.',
+        || 'Games, tools and AI that run directly in your chats.',
       actionLabel: opts.onAddApp ? (strings.addApp || 'Add app') : '',
       actionIcon: 'circle-plus',
       onAction: opts.onAddApp || null,

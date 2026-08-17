@@ -6090,9 +6090,9 @@ console.log('#341 — Change password renders inside the Account pane');
     '★ #342 review MAJOR-1: the tip recipient photo NEVER falls back to identity.avatar in a group. identity.avatar is the GROUP photo there (SingleChatPage pushes getAvatarPath(friend)), and file/app/payment rows carry no avatar at all — so the unguarded fallback put the group face beside an individual member name, on the surface where the user checks who is about to be paid. A gradient is neutral; the wrong face is not');
   /* ★ #346 (review of #342): the NAME ladder one line above the avatar ladder had the
      very fallback the avatar ladder was written to remove. */
-  ok(/name: rec\.senderNick\s*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.name : identity\.name\)/.test(chatEnc)
+  ok(/name: \(senderHasNick\(rec\) \? rec\.senderNick : ''\)\s*\r?\n\s*\|\| \(mode\.isMulti\s*\r?\n\s*\? \(\(n\) => \(n && !isPseudoAddressNick\(n\)\) \? n : ''\)\(\(\(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.name \|\| ''\)\)\s*\r?\n\s*: identity\.name\)/.test(chatEnc)
     && !/name: rec\.senderNick \|\| identity\.name/.test(chatEnc),
-    '★ #346: the tip recipient NAME follows the same ladder as the photo. identity.name is the GROUP name in a group, so a member who set no nickname — the case senderHasNick exists for — produced "Tip <group name>" beside that member\'s real face. #342 fixed the photo and left the caption saying something else');
+    '★ #346 (+#370 loop B-6): the tip recipient NAME follows the same ladder as the photo, and its first rung is now senderHasNick-guarded — the C# address-echo printed a FULL base58 as the payee name on the money surface. identity.name stays 1:1-only (it is the GROUP name in a group)');
 
   ok(/glyph: 'pencil', hue: 'primary', key: 'encpass',/.test(encComp),
     '#341 audit MINOR-4: the hub row carries a key, so the pane marks it aria-current with the tonal tint while its sublevel is open — it was the only sublevel opener that announced nothing');
@@ -7483,13 +7483,13 @@ console.log('#354/#355 — D-18 poisoned-window guard · AND-38 balance tap high
 }
 
 /* —— #356 — D-19: sender-less multi-chat rows must not impersonate the GROUP —— */
-console.log('#356 — D-19 honest sender on address-less bot-room rows');
+console.log('#356→#370 — D-19/D-19b honest sender on address-less bot-room rows');
 {
   /* comment-free text (mutation-harness rule 2026-08-15): pins track CODE shape. */
   const scp356 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  ok(/if \(message\.senderAddress != null\)\s*\{\s*address = message\.senderAddress\.ToString\(\);\s*\}\s*else\s*\{\s*address = "";\s*\}\s*nick = resolveNick\(message\.senderNick, message\.senderAddress\);/.test(scp356),
-    '★ D-19 (#356): a multi-chat row with no sender address sends an EMPTY address slot — never friend.nickname. Legacy seeds the slot with the GROUP\'s name (insertMessage), and the shell renders that slot middle-truncated + copyable (the 2026-07-07 dial, written for real addresses) — so the group\'s own name arrived styled as the sender\'s address ("Spixi …p Chat"). Core 0.9.8k makes this the COMMON bot-room case (5643e5b nulls FriendType.Normal at STORE time; BE q1). Delete the else and the impersonation returns');
+  ok(/nick = resolveNick\(message\.senderNick, message\.senderAddress\);\s*if \(message\.senderAddress == null\)\s*\{\s*resolvedSender = reverseResolveSenderByNick\(nick\);[\s\S]{0,400}?\}\s*address = resolvedSender != null \? resolvedSender\.ToString\(\) : "";/.test(scp356),
+    '★ D-19b (#370, rebased from #356): a multi-chat row with no stored sender address gets ONE roster repair try (reverseResolveSenderByNick) and otherwise sends an EMPTY slot — never friend.nickname. The #356 impersonation (the group name styled as a copyable sender address) returns if the arm regrows the group nickname');
   ok(/else if \(friend\.bot \|\| friend\.type == FriendType\.Group\)\s*\{\s*avatar = "img\/spixiavatar\.png";\s*\}\s*else\s*\{\s*avatar = IxianHandler\.localStorage\.getAvatarPath\(friend\.walletAddress\.ToString\(\)\);\s*\}/.test(scp356),
     '★ D-19 (#356): a sender-less MULTI-chat row wears the neutral avatar, never the GROUP\'s photo — while the 1:1 null-address branch keeps the friend\'s photo (there the friend IS the sender). The order matters: the bot/Group test must come before the 1:1 fallback');
   /* r2 (loop r1 MINOR): pin the SOURCE and the BUILT artifact — the built file is
@@ -7500,30 +7500,44 @@ console.log('#356 — D-19 honest sender on address-less bot-room rows');
     .replace(/\/\*[\s\S]*?\*\//g, '');
   ok(/\(a\.senderAddress \|\| a\.senderNick \|\| ''\) === \(b\.senderAddress \|\| b\.senderNick \|\| ''\)/.test(chat356src)
     && /\(a\.senderAddress \|\| a\.senderNick \|\| ''\) === \(b\.senderAddress \|\| b\.senderNick \|\| ''\)/.test(chat356),
-    '★ D-19 r2 (#356, loop r1 MAJOR-4): the bubble-run key is address OR nick — Core 0.9.8k stores every bot-room row address-less, and the address-only key merged ALL received rows into ONE run: Bob\'s message rendered under Alice\'s label (label paints on first-of-run only) wearing the last row\'s avatar. Rows with neither identity share the empty key and merge with each other only — indistinguishable by construction, and the run head says "Hidden member", never a name');
+    '★ D-19 r2 (#356, loop r1 MAJOR-4): the bubble-run key is address OR nick — Core 0.9.8k stores every bot-room row address-less, and the address-only key merged ALL received rows into ONE run: Bob\'s message rendered under Alice\'s label (label paints on first-of-run only) wearing the last row\'s avatar. Rows with neither identity share the empty key and merge with each other only — indistinguishable by construction; #370 renders such a run UNLABELED on non-blind surfaces (legacy parity) and placeholder-labeled in blind rooms');
   ok((() => {
     const nc = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     return /string address = friend\.nickname;\s*if\s*\(address == ""\)\s*\{\s*address = message\.senderAddress != null \? message\.senderAddress\.ToString\(\) : "";\s*\}/.test(nc);
   })(),
     '★ D-19 r2 (#356, loop r1 MAJOR-5): the address seeding at the top of insertMessage guards the Address? dereference — an EMPTY friend nickname (one empty nick push persists "") plus Core 0.9.8k\'s null sender address NRE\'d on every row; history load swallowed it per-row and the chat rendered permanently empty');
-  ok(chat356src.includes("truncateAddressMiddle(rec.senderAddress, 9, 6) : (s.hiddenMember || 'Hidden member')")
-    && chat356.includes("truncateAddressMiddle(rec.senderAddress, 9, 6) : (s.hiddenMember || 'Hidden member')"),
-    'D-19 r2 (#356, loop r1 MINOR): the multi-select COPY path uses the same placeholder as the bubble — an empty string broke the #348 r4 attribution rule (unattributed clipboard lines interleaved with attributed ones)');
-  ok(chat356.includes("rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member')")
-    && chat356src.includes("rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member')"),
-    '★ D-19 (#356): the BUILT chat shell labels a no-nick, no-address sender with the localized "Hidden member" placeholder — not a blank. A null sender rendered NO label, so an anonymous run read as the previous sender\'s messages. The placeholder rides the existing blind-chat string (all locales; zero new keys), and both the copy affordance (senderIsAddress) and the member sheet (onSenderClick) already key off the empty address, so neither wires up on it');
+  {
+    const copyLadder = (t) => {
+      const a = t.indexOf('if (senderHasNick(rec)) return rec.senderNick;');
+      if (a < 0) return false;
+      const seg = t.slice(a, a + 500);
+      const b = seg.indexOf("if (mode.blind) return s.hiddenMember || 'Hidden member';");
+      const c = seg.indexOf("return rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';");
+      return b > 0 && c > b;
+    };
+    ok(copyLadder(chat356src) && copyLadder(chat356),
+      '★ D-19b (#370): the multi-select COPY path carries the AMENDED ladder — nick first (blind included), blind+nameless copies the placeholder (attribution without identity), non-blind+nameless copies truncated-address-or-nothing (legacy parity; chat-select renders an empty sender as bare text)');
+  }
+  ok(chat356.includes(": (rec.senderAddress || null)))")
+    && chat356src.includes(": (rec.senderAddress || null)))"),
+    '★ D-19b (#370): a non-blind no-nick no-address sender renders NO label at all — legacy parity (#369: the placeholder is DEAD on non-blind surfaces; the public Spixi bot room must never render masked). senderIsAddress and onSenderClick key off the empty address, so nothing interactive wires up on an anonymous row');
   ok((() => {
     /* the placeholder must live in the NON-blind branch of the same ternary that
        still protects blind chats — a rewrite that drops the blind arm would pass
        a bare substring test. Anchor both arms inside one sender: expression. */
-    const at = chat356.indexOf('sender: (!isSent && mode.isMulti)');
-    if (at < 0) return false;
-    const expr = chat356.slice(at, chat356.indexOf('senderIsAddress:', at));
-    return expr.includes('mode.blind ?') && expr.includes('senderHasNick(rec) ? rec.senderNick')
-      && expr.includes("rec.senderAddress || ((window.SL || {}).hiddenMember || 'Hidden member')");
+    const armOrder = (t) => {
+      const at = t.indexOf('sender: (!isSent && mode.isMulti)');
+      if (at < 0) return false;
+      const expr = t.slice(at, t.indexOf('senderIsAddress:', at));
+      const nickArm = expr.indexOf('senderHasNick(rec) ? rec.senderNick');
+      const blindArm = expr.indexOf("mode.blind ? ((window.SL || {}).hiddenMember || 'Hidden member')");
+      const bareArm = expr.indexOf('(rec.senderAddress || null)');
+      return nickArm >= 0 && blindArm > nickArm && bareArm > blindArm;
+    };
+    return armOrder(chat356) && armOrder(chat356src);
   })(),
-    '★ D-19 r0 (#356): the placeholder sits in the NON-blind arm of the SAME sender: ternary — the blind-chat arm (W8 #348 security) is intact above it, and the named-sender and real-address paths still win before the placeholder');
+    '★ D-19b (#370, the #369 AMENDED ladder): inside the ONE sender: ternary the NICK arm comes FIRST (a real nickname shows in blind rooms too — senderHasNick keeps the address-echo out), the blind arm falls to the placeholder (never an address), and the non-blind tail falls to truncated-address-or-NOTHING. Reordering any arm re-opens either the #348 blind leak or the #369 masking complaint');
 }
 
 /* —— #357 — D-20: "Connecting…" must survive a shell reload while offline ———— */
@@ -7727,7 +7741,7 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
 
   // —— N22: private-group topbar member count (C#) ——
   const scpN = read('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
-  ok(/N22 \(Damir, bot parity\)[\s\S]{0,2200}?chat-member-count[\s\S]{0,700}?lastGroupCountPushed = groupCountText/.test(scpN),
+  ok(/N22 \(Damir, bot parity\)[\s\S]{0,2200}?memberCountText\(groupMemberCount\)[\s\S]{0,700}?lastGroupCountPushed = groupCountText/.test(scpN),
     'N22: a private group pushes the chat-member-count sub-line (bot parity), latched on text change — not at the 1 Hz tick (#288 churn class)');
   ok(/setOnlineStatus = false;\s*\n\s*lastGroupCountPushed = null;/.test(scpN),
     'N22: the count latch re-arms in onLoad — a WebView reload resets identity.sub, so an un-reset latch would leave the reloaded topbar countless');
@@ -7933,9 +7947,9 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
   ok(/errorSending\.ToString\(\), relation\);/.test(scp366),
     'D-5: the per-message addMe/addThem push carries the trailing relation arg');
-  ok(/relation = contactRelationFor\(message\.senderAddress\);/.test(scp366)
+  ok(/relation = contactRelationFor\(resolvedSender\);/.test(scp366)
     && /!message\.localSender && !relationBlind/.test(scp366),
-    'D-5 ★: relation is computed ONLY for received multi-chat rows and NEVER for a blind chat (identity-hint belt)');
+    'D-5 ★: relation is computed ONLY for received multi-chat rows, NEVER for a blind chat (identity-hint belt), and reads resolvedSender — a #370 reverse-resolved row gets the addressed-row treatment');
   // loop m2 REBASED: the '[Unknown]' key masked blind GROUPS only — the broad
   // botInfo predicate covers blind BOTS too (the #348 MAJOR-5 gap must not widen).
   ok(/"addContact", {2}address, nick, avatar, role\.ToString\(\), relation\);/.test(scp366)
@@ -7968,8 +7982,8 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   const chat366 = read('src/shells/chat.html');
   ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation\)/.test(chat366),
     'D-5: chat.html addThem accepts the trailing relation (the old signature silently discarded trailing args)');
-  ok(/const RELATIONS = new Set\(\['contact', 'pending', 'none', 'self'\]\);/.test(chat366),
-    'D-5: pushed relation values are validated against the closed vocabulary');
+  ok(/const RELATIONS = new Set\(\['contact', 'pending', 'pending-in', 'none', 'self'\]\);/.test(chat366),
+    'D-5: pushed relation values are validated against the closed vocabulary (+ pending-in, #371)');
   ok(/addContact\(address, nick, avatar, role, relation\)/.test(chat366),
     'D-5: the roster handler stopped discarding trailing args');
   ok(/requestedMembers\.add\(rec\.senderAddress\);/.test(chat366) && /requestedMembers\.clear\(\);/.test(chat366),
@@ -8097,7 +8111,222 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   ok([...sNone.querySelectorAll('button')].some((b) => /contact request/i.test(b.textContent)),
     'N26: a true stranger still gets the request button');
   sNone.remove();
+
+  // R2 (#371): pending-in → "Request received" badge, still no button (money/CTA safety intact)
+  const sIn = mk('pending-in', () => {});
+  ok([...sIn.querySelectorAll('.c-badge')].some((b) => /request received/i.test(b.textContent))
+    && ![...sIn.querySelectorAll('button')].some((b) => /contact request/i.test(b.textContent)),
+    'R2 (#371): relation pending-in → "Request received" badge, NO request button');
+  sIn.remove();
+
+  // D-19b (#370): the pseudo-nick detector — shape-tight both ways
+  const b58tail = '3fUJEqmyx7NUkAkGyvyLCFVEznQhp2QdBDVCFHT9Ff';
+  // typeof guard: a bundle without the export must FAIL this pin, not crash the
+  // suite (the #361 fail-soft harness lesson).
+  const ipn = typeof S.isPseudoAddressNick === 'function' ? S.isPseudoAddressNick : null;
+  ok(!!ipn
+    && ipn('x' + b58tail) === true
+    && ipn(b58tail) === true            // loop B-1: the RAW echo encoding (no x)
+    && ipn('xavier') === false
+    && ipn('x1234') === false
+    && ipn('') === false
+    && ipn('x' + b58tail + '0') === false,
+    'D-19b (#370): isPseudoAddressNick matches x-prefixed AND raw base58(30+) — the two encodings C# actually emits on masked rows (loop B-1) — while short names, real names and non-base58 tails (0/O/I/l) never blank');
+
+  // R2 (#371) + N48 (#370): chat-info hero — singular count + own-owner chip
+  const ciHost = d.createElement('div');
+  d.body.append(ciHost);
+  const ci1 = S.createChatInfo({ kind: 'group', memberCount: 1, members: [], blind: true, amOwner: true, strings: {} });
+  ciHost.append(ci1);
+  const sub1 = ci1.querySelector('.c-chat-info__sub');
+  ok(!!sub1 && sub1.textContent === '1 member',
+    'R2 (#371): a 1-member group hero reads "1 member", not "1 members"');
+  const role1 = ci1.querySelector('.c-chat-info__self-role');
+  ok(!!role1 && /you are the owner/i.test(role1.textContent),
+    'N48 (#370): blind group + amOwner → the hero carries "You are the owner"');
+  const ciBot = S.createChatInfo({ kind: 'bot', memberCount: 2, members: [], blind: true, amOwner: true, strings: {} });
+  ciHost.append(ciBot);
+  ok(!ciBot.querySelector('.c-chat-info__self-role'),
+    'N48 (#373, r2 F-5): a BOT room never renders the claim even if a push carries it — getOwner() is "first roster entry learned" there (both gates: C# computes groups-only, FE renders groups-only)');
+  ciBot.remove();
+  ci1.remove();
+  const ci2 = S.createChatInfo({ kind: 'group', memberCount: 3, members: [], blind: false, amOwner: true, strings: {} });
+  ciHost.append(ci2);
+  ok((ci2.querySelector('.c-chat-info__sub') || {}).textContent === '3 members'
+    && !ci2.querySelector('.c-chat-info__self-role'),
+    'N48 (#370): NON-blind renders NO hero chip (the self ROW already carries Owner via the address match — extend-to-hero is a logged dial) + plural stays "3 members"');
+  ci2.remove(); ciHost.remove();
   wrap.remove(); sheetHost.remove();
+}
+
+
+/* —— #370/#371 — D-19b family rework · N48 · N49 · N50 · the R2 round ———— */
+console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2');
+{
+  const read = (p) => readFileSync(join(root, p), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /* —— D-19b: the C# reverse-resolve —— */
+  const scp370 = nc(read('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+  ok(/private Address\? reverseResolveSenderByNick\(string nick\)/.test(scp370)
+    && /if \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\s*\|\| friend\.metaData\.botInfo\.hideParticipantAddresses\)\s*\{\s*return null;/.test(scp370),
+    '★ D-19b (#370): the reverse-resolve FAILS CLOSED on blindness — a blind room, or a room whose botInfo has not loaded, never hands out an address (the #369 amendment: reverse-resolve is NON-blind-only)');
+  ok(/if \(match != null\)\s*\{\s*return null;\s*\}\s*match = contact\.Key;/.test(scp370),
+    '★ D-19b (#370) MONEY SAFETY: a SECOND roster member with the same nick makes the match ambiguous → null. Without this a shared nick becomes a copyable address and a tip recipient for the WRONG person');
+  ok(/lock \(users\.contacts\)/.test(scp370),
+    'D-19b (#370): the roster walk locks users.contacts — BotUsers serializes its own writers on the same object');
+  ok(/if\s*\(resolvedSender != null\)\s*\{\s*avatar = IxianHandler\.localStorage\.getAvatarPath\(resolvedSender\.ToString\(\)\);/.test(scp370),
+    'D-19b (#370): the avatar lookup reads resolvedSender — a repaired row wears its member\'s real photo, and address/avatar/relation can never disagree (one variable)');
+  ok(/Address\? tipTarget = msg\.senderAddress;\s*if \(tipTarget == null\)\s*\{\s*tipTarget = reverseResolveSenderByNick\(msg\.senderNick\);/.test(scp370)
+    && /if \(tipTarget == null\)\s*\{\s*Logging\.error\("Tip target message carries no sender address\."\);\s*sendTipResult\(false/.test(scp370)
+    && /new ExtendedAddress\(tipTarget, AddressPaymentFlag\.OfflineTag, null\)/.test(scp370),
+    '★ D-19b (#370) MONEY: the tip case RE-resolves at SPEND time and refuses honestly when the resolve fails — a roster that changed since render (nick collision appeared) refuses instead of paying the wrong member; the blind refusal above this branch is untouched');
+  ok(/resolvedSenderByMsgId\[Crypto\.hashToString\(message\.id\)\] = resolvedSender\.ToString\(\);/.test(scp370)
+    && /resolvedSenderByMsgId\.TryGetValue\(msg_id_hex, out string shownAddr\)\s*\|\|\s*shownAddr != tipTarget\.ToString\(\)/.test(scp370)
+    && /ConcurrentDictionary<string, string> resolvedSenderByMsgId/.test(scp370),
+    '★ D-19b (#370) loop A-2 — RENDER→SPEND BINDING: the tip pays ONLY the address this page pushed for that row (the one on the sheet). A roster mutation between render and spend (nick rewrite, leaver, the 500-cap eviction re-uniquing a nick) makes the spend-time resolve differ → honest refusal, never a silent payment to an address the user never saw');
+
+  /* —— D-19b: the pseudo-nick display guard —— */
+  const njs = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');   // loop C-5: JS pins track CODE shape, not comments
+  const av370 = njs(read('src/components/avatar.js'));
+  ok(/export function isPseudoAddressNick\(name\)/.test(av370)
+    && av370.includes('^x?[1-9A-HJ-NP-Za-km-z]{30,}$'),
+    'D-19b (#370, widened in loop B-1): isPseudoAddressNick lives in avatar.js (the #211 identity canon home) and matches BOTH address-bearing encodings — the legacy "x"+base58 pseudo-key AND the raw base58 echo (resolveNick / local_fr.nickname fall back to the address itself). The x is OPTIONAL in the shape or the echo leaks');
+  const chat370src = read('src/shells/chat.html');
+  const chat370 = read('Spixi/Resources/Raw/html/chat.html');
+  ok(chat370src.includes("(addr === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '')")
+    && chat370.includes("(addr === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '')"),
+    '★ D-19b (#370): the chat roster ingest BLANKS a blind pseudo-nick for display — "x"+<address> IS the address the blind mask hides, and it fed the member list AND the @-mention picker (typing that mention would paste the address into an outgoing message). The raw value stays as the roster KEY');
+  const cd370src = read('src/shells/contact_details.html');
+  const cd370 = read('Spixi/Resources/Raw/html/contact_details.html');
+  ok(cd370src.includes("(address === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '')")
+    && cd370.includes("(address === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '')"),
+    '★ D-19b (#370): contact_details blanks the blind pseudo-nick too — the group-info member list printed "x"+<full address> as a NAME in a blind room');
+
+  /* —— N48: self-only amOwner —— */
+  const cdcs370 = nc(read('Spixi/Pages/Contacts/ContactDetails.xaml.cs'));
+  ok(/amOwner = ownerAddress != null && selfAddress != null && ownerAddress\.SequenceEqual\(selfAddress\);/.test(cdcs370)
+    && /"group" : "bot",\s*amOwner \? "1" : "0"\);/.test(cdcs370),
+    'N48 (#370): setGroupInfo carries MY OWN owner status as an additive 7th arg, computed from the RAW owner address — the masked owner string stays empty for blind groups (no other identity leaks)');
+  ok(/bool amOwner = false;[\s\S]{0,400}?if \(friend\.type == FriendType\.Group\)[\s\S]{0,600}?amOwner = ownerAddress/.test(cdcs370),
+    'N48 (#370, loop A-5): amOwner computes for GROUPS only — a BOT room\'s getOwner() degrades to "first roster entry learned" (+ the 500-cap eviction reshuffles it), which could tell a bot-room member "You are the owner"');
+  ok(cd370src.includes('setGroupInfo(count, blind, admin, notifications, owner, kind, amOwner)')
+    && cd370src.includes('amOwner: state.group.amOwner')
+    && cd370.includes('amOwner: state.group.amOwner'),
+    'N48 (#370): the shell parses the 7th arg (old exe → undefined → false) and threads it to createChatInfo');
+
+  /* —— N49: selectChat lifecycle —— */
+  const hp370 = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
+  ok(/overlay is SingleChatPage presentedChat\)\s*\{\s*if \(rightContent\.IsVisible\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", presentedChat\.friend\.walletAddress\.ToString\(\)\);\s*\}\s*return;\s*\}/.test(hp370),
+    '★ N49 (#370): the row highlight is pushed at PRESENT time (onOverlayPresented), WIDE only (r2 F-1: a phone takeover\'s close slide reveals the list before the clear — an unconditional stamp tinted the just-left row for the whole slide-out). Pattern var = presentedChat, NOT scp (a method-tail lambda already declares scp — CS0136, loop A-1)');
+  ok(!/pushPageLoaded\(new SingleChatPage[\s\S]{0,400}?sendUiCommand\(this, "selectChat"/.test(hp370),
+    'N49 (#370): the old call-site push is GONE (present-time is the only setter)');
+  ok(/overlay is SingleChatPage\)[\s\S]{0,600}?if \(!SpixiContentPage\.getOverlayPages\(\)\.Exists\(p => p is SingleChatPage\)\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", ""\);/.test(hp370),
+    '★ N49 (#370, #369 F5): closing the conversation CLEARS the chats-list row tint — guarded like N24: a chat→chat tag-replace closes the OLD page after the new one pushed its highlight, so the clear fires only when NO conversation remains');
+
+  /* —— N50: contact_details back-vs-overlay —— */
+  ok(/public volatile bool shellOverlayOpen/.test(cdcs370)
+    && /shellOverlayOpen = current_url\.EndsWith\(":1", StringComparison\.Ordinal\);/.test(cdcs370)
+    && cdcs370.includes('"ixian:cdoverlay:"'),
+    'N50 (#370): ContactDetails mirrors the shell overlay state from ixian:cdoverlay (volatile — nav thread writes, back path reads; the homeoverlay grammar)');
+  ok(/private void onLoad\(\)\s*\{\s*shellOverlayOpen = false;/.test(cdcs370),
+    'N50 (#370, loop A-3/B-4): the flag RESETS in onLoad — reloadAllPages (theme/language flip) builds a fresh document that pushes nothing, and a stale true swallowed hardware back (the #337 homeShellOverlayOpen lesson, applied here)');
+  ok(/if \(shellOverlayOpen\)\s*\{\s*Utils\.sendUiCommand\(this, "cdBack"\);\s*return true;\s*\}\s*popPageAsync\(\);/.test(cdcs370),
+    '★ N50 (#370, #369 F5): ContactDetails\' own back pops the SHELL overlay first — OS back over the remove-blocked modal popped the whole page from under it');
+  {
+    const obb = hp370.slice(hp370.indexOf('protected override bool OnBackButtonPressed()'));
+    const route = obb.indexOf('is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen');
+    const close = obb.indexOf('SpixiContentPage.closeTopOverlay()');
+    ok(route > 0 && close > route && /Utils\.sendUiCommand\(cd, "cdBack"\);/.test(obb),
+      '★ N50 (#370): HomePage routes back INTO a ContactDetails overlay BEFORE closeTopOverlay — on desktop the details pane is a HomePage overlay, so its OnBackButtonPressed never runs and only this route can save the modal');
+  }
+  ok(cd370src.includes("bridge.send('ixian:cdoverlay:' + (cdOverlayLive() ? '1' : '0'))")
+    && /new MutationObserver\(syncCdOverlay\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(cd370src)
+    && cd370.includes("bridge.send('ixian:cdoverlay:' + (cdOverlayLive() ? '1' : '0'))"),
+    'N50 (#370): the shell mirrors body[data-overlay-open] to C# (coalesced), source AND built');
+  ok(/cdBack\(\) \{\s*if \(typeof dismissTopOverlay === 'function' && dismissTopOverlay\(\)\) return;\s*syncCdOverlay\(\);\s*\}/.test(cd370src.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'N50 (#370): cdBack dismisses the top overlay and SELF-HEALS a stale flag (re-sync when nothing was open) — back can never wedge (the #337 homeBack lesson)');
+
+  /* —— R2: memberOne / pending-in / AND-35 / D-7 / I-11 / N3 —— */
+  ok(/private string memberCountText\(long count\)/.test(scp370)
+    && /if \(count == 1\)/.test(scp370) && scp370.includes('"chat-member-count-one"')
+    && /Utils\.sendUiCommand\(this, "setOnlineStatus", memberCountText\(userCount\)\);/.test(scp370)
+    && /string groupCountText = memberCountText\(groupMemberCount\);/.test(scp370),
+    'R2 (#371): BOTH C# member-count sites route through memberCountText — "1 member" via the new legacy id, plural via the old format string, and a lang file missing the new id falls back to the plural (never a null sub)');
+  {
+    const langs = ['cn-cn','de-de','en-us','es-co','fr-fr','id-id','it-it','ja-jp','lt-lt','pt-br','ru-ru','sl-si','sr-sp'];
+    ok(langs.every((l) => /^chat-member-count-one = .+$/m.test(read('Spixi/Resources/Raw/lang/' + l + '.txt'))),
+      'R2 (#371): chat-member-count-one exists in ALL 13 legacy lang files');
+  }
+  const base370 = nc(read('Spixi/Utils/SpixiContentPage.cs'));
+  ok(/if \(fr\.state == FriendState\.RequestReceived\) return "pending-in";/.test(base370),
+    'R2 (#371, the #366 follow-up): RequestReceived gets its own relation token — the badge stops claiming "Request sent" for a member who asked US. Same safety class as pending: no button, no money');
+  const ms370 = njs(read('src/components/member-sheet.js'));
+  ok(ms370.includes("relation === 'pending' || relation === 'pending-in'")
+    && ms370.includes("strings.requestReceived || 'Request received'"),
+    'R2 (#371): the member sheet renders "Request received" for pending-in — badge only, the request-button arm is unreachable for both pending flavors');
+  {
+    const ci371 = read('src/components/chat-info.js');
+    ok(/removeMemberRow[\s\S]{0,700}?count === 1 \? \(strings\.memberOne \|\| '1 member'\)/.test(ci371),
+      'R2 (#371, loop B-3): the SECOND hero-sub writer (removeMemberRow, after a kick/ban) takes the singular branch too — kicking a 2-person group down to 1 must not regress to "1 members"');
+    ok(ci371.includes("truncateAddressMiddle(m.address))"),
+      'D-19b (#370, loop B-5): the nameless non-blind member-row fallback truncates per the #211 canon — the list printed a full ~50-char base58 as a NAME while the sheet truncated the same address');
+  }
+  ok(chat370src.includes("name: (senderHasNick(rec) ? rec.senderNick : '')")
+    && chat370.includes("name: (senderHasNick(rec) ? rec.senderNick : '')"),
+    'D-19b (#370, loop B-6): the TIP SHEET payee name rides senderHasNick — the C# address-echo printed a full base58 as the recipient NAME on the money confirm surface');
+  ok(chat370src.includes('rec.senderNick !== rec.senderAddress && !isPseudoAddressNick(rec.senderNick)')
+    && chat370.includes('rec.senderNick !== rec.senderAddress && !isPseudoAddressNick(rec.senderNick)'),
+    'D-19b (#373, r2 F-2) BELT: senderHasNick rejects an address-SHAPED nick — the equality guard cannot fire when the address slot is empty (the Core 0.9.8k case), and the nick-first ladder would otherwise render a base58 senderNick in a BLIND room');
+  ok(chat370src.includes("((n) => (n && !isPseudoAddressNick(n)) ? n : '')(((groupRoster.get(rec.senderAddress) || {}).name || ''))")
+    && chat370.includes("((n) => (n && !isPseudoAddressNick(n)) ? n : '')(((groupRoster.get(rec.senderAddress) || {}).name || ''))"),
+    'D-19b (#373, r2 F-3): the tip-sheet ROSTER rung carries the same shape guard — resolveNick echoes the address into the roster nick for a nameless non-blind member, so rung 2 re-introduced the full-base58 payee name');
+  ok(cd370src.includes("['contact', 'pending', 'pending-in', 'none', 'self'].indexOf(relation)")
+    && cd370.includes("['contact', 'pending', 'pending-in', 'none', 'self'].indexOf(relation)"),
+    'R2 (#371, loop C-2): contact_details validates pending-in too — losing it there degrades the relation to none and re-offers a live request button to a member who already asked US');
+  ok(JSON.parse(read('src/strings/draft/sl-si.json')).appsEmptyBody === 'Igre, orodja in AI, ki delujejo neposredno v klepetu.',
+    'N3 (#371, loop C-3): the sl-si draft carries Damir\'s EXACT supplied empty-state text');
+  const ss370 = njs(read('src/components/settings-screens.js'));
+  ok(/body\.append\(sizeSec, styleSec, patternSec\);/.test(ss370)
+    && ss370.includes("strings.patternStyle || 'Background'")
+    && ss370.includes("strings.patternIntensity || 'Opacity'")
+    && !ss370.includes("|| 'Pattern style'") && !ss370.includes("|| 'Background pattern'"),
+    'AND-35 (#371, Damir dial): Chat appearance = Text size first, then Background, then Opacity — and the two labels renamed at the fallback source (extract-strings picks them up)');
+  {
+    const compDir = join(root, 'src/components');
+    const shellDir = join(root, 'src/shells');
+    const files = [];
+    for (const d of [compDir, shellDir]) {
+      for (const f of readdirSync(d)) if (/\.(js|html)$/.test(f)) files.push(join(d, f));
+    }
+    const dashed = files.filter((f) => readFileSync(f, 'utf8').includes("' — '"));
+    ok(dashed.length === 0,
+      "R2 (#371): ZERO ' — ' string joiners remain in components + shells — the 16 SR aria joiners read as commas now (spoken punctuation follows the N3a prose rule)" + (dashed.length ? ' — OFFENDERS: ' + dashed.join(', ') : ''));
+  }
+  const lrp370 = nc(read('Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'));
+  ok(lrp370.includes('intro-restore-walletexists-title') && lrp370.includes('intro-restore-walletexists-text')
+    && !/intro-new-walletexists-title[\s\S]{0,400}?intro-new-walletexists-text/.test(nc(lrp370)),
+    '★ D-7 (#371): the Restore guard has its OWN copy naming the way out — the Create message ("restart to continue with it") left the restoring user with zero doors');
+  {
+    const langs7 = ['en-us','de-de','es-co','fr-fr','pt-br','ru-ru','sl-si','sr-sp'];
+    ok(langs7.every((l) => {
+      const t = read('Spixi/Resources/Raw/lang/' + l + '.txt');
+      return /^intro-restore-walletexists-title = .+$/m.test(t) && /^intro-restore-walletexists-text = .+$/m.test(t);
+    }), 'D-7 (#371): both restore-guard ids exist in en + the 7 translated lang files');
+  }
+  const sh370 = njs(read('src/components/settings-shell.js'));
+  ok(sh370.includes("strings.chatAppearanceSub || 'Background, opacity and text size'")
+    && sh370.includes("strings.appLockSub || 'Password check when Spixi opens'")
+    && sh370.includes("strings.downloadsSub || 'Files you received in chats'"),
+    'I-11 (#371): SOME rows carry subs — Chat appearance, App lock, Downloads (the label-alone-is-ambiguous set; every other row stays bare so subs keep reading as signal)');
+  const as370 = njs(read('src/components/apps-shell.js'));
+  ok(as370.includes("|| 'Games, tools and AI that run directly in your chats.'")
+    && !as370.includes('It takes seconds'),
+    'N3 (#371, Damir text): the apps empty-state body is ONE short line (launch-punch-list B4; sl-si carries his exact wording)');
+  const en370 = read('src/strings/en-us.js');
+  ok(en370.includes('"Games, tools and AI that run directly in your chats."')
+    && /memberOne/.test(en370) && /youAreOwner/.test(en370) && /requestReceived/.test(en370),
+    'R2 (#371): the GENERATED en dictionary carries the new keys + the short apps line (guards a stale-dictionary commit — extract/build-locales must have run after the source edits)');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

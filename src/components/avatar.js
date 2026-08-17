@@ -48,6 +48,23 @@ export function truncateAddressMiddle(s, head = 6, tail = 6) {
   return s.length <= head + tail + 1 ? s : s.slice(0, head) + '…' + s.slice(-tail);
 }
 
+/* D-19b (#370): detect an ADDRESS-BEARING "nick" on a blind-masked roster row.
+   C# masks the address slot with '[Unknown]' but the NICK slot can still carry
+   the address in TWO encodings (loop B-1): the legacy "x" + <base58> pseudo-key
+   (SingleChatPage.loadContacts / ContactDetails.loadMembers — nameless member),
+   and the RAW base58 echo (resolveNick falls back to senderAddress.ToString();
+   ContactDetails falls back to local_fr.nickname, which IS the address for an
+   unnamed contact — the #276/#279 echo class). Rendered verbatim either one IS
+   the address a blind room hides (#369 amendment). Shells test roster names
+   with this at INGEST — on '[Unknown]'-masked rows ONLY — and blank the DISPLAY
+   name (the raw value stays usable as a key). Base58 alphabet, 30+ chars, with
+   an optional leading x: a real nick of that shape is implausible, and the
+   failure mode in a blind room is a placeholder instead of a strange name —
+   the safe direction. */
+export function isPseudoAddressNick(name) {
+  return /^x?[1-9A-HJ-NP-Za-km-z]{30,}$/.test(String(name == null ? '' : name));
+}
+
 function initials(name) {
   const trimmed = name.trim();
   // must start with a letter (any script) — empty/whitespace-only and

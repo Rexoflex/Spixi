@@ -450,19 +450,25 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 </style>
 <style data-src="../styles/components/avatar.css">
-/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #37).
-   Hues (--av-h1/--av-h2) come from JS per identity; S/L below are themed so the
-   gradient tracks the mode: light = deep gradient + white ink (inverse-01),
-   dark = pastel gradient + dark ink (inverse-01 flips). */
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).
+   N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
+   the 12 gradients below are hand-tuned per anchor and serve BOTH themes
+   (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
+   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
 
-:root {
-  --avatar-grad-s1: 58%; --avatar-grad-l1: 48%;
-  --avatar-grad-s2: 55%; --avatar-grad-l2: 34%;
-}
-[data-theme="dark"] {
-  --avatar-grad-s1: 52%; --avatar-grad-l1: 62%;
-  --avatar-grad-s2: 48%; --avatar-grad-l2: 48%;
-}
+.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -476,7 +482,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      only (below) so a light photo still separates from a light surface. Outer
      size unchanged (border-box) → photo and gradient variants render the same
      footprint + identical circular mask. */
-  color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
+  /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
+     everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
+     c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
+  color: #fff; /* initials/glyph over gradient */
   overflow: visible;
 }
 
@@ -497,9 +506,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
 
 .c-avatar[data-placeholder] {
+  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
+     still paints a legible gradient instead of a transparent disc. */
   background-image: linear-gradient(135deg,
-    hsl(var(--av-h1, 0), var(--avatar-grad-s1), var(--avatar-grad-l1)),
-    hsl(var(--av-h2, 40), var(--avatar-grad-s2), var(--avatar-grad-l2)));
+    var(--av-c1, hsl(215, 62%, 50%)),
+    var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -666,6 +677,25 @@ button.c-bubble__sender {
 .c-bubble__sender[data-address] {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0;
+}
+/* N34 (#365): Owner chip — the sender row flips to flex only when a chip is
+   present (data-has-role), so the plain label path stays byte-identical. The
+   name is an anonymous flex item (still wraps); the chip pins to the inline
+   end = the bubble's top-right. */
+.c-bubble__sender[data-has-role] {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+/* .c-badge.c-bubble__role — double class on purpose (loop MINOR-1): badge.css
+   loads AFTER this sheet in every shell, so a bare one-class rule loses the
+   font-weight tie. font-family resets the [data-address] monospace inherit
+   (loop MINOR-2: a nameless owner's chip must not render monospace). */
+.c-badge.c-bubble__role {
+  flex: none;
+  margin-inline-start: auto;
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold); /* bold label-xs reads oversized inside a bubble */
 }
 .c-bubble-row__avatar-btn {
   display: block;
@@ -4617,6 +4647,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         address: identity.address || identity.name || '',
         online: botChannels ? false : identity.online,
         avatar: identity.avatar || null,
+        // N1 (#364): group/bot chats wear the group-glyph avatar. setChatMode
+        // triggers renderTopbar, so the glyph lands with the mode push.
+        group: !!mode.isMulti,
       },
       // Header tap. bot channels → open the channel selector (title = affordance).
       // #248: everything else routes like the info icon — 1:1 AND groups go to the
@@ -4934,6 +4967,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
   let groupOwner = '';           // #248: owner address (setGroupOwner; '' for blind groups) → "Owner" chip
+  /* N34 (#365): ONE owner predicate for the bubble chip + the member sheet.
+   * '[Unknown]' guards the ROSTER-push path only (loadContacts masks there);
+   * per-message addresses arrive verbatim, so the callers carry the real blind
+   * gate (!mode.blind) themselves — this predicate is identity-match only. */
+  const isOwnerAddr = (a) => !!(groupOwner && a && a !== '[Unknown]' && a === groupOwner);
+  /* D-5/N26 (#366): the relation vocabulary the bridge may push (trailing arg on
+   * addThem/addContact). Anything else — incl. undefined from an old exe —
+   * degrades to '' = unknown, which the member sheet treats as 'none'. */
+  const RELATIONS = new Set(['contact', 'pending', 'none', 'self']);
+  /* Session latch: after the user taps "Send contact request" in the member
+   * sheet, later opens show 'pending' immediately — C#'s relation only refreshes
+   * on the next message push. Per-peer reset in onChatScreenReady. */
+  const requestedMembers = new Set();
 
   /* —— @-mention context (premium mentions #210). The bubble highlighter (#7) and
    * the composer picker (#6) share ONE source of member names: roster nicks
@@ -5174,6 +5220,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       onLinkClick: (url) => confirmOpenLink(url),
       // @-mentions → highlighted spans (bold + tonal pill); self-mention stronger (#210)
       mention: mentionCtx(),
+      // N34 (#365): Owner chip on the group-owner's run heads. !mode.blind is the
+      // REAL frontend belt (loop MAJOR-1): the '[Unknown]' mask exists only on the
+      // roster push, never on per-message addresses — and C#'s suppression can miss
+      // a blind BOT whose botInfo hasn't persisted yet (getOwner reads a different
+      // store). Same gate family as sender/onSenderClick above.
+      roleBadge: (!isSent && mode.isMulti && !mode.blind && isOwnerAddr(rec.senderAddress))
+        ? ((window.SL || {}).owner || 'Owner') : null,
     });
   }
 
@@ -5823,9 +5876,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * address). Shows the FULL address (nick is spoofable), a contact-request
    * path, and admin kick/ban when I'm the group admin (bots have no admin →
    * just identity + copy + request). C# runs its own confirm for kick/ban
-   * (displaySpixiAlert). relation defaults 'none' — the chat shell has no
-   * contact roster, so it can't tell if the member is already a contact (BE
-   * gap #99/§9); the request verb is idempotent-ish on the C# side. */
+   * (displaySpixiAlert).
+   * D-5/N26 (#366): relation now RIDES THE PUSH (addThem trailing arg — C#
+   * answers from FriendList where it builds the push). A member already in
+   * contacts gets the "In your contacts" badge + no request button; an
+   * in-flight request shows "Request sent"; only true strangers get the
+   * button. `requestedMembers` bridges the gap until C#'s next push. 'self'
+   * and unknown ('') get NO request button (the C# self-guard alert would be
+   * the only outcome). Money actions (Pay/Request) stay UNWIRED here — no
+   * address-bearing money verb exists on SingleChatPage (logged, #366). */
   function openMember(rec) {
     if (!rec.senderAddress && !rec.senderNick) return;
     const s = window.SL || {};
@@ -5836,15 +5895,28 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       actions.push({ label: s.banFromGroup || 'Ban from group', destructive: true,
         onClick: () => bridge.send('ixian:ban:' + rec.senderAddress) });
     }
+    const pushed = RELATIONS.has(rec.relation) ? rec.relation : 'none';
+    const relation = (pushed === 'none' && rec.senderAddress && requestedMembers.has(rec.senderAddress))
+      ? 'pending' : pushed;
     openMemberSheet({
       host: overlayHost,
-      member: { name: rec.senderNick || '', address: rec.senderAddress || '', avatar: rec.avatar || null },
+      member: {
+        name: rec.senderNick || '', address: rec.senderAddress || '', avatar: rec.avatar || null,
+        // N34 (#365): Owner badge in the sheet's name row (matches the bubble chip)
+        owner: isOwnerAddr(rec.senderAddress),
+      },
       // ★ review MAJOR-5: belt for the gate above — if any future caller reaches here in
       // a blind chat, the sheet renders its hidden-identity state instead of an address.
       blind: mode.blind,
-      relation: 'none',
-      onRequest: rec.senderAddress
-        ? () => bridge.send('ixian:sendContactRequest:' + rec.senderAddress) : null,
+      relation,
+      // 'self' must never grow a request button (member-sheet only draws it when
+      // relation is neither contact nor pending — so gate self/latched here).
+      onRequest: (rec.senderAddress && relation === 'none')
+        ? () => {
+            requestedMembers.add(rec.senderAddress);
+            bridge.send('ixian:sendContactRequest:' + rec.senderAddress);
+          }
+        : null,
       actions,
       strings: s,
     });
@@ -5873,34 +5945,45 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   // Members: authoritative full roster (ixian:loadContacts) enriched with senders
   // SEEN in loaded history (fresher nick/photo, and covers not-yet-synced members).
   function collectGroupMembers() {
-    const byKey = new Map();     // unique key → { name, address, avatar }
+    const byKey = new Map();     // unique key → { name, address, avatar, relation }
     // 1) full participant roster (blind entries keyed by nick, real ones by address)
     for (const [key, m] of groupRoster) {
-      byKey.set(key, { name: m.name || '', address: m.address || '', avatar: m.avatar || null });
+      // #366 loop m2: carry the roster relation — a revived takeover must not
+      // regress D-5 (every member reading 'none' = live request buttons again)
+      byKey.set(key, { name: m.name || '', address: m.address || '', avatar: m.avatar || null, relation: m.relation || '' });
     }
     // 2) enrich from received-message senders (skip blind-masked addresses)
+    // #366 loop r2 MAJOR-1(a): steps 2+3 rebuilt entries WITHOUT relation, so an
+    // ACTIVE contact (one who has posted) fell back to 'none' and got the request
+    // button while quiet members read correctly — the exact inversion D-5 kills.
+    // Step 2 also ENRICHES from the per-message relation (rec.relation is the
+    // live truth the roster push may lack), latch-aware like openMember.
     for (const rec of model.values()) {
       if (rec.direction === 'received' && rec.senderAddress && rec.senderAddress !== '[Unknown]') {
-        const prev = byKey.get(rec.senderAddress) || { name: '', address: rec.senderAddress, avatar: null };
+        const prev = byKey.get(rec.senderAddress) || { name: '', address: rec.senderAddress, avatar: null, relation: '' };
         byKey.set(rec.senderAddress, {
           name: prev.name || (senderHasNick(rec) ? rec.senderNick : ''),
           address: rec.senderAddress,
           avatar: prev.avatar || rec.avatar || null,   // real per-sender photo (C# addThem avatar)
+          relation: prev.relation || rec.relation || '',
         });
       }
     }
     // 3) resolved nicks
     for (const [addr, nick] of groupNicks) {
       if (!addr || addr === '[Unknown]') continue;
-      const prev = byKey.get(addr) || { name: '', address: addr, avatar: null };
-      byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar });
+      const prev = byKey.get(addr) || { name: '', address: addr, avatar: null, relation: '' };
+      byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar, relation: prev.relation || '' });
     }
-    // #248: mark the owner (address match; blind groups never get an owner push).
+    // #248: mark the owner (blind groups never get an owner push).
+    // #365 loop NIT-3: the ONE isOwnerAddr predicate — no inline drift copy.
+    // #366 loop r2 MAJOR-1(b): apply the requestedMembers latch here too — the
+    // list is rebuilt from scratch on every refreshChatInfo, so an in-flight
+    // request must resurface as 'pending', never as a fresh button.
     const list = [...byKey.values()];
-    if (groupOwner) {
-      for (const m of list) {
-        if (m.address && m.address !== '[Unknown]' && m.address === groupOwner) m.owner = true;
-      }
+    for (const m of list) {
+      if (isOwnerAddr(m.address)) m.owner = true;
+      if (m.address && requestedMembers.has(m.address) && (m.relation || 'none') === 'none') m.relation = 'pending';
     }
     return list;
   }
@@ -5934,7 +6017,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
       // member sheet (component-owned): contact request + admin kick/ban. Reuses
       // the existing verbs; C# runs its own confirm for kick/ban on receipt.
-      onContactRequest: (m) => { if (m && m.address) bridge.send('ixian:sendContactRequest:' + m.address); },
+      // #366 loop r2 MAJOR-1(b): feed the latch like the other two call sites —
+      // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
+      // next refreshChatInfo rebuild without it.
+      onContactRequest: (m) => {
+        if (m && m.address && m.address !== '[Unknown]') {
+          requestedMembers.add(m.address);
+          bridge.send('ixian:sendContactRequest:' + m.address);
+        }
+      },
       onMemberAction: (action, m, ctrl) => {
         if (m && m.address && (action === 'kick' || action === 'ban')) bridge.send('ixian:' + action + ':' + m.address);
         ctrl.done();
@@ -6554,6 +6645,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
       if (extra.avatar !== undefined) rec.avatar = extra.avatar || null;
+      // D-5/N26 (#366): per-sender relation (validated in addThem; '' = unknown)
+      if (extra.relation !== undefined) rec.relation = extra.relation || '';
     }
     rec.status = statusFrom(flags || {});
     /* A2 (#302): the paid marker. `paid` has always been PASSED (addMe/addThem
@@ -6874,7 +6967,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // (legacy did the same; roadmap M15's "no read-boundary signal" was wrong).
     // Ticks still aren't rendered for received rows — `read` is accepted ONLY to
     // derive the A3 unread boundary from the open burst.
-    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending) {
+    // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self'|'')
+    // — an old C# exe leaves it undefined → the sheet falls back to 'none'.
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation) {
       const av = resolveAvatar(avatar);
       // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
       // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
@@ -6891,7 +6986,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         unreadBoundaryId = String(id);
       }
       upsertText(id, text, 'received', toMs(time), { paid },
-        { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av });
+        { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av,
+          relation: RELATIONS.has(relation) ? relation : '' });
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
       // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
@@ -7009,6 +7105,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
+      requestedMembers.clear();            // #366 per-peer reset: A's in-flight member requests must not
+                                           //    paint 'pending' on B's members (desktop reparent reuse)
       removeRequestPane();                 // ⑪ per-peer reset: peer A's request pane must not survive into B
       setComposerLock(null);               // ⑪ per-peer reset: this peer's pending state re-locks via its own
                                            //    pushes (setOnlineStatus waiting / showRequestSentModal / showContactRequest)
@@ -7248,14 +7346,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // "[Unknown]" with a unique nick → key those by nick so they don't collapse.
     // Feeds the chat-info member list (Damir 2026-07-08; was a no-op stub — corrects
     // be-cutover CI1: this roster push already existed on the frozen bridge).
-    addContact(address, nick, avatar) {
+    // D-5 (#366): C# sends 5 args now (role — always sent, kept opaque/unused —
+    // then the trailing relation). The old 3-param signature dropped both.
+    addContact(address, nick, avatar, role, relation) {
       const addr = String(address || '');
       if (!addr) return;
       const key = addr === '[Unknown]' ? ('blind:' + (nick || '')) : addr;
       const raw = avatar ? String(avatar).replace(/\\/g, '/') : '';
       const av = raw && !/spixiavatar\.png$|spixi-group-avatar\.png$/.test(raw) ? raw : null;
       const prev = groupRoster.get(key) || {};
-      groupRoster.set(key, { address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null });
+      groupRoster.set(key, {
+        address: addr, name: nick || prev.name || '', avatar: av || prev.avatar || null,
+        relation: RELATIONS.has(relation) ? relation : (prev.relation || ''),
+      });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
@@ -7263,7 +7366,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // member list marks the matching row with an "Owner" chip. Never pushed for
     // blind groups (C# suppresses it — the address would de-anonymize).
     setGroupOwner(address) {
-      groupOwner = String(address || '');
+      const next = String(address || '');
+      const changed = next !== groupOwner;
+      groupOwner = next;
+      /* N34 (#365): the push normally precedes the message burst (onLoad order),
+       * so this is a no-op. A late or changed value repaints the log once so
+       * the Owner chips stay honest (renderLog is coalesced). */
+      if (changed && model.size) renderLog();
       if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer.

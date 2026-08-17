@@ -196,6 +196,7 @@ export function createChatInfo({
   const heroAvatar = createAvatar({
     src: avatar, name: name, address: avatarSeed || address, size: 80,
     online: kind === 'contact' && !!online,
+    group: kind !== 'contact', // N1 (#364): group/bot hero wears the group glyph
   });
   /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
      viewer — the avatar wraps in a button (focus ring = base.css :focus-visible;
@@ -645,8 +646,12 @@ export function createChatInfo({
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
-      // not offer a second request while the first is on the wire
-      onRequest: onContactRequest ? () => { m.relation = 'pending'; onContactRequest(m); } : undefined,
+      // not offer a second request while the first is on the wire.
+      // #366: only a true stranger (relation none/unset) gets the live request
+      // closure — 'self' (the #249 own row) and any unknown value stay inert
+      // (the C# self-guard alert would be the only outcome of a live button).
+      onRequest: (onContactRequest && (m.relation || 'none') === 'none')
+        ? () => { m.relation = 'pending'; onContactRequest(m); } : undefined,
       // #142: contacts' identity block → the contact page (context: 'contact')
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog

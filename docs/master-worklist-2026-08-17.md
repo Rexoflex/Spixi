@@ -39,17 +39,19 @@ reference them. Duplicates between the two lists are merged and noted.
 | **N10** | App-invite **Cancel in chat doesn't work** — should cancel, keep the bubble, say "Canceled" on BOTH ends | C# here + maybe BE (counterpart side) | triage |
 | **N33** | Group file transfer only relays from the CREATOR when members aren't mutually connected; others' files reach the creator only | **BE / protocol → new Table B q11** | BE |
 | **N36** | Select mode: selecting/deselecting messages must show ONLY the selected color — no pressed flash (pressable opt-out in select mode) | FE | S |
+| **N49** | Deselecting a chat leaves the ROW highlighted (desktop; selected tint not cleared on convo close) — #369 F5 find | FE | S |
+| **N50** | contact_details: OS back must dismiss the top overlay (remove-blocked modal) BEFORE popping the page — the shell has no dismissTopOverlay back wiring (#368 loop named it, #369 F5 hit it) | FE | XS |
 | **N15** | Group typing indicator shows NOTHING (bot + private). Sender attribution is a known BE ask (be-cutover C21); whether the GENERIC pill can show in groups may be ours — triage first | triage → likely split | M |
 | **N39** | Request/cancel story: payment request has no cancel (does sender-side bubble delete revoke it?); outgoing contact-request delete should prompt revoke + explain (legacy `ixian:undorequest` EXISTS — likely buildable without BE) | C# here + FE | M |
 
 ## D. NEW — buildable, grouped into rounds
 
-**R1 — Identity round (chat surfaces)**
-- **N1** Avatar system rework: distinct GROUP glyph (never the person icon), white glyph/initials on darker, more saturated gradients, wider hue spread (fix the four-similar-greens — hashHue distribution). Merges 3 duplicate items across both lists. (M)
-- **N34** Owner/Admin chip, top-right of group bubbles (owner data exists, #248). (S–M)
-- **N22** Private-group topbar: member count under the name (bot-group parity). (S)
-- **N26** Bot/community member sheet: show **Add contact** when not in contacts; consider request-payment there. Folds in the D-19 dead-end-sheet residual. (M)
-- **N27** "Cannot remove contact — in a group": name the group(s), offer the path out. (S–M)
+**R1 — Identity round (chat surfaces) — ✅ BUILT 2026-08-17 (#364–#368, with D-5)**
+- ~~**N1** Avatar system rework~~ **BUILT #364** (12 quantized anchors + white ink both themes + group glyph; the hashHue-distribution suspect was disproven — S/L was the cause)
+- ~~**N34** Owner chip~~ **BUILT #365** (Owner-ONLY — "Admin" has no data source in Core; blind-gated)
+- **N22** ~~built earlier~~ **BUILT #361** (private-group member count)
+- ~~**N26** member-sheet Add contact~~ **BUILT #366** (relation rides the bridge; BOTH surfaces; request-payment NOT built — no address-bearing money verb on SingleChatPage, logged)
+- ~~**N27** name the blocking groups~~ **BUILT #367** (in-shell modal; path-out is text — tap-through = follow-up dial)
 
 **R2 — Copy & locale round (with D-7 + I-11 + AND-35)**
 - **N3** Copy sweep: remove em-dashes app-wide, simpler friendlier voice; shorten the apps empty-state line (sl text supplied). (S)
@@ -98,6 +100,9 @@ reference them. Duplicates between the two lists are merged and noted.
 | **N18** | Share contact via Spixi (picker → contact bubble + inline add) | Buildable shape exists, BUT it is a NEW peer-controlled body-marker surface — same hostile-parsing class as reply-to. Design + gate care together with D1 |
 | **N42** | Contact-list affordance in Account too? | Dial — cheap either way |
 | **N28** | "Do we need skeletons??" | Chat-info: yes (I-9, measured first). App-wide: no — zero-gates + reserved boxes are working; skeletons only where a real measured wait exists |
+| **N46** | Delete-flow rework: BRANDED checkboxes + a UX pass (#369, Damir: off-brand) | ★ REMIND Damir near master-list completion — his explicit ask |
+| **N47** | Support nickname RESET to address-only? (#369 B3 — today a nick cannot be removed) | Dial |
+| **N48** | Blind groups: show MY OWN owner status (self-only `amOwner` push, no identity leak) | Dial GIVEN (#369): build with the D-19 family batch — same C# area |
 
 ## F. Sequencing proposal (your rule: fix and finalize, BE last)
 

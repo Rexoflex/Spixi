@@ -416,19 +416,25 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 </style>
 <style data-src="../styles/components/avatar.css">
-/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #37).
-   Hues (--av-h1/--av-h2) come from JS per identity; S/L below are themed so the
-   gradient tracks the mode: light = deep gradient + white ink (inverse-01),
-   dark = pastel gradient + dark ink (inverse-01 flips). */
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).
+   N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
+   the 12 gradients below are hand-tuned per anchor and serve BOTH themes
+   (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
+   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
 
-:root {
-  --avatar-grad-s1: 58%; --avatar-grad-l1: 48%;
-  --avatar-grad-s2: 55%; --avatar-grad-l2: 34%;
-}
-[data-theme="dark"] {
-  --avatar-grad-s1: 52%; --avatar-grad-l1: 62%;
-  --avatar-grad-s2: 48%; --avatar-grad-l2: 48%;
-}
+.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -442,7 +448,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      only (below) so a light photo still separates from a light surface. Outer
      size unchanged (border-box) → photo and gradient variants render the same
      footprint + identical circular mask. */
-  color: var(--text-neutral-inverse-01); /* initials/glyph over gradient */
+  /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
+     everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
+     c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
+  color: #fff; /* initials/glyph over gradient */
   overflow: visible;
 }
 
@@ -463,9 +472,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
 
 .c-avatar[data-placeholder] {
+  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
+     still paints a legible gradient instead of a transparent disc. */
   background-image: linear-gradient(135deg,
-    hsl(var(--av-h1, 0), var(--avatar-grad-s1), var(--avatar-grad-l1)),
-    hsl(var(--av-h2, 40), var(--avatar-grad-s2), var(--avatar-grad-l2)));
+    var(--av-c1, hsl(215, 62%, 50%)),
+    var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -1850,6 +1861,23 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+  /* N27 (#367): the blocking-group list inside the remove-blocked modal.
+     max-height + scroll (loop MAJOR M1): the list is data-driven and c-modal
+     has no overflow of its own — many groups (or landscape) must scroll the
+     LIST, never push the OK button past the clipped viewport. */
+  /* Loop r2 MINOR-1: the FIXED chrome (title + intro + path + actions) alone can
+     exceed a short landscape viewport with the host scroll-locked — cap the
+     modal itself so OK is always reachable by scroll. Shell-scoped on purpose:
+     the global c-modal grammar is not this batch's to change. */
+  .c-modal { max-height: calc(100% - 32px); overflow-y: auto; }
+  .cd-remove-blocked {
+    margin: var(--spacing-8) 0 var(--spacing-12);
+    padding-inline-start: var(--spacing-24);
+    font-weight: var(--font-weight-semibold);
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .cd-remove-blocked li { margin-block: var(--spacing-4); overflow-wrap: anywhere; }
   /* Unit 6 (#247): desktop pane hosting. C# pushes setPaneMode('1'|'2') pre-present:
        '1' = the detail slot (no conversation open) — the body content caps at the demo
              grammar 640, title bar spans full width (#245b pattern);
@@ -1926,6 +1954,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
+    createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -2002,6 +2031,45 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     return 'out';
   }
 
+  /* #366 loop m1: members the user requested from THIS page — the optimistic
+   * 'pending' must survive change-gated panel rebuilds (chat-info mutates only
+   * its mapped copy). One page = one contact, so the set never needs a reset. */
+  const requestedMembers = new Set();
+
+  /* N27 (#367): remove refused because the contact is in a group — C# names the
+   * blocking group(s) (removeBlocked push, name/address PAIRS) and this modal
+   * shows them + the path out. All text lands via textContent (group names are
+   * peer-controlled). The in-shell modal replaces the old native alert, which
+   * could not name anything. */
+  function openRemoveBlockedModal(groups) {
+    const list = document.createElement('ul');
+    list.className = 'cd-remove-blocked';
+    for (const g of groups) {
+      const li = document.createElement('li');
+      li.textContent = g.name || (g.address ? truncateAddressMiddle(g.address) : '');
+      list.append(li);
+    }
+    const path = document.createElement('p');
+    path.className = 'c-modal__body';
+    path.textContent = strings.removeBlockedPath
+      || 'Remove the contact from these groups, or leave the groups. Then remove the contact again.';
+    const wrap = document.createElement('div');
+    wrap.append(list, path);
+    openModal(createModal({
+      title: strings.removeBlockedTitle || 'Cannot remove contact',
+      body: strings.removeBlockedIntro || 'This contact is a member of these groups:',
+      content: wrap,
+      role: 'alertdialog',
+      host: document.body,
+      // informational, single-action, no data at risk → scrim tap may dismiss
+      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too; this
+      // shell has no hardware-back overlay wiring, so Android back pops the PAGE).
+      lightDismiss: true,
+      actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
+      strings,
+    }));
+  }
+
   /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
   let built = false;
   let lastSig = '';
@@ -2024,6 +2092,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         members: state.members.map((m) => ({
           name: m.name, address: m.address, avatar: m.avatar,
           owner: !!(state.group.owner && m.address && m.address !== '[Unknown]' && m.address === state.group.owner),
+          // #366: honest sheet badges + Add-contact gating. The requestedMembers
+          // latch (loop m1): chat-info's optimistic 'pending' lives on the MAPPED
+          // copy, so any rebuild (late setAvatar, a tx push) would re-offer the
+          // request button — the latch survives rebuilds. Page = one contact, so
+          // no reset is needed (a new ContactDetails loads a fresh shell).
+          relation: (requestedMembers.has(m.address) && (m.relation || 'none') === 'none')
+            ? 'pending' : (m.relation || ''),
         })),
         blind: state.group.blind,
         notifications: state.group.notifications,
@@ -2051,6 +2126,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
             bridge.send('ixian:' + action + ':' + m.address);
           }
           ctrl.done();
+        },
+        // N26 (#366): member-sheet "Send contact request" — ContactDetails now
+        // carries the SAME guarded verb as SingleChatPage (shared helper). The
+        // chat-info layer gates it on relation === 'none'; masked rows never emit.
+        onContactRequest: (m) => {
+          if (m && m.address && m.address !== '[Unknown]') {
+            requestedMembers.add(m.address);   // loop m1: survive panel rebuilds
+            bridge.send('ixian:sendContactRequest:' + m.address);
+          }
         },
         onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
       });
@@ -2211,15 +2295,30 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       scheduleCommit();
     },
     clearMembers() { state.membersBuf = []; scheduleCommit(); },
-    addMember(address, nick, avatar, role) {
+    // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self';
+    // "" on blind rows, undefined from an old exe → treated as unknown).
+    addMember(address, nick, avatar, role, relation) {
       if (state.membersBuf === null) state.membersBuf = [];
       state.membersBuf.push({
         address: address || '',
         name: nick || '',
         avatar: resolveAvatar(avatar),
         role: role || '',            // opaque role int (semantics live in Ixian-Core); owner comes from setGroupInfo
+        relation: ['contact', 'pending', 'none', 'self'].indexOf(relation) !== -1 ? relation : '',
       });
       scheduleCommit();
+    },
+    // N27 (#367): remove refused → C# enumerates the blocking groups and pushes
+    // them as name/address PAIRS (variadic; each arg b64-escaped by transport).
+    // Odd tails are ignored; an empty push falls back to nothing (C# keeps the
+    // legacy alert for the empty-enumeration edge).
+    removeBlocked() {
+      const args = Array.prototype.slice.call(arguments);
+      const groups = [];
+      for (let i = 0; i + 1 < args.length; i += 2) {
+        groups.push({ name: String(args[i] || ''), address: String(args[i + 1] || '') });
+      }
+      if (groups.length) openRemoveBlockedModal(groups);
     },
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },

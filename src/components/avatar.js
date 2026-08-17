@@ -1,21 +1,40 @@
 /**
  * c-avatar — photo, or deterministic gradient placeholder (DECISIONS.md #34).
- * Hue derives from the address hash → stable identity color per contact.
- * Named contacts show initials; address-only contacts show the user glyph.
+ * The identity color comes from the address hash → a stable anchor per contact.
+ * Named contacts show initials; address-only contacts show the user glyph;
+ * groups always show the `users` glyph (N1 — a group never looks like a person).
  *
- * createAvatar({ src, name, address, size = 48, online = false })
+ * createAvatar({ src, name, address, size = 48, online = false, group = false })
  */
 import { icon } from './icons.js';
 
-export function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
+/* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
+ * The old continuous hue was already uniform (#38 measured), but neighbours
+ * inside the 60–180° band all read as the same olive/green. Anchors give a
+ * guaranteed minimum hue distance and skip the illegible yellow band (50–80).
+ * avatar.css carries one hand-tuned gradient per anchor (index = data-hue),
+ * every pair computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+ * Order matters: index i = IDENTITY_HUES[i] = avatar.css [data-hue="i"]. */
+export const IDENTITY_HUES = [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335];
+
+function hashRaw(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
-  // names into a ~30° hue band (all-olive avatars); this scatters them (#38)
+  // avalanche mix (murmur3 finalizer) — plain h%N clustered similar Latin
+  // names into one band (all-olive avatars); this scatters them (#38)
   h ^= h >>> 16;
   h = Math.imul(h, 0x45d9f3b);
   h = (h ^ (h >>> 16)) >>> 0;
-  return h % 360;
+  return h;
+}
+
+/** Anchor index 0..11 for an identity string (single source for avatar + label). */
+export function identityIndex(str) {
+  return hashRaw(String(str == null ? '' : str)) % IDENTITY_HUES.length;
+}
+
+export function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
+  return IDENTITY_HUES[identityIndex(str)];
 }
 
 /* Middle-truncate a wallet address (Damir 2026-07-07 · #211 canon): 6…6 keeps
@@ -38,17 +57,18 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
-/** Render the deterministic gradient placeholder (hue from address/name hash) +
- *  initials or the user glyph — into `el`. Extracted so it's reusable as the
- *  fallback when a photo `src` fails to load. */
-function renderPlaceholder(el, { name, address, size }) {
-  const hue = hashHue(address || name);
-  // JS supplies ONLY the deterministic hues; saturation/lightness are themed
-  // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+/** Render the deterministic gradient placeholder (anchor from address/name hash)
+ *  + initials, the user glyph, or the group glyph — into `el`. Extracted so it's
+ *  reusable as the fallback when a photo `src` fails to load. */
+function renderPlaceholder(el, { name, address, size, group }) {
+  // N1 (#364): JS supplies ONLY the deterministic anchor INDEX; the gradient
+  // colors live in avatar.css per [data-hue] (the c-disc #170 grammar). The
+  // supersedes-#37 note: one vivid palette + white ink serves BOTH themes.
   el.dataset.placeholder = '';
-  el.style.setProperty('--av-h1', hue);
-  el.style.setProperty('--av-h2', (hue + 40) % 360);
-  const ini = name ? initials(name) : null;
+  el.dataset.hue = String(identityIndex(address || name));
+  // N1: a GROUP placeholder always wears the `users` glyph — never initials,
+  // never the person glyph — so a group is recognisable at a glance.
+  const ini = (!group && name) ? initials(name) : null;
   if (ini) {
     const t = document.createElement('span');
     t.className = 'c-avatar__initials';
@@ -56,11 +76,11 @@ function renderPlaceholder(el, { name, address, size }) {
     t.textContent = ini;
     el.append(t);
   } else {
-    el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
+    el.append(icon(group ? 'users' : 'user-circle', { size: Math.round(size * 0.55) }));
   }
 }
 
-export function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
+export function createAvatar({ src = null, name = '', address = '', size = 48, online = false, group = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
   el.dataset.size = String(size);
@@ -82,12 +102,12 @@ export function createAvatar({ src = null, name = '', address = '', size = 48, o
     // handler BEFORE setting src so a synchronously-cached error still fires.
     img.addEventListener('error', () => {
       img.remove();
-      renderPlaceholder(el, { name, address, size });
+      renderPlaceholder(el, { name, address, size, group });
     }, { once: true });
     img.src = src;
     el.append(img);
   } else {
-    renderPlaceholder(el, { name, address, size });
+    renderPlaceholder(el, { name, address, size, group });
   }
 
   if (online) {

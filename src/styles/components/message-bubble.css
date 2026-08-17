@@ -132,6 +132,25 @@ button.c-bubble__sender {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0;
 }
+/* N34 (#365): Owner chip — the sender row flips to flex only when a chip is
+   present (data-has-role), so the plain label path stays byte-identical. The
+   name is an anonymous flex item (still wraps); the chip pins to the inline
+   end = the bubble's top-right. */
+.c-bubble__sender[data-has-role] {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+/* .c-badge.c-bubble__role — double class on purpose (loop MINOR-1): badge.css
+   loads AFTER this sheet in every shell, so a bare one-class rule loses the
+   font-weight tie. font-family resets the [data-address] monospace inherit
+   (loop MINOR-2: a nameless owner's chip must not render monospace). */
+.c-badge.c-bubble__role {
+  flex: none;
+  margin-inline-start: auto;
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold); /* bold label-xs reads oversized inside a bubble */
+}
 .c-bubble-row__avatar-btn {
   display: block;
   position: relative; /* hit-area extension (freeze audit: 24px avatar sub-target) */

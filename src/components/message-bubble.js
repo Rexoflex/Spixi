@@ -35,6 +35,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar, hashHue, truncateAddressMiddle } from './avatar.js';
 import { createStatusIcon } from './chatlist-item.js';
+import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale } from './timestamp.js';
 
 function bubbleTime(d) {
@@ -280,6 +281,7 @@ export function createMessageBubble({
   onLinkClick = null,
   linkPreview = null,
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
+  roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -346,6 +348,20 @@ export function createMessageBubble({
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    /* N34 (#365): Owner chip rides INSIDE the sender label so the grouping
+       repair (removeMessage moves the label to the run heir) carries it for
+       free. data-has-role flips the label to flex → chip lands top-right. */
+    if (roleBadge) {
+      s.dataset.hasRole = '';
+      const chip = createBadge({ type: 'info', weight: 'tonal', label: roleBadge });
+      chip.classList.add('c-bubble__role');
+      s.append(chip);
+      // the copyable variant sets an explicit aria-label (overrides content) —
+      // keep the role audible there too
+      if (copyable && s.hasAttribute('aria-label')) {
+        s.setAttribute('aria-label', s.getAttribute('aria-label') + ' · ' + roleBadge);
+      }
+    }
     el.append(s);
   }
 

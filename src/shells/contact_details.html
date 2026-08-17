@@ -51,6 +51,23 @@
   }
   @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+  /* N27 (#367): the blocking-group list inside the remove-blocked modal.
+     max-height + scroll (loop MAJOR M1): the list is data-driven and c-modal
+     has no overflow of its own — many groups (or landscape) must scroll the
+     LIST, never push the OK button past the clipped viewport. */
+  /* Loop r2 MINOR-1: the FIXED chrome (title + intro + path + actions) alone can
+     exceed a short landscape viewport with the host scroll-locked — cap the
+     modal itself so OK is always reachable by scroll. Shell-scoped on purpose:
+     the global c-modal grammar is not this batch's to change. */
+  .c-modal { max-height: calc(100% - 32px); overflow-y: auto; }
+  .cd-remove-blocked {
+    margin: var(--spacing-8) 0 var(--spacing-12);
+    padding-inline-start: var(--spacing-24);
+    font-weight: var(--font-weight-semibold);
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .cd-remove-blocked li { margin-block: var(--spacing-4); overflow-wrap: anywhere; }
   /* Unit 6 (#247): desktop pane hosting. C# pushes setPaneMode('1'|'2') pre-present:
        '1' = the detail slot (no conversation open) — the body content caps at the demo
              grammar 640, title bar spans full width (#245b pattern);
@@ -126,6 +143,7 @@
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
+    createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -202,6 +220,45 @@
     return 'out';
   }
 
+  /* #366 loop m1: members the user requested from THIS page — the optimistic
+   * 'pending' must survive change-gated panel rebuilds (chat-info mutates only
+   * its mapped copy). One page = one contact, so the set never needs a reset. */
+  const requestedMembers = new Set();
+
+  /* N27 (#367): remove refused because the contact is in a group — C# names the
+   * blocking group(s) (removeBlocked push, name/address PAIRS) and this modal
+   * shows them + the path out. All text lands via textContent (group names are
+   * peer-controlled). The in-shell modal replaces the old native alert, which
+   * could not name anything. */
+  function openRemoveBlockedModal(groups) {
+    const list = document.createElement('ul');
+    list.className = 'cd-remove-blocked';
+    for (const g of groups) {
+      const li = document.createElement('li');
+      li.textContent = g.name || (g.address ? truncateAddressMiddle(g.address) : '');
+      list.append(li);
+    }
+    const path = document.createElement('p');
+    path.className = 'c-modal__body';
+    path.textContent = strings.removeBlockedPath
+      || 'Remove the contact from these groups, or leave the groups. Then remove the contact again.';
+    const wrap = document.createElement('div');
+    wrap.append(list, path);
+    openModal(createModal({
+      title: strings.removeBlockedTitle || 'Cannot remove contact',
+      body: strings.removeBlockedIntro || 'This contact is a member of these groups:',
+      content: wrap,
+      role: 'alertdialog',
+      host: document.body,
+      // informational, single-action, no data at risk → scrim tap may dismiss
+      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too; this
+      // shell has no hardware-back overlay wiring, so Android back pops the PAGE).
+      lightDismiss: true,
+      actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
+      strings,
+    }));
+  }
+
   /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
   let built = false;
   let lastSig = '';
@@ -224,6 +281,13 @@
         members: state.members.map((m) => ({
           name: m.name, address: m.address, avatar: m.avatar,
           owner: !!(state.group.owner && m.address && m.address !== '[Unknown]' && m.address === state.group.owner),
+          // #366: honest sheet badges + Add-contact gating. The requestedMembers
+          // latch (loop m1): chat-info's optimistic 'pending' lives on the MAPPED
+          // copy, so any rebuild (late setAvatar, a tx push) would re-offer the
+          // request button — the latch survives rebuilds. Page = one contact, so
+          // no reset is needed (a new ContactDetails loads a fresh shell).
+          relation: (requestedMembers.has(m.address) && (m.relation || 'none') === 'none')
+            ? 'pending' : (m.relation || ''),
         })),
         blind: state.group.blind,
         notifications: state.group.notifications,
@@ -251,6 +315,15 @@
             bridge.send('ixian:' + action + ':' + m.address);
           }
           ctrl.done();
+        },
+        // N26 (#366): member-sheet "Send contact request" — ContactDetails now
+        // carries the SAME guarded verb as SingleChatPage (shared helper). The
+        // chat-info layer gates it on relation === 'none'; masked rows never emit.
+        onContactRequest: (m) => {
+          if (m && m.address && m.address !== '[Unknown]') {
+            requestedMembers.add(m.address);   // loop m1: survive panel rebuilds
+            bridge.send('ixian:sendContactRequest:' + m.address);
+          }
         },
         onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
       });
@@ -411,15 +484,30 @@
       scheduleCommit();
     },
     clearMembers() { state.membersBuf = []; scheduleCommit(); },
-    addMember(address, nick, avatar, role) {
+    // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self';
+    // "" on blind rows, undefined from an old exe → treated as unknown).
+    addMember(address, nick, avatar, role, relation) {
       if (state.membersBuf === null) state.membersBuf = [];
       state.membersBuf.push({
         address: address || '',
         name: nick || '',
         avatar: resolveAvatar(avatar),
         role: role || '',            // opaque role int (semantics live in Ixian-Core); owner comes from setGroupInfo
+        relation: ['contact', 'pending', 'none', 'self'].indexOf(relation) !== -1 ? relation : '',
       });
       scheduleCommit();
+    },
+    // N27 (#367): remove refused → C# enumerates the blocking groups and pushes
+    // them as name/address PAIRS (variadic; each arg b64-escaped by transport).
+    // Odd tails are ignored; an empty push falls back to nothing (C# keeps the
+    // legacy alert for the empty-enumeration edge).
+    removeBlocked() {
+      const args = Array.prototype.slice.call(arguments);
+      const groups = [];
+      for (let i = 0; i + 1 < args.length; i += 2) {
+        groups.push({ name: String(args[i] || ''), address: String(args[i + 1] || '') });
+      }
+      if (groups.length) openRemoveBlockedModal(groups);
     },
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },

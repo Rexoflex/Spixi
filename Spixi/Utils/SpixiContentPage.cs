@@ -2222,5 +2222,90 @@ namespace SPIXI
                 }
             });
         }
+
+        /* D-5/N26 (#366): ONE relation truth for the member-sheet pushes
+           (SingleChatPage addThem/addContact · ContactDetails addMember).
+           C# computes it where it builds the push — the shell has no contact
+           roster (frozen bridge). Values: contact | pending | none | self;
+           "" = unknown (the shell treats "" as none and hides money actions). */
+        public static string contactRelationFor(Address address)
+        {
+            if (address == null) return "";
+            try
+            {
+                var self = IxianHandler.getWalletStorage().getPrimaryAddress();
+                if (self != null && address.SequenceEqual(self)) return "self";
+                Friend fr = FriendList.getFriend(address);
+                if (fr == null || fr.pendingDeletion) return "none";
+                if (fr.approved && fr.state == FriendState.Approved) return "contact";
+                // RequestSent AND RequestReceived both land here: no request button,
+                // no money actions — the honest safe bucket (badge says "Request sent";
+                // a "Request received" variant is a copy follow-up, logged in #366).
+                return "pending";
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("contactRelationFor: " + ex.Message);
+                return "";
+            }
+        }
+
+        /* N26 (#366): the GUARDED send-contact-request, shared by SingleChatPage and
+           ContactDetails (the member sheet opens on both surfaces). Body lifted
+           verbatim from SingleChatPage's ixian:sendContactRequest case (#334
+           AND-17): self guard · pendingDeletion heal · already-exists alert ·
+           addFriend + sendContactRequest + the requestAddSent marker. The address
+           payload rides the WebView URL and is peer-influenced → parse inside
+           try/catch (the #248 kick/ban A-4 rule: never throw in onNavigating). */
+        public void sendContactRequestGuarded(string str_address)
+        {
+            Address address;
+            try
+            {
+                address = new Address(str_address);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("sendContactRequest: invalid address payload: " + ex.Message);
+                return;
+            }
+            // #334 loop MINOR-5: self guard (mirror ContactNewPage:174-178).
+            if (address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
+            {
+                // #336/#337: friendly title + ?? fallbacks (hidden-locale _SL null).
+                displaySpixiAlert(SpixiLocalization._SL("contact-self-title") ?? "That's your address", SpixiLocalization._SL("contact-new-invalid-address-self-text") ?? "The address you have entered is your own address.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
+                return;
+            }
+            // #334 AND-17(a): heal pendingDeletion, surface already-exists.
+            Friend existing = FriendList.getFriend(address);
+            if (existing != null && existing.pendingDeletion)
+            {
+                FriendList.removeFriend(existing);
+                UIHelpers.shouldRefreshContacts = true;
+                existing = null;
+            }
+            if (existing != null)
+            {
+                displaySpixiAlert(SpixiLocalization._SL("contact-exists-title") ?? "Already in your contacts", SpixiLocalization._SL("contact-new-invalid-address-exists-text") ?? "This contact is already added.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
+            }
+            else
+            {
+                Friend new_friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, address, null, address.ToString(), null, null, 0);
+                if (new_friend != null)
+                {
+                    new_friend.save();
+
+                    UIHelpers.shouldRefreshContacts = true;
+
+                    StreamProcessor.sendContactRequest(new_friend);
+                    // #334 AND-17(b): stamp the outgoing request (M5 row + Requests chip).
+                    Node.addMessageWithType(null, FriendMessageType.requestAddSent, address, 0, "", true);
+                    if (new_friend.approved)
+                    {
+                        CoreProtocolMessage.resubscribeEvents();
+                    }
+                }
+            }
+        }
     }
 }

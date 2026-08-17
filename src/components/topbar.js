@@ -53,6 +53,7 @@ export function createTopbar({ variant = 'view', title = '', logo = false, ident
     wrap.append(createAvatar({
       src: identity.avatar, name: identity.name, address: identity.address,
       size: 40, online: !!identity.online,
+      group: !!identity.group, // N1 (#364): group/bot chats wear the group glyph
     }));
     const id = document.createElement('div');
     id.className = 'c-topbar__identity';

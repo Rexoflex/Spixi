@@ -118,6 +118,17 @@ because the security doc was never written as an introduced-vs-inherited census.
 
 **The batch adds no verb, no key, no sink, no fetch, no WebView setting, and no log line.**
 
+### #364–#368 — the R1 identity round, lens applied while building (2026-08-17)
+
+| Item | file:line | Verdict | Baseline? | Action |
+|---|---|---|---|---|
+| **`removeBlocked` — a NEW push into the contact-details WebView** | `ContactDetails.xaml.cs` (onRemove) → `contact_details.html` | **INTRODUCED** | The push channel is legacy; the verb is ours | **SHIPPED, narrow.** It carries group nicknames (peer-controlled — the group creator names the group) + wallet addresses. The shell renders BOTH via `textContent` only (modal title/body/list — verified end to end incl. modal.js); each arg is transport-escaped (base64) by `Utils.sendUiCommand`. No storage write, no log line, no echo back |
+| **The trailing `relation` arg on addThem/addContact/addMember** | `SingleChatPage.xaml.cs` (insertMessage, loadContacts) · `ContactDetails.xaml.cs` (loadMembers) | **INTRODUCED** | The pushes are legacy; the arg is ours | **Blind-gated on the SENDING side** (broad `botInfo.hideParticipantAddresses` predicate — never the '[Unknown]' mask alone, which skips blind bots): an is-in-your-contacts hint beside a masked identity would de-anonymize. FE validates against a closed 4-value vocabulary before it touches any state. Not persisted, not logged |
+| **`ixian:sendContactRequest:` gains a SECOND page (ContactDetails)** | `ContactDetails.xaml.cs` (onNavigating) → `SpixiContentPage.sendContactRequestGuarded` | **Verb inherited (SingleChatPage #99/#334) · dispatch site introduced** | The guarded body is byte-moved, not re-implemented | Both pages route through ONE helper — self guard, pendingDeletion heal, exists alert, requestAddSent marker all preserved. **HARDENED in the move:** the address parse (peer-influenced URL payload) now sits in try/catch — the old inline parse could throw out of `onNavigating` (the A-4 class, process-fatal on Android/iOS) |
+| **The N27 enumeration under `lock`** | `ContactDetails.xaml.cs` (onRemove) | **INTRODUCED** | Core runs the identical loop in `isFriendInGroup` | Snapshot-then-lock ONE reference (`sortFriends()` reassigns the field lock-free); fail-safe catch → the legacy alert. No new lock order, called only from the UI thread |
+| **Avatar palette + Owner chip + group glyph** | avatar.js/.css · message-bubble.js/.css · threading sites | No exposure | Presentation only | The chip gate carries `!mode.blind` (a blind chat must never mark one hidden member as Owner — loop MAJOR-1). Hue quantization to 12 buckets REDUCES the pre-existing blind-avatar color-correlation channel (360→12) |
+| **3 new string keys + 7 locale drafts** | src/strings/draft/*.json | No exposure | — | Static UI copy; zero em-dashes (N3a gates hold) |
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

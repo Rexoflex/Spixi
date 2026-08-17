@@ -105,7 +105,7 @@ export function openChatRowMenu({ chat = {}, host, onAction, strings = getString
 function deletePeerHeader(chat, strings) {
   const h = document.createElement('div');
   h.className = 'c-delete-chat__peer';
-  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, strings }));
+  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, group: chat.type === 'group', strings }));
   const nm = document.createElement('span');
   nm.className = 'c-delete-chat__name';
   nm.textContent = chat.name || chat.address || '';

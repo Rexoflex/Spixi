@@ -389,22 +389,41 @@ function startTimestampTicker(cb) {
 /* ---- src/components/avatar.js ---- */
 /**
  * c-avatar — photo, or deterministic gradient placeholder (DECISIONS.md #34).
- * Hue derives from the address hash → stable identity color per contact.
- * Named contacts show initials; address-only contacts show the user glyph.
+ * The identity color comes from the address hash → a stable anchor per contact.
+ * Named contacts show initials; address-only contacts show the user glyph;
+ * groups always show the `users` glyph (N1 — a group never looks like a person).
  *
- * createAvatar({ src, name, address, size = 48, online = false })
+ * createAvatar({ src, name, address, size = 48, online = false, group = false })
  */
 
 
-function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
+/* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
+ * The old continuous hue was already uniform (#38 measured), but neighbours
+ * inside the 60–180° band all read as the same olive/green. Anchors give a
+ * guaranteed minimum hue distance and skip the illegible yellow band (50–80).
+ * avatar.css carries one hand-tuned gradient per anchor (index = data-hue),
+ * every pair computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+ * Order matters: index i = IDENTITY_HUES[i] = avatar.css [data-hue="i"]. */
+const IDENTITY_HUES = [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335];
+
+function hashRaw(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  // avalanche mix (murmur3 finalizer) — plain h%360 clustered similar Latin
-  // names into a ~30° hue band (all-olive avatars); this scatters them (#38)
+  // avalanche mix (murmur3 finalizer) — plain h%N clustered similar Latin
+  // names into one band (all-olive avatars); this scatters them (#38)
   h ^= h >>> 16;
   h = Math.imul(h, 0x45d9f3b);
   h = (h ^ (h >>> 16)) >>> 0;
-  return h % 360;
+  return h;
+}
+
+/** Anchor index 0..11 for an identity string (single source for avatar + label). */
+function identityIndex(str) {
+  return hashRaw(String(str == null ? '' : str)) % IDENTITY_HUES.length;
+}
+
+function hashHue(str) { // exported: sender labels reuse the identity hue (single source)
+  return IDENTITY_HUES[identityIndex(str)];
 }
 
 /* Middle-truncate a wallet address (Damir 2026-07-07 · #211 canon): 6…6 keeps
@@ -427,17 +446,18 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
-/** Render the deterministic gradient placeholder (hue from address/name hash) +
- *  initials or the user glyph — into `el`. Extracted so it's reusable as the
- *  fallback when a photo `src` fails to load. */
-function renderPlaceholder(el, { name, address, size }) {
-  const hue = hashHue(address || name);
-  // JS supplies ONLY the deterministic hues; saturation/lightness are themed
-  // in avatar.css (--avatar-grad-*) so gradients adapt to light/dark (#37)
+/** Render the deterministic gradient placeholder (anchor from address/name hash)
+ *  + initials, the user glyph, or the group glyph — into `el`. Extracted so it's
+ *  reusable as the fallback when a photo `src` fails to load. */
+function renderPlaceholder(el, { name, address, size, group }) {
+  // N1 (#364): JS supplies ONLY the deterministic anchor INDEX; the gradient
+  // colors live in avatar.css per [data-hue] (the c-disc #170 grammar). The
+  // supersedes-#37 note: one vivid palette + white ink serves BOTH themes.
   el.dataset.placeholder = '';
-  el.style.setProperty('--av-h1', hue);
-  el.style.setProperty('--av-h2', (hue + 40) % 360);
-  const ini = name ? initials(name) : null;
+  el.dataset.hue = String(identityIndex(address || name));
+  // N1: a GROUP placeholder always wears the `users` glyph — never initials,
+  // never the person glyph — so a group is recognisable at a glance.
+  const ini = (!group && name) ? initials(name) : null;
   if (ini) {
     const t = document.createElement('span');
     t.className = 'c-avatar__initials';
@@ -445,11 +465,11 @@ function renderPlaceholder(el, { name, address, size }) {
     t.textContent = ini;
     el.append(t);
   } else {
-    el.append(icon('user-circle', { size: Math.round(size * 0.55) }));
+    el.append(icon(group ? 'users' : 'user-circle', { size: Math.round(size * 0.55) }));
   }
 }
 
-function createAvatar({ src = null, name = '', address = '', size = 48, online = false } = {}) {
+function createAvatar({ src = null, name = '', address = '', size = 48, online = false, group = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
   el.dataset.size = String(size);
@@ -471,12 +491,12 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
     // handler BEFORE setting src so a synchronously-cached error still fires.
     img.addEventListener('error', () => {
       img.remove();
-      renderPlaceholder(el, { name, address, size });
+      renderPlaceholder(el, { name, address, size, group });
     }, { once: true });
     img.src = src;
     el.append(img);
   } else {
-    renderPlaceholder(el, { name, address, size });
+    renderPlaceholder(el, { name, address, size, group });
   }
 
   if (online) {
@@ -1027,6 +1047,9 @@ function createChatItem({
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
   excerpt = { type: 'text', text: '' },
+  // N1 (#364): rows carry `type` ('group' | '1to1'; home.html CH1 kind) — it was
+  // silently dropped before. Groups/bots now wear the group-glyph avatar.
+  type = '',
   selected = false, onClick, strings = getStrings(),
 } = {}) {
   const el = document.createElement('button');
@@ -1042,7 +1065,7 @@ function createChatItem({
   const hasNick = !!name && name !== address;
   const displayName = hasNick ? name : (address ? truncateAddressMiddle(address) : (name || ''));
 
-  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online }));
+  el.append(createAvatar({ src: avatar, name: hasNick ? name : '', address, size: 48, online, group: type === 'group' }));
 
   const content = document.createElement('span');
   content.className = 'c-chatlist-item__content';
@@ -1448,6 +1471,7 @@ function createTopbar({ variant = 'view', title = '', logo = false, identity = n
     wrap.append(createAvatar({
       src: identity.avatar, name: identity.name, address: identity.address,
       size: 40, online: !!identity.online,
+      group: !!identity.group, // N1 (#364): group/bot chats wear the group glyph
     }));
     const id = document.createElement('div');
     id.className = 'c-topbar__identity';
@@ -2755,6 +2779,7 @@ function hideCallBar(host = document.body) {
 
 
 
+
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
 }
@@ -2998,6 +3023,7 @@ function createMessageBubble({
   onLinkClick = null,
   linkPreview = null,
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
+  roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -3064,6 +3090,20 @@ function createMessageBubble({
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    /* N34 (#365): Owner chip rides INSIDE the sender label so the grouping
+       repair (removeMessage moves the label to the run heir) carries it for
+       free. data-has-role flips the label to flex → chip lands top-right. */
+    if (roleBadge) {
+      s.dataset.hasRole = '';
+      const chip = createBadge({ type: 'info', weight: 'tonal', label: roleBadge });
+      chip.classList.add('c-bubble__role');
+      s.append(chip);
+      // the copyable variant sets an explicit aria-label (overrides content) —
+      // keep the role audible there too
+      if (copyable && s.hasAttribute('aria-label')) {
+        s.setAttribute('aria-label', s.getAttribute('aria-label') + ' · ' + roleBadge);
+      }
+    }
     el.append(s);
   }
 
@@ -6171,7 +6211,7 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), ca
 function deletePeerHeader(chat, strings) {
   const h = document.createElement('div');
   h.className = 'c-delete-chat__peer';
-  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, strings }));
+  h.append(createAvatar({ src: chat.avatar, name: chat.name, address: chat.address, size: 40, group: chat.type === 'group', strings }));
   const nm = document.createElement('span');
   nm.className = 'c-delete-chat__name';
   nm.textContent = chat.name || chat.address || '';
@@ -13532,6 +13572,7 @@ function createChatInfo({
   const heroAvatar = createAvatar({
     src: avatar, name: name, address: avatarSeed || address, size: 80,
     online: kind === 'contact' && !!online,
+    group: kind !== 'contact', // N1 (#364): group/bot hero wears the group glyph
   });
   /* #334 (Damir ask): a REAL hero photo opens full-screen in the EXISTING media
      viewer — the avatar wraps in a button (focus ring = base.css :focus-visible;
@@ -13981,8 +14022,12 @@ function createChatInfo({
       blind,
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
-      // not offer a second request while the first is on the wire
-      onRequest: onContactRequest ? () => { m.relation = 'pending'; onContactRequest(m); } : undefined,
+      // not offer a second request while the first is on the wire.
+      // #366: only a true stranger (relation none/unset) gets the live request
+      // closure — 'self' (the #249 own row) and any unknown value stay inert
+      // (the C# self-guard alert would be the only outcome of a live button).
+      onRequest: (onContactRequest && (m.relation || 'none') === 'none')
+        ? () => { m.relation = 'pending'; onContactRequest(m); } : undefined,
       // #142: contacts' identity block → the contact page (context: 'contact')
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
@@ -14391,7 +14436,7 @@ function pickerRow(c, st) {
     row.dataset.blocked = '';
   }
 
-  row.append(createAvatar({ src: c.avatar || null, name: c.name || '', address: c.address || '', size: 48, online: !!c.online }));
+  row.append(createAvatar({ src: c.avatar || null, name: c.name || '', address: c.address || '', size: 48, online: !!c.online, group: !!c.isGroup }));
 
   const col = document.createElement('span');
   col.className = 'c-contacts__col';
@@ -20924,5 +20969,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

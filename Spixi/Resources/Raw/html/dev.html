@@ -671,12 +671,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-settings__row-label--stack {
   flex-direction: column;
   align-items: flex-start;
-  /* N59 (E5 dial, I-11 stack): title↔sub gap tightened. The visible gap is NOT
-     this value alone — the 32px disc centres the title inside a taller row-top
-     box, adding ~5px of dead space below the text — so the sub is also pulled
-     up by spacing-2 below. Net: ~4px tighter than the shipped look. */
+  /* N59 → N59b (Damir screenshot, 2026-08-17): the disc now centres against the
+     title+sub GROUP, not against the title line alone. The first cut pulled the
+     sub up under a title that stayed centred in the 32px disc box — the text
+     block read bottom-weighted ("dragging down, uncentered"). The disc leaves
+     the flow (absolute, centred on the whole label); the stack carries the
+     gutter; the sub needs no pull-up — the dead space is gone at the source. */
+  position: relative;
+  padding-inline-start: calc(32px + var(--spacing-12));
   gap: 0;
   flex: 1;
+}
+.c-settings__row-label--stack .c-disc {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .c-settings__row-top {
   display: flex;
@@ -685,8 +695,6 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-settings__row-sub,
 .c-settings__backup-sub {
-  margin-top: calc(-1 * var(--spacing-2));                /* N59: rides the disc's dead space (see --stack) */
-  padding-inline-start: calc(32px + var(--spacing-12));   /* sanctioned: aligns under the 32px disc */
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);

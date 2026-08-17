@@ -4,7 +4,7 @@
 
 Damir, #374 F5: *"if I am not connected to a user in group I don't see his
 messages; legacy worked without this, owner needed to be connected only."*
-This is TRIAGE ONLY (handoff-2026-08-17f §2 row 9). No build. This doc gives
+This is TRIAGE ONLY (handoff-2026-08-17f §2 row 9). No build. ★ RE-OBSERVED 2026-08-17 post-#375-F5 in normal use — the repro is not rare; run §2 and capture the log. This doc gives
 the code pre-read, the repro protocol, and the verdict rules. It is the
 MESSAGE twin of N33 (be-cutover Table B q11 — group FILE relay).
 

@@ -156,6 +156,7 @@ export const ruru = {
   contact: "Контакт",
   contactDetails: "Данные контакта",
   contactPendingLabel: "запрос отправлен",
+  contactRequestSent: "Запрос добавления в контакты отправлен",
   contacts: "Контакты",
   contactsEmptyBody: "Добавьте человека по его адресу Spixi или QR-коду, и можно общаться и отправлять IXI.",
   contributors: "Участники",

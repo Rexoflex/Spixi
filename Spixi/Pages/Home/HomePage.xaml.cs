@@ -2680,6 +2680,18 @@ namespace SPIXI
                 Utils.sendUiCommand(cd, "cdBack");
                 return true;
             }
+            // N51: a chat conversation is a HomePage OVERLAY on mobile (#225), so its
+            // own OnBackButtonPressed never runs — with an overlay.js sheet (attach/
+            // share/menu), the hand-rolled channel selector or select mode open in
+            // the chat shell, closeTopOverlay below would pop the WHOLE
+            // SingleChatPage from under it. Same slot as the ContactDetails route
+            // above; the shell self-heals a stale flag (chatBack re-syncs). Var name
+            // deliberately NOT scp (the CS0136 lesson, loop A-1 #372).
+            if (SpixiContentPage.getTopOverlay() is SingleChatPage chatOverlay && chatOverlay.pageLoaded && chatOverlay.shellOverlayOpen)
+            {
+                Utils.sendUiCommand(chatOverlay, "chatBack");
+                return true;
+            }
             // #225: hardware/host back closes the top NATIVE overlay first.
             // #337 audit MAJOR (AND-29 r3): this must run BEFORE the shell-takeover
             // branch — native overlays (chat, ContactDetails, formpane, txdetail)

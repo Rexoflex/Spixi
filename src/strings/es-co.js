@@ -156,6 +156,7 @@ export const esco = {
   contact: "Contacto",
   contactDetails: "Detalles del contacto",
   contactPendingLabel: "solicitud enviada",
+  contactRequestSent: "Solicitud de contacto enviada",
   contacts: "Contactos",
   contactsEmptyBody: "Agrega a alguien con su dirección de Spixi o su código QR y ya podrás chatear y enviar IXI.",
   contributors: "Colaboradores",

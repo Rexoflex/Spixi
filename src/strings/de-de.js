@@ -156,6 +156,7 @@ export const dede = {
   contact: "Kontakt",
   contactDetails: "Kontaktdetails",
   contactPendingLabel: "Anfrage gesendet",
+  contactRequestSent: "Kontaktanfrage gesendet",
   contacts: "Kontakte",
   contactsEmptyBody: "Füge jemanden über seine Spixi-Adresse oder seinen QR-Code hinzu. Danach kannst du chatten und IXI senden.",
   contributors: "Mitwirkende",

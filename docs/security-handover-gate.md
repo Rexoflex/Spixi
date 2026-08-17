@@ -144,6 +144,18 @@ because the security doc was never written as an introduced-vs-inherited census.
 | **`selectChat` re-timing + the "" clear (N49)** | `HomePage.xaml.cs` (onOverlayPresented / onOverlayClosed) | Existing verb, existing payload — call sites moved | The #182 push is ours already | Display-state only; no new data crosses |
 | **`resolvedSenderByMsgId` (the A-2 render→spend binding)** | `SingleChatPage.xaml.cs` | **INTRODUCED** | — | In-memory only, per page instance; msgid→address of the user's OWN roster; never persisted, never logged, never pushed. TIGHTENS the money path (the tip refuses on render/spend divergence) |
 
+### #375 — N51–N59 + N36b + AND-37, the F5 fix batch, lens applied while building (2026-08-17)
+
+| Item | file:line | Verdict | Baseline? | Action |
+|---|---|---|---|---|
+| **`ixian:chatoverlay:1\|0` — a NEW nav verb (N51)** | chat.html → `SingleChatPage.xaml.cs` | **INTRODUCED** | The cdoverlay (#370) + homeoverlay (#336) twins — same class, third instance | Display-state mirror only: ONE bit, no payload, volatile field, parsed with Ordinal EndsWith. Drives back-routing only; cannot navigate, store, or echo |
+| **`chatBack` — a NEW C#→shell push (N51)** | `SingleChatPage.xaml.cs` + HomePage back route → chat.html | **INTRODUCED** | cdBack twin (#370) | No arguments; the handler dismisses via the shared `dismissTopOverlay()` or the two off-stack arms (channel selector, select mode) and self-heals the mirror. A forged/stale push at worst closes a sheet |
+| **AND-37 — settings onBack sheet arm** | settings.html | No exposure | — | Reorders EXISTING in-shell back handling; no new verb (the back route into this shell was already unconditional both presentations) |
+| **N55 toast + `contactRequestSent` key** | chat.html ×2 · contact_details.html · strings (contact_new: NONE — the #376 loop removed it, B-2: C# alert-and-stay paths made the optimistic toast false) | No exposure | — | textContent sink via the shared c-toast; NO new storage key (a landing-page localStorage stash was considered and deliberately NOT built — MAJOR #4 posture); the emits are the EXISTING sendContactRequest verbs, unchanged |
+| **N58 avatar node cache** | chats-shell.js | No exposure | — | In-memory per-list WeakMap of DOM nodes the list ALREADY renders; never persisted; capped at 128; the data-URIs were already in the DOM every render |
+| **N53 badge · N54 gate · N52 pulse · N56 wash · N59 gap · N36b tap-highlight** | chat.html · scroll-latest wiring · tokens.css · chatlist-item.css · settings-shell.css · message-bubble.css | No exposure | — | Display-only counters and CSS; no storage, no sink, no fetch, no WebView setting |
+| **N52 `messagesToLoad` 25→50** | Config.cs:57 | No exposure | — | Window size only; the D-18 poisoned-window guard re-walked and HOLDS (50→100 guarded→150) |
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

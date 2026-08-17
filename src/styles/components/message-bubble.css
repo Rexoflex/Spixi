@@ -45,6 +45,15 @@
   align-items: flex-end;
   padding-inline: var(--spacing-16);
   margin-top: var(--spacing-12);           /* gap between groups */
+  /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
+     the tap target (N36 made in-bubble controls pointer-dead), and every
+     `transparent` in this file sat on SUB-elements — Android painted its native
+     tap highlight over the whole row on every toggle. Applied to the row
+     generally (the house pattern, 86 prior uses): outside select mode the row
+     carries long-press/contextmenu handling, so the OS flash is unwanted there
+     too. ⚠ If the flash SURVIVES this, a SECOND layer hides beneath — report
+     it, do not stack fixes (#363 caveat). */
+  -webkit-tap-highlight-color: transparent;
 }
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--spacing-2); } /* in-group gap */

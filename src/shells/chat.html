@@ -395,13 +395,21 @@
     font-size: var(--font-size-label-xs); line-height: 1; font-weight: var(--font-weight-bold);
   }
 
-  /* pulse the target message on jump */
+  /* pulse the target message on jump.
+     N52 (verify-first): the original ring was --surface-warning-inverse — the WASH
+     tone (orange-100 light / orange-900 dark), near-zero contrast against the
+     canvas in BOTH themes, which is why the shipped pulse never read on device.
+     --surface-warning is the SOLID role (orange-600 light / orange-400 dark). */
   .c-bubble-row[data-mention-pulse] .c-bubble { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
   @keyframes chat-mention-pulse {
-    0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning-inverse); }
+    0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning); }
     100% { box-shadow: 0 0 0 0 transparent; }
   }
-  @media (prefers-reduced-motion: reduce) { .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; } }
+  /* loop B-3: under reduced motion the ring must still READ — a static held ring
+     (no animation) for the attribute's ~1.6s lifetime; the JS timeout removes it. */
+  @media (prefers-reduced-motion: reduce) {
+    .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; box-shadow: 0 0 0 3px var(--surface-warning); }
+  }
 </style>
 </head>
 <body>
@@ -470,6 +478,7 @@
   const {
     createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, setComposerCost, createTypingIndicator, createScrollToLatest,
+    setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
     attachPressFeedback,
     setMessageStatus, removeMessage,
     createFileBubble, setFileProgress,
@@ -917,6 +926,7 @@
     const el = channelDropdown;
     channelDropdown = null;
     channelSheetBody = null;
+    syncChatOverlay();   // N51: the selector is NOT on the shared stack — mirror its close to C#
     // restore focus to the title trigger — only if focus is ours to move (still
     // inside the closing overlay or dropped to body), matching overlay.js policy.
     const rf = channelReturnFocus; channelReturnFocus = null;
@@ -991,6 +1001,7 @@
     overlay.append(scrim, panel);
     document.body.append(overlay);
     channelDropdown = overlay;
+    syncChatOverlay();   // N51: the selector is NOT on the shared stack — mirror its open to C#
     // Esc closes; Tab is trapped within the panel (mirrors overlay.js house style).
     channelKeydown = (e) => {
       if (e.key === 'Escape') { closeChannelSelector(); return; }
@@ -1211,7 +1222,12 @@
     }
     typingActive = true;
     box.append(typingRow);
-    box.scrollTop = box.scrollHeight;
+    // N54: scroll to the pill ONLY when the user is already at the bottom — the
+    // unconditional jump yanked the view away from older messages mid-read.
+    // The check runs AFTER the append, so the pill's ~40px growth can flip the
+    // verdict for a user sitting within 40px of the threshold (loop B-7) — in
+    // that band the pill simply appears without the scroll, which is harmless.
+    if (nearBottom()) box.scrollTop = box.scrollHeight;
     if (typingTimer) clearTimeout(typingTimer);
     typingTimer = setTimeout(hideTyping, 5000);  // legacy showUserTyping auto-hides after 5s
   }
@@ -1887,8 +1903,17 @@
         });
       },
       onDelete: (items) => confirmBulkDelete(items),
-      onExit: () => { chatSelect = null; },
+      onExit: () => { chatSelect = null; syncChatOverlay(); },   // N51: select mode leaves the back mirror
     });
+    /* #376 loop A-1 (MAJOR): enterChatSelect can auto-exit INSIDE its constructor
+       (initial row not selectable — a menu opened on a row the counterpart then
+       deleted → exit() at count 0). onExit fires BEFORE the assignment above
+       lands, so the stored handle is already DEAD — and exit() early-returns on a
+       torn-down selection, so it can never fire onExit again. A dead handle
+       reported the mirror open forever and WEDGED hardware back. Detect the
+       constructor-auto-exit on the live DOM state and drop the handle. */
+    if (chatSelect && box.dataset.selecting === undefined) chatSelect = null;
+    syncChatOverlay();   // N51: select mode is NOT on the shared stack — mirror it (Android back exits selection, not the chat)
     /* Land focus on the row the user long-pressed: it is now role=checkbox +
      * tabindex, so Space keeps toggling and Esc exits. The menu sheet has already
      * restored focus (synchronously, inside dismissOverlay) by the time we run,
@@ -2049,6 +2074,10 @@
         ? () => {
             requestedMembers.add(rec.senderAddress);
             bridge.send('ixian:sendContactRequest:' + rec.senderAddress);
+            // N55: the verb is fire-and-forget (no ack push) → optimistic toast,
+            // the house pattern (settings-delete class). The sheet's own
+            // 'pending' latch already tells the durable story.
+            showToast({ text: s.contactRequestSent || 'Contact request sent', tone: 'success', host: overlayHost, strings: s });
           }
         : null,
       actions,
@@ -2158,6 +2187,8 @@
         if (m && m.address && m.address !== '[Unknown]') {
           requestedMembers.add(m.address);
           bridge.send('ixian:sendContactRequest:' + m.address);
+          // N55: optimistic toast at the emit site (fire-and-forget verb, no ack)
+          showToast({ text: s.contactRequestSent || 'Contact request sent', tone: 'success', host: overlayHost, strings: s });
         }
       },
       onMemberAction: (action, m, ctrl) => {
@@ -2804,6 +2835,7 @@
     model.set(id, rec);
     orderInsert(id);
     hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping)
+    noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
 
     if (!existing) {
       renderLog();  // new row → re-render so grouping + date separators are correct
@@ -2842,6 +2874,7 @@
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
+    noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
 
@@ -2866,6 +2899,7 @@
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
+    noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
 
@@ -2902,6 +2936,7 @@
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
+    noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
 
@@ -2923,6 +2958,7 @@
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
+    noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
 
@@ -3091,6 +3127,8 @@
         olderTimeout = 0;
         loadingOlder = false;
       }
+
+      stlFlushQuietUntil = Date.now() + 5000;   // #376 loop B-1: open the N53 quiet window (see noteArrival)
 
       dbg('clearMessages', { showMore, showOlder });
     },
@@ -3264,6 +3302,7 @@
       resetUnreadBoundary();               // A3 per-peer reset (id + loadPhase + boundaryLatched + safety timer)
                                            // — the next open re-derives (or, normally, doesn't)
       resetOlder();                        // A1 per-peer reset — no stale spinner or scroll anchor
+      setStlUnread(0);                     // N53 per-peer reset — peer A's unseen count must not badge peer B
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -3582,6 +3621,7 @@
          (:249-256 calls loadMessages() with the grown window), so an expanded
          window carries across channels. The pill simply reflects that faithfully.) */
       resetOlder();
+      setStlUnread(0);   // N53: the counter must not carry across bot channels (a switch = a new room)
       renderTopbar();
     },
     // "true" ⇒ all read; anything else (incl. "") ⇒ unread (legacy chat.js:1345)
@@ -3653,9 +3693,60 @@
       }
       setWarning(warningBanner, isConn ? '' : (text || ''));
     },
+
+    /* N51 (the N50/#370 grammar applied to chat): OS back routed INTO the shell
+       while the mirror below reports an open overlay. Arm order = the edge-swipe
+       precedent (#328): the hand-rolled channel selector first (it is NOT on the
+       shared stack), then the shared overlay stack (sheets/menus/modals render
+       above the selection bar), then select mode — the natives' order. Self-heal:
+       nothing actually open (stale mirror) → re-sync so the next back pops the
+       conversation instead of wedging (the N50 cdBack grammar). */
+    chatBack() {
+      if (channelDropdown) { closeChannelSelector(); return; }
+      const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
+      if (dismiss && dismiss()) return;
+      if (chatSelect) {
+        // #376 loop A-1 belt: a dead handle must not eat the press with no heal —
+        // verify the selection is LIVE on the DOM before exiting through it.
+        if (box.dataset.selecting === undefined) { chatSelect = null; syncChatOverlay(); return; }
+        exitChatSelect();
+        return;
+      }
+      syncChatOverlay();
+    },
   };
 
   bridge.exposeAll(handlers);
+
+  /* N51: mirror the shell's overlay-stack state to C# so Android back closes the
+     TOP overlay (an overlay.js sheet, the hand-rolled channel selector, select
+     mode) instead of popping the whole conversation — chat is a HomePage overlay
+     (#225), so its in-document surfaces are invisible to C#. The exact
+     contact_details recipe (N50): coalesced through a zero-timeout so an
+     open→close flurry sends one line. channelDropdown + chatSelect live OUTSIDE
+     the shared overlay stack (no body[data-overlay-open]), so they join the
+     predicate and their open/close sites call syncChatOverlay() explicitly. */
+  let chatOverlaySyncT = 0;
+  function chatOverlayLive() {
+    // #376 loop A-2: the reactions inspect sheet hosts on #messages (applyReactions
+    // passes host: box), so its data-overlay-open lands on BOX, not body. Dead
+    // today (only ❤️ ships, the "+N" trigger can't render), but the C8 emoji batch
+    // lights it up — cover the host now so the hole can't reopen silently.
+    return document.body.dataset.overlayOpen !== undefined
+      || box.dataset.overlayOpen !== undefined
+      || !!channelDropdown || !!chatSelect;
+  }
+  function syncChatOverlay() {
+    if (chatOverlaySyncT) return;
+    chatOverlaySyncT = setTimeout(() => {
+      chatOverlaySyncT = 0;
+      try { bridge.send('ixian:chatoverlay:' + (chatOverlayLive() ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncChatOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+    new MutationObserver(syncChatOverlay).observe(box, { attributes: true, attributeFilter: ['data-overlay-open'] });   // loop A-2: the box-hosted sheet
+  } catch (e) {}
 
   // Do NOT paint the empty log now — that produced a spinner → empty-notice →
   // full-conversation sequence (the residual flicker Damir felt after the burst
@@ -3667,6 +3758,47 @@
   /* —— scroll-to-latest affordance (appears when scrolled up) ——————————————— */
   const stl = createScrollToLatest({ target: box });
   box.closest('.c-chat-canvas').append(stl);
+
+  /* N53: feed the chevron's unread badge (setScrollLatestCount shipped in #74 and
+   * was never fed). Counts every INCOMING row created while the user is scrolled
+   * up; the load burst is excluded (history streaming is not "new"), and the read
+   * happens at upsert time — before the coalesced render — so it reflects the
+   * position the user was actually reading at. Reset: back at the bottom (scroll
+   * listener below), per peer (onChatScreenReady) and per bot channel
+   * (setSelectedChannel — the counter must not carry across rooms). */
+  let stlUnread = 0;
+  let stlFlushQuietUntil = 0;   // loop B-1: re-flush quiet window (set by clearMessages)
+  function setStlUnread(n) {
+    stlUnread = n;
+    setScrollLatestCount(stl, n, window.SL || {});
+  }
+  function noteArrival(existing, rec) {
+    if (existing || bursting) return;                    // update or history stream — not an arrival
+    /* #376 loop B-1 (MAJOR): `bursting` alone is NOT a complete flush gate — the
+       load-more and reloadScreen paths never push onChatScreenLoaded, so their
+       burst can only end by the 250ms idle timer, and ONE main-thread stall
+       mid-stream (GC, a data-URI decode) flips it while rows are still coming.
+       clearMessages wipes the model, so every re-flushed row is a CREATE — with
+       the user held scrolled-up by applyOlderAnchor, the badge counted requested
+       HISTORY as unread. Belt: a 5s quiet window after every clearMessages (the
+       A3 loadPhase window precedent). Fails SAFE: a live arrival inside the
+       window is missed by the badge (the chevron still shows), never miscounted. */
+    if (Date.now() < stlFlushQuietUntil) return;
+    if (rec && rec.direction === 'sent') return;         // own sends stick to the bottom anyway
+    // loop B-9: an old exe's addCall carries no `outgoing` arg → no direction —
+    // never count a directionless call row (it may be the user's own).
+    if (rec && rec.kind === 'call' && !rec.direction) return;
+    if (nearBottom()) return;                            // visible on arrival — nothing unread
+    setStlUnread(stlUnread + 1);
+  }
+  box.addEventListener('scroll', () => {
+    /* #376 loop B-5: clear at the CHEVRON's own threshold (200px, scroll-latest.js
+       SHOW_THRESHOLD), not nearBottom's half-viewport — the badge must not vanish
+       while three bubbles are still below the fold. Count-side stays nearBottom():
+       inside that band renderLogNow sticks to the bottom on arrival (same
+       predicate), so the pairing is coherent. */
+    if (stlUnread && box.scrollHeight - box.scrollTop - box.clientHeight <= 200) setStlUnread(0);
+  }, { passive: true });
 
   /* —— @ jump-to-mention FAB (#8, premium mentions #210) ————————————————————
    * Sits bottom-right, ABOVE the scroll-to-latest chevron. Appears ONLY when a
@@ -3754,10 +3886,26 @@
     const row = rows.get(id); if (!row) return;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     row.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-    row.setAttribute('data-mention-pulse', '');
-    row.addEventListener('animationend', () => row.removeAttribute('data-mention-pulse'), { once: true });
+    /* N52 (verify-first, second half): the pulse used to start the moment the tap
+       landed — DURING the smooth scroll — so on a far jump the 1.4s animation was
+       spent before the row ever entered the viewport. Start it when the row is
+       actually visible (rAF poll, 1.5s cap so a stalled scroll still pulses). */
+    const pulseFrom = performance.now();
+    (function pulseWhenVisible() {
+      /* loop B-4: renderLogNow REBUILDS every row, so the closed-over node can go
+         stale mid-scroll (a delivery tick, a reaction) — re-bind through the id
+         each frame so the pulse lands on the LIVE node instead of silently dying. */
+      const live = rows.get(id);
+      if (!live || !live.isConnected) { if (performance.now() - pulseFrom <= 1500) requestAnimationFrame(pulseWhenVisible); return; }
+      if (mentionRowVisible(live) || performance.now() - pulseFrom > 1500) {
+        live.setAttribute('data-mention-pulse', '');
+        live.addEventListener('animationend', () => live.removeAttribute('data-mention-pulse'), { once: true });
+        setTimeout(() => { live.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
+        return;
+      }
+      requestAnimationFrame(pulseWhenVisible);
+    })();
     mentionSeen.add(id); saveMentionSeen();              // viewing it counts as seen (persisted) → next tap advances
-    setTimeout(() => { row.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
     updateMentionFab();
   });
   let mentionFabRaf = 0;

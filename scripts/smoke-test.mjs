@@ -5635,8 +5635,8 @@ console.log('#343 — instant chrome, first-commit fade, message window');
       '#343: ' + sh + '.html attaches press feedback (one line per shell — the delegated listener covers rows created by later re-renders)');
   }
 
-  ok(/messagesToLoad = 25;/.test(cfgCs) && !/messagesToLoad = 100;/.test(cfgCs),
-    '★ #343: the opening message window is 25, not 100. Each message is its own EvaluateJavaScriptAsync (Utils.sendUiCommand:180 → SpixiContentPage:187) and the shell waits 250 ms after the LAST one before it renders, so 100 messages meant ~100 process-boundary crossings before anything appeared. Revert this line alone to undo');
+  ok(/messagesToLoad = 50;/.test(cfgCs) && !/messagesToLoad = 100;/.test(cfgCs),
+    '★ #343 (rebased by N52): the opening message window is 50 — never back to 100. Each message is its own EvaluateJavaScriptAsync (Utils.sendUiCommand:180 → SpixiContentPage:187), so 100 messages meant ~100 process-boundary crossings before anything appeared; N52 re-raised the #343 cut (25 rarely covered one screen of history) with the A52 re-measure owed');
 }
 
 /* —— I2 (#347): the desktop add-contact pane had full-width content ——————————
@@ -5828,8 +5828,8 @@ console.log('#348b — F5 follow-up fixes');
       '★ D-16 (#351): HOLD = the fill colour as a FLAT background-color with transition: none. The DOUBLED attribute is load-bearing (audit B-1): three row families gate :hover behind :not() at (0,3,0), and at (0,2,1) the hover colour beat the fade on every mouse device — a hard pop and no fade at all');
     ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:not\(\.c-app-item\) \{\s*transition: background-color var\(--duration-200\) var\(--easing-standard, ease-out\);\s*background-color: transparent/.test(bcss),
       '★ D-16 (#351): OUT fades ONLY background-color at --duration-200 — listing background-size here re-animates the collapsed image and resurrects the reverse sweep');
-    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-interactive-hover\)/.test(bcss),
-      '★ D-16 r2 (audit B-5): under a stationary mouse the fade LANDS on the hover wash — without this the row dips through transparent and pops back up 100ms later, a bounce under the cursor');
+    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\[data-pinned\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-interactive-hover\)/.test(bcss),
+      '★ D-16 r2 (audit B-5, rebased by N56 loop C-1): under a stationary mouse the fade LANDS on the hover wash — and keeps its hands off PINNED rows, which land on their own wash (the #353 grammar, third state)');
     ok(/html:root \[data-pressfade="hold"\]\[data-pressfade\]\[aria-current\] \{\s*background-color: var\(--surface-action-tonal-pressed\)/.test(bcss)
       && /html:root \[data-pressfade="out"\]\[data-pressfade\]\[aria-current\] \{[\s\S]{0,180}?background-color: var\(--surface-action-tonal-default\)/.test(bcss),
       '★ D-16 (#351): a SELECTED row holds tonal-PRESSED and fades to tonal-DEFAULT — its own selected paint — so the fade lands seamlessly. Mid-fade re-target happens where aria-current is patched IN PLACE (wallet tx rows); a chat row is replaced by the re-render, the accepted A-3 cut');
@@ -5857,7 +5857,13 @@ console.log('#348b — F5 follow-up fixes');
          fix B and the row half of fix C — the tonal-hover paint was the filled
          BUTTON surface in dark, and Damir cut the state rather than re-dial it. */
       const noLegit = css.replace(/:not\(\[aria-current\]\)/g, '');
-      ok(new RegExp(sel + ':hover:not\\(\\[aria-current\\]\\) \\{ background-color: var\\(--surface-interactive-hover\\); \\}').test(css)
+      /* N56 rebase: the chatlist hover ALSO excludes pinned rows (the pinned wash
+         must survive the cursor — the same #353 grammar extended); txlist has no
+         pinned state and keeps the plain compound. */
+      const hoverSel = f === 'chatlist-item'
+        ? sel + ':hover:not\\(\\[aria-current\\]\\):not\\(\\[data-pinned\\]\\) \\{ background-color: var\\(--surface-interactive-hover\\); \\}'
+        : sel + ':hover:not\\(\\[aria-current\\]\\) \\{ background-color: var\\(--surface-interactive-hover\\); \\}';
+      ok(new RegExp(hoverSel).test(css)
         && !new RegExp(sel + '[^,{]*\\[aria-current\\][^,{]*:hover|' + sel + '[^,{]*:hover[^,{]*\\[aria-current\\]').test(noLegit),
         '★ #353 (Damir): ' + f + ' — NO hover rule paints a selected row (either compound order), and the plain hover carries :not([aria-current]). The :not() is LOAD-BEARING: without it the later grey hover rule beats the selected [aria-current] paint on source order at equal specificity, and the open conversation’s row hovers GREY');
       /* ★ #353 review NIT-1: this single declaration is now the SOLE selected-row
@@ -7441,14 +7447,14 @@ console.log('#354/#355 — D-18 poisoned-window guard · AND-38 balance tap high
      so a future explanatory comment inside onLoadMore cannot break it. */
   const scpNC354 = scp354.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   ok(/private void onLoadMore\(\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*if \(messagesToShow == 100\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*\}\s*loadMessages\(\);/.test(scpNC354),
-    '★ D-18 (#354): onLoadMore steps OVER the exact-100 window. Ixian-Core Friend.getMessages re-reads storage only when the channel is uncached OR msg_count != 100 (Friend.cs:910; 0.9.8k = commit 097341a, no git tag exists) — a request of exactly 100 returns the stale previous window, loadMessages counts it short (the show_more test at :1536) and kills the pill with history still on disk. #343 cut the chunk to 25, so the THIRD press died at 75 rows (absent ≥25 arrivals mid-chat). Delete the guard and the dead end returns');
+    '★ D-18 (#354): onLoadMore steps OVER the exact-100 window. Ixian-Core Friend.getMessages re-reads storage only when the channel is uncached OR msg_count != 100 (Friend.cs:910; 0.9.8k = commit 097341a, no git tag exists) — a request of exactly 100 returns the stale previous window, loadMessages counts it short (the show_more test at :1536) and kills the pill with history still on disk. Under the N52 dial (50) the FIRST press lands exactly on 100 — the guard fires once and the walk continues 50 → 150 → 200. Delete the guard and the dead end returns');
   /* r2 (Opus MINOR-2): strip comments BEFORE matching, and anchor on the full
      assignment with its semicolon — "= 250" and a "was 25" trailing comment both
      evaded the first cut of this pin. */
   const cfgNC354 = readFileSync(join(root, 'Spixi/Meta/Config.cs'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  ok(/messagesToLoad = 25;/.test(cfgNC354),
-    '★ D-18 (#354): the #343 chunk dial stands at 25 (Config.cs:57). If this value moves, re-walk the poisoned-window arithmetic in onLoadMore — only a window of EXACTLY 100 hits the Core cache test, and the guard must still be reachable on the new step sequence');
+  ok(/messagesToLoad = 50;/.test(cfgNC354),
+    '★ D-18 (#354, re-walked at N52): the chunk dial stands at 50 (Config.cs:57). The poisoned-window arithmetic HOLDS: 50 → 100 (guarded, first press) → 150 → 200 — exactly one poisoned crossing, and the guard stays reachable. If this value moves again, re-walk: only a window of EXACTLY 100 hits the Core cache test');
   const whCssRaw354 = readFileSync(join(root, 'src/styles/components/wallet-hero.css'), 'utf8');
   /* r3 (Opus r2 MINOR-4): strip CSS comments BEFORE any structural test — a rule
      narrowed to one target with the other two names parked in a comment above it
@@ -8327,6 +8333,225 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   ok(en370.includes('"Games, tools and AI that run directly in your chats."')
     && /memberOne/.test(en370) && /youAreOwner/.test(en370) && /requestReceived/.test(en370),
     'R2 (#371): the GENERATED en dictionary carries the new keys + the short apps line (guards a stale-dictionary commit — extract/build-locales must have run after the source edits)');
+}
+
+/* —— N51–N59 + N36b — the 2026-08-17f §2 F5 fix batch ——————————————————————— */
+console.log('N51–N59 + N36b — chat back grammar · reading set · toast · pinned · avatar cache');
+{
+  const read = (p) => readFileSync(join(root, p), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const scpCs = nc(read('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+  const hpCs = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
+  const chatSrc = read('src/shells/chat.html');
+  const chatNc = nc(chatSrc);
+  const chatBuilt = read('Spixi/Resources/Raw/html/chat.html');
+  const setSrcNc = nc(read('src/shells/settings.html'));
+  const setBuilt = read('Spixi/Resources/Raw/html/settings.html');
+
+  /* —— N51: the chatoverlay mirror (C# side) —— */
+  ok(/public volatile bool shellOverlayOpen = false;/.test(scpCs)
+    && scpCs.includes('"ixian:chatoverlay:"')
+    && /shellOverlayOpen = current_url\.EndsWith\(":1", StringComparison\.Ordinal\);/.test(scpCs),
+    'N51: SingleChatPage mirrors the shell overlay state from ixian:chatoverlay (volatile — nav thread writes, back path reads; the N50 grammar)');
+  ok(/private void onLoad\(\)\s*\{\s*shellOverlayOpen = false;/.test(scpCs),
+    'N51: the flag RESETS in onLoad — a shell reload (theme/language flip) builds a fresh document that pushes nothing, and a stale true swallows hardware back (the N50 A-3/B-4 lesson)');
+  ok(/if \(shellOverlayOpen\)\s*\{\s*Utils\.sendUiCommand\(this, "chatBack"\);\s*return true;\s*\}\s*popPageAsync\(\);/.test(scpCs),
+    '★ N51: SingleChatPage\'s own back pops the SHELL overlay first (the pushed-page path)');
+  {
+    const obb = hpCs.slice(hpCs.indexOf('protected override bool OnBackButtonPressed()'));
+    const cdRoute = obb.indexOf('is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen');
+    const chatRoute = obb.indexOf('is SingleChatPage chatOverlay && chatOverlay.pageLoaded && chatOverlay.shellOverlayOpen');
+    const close = obb.indexOf('SpixiContentPage.closeTopOverlay()');
+    ok(cdRoute > 0 && chatRoute > cdRoute && close > chatRoute && /Utils\.sendUiCommand\(chatOverlay, "chatBack"\);/.test(obb),
+      '★ N51: HomePage routes back INTO a SingleChatPage overlay BEFORE closeTopOverlay — chat is a HomePage overlay on mobile (#225), so ONLY this route can save an open sheet from a whole-page pop');
+  }
+
+  /* —— N51: the chatoverlay mirror (shell side) —— */
+  for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
+    ok(txt.includes("bridge.send('ixian:chatoverlay:' + (chatOverlayLive() ? '1' : '0'))")
+      && /new MutationObserver\(syncChatOverlay\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
+      && /new MutationObserver\(syncChatOverlay\)\.observe\(box, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
+      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect;/.test(nc(txt)),
+      'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the two off-stack surfaces');
+  }
+  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
+    '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
+  ok(/if \(chatSelect && box\.dataset\.selecting === undefined\) chatSelect = null;/.test(chatNc),
+    '★ N51 (#376 loop A-1, MAJOR): a constructor-auto-exited selection (initial row not selectable) fires onExit BEFORE the handle lands — the dead-handle guard at startChatSelect drops it, or hardware back is WEDGED for the life of the conversation');
+  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 6
+    && /channelDropdown = overlay;\s*syncChatOverlay\(\);/.test(chatNc)
+    && /channelDropdown = null;\s*channelSheetBody = null;\s*syncChatOverlay\(\);/.test(chatNc)
+    && /onExit: \(\) => \{ chatSelect = null; syncChatOverlay\(\); \}/.test(chatNc),
+    'N51: the two off-stack surfaces sync EXPLICITLY at every open/close site (6 call sites incl. the two A-1 heals — the MutationObservers only see data-overlay-open)');
+
+  /* —— AND-37: settings back over a sheet —— */
+  for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
+    ok(/onBack\(\) \{\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(currentView !== 'hub'\) showHub\(\); else exitSettings\(\);\s*\}/.test(txt),
+      '★ AND-37 (' + label + '): the Account shell\'s onBack dismisses an open sheet FIRST — back over a theme/language sheet exited the whole page onto Chats (FE-only: back always routes into this shell, both presentations)');
+  }
+
+  /* —— N54: typing scroll gate —— */
+  {
+    const body = chatNc.slice(chatNc.indexOf('function showTyping()'), chatNc.indexOf('function hideTyping()'));
+    ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(body)
+      && !/\n\s*box\.scrollTop = box\.scrollHeight;/.test(body),
+      '★ N54: showTyping scrolls ONLY when already at the bottom — the unconditional jump yanked the view away from older messages mid-read');
+  }
+
+  /* —— N53: the scroll-to-latest badge is FED —— */
+  ok(/setScrollLatestCount,/.test(chatSrc),
+    'N53: setScrollLatestCount joins the chat destructure (shipped in #74, never fed until now)');
+  for (const [label, txt] of [['source', chatNc], ['built', nc(chatBuilt)]]) {
+    ok((txt.match(/noteArrival\(existing, rec\);/g) || []).length === 5,
+      '★ N53 (' + label + '): ALL FIVE upserts (text/file/app/payment/call) count an arrival — a partial wiring would badge texts but not the payment that scrolled past you');
+  }
+  ok(/function noteArrival\(existing, rec\) \{\s*if \(existing \|\| bursting\) return;\s*if \(Date\.now\(\) < stlFlushQuietUntil\) return;\s*if \(rec && rec\.direction === 'sent'\) return;\s*if \(rec && rec\.kind === 'call' && !rec\.direction\) return;\s*if \(nearBottom\(\)\) return;\s*setStlUnread\(stlUnread \+ 1\);\s*\}/.test(chatNc),
+    '★ N53: noteArrival counts only a LIVE incoming CREATE while scrolled up — updates, the history burst, the post-clearMessages quiet window, own sends, directionless old-exe call rows and at-bottom arrivals never inflate the badge');
+  {
+    const cm = chatNc.slice(chatNc.indexOf('clearMessages('), chatNc.indexOf('clearMessages(') + 2600);
+    ok(/stlFlushQuietUntil = Date\.now\(\) \+ 5000;/.test(cm),
+      '★ N53 (#376 loop B-1, MAJOR): clearMessages opens a 5s quiet window — the load-more/reloadScreen re-flushes have NO onChatScreenLoaded, their burst dies on a 250ms idle timer, and ONE mid-stream stall let the badge count requested HISTORY as unread (the model is wiped, every re-flushed row is a create, applyOlderAnchor holds the user scrolled up). Fails SAFE: a live arrival inside the window is missed, never miscounted');
+  }
+  ok((chatNc.match(/resetOlder\(\);\s*setStlUnread\(0\);/g) || []).length === 2
+    && /if \(stlUnread && box\.scrollHeight - box\.scrollTop - box\.clientHeight <= 200\) setStlUnread\(0\);/.test(chatNc),
+    'N53: the counter resets per peer + per bot channel (ADJACENT to each resetOlder — loop B-10a pins placement, not just presence) and clears at the CHEVRON\'s 200px threshold (loop B-5: nearBottom\'s half-viewport cleared the badge with three bubbles still unread)');
+  ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('function showTyping()'), nc(chatBuilt).indexOf('function hideTyping()'))),
+    'N54 (built): the typing gate reached the shipped shell (loop B-10b — the partial-rebuild class)');
+
+  /* —— N52: the @-jump pulse actually READS —— */
+  for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
+    const kf = txt.slice(txt.indexOf('@keyframes chat-mention-pulse'), txt.indexOf('@keyframes chat-mention-pulse') + 300);
+    ok(/box-shadow: 0 0 0 3px var\(--surface-warning\);/.test(kf) && !/surface-warning-inverse/.test(kf),
+      '★ N52 (' + label + '): the pulse ring is the SOLID warning role — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
+  }
+  ok(/const live = rows\.get\(id\);/.test(chatNc)
+    && /if \(mentionRowVisible\(live\) \|\| performance\.now\(\) - pulseFrom > 1500\)/.test(chatNc)
+    && /requestAnimationFrame\(pulseWhenVisible\);/.test(chatNc),
+    '★ N52: the pulse starts when the target row is VISIBLE (rAF poll, 1.5s cap) and RE-BINDS through the id each frame (loop B-4: renderLogNow rebuilds every row — a delivery tick mid-scroll silently killed a closed-over node\'s pulse)');
+  for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
+    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 220);
+    ok(/animation: none; box-shadow: 0 0 0 3px var\(--surface-warning\);/.test(rm),
+      'N52 (' + label + ', loop B-3): reduced motion gets a STATIC held ring — "animation: none" alone meant the jump highlighted NOTHING for exactly the users who asked for less motion');
+  }
+
+  /* —— N55: optimistic request-sent toast at the emit sites —— */
+  ok((nc(chatSrc).match(/contactRequestSent \|\| 'Contact request sent'/g) || []).length === 2,
+    'N55: BOTH chat member-sheet emit sites toast (the sender sheet + the chat-info sheet — the latter rides the #249-retained takeover, live again when that surface revives)');
+  {
+    const cdSrc = read('src/shells/contact_details.html');
+    const cnSrc = read('src/shells/contact_new.html');
+    ok(/contactRequestSent \|\| 'Contact request sent'/.test(cdSrc) && /showToast,/.test(cdSrc)
+      && /components\/toast\.css/.test(cdSrc),
+      'N55: contact_details member sheet toasts (+ showToast destructured + toast.css linked — a toast with no stylesheet renders as a naked div)');
+    ok(!/contactRequestSent/.test(cnSrc) && !/showToast/.test(cnSrc),
+      '★ N55 (#376 loop B-2, MAJOR): contact_new gets NO optimistic toast — C# returns WITHOUT sending on three alert-and-stay paths (malformed/own/already-contact) while checkAddress validates format only, so the green "sent" fired exactly when it was false; on success the pop IS the feedback. Post-pop landing feedback = a logged Damir dial');
+  }
+  {
+    const en = read('src/strings/en-us.js');
+    ok(/contactRequestSent/.test(en) && en.includes('Contact request sent'),
+      'N55: the key rode the extract → the generated en dictionary carries it');
+    let drafted = 0;
+    for (const loc of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+      if (/contactRequestSent/.test(read('src/strings/draft/' + loc + '.json'))) drafted += 1;
+    }
+    ok(drafted === 7, 'N55: contactRequestSent is DRAFTED in all 7 locales — the key maps to legacy id chat-request-sent-title, so build-locales REUSES the legacy value over the draft (loop B-6); the drafts are aligned to the shipped values so a native review edits the SOURCE (#341 lesson), never a dead letter');
+    ok(read('src/strings/de-de.js').includes('contactRequestSent: "Kontaktanfrage gesendet"')
+      && read('Spixi/Resources/Raw/html/spixi.strings.js').includes('Kontaktanfrage gesendet')
+      && read('Spixi/Resources/Raw/lang/de-de.txt').includes('chat-request-sent-title = Kontaktanfrage gesendet'),
+      '★ N55 (loop B-6, r2-hardened): the de value is the CORRECT compound "Kontaktanfrage" — fixed at the LEGACY source and pinned on the SHIPPED strings artifact (the split "Kontakt Anfrage" was wrong German and legacy-reuse shadowed any draft; the #285 de-fill trap)');
+  }
+
+  /* —— N56: pinned-row wash —— */
+  {
+    const tok = read('src/styles/tokens.css');
+    ok(/--surface-pinned: rgba\(13, 19, 36, 0\.09\);/.test(tok)
+      && /--surface-pinned: rgba\(233, 236, 243, 0\.06\);/.test(tok),
+      '★ N56: --surface-pinned in BOTH themes — light at 9% (loop C-2: 5% composited to a perceptual TIE with the neutral-50 hover — an unreadable marker); dark is a LIGHT lift, not a brand darken (brand-900 sits darker than the neutral-900 screen and would vanish, the #194 lesson)');
+    const css = read('src/styles/components/chatlist-item.css');
+    ok(/\.c-chatlist-item\[data-pinned\]:not\(\[aria-current\]\) \{ background-color: var\(--surface-pinned\); \}/.test(css),
+      'N56: the pinned wash paints on the row, selected still wins (the :not() keeps the ladder: selected > pinned > hover)');
+    const b = nc(read('src/styles/base.css'));
+    ok(/html:root \[data-pressfade="out"\]\[data-pinned\]:not\(\[aria-current\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-pinned\);\s*\}/.test(b)
+      && /\[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\[data-pinned\]\):not\(\.c-app-item\)/.test(b),
+      '★ N56 (#376 loop C-1): the press-release FADE lands a pinned row on its OWN wash — the generic out rule dropped it to transparent (a ~400ms pin blink on every tap), and the hover-landing rule now keeps its hands off pinned rows (the [aria-current] pair grammar, third state)');
+    ok(/if \(pinned\) el\.dataset\.pinned = '';/.test(read('src/components/chatlist-item.js')),
+      'N56 (loop C-4): the wash hook rides createChatItem itself — desktop.html (the surface the wash dial is judged on) builds rows directly and rendered NO wash without it');
+    /* loop C-3: built-artifact legs for the whole CSS/cache half (the #288 partial-rebuild class) */
+    const builtIndex = read('Spixi/Resources/Raw/html/index.html');
+    const builtTok = read('Spixi/Resources/Raw/html/spixi.tokens.css');
+    ok((builtTok.match(/--surface-pinned:/g) || []).length === 2
+      && /\.c-chatlist-item\[data-pinned\]:not\(\[aria-current\]\) \{ background-color: var\(--surface-pinned\); \}/.test(builtIndex)
+      && /:hover:not\(\[aria-current\]\):not\(\[data-pinned\]\) \{ background-color: var\(--surface-interactive-hover\); \}/.test(builtIndex),
+      'N56 (built): tokens + row rules reached the shipped output');
+    ok(/-webkit-tap-highlight-color: transparent;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('.c-bubble-row {'), nc(chatBuilt).indexOf('.c-bubble-row {') + 400)),
+      'N36b (built): the row-level tap-highlight kill reached the shipped chat shell');
+    ok(/margin-top: calc\(-1 \* var\(--spacing-2\)\);/.test(read('Spixi/Resources/Raw/html/settings.html')),
+      'N59 (built): the sub pull-up reached the shipped Account shell');
+    ok(/avatarCacheFor/.test(read('Spixi/Resources/Raw/html/spixi.bundle.js')),
+      'N58 (built, r2-hardened): the avatar decode cache reached the SHIPPED bundle (Raw/html — not the demo intermediate; the #285/#288 stale-artifact class)');
+  }
+
+  /* —— N59: Account row title↔sub gap —— */
+  {
+    const css = nc(read('src/styles/components/settings-shell.css'));
+    const stack = css.slice(css.indexOf('.c-settings__row-label--stack'), css.indexOf('.c-settings__row-label--stack') + 220);
+    ok(/gap: 0;/.test(stack)
+      && /\.c-settings__row-sub,\s*\.c-settings__backup-sub \{\s*margin-top: calc\(-1 \* var\(--spacing-2\)\);/.test(css),
+      'N59: the stack gap is 0 and the sub pulls up by spacing-2 — the visible gap was mostly the 32px disc\'s dead space below the centred title');
+  }
+
+  /* —— N36b: the Android select-mode flash candidate —— */
+  {
+    const css = nc(read('src/styles/components/message-bubble.css'));
+    const row = css.slice(css.indexOf('.c-bubble-row {'), css.indexOf('.c-bubble-row {') + 400);
+    ok(/-webkit-tap-highlight-color: transparent;/.test(row),
+      '★ N36b (#363 candidate, repro gate met): .c-bubble-row itself kills the native tap highlight — every prior transparent in this file sat on SUB-elements, and select mode made the ROW the tap target. If the on-device flash survives THIS, a second layer hides beneath — report, do not stack fixes');
+  }
+
+  /* —— N58: avatar decode cache — BEHAVIORAL —— */
+  {
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { renderChatsList } = await import('file://' + join(root, 'src/components/chats-shell.js'));
+      const listEl = pinDom.window.document.createElement('div');
+      pinDom.window.document.body.append(listEl);
+      const chat = (over) => ({
+        address: 'ADDR1', name: 'Ana', avatar: 'data:image/png;base64,AAA', online: false,
+        timestamp: 1700000000000, excerpt: { type: 'text', text: 'hi' }, ...over,
+      });
+      const opts = { rowMenu: false, strings: {} };
+      renderChatsList(listEl, { chats: [chat()] }, opts);
+      const av1 = listEl.querySelector('.c-avatar');
+      renderChatsList(listEl, { chats: [chat()] }, opts);
+      const av2 = listEl.querySelector('.c-avatar');
+      ok(av1 === av2,
+        '★ N58 (behavioral): an unchanged photo REUSES the previous render\'s avatar NODE — a brand-new <img> re-decodes its data-URI even when the resource is cached, which was the every-entry flicker (the #340 BUG-2② class)');
+      renderChatsList(listEl, { chats: [chat({ online: true })] }, opts);
+      const av3 = listEl.querySelector('.c-avatar');
+      ok(av3 === av1 && !!av3.querySelector('.c-avatar__dot'),
+        '★ N58 (behavioral): a presence flip PATCHES the dot on the cached node — the 1 Hz status tick (#189) must never cost a photo re-decode');
+      renderChatsList(listEl, { chats: [chat({ online: false })] }, opts);
+      ok(listEl.querySelector('.c-avatar') === av1 && !listEl.querySelector('.c-avatar__dot'),
+        'N58 (behavioral): the dot comes OFF the cached node too');
+      renderChatsList(listEl, { chats: [chat({ avatar: 'data:image/png;base64,BBB' })] }, opts);
+      ok(listEl.querySelector('.c-avatar') !== av1,
+        'N58 (behavioral): a CHANGED photo rebuilds honestly — the cache must never pin a stale image');
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+  {
+    const cs = nc(read('src/components/chats-shell.js'));
+    ok(/AVATAR_CACHE_MAX = 128/.test(cs) && /if \(!avatarSeen\.has\(k\)\) avCache\.delete\(k\);/.test(cs)
+      && /!avatarSeen\.has\(c\.address\)/.test(cs)
+      && /hit\.src === c\.avatar && hit\.group === \(c\.type === 'group'\) && hit\.name === nm/.test(cs),
+      'N58: the cache is CAPPED (prune only unseen keys — a search render must not evict the list), dup-guarded (a node moved twice per render would vanish from a row), and field-wise fresh (never a joined signature — #340: joining copies the data-URI per row per render)');
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

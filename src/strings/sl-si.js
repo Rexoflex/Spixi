@@ -156,6 +156,7 @@ export const slsi = {
   contact: "Stik",
   contactDetails: "Podrobnosti stika",
   contactPendingLabel: "zahteva poslana",
+  contactRequestSent: "Zahteva za stik poslana",
   contacts: "Stiki",
   contactsEmptyBody: "Dodajte nekoga prek njegovega naslova Spixi ali kode QR. Nato lahko klepetate in pošiljate IXI.",
   contributors: "Zahvala",

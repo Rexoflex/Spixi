@@ -415,7 +415,7 @@ html:root [data-pressfade="out"][data-pressfade]:not(.c-app-item) {
    dip through transparent and pop back up. Selected rows are excluded — they fade
    to their own tonal-default and fix B then eases the hover in. */
 @media (hover: hover) and (pointer: fine) {
-  html:root [data-pressfade="out"][data-pressfade]:hover:not([aria-current]):not(.c-app-item) {
+  html:root [data-pressfade="out"][data-pressfade]:hover:not([aria-current]):not([data-pinned]):not(.c-app-item) {
     background-color: var(--surface-interactive-hover);
   }
 }
@@ -424,6 +424,16 @@ html:root [data-pressfade="hold"][data-pressfade][aria-current] {
 }
 html:root [data-pressfade="out"][data-pressfade][aria-current] {
   background-color: var(--surface-action-tonal-default);
+}
+/* N56 (#376 loop C-1): the THIRD state-tinted row family. A pinned row's release
+   must LAND on its own wash — the generic out rule dropped it to transparent, so
+   the pin marker blinked off for ~400ms on every tap (the exact class the
+   [aria-current] pair above exists for). Hold stays generic (the press paint is
+   the action tonal for every row); only the landing differs. The hover-landing
+   rule above also excludes pinned rows — a pinned row keeps its wash under the
+   cursor (the #353 grammar, extended by N56). */
+html:root [data-pressfade="out"][data-pinned]:not([aria-current]):not(.c-app-item) {
+  background-color: var(--surface-pinned);
 }
 /* .c-app-item: the wrapper carries the attribute, the __open CHILD paints — and
    ONLY the child. The wrapper keeps its own surface (grid layout paints a card). */

@@ -171,6 +171,14 @@
     // is the clean BE fix — be-cutover.)
     onSendRequest: (addr, ctrl) => {
       bridge.send('ixian:request:' + addr);
+      // N55 → #376 loop B-2 (MAJOR): NO optimistic toast on THIS surface. C#
+      // returns WITHOUT sending on three paths (malformed / own address /
+      // already a contact — ContactNewPage alerts and does NOT pop), and
+      // checkAddress validates format only, so a green "sent" toast fired
+      // exactly when it was false and stayed on screen beside the alert. On
+      // the SUCCESS path C# pops this page — the pop itself is the feedback.
+      // Post-pop landing feedback = a logged Damir dial (C# push or a storage
+      // handshake; neither built).
       setTimeout(() => {
         try { ctrl.fail(strings.requestMaybeFailed
           || 'If nothing happened, that address may already be a contact or invalid.'); } catch (_) {}

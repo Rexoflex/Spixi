@@ -54,7 +54,7 @@ namespace SPIXI.Meta
 
         // Default SPIXI settings
         public static bool defaultXamarinAnimations = false;
-        public static uint messagesToLoad = 25;  // #343: chat messages per chunk. Was 100.
+        public static uint messagesToLoad = 50;  // N52: 25 → 50 (the #343 cut overshot — 25 rows rarely cover one screen of history). Was 100 pre-#343. ⚠ every row is its own EvaluateJavaScriptAsync marshal (#298) — re-measure chat entry on the A52 (the #349 baseline is 234 ms cold at 25).
                                                  // Opening a chat pushes ONE EvaluateJavaScriptAsync per message
                                                  // (Utils.sendUiCommand:180 -> SpixiContentPage:187), and the shell
                                                  // then waits 250 ms after the LAST one before its single render.

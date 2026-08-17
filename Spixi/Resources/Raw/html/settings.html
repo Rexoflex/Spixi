@@ -971,7 +971,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-settings__row-label--stack {
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--spacing-2);
+  /* N59 (E5 dial, I-11 stack): title↔sub gap tightened. The visible gap is NOT
+     this value alone — the 32px disc centres the title inside a taller row-top
+     box, adding ~5px of dead space below the text — so the sub is also pulled
+     up by spacing-2 below. Net: ~4px tighter than the shipped look. */
+  gap: 0;
   flex: 1;
 }
 .c-settings__row-top {
@@ -981,6 +985,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-settings__row-sub,
 .c-settings__backup-sub {
+  margin-top: calc(-1 * var(--spacing-2));                /* N59: rides the disc's dead space (see --stack) */
   padding-inline-start: calc(32px + var(--spacing-12));   /* sanctioned: aligns under the 32px disc */
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
@@ -2820,6 +2825,15 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
   align-items: flex-end;
   padding-inline: var(--spacing-16);
   margin-top: var(--spacing-12);           /* gap between groups */
+  /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
+     the tap target (N36 made in-bubble controls pointer-dead), and every
+     `transparent` in this file sat on SUB-elements — Android painted its native
+     tap highlight over the whole row on every toggle. Applied to the row
+     generally (the house pattern, 86 prior uses): outside select mode the row
+     carries long-press/contextmenu handling, so the OS flash is unwanted there
+     too. ⚠ If the flash SURVIVES this, a SECOND layer hides beneath — report
+     it, do not stack fixes (#363 caveat). */
+  -webkit-tap-highlight-color: transparent;
 }
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--spacing-2); } /* in-group gap */
@@ -5009,7 +5023,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // (#240; SettingsPage.OnBackButtonPressed when pushed). In any screen (danger /
     // about / how-to / …) back returns to the hub (split: empties the detail);
     // from the hub it exits (save-if-dirty else back).
-    onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
+    onBack() {
+      // AND-37 (the N51 family): an open bottom sheet (theme/appearance/language
+      // pickers on mobile ride the shared overlay stack) consumes back BEFORE any
+      // navigation — without this arm the hub branch below exited the whole page
+      // from under the sheet and back landed on Chats. No C# mirror is needed
+      // here: unlike chat, back ALWAYS routes into this shell (HomePage's
+      // SettingsPage branch + SettingsPage.OnBackButtonPressed are unconditional).
+      const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
+      if (dismiss && dismiss()) return;
+      if (currentView !== 'hub') showHub(); else exitSettings();
+    },
 
     // #315 (iOS-46 warm re-present; #46 r1 MAJOR-1): C# now PARKS this page on
     // close and re-presents the SAME document — the single-fire `exiting` latch

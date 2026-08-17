@@ -477,6 +477,14 @@
   --surface-interactive-hover: var(--neutral-50);
   --surface-interactive-pressed: var(--neutral-100);
   --surface-interactive-selected: var(--primary-50);
+  /* N56: pinned-row wash (the #236 marker dial, given 2026-08-17). An alpha wash
+     like the wash-on-hero primitives — relative to whatever surface it sits on,
+     brand-tinted so it never reads as a stuck hover. Precedence ladder:
+     selected tonal > this wash > hover. Ink = brand-900 at 9% — loop C-2: at 5%
+     the composite (#EDEEF0) was a perceptual TIE with the neutral-50 hover
+     (#edf0f2, delta <1%), unreadable as a marker; 9% sits clearly above hover
+     while staying a light wash. ⚠ Damir eyeball dial — both values. */
+  --surface-pinned: rgba(13, 19, 36, 0.09);
   --surface-menu: var(--neutral-10);
 
   /* text */
@@ -650,6 +658,11 @@
   --surface-interactive-hover: var(--neutral-800);
   --surface-interactive-pressed: var(--neutral-700);
   --surface-interactive-selected: var(--primary-900);
+  /* N56 dark: a LIGHT lift, not a brand darken — brand-900 (#0d1324) sits darker
+     than the neutral-900 screen, so an ink wash would vanish (the #194 lesson:
+     primary-900 was "invisible" as a dark row tint). brand-50 ink at 6% clears
+     the dark contrast check on the neutral-900 list canvas (≈ #1f2327 lift). */
+  --surface-pinned: rgba(233, 236, 243, 0.06);
   --surface-menu: var(--neutral-700); /* elevated surfaces lighten in dark mode */
 
   /* text */

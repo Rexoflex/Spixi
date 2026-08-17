@@ -31,6 +31,14 @@
 /* dual-pane ACTIVE chat — the neutral interactive-selected (primary-900 in dark)
    was barely visible on the near-black canvas; use the action-tonal surface so the
    open conversation reads clearly (Damir 2026-07-07). */
+/* N56 (the #236 marker dial, given 2026-08-17): pinned rows carry a VERY light
+   brand-tinted wash so a pin reads at rest (the 16px glyph alone was easy to
+   miss). Ladder: selected > pinned > hover — the selected rule below wins by
+   source order + the :not() guards; the hover rule keeps its hands off pinned
+   rows entirely (the #353 selected-row grammar: a state-tinted row keeps its
+   own wash under the cursor). background-COLOR only — the press-sweep image
+   lives on the base rule and must survive (A5 #348). */
+.c-chatlist-item[data-pinned]:not([aria-current]) { background-color: var(--surface-pinned); }
 .c-chatlist-item[aria-current] {
   background-color: var(--surface-action-tonal-default);
   /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
@@ -49,7 +57,7 @@
      ⚠ This rule must stay TRANSITION-FREE: at (0,3,0) it out-specifies the
      base.css reduced-motion kill at (0,2,1) — a transition added here silently
      escapes reduced motion (the audit B-4 trap fix B fell into). */
-  .c-chatlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+  .c-chatlist-item:hover:not([aria-current]):not([data-pinned]) { background-color: var(--surface-interactive-hover); }
 }
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
   /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint

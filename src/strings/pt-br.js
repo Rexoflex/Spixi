@@ -156,6 +156,7 @@ export const ptbr = {
   contact: "Contato",
   contactDetails: "Detalhes do contato",
   contactPendingLabel: "solicitação enviada",
+  contactRequestSent: "Pedido de contato enviado",
   contacts: "Contatos",
   contactsEmptyBody: "Adicione alguém pelo endereço Spixi ou pelo código QR. Depois é só conversar e enviar IXI.",
   contributors: "Contribuidores",

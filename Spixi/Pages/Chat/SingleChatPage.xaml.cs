@@ -34,6 +34,12 @@ namespace SPIXI
 
         private int selectedChannel = 0;
 
+        // N51: the shell's overlay-stack state (ixian:chatoverlay mirror) — an
+        // overlay.js sheet, the hand-rolled channel selector or select mode is
+        // open in the chat WebView. Volatile like ContactDetails.shellOverlayOpen
+        // (N50 #370): nav thread writes, back path reads.
+        public volatile bool shellOverlayOpen = false;
+
         private bool _waitingForContactConfirmation = false;
 
         private HomePage? homePage;
@@ -133,6 +139,14 @@ namespace SPIXI
                     }
                 }
 
+            }
+            else if (current_url.StartsWith("ixian:chatoverlay:", StringComparison.Ordinal))
+            {
+                // N51 (the N50/#370 grammar applied to chat): the shell mirrors its
+                // overlay-stack state (sheets/menus, the hand-rolled channel selector,
+                // select mode) so hardware back can be routed INTO the shell instead
+                // of popping the conversation. Display-state only, no payload.
+                shellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
             }
             else if (current_url.Equals("ixian:request", StringComparison.Ordinal))
             {
@@ -383,11 +397,13 @@ namespace SPIXI
             // D-18 (#354): Ixian-Core Friend.getMessages(channel, msg_count) reads
             // storage only when the channel is uncached or msg_count != 100
             // (Friend.cs:910; 0.9.8k = commit 097341a — no git tag exists).
-            // A request of exactly 100 returns the stale cache from the previous
-            // window (75 messages). Then loadMessages() counts 75 < 100 and hides
-            // the load-more pill, with more history still on disk. Step over the
-            // poisoned value. Keep this guard until Core replaces the magic-number
-            // cache test (BE question 9).
+            // A request of exactly 100 returns the stale cache from the PREVIOUS
+            // window; loadMessages() then counts it short and hides the load-more
+            // pill with more history still on disk. Step over the poisoned value.
+            // N52 re-walk (messagesToLoad 25 → 50): the sequence is 50 → 100 → 150…,
+            // so the FIRST press lands exactly on 100 — the guard fires once and
+            // the walk continues 50 → 150 → 200…. Keep this guard until Core
+            // replaces the magic-number cache test (BE question 9).
             if (messagesToShow == 100)
             {
                 messagesToShow += Config.messagesToLoad;
@@ -540,6 +556,11 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // N51 (N50 loop A-3/B-4 lesson): a shell reload (reloadAllPages on a theme
+            // or language flip) builds a fresh document with no overlay open, and the
+            // mirror only reports CHANGES — reset here or a stale true swallows back.
+            shellOverlayOpen = false;
+
             Utils.sendUiCommand(this, "onChatScreenReady", friend.walletAddress.ToString());
 
             // X1 follow-up: push the peer's (or group's) avatar so the chat TOPBAR shows it
@@ -2510,6 +2531,15 @@ namespace SPIXI
 
         protected override bool OnBackButtonPressed()
         {
+            // N51: a shell overlay (sheet/menu, the channel selector, select mode)
+            // consumes back before the page pops — the N50 ContactDetails order.
+            // The shell self-heals a stale flag (chatBack re-syncs when nothing
+            // was open), so back can never wedge.
+            if (shellOverlayOpen)
+            {
+                Utils.sendUiCommand(this, "chatBack");
+                return true;
+            }
             popPageAsync();
 
             return true;

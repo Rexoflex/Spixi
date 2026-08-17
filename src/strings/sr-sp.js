@@ -156,6 +156,7 @@ export const srsp = {
   contact: "Kontakt",
   contactDetails: "Detalji kontakta",
   contactPendingLabel: "zahtev poslat",
+  contactRequestSent: "Zahtev za kontakt poslat",
   contacts: "Kontakti",
   contactsEmptyBody: "Dodajte nekoga preko njegove Spixi adrese ili QR koda. Zatim možete da ćaskate i šaljete IXI.",
   contributors: "Doprinosioci",

@@ -1266,7 +1266,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-settings__row-label--stack {
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--spacing-2);
+  /* N59 (E5 dial, I-11 stack): title↔sub gap tightened. The visible gap is NOT
+     this value alone — the 32px disc centres the title inside a taller row-top
+     box, adding ~5px of dead space below the text — so the sub is also pulled
+     up by spacing-2 below. Net: ~4px tighter than the shipped look. */
+  gap: 0;
   flex: 1;
 }
 .c-settings__row-top {
@@ -1276,6 +1280,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-settings__row-sub,
 .c-settings__backup-sub {
+  margin-top: calc(-1 * var(--spacing-2));                /* N59: rides the disc's dead space (see --stack) */
   padding-inline-start: calc(32px + var(--spacing-12));   /* sanctioned: aligns under the 32px disc */
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);

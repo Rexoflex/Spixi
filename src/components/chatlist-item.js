@@ -128,6 +128,10 @@ export function createChatItem({
   el.type = 'button';
   el.className = 'c-chatlist-item';
   if (unread > 0 || mention) el.dataset.unread = '';
+  // N56 (#376 loop C-4): the wash hook rides the COMPONENT, so direct consumers
+  // (desktop.html demo — the surface the wash dial is judged on) render it too;
+  // renderChatsList's shell marker stays as a harmless duplicate.
+  if (pinned) el.dataset.pinned = '';
   // 'true' = selected list row (vs 'page' on bottomnav — a nav destination)
   if (selected) el.setAttribute('aria-current', 'true');
 

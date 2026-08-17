@@ -180,6 +180,35 @@ function chatsEmptyState(state, strings, opts = {}) {
   return el;
 }
 
+/* ————————————— N58: avatar-photo decode cache (the #340 BUG-2② class) ————————
+ * Every render rebuilds every row from scratch (the model churns: excerpt/ts/
+ * unread), and a BRAND-NEW <img> re-DECODES its data-URI even when the resource
+ * is memory-cached — so on every chats-screen entry (C# re-flush → full rebuild,
+ * #334 iOS-64) each photo flickered through its decode blank. Reuse the previous
+ * render's avatar NODE (the decoded bitmap travels with the element) whenever
+ * the photo inputs are unchanged; the presence dot is patched IN PLACE so a
+ * status tick (#189, 1 Hz) never forces a re-decode. Gradient avatars are pure
+ * CSS (no decode) and skip the cache. Freshness is FIELD-WISE, never a joined
+ * signature (#340 lesson: joining copies the whole data-URI per row per render).
+ * Per-list (WeakMap) + capped: keys unseen by the current render are pruned
+ * oldest-first, and ONLY once the map outgrows the cap — under the cap a
+ * filtered (search) render evicts nothing; over it, eviction is bounded and
+ * the evicted photos cost one honest re-decode on their next appearance.
+ * Note (#376 loop C-6/C-7): the swap happens AFTER createChatItem built a fresh
+ * <img> — the throwaway element is never attached, so the DECODE (the measured
+ * cost, #340: 108ms→3.4ms) is skipped, not the construction. An errored photo
+ * keeps its placeholder node under the same src (the same src would error
+ * again); a photo REWRITTEN under an unchanged raw-path src (the imageToDataUri
+ * catch fallback, #217) stays pinned until any freshness field moves — accepted,
+ * X1 makes raw paths the exception.                                           */
+const avatarCaches = new WeakMap();
+const AVATAR_CACHE_MAX = 128;
+function avatarCacheFor(listEl) {
+  let c = avatarCaches.get(listEl);
+  if (!c) { c = new Map(); avatarCaches.set(listEl, c); }
+  return c;
+}
+
 /** (Re)render the whole list from the model. Full re-render for the scaffold
  *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
 export function renderChatsList(listEl, state, opts = {}) {
@@ -187,6 +216,8 @@ export function renderChatsList(listEl, state, opts = {}) {
   const caps = opts.capabilities || {};
   closeChatRowSwipe();                                   // close any open swipe drawer before detaching rows (#1: single-open + GC)
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
+  const avCache = avatarCacheFor(listEl);                // N58
+  const avatarSeen = new Set();                          // N58: dup-address guard (a node must never be moved twice per render)
 
   const renderRequest = (r) => {
     listEl.append(createContactRequest({
@@ -202,6 +233,26 @@ export function renderChatsList(listEl, state, opts = {}) {
       ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
       : (opts.onOpen ? () => opts.onOpen(c) : undefined);
     const el = createChatItem({ ...c, strings, onClick });
+    // N58: swap in the cached (already-decoded) avatar node when the photo inputs
+    // match. `name` is in the freshness set only for the onerror-placeholder path
+    // (initials) — a nick change costs one honest re-decode.
+    if (c.address && c.avatar && !avatarSeen.has(c.address)) {
+      avatarSeen.add(c.address);
+      const nm = (c.name && c.name !== c.address) ? c.name : '';
+      const fresh = el.querySelector('.c-avatar');
+      const hit = avCache.get(c.address);
+      if (fresh && hit && hit.src === c.avatar && hit.group === (c.type === 'group') && hit.name === nm) {
+        const dot = hit.el.querySelector('.c-avatar__dot');       // presence patched in place, never a re-decode
+        if (c.online && !dot) {
+          const d = document.createElement('span');
+          d.className = 'c-avatar__dot';
+          hit.el.append(d);
+        } else if (!c.online && dot) dot.remove();
+        fresh.replaceWith(hit.el);
+      } else if (fresh) {
+        avCache.set(c.address, { el: fresh, src: c.avatar, group: c.type === 'group', name: nm });
+      }
+    }
     if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
     if (c.muted) el.dataset.muted = '';
     if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
@@ -231,6 +282,14 @@ export function renderChatsList(listEl, state, opts = {}) {
   // pinned chats on top, then requests + unpinned chats interleaved by recency
   const timeline = orderedTimeline(state);
   for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
+  // N58: bound the decode cache — prune only when over the cap, and only keys the
+  // CURRENT render did not use (a search render must not evict the full list).
+  if (avCache.size > AVATAR_CACHE_MAX) {
+    for (const k of avCache.keys()) {
+      if (avCache.size <= AVATAR_CACHE_MAX) break;
+      if (!avatarSeen.has(k)) avCache.delete(k);
+    }
+  }
 
   if (!timeline.length) {
     const emptyEl = chatsEmptyState(state, strings, opts);

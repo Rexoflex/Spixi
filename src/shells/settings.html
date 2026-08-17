@@ -1483,7 +1483,17 @@
     // (#240; SettingsPage.OnBackButtonPressed when pushed). In any screen (danger /
     // about / how-to / …) back returns to the hub (split: empties the detail);
     // from the hub it exits (save-if-dirty else back).
-    onBack() { if (currentView !== 'hub') showHub(); else exitSettings(); },
+    onBack() {
+      // AND-37 (the N51 family): an open bottom sheet (theme/appearance/language
+      // pickers on mobile ride the shared overlay stack) consumes back BEFORE any
+      // navigation — without this arm the hub branch below exited the whole page
+      // from under the sheet and back landed on Chats. No C# mirror is needed
+      // here: unlike chat, back ALWAYS routes into this shell (HomePage's
+      // SettingsPage branch + SettingsPage.OnBackButtonPressed are unconditional).
+      const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
+      if (dismiss && dismiss()) return;
+      if (currentView !== 'hub') showHub(); else exitSettings();
+    },
 
     // #315 (iOS-46 warm re-present; #46 r1 MAJOR-1): C# now PARKS this page on
     // close and re-presents the SAME document — the single-fire `exiting` latch

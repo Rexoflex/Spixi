@@ -31,6 +31,7 @@
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css"><!-- #334: avatar tap → full-size viewer (chat-info hero) -->
+<link rel="stylesheet" href="../styles/components/toast.css"><!-- N55: request-sent toast -->
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -145,6 +146,7 @@
     attachPressFeedback,
     createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
+    showToast,                                       // N55: optimistic request-sent feedback
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -326,6 +328,8 @@
           if (m && m.address && m.address !== '[Unknown]') {
             requestedMembers.add(m.address);   // loop m1: survive panel rebuilds
             bridge.send('ixian:sendContactRequest:' + m.address);
+            // N55: optimistic toast at the emit site (fire-and-forget verb, no ack)
+            showToast({ text: strings.contactRequestSent || 'Contact request sent', tone: 'success', host: document.body, strings });
           }
         },
         onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },

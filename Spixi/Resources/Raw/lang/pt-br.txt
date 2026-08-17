@@ -132,6 +132,7 @@ chat-offline = Offline
 chat-waiting-for-response = Aguardando resposta
 chat-text-too-long = O texto é muito longo.
 chat-member-count = {0} membros
+chat-member-count-one = 1 membro
 chat-context-pin-message = Fixar mensagem
 chat-context-copy-message = Copiar mensagem
 chat-context-copy-selected = Copiar selecionado
@@ -333,7 +334,7 @@ onboarding-step-2-subtitle = O Spixi não precisa do seu número de telefone ou 
 onboarding-step-3-title = Envie e receba pagamentos em IXI.
 onboarding-step-3-subtitle = Use a carteira integrada para enviar ou receber IXI diretamente nos seus chats. É tão fácil quanto enviar uma mensagem.
 onboarding-step-4-title = Descubra Mini Apps nos seus chats.
-onboarding-step-4-subtitle = Os Mini Apps do Spixi permitem que você jogue, use ferramentas ou desbloqueie novas funções — tudo diretamente nas conversas.
+onboarding-step-4-subtitle = Os Mini Apps do Spixi permitem que você jogue, use ferramentas ou desbloqueie novas funções, tudo diretamente nas conversas.
 
 ; Onboarding Create Account Screen
 create-account-title = Vamos começar.
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Não foi possível criar a conta
 intro-new-walleterror-text = Algo deu errado ao criar sua conta. Tente novamente.
 intro-new-walletexists-title = A conta já existe
 intro-new-walletexists-text = Já existe uma conta neste dispositivo, então não é possível criar uma nova aqui. Reinicie o Spixi para continuar com a conta existente.
+intro-restore-walletexists-title = A conta já está neste dispositivo
+intro-restore-walletexists-text = Já existe uma conta neste dispositivo. Para usá-la, reinicie o Spixi. Para restaurar outra conta: reinicie o Spixi, abra Conta, toque em Excluir carteira e abra Restaurar conta novamente.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurar conta

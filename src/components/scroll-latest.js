@@ -55,6 +55,6 @@ export function setScrollLatestCount(el, count, strings = getStrings()) {
   }
   badge.textContent = formatCount(count);
   el.setAttribute('aria-label',
-    (strings.scrollToLatest || 'Scroll to latest messages') + ' — ' +
+    (strings.scrollToLatest || 'Scroll to latest messages') + ', ' +
     formatCount(count) + ' ' + (strings.unread || 'unread'));
 }

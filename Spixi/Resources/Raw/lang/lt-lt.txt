@@ -132,6 +132,7 @@ chat-offline = Atsijungęs
 chat-waiting-for-response = Laukiama atsakymo
 chat-text-too-long = Tekstas per ilgas.
 chat-member-count = {0} nariai
+chat-member-count-one = 1 narys
 chat-context-pin-message = Prisegti žinutę
 chat-context-copy-message = Kopijuoti žinutę
 chat-context-copy-selected = Kopijuoti pasirinktą

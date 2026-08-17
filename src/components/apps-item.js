@@ -53,7 +53,7 @@ export function createAppItem({ id, name = '', creator = '', icon: iconSrc = nul
     const infoBtn = document.createElement('button');
     infoBtn.type = 'button';
     infoBtn.className = 'c-app-item__info';
-    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ' — ' + name : ''));
+    infoBtn.setAttribute('aria-label', (strings.appDetails || 'App details') + (name ? ', ' + name : ''));
     infoBtn.append(icon('info-circle', { size: 24 }));
     infoBtn.addEventListener('click', (e) => { e.stopPropagation(); onInfo({ id, name, creator }, infoBtn); });
     el.append(infoBtn);
@@ -66,7 +66,7 @@ export function createAppItem({ id, name = '', creator = '', icon: iconSrc = nul
     const menuBtn = document.createElement('button');
     menuBtn.type = 'button';
     menuBtn.className = 'c-app-item__menu';
-    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ' — ' + name : ''));
+    menuBtn.setAttribute('aria-label', (strings.moreOptions || 'More options') + (name ? ', ' + name : ''));
     menuBtn.append(icon('dots', { size: 24 }));
     menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
     el.append(menuBtn);

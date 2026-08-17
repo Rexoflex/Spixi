@@ -301,7 +301,7 @@ export function createMessageBubble({
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'c-bubble-row__avatar-btn';
-        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ' — ' + name : ''));
+        b.setAttribute('aria-label', (strings.viewMember || 'View member') + (name ? ', ' + name : ''));
         b.addEventListener('click', onSenderClick);
         b.append(av);
         gutter.append(b);
@@ -336,7 +336,7 @@ export function createMessageBubble({
         // named OR nameless → member sheet (full address + copy live there)
         if (copyable) {
           s.title = address;                                    // full address on hover
-          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ' — ' + address);
+          s.setAttribute('aria-label', (strings.viewMember || 'View member') + ', ' + address);
         }
         s.addEventListener('click', onSenderClick);
       } else {
@@ -359,7 +359,7 @@ export function createMessageBubble({
       // the copyable variant sets an explicit aria-label (overrides content) —
       // keep the role audible there too
       if (copyable && s.hasAttribute('aria-label')) {
-        s.setAttribute('aria-label', s.getAttribute('aria-label') + ' · ' + roleBadge);
+        s.setAttribute('aria-label', s.getAttribute('aria-label') + ', ' + roleBadge);   // R2 (#371): spoken-punctuation canon
       }
     }
     el.append(s);
@@ -375,7 +375,7 @@ export function createMessageBubble({
       q.type = 'button';
       q.addEventListener('click', onReplyClick);
       q.setAttribute('aria-label',
-        (strings.replyTo || 'Show replied message') + (reply.sender ? ' — ' + reply.sender : ''));
+        (strings.replyTo || 'Show replied message') + (reply.sender ? ', ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     // media/typed originals show a small identifier (Damir 2026-07-03):

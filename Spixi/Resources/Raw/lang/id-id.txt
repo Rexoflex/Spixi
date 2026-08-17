@@ -132,6 +132,7 @@ chat-offline = Offline
 chat-waiting-for-response = Menunggu respons
 chat-text-too-long = Teks terlalu panjang. 
 chat-member-count = {0} anggota
+chat-member-count-one = 1 anggota
 chat-context-pin-message = Sematkan pesan
 chat-context-copy-message = Salin pesan
 chat-context-copy-selected = Salin yang dipilih

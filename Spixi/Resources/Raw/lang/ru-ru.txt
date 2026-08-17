@@ -132,6 +132,7 @@ chat-offline = Не в сети
 chat-waiting-for-response = Ожидание ответа
 chat-text-too-long = Слишком длинное сообщение.
 chat-member-count = {0} участников
+chat-member-count-one = 1 участник
 chat-context-pin-message = Закрепить сообщение
 chat-context-copy-message = Скопировать сообщение
 chat-context-copy-selected = Скопировать выделенное
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Не удалось создать аккаунт
 intro-new-walleterror-text = При создании аккаунта что-то пошло не так. Пожалуйста, попробуйте ещё раз.
 intro-new-walletexists-title = Аккаунт уже существует
 intro-new-walletexists-text = На этом устройстве уже есть аккаунт, поэтому создать новый здесь нельзя. Перезапустите Spixi, чтобы продолжить с существующим аккаунтом.
+intro-restore-walletexists-title = Аккаунт уже есть на этом устройстве
+intro-restore-walletexists-text = На этом устройстве уже есть аккаунт. Чтобы использовать его, перезапустите Spixi. Чтобы восстановить другой аккаунт: перезапустите Spixi, откройте Аккаунт, нажмите Удалить кошелёк, затем снова откройте Восстановить аккаунт.
 
 ; Intro Restore Screen
 intro-restore-title = Восстановление аккаунта

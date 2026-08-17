@@ -132,6 +132,7 @@ chat-offline = Van mreže
 chat-waiting-for-response = Čekanje odgovora
 chat-text-too-long = Tekst je predugačak.
 chat-member-count = {0} članova
+chat-member-count-one = 1 član
 chat-context-pin-message = Zakači poruku
 chat-context-copy-message = Kopiraj poruku
 chat-context-copy-selected = Kopiraj izabrano
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Nije moguće kreirati nalog
 intro-new-walleterror-text = Nešto je pošlo po zlu pri kreiranju vašeg naloga. Pokušajte ponovo.
 intro-new-walletexists-title = Nalog već postoji
 intro-new-walletexists-text = Na ovom uređaju već postoji nalog, pa ovde nije moguće kreirati novi. Ponovo pokrenite Spixi da nastavite sa postojećim nalogom.
+intro-restore-walletexists-title = Nalog već postoji na ovom uređaju
+intro-restore-walletexists-text = Na ovom uređaju već postoji nalog. Da biste ga koristili, ponovo pokrenite Spixi. Da biste vratili drugi nalog: ponovo pokrenite Spixi, otvorite Nalog, dodirnite Izbriši novčanik, a zatim ponovo otvorite Vrati nalog.
 
 ; Intro Restore Screen
 intro-restore-title = Vrati nalog

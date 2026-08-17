@@ -132,6 +132,7 @@ chat-offline = Hors ligne
 chat-waiting-for-response = En attente de réponse
 chat-text-too-long = Le texte est trop long.
 chat-member-count = {0} membres
+chat-member-count-one = 1 membre
 chat-context-pin-message = Épingler le message
 chat-context-copy-message = Copier le message
 chat-context-copy-selected = Copier la sélection
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Impossible de créer le compte
 intro-new-walleterror-text = Une erreur est survenue lors de la création de votre compte. Veuillez réessayer.
 intro-new-walletexists-title = Le compte existe déjà
 intro-new-walletexists-text = Un compte existe déjà sur cet appareil, il est donc impossible d’en créer un nouveau ici. Redémarrez Spixi pour continuer avec le compte existant.
+intro-restore-walletexists-title = Un compte est déjà sur cet appareil
+intro-restore-walletexists-text = Un compte existe déjà sur cet appareil. Pour l’utiliser, redémarrez Spixi. Pour restaurer un autre compte : redémarrez Spixi, ouvrez Compte, appuyez sur Supprimer le portefeuille, puis ouvrez à nouveau Restaurer le compte.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurer le compte

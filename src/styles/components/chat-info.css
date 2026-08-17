@@ -128,6 +128,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* N48 (#370): own owner-status chip under the hero sub (blind rooms). The hero
+   column is centered; the badge hugs its content and needs only breathing room. */
+.c-chat-info__self-role {
+  margin-top: var(--spacing-8);
+  align-self: center;
+}
 .c-chat-info__nick-input {
   font: inherit;
   font-size: var(--font-size-heading-xs);

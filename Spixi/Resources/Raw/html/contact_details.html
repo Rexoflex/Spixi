@@ -1011,6 +1011,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* N48 (#370): own owner-status chip under the hero sub (blind rooms). The hero
+   column is centered; the badge hugs its content and needs only breathing room. */
+.c-chat-info__self-role {
+  margin-top: var(--spacing-8);
+  align-self: center;
+}
 .c-chat-info__nick-input {
   font: inherit;
   font-size: var(--font-size-heading-xs);
@@ -1955,6 +1961,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
     createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
+    isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -2062,8 +2069,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       role: 'alertdialog',
       host: document.body,
       // informational, single-action, no data at risk → scrim tap may dismiss
-      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too; this
-      // shell has no hardware-back overlay wiring, so Android back pops the PAGE).
+      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too. N50
+      // (#370) added the cdoverlay/cdBack wiring: OS back dismisses this modal
+      // FIRST, then pops the page).
       lightDismiss: true,
       actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
       strings,
@@ -2101,6 +2109,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
             ? 'pending' : (m.relation || ''),
         })),
         blind: state.group.blind,
+        amOwner: state.group.amOwner,   // N48 (#370): hero "You are the owner" chip in blind rooms
         notifications: state.group.notifications,
         capabilities: { notifications: true, admin: state.group.admin },
         host: document.body,
@@ -2282,7 +2291,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
     // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
     // list so a partial roster never commits.
-    setGroupInfo(count, blind, admin, notifications, owner, kind) {
+    setGroupInfo(count, blind, admin, notifications, owner, kind, amOwner) {
       state.isGroup = true;
       state.group = {
         count: Number(count) || 0,
@@ -2291,6 +2300,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         notifications: notifications === '1' || notifications === 'true' || notifications === 'True',
         owner: owner || '',
         kind: kind === 'bot' ? 'bot' : 'group',   // #249: bots ride this surface too
+        // N48 (#370): MY OWN owner status — additive 7th arg (old exe → undefined
+        // → false). Blind groups get no owner ADDRESS, but my own status is mine
+        // to see; the hero renders it there (the self row is unidentifiable).
+        amOwner: amOwner === '1' || amOwner === 'true' || amOwner === 'True',
       };
       scheduleCommit();
     },
@@ -2301,10 +2314,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (state.membersBuf === null) state.membersBuf = [];
       state.membersBuf.push({
         address: address || '',
-        name: nick || '',
+        /* D-19b (#370): a blind-masked row ('[Unknown]' address) whose nick is
+           the legacy "x"+<address> pseudo-key must not display it — the member
+           list would print the exact address the blind mask hides. Blanked
+           here → chat-info renders its placeholder for the row. */
+        name: (address === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || ''),
         avatar: resolveAvatar(avatar),
         role: role || '',            // opaque role int (semantics live in Ixian-Core); owner comes from setGroupInfo
-        relation: ['contact', 'pending', 'none', 'self'].indexOf(relation) !== -1 ? relation : '',
+        relation: ['contact', 'pending', 'pending-in', 'none', 'self'].indexOf(relation) !== -1 ? relation : '',   // R2 (#371): + incoming-pending
       });
       scheduleCommit();
     },
@@ -2365,9 +2382,35 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       });
       scheduleCommit();
     },
+    /* N50 (#370, #369 F5): OS back must dismiss the TOP OVERLAY first (the
+       remove-blocked modal, a member sheet), then pop the page. C# routes back
+       into the shell via this push while the mirror below reports an open
+       overlay — the homeBack grammar (#336), applied to this shell. Self-heal:
+       if nothing was actually open (stale mirror), re-sync so the next back
+       pops the page instead of wedging. */
+    cdBack() {
+      if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+      syncCdOverlay();
+    },
   };
 
   bridge.exposeAll(handlers);
+
+  /* N50 (#370): mirror the shared overlay stack's open-state to C#
+     (overlay.js toggles body[data-overlay-open]) — the exact home.html recipe:
+     coalesced through a zero-timeout so an open→close flurry sends one line. */
+  let cdOverlaySyncT = 0;
+  function cdOverlayLive() { return document.body.dataset.overlayOpen !== undefined; }
+  function syncCdOverlay() {
+    if (cdOverlaySyncT) return;
+    cdOverlaySyncT = setTimeout(() => {
+      cdOverlaySyncT = 0;
+      try { bridge.send('ixian:cdoverlay:' + (cdOverlayLive() ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncCdOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) {}
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */

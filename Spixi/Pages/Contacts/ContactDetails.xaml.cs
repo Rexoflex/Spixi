@@ -26,6 +26,9 @@ namespace SPIXI
         // contacts directory keeps "Contact details" + the Message action.
         private bool chatContext = false;
         private bool isGroup = false;
+        // N50 (#370): the shell's overlay-stack state (ixian:cdoverlay mirror) —
+        // volatile like homeShellOverlayOpen (nav thread writes, back path reads).
+        public volatile bool shellOverlayOpen = false;
 
 		public ContactDetails (Friend lfriend, bool customChatButton = false, string paneColumn = null, bool chat_context = false)
 		{
@@ -56,6 +59,12 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // N50 (#370 loop A-3/B-4): a shell RELOAD (reloadAllPages on a theme or
+            // language flip) builds a fresh document with no overlay open, and the
+            // MutationObserver mirror only reports CHANGES — reset here or a stale
+            // true swallows hardware back (the #337 homeShellOverlayOpen lesson).
+            shellOverlayOpen = false;
+
             // #247: pane layout FIRST — coalesces ahead of the present, so the shell
             // never paints a takeover layout that reflows into the pane grammar.
             if (paneCol != null)
@@ -82,13 +91,35 @@ namespace SPIXI
                 {
                     try { owner = friend.users.getOwner()?.ToString() ?? ""; } catch { }
                 }
+                // N48 (#370, Damir dial #369): MY OWN owner status, pushed for blind
+                // groups too — it reveals only my own identity to my own UI, never
+                // another member's ("If I am owner, I should know even in blind
+                // groups"). Computed from the raw owner address, NOT the masked
+                // `owner` string above, so the blind suppression stays intact.
+                bool amOwner = false;
+                // Loop A-5 (#370): GROUPS only. For a BOT room getOwner() degrades to
+                // "the first roster entry we happened to learn" (BotUsers.First(), and
+                // the 500-cap eviction reshuffles it) — a bot-room member could read a
+                // false "You are the owner". A private group's roster is small and
+                // creator-first, so the claim is reliable exactly where N48 aims.
+                if (friend.type == FriendType.Group)
+                {
+                    try
+                    {
+                        var ownerAddress = friend.users.getOwner();
+                        var selfAddress = IxianHandler.getWalletStorage().getPrimaryAddress();
+                        amOwner = ownerAddress != null && selfAddress != null && ownerAddress.SequenceEqual(selfAddress);
+                    }
+                    catch { }
+                }
                 Utils.sendUiCommand(this, "setGroupInfo",
                     friend.users.contacts.Count.ToString(),
                     blind ? "1" : "0",
                     amAdmin ? "1" : "0",
                     notifications ? "1" : "0",
                     owner,
-                    friend.type == FriendType.Group ? "group" : "bot");   // #249: surface kind
+                    friend.type == FriendType.Group ? "group" : "bot",   // #249: surface kind
+                    amOwner ? "1" : "0");                                // N48 (#370): additive — old shells ignore it
                 loadMembers(blind);
             }
 
@@ -166,6 +197,13 @@ namespace SPIXI
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoad();
+            }
+            else if (current_url.StartsWith("ixian:cdoverlay:", StringComparison.Ordinal))
+            {
+                // N50 (#370): the shell mirrors its overlay-stack state (sheets, the
+                // remove-blocked modal) so hardware back can be routed INTO the shell
+                // — the homeoverlay grammar (#336). Display-state only, no payload.
+                shellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
@@ -472,6 +510,15 @@ namespace SPIXI
 
         protected override bool OnBackButtonPressed()
         {
+            // N50 (#370, #369 F5): a shell overlay (remove-blocked modal, member
+            // sheet) consumes back before the page pops — the same order every
+            // native surface keeps. The shell self-heals a stale flag (cdBack
+            // re-syncs when nothing was open), so back can never wedge.
+            if (shellOverlayOpen)
+            {
+                Utils.sendUiCommand(this, "cdBack");
+                return true;
+            }
             popPageAsync();
 
             return true;

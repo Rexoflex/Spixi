@@ -132,6 +132,7 @@ chat-offline = Nedosegljiv
 chat-waiting-for-response = Čakanje na odziv
 chat-text-too-long = Besedilo je predolgo.
 chat-member-count = {0} članov
+chat-member-count-one = 1 član
 chat-context-pin-message = Pripni sporočilo
 chat-context-copy-message = Kopiraj sporočilo
 chat-context-copy-selected = Kopiraj izbrano
@@ -333,7 +334,7 @@ onboarding-step-2-subtitle = Spixi ne potrebuje vašega telefonske številke ali
 onboarding-step-3-title = Pošiljanje in prejemanje IXI plačil.
 onboarding-step-3-subtitle = Uporabite vgrajen denarnico za pošiljanje ali prejemanje IXI kovancev neposredno v klepetu. Tako preprosto kot pošiljati sporočilo.
 onboarding-step-4-title = Odkrijte Mini aplikacije v klepetih.
-onboarding-step-4-subtitle = Spixi Mini aplikacije vam omogočajo igranje iger, uporabo orodij ali odkleniti nove funkcije – vse neposredno v pogovorih.
+onboarding-step-4-subtitle = Spixi Mini aplikacije vam omogočajo igranje iger, uporabo orodij ali odklepanje novih funkcij, vse neposredno v pogovorih.
 
 ; Onboarding Create Account Screen
 create-account-title = Začnimo.
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Računa ni bilo mogoče ustvariti
 intro-new-walleterror-text = Pri ustvarjanju računa je šlo nekaj narobe. Poskusite znova.
 intro-new-walletexists-title = Račun že obstaja
 intro-new-walletexists-text = Na tej napravi račun že obstaja, zato tukaj ni mogoče ustvariti novega. Znova zaženite Spixi, da nadaljujete z obstoječim računom.
+intro-restore-walletexists-title = Račun je že na tej napravi
+intro-restore-walletexists-text = Na tej napravi račun že obstaja. Če ga želite uporabiti, znova zaženite Spixi. Če želite obnoviti drug račun: znova zaženite Spixi, odprite Račun, tapnite Izbriši denarnico in nato znova odprite Obnovi račun.
 
 ; Intro Restore Screen
 intro-restore-title = Obnovi račun

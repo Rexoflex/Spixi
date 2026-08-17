@@ -132,6 +132,7 @@ chat-offline = Offline
 chat-waiting-for-response = Warte auf Antwort
 chat-text-too-long = Text ist zu lang.
 chat-member-count = {0} Mitglieder
+chat-member-count-one = 1 Mitglied
 chat-context-pin-message = Nachricht anpinnen
 chat-context-copy-message = Nachricht kopieren
 chat-context-copy-selected = Auswahl kopieren
@@ -315,7 +316,7 @@ index-missing-tx-title = Fehlende Transaktionen?
 index-missing-tx-text = Spixi liest direkt von der Blockchain, nicht von zentralen Servern. Die Synchronisierung kann daher etwas länger dauern.
 index-missing-tx-view-all = Alle Transaktionen im Explorer anzeigen
 index-backup-prompt-title = Nicht vergessen zu sichern
-index-backup-prompt-desc = Spixi ist vollständig dezentralisiert – deine Daten bleiben nur auf deinem Gerät. Um deine Kontakte zu schützen und alles später wiederherstellen zu können, erstelle jetzt ein Backup.
+index-backup-prompt-desc = Spixi ist vollständig dezentralisiert. Deine Daten bleiben nur auf deinem Gerät. Um deine Kontakte zu schützen und alles später wiederherstellen zu können, erstelle jetzt ein Backup.
 index-backup-prompt-create = Ja, Backup erstellen
 index-backup-prompt-not-now = Jetzt nicht
 index-backup-prompt-note = Es wird empfohlen, nach jedem neuen Kontakt ein Backup zu erstellen.
@@ -333,7 +334,7 @@ onboarding-step-2-subtitle = Spixi benötigt weder Telefonnummer noch E-Mail. De
 onboarding-step-3-title = Sende und empfange IXI-Zahlungen.
 onboarding-step-3-subtitle = Nutze die integrierte Wallet, um direkt in deinen Chats IXI-Coins zu senden oder zu empfangen. So einfach wie eine Nachricht.
 onboarding-step-4-title = Entdecke Mini-Apps in deinen Chats.
-onboarding-step-4-subtitle = Mit Spixi Mini-Apps kannst du Spiele spielen, Tools verwenden oder neue Funktionen freischalten – alles direkt im Chat.
+onboarding-step-4-subtitle = Mit Spixi Mini-Apps kannst du Spiele spielen, Tools verwenden oder neue Funktionen freischalten, alles direkt im Chat.
 
 ; Onboarding Create Account Screen
 create-account-title = Los geht's.
@@ -368,6 +369,8 @@ intro-new-walleterror-title = Konto konnte nicht erstellt werden
 intro-new-walleterror-text = Beim Erstellen deines Kontos ist etwas schiefgelaufen. Bitte versuche es erneut.
 intro-new-walletexists-title = Konto existiert bereits
 intro-new-walletexists-text = Auf diesem Gerät existiert bereits ein Konto, daher kann hier kein neues erstellt werden. Starte Spixi neu, um das bestehende Konto zu verwenden.
+intro-restore-walletexists-title = Konto ist bereits auf diesem Gerät
+intro-restore-walletexists-text = Auf diesem Gerät existiert bereits ein Konto. Um es zu verwenden, starte Spixi neu. Um ein anderes Konto wiederherzustellen: starte Spixi neu, öffne Konto, tippe auf Wallet löschen und öffne dann erneut Konto wiederherstellen.
 
 ; Intro Restore Screen
 intro-restore-title = Konto wiederherstellen
@@ -613,7 +616,7 @@ onboarding-bot-skip = Jetzt überspringen
 ; Empty State
 empty-state-title = Willkommen bei Spixi
 empty-state-detail-1 = Deine sichere Peer-to-Peer-Chat-App mit integrierter Wallet.
-empty-state-detail-2 = Genieße verschlüsselte Unterhaltungen, bei denen deine Nachrichten nur zwischen deinem Gerät und dem deines Kontakts gespeichert und übertragen werden – deine Privatsphäre bleibt gewahrt.
+empty-state-detail-2 = Genieße verschlüsselte Unterhaltungen, bei denen deine Nachrichten nur zwischen deinem Gerät und dem deines Kontakts gespeichert und übertragen werden. So bleibt deine Privatsphäre gewahrt.
 
 ; Ixinames
 ixinames-request-title = IXI Names möchte eine Verbindung herstellen

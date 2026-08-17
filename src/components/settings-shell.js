@@ -755,6 +755,9 @@ export function createSettingsHub({
   if (onChatAppearance) prefs.card.append(settingRow({
     glyph: 'messages', hue: 'primary',
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
+    // I-11 (#371): subs on SOME rows only — where the label alone does not say
+    // what is inside (15c A14: one line, truncates; write to the width).
+    sub: strings.chatAppearanceSub || 'Background, opacity and text size',
     onClick: () => onChatAppearance(),
   }).section);
 
@@ -773,6 +776,7 @@ export function createSettingsHub({
   if (onLock) sec.card.append(authSwitchRow({
     glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
+    sub: strings.appLockSub || 'Password check when Spixi opens',   // I-11 (#371)
     checked: lockEnabled,
     failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',
     onToggle: onLock,
@@ -856,6 +860,7 @@ export function createSettingsHub({
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
+    sub: strings.downloadsSub || 'Files you received in chats',   // I-11 (#371)
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({

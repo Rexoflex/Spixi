@@ -132,6 +132,7 @@ chat-offline = 离线
 chat-waiting-for-response = 等待响应
 chat-text-too-long = 文字过长
 chat-member-count = {0} 位成员
+chat-member-count-one = 1 位成员
 chat-context-pin-message = 置顶消息
 chat-context-copy-message = 复制消息
 chat-context-copy-selected = 复制所选

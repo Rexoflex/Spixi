@@ -163,7 +163,7 @@
     // empty state (nothing installed): art ships BESIDE the shell as images/… —
     // build-shells copies src/demo/images → Resources/Raw/html/images, so the same
     // relative ref resolves in the demo AND in the packaged AppsPage shell.
-    emptyIllustration: 'images/apps-es.svg',
+    emptyIllustration: 'images/apps-es.png',
     onAddApp: () => showAdd(),
   };
 
@@ -174,7 +174,7 @@
     // ⚠ was '../assets/images/discover-apps.svg' — that path does NOT exist next to the
     // PACKAGED shell (build-shells writes this file to Resources/Raw/html/), so the
     // banner illustration silently failed in the real app. images/… is the shipped one.
-    exploreImage: 'images/explore-banner.svg',
+    exploreImage: 'images/explore-banner.png',
     onQuery: (q) => setAppsQuery(list, state, q, opts),
     onToggleLayout: (next) => setAppsLayout(list, state, next, opts),
     onExplore: () => showAdd(),                        // Explore → Add & Discover surface

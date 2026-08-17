@@ -163,11 +163,11 @@ function chatsEmptyState(state, strings, opts = {}) {
     // A filter/search miss is about the QUERY, not the roster → never gated.
     if (opts.zeroReady === false) return null;
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.svg',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.png',
       glyph: 'messages',                            // art blocked/missing → token glyph tile
       title: strings.chatsEmptyAll || 'No chats yet',
       body: strings.chatsEmptyBody
-        || 'Pick a contact and say hi — messages go straight to their device, end-to-end encrypted.',
+        || 'Pick a contact and say hi. Messages go straight to their device, end-to-end encrypted.',
       actionLabel: strings.chatsEmptyCta || 'Start a chat',
       actionIcon: 'message-plus',
       onAction: opts.onNewChat,

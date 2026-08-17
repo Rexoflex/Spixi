@@ -9,6 +9,13 @@
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
+.c-rating-nudge__illo {                          /* N14a — rate-me art (backup-nudge grammar) */
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .c-rating-nudge__disc {
   width: 64px;
   height: 64px;

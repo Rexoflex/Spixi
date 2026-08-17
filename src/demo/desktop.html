@@ -595,7 +595,7 @@
       host: frame,
       // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
       // (img error → tonal shield-disc fallback, launch-shell grammar)
-      illustration: 'images/onboarding/backup.svg',
+      illustration: 'images/onboarding/backup.png',
       onBackup: () => toast('ixian:backup → Backup screen (C#)'),
     }),
   }));
@@ -861,7 +861,7 @@
 
   const secureNotice = (who) => createSystemNotice({
     title: 'Encrypted. Peer-to-peer. Yours alone.',
-    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with ' + who + ', nowhere else.',
+    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with ' + who + ', nowhere else.',
     linkLabel: 'How it works',
     // 2026-07-06c ⑥ — the real shell routes this through the external-link confirm
     onLink: () => window.open('https://www.spixi.io/help-center.html', '_blank', 'noopener'),

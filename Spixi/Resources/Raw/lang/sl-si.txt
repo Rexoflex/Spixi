@@ -315,7 +315,7 @@ index-missing-tx-title = Pogrešate transakcije?
 index-missing-tx-text = Spixi bere neposredno iz verige blokov, ne iz centraliziranih strežnikov, zato lahko sinhronizacija traja nekoliko dlje.
 index-missing-tx-view-all = Ogled vseh transakcij v ixiscope-u
 index-backup-prompt-title = Ne pozabite na varnostno kopijo
-index-backup-prompt-desc = Spixi je popolnoma decentraliziran - vaši podatki ostanejo le na vaši napravi. Če želite stike obdržati in jih obnoviti kasneje, ustvarite varnostno kopijo.
+index-backup-prompt-desc = Spixi je popolnoma decentraliziran. Vaši podatki ostanejo le na vaši napravi. Če želite stike obdržati in jih obnoviti kasneje, ustvarite varnostno kopijo.
 index-backup-prompt-create = Da, ustvari kopijo
 index-backup-prompt-not-now = Ne zdaj
 index-backup-prompt-note = Priporočljivo je ustvariti novo kopijo vsakič, ko dodate stik.
@@ -635,7 +635,7 @@ onboarding-finish = Zaključi
 ; Empty State
 empty-state-title = Dobrodošli v Spixi
 empty-state-detail-1 = Varna in zasebna aplikacija za klepet z integrirano denarnico.
-empty-state-detail-2 = Vsa sporočila so šifrirana in prenašana izključno med vašo napravo in napravo vašega stika — vaša zasebnost je popolnoma zaščitena.
+empty-state-detail-2 = Vsa sporočila so šifrirana in prenašana izključno med vašo napravo in napravo vašega stika. Vaša zasebnost je popolnoma zaščitena.
 
 ; Ixinames
 ixinames-request-title = IXI Names želi vzpostaviti povezavo

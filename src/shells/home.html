@@ -354,6 +354,7 @@
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
     createWalletSend,                    // Send compose/review takeover (BE-gated)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
@@ -367,6 +368,7 @@
     showBackupNudge, showRatingNudge,
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
+    zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -1791,7 +1793,15 @@
          no longer encodes an amount either (constant `address:ixi`); and while
          an amount is entered the Share button is HIDDEN (wallet-receive.js),
          so this handler only ever fires for the plain-address case. */
-      onShare: ({ address, value }) => shareReceivePayload(address || String(value || '').split(':')[0]),
+      // N38 (Damir): DESKTOP hides Share (wallet-receive.js skips the button when
+      // onShare is absent) — the ladder's desktop rungs are dead ends there
+      // (WebView2 navigator.share rejects; ixian:share → the Windows share charm
+      // does nothing useful), and Copy sits right beside it. Mobile keeps the
+      // real system share sheet. Same gate + rationale as the Account address
+      // row (#348 W9, settings.html onShare gate) — the "same disease, one fix" pair.
+      onShare: isDesktopPresentation()
+        ? undefined
+        : ({ address, value }) => shareReceivePayload(address || String(value || '').split(':')[0]),
       // Q2-⑥ (#268): people-only roster, minus pending in BOTH directions (see
       // requestableContacts). Fire-and-forget — the component's ✓ morph is the ack;
       // C# validates again and composes the requestFunds chat message (legacy
@@ -2043,9 +2053,9 @@
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
     // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
     // secondary "Add app" CTA. Art ships beside the shells (build-shells.mjs:260-267,
-    // the images/backup.svg mechanism) — a `file://` WebView resolves a sibling file,
+    // the images/backup.png mechanism) — a `file://` WebView resolves a sibling file,
     // never an external asset URL. Missing art degrades to the glyph tile.
-    emptyIllustration: 'images/apps-es.svg',
+    emptyIllustration: 'images/apps-es.png',
     onAddApp: () => bridge.send('ixian:newapp'),   // same verb as the topbar action
   };
 
@@ -2084,8 +2094,8 @@
     layout: appsState.layout, strings, discover: false,
     // Damir 2026-08-12: the banner gets the illustration, bottom-right. Sibling file
     // beside the shell (build-shells.mjs copies src/demo/images → …/html/images), the
-    // images/backup.svg mechanism — an external asset URL is what file:// refuses.
-    exploreImage: 'images/explore-banner.svg',
+    // images/backup.png mechanism — an external asset URL is what file:// refuses.
+    exploreImage: 'images/explore-banner.png',
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
     onExplore: () => bridge.send('ixian:spixiAppsLink'),
@@ -2264,7 +2274,7 @@
       nudgeOpen = 'backup';
       showBackupNudge({
         host: document.body,
-        illustration: 'images/backup.svg',   // ships beside the shells (build-shells.mjs:260-267)
+        illustration: 'images/backup.png',   // ships beside the shells (build-shells.mjs:260-267)
         strings,
         onBackup: () => {
           /* ixian:backup pushes BackupPage over home. iOS keeps this WebView's
@@ -2283,6 +2293,7 @@
       nudgeOpen = 'rating';
       showRatingNudge({
         host: document.body,
+        illustration: 'images/onboarding/rate.png',   // N14a — rate-me art (disc fallback on error)
         strings,
         onRate: (a) => { closeNudge(); bridge.send('ixian:rating:' + (a === 'yes' ? 'yes' : 'no')); },
         // Light-dismiss sends NO verb (component contract, rating-nudge.js:17-19) and
@@ -2581,6 +2592,15 @@
       highlightSelected(selectedAddress);
     },
 
+    // N24 — same contract for the APPS tab: C# pushes the app id when an
+    // AppDetailsPage pane opens in the detail column (wide only) and '' when it
+    // closes (HomePage.onOverlayClosed, tag-replace-guarded). renderAppsList
+    // stamps aria-current from state.selectedId; narrow never receives a push.
+    selectApp(id) {
+      appsState.selectedId = id || '';
+      renderAppsList(appsList, appsState, appsOpts);
+    },
+
     // LIVE per-contact status — pushed every UI tick for changed contacts
     // (HomePage.updateContactStatus:1497 → setContactStatus, xaml:1504). In
     // practice C# always sends excerpt="" + timestamp=0 (Node.cs:443/451,
@@ -2656,9 +2676,13 @@
     // the app language (★ I-6 #360, money.js groupAmountDisplay), "$" on fiat.
     setBalance(balance, fiatBalance, _nick) {
       walletRawBalance = balance || '';   // RAW (un-grouped) — the Send compose does money math on it
+      // N32 (Damir): an absolute-zero balance reads "0.00" (IXI + fiat), locale
+      // separators via groupAmountDisplay. Nonzero keeps the verbatim-decimals
+      // display; empty stays empty (no push yet).
       setWalletBalance(hero, {
-        balance: balance ? groupAmountDisplay(balance) : '',
-        fiat: (fiatBalance != null && fiatBalance !== '') ? '$' + groupAmountDisplay(fiatBalance) : '',
+        balance: balance ? groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance) : '',
+        fiat: (fiatBalance != null && fiatBalance !== '')
+          ? '$' + groupAmountDisplay(zeroAmount(fiatBalance) ? '0.00' : fiatBalance) : '',
       });
     },
 

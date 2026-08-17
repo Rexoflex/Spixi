@@ -34,7 +34,7 @@ export function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
   illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
-                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
+                                 // error → the token-styled shield placeholder). Damir: images/backup.png (N45).
   onBack,
   onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
@@ -90,7 +90,7 @@ export function createSettingsBackup({
   const heroBody = document.createElement('p');
   heroBody.className = 'c-settings-backup__copy';
   heroBody.textContent = strings.backupHeroBody ||
-    'Your identity, wallet and contacts — encrypted with your password into a single backup file.';
+    'Your identity, wallet and contacts: encrypted with your password into a single backup file.';
   heroSec.append(heroTitle, heroBody);
 
   /* status line — shared source with the hub row */
@@ -200,7 +200,7 @@ export function createSettingsBackup({
     const advNote = document.createElement('p');
     advNote.className = 'c-settings-backup__adv-note';
     advNote.textContent = strings.backupAdvancedNote ||
-      'The raw wallet file — for cold storage or other Ixian tools. Doesn’t include contacts or your account.';
+      'The raw wallet file, for cold storage or other Ixian tools. Doesn’t include contacts or your account.';
     let exporting = false;                                       // latched (one share at a time)
     const exportBtn = createButton({
       label: strings.backupAdvanced || 'Export wallet file only', type: 'outline', size: 44, width: 'full',

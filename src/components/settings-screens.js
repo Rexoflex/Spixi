@@ -344,11 +344,11 @@ export function createChatAppearance({
   const bubbleIn = document.createElement('div');
   bubbleIn.className = 'c-settings-appearance__bubble';
   bubbleIn.dataset.side = 'received';
-  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size —';
+  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size…';
   const bubbleOut = document.createElement('div');
   bubbleOut.className = 'c-settings-appearance__bubble';
   bubbleOut.dataset.side = 'sent';
-  bubbleOut.textContent = strings.previewOutgoing || '— exactly how your chats will look.';
+  bubbleOut.textContent = strings.previewOutgoing || '…exactly how your chats will look.';
   preview.append(bubbleIn, bubbleOut);
   body.append(preview);
 
@@ -464,7 +464,7 @@ export function createPrivacy({
     label: strings.readReceipts || 'Read receipts',
     sub: strings.readReceiptsSub || 'Others see when you’ve read their messages',
     checked: readReceipts, live,
-    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onReadReceipts,
   }));
   if (capabilities.typing && onTyping) body.append(switchRow({
@@ -472,7 +472,7 @@ export function createPrivacy({
     label: strings.typingIndicators || 'Typing indicators',
     sub: strings.typingIndicatorsSub || 'Others see when you’re typing',
     checked: typingIndicators, live,
-    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onTyping,
   }));
   return el;

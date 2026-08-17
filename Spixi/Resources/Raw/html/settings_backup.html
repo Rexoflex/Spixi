@@ -629,7 +629,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   width: 128px;                     /* sanctioned: placeholder art dims — swapped for illustration #6 */
   height: 128px;
 }
-/* illustration swap (Damir: images/backup.svg) — fills the art slot, fail-soft
+/* illustration swap (Damir: images/backup.png) — fills the art slot, fail-soft
    to the placeholder composition on load error (handled in JS) */
 .c-settings-backup__illustration {
   width: 100%;
@@ -1023,7 +1023,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
   root.replaceChildren(createSettingsBackup({
     status: backupStatus(),                      // iOS-19 (#283): local stamp (was: standing "Action needed", S2)
-    illustration: 'images/backup.svg',          // Damir: build-shells copies src/demo/images → …/html/images
+    illustration: 'images/backup.png',          // Damir: build-shells copies src/demo/images → …/html/images
     host: document.body,
     strings,
     onBack: () => bridge.send('ixian:back'),     // BackupPage.popPageAsync()

@@ -43,7 +43,7 @@ const DYNAMIC = {
   cap_RegisteredNamesManagement: 'Manage names',
   cap_Storage: 'Local storage',
   capx_MultiUser: 'Runs shared sessions so you can use this app together with friends.',
-  capx_Authentication: 'Can prove who you are to this app using your Spixi identity — without a password.',
+  capx_Authentication: 'Can prove who you are to this app using your Spixi identity, without a password.',
   capx_TransactionSigning: 'Can ask you to approve IXI payments. You always confirm each one yourself.',
   capx_RegisteredNamesManagement: 'Can read and manage your registered Ixian names.',
   capx_Storage: 'Can save data on your device so it remembers things between sessions.',

@@ -21,11 +21,11 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `addLead` | Add a mini app from a link, a QR code, or a file — or explore the directory below. | text | long |  | — |
+| `addLead` | Add a mini app from a link, a QR code, or a file. Or explore the directory below. | text | long |  | — |
 | `addMethods` | Ways to add a mini app | aria | medium |  | — |
 | `appUrlLabel` | Mini app link | label/aria | short |  | — |
 | `appUrlPlaceholder` | https://… | placeholder | short |  | — |
-| `devLead` | Anyone can build a mini app — web-friendly tech, no backend to run. | text | long |  | — |
+| `devLead` | Anyone can build a mini app: web-friendly tech, no backend to run. | text | long |  | — |
 | `devLearn` | Learn how | text | short |  | — |
 | `discover` | Discover | text | short |  | — |
 | `getFromUrl` | Get app | label | short |  | `chat-app-get` |
@@ -46,7 +46,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `cap_RegisteredNamesManagement` | Manage names | label | short |  | — |
 | `cap_Storage` | Local storage | label | short |  | — |
 | `cap_TransactionSigning` | Sign transactions | label | short |  | — |
-| `capx_Authentication` | Can prove who you are to this app using your Spixi identity — without a password. | label | long |  | — |
+| `capx_Authentication` | Can prove who you are to this app using your Spixi identity, without a password. | label | long |  | — |
 | `capx_MultiUser` | Runs shared sessions so you can use this app together with friends. | label | long |  | — |
 | `capx_RegisteredNamesManagement` | Can read and manage your registered Ixian names. | label | medium |  | — |
 | `capx_Storage` | Can save data on your device so it remembers things between sessions. | label | long |  | — |
@@ -57,7 +57,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `failedBody` | Something went wrong installing this app. Please try again. | title | medium |  | — |
 | `failedTitle` | Install failed | title | short |  | — |
 | `install` | Install | label | short |  | `app-new-install` |
-| `installLead` | This app can do the following — tap any to learn more: | text | medium |  | — |
+| `installLead` | This app can do the following. Tap any to learn more: | text | medium |  | — |
 | `installTitle` | Install {name}? | title | short | {name} | `app-new-install` |
 | `installed` | Installed | label/badge | short |  | — |
 | `installedBody` | The mini app is ready to use. | title | medium |  | — |
@@ -74,9 +74,9 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `readMore` | Read more | text | short |  | — |
 | `removedBody` | The mini app was uninstalled. | title | medium |  | — |
 | `removedTitle` | App removed | title | short |  | `apps-removing-app-success` |
-| `runsSecurely` | Runs securely inside Spixi — nothing leaves your device without your permission. | text | long |  | — |
+| `runsSecurely` | Runs securely inside Spixi. Nothing leaves your device without your permission. | text | long |  | — |
 | `screenshot` | Screenshot | text | short |  | — |
-| `shareHint` | Share this link with anyone — they can add the app in Spixi from it. | text | long |  | — |
+| `shareHint` | Share this link with anyone. They can add the app in Spixi from it. | text | long |  | — |
 | `size` | Size | text | short |  | `apps-details-size` |
 | `source` | Source:  | text | short |  | `apps-source` |
 | `uninstall` | Uninstall | label/text | short |  | `app-details-uninstall` |
@@ -92,8 +92,8 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 |---|---|---|---|---|---|
 | `browseWeb` | Browse on the web | label | short |  | — |
 | `categories` | Categories | aria | short |  | — |
-| `discoverEmptyCat` | No {cat} apps yet — check back soon. | text | medium | {cat} | — |
-| `discoverSoon` | The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here. | text | long |  | — |
+| `discoverEmptyCat` | No {cat} apps yet. Check back soon. | text | medium | {cat} | — |
+| `discoverSoon` | The Spixi Mini App directory is coming soon. You’ll browse and install featured apps right here. | text | long |  | — |
 | `featured` | Featured | text | short |  | — |
 
 ## apps-header.js (5)
@@ -132,7 +132,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 |---|---|---|---|---|---|
 | `addApp` | Add app | text/title | short |  | — |
 | `appsEmptyAll` | No mini apps yet | text | short |  | — |
-| `appsEmptyBody` | Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file — it takes seconds. | title | long |  | — |
+| `appsEmptyBody` | Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file. It takes seconds. | title | long |  | — |
 | `appsEmptySearch` | No apps match “{q}” | text | short | {q} | — |
 | `appsEmptyTitle` | Mini apps, right inside Spixi | title | medium |  | — |
 
@@ -149,7 +149,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `backupNudgeBody` | Spixi is fully decentralized — your data stays on your device only. To keep your contacts safe and restore everything later, create a backup now. | text | long |  | `index-backup-prompt-desc` |
+| `backupNudgeBody` | Spixi is fully decentralized. Your data stays on your device only. To keep your contacts safe and restore everything later, create a backup now. | text | long |  | `index-backup-prompt-desc` |
 | `backupNudgeCta` | Back up now | label | short |  | — |
 | `backupNudgeNote` | It’s recommended to back up every time you add a new contact. | text | long |  | — |
 | `backupNudgeSkip` | Not now | label | short |  | `index-backup-prompt-not-now` |
@@ -193,7 +193,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `actionFailed` | Something went wrong — try again. | error | medium |  | — |
+| `actionFailed` | Something went wrong. Try again. | error | medium |  | — |
 | `address` | Address | text | short |  | `address-gen-3` |
 | `admin` | Admin | badge | short |  | — |
 | `ban` | Ban | label/text | short |  | `chat-context-ban-user` |
@@ -202,7 +202,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `chatInfo` | Chat info | text/label | short |  | — |
 | `contactDetails` | Contact details | title | short |  | — |
 | `copyAddress` | Copy address | aria | short |  | — |
-| `copyFailed` | Couldn’t copy — select the address text instead | error | medium |  | — |
+| `copyFailed` | Couldn’t copy. Select the address text instead | error | medium |  | — |
 | `deleteConfirm` | Delete | text | short |  | — |
 | `deleteHistory` | Delete chat history | text | short |  | `contact-details-deletehistory` |
 | `deleteHistoryBody` | Messages are removed from this device. The contact keeps their copy. | title | long |  | — |
@@ -280,7 +280,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `openLinkTitle` | Open external link? | title | short |  | — |
 | `removeFromGroup` | Remove from group | label | short |  | — |
 | `secureNoticeLink` | How it works | text | short |  | — |
-| `secureNoticeText` | Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with you two, nowhere else. | title | long |  | — |
+| `secureNoticeText` | Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with you two, nowhere else. | title | long |  | — |
 | `secureNoticeTitle` | Encrypted. Peer-to-peer. Yours alone. | title | medium |  | — |
 | `showOlderMessages` | Show older messages | text | short |  | — |
 | `tipNoAnswer` | No answer from the app. The tip may not have been sent. | text | medium |  | — |
@@ -334,7 +334,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `chatsEmptyAll` | No chats yet | text/title | short |  | — |
-| `chatsEmptyBody` | Pick a contact and say hi — messages go straight to their device, end-to-end encrypted. | title | long |  | — |
+| `chatsEmptyBody` | Pick a contact and say hi. Messages go straight to their device, end-to-end encrypted. | title | long |  | — |
 | `chatsEmptyCta` | Start a chat | text | short |  | — |
 | `chatsEmptyFavorites` | No favorites yet | text | short |  | — |
 | `chatsEmptyGroups` | No groups yet | text | short |  | — |
@@ -386,13 +386,13 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `back` | Back | text/title | short |  | `onboarding-step-back` |
 | `badAddress` | That doesn’t look like an Ixian address. | error | medium |  | — |
 | `blindGroup` | Blind group | label | short |  | — |
-| `blindGroupSub` | Members can’t see each other’s identity — only you, the creator, can. | text | long |  | — |
+| `blindGroupSub` | Members can’t see each other’s identity. Only you, the creator, can. | text | long |  | — |
 | `cancelFailed` | Couldn’t cancel the request. Try again. | error | medium |  | — |
 | `cancelRequest` | Cancel request | label | short |  | — |
 | `contact` | Contact | title | short |  | `index-new-contact` |
 | `contactPendingLabel` | request sent | text | short |  | — |
 | `contacts` | Contacts | text/label | short |  | `index-tab-contacts` |
-| `contactsEmptyBody` | Add someone by their Spixi address or QR code — then you can chat and send IXI. | title | long |  | — |
+| `contactsEmptyBody` | Add someone by their Spixi address or QR code. Then you can chat and send IXI. | title | long |  | — |
 | `createGroup` | Create group | text | short |  | `wallet-recipient-new-group-button` |
 | `createGroupCta` | Create group | label | short |  | `wallet-recipient-new-group-button` |
 | `filter` | Filter | aria | short |  | — |
@@ -450,7 +450,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 |---|---|---|---|---|---|
 | `addPhoto` | Add a photo | label | short |  | — |
 | `appearance` | Appearance | aria | short |  | `settings-account-appearance-edit` |
-| `backupCopy` | Your identity, wallet and contacts — encrypted with your password into a single backup file. | text | long |  | — |
+| `backupCopy` | Your identity, wallet and contacts: encrypted with your password into a single backup file. | text | long |  | — |
 | `backupCta` | Back up now | label | short |  | — |
 | `backupHeadline` | One file protects everything | text | medium |  | — |
 | `backupLater` | Later | label | short |  | — |
@@ -464,7 +464,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `createProfileLabel` | Your profile | label | short |  | — |
 | `createSubmit` | Create my account | label | short |  | — |
 | `createTitle` | Create your account | title | short |  | — |
-| `createWarnBody` | Without it and your backup file, your account and wallet can’t be recovered — not even by us. | text | long |  | — |
+| `createWarnBody` | Without it and your backup file, your account and wallet can’t be recovered, not even by us. | text | long |  | — |
 | `createWarnTitle` | Spixi doesn’t store your password. | text | medium |  | — |
 | `created` | Account created | label | short |  | — |
 | `fileEmpty` | Choose your backup file first. | error | medium |  | — |
@@ -475,7 +475,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `joinSkip` | Not now | label | short |  | `index-backup-prompt-not-now` |
 | `joinTitle` | Join the Spixi community | text | medium |  | — |
 | `language` | Language | aria/title/label/text | short |  | `settings-account-language-edit` |
-| `languagePending` | Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way. | text/label | long |  | — |
+| `languagePending` | Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way. | text/label | long |  | — |
 | `newTooShort` | The password needs at least {n} characters. | error | medium | {n} | — |
 | `nickColon` | Nicknames can’t contain “:”. | error | medium |  | — |
 | `nickEmpty` | Pick a nickname. | error | short |  | — |
@@ -499,13 +499,13 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `restored` | Restored | label | short |  | — |
 | `retryCopy` | Your wallet couldn’t be unlocked with the saved password. Enter it to continue. | text | long |  | — |
 | `retryTitle` | Unlock your wallet | title | short |  | — |
-| `slide1Copy` | No servers, no middlemen. Every message is encrypted and stays on your device — delivered straight to your contact, and to no one else. | title | long |  | — |
+| `slide1Copy` | No servers, no middlemen. Every message is encrypted and stays on your device, delivered straight to your contact, and to no one else. | title | long |  | — |
 | `slide1Title` | Built for you. Owned by you. | title | medium |  | — |
-| `slide2Copy` | Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal — the account is yours alone. | title | long |  | — |
+| `slide2Copy` | Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone. | title | long |  | — |
 | `slide2Title` | No phone number. No email. Just a nickname. | title | medium |  | — |
-| `slide3Copy` | A private IXI wallet lives inside every chat. Send and receive payments in a tap — as simple and instant as saying hello. | title | long |  | — |
+| `slide3Copy` | A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello. | title | long |  | — |
 | `slide3Title` | Send money like you send a message. | title | medium |  | — |
-| `slide4Copy` | Play games, run tools, chat with on-device AI, or automate your world — all without ever leaving the conversation. | title | long |  | — |
+| `slide4Copy` | Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation. | title | long |  | — |
 | `slide4Title` | Mini Apps, right inside your chats. | title | medium |  | — |
 | `termsLink` | Terms of Use | text/label | short |  | — |
 | `termsTitle` | Terms of Use | text | short |  | — |
@@ -666,8 +666,8 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `about` | About | text/label | short |  | `index-side-about` |
-| `aboutBody` | Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network. | text | long |  | — |
-| `aboutLegal` | © Ixian — open source, MIT licensed. | text | medium |  | — |
+| `aboutBody` | Spixi lets you chat and send IXI directly, peer-to-peer. No central server holds your messages or your keys. Everything stays on your device and the Ixian network. | text | long |  | — |
+| `aboutLegal` | © Ixian. Open source, MIT licensed. | text | medium |  | — |
 | `aboutLinkNetwork` | Ixian network | label | short |  | — |
 | `aboutLinkSource` | Source code | label | short |  | — |
 | `aboutLinkWebsite` | Website | label | short |  | — |
@@ -677,7 +677,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `contributors` | Contributors | text/label | short |  | `contributors-title` |
 | `contributorsLead` | Spixi is better because these people cared. Special thanks to: | text | long |  | — |
 | `copyLog` | Copy log | label | short |  | — |
-| `copyLogFailed` | Couldn’t copy — select the log text instead. | error | medium |  | — |
+| `copyLogFailed` | Couldn’t copy. Select the log text instead. | error | medium |  | — |
 | `deleteDownloadsBody` | Received files are removed from this device. Senders keep theirs. | title | long |  | — |
 | `deleteFile` | Delete {name} | aria | short | {name} | — |
 | `deleteFileBody` | “{name}” is removed from this device. | title | medium | {name} | — |
@@ -692,7 +692,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `howToIntro` | A few basics to get you started. | text | medium |  | — |
 | `howToLearnMore` | Learn more | label | short |  | `apps-what-is-learn` |
 | `howToStep1` | Add a contact | title | short |  | — |
-| `howToStep1Body` | Share your address or QR from Account, or scan a friend’s — then send a request. | title | long |  | — |
+| `howToStep1Body` | Share your address or QR from Account, or scan a friend’s. Then send a request. | title | long |  | — |
 | `howToStep2` | Start chatting | title | short |  | — |
 | `howToStep2Body` | Open a contact to send messages, photos and files. Everything is end-to-end between your devices. | title | long |  | — |
 | `howToStep3` | Send IXI | title | short |  | `index-new-send` |
@@ -710,11 +710,11 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `backupAdvanced` | Export wallet file only | label | medium |  | — |
-| `backupAdvancedNote` | The raw wallet file — for cold storage or other Ixian tools. Doesn’t include contacts or your account. | text | long |  | — |
+| `backupAdvancedNote` | The raw wallet file, for cold storage or other Ixian tools. Doesn’t include contacts or your account. | text | long |  | — |
 | `backupDone` | Backed up | label | short |  | — |
 | `backupExportFailed` | Couldn’t export the wallet file. | error | medium |  | — |
 | `backupFailed` | Couldn’t back up. | error | short |  | — |
-| `backupHeroBody` | Your identity, wallet and contacts — encrypted with your password into a single backup file. | text | long |  | — |
+| `backupHeroBody` | Your identity, wallet and contacts: encrypted with your password into a single backup file. | text | long |  | — |
 | `backupHeroTitle` | One file protects everything | text | medium |  | — |
 | `backupInside` | What’s inside | text | short |  | — |
 | `backupInsideAvatar` | Avatar | label | short |  | `settings-account-image-edit` |
@@ -747,10 +747,10 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `patternStyleLineArt` | Line art | label | short |  | — |
 | `patternStyleMatrix` | Data matrix | label | short |  | — |
 | `patternSubtle` | Subtle | label | short |  | — |
-| `previewIncoming` | Pattern, gradient, text size — | text | medium |  | — |
-| `previewOutgoing` | — exactly how your chats will look. | text | medium |  | — |
+| `previewIncoming` | Pattern, gradient, text size… | text | medium |  | — |
+| `previewOutgoing` | …exactly how your chats will look. | text | medium |  | — |
 | `privacy` | Privacy | text/label | short |  | — |
-| `privacyFailed` | Couldn’t update — try again. | error | medium |  | — |
+| `privacyFailed` | Couldn’t update. Try again. | error | medium |  | — |
 | `privacyNote` | These apply to everyone you chat with. Turning one off also hides theirs from you. | text | long |  | — |
 | `readReceipts` | Read receipts | label | short |  | — |
 | `readReceiptsSub` | Others see when you’ve read their messages | label | medium |  | — |
@@ -803,14 +803,14 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `deleteDownloadsTitle` | Delete downloads? | title | short |  | — |
 | `deleteHistorySub` | Messages go from this device. Contacts keep theirs. | text | medium |  | — |
 | `deleteWallet` | Delete wallet | text | short |  | — |
-| `deleteWalletBody` | Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered — by anyone. Spixi will ask you to confirm with your PIN, then restart. | title | long |  | — |
+| `deleteWalletBody` | Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered by anyone. Spixi will ask you to confirm with your PIN, then restart. | title | long |  | — |
 | `deleteWalletConfirm` | Delete wallet | text | short |  | — |
 | `deleteWalletSub` | Removes the wallet from this device and restarts Spixi. | text | medium |  | — |
 | `deleteWalletTitle` | Delete wallet? | title | short |  | — |
 | `freeUpSpace` | Free up space | text | short |  | — |
 | `languageFailed` | Couldn’t change the language. | error | medium |  | — |
 | `lockFailed` | Couldn’t turn on the app lock. | error | medium |  | — |
-| `nicknameEmpty` | Enter a nickname — it’s how contacts see you. | error | medium |  | — |
+| `nicknameEmpty` | Enter a nickname. It’s how contacts see you. | error | medium |  | — |
 | `paymentAuth` | Confirm payments | label | short |  | — |
 | `paymentAuthFailed` | Couldn’t turn on payment confirmation. | error | medium |  | — |
 | `paymentAuthSub` | PIN or biometrics before anything is sent | label | medium |  | — |
@@ -933,10 +933,10 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `moreContacts` | {n} more — keep typing to narrow it down | text | medium | {n} | — |
-| `noContactMatch` | No contact matches “{q}” — you can paste their address instead. | text | long | {q} | — |
+| `moreContacts` | {n} more. Keep typing to narrow it down | text | medium | {n} | — |
+| `noContactMatch` | No contact matches “{q}”. You can paste their address instead. | text | long | {q} | — |
 | `noOwnAddress` | Your address isn’t available yet. | text | medium |  | — |
-| `qrReceiveLabel` | QR code — your Ixian address | text | medium |  | — |
+| `qrReceiveLabel` | QR code: your Ixian address | text | medium |  | — |
 | `receiveCaption` | Scan to send IXI to this address | text | medium |  | — |
 | `requestAmount` | Request an amount | label/aria | short |  | — |
 | `requestCta` | Request {a} IXI ({n}) | label | medium | {a} {n} | `index-new-request` |
@@ -944,7 +944,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `requestFromWho` | Who to request from | label/aria | short |  | — |
 | `requestNeedsAmount` | Enter an amount to send a request | text | medium |  | — |
 | `requestPickContacts` | Pick at least one contact. | text | medium |  | — |
-| `requestSentPartly` | Sent to {n} — the rest are still selected. Try again. | label | medium | {n} | — |
+| `requestSentPartly` | Sent to {n}. The rest are still selected. Try again. | label | medium | {n} | — |
 | `requestSentTo` | Request for {a} IXI sent to {name} | error | medium | {a} {name} | — |
 | `requestSentToMany` | Request for {a} IXI sent to {n} contacts | text | medium | {a} {n} | — |
 | `txCopied` | Copied | text/aria | short |  | — |
@@ -961,7 +961,7 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | `fee` | Fee | text | short |  | — |
 | `feeAndTotal` | Network fee {f} IXI · Total {t} IXI | text | medium | {f} {t} | — |
 | `max` | Max | label | short |  | — |
-| `maxBody` | This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI. | title | long | {m} | — |
+| `maxBody` | This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI. | title | long | {m} | — |
 | `maxConfirm` | Yes, I understand | label | short |  | — |
 | `maxTitle` | Send your entire balance? | title | medium |  | — |
 | `paymentsCannotUndo` | Payments cannot be undone. | text | medium |  | — |
@@ -978,13 +978,13 @@ Summary: **703** keys · **134** map to a legacy id · **569** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `date` | Date | text | short |  | — |
-| `feeExplain` | Network fee — paid to the Ixian network for processing this transaction, not to Spixi. | text | long |  | — |
+| `feeExplain` | Network fee, paid to the Ixian network for processing this transaction, not to Spixi. | text | long |  | — |
 | `filterAll` | All | label | short |  | `index-all` |
 | `filterReceived` | Received | label | short |  | `index-received` |
 | `filterSent` | Sent | label | short |  | `index-sent` |
 | `filterTx` | Filter transactions | aria | short |  | — |
 | `missingTx` | Missing a transaction? | label/aria/title | medium |  | — |
-| `missingTxBody` | Spixi reads your history directly from the Ixian blockchain — recent transactions can take a moment to appear, and very old ones may not be listed here. | text | long |  | — |
+| `missingTxBody` | Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here. | text | long |  | — |
 | `receivedFrom` | Received from {name} | text | short | {name} | — |
 | `recipientAddress` | Recipient’s address | text | short |  | `wallet-request-address` |
 | `searchTx` | Search transactions | placeholder | short |  | — |

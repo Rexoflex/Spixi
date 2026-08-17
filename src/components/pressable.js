@@ -345,6 +345,13 @@ export function attachPressFeedback({
     // Disabled controls must look disabled, not pressable. aria-disabled covers the
     // components that stay focusable on purpose (a11y sweep #205).
     if (t.disabled || t.getAttribute('aria-disabled') === 'true') return;
+    /* N36 (Damir): SELECT MODE opts out of press feedback. Inside a
+       [data-selecting] container every tap is a select/deselect toggle
+       (chat-select.js swallows the click) — the only sanctioned visual is the
+       selected tint + check circle; a committed fill on a control the tap will
+       never activate reads as a broken press. Scoped to the ancestor test, so
+       every surface outside the selecting container keeps its feedback. */
+    if (t.closest('[data-selecting]')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
     // sweep re-arms from its current paint). Other rows' fades keep playing.
     killAfterlife(t);

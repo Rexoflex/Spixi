@@ -93,7 +93,7 @@ function walletEmpty(state, strings, opts = {}) {
   if (!q && f === 'all') {
     if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.svg',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.png',
       glyph: 'wallet',                              // art blocked/missing → token glyph tile
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
@@ -494,7 +494,7 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
     feeInfo.addEventListener('click', () => {
       const open = !feeExplain.textContent;
       feeExplain.textContent = open
-        ? (strings.feeExplain || 'Network fee — paid to the Ixian network for processing this transaction, not to Spixi.')
+        ? (strings.feeExplain || 'Network fee, paid to the Ixian network for processing this transaction, not to Spixi.')
         : '';
       feeInfo.setAttribute('aria-expanded', String(open));
     });
@@ -534,7 +534,7 @@ export function openMissingTxSheet({ host, strings = getStrings(), onExplorer } 
   const body = document.createElement('p');
   body.className = 'c-misstx__body';
   body.textContent = strings.missingTxBody
-    || 'Spixi reads your history directly from the Ixian blockchain — recent transactions can take a moment to appear, and very old ones may not be listed here.';
+    || 'Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here.';
   content.append(body);
 
   const actions = document.createElement('div');

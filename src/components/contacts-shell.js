@@ -533,7 +533,7 @@ export function createContactsPicker({
     glyph: 'users',                                 // art blocked/missing → token glyph tile
     title: strings.noContacts || 'No contacts yet',
     body: strings.contactsEmptyBody
-      || 'Add someone by their Spixi address or QR code — then you can chat and send IXI.',
+      || 'Add someone by their Spixi address or QR code. Then you can chat and send IXI.',
     actionLabel: strings.addContact || 'Add contact',
     actionIcon: 'user-plus',
     onAction: onAddContact,
@@ -858,7 +858,7 @@ export function createGroupSetup({
   const blindSub = document.createElement('span');
   blindSub.className = 'c-contacts__sub c-contacts-group__blind-sub';
   blindSub.textContent = strings.blindGroupSub
-    || 'Members can’t see each other’s identity — only you, the creator, can.';
+    || 'Members can’t see each other’s identity. Only you, the creator, can.';
   blindCol.append(blindLabel, blindSub);
   const blindSwitch = document.createElement('button');
   blindSwitch.type = 'button';

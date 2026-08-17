@@ -51,7 +51,7 @@
   width: 128px;                     /* sanctioned: placeholder art dims — swapped for illustration #6 */
   height: 128px;
 }
-/* illustration swap (Damir: images/backup.svg) — fills the art slot, fail-soft
+/* illustration swap (Damir: images/backup.png) — fills the art slot, fail-soft
    to the placeholder composition on load error (handled in JS) */
 .c-settings-backup__illustration {
   width: 100%;

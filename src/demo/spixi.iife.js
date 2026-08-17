@@ -257,7 +257,21 @@ function formatIxiAmount(value) {
     const full = rawFrac.replace(/0+$/, '');
     if (full) frac = full;
   }
+  // N32 (Damir): an ABSOLUTE-ZERO amount reads "0.00", not "0" — the bare zero
+  // looked broken on the wallet hero. The trailing-zero trim stays for every
+  // nonzero value; the C# alert mirror (#360) is untouched — a zero never
+  // reaches the insufficient-balance sentences this way.
+  if (!frac && /^0+$/.test(int.replace(/,/g, ''))) frac = '00';
   return groupAmountDisplay(sign + int.replace(/,/g, '') + (frac ? '.' + frac : ''));
+}
+
+/** N32 — TRUE for an amount string whose numeric value is exactly zero
+ *  ("0", "0.0", "0,00", "+0"). Non-numeric and empty strings are NOT zero —
+ *  the hero keeps its empty-until-pushed state. */
+function zeroAmount(value) {
+  const m = String(value == null ? '' : value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return false;
+  return /^0*$/.test(m[2].replace(/,/g, '')) && /^0*$/.test(m[3] || '');
 }
 
 /* ---- src/components/disc.js ---- */
@@ -821,6 +835,13 @@ function attachPressFeedback({
     // Disabled controls must look disabled, not pressable. aria-disabled covers the
     // components that stay focusable on purpose (a11y sweep #205).
     if (t.disabled || t.getAttribute('aria-disabled') === 'true') return;
+    /* N36 (Damir): SELECT MODE opts out of press feedback. Inside a
+       [data-selecting] container every tap is a select/deselect toggle
+       (chat-select.js swallows the click) — the only sanctioned visual is the
+       selected tint + check circle; a committed fill on a control the tap will
+       never activate reads as a broken press. Scoped to the ancestor test, so
+       every surface outside the selecting container keeps its feedback. */
+    if (t.closest('[data-selecting]')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
     // sweep re-arms from its current paint). Other rows' fades keep playing.
     killAfterlife(t);
@@ -1265,7 +1286,7 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  * one optional CTA. Deliberately surface-agnostic so Chats / Wallet / Contacts /
  * Apps all render the same shape from their own copy + their own `-es` art
  * (src/assets/images/<surface>-es.svg, shipped via src/demo/images → the shells'
- * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.svg;
+ * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.png;
  * an external asset URL is what a file:// WebView refuses, a sibling file is fine).
  *
  * A missing/blocked illustration NEVER leaves a hole: the <img> onerror drops it and
@@ -1273,7 +1294,7 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  * c-launch illo precedent. Copy always carries the meaning, so the art is aria-hidden.
  *
  * createEmptyState({
- *   illustration,          // 'images/apps-es.svg' — omit for the glyph-only shape
+ *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
  *   title, body,           // headline + supporting line (plain text — textContent)
  *   actionLabel, onAction, // ONE secondary CTA (tonal by house grammar)
@@ -6591,11 +6612,11 @@ function chatsEmptyState(state, strings, opts = {}) {
     // A filter/search miss is about the QUERY, not the roster → never gated.
     if (opts.zeroReady === false) return null;
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.svg',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.png',
       glyph: 'messages',                            // art blocked/missing → token glyph tile
       title: strings.chatsEmptyAll || 'No chats yet',
       body: strings.chatsEmptyBody
-        || 'Pick a contact and say hi — messages go straight to their device, end-to-end encrypted.',
+        || 'Pick a contact and say hi. Messages go straight to their device, end-to-end encrypted.',
       actionLabel: strings.chatsEmptyCta || 'Start a chat',
       actionIcon: 'message-plus',
       onAction: opts.onNewChat,
@@ -7332,7 +7353,7 @@ function appsEmptyNode(cache, state, opts, strings) {
       glyph: 'apps',
       title: strings.appsEmptyTitle || 'Mini apps, right inside Spixi',
       body: strings.appsEmptyBody
-        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file — it takes seconds.',
+        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file. It takes seconds.',
       actionLabel: opts.onAddApp ? (strings.addApp || 'Add app') : '',
       actionIcon: 'circle-plus',
       onAction: opts.onAddApp || null,
@@ -7415,6 +7436,26 @@ function renderAppsList(listEl, state, opts = {}) {
     listEl.insertBefore(n, cursor);
   }
   while (cursor) { const next = cursor.nextSibling; listEl.removeChild(cursor); cursor = next; }
+
+  /* N24 — two-pane selection (the chats selectChat precedent): the row whose
+   * details pane is open carries aria-current. Stamped OUTSIDE the row cache on
+   * every render — a selection flip must not dirty rowFresh (the reuse keys stay
+   * selection-blind), and a reused row sheds a stale highlight here. Driven by
+   * state.selectedId; '' / undefined clears every row.
+   * ★ Loop B-MAJOR-1: the attribute lands on __open, NOT the wrapper. __open is
+   * the box that PAINTS (the A5 split) and the focusable control (SRs announce
+   * "current" with focus, the chatlist parity) — and a wrapper [aria-current]
+   * would drag .c-app-item into base.css's selected press/fade variants, whose
+   * :not(.c-app-item) guards exist precisely because the wrapper must never
+   * carry press paint (the documented grid card blink). */
+  const selId = state.selectedId == null ? '' : String(state.selectedId);
+  for (const n of nodes) {
+    if (!n || !n.dataset || n.dataset.appId == null) continue;
+    const open = n.querySelector('.c-app-item__open');
+    if (!open) continue;
+    if (selId && n.dataset.appId === selId) open.setAttribute('aria-current', 'true');
+    else open.removeAttribute('aria-current');
+  }
 
   // trim the cache oldest-first, never dropping a row that is on screen right now
   if (cache.rows.size > ROW_CACHE_MAX) {
@@ -7558,7 +7599,7 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
     toggle.dataset.layout = lay;
     const target = lay === 'list' ? 'grid' : 'list';        // clicking switches to this
     toggle.textContent = '';
-    toggle.append(icon(target === 'grid' ? 'apps' : 'menu-2', { size: 22 }));
+    toggle.append(icon(target === 'grid' ? 'layout-grid' : 'menu-2', { size: 22 }));
     toggle.setAttribute('aria-label', target === 'grid'
       ? (strings.viewAsGrid || 'View as grid')
       : (strings.viewAsList || 'View as list'));
@@ -7659,7 +7700,7 @@ function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, on
   const lead = document.createElement('p');
   lead.className = 'c-apps-add__lead';
   lead.textContent = strings.addLead
-    || 'Add a mini app from a link, a QR code, or a file — or explore the directory below.';
+    || 'Add a mini app from a link, a QR code, or a file. Or explore the directory below.';
   el.append(lead);
 
   /* URL field (revealed by the Paste-link tile / a QR scan) */
@@ -7745,7 +7786,7 @@ function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, on
     const dtext = document.createElement('span');
     dtext.className = 'c-apps-add__dev-text';
     dtext.textContent = strings.devLead
-      || 'Anyone can build a mini app — web-friendly tech, no backend to run.';
+      || 'Anyone can build a mini app: web-friendly tech, no backend to run.';
     dev.append(dtext);
     const learn = document.createElement('button');
     learn.type = 'button';
@@ -7823,7 +7864,7 @@ const APP_CAP_LABELS = {
 };
 const APP_CAP_EXPLAIN = {
   MultiUser: 'Runs shared sessions so you can use this app together with friends.',
-  Authentication: 'Can prove who you are to this app using your Spixi identity — without a password.',
+  Authentication: 'Can prove who you are to this app using your Spixi identity, without a password.',
   TransactionSigning: 'Can ask you to approve IXI payments. You always confirm each one yourself.',
   RegisteredNamesManagement: 'Can read and manage your registered Ixian names.',
   Storage: 'Can save data on your device so it remembers things between sessions.',
@@ -8092,7 +8133,7 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
   trust.className = 'c-app-details__trust';
   trust.append(icon('shield-lock', { size: 16 }));
   const tt = document.createElement('span');
-  tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi — nothing leaves your device without your permission.';
+  tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi. Nothing leaves your device without your permission.';
   trust.append(tt);
   el.append(trust);
 
@@ -8128,7 +8169,7 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
       const shareHint = document.createElement('p');
       shareHint.className = 'c-app-details__sharehint';
       shareHint.textContent = strings.shareHint
-        || 'Share this link with anyone — they can add the app in Spixi from it.';
+        || 'Share this link with anyone. They can add the app in Spixi from it.';
       adv.append(shareHint);
     }
     if (app.id) {
@@ -8175,7 +8216,7 @@ function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, o
   if (caps.length) {
     const lead = document.createElement('p');
     lead.className = 'c-app-install__lead';
-    lead.textContent = strings.installLead || 'This app can do the following — tap any to learn more:';
+    lead.textContent = strings.installLead || 'This app can do the following. Tap any to learn more:';
     content.append(lead, capChips(caps, strings, { explain: true, reserve: true }));
   }
   if (app.url) {
@@ -8371,7 +8412,7 @@ function renderLive(el, feed, category, { strings = getStrings(), onOpen } = {})
     const empty = document.createElement('p');
     empty.className = 'c-apps-discover__empty';
     empty.setAttribute('role', 'note');
-    empty.textContent = (strings.discoverEmptyCat || 'No {cat} apps yet — check back soon.')
+    empty.textContent = (strings.discoverEmptyCat || 'No {cat} apps yet. Check back soon.')
       .split('{cat}').join(category || '');
     host.append(empty);
   }
@@ -8400,7 +8441,7 @@ function createAppsDiscover({ strings = getStrings(), categories = APP_CATEGORIE
     soon.append(icon('rocket', { size: 32 }));
     const t = document.createElement('p');
     t.textContent = strings.discoverSoon
-      || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
+      || 'The Spixi Mini App directory is coming soon. You’ll browse and install featured apps right here.';
     soon.append(t);
     if (onBrowseWeb) {                                   // fallback — the web directory exists today
       soon.append(createButton({
@@ -8786,7 +8827,7 @@ function walletEmpty(state, strings, opts = {}) {
   if (!q && f === 'all') {
     if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.svg',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.png',
       glyph: 'wallet',                              // art blocked/missing → token glyph tile
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
@@ -9187,7 +9228,7 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
     feeInfo.addEventListener('click', () => {
       const open = !feeExplain.textContent;
       feeExplain.textContent = open
-        ? (strings.feeExplain || 'Network fee — paid to the Ixian network for processing this transaction, not to Spixi.')
+        ? (strings.feeExplain || 'Network fee, paid to the Ixian network for processing this transaction, not to Spixi.')
         : '';
       feeInfo.setAttribute('aria-expanded', String(open));
     });
@@ -9227,7 +9268,7 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
   const body = document.createElement('p');
   body.className = 'c-misstx__body';
   body.textContent = strings.missingTxBody
-    || 'Spixi reads your history directly from the Ixian blockchain — recent transactions can take a moment to appear, and very old ones may not be listed here.';
+    || 'Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here.';
   content.append(body);
 
   const actions = document.createElement('div');
@@ -9429,7 +9470,7 @@ function createWalletSend({
       const none = document.createElement('p');
       none.className = 'c-wallet-send__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
   }
@@ -9531,7 +9572,7 @@ function createWalletSend({
         document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
       openModal(createModal({
         title: strings.maxTitle || 'Send your entire balance?',
-        body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
+        body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
           .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
         content: maxWarn,
         role: 'alertdialog', host,
@@ -12173,7 +12214,7 @@ function createWalletReceive({
 
   // #303: constant — the QR never carries an amount (see docblock). Kept as functions
   // so the onShare payload contract ({ value: qrValue() }) is unchanged for callers.
-  const qrLabel = () => (strings.qrReceiveLabel || 'QR code — your Ixian address');
+  const qrLabel = () => (strings.qrReceiveLabel || 'QR code: your Ixian address');
   const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
 
   /* ——— QR card ———
@@ -12236,10 +12277,10 @@ function createWalletReceive({
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(address).then(
         () => copyMorph('check', strings.txCopied || 'Copied'),
-        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
       );
     } else {
-      copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
     }
   });
   addrRow.append(addrValue, copy);
@@ -12455,7 +12496,7 @@ function createWalletReceive({
       // Stay put. The failures are still ticked, so the CTA now retries exactly
       // the remainder — and the count in its label says how many that is.
       showResult(sentCount
-        ? (strings.requestSentPartly || 'Sent to {n} — the rest are still selected. Try again.')
+        ? (strings.requestSentPartly || 'Sent to {n}. The rest are still selected. Try again.')
           .split('{n}').join(String(sentCount))
         : (strings.requestFailed || 'Couldn’t send the request. Check the address and try again.'),
         'error');
@@ -12533,7 +12574,7 @@ function createWalletReceive({
       const more = document.createElement('p');
       more.className = 'c-wallet-receive__none';
       more.setAttribute('role', 'note');
-      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
+      more.textContent = (strings.moreContacts || '{n} more. Keep typing to narrow it down')
         .split('{n}').join(String(list.length - cap));
       rows.append(more);
     }
@@ -12541,7 +12582,7 @@ function createWalletReceive({
       const none = document.createElement('p');
       none.className = 'c-wallet-receive__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
     syncCta();                                             // freshly built rows inherit the current rule/count line
@@ -13703,10 +13744,10 @@ function createChatInfo({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(address).then(
           () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
         );
       } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
       }
     });
     row.append(value, copy);
@@ -14165,7 +14206,7 @@ function createChatInfo({
               inFlight = false;
               setLoading(confirmBtn, false);
               setOverlayOpts(modal, { escDismiss: true });
-              err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+              err.textContent = msg || strings.actionFailed || 'Something went wrong. Try again.';
               err.hidden = false;
               confirmBtn.focus();                        // audit m5: never drop focus
             };
@@ -14754,7 +14795,7 @@ function createContactsPicker({
     glyph: 'users',                                 // art blocked/missing → token glyph tile
     title: strings.noContacts || 'No contacts yet',
     body: strings.contactsEmptyBody
-      || 'Add someone by their Spixi address or QR code — then you can chat and send IXI.',
+      || 'Add someone by their Spixi address or QR code. Then you can chat and send IXI.',
     actionLabel: strings.addContact || 'Add contact',
     actionIcon: 'user-plus',
     onAction: onAddContact,
@@ -15079,7 +15120,7 @@ function createGroupSetup({
   const blindSub = document.createElement('span');
   blindSub.className = 'c-contacts__sub c-contacts-group__blind-sub';
   blindSub.textContent = strings.blindGroupSub
-    || 'Members can’t see each other’s identity — only you, the creator, can.';
+    || 'Members can’t see each other’s identity. Only you, the creator, can.';
   blindCol.append(blindLabel, blindSub);
   const blindSwitch = document.createElement('button');
   blindSwitch.type = 'button';
@@ -16618,7 +16659,7 @@ function createSettingsHub({
         const nick = input.value.trim();
         if (nick === name) { closeEdit(); return; }
         if (!nick) {                          // legacy: empty nickname is invalid
-          showErr(strings.nicknameEmpty || 'Enter a nickname — it’s how contacts see you.');
+          showErr(strings.nicknameEmpty || 'Enter a nickname. It’s how contacts see you.');
           return;
         }
         committing = true;
@@ -16680,10 +16721,10 @@ function createSettingsHub({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(address).then(
           () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
         );
       } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
       }
     });
     row.append(value, copy);
@@ -17075,7 +17116,7 @@ function settingsConfirm({ title, bodyText, confirmLabel, host, strings = getStr
             inFlight = false;
             setLoading(confirmBtn, false);
             setOverlayOpts(modal, { escDismiss: true });
-            err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+            err.textContent = msg || strings.actionFailed || 'Something went wrong. Try again.';
             err.hidden = false;
             confirmBtn.focus();
           };
@@ -17208,7 +17249,7 @@ function createSettingsDanger({
     strings.deleteWalletSub || 'Removes the wallet from this device and restarts Spixi.',
     () => ({
       title: strings.deleteWalletTitle || 'Delete wallet?',
-      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered — by anyone. Spixi will ask you to confirm with your PIN, then restart.',
+      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered by anyone. Spixi will ask you to confirm with your PIN, then restart.',
       confirmLabel: strings.deleteWalletConfirm || 'Delete wallet',
       run: (ctrl) => onDeleteWallet(ctrl),
     }),
@@ -17254,7 +17295,7 @@ function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
   illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
-                                 // error → the token-styled shield placeholder). Damir: images/backup.svg.
+                                 // error → the token-styled shield placeholder). Damir: images/backup.png (N45).
   onBack,
   onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
@@ -17310,7 +17351,7 @@ function createSettingsBackup({
   const heroBody = document.createElement('p');
   heroBody.className = 'c-settings-backup__copy';
   heroBody.textContent = strings.backupHeroBody ||
-    'Your identity, wallet and contacts — encrypted with your password into a single backup file.';
+    'Your identity, wallet and contacts: encrypted with your password into a single backup file.';
   heroSec.append(heroTitle, heroBody);
 
   /* status line — shared source with the hub row */
@@ -17420,7 +17461,7 @@ function createSettingsBackup({
     const advNote = document.createElement('p');
     advNote.className = 'c-settings-backup__adv-note';
     advNote.textContent = strings.backupAdvancedNote ||
-      'The raw wallet file — for cold storage or other Ixian tools. Doesn’t include contacts or your account.';
+      'The raw wallet file, for cold storage or other Ixian tools. Doesn’t include contacts or your account.';
     let exporting = false;                                       // latched (one share at a time)
     const exportBtn = createButton({
       label: strings.backupAdvanced || 'Export wallet file only', type: 'outline', size: 44, width: 'full',
@@ -17827,11 +17868,11 @@ function createChatAppearance({
   const bubbleIn = document.createElement('div');
   bubbleIn.className = 'c-settings-appearance__bubble';
   bubbleIn.dataset.side = 'received';
-  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size —';
+  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size…';
   const bubbleOut = document.createElement('div');
   bubbleOut.className = 'c-settings-appearance__bubble';
   bubbleOut.dataset.side = 'sent';
-  bubbleOut.textContent = strings.previewOutgoing || '— exactly how your chats will look.';
+  bubbleOut.textContent = strings.previewOutgoing || '…exactly how your chats will look.';
   preview.append(bubbleIn, bubbleOut);
   body.append(preview);
 
@@ -17947,7 +17988,7 @@ function createPrivacy({
     label: strings.readReceipts || 'Read receipts',
     sub: strings.readReceiptsSub || 'Others see when you’ve read their messages',
     checked: readReceipts, live,
-    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onReadReceipts,
   }));
   if (capabilities.typing && onTyping) body.append(switchRow({
@@ -17955,7 +17996,7 @@ function createPrivacy({
     label: strings.typingIndicators || 'Typing indicators',
     sub: strings.typingIndicatorsSub || 'Others see when you’re typing',
     checked: typingIndicators, live,
-    failText: strings.privacyFailed || 'Couldn’t update — try again.',
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onTyping,
   }));
   return el;
@@ -18397,10 +18438,10 @@ function createSettingsDev({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(
           () => { setSuccess(copyBtn, { label: strings.copied || 'Copied' }); },
-          () => { live.textContent = strings.copyLogFailed || 'Couldn’t copy — select the log text instead.'; },
+          () => { live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.'; },
         );
       } else {
-        live.textContent = strings.copyLogFailed || 'Couldn’t copy — select the log text instead.';
+        live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.';
       }
     },
   });
@@ -18587,7 +18628,7 @@ function createSettingsAbout({
   const desc = document.createElement('p');
   desc.className = 'c-settings__note c-settings-about__desc';
   desc.textContent = description || strings.aboutBody
-    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer. No central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
   body.append(desc);
 
   /* links card — website / network / source (degrade to text without onOpenLink) */
@@ -18634,7 +18675,7 @@ function createSettingsAbout({
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
-  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
   body.append(legal);
 
   return el;
@@ -18662,7 +18703,7 @@ function createSettingsHowTo({
 
   const list = steps || [
     { title: strings.howToStep1 || 'Add a contact',
-      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s. Then send a request.' },
     { title: strings.howToStep2 || 'Start chatting',
       body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
     { title: strings.howToStep3 || 'Send IXI',
@@ -18823,7 +18864,7 @@ function illoSlot(name, src) {
   slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
   if (src) {
     // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
-    // nudge + Account→Backup pane, images/backup.svg). Join-step <img> grammar;
+    // nudge + Account→Backup pane, images/backup.png — N45). Join-step <img> grammar;
     // load error → the token-styled placeholder below, so a missing asset
     // degrades to the old look, never a blank slot.
     const img = document.createElement('img');
@@ -18941,7 +18982,7 @@ function buildWelcome(st) {
   const langHint = () => (offered.some((l) => l.code === st.language)
     ? undefined
     : (strings.languagePending
-      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.'));
+      || 'Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.'));
   const langPill = document.createElement('button');
   langPill.type = 'button';
   langPill.className = 'c-launch__pill';
@@ -19017,24 +19058,24 @@ function buildWelcome(st) {
   const base = opts.illustrationBase || 'images/onboarding/';
   const defs = [
     {
-      img: base + 'step1.svg',
+      img: base + 'step1.png',
       title: strings.slide1Title || 'Built for you. Owned by you.',
-      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device — delivered straight to your contact, and to no one else.',
+      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device, delivered straight to your contact, and to no one else.',
     },
     {
-      img: base + 'step2.svg',
+      img: base + 'step2.png',
       title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
-      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal — the account is yours alone.',
+      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
     },
     {
-      img: base + 'step3.svg',
+      img: base + 'step3.png',
       title: strings.slide3Title || 'Send money like you send a message.',
-      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap — as simple and instant as saying hello.',
+      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello.',
     },
     {
-      img: base + 'step4.svg',
+      img: base + 'step4.png',
       title: strings.slide4Title || 'Mini Apps, right inside your chats.',
-      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world — all without ever leaving the conversation.',
+      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
     },
   ];
   const slides = defs.map((s, i) => {
@@ -19171,7 +19212,7 @@ function buildWelcome(st) {
 // entry, so every locale renders this English text by design. Localizing legal copy
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
+const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
 const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
@@ -19371,7 +19412,7 @@ function buildCreate(st) {
   const warnBody = document.createElement('p');
   warnBody.className = 'c-launch__callout-body';
   warnBody.textContent = strings.createWarnBody
-    || 'Without it and your backup file, your account and wallet can’t be recovered — not even by us.';
+    || 'Without it and your backup file, your account and wallet can’t be recovered, not even by us.';
   warn.append(warnTitle, warnBody);
   body.append(warn);
   v.append(body);
@@ -19484,7 +19525,7 @@ function buildRestore(st) {
   hero.className = 'c-launch__hero';
   const heroIllo = document.createElement('img');
   heroIllo.className = 'c-launch__hero-illo';
-  heroIllo.src = base + 'restore.svg';           // legacy restore art (dark set — launch is pinned dark)
+  heroIllo.src = base + 'restore.png';           // legacy restore art (dark set — launch is pinned dark)
   heroIllo.alt = '';                             // decorative — the copy carries meaning
   heroIllo.draggable = false;
   heroIllo.addEventListener('error', () => { heroIllo.hidden = true; }, { once: true });
@@ -19700,14 +19741,14 @@ function buildTail(st) {
   // the standing settings-row state takes over from there)
   const backupStep = document.createElement('div');
   backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.svg'));
+  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.png'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
   bTitle.textContent = strings.backupHeadline || 'One file protects everything';
   const bCopy = document.createElement('p');
   bCopy.className = 'c-launch__slide-copy';
   bCopy.textContent = strings.backupCopy
-    || 'Your identity, wallet and contacts — encrypted with your password into a single backup file.';
+    || 'Your identity, wallet and contacts: encrypted with your password into a single backup file.';
   const backupBtn = createButton({ label: strings.backupCta || 'Back up now', size: 56, width: 'full' });
   backupBtn.addEventListener('click', () => {
     // integration (§9): onboarding-complete + the settings Backup screen —
@@ -19899,7 +19940,7 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
   const body = document.createElement('p');
   body.className = 'c-backup-nudge__body t-body-sm';
   body.textContent = strings.backupNudgeBody
-    || 'Spixi is fully decentralized — your data stays on your device only. '
+    || 'Spixi is fully decentralized. Your data stays on your device only. '
     + 'To keep your contacts safe and restore everything later, create a backup now.';
 
   let used = false;                              // one-shot: CTA rides the latch
@@ -19944,11 +19985,14 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
  * (HomePage.xaml.cs:325) — bridge stays frozen. All of that C# logic is
  * UNCHANGED; at integration `showRatingPrompt` maps to showRatingNudge().
  *
- * showRatingNudge({ host, onRate, onDismiss, strings }) → the sheet element
- *   (already opened). "Yes, I am loving it" (fill) → onRate('yes') + close ·
- *   "Not so much…" (outline) → onRate('no') + close — ONE latch across both.
- *   Scrim/Esc → plain dismiss, NO verb (C# re-prompts later — legacy parity;
- *   a sheet's light-dismiss IS the "not now" the legacy modal never had).
+ * showRatingNudge({ host, illustration, onRate, onDismiss, strings }) → the
+ *   sheet element (already opened). "Yes, I am loving it" (fill) → onRate('yes')
+ *   + close · "Not so much…" (outline) → onRate('no') + close — ONE latch across
+ *   both. Scrim/Esc → plain dismiss, NO verb (C# re-prompts later — legacy
+ *   parity; a sheet's light-dismiss IS the "not now" the legacy modal never had).
+ * illustration = optional img src (backup-nudge grammar: decorative alt="",
+ *   error → falls back to the brand-mark disc). N14a: shells point it at the
+ *   rate-me art (images/onboarding/rate.png) — upgrade by FILE DROP.
  * Copy defaults = the legacy en-us lang block (rating-request-*), overridable
  * via strings.rating* (SL channel at i18n).
  */
@@ -19957,7 +20001,7 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
 
 
 
-function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {}) {
+function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-rating-nudge';
 
@@ -19965,6 +20009,17 @@ function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {
   disc.className = 'c-rating-nudge__disc';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('logo'));                     // the brand mark asks (legacy spixirounded.svg)
+
+  let art = null;                                // N14a — the rate-me illustration leads; disc = fallback
+  if (illustration) {
+    art = document.createElement('img');
+    art.className = 'c-rating-nudge__illo';
+    art.src = illustration;
+    art.alt = '';                                // decorative — the copy carries meaning
+    art.draggable = false;
+    disc.hidden = true;
+    art.addEventListener('error', () => { art.remove(); disc.hidden = false; }, { once: true });
+  }
 
   const title = document.createElement('h3');
   title.className = 'c-rating-nudge__title t-heading-xs';
@@ -19988,6 +20043,7 @@ function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {
   const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'outline', size: 56, width: 'full' });
   no.addEventListener('click', () => answer('no'));
 
+  if (art) content.append(art);
   content.append(disc, title, body, yes, no);
 
   const sheet = createSheet({ content, host, onDismiss, strings });
@@ -20868,5 +20924,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

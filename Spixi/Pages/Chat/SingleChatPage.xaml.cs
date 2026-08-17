@@ -42,6 +42,7 @@ namespace SPIXI
         private bool unreadIndicatorDisplayed = false;
         private string setNickname = "";
         private bool setOnlineStatus = false;
+        private string lastGroupCountPushed = null;   // N22: group member-count sub, pushed on change only
 
         public SingleChatPage(Friend fr) : this(fr, null)
         {
@@ -718,6 +719,7 @@ namespace SPIXI
             unreadIndicatorDisplayed = false;
             setNickname = "";
             setOnlineStatus = false;
+            lastGroupCountPushed = null;   // N22: a WebView reload resets identity.sub — re-arm the count push
             // #275 re-review R1: reset the pending latch on EVERY load — onLoad re-fires on
             // a WebView reload of a LIVE page (desktop pane re-home #225/#247, WKWebView
             // process reload) and the shell re-arms itself UNLOCKED (onChatScreenReady →
@@ -2255,6 +2257,38 @@ namespace SPIXI
                     userCount = friend.metaData.botInfo.userCount;
                 }
                 Utils.sendUiCommand(this, "setOnlineStatus", String.Format(SpixiLocalization._SL("chat-member-count"), userCount));
+            }
+            else if (friend.type == FriendType.Group)
+            {
+                // N22 (Damir, bot parity): a private group has no meaningful online or
+                // offline state — its presence sub-line is the MEMBER COUNT, the same
+                // localized string the bot branch pushes above. The count source is
+                // friend.users.contacts.Count — the same one ContactDetails pushes for
+                // the group-info surface (setGroupInfo, ContactDetails.xaml.cs:85), so
+                // the topbar and the info pane can never disagree. Pushed only when the
+                // text CHANGES: updateScreen ticks at 1 Hz and every setOnlineStatus
+                // push rebuilds the shell topbar (the #288 churn class); the latch is
+                // re-armed in onLoad so a WebView reload gets its count again. Groups
+                // never set _waitingForContactConfirmation (both set sites exclude
+                // FriendType.Group), so no unlock edge is lost by this hoist — and a
+                // group can no longer hit the 1:1 online/offline branch below.
+                // Approved groups only: a not-yet-approved group (the joinBot window,
+                // legacy pending states) kept an EMPTY sub-line before this change —
+                // "0 members" there would be new noise, so silence stays the status quo.
+                if (friend.state == FriendState.Approved)
+                {
+                    int groupMemberCount = 0;
+                    if (friend.users != null && friend.users.contacts != null)
+                    {
+                        groupMemberCount = friend.users.contacts.Count;
+                    }
+                    string groupCountText = String.Format(SpixiLocalization._SL("chat-member-count"), groupMemberCount);
+                    if (groupCountText != lastGroupCountPushed)
+                    {
+                        lastGroupCountPushed = groupCountText;
+                        Utils.sendUiCommand(this, "setOnlineStatus", groupCountText);
+                    }
+                }
             }
             else
             {

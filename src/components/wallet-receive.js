@@ -93,7 +93,7 @@ export function createWalletReceive({
 
   // #303: constant — the QR never carries an amount (see docblock). Kept as functions
   // so the onShare payload contract ({ value: qrValue() }) is unchanged for callers.
-  const qrLabel = () => (strings.qrReceiveLabel || 'QR code — your Ixian address');
+  const qrLabel = () => (strings.qrReceiveLabel || 'QR code: your Ixian address');
   const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
 
   /* ——— QR card ———
@@ -156,10 +156,10 @@ export function createWalletReceive({
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(address).then(
         () => copyMorph('check', strings.txCopied || 'Copied'),
-        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
       );
     } else {
-      copyMorph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
     }
   });
   addrRow.append(addrValue, copy);
@@ -375,7 +375,7 @@ export function createWalletReceive({
       // Stay put. The failures are still ticked, so the CTA now retries exactly
       // the remainder — and the count in its label says how many that is.
       showResult(sentCount
-        ? (strings.requestSentPartly || 'Sent to {n} — the rest are still selected. Try again.')
+        ? (strings.requestSentPartly || 'Sent to {n}. The rest are still selected. Try again.')
           .split('{n}').join(String(sentCount))
         : (strings.requestFailed || 'Couldn’t send the request. Check the address and try again.'),
         'error');
@@ -453,7 +453,7 @@ export function createWalletReceive({
       const more = document.createElement('p');
       more.className = 'c-wallet-receive__none';
       more.setAttribute('role', 'note');
-      more.textContent = (strings.moreContacts || '{n} more — keep typing to narrow it down')
+      more.textContent = (strings.moreContacts || '{n} more. Keep typing to narrow it down')
         .split('{n}').join(String(list.length - cap));
       rows.append(more);
     }
@@ -461,7 +461,7 @@ export function createWalletReceive({
       const none = document.createElement('p');
       none.className = 'c-wallet-receive__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
     syncCta();                                             // freshly built rows inherit the current rule/count line

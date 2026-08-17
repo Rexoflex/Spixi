@@ -315,7 +315,7 @@ index-missing-tx-title = Nedostaju neke transakcije?
 index-missing-tx-text = Spixi čita direktno iz blockchain-a, ne sa centralizovanih servera, pa sinhronizacija može potrajati.
 index-missing-tx-view-all = Prikaži sve transakcije u istraživaču
 index-backup-prompt-title = Ne zaboravite da sačuvate rezervnu kopiju
-index-backup-prompt-desc = Spixi je potpuno decentralizovan — vaši podaci ostaju samo na vašem uređaju. Da biste sačuvali kontakte i kasnije ih mogli vratiti, kreirajte rezervnu kopiju sada.
+index-backup-prompt-desc = Spixi je potpuno decentralizovan. Vaši podaci ostaju samo na vašem uređaju. Da biste sačuvali kontakte i kasnije ih mogli vratiti, kreirajte rezervnu kopiju sada.
 index-backup-prompt-create = Da, kreiraj kopiju
 index-backup-prompt-not-now = Ne sada
 index-backup-prompt-note = Preporučuje se da napravite rezervnu kopiju svaki put kada dodate novi kontakt.
@@ -635,7 +635,7 @@ onboarding-finish = Završi
 ; Empty State
 empty-state-title = Dobrodošli u Spixi
 empty-state-detail-1 = Vaša sigurna peer-to-peer aplikacija za razgovor sa integrisanim novčanikom.
-empty-state-detail-2 = Poruke su šifrovane i prenose se isključivo između vašeg uređaja i uređaja vašeg kontakta — vaša privatnost je u potpunosti zaštićena.
+empty-state-detail-2 = Poruke su šifrovane i prenose se isključivo između vašeg uređaja i uređaja vašeg kontakta. Vaša privatnost je u potpunosti zaštićena.
 
 ; Ixinames
 ixinames-request-title = IXI Names želi povezivanje

@@ -21,6 +21,15 @@ namespace SPIXI
     {
         string appId = null;
 
+        // N24 (loop fix A-1): the home shell highlights the apps-tab row whose
+        // details pane is OPEN. HomePage pushes the highlight from
+        // onOverlayPresented — presentation is the truth; a pushPageLoaded call
+        // site can be DROPPED before present (lock shown in place, another
+        // preload staging) and a fire-and-forget push there highlighted a row
+        // whose pane never opened. The fetched-app ctor has no appId until
+        // install — fall through to the fetched app's own id.
+        public string selectedAppId { get { return appId ?? (fetchedApp != null ? fetchedApp.id : null) ?? ""; } }
+
         MiniApp fetchedApp = null;
 
         Friend? friendOrGroup = null;

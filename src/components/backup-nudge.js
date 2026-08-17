@@ -53,7 +53,7 @@ export function showBackupNudge({ host, illustration = '', onBackup, onDismiss, 
   const body = document.createElement('p');
   body.className = 'c-backup-nudge__body t-body-sm';
   body.textContent = strings.backupNudgeBody
-    || 'Spixi is fully decentralized — your data stays on your device only. '
+    || 'Spixi is fully decentralized. Your data stays on your device only. '
     + 'To keep your contacts safe and restore everything later, create a backup now.';
 
   let used = false;                              // one-shot: CTA rides the latch

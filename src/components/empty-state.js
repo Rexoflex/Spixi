@@ -3,7 +3,7 @@
  * one optional CTA. Deliberately surface-agnostic so Chats / Wallet / Contacts /
  * Apps all render the same shape from their own copy + their own `-es` art
  * (src/assets/images/<surface>-es.svg, shipped via src/demo/images → the shells'
- * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.svg;
+ * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.png;
  * an external asset URL is what a file:// WebView refuses, a sibling file is fine).
  *
  * A missing/blocked illustration NEVER leaves a hole: the <img> onerror drops it and
@@ -11,7 +11,7 @@
  * c-launch illo precedent. Copy always carries the meaning, so the art is aria-hidden.
  *
  * createEmptyState({
- *   illustration,          // 'images/apps-es.svg' — omit for the glyph-only shape
+ *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
  *   title, body,           // headline + supporting line (plain text — textContent)
  *   actionLabel, onAction, // ONE secondary CTA (tonal by house grammar)

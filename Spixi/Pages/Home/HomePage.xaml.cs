@@ -2496,6 +2496,18 @@ namespace SPIXI
                 UIHelpers.shouldRefreshContacts = true;
                 checkForRating();
             }
+            else if (overlay is AppDetailsPage)
+            {
+                // N24: drop the apps-tab row highlight when the details pane closes.
+                // Tag-replace ordering (the ContactDetails branch below): the OLD pane
+                // closes AFTER its replacement presented — clear only when NO details
+                // pane remains, or a replace would wipe the highlight the new pane
+                // just pushed. Narrow closes push a harmless no-op clear.
+                if (!SpixiContentPage.getOverlayPages().Exists(p => p is AppDetailsPage))
+                {
+                    Utils.sendUiCommand(this, "selectApp", "");
+                }
+            }
             else if (overlay is ContactDetails)
             {
                 infoPaneCol2Pending = false;
@@ -2518,6 +2530,16 @@ namespace SPIXI
         // load); no room anymore → the pane degrades to the full-span takeover.
         public override void onOverlayPresented(SpixiContentPage overlay)
         {
+            if (overlay is AppDetailsPage)
+            {
+                // N24 (loop A-1): the apps-tab row highlight is pushed at PRESENT
+                // time — the one moment the pane provably exists. A drop before
+                // present (lock in place, preload staging) now simply never
+                // highlights. Narrow presents push too: the takeover covers the
+                // list, so the stamp is invisible there and the close clears it.
+                Utils.sendUiCommand(this, "selectApp", ((AppDetailsPage)overlay).selectedAppId);
+                return;
+            }
             if (!(overlay is ContactDetails))
             {
                 return;
@@ -3108,6 +3130,10 @@ namespace SPIXI
                 // stays a modal (#256 lock) — only the page presentation changes.
                 closeContactDetailsOverlays();   // loop B-MINOR-1: no col-1 stacking
                 pushPageLoaded(new AppDetailsPage(app, null, true, friendOrGroup), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
+                // N24: the row highlight (selectApp) rides onOverlayPresented, NOT this
+                // call site — pushPageLoaded can DROP a staged page (lock in place,
+                // another preload staging) and a push here highlighted a row whose
+                // pane never opened (loop A-1).
             });
         }
 
@@ -3116,6 +3142,7 @@ namespace SPIXI
             // Q1-① (#267): same detail-column routing as onInstallApp above.
             closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
             pushPageLoaded(new AppDetailsPage(appId), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
+            // N24: selectApp rides onOverlayPresented (loop A-1) — see onInstallApp.
         }
 
         private void onAcceptRequest(string address)

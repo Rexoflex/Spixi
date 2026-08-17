@@ -499,7 +499,7 @@ export function createSettingsHub({
         const nick = input.value.trim();
         if (nick === name) { closeEdit(); return; }
         if (!nick) {                          // legacy: empty nickname is invalid
-          showErr(strings.nicknameEmpty || 'Enter a nickname — it’s how contacts see you.');
+          showErr(strings.nicknameEmpty || 'Enter a nickname. It’s how contacts see you.');
           return;
         }
         committing = true;
@@ -561,10 +561,10 @@ export function createSettingsHub({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(address).then(
           () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
         );
       } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
       }
     });
     row.append(value, copy);
@@ -956,7 +956,7 @@ export function settingsConfirm({ title, bodyText, confirmLabel, host, strings =
             inFlight = false;
             setLoading(confirmBtn, false);
             setOverlayOpts(modal, { escDismiss: true });
-            err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+            err.textContent = msg || strings.actionFailed || 'Something went wrong. Try again.';
             err.hidden = false;
             confirmBtn.focus();
           };
@@ -1089,7 +1089,7 @@ export function createSettingsDanger({
     strings.deleteWalletSub || 'Removes the wallet from this device and restarts Spixi.',
     () => ({
       title: strings.deleteWalletTitle || 'Delete wallet?',
-      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered — by anyone. Spixi will ask you to confirm with your PIN, then restart.',
+      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered by anyone. Spixi will ask you to confirm with your PIN, then restart.',
       confirmLabel: strings.deleteWalletConfirm || 'Delete wallet',
       run: (ctrl) => onDeleteWallet(ctrl),
     }),

@@ -36,7 +36,21 @@
   background-position: center;
   background-size: 0% 100%;
 }
-@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover { background-color: var(--surface-interactive-hover); } }
+/* N24 — the row/tile whose details pane is open (aria-current on __OPEN, stamped
+   by renderAppsList from state.selectedId; C# drives it via the selectApp push —
+   the chats selectChat precedent). __open carries the attribute because __open
+   is the paint box AND the focusable control (loop B-MAJOR-1: a wrapper stamp
+   painted nothing pressable and matched base.css's wrapper-guarded variants).
+   The IMAGE swap is the A5 selected-family rule (chatlist-item.css:39): a
+   selected row presses + closes in its OWN tonal family — without it the sweep
+   grew tonal-default over tonal-default and was invisible.
+   The :not([aria-current]) hover guard mirrors chatlist-item.css:46-52 and the
+   #353 dial: no hover wash on a selected row. */
+.c-app-item__open[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+}
+@media (hover: hover) and (pointer: fine) { .c-app-item__open:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); } }
 .c-app-item__open:active { background-size: 100% 100%; }
 
 .c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }

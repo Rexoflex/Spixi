@@ -33,7 +33,7 @@ const APP_CAP_LABELS = {
 };
 const APP_CAP_EXPLAIN = {
   MultiUser: 'Runs shared sessions so you can use this app together with friends.',
-  Authentication: 'Can prove who you are to this app using your Spixi identity — without a password.',
+  Authentication: 'Can prove who you are to this app using your Spixi identity, without a password.',
   TransactionSigning: 'Can ask you to approve IXI payments. You always confirm each one yourself.',
   RegisteredNamesManagement: 'Can read and manage your registered Ixian names.',
   Storage: 'Can save data on your device so it remembers things between sessions.',
@@ -302,7 +302,7 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
   trust.className = 'c-app-details__trust';
   trust.append(icon('shield-lock', { size: 16 }));
   const tt = document.createElement('span');
-  tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi — nothing leaves your device without your permission.';
+  tt.textContent = strings.runsSecurely || 'Runs securely inside Spixi. Nothing leaves your device without your permission.';
   trust.append(tt);
   el.append(trust);
 
@@ -338,7 +338,7 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
       const shareHint = document.createElement('p');
       shareHint.className = 'c-app-details__sharehint';
       shareHint.textContent = strings.shareHint
-        || 'Share this link with anyone — they can add the app in Spixi from it.';
+        || 'Share this link with anyone. They can add the app in Spixi from it.';
       adv.append(shareHint);
     }
     if (app.id) {
@@ -385,7 +385,7 @@ function openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, o
   if (caps.length) {
     const lead = document.createElement('p');
     lead.className = 'c-app-install__lead';
-    lead.textContent = strings.installLead || 'This app can do the following — tap any to learn more:';
+    lead.textContent = strings.installLead || 'This app can do the following. Tap any to learn more:';
     content.append(lead, capChips(caps, strings, { explain: true, reserve: true }));
   }
   if (app.url) {

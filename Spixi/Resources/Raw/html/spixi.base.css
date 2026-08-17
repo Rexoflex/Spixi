@@ -435,8 +435,18 @@ html:root .c-app-item[data-pressfade="out"] .c-app-item__open {
   transition: background-color var(--duration-200) var(--easing-standard, ease-out);
   background-color: transparent;
 }
+/* N24 (loop B-MAJOR-1): the SELECTED app row ([aria-current] lives on __open —
+   the wrapper stays attribute-free by design, see the :not(.c-app-item) guards
+   above) holds + lands in its OWN tonal family, the exact chatlist/txlist
+   [aria-current] pair at :422/:425. One extra attribute beats the plain twins. */
+html:root .c-app-item[data-pressfade="hold"] .c-app-item__open[aria-current] {
+  background-color: var(--surface-action-tonal-pressed);
+}
+html:root .c-app-item[data-pressfade="out"] .c-app-item__open[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+}
 @media (hover: hover) and (pointer: fine) {
-  html:root .c-app-item[data-pressfade="out"] .c-app-item__open:hover {
+  html:root .c-app-item[data-pressfade="out"] .c-app-item__open:hover:not([aria-current]) {
     background-color: var(--surface-interactive-hover);
   }
 }

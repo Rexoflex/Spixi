@@ -174,7 +174,7 @@ export function createWalletSend({
       const none = document.createElement('p');
       none.className = 'c-wallet-send__none';
       none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}” — you can paste their address instead.').split('{q}').join(q);
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
       rows.append(none);
     }
   }
@@ -276,7 +276,7 @@ export function createWalletSend({
         document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
       openModal(createModal({
         title: strings.maxTitle || 'Send your entire balance?',
-        body: (strings.maxBody || 'This fills in everything you have — {m} IXI after the network fee. You would be left with 0 IXI.')
+        body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
           .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
         content: maxWarn,
         role: 'alertdialog', host,

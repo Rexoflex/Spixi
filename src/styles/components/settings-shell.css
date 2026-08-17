@@ -491,6 +491,19 @@
   gap: var(--spacing-16);
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
 }
+/* N5 — the Delete-data screen is RESPONSIVE (Damir, master-worklist). The hub
+   keeps its one-line truncating subtitles (the I-11 row-rhythm dial), but on
+   THIS screen the sub lines are the safety copy ("Messages go from this
+   device…") — they must WRAP, never truncate. Scoped to the danger body so no
+   hub row changes. No min-width work is needed: .c-settings__row-label already
+   ships min-width:0 (the #140③ class, :235-241) and the other flex hops sit on
+   the COLUMN axis — 341-next C1's shrink theory was half-stale (loop rounds
+   B-NIT-6 + re-review MINOR-1). */
+.c-settings-danger__body .c-settings__row-sub {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
 .c-settings-danger__cards {
   display: flex;
   flex-direction: column;

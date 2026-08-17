@@ -128,7 +128,7 @@
       host: phone,
       // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
       // (img error → tonal shield-disc fallback, launch-shell grammar)
-      illustration: 'images/onboarding/backup.svg',
+      illustration: 'images/onboarding/backup.png',
       onBackup: () => showToast({ text: 'ixian:backup → Backup screen (C#)', tone: 'info', host: phone }),
     }),
   });
@@ -140,6 +140,8 @@
     label: 'Rating nudge', type: 'outline', size: 32,
     onClick: () => showRatingNudge({
       host: phone,
+      illustration: 'images/onboarding/rate.png',   // N14a
+
       onRate: (a) => showToast({
         text: 'ixian:rating:' + a + ' → ' + (a === 'yes' ? 'store review' : 'support email') + ' (C#)',
         tone: 'info', host: phone,

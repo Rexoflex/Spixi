@@ -115,7 +115,7 @@ function renderLive(el, feed, category, { strings = getStrings(), onOpen } = {})
     const empty = document.createElement('p');
     empty.className = 'c-apps-discover__empty';
     empty.setAttribute('role', 'note');
-    empty.textContent = (strings.discoverEmptyCat || 'No {cat} apps yet — check back soon.')
+    empty.textContent = (strings.discoverEmptyCat || 'No {cat} apps yet. Check back soon.')
       .split('{cat}').join(category || '');
     host.append(empty);
   }
@@ -144,7 +144,7 @@ export function createAppsDiscover({ strings = getStrings(), categories = APP_CA
     soon.append(icon('rocket', { size: 32 }));
     const t = document.createElement('p');
     t.textContent = strings.discoverSoon
-      || 'The Spixi Mini App directory is coming soon — you’ll browse and install featured apps right here.';
+      || 'The Spixi Mini App directory is coming soon. You’ll browse and install featured apps right here.';
     soon.append(t);
     if (onBrowseWeb) {                                   // fallback — the web directory exists today
       soon.append(createButton({

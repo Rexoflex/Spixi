@@ -1850,7 +1850,7 @@
       strings: s,
       onCopy: (n, okCopy) => {
         if (!okCopy) {
-          showToast({ text: s.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: overlayHost, strings: s });
+          showToast({ text: s.copyFailed || 'Couldn’t copy. Select the address text instead', tone: 'error', host: overlayHost, strings: s });
           return;
         }
         showToast({
@@ -2396,7 +2396,7 @@
     const s = window.SL || {};
     return createSystemNotice({
       title: s.secureNoticeTitle || 'Encrypted. Peer-to-peer. Yours alone.',
-      text: s.secureNoticeText || 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them — every message exists only with you two, nowhere else.',
+      text: s.secureNoticeText || 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with you two, nowhere else.',
       linkLabel: s.secureNoticeLink || 'How it works',
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });

@@ -6,6 +6,21 @@
    on a status tick or a new message — an injected <span> check would be wiped on
    each render, a pseudo-element re-applies for free on the fresh node. */
 [data-selecting] .c-bubble-row { cursor: pointer; }
+/* N36 (Damir) — select mode shows ONLY the selected color. Every tap in the log
+   is a select/deselect toggle (the capture handler swallows control clicks), so
+   in-bubble controls are DEAD while selecting: pointer-events none kills their
+   :active flashes at the source and lands the tap on the row — a tap on a card
+   button now toggles like a tap anywhere else. Text selection on bubble TEXT is
+   untouched (the W9-④ scope). pressable.js carries the matching opt-out for the
+   committed-fill mechanism ([data-selecting] ancestor bail). */
+[data-selecting] .c-bubble-row .c-button,
+[data-selecting] .c-bubble-row .c-tcard__details-btn,
+[data-selecting] .c-bubble-row .c-fbubble,
+[data-selecting] .c-bubble-row .c-fbubble__cancel,
+[data-selecting] .c-bubble-row .c-bubble-retry,
+[data-selecting] .c-bubble-row .c-reactions__pill,
+[data-selecting] .c-bubble-row .c-bubble__link,
+[data-selecting] .c-bubble-row .c-mbubble { pointer-events: none; }
 /* W9-④ (Damir, Windows F5): while a DESKTOP drag is ranging over rows, native
    text selection must not fight it — the browser would paint a text highlight
    across every bubble the pointer crosses. Scoped to the live gesture

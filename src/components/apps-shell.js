@@ -141,7 +141,7 @@ function appsEmptyNode(cache, state, opts, strings) {
       glyph: 'apps',
       title: strings.appsEmptyTitle || 'Mini apps, right inside Spixi',
       body: strings.appsEmptyBody
-        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file — it takes seconds.',
+        || 'Games, tools and on-device AI that run inside a conversation. Add one from a link, a QR code, or a file. It takes seconds.',
       actionLabel: opts.onAddApp ? (strings.addApp || 'Add app') : '',
       actionIcon: 'circle-plus',
       onAction: opts.onAddApp || null,
@@ -224,6 +224,26 @@ export function renderAppsList(listEl, state, opts = {}) {
     listEl.insertBefore(n, cursor);
   }
   while (cursor) { const next = cursor.nextSibling; listEl.removeChild(cursor); cursor = next; }
+
+  /* N24 — two-pane selection (the chats selectChat precedent): the row whose
+   * details pane is open carries aria-current. Stamped OUTSIDE the row cache on
+   * every render — a selection flip must not dirty rowFresh (the reuse keys stay
+   * selection-blind), and a reused row sheds a stale highlight here. Driven by
+   * state.selectedId; '' / undefined clears every row.
+   * ★ Loop B-MAJOR-1: the attribute lands on __open, NOT the wrapper. __open is
+   * the box that PAINTS (the A5 split) and the focusable control (SRs announce
+   * "current" with focus, the chatlist parity) — and a wrapper [aria-current]
+   * would drag .c-app-item into base.css's selected press/fade variants, whose
+   * :not(.c-app-item) guards exist precisely because the wrapper must never
+   * carry press paint (the documented grid card blink). */
+  const selId = state.selectedId == null ? '' : String(state.selectedId);
+  for (const n of nodes) {
+    if (!n || !n.dataset || n.dataset.appId == null) continue;
+    const open = n.querySelector('.c-app-item__open');
+    if (!open) continue;
+    if (selId && n.dataset.appId === selId) open.setAttribute('aria-current', 'true');
+    else open.removeAttribute('aria-current');
+  }
 
   // trim the cache oldest-first, never dropping a row that is on screen right now
   if (cache.rows.size > ROW_CACHE_MAX) {

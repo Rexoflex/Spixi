@@ -11,11 +11,14 @@
  * (HomePage.xaml.cs:325) — bridge stays frozen. All of that C# logic is
  * UNCHANGED; at integration `showRatingPrompt` maps to showRatingNudge().
  *
- * showRatingNudge({ host, onRate, onDismiss, strings }) → the sheet element
- *   (already opened). "Yes, I am loving it" (fill) → onRate('yes') + close ·
- *   "Not so much…" (outline) → onRate('no') + close — ONE latch across both.
- *   Scrim/Esc → plain dismiss, NO verb (C# re-prompts later — legacy parity;
- *   a sheet's light-dismiss IS the "not now" the legacy modal never had).
+ * showRatingNudge({ host, illustration, onRate, onDismiss, strings }) → the
+ *   sheet element (already opened). "Yes, I am loving it" (fill) → onRate('yes')
+ *   + close · "Not so much…" (outline) → onRate('no') + close — ONE latch across
+ *   both. Scrim/Esc → plain dismiss, NO verb (C# re-prompts later — legacy
+ *   parity; a sheet's light-dismiss IS the "not now" the legacy modal never had).
+ * illustration = optional img src (backup-nudge grammar: decorative alt="",
+ *   error → falls back to the brand-mark disc). N14a: shells point it at the
+ *   rate-me art (images/onboarding/rate.png) — upgrade by FILE DROP.
  * Copy defaults = the legacy en-us lang block (rating-request-*), overridable
  * via strings.rating* (SL channel at i18n).
  */
@@ -24,7 +27,7 @@ import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
-export function showRatingNudge({ host, onRate, onDismiss, strings = getStrings() } = {}) {
+export function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-rating-nudge';
 
@@ -32,6 +35,17 @@ export function showRatingNudge({ host, onRate, onDismiss, strings = getStrings(
   disc.className = 'c-rating-nudge__disc';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('logo'));                     // the brand mark asks (legacy spixirounded.svg)
+
+  let art = null;                                // N14a — the rate-me illustration leads; disc = fallback
+  if (illustration) {
+    art = document.createElement('img');
+    art.className = 'c-rating-nudge__illo';
+    art.src = illustration;
+    art.alt = '';                                // decorative — the copy carries meaning
+    art.draggable = false;
+    disc.hidden = true;
+    art.addEventListener('error', () => { art.remove(); disc.hidden = false; }, { once: true });
+  }
 
   const title = document.createElement('h3');
   title.className = 'c-rating-nudge__title t-heading-xs';
@@ -55,6 +69,7 @@ export function showRatingNudge({ host, onRate, onDismiss, strings = getStrings(
   const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'outline', size: 56, width: 'full' });
   no.addEventListener('click', () => answer('no'));
 
+  if (art) content.append(art);
   content.append(disc, title, body, yes, no);
 
   const sheet = createSheet({ content, host, onDismiss, strings });

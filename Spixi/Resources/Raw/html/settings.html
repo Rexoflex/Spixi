@@ -1196,6 +1196,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   gap: var(--spacing-16);
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
 }
+/* N5 — the Delete-data screen is RESPONSIVE (Damir, master-worklist). The hub
+   keeps its one-line truncating subtitles (the I-11 row-rhythm dial), but on
+   THIS screen the sub lines are the safety copy ("Messages go from this
+   device…") — they must WRAP, never truncate. Scoped to the danger body so no
+   hub row changes. No min-width work is needed: .c-settings__row-label already
+   ships min-width:0 (the #140③ class, :235-241) and the other flex hops sit on
+   the COLUMN axis — 341-next C1's shrink theory was half-stale (loop rounds
+   B-NIT-6 + re-review MINOR-1). */
+.c-settings-danger__body .c-settings__row-sub {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
 .c-settings-danger__cards {
   display: flex;
   flex-direction: column;
@@ -2272,7 +2285,7 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
   width: 128px;                     /* sanctioned: placeholder art dims — swapped for illustration #6 */
   height: 128px;
 }
-/* illustration swap (Damir: images/backup.svg) — fills the art slot, fail-soft
+/* illustration swap (Damir: images/backup.png) — fills the art slot, fail-soft
    to the placeholder composition on load error (handled in JS) */
 .c-settings-backup__illustration {
   width: 100%;
@@ -3571,7 +3584,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   :root[data-desktop] body[data-pane] #settings-nav { display: none; }
   body[data-pane] #settings-root { flex-direction: row; }
   body[data-pane] #settings-root > .sd-master {
-    flex: 0 0 var(--sd-master-w, 328px);
+    /* N5 (341-next C1, narrow-desktop clip): --sd-master-w is pushed ONCE by C#
+       (setPaneMetrics) and keeps a STALE pixel width when the window narrows —
+       the fixed basis then starved the detail region and clipped the danger
+       cards. Clamp it: the detail region keeps >=320px (the #247 pane minimum);
+       208px floor = the native 280px left-pane minimum minus the 72px rail. */
+    flex: 0 0 clamp(208px, var(--sd-master-w, 328px), calc(100% - 320px));
     display: flex; flex-direction: column; min-height: 0;
     border-inline-end: 1px solid var(--outline-neutral-03);
   }
@@ -3827,7 +3845,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   }
   const langHint = (code) => (langIsHidden(code)
     ? (strings.languagePending
-      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.')
+      || 'Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.')
     : undefined);
   const langOptions = (code) => langList(code).map((l) => ({ value: l.code, label: l.label, flag: l.flag }));
 
@@ -4572,7 +4590,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         // #245b (Damir): the ONE backup illustration everywhere — same asset the
         // create-account/onboarding tail + backup nudge use (build-shells copies
         // src/demo/images → html/images; fail-soft to the shield placeholder).
-        illustration: 'images/backup.svg',
+        illustration: 'images/backup.png',
         onBack: showHub,
         onBackup: (_payload, ctrl) => { stampBackup(); bridge.send('ixian:backupAccount'); ctrl.done(); },
         onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
@@ -4698,7 +4716,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    *  3. Clipboard, then execCommand, then an error toast. The row always answers. */
   function copyAddressFallback(addr) {
     const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
-    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Couldn’t copy — select the address text instead', tone: 'error', host: document.body, strings }); };   // fallback = the dict value (A4 conflict gate)
+    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Couldn’t copy. Select the address text instead', tone: 'error', host: document.body, strings }); };   // fallback = the dict value (A4 conflict gate)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(addr).then(ok, fail);

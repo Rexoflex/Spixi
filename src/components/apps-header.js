@@ -32,7 +32,7 @@ export function createAppsHeader({ layout = 'list', strings = getStrings(), disc
     toggle.dataset.layout = lay;
     const target = lay === 'list' ? 'grid' : 'list';        // clicking switches to this
     toggle.textContent = '';
-    toggle.append(icon(target === 'grid' ? 'apps' : 'menu-2', { size: 22 }));
+    toggle.append(icon(target === 'grid' ? 'layout-grid' : 'menu-2', { size: 22 }));
     toggle.setAttribute('aria-label', target === 'grid'
       ? (strings.viewAsGrid || 'View as grid')
       : (strings.viewAsList || 'View as list'));

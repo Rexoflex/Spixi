@@ -408,10 +408,10 @@ export function createChatInfo({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(address).then(
           () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead'),
+          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
         );
       } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy — select the address text instead');
+        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
       }
     });
     row.append(value, copy);
@@ -870,7 +870,7 @@ export function createChatInfo({
               inFlight = false;
               setLoading(confirmBtn, false);
               setOverlayOpts(modal, { escDismiss: true });
-              err.textContent = msg || strings.actionFailed || 'Something went wrong — try again.';
+              err.textContent = msg || strings.actionFailed || 'Something went wrong. Try again.';
               err.hidden = false;
               confirmBtn.focus();                        // audit m5: never drop focus
             };

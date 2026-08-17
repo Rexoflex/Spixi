@@ -227,5 +227,19 @@ export function formatIxiAmount(value) {
     const full = rawFrac.replace(/0+$/, '');
     if (full) frac = full;
   }
+  // N32 (Damir): an ABSOLUTE-ZERO amount reads "0.00", not "0" — the bare zero
+  // looked broken on the wallet hero. The trailing-zero trim stays for every
+  // nonzero value; the C# alert mirror (#360) is untouched — a zero never
+  // reaches the insufficient-balance sentences this way.
+  if (!frac && /^0+$/.test(int.replace(/,/g, ''))) frac = '00';
   return groupAmountDisplay(sign + int.replace(/,/g, '') + (frac ? '.' + frac : ''));
+}
+
+/** N32 — TRUE for an amount string whose numeric value is exactly zero
+ *  ("0", "0.0", "0,00", "+0"). Non-numeric and empty strings are NOT zero —
+ *  the hero keeps its empty-until-pushed state. */
+export function zeroAmount(value) {
+  const m = String(value == null ? '' : value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return false;
+  return /^0*$/.test(m[2].replace(/,/g, '')) && /^0*$/.test(m[3] || '');
 }

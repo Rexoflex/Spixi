@@ -105,7 +105,7 @@ function illoSlot(name, src) {
   slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
   if (src) {
     // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
-    // nudge + Account→Backup pane, images/backup.svg). Join-step <img> grammar;
+    // nudge + Account→Backup pane, images/backup.png — N45). Join-step <img> grammar;
     // load error → the token-styled placeholder below, so a missing asset
     // degrades to the old look, never a blank slot.
     const img = document.createElement('img');
@@ -223,7 +223,7 @@ function buildWelcome(st) {
   const langHint = () => (offered.some((l) => l.code === st.language)
     ? undefined
     : (strings.languagePending
-      || 'Your system language is set for Spixi, but this interface is still shown in English — its translation is on the way.'));
+      || 'Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.'));
   const langPill = document.createElement('button');
   langPill.type = 'button';
   langPill.className = 'c-launch__pill';
@@ -299,24 +299,24 @@ function buildWelcome(st) {
   const base = opts.illustrationBase || 'images/onboarding/';
   const defs = [
     {
-      img: base + 'step1.svg',
+      img: base + 'step1.png',
       title: strings.slide1Title || 'Built for you. Owned by you.',
-      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device — delivered straight to your contact, and to no one else.',
+      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device, delivered straight to your contact, and to no one else.',
     },
     {
-      img: base + 'step2.svg',
+      img: base + 'step2.png',
       title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
-      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal — the account is yours alone.',
+      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
     },
     {
-      img: base + 'step3.svg',
+      img: base + 'step3.png',
       title: strings.slide3Title || 'Send money like you send a message.',
-      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap — as simple and instant as saying hello.',
+      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello.',
     },
     {
-      img: base + 'step4.svg',
+      img: base + 'step4.png',
       title: strings.slide4Title || 'Mini Apps, right inside your chats.',
-      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world — all without ever leaving the conversation.',
+      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
     },
   ];
   const slides = defs.map((s, i) => {
@@ -453,7 +453,7 @@ function buildWelcome(st) {
 // entry, so every locale renders this English text by design. Localizing legal copy
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password — no other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
+const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
 const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
@@ -653,7 +653,7 @@ function buildCreate(st) {
   const warnBody = document.createElement('p');
   warnBody.className = 'c-launch__callout-body';
   warnBody.textContent = strings.createWarnBody
-    || 'Without it and your backup file, your account and wallet can’t be recovered — not even by us.';
+    || 'Without it and your backup file, your account and wallet can’t be recovered, not even by us.';
   warn.append(warnTitle, warnBody);
   body.append(warn);
   v.append(body);
@@ -766,7 +766,7 @@ function buildRestore(st) {
   hero.className = 'c-launch__hero';
   const heroIllo = document.createElement('img');
   heroIllo.className = 'c-launch__hero-illo';
-  heroIllo.src = base + 'restore.svg';           // legacy restore art (dark set — launch is pinned dark)
+  heroIllo.src = base + 'restore.png';           // legacy restore art (dark set — launch is pinned dark)
   heroIllo.alt = '';                             // decorative — the copy carries meaning
   heroIllo.draggable = false;
   heroIllo.addEventListener('error', () => { heroIllo.hidden = true; }, { once: true });
@@ -982,14 +982,14 @@ function buildTail(st) {
   // the standing settings-row state takes over from there)
   const backupStep = document.createElement('div');
   backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.svg'));
+  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.png'));
   const bTitle = document.createElement('h1');
   bTitle.className = 'c-launch__slide-title';
   bTitle.textContent = strings.backupHeadline || 'One file protects everything';
   const bCopy = document.createElement('p');
   bCopy.className = 'c-launch__slide-copy';
   bCopy.textContent = strings.backupCopy
-    || 'Your identity, wallet and contacts — encrypted with your password into a single backup file.';
+    || 'Your identity, wallet and contacts: encrypted with your password into a single backup file.';
   const backupBtn = createButton({ label: strings.backupCta || 'Back up now', size: 56, width: 'full' });
   backupBtn.addEventListener('click', () => {
     // integration (§9): onboarding-complete + the settings Backup screen —

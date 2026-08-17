@@ -392,7 +392,7 @@ console.log('wallet.html');
     ok(sentText === null && !!failing.parentNode,
       '★ W9 PARTIAL FAILURE NEVER NAVIGATES: onRequestsSent is the ALL-CLEAR signal only — leaving the screen on a partial send would strand the user with no idea which half went');
     const fresult = failing.querySelector('.c-wallet-receive__result');
-    ok(!fresult.hidden && fresult.dataset.tone === 'error' && fresult.textContent === 'Sent to 2 — the rest are still selected. Try again.',
+    ok(!fresult.hidden && fresult.dataset.tone === 'error' && fresult.textContent === 'Sent to 2. The rest are still selected. Try again.',
       'W9: the result line names the outcome in the error tone, and says the remainder is still selected');
     ok(fresult.getAttribute('aria-hidden') === 'true'
       && failing.querySelector('.c-wallet-receive__live').textContent === fresult.textContent,
@@ -2641,7 +2641,7 @@ console.log('chats.html — periodic backup nudge (legacy #backup-prompt parity)
 
   // illustration slot: art leads, decorative; img error → disc fallback
   // (file-drop upgrade path — illustrations-plan #6, shared with the launch tail)
-  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/onboarding/backup.svg' });
+  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/onboarding/backup.png' });
   const art3 = sheet3.querySelector('.c-backup-nudge__illo');
   const disc3 = sheet3.querySelector('.c-backup-nudge__disc');
   ok(!!art3 && art3.getAttribute('alt') === '' && disc3.hidden,
@@ -3113,8 +3113,8 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(d.querySelectorAll('.c-launch__slide').length === 4 && dots.length === 4,
     'carousel: 4 slides + 4 dots (the SHIPPED legacy tour, step1–4 reused)');
   const arts = [...d.querySelectorAll('.c-launch__slide .c-launch__illo-img')];
-  ok(arts.length === 4 && arts.every((im) => /images\/onboarding\/step[1-4]\.svg$/.test(im.getAttribute('src'))),
-    'slides carry the legacy step1–4 art (dark set — welcome is pinned dark)');
+  ok(arts.length === 4 && arts.every((im) => /images\/onboarding\/step[1-4]\.png$/.test(im.getAttribute('src'))),
+    'slides carry the step1–4 art as PNG (N45 byte dial: 150-195 KB vs 450-655 KB SVG; dark set — welcome is pinned dark)');
   ok(dots[0].getAttribute('aria-selected') === 'true', 'dot 1 selected at rest (roving tabindex)');
   dots[2].click();
   ok(dots[2].getAttribute('aria-selected') === 'true'
@@ -3122,11 +3122,11 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'dot click drives the track (and retires autoplay — the user took control)');
   d.querySelector('.c-launch__dots').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   ok(dots[1].getAttribute('aria-selected') === 'true', '←/→ arrows page the carousel');
-  // iOS-2 (#283/#284): the backup nudge now ships the REAL asset (images/backup.svg,
+  // iOS-2 (#283/#284) · N45: the backup nudge now ships the REAL asset (images/backup.png,
   // the #245b canon); data-placeholder survives only as the img-error fallback.
   const backupIllo = d.querySelector('.c-launch__illo[data-illo="backup"] .c-launch__illo-img');
-  ok(!!backupIllo && /images\/backup\.svg$/.test(backupIllo.getAttribute('src')),
-    'iOS-2: the backup nudge carries the REAL backup.svg (join-step img grammar)');
+  ok(!!backupIllo && /images\/backup\.png$/.test(backupIllo.getAttribute('src')),
+    'iOS-2/N45: the backup nudge carries the REAL backup.png (join-step img grammar)');
   ok(d.querySelectorAll('.c-launch__illo[data-placeholder="true"]').length === 0,
     'NO placeholder slots remain (placeholder = img-error fallback only, iOS-2 shipped)');
 
@@ -3312,10 +3312,20 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(/settingsOptionSheet/.test(ljs) && /settingsThemeSheet/.test(ljs)
     && /from '\.\/settings-shell\.js'/.test(ljs),
     'language/theme pickers REUSE the settings sheets — one picker grammar app-wide');
-  for (const n of ['step1', 'step2', 'step3', 'step4', 'restore', 'join-community', 'backup']) {
-    const svg = readFileSync(join(root, 'src/demo/images/onboarding/' + n + '.svg'), 'utf8');
+  /* N45: the SHIPPED onboarding art is now PNG (smaller by 2.5-4x per asset);
+     join-community stays SVG (no PNG export exists). PNG integrity = magic bytes
+     + IEND tail, the same truncation class the old <svg check caught. */
+  for (const n of ['step1', 'step2', 'step3', 'step4', 'restore', 'backup', 'rate']) {
+    let png = null;
+    try { png = readFileSync(join(root, 'src/demo/images/onboarding/' + n + '.png')); } catch (e) { /* missing → the pin fails, the run survives */ }
+    ok(!!png && png.length > 8 && png[0] === 0x89 && png[1] === 0x50 && png.subarray(-8, -4).toString('latin1') === 'IEND',
+      'N45: onboarding art ' + n + '.png ships complete (PNG magic + IEND tail — truncated or MISSING copies fail)');
+  }
+  {
+    let svg = '';
+    try { svg = readFileSync(join(root, 'src/demo/images/onboarding/join-community.svg'), 'utf8'); } catch (e) { /* missing → fail below */ }
     ok(svg.includes('<svg') && svg.trimEnd().endsWith('</svg>'),
-      'onboarding art ' + n + '.svg is present AND complete (truncated Figma exports pass a bare <svg check)');
+      'onboarding art join-community.svg (SVG-only asset) is present AND complete');
   }
   ok(/touch-action: pan-y/.test(lcss), 'carousel owns horizontal swipe only — vertical scroll stays native');
   ok(/isConnected/.test(ljs) && /isConnected/.test(lockjs2),
@@ -4247,7 +4257,7 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
   ok(/RATING_SNOOZE_KEY/.test(home),
     'A5: a light-dismiss snoozes locally — the component sends no verb and C# re-pushes on EVERY chat exit, which is an endless nag without this');
   ok(/backup-nudge\.css/.test(home) && /rating-nudge\.css/.test(home), 'A5/A11: both nudge stylesheets are linked (neither was)');
-  ok(/illustration: 'images\/backup\.svg'/.test(home), 'A11: the shared backup art is used (it already ships beside the shells)');
+  ok(/illustration: 'images\/backup\.png'/.test(home), 'A11/N45: the shared backup art is used (PNG canon; it ships beside the shells)');
 
   /* —— A6: bot description —— */
   ok(/mode\.description = String\(botDescription/.test(chat) && /DESCRIPTION_MAX/.test(chat),
@@ -4291,8 +4301,8 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
      address, so the amount gate + clipboard rungs are asserted GONE, not present —— */
   ok(/function shareReceivePayload\(value\) \{/.test(home) && !/const nativeOk/.test(home),
     'F3 ★: shareReceivePayload takes NO amount — the A10 gate collapsed because the shared text never carries `:send:<amount>` (Damir 2026-08-04)');
-  ok(/onShare: \(\{ address, value \}\) => shareReceivePayload\(address \|\|/.test(home),
-    'F3: onShare passes the BARE address — qrValue()\'s `address:ixi`/`address:send:` composition must never reach the share sheet');
+  ok(/onShare: isDesktopPresentation\(\)\s*\n?\s*\? undefined\s*\n?\s*: \(\{ address, value \}\) => shareReceivePayload\(address \|\|/.test(home),
+    'F3+N38: onShare passes the BARE address, and only off desktop — qrValue()\'s `address:ixi`/`address:send:` composition must never reach the share sheet');
   ok(/e\.name === 'AbortError' && !isWebView2\) return/.test(home),
     'F3: a WebKit AbortError (sheet shown, user dismissed) does NOTHING — batch A re-sent ixian:share there, popping a SECOND sheet after a cancel');
   ok(/window\.chrome && window\.chrome\.webview/.test(home),
@@ -6567,7 +6577,7 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
 
   /* —— item 3: the illustrated empty state —————————————————————————————— */
   let added = 0;
-  const eOpts = { strings: {}, emptyIllustration: 'images/apps-es.svg', onAddApp: () => { added += 1; } };
+  const eOpts = { strings: {}, emptyIllustration: 'images/apps-es.png', onAddApp: () => { added += 1; } };
   const eState = { apps: [], query: '', layout: 'list' };
   const eList = S.createAppsList(eState, eOpts);
   d.body.append(eList);
@@ -6576,7 +6586,7 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
     && !!es.querySelector('.c-empty-state__body').textContent.trim(),
     'APPS EMPTY: nothing installed → illustration + headline + a supporting line (not a bare one-liner)');
   const eImg = es && es.querySelector('.c-empty-state__illo-img');
-  ok(!!eImg && eImg.getAttribute('src') === 'images/apps-es.svg',
+  ok(!!eImg && eImg.getAttribute('src') === 'images/apps-es.png',
     'APPS EMPTY: the art loads as a SIBLING file (images/…) — a file:// WebView refuses an external asset URL');
   const eCta = es && es.querySelector('.c-empty-state__action .c-button');
   ok(!!eCta && eCta.dataset.size === '44' && eCta.dataset.type === 'tonal',
@@ -6595,16 +6605,16 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
   S.renderAppsList(eList2, { apps: [], query: '', layout: 'list' }, eOpts);
   ok(!!eList2.querySelector('.c-empty-state__illo-img') && !!eList2.querySelector('.c-empty-state__action .c-button'),
     'APPS EMPTY: the empty node is cached by SHAPE — an early art-less render never pins an art-less state forever');
-  ok(/emptyIllustration: 'images\/apps-es\.svg'/.test(homeSrc) && /onAddApp: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
+  ok(/emptyIllustration: 'images\/apps-es\.png'/.test(homeSrc) && /onAddApp: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
     'APPS EMPTY: the production shell wires the art + the CTA (same verb as the topbar — no new bridge verb)');
-  ok(existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.svg'))
-    && existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.svg')),
-    'APPS ART: both SVGs ship next to the packaged shells (build-shells copies src/demo/images) — else both refs 404 on device');
+  ok(existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.png'))
+    && existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.png')),
+    'APPS ART (N45): both PNGs ship next to the packaged shells (build-shells copies src/demo/images) — else both refs 404 on device');
 
   /* —— item 4: the explore banner illustration ——————————————————————————— */
   const banner = d.querySelector('.c-apps-explore');
   const bIllo = banner && banner.querySelector('.c-apps-explore__illo');
-  ok(!!bIllo && bIllo.getAttribute('src') === 'images/explore-banner.svg' && bIllo.getAttribute('alt') === '',
+  ok(!!bIllo && bIllo.getAttribute('src') === 'images/explore-banner.png' && bIllo.getAttribute('alt') === '',
     'BANNER: the art is on the banner as a decorative image (alt="") — the button keeps its own accessible name');
   ok(!!bIllo && bIllo.previousElementSibling && bIllo.previousElementSibling.classList.contains('c-apps-explore__text'),
     'BANNER: the art is a FLEX SIBLING of the copy, not an absolute overlay — text can never end up underneath it');
@@ -6660,11 +6670,13 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
   const contactsSrc = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
 
   /* (a) art path — sibling file, and the file really ships */
-  for (const [surface, src] of [['chats', chatsSrc], ['wallet', walletSrc], ['contacts', contactsSrc]]) {
-    ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'images/" + surface + "-es\\.svg'").test(src),
-      surface + ': the empty state points at the SIBLING images/' + surface + '-es.svg (an external URL loads as a blank box under file://)');
-    ok(existsSync(join(root, 'src/demo/images', surface + '-es.svg')),
-      surface + '-es.svg really ships from src/demo/images (build-shells copies it next to the shells)');
+  /* N45: chats/wallet art is PNG now (byte dial); contacts-es has no PNG export
+     and stays SVG. */
+  for (const [surface, src, ext] of [['chats', chatsSrc, 'png'], ['wallet', walletSrc, 'png'], ['contacts', contactsSrc, 'svg']]) {
+    ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'images/" + surface + "-es\\." + ext + "'").test(src),
+      surface + ': the empty state points at the SIBLING images/' + surface + '-es.' + ext + ' (an external URL loads as a blank box under file://)');
+    ok(existsSync(join(root, 'src/demo/images', surface + '-es.' + ext)),
+      surface + '-es.' + ext + ' really ships from src/demo/images (build-shells copies it next to the shells)');
   }
 
   /* (b) zero vs no-results, per surface */
@@ -6800,7 +6812,7 @@ console.log('zero-state load gate — no illustrated empty state during the load
   const S = dom.window.Spixi, D = dom.window.document;
 
   /* —— APPS —————————————————————————————————————————————————————————————— */
-  const aOpts = { strings: {}, emptyIllustration: 'images/apps-es.svg', onAddApp: () => {} };
+  const aOpts = { strings: {}, emptyIllustration: 'images/apps-es.png', onAddApp: () => {} };
   const aList = S.createAppsList({ apps: [], query: '', layout: 'list' }, { ...aOpts, zeroReady: false });
   D.body.append(aList);
   ok(!aList.querySelector('.c-empty-state') && !aList.hasAttribute('data-empty'),
@@ -7670,7 +7682,7 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
   ok(/groupAmountDisplay\(fromUnits\(aU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(feeU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(aU \+ feeU\)\)/.test(ws360),
     'I-6 (#360): the review sheet groups Amount, Fee AND Total at full precision — separators are the only defence against a mistyped zero at the confirm moment (audit M3 exactness preserved: grouping adds separators, never drops digits)');
   const idx360 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
-  ok(idx360.includes('groupAmountDisplay(balance)') && idx360.includes('formatIxiAmount(amount)'),
+  ok(idx360.includes("groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance)") && idx360.includes('formatIxiAmount(amount)'),
     'I-6 (#360): the built home shell routes the hero balance and the tx-row amounts through the locale layer (the hardcoded-comma amountWithCommas port is gone; tx IXI now obeys the #76/#77 truncate-not-round law the legacy port broke)');
   /* C# mirror — comment-free shape pins. */
   const utils360 = readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
@@ -7692,6 +7704,173 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     && (scp360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 6
     && (wcrp360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 2,
     '★ I-6 (#360): every wallet-error-balance-text composition passes BOTH amounts through the C# mirror — no site ships a raw IxiNumber.ToString() into the sentence (Damir\'s repro: "333333333.03000000")');
+}
+
+
+/* ═════════ N-BATCH (cheap batch 2026-08-17): N5 · N22 · N24 · N32 · N36 · N38 ·
+   N2a · N3a · N45 · N14a — every pin below was mutation-proven (fix reverted →
+   pin fails → fix re-applied) at build time. ═════════ */
+console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N3a · N45)');
+{
+  const read = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  // —— N5: the Delete-data screen is responsive ——
+  const ssCss = read('src/styles/components/settings-shell.css');
+  ok(/\.c-settings-danger__body \.c-settings__row-sub \{\s*\n\s*white-space: normal;/.test(ssCss),
+    'N5: danger-screen row subs WRAP (scoped — hub rows keep the I-11 one-line truncation)');
+  ok(/\.c-settings__row-label \{[^}]*min-width: 0;/.test(ssCss.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'N5: the shrink hook the wrap depends on — .c-settings__row-label ships min-width:0 (the #140③ class); the loop removed three INERT duplicates the batch had added on top of it');
+  ok(/flex: 0 0 clamp\(208px, var\(--sd-master-w, 328px\), calc\(100% - 320px\)\)/.test(read('src/shells/settings.html')),
+    'N5 ★: the pane master column CLAMPS the stale --sd-master-w push (C# sends it once; a narrowed window starved the detail region and clipped the danger cards)');
+
+  // —— N22: private-group topbar member count (C#) ——
+  const scpN = read('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  ok(/N22 \(Damir, bot parity\)[\s\S]{0,2200}?chat-member-count[\s\S]{0,700}?lastGroupCountPushed = groupCountText/.test(scpN),
+    'N22: a private group pushes the chat-member-count sub-line (bot parity), latched on text change — not at the 1 Hz tick (#288 churn class)');
+  ok(/setOnlineStatus = false;\s*\n\s*lastGroupCountPushed = null;/.test(scpN),
+    'N22: the count latch re-arms in onLoad — a WebView reload resets identity.sub, so an un-reset latch would leave the reloaded topbar countless');
+  ok(/groupMemberCount = friend\.users\.contacts\.Count/.test(scpN),
+    'N22: the count source is friend.users.contacts.Count — the SAME source ContactDetails pushes for the group-info surface, so topbar and pane can never disagree');
+
+  // —— N24: apps-tab selected row (selectChat precedent) ——
+  const hpN = read('Spixi/Pages/Home/HomePage.xaml.cs');
+  ok(/overlay is AppDetailsPage[\s\S]{0,700}?"selectApp", \(\(AppDetailsPage\)overlay\)\.selectedAppId/.test(hpN)
+    && !/pushPageLoaded\(new AppDetailsPage[\s\S]{0,400}?sendUiCommand\(this, "selectApp"/.test(hpN),
+    'N24 (loop A-1): the highlight rides onOverlayPresented — presentation is the truth; a fire-and-forget push at a pushPageLoaded call site highlighted a row whose staged pane was DROPPED (lock in place / preload busy)');
+  ok(/overlay is AppDetailsPage[\s\S]{0,700}?Exists\(p => p is AppDetailsPage\)[\s\S]{0,200}?"selectApp", ""/.test(hpN),
+    'N24: the clear is tag-replace-guarded — the OLD pane closes AFTER its replacement presented (ContactDetails precedent), so a details→details switch keeps the new highlight');
+  ok(/selectApp\(id\) \{\s*\n\s*appsState\.selectedId = id \|\| '';/.test(read('src/shells/home.html')),
+    'N24: the shell handler drives selection through the MODEL (state.selectedId), like selectChat');
+  const aiCss = read('src/styles/components/apps-item.css');
+  ok(/\.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);\s*\n\s*background-image: linear-gradient\(var\(--surface-action-tonal-pressed\)/.test(aiCss)
+    && /\.c-app-item__open:hover:not\(\[aria-current\]\)/.test(aiCss),
+    'N24 ★ (loop B-MAJOR-1): aria-current lives on __OPEN with the A5 selected-family IMAGE SWAP — a wrapper stamp painted a sweep of tonal-default over tonal-default (invisible) and dragged the wrapper into base.css press variants (the grid card blink)');
+  const baseCssN = read('src/styles/base.css');
+  ok(/\.c-app-item\[data-pressfade="hold"\] \.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-pressed\);/.test(baseCssN)
+    && /\.c-app-item\[data-pressfade="out"\] \.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);/.test(baseCssN)
+    && /\.c-app-item\[data-pressfade="out"\] \.c-app-item__open:hover:not\(\[aria-current\]\)/.test(baseCssN),
+    'N24 (loop B-MAJOR-1): the selected app row HOLDS in tonal-pressed and LANDS on tonal-default — the chatlist/txlist fade pair, mirrored for the wrapper/child split; the hover landing excludes selected');
+
+  // —— N36: select mode opts out of press feedback ——
+  ok(/if \(t\.closest\('\[data-selecting\]'\)\) return;/.test(read('src/components/pressable.js')),
+    'N36 ★: pressable bails inside a [data-selecting] container — a committed fill on a control the tap will never activate reads as a broken press');
+  ok(/\[data-selecting\] \.c-bubble-row \.c-button,[\s\S]{0,500}?\.c-mbubble \{ pointer-events: none; \}/.test(read('src/styles/components/chat-select.css')),
+    'N36: in-bubble controls are pointer-dead while selecting — their :active flashes die at the source and the tap lands on the row (toggle), text selection on bubble text untouched');
+
+  // —— N38: desktop hides the dead wallet-receive Share ——
+  ok(/onShare: isDesktopPresentation\(\)/.test(read('src/shells/home.html'))
+    && /isDesktopPresentation,/.test(read('src/shells/home.html')),
+    'N38: wallet-receive Share is desktop-gated with the SAME predicate family as the Account row (#348 W9) — wallet-receive.js skips the button when onShare is absent');
+
+  // —— N2a: the list⇄grid toggle uses a real grid glyph ——
+  ok(/icon\(target === 'grid' \? 'layout-grid' : 'menu-2'/.test(read('src/components/apps-header.js')),
+    'N2a: the grid-target toggle shows layout-grid, not the apps rocket — one glyph, one meaning');
+  ok(read('src/components/icons.js').includes('"layout-grid"') && existsSync(join(root, 'src/assets/icons/tabler-icon-layout-grid.svg')),
+    'N2a: layout-grid is a REGISTRY icon from a real asset (derived from the apps.svg square geometry — swap with a Figma export at will)');
+
+  // —— N3a: the em-dash gates (regression: new copy with — fails the run) ——
+  const emDash = String.fromCharCode(0x2014);
+  const enDict = JSON.parse(read('src/strings/en-us.json'));
+  ok(Object.values(enDict).every((v) => !String(v).includes(emDash)),
+    'N3a ★ GATE: zero em-dashes in the en-us dictionary — the sweep holds for every future extract');
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+    const dict = JSON.parse(read('src/strings/' + code + '.json'));
+    ok(Object.values(dict).every((v) => !String(v).includes(emDash)),
+      'N3a GATE: zero em-dashes in the BUILT ' + code + ' dictionary (drafts + the six legacy feeder values swept)');
+  }
+  for (const code of ['pt-br', 'ru-ru', 'sr-sp', 'sl-si']) {
+    const lang = read('Spixi/Resources/Raw/lang/' + code + '.txt');
+    const feeders = lang.split('\n').filter((l) => /^(index-backup-prompt-desc|empty-state-detail-2) =/.test(l));
+    ok(feeders.length > 0 && feeders.every((l) => !l.includes(emDash)),
+      'N3a: the legacy ' + code + ' values that FEED redesigned surfaces (backup nudge reuse · empty_detail *SL) are dash-free — legacy-only ids stay untouched');
+  }
+
+  // —— N45: the PNG art really ships where devices load it ——
+  for (const rel of ['images/apps-es.png', 'images/chats-es.png', 'images/wallet-es.png',
+    'images/explore-banner.png', 'images/backup.png', 'images/onboarding/backup.png',
+    'images/onboarding/rate.png', 'images/onboarding/restore.png', 'images/onboarding/step1.png',
+    'images/onboarding/step2.png', 'images/onboarding/step3.png', 'images/onboarding/step4.png']) {
+    ok(existsSync(join(root, 'Spixi/Resources/Raw/html', rel)) && existsSync(join(root, 'src/demo', rel)),
+      'N45: ' + rel + ' ships in BOTH the source images dir (build-shells copies it) and the packaged Raw/html');
+  }
+  const n45Sweep = read('src/shells/home.html') + read('src/shells/settings.html') + read('src/shells/settings_backup.html') + read('src/components/launch-shell.js') + read('src/components/chats-shell.js') + read('src/components/wallet-shell.js') + read('src/demo/apps.html') + read('src/demo/chats.html') + read('src/demo/desktop.html');
+  ok(!/images\/(?:apps-es|chats-es|wallet-es|explore-banner|backup|restore|step[1-4])\.svg'/.test(n45Sweep)
+    && !/'(?:step[1-4]|restore|backup)\.svg'/.test(n45Sweep),
+    'N45: no shipped reference still points at an SVG the PNG dial replaced — incl. the launch base+name concatenations the first sweep was blind to (re-review MINOR-2); contacts-es + join-community stay SVG (no PNG export exists)');
+  ok(/base \+ 'step1\.png'/.test(read('src/components/launch-shell.js')) && /base \+ 'restore\.png'/.test(read('src/components/launch-shell.js')),
+    'N45: the launch carousel + restore hero load the PNG canon at the SOURCE (the demo dom pin covers steps; restore had no reference pin at all — re-review MINOR-2)');
+}
+
+console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press · N14a nudge)');
+{
+  const dom = await load('chats.html');
+  const W = dom.window, d = W.document, S = W.Spixi;
+  const phone = d.querySelector('.demo-phone') || d.body;
+
+  // —— N32: absolute zero reads 0.00; nonzero keeps the #77 law ——
+  ok(S.formatIxiAmount('0') === '0.00' && S.formatIxiAmount('0.000') === '0.00' && S.formatIxiAmount('+0') === '+0.00',
+    'N32 ★: an absolute-zero amount renders 0.00 (locale separators via groupAmountDisplay) — the bare "0" read as broken on the hero');
+  ok(S.formatIxiAmount('5') === '5' && S.formatIxiAmount('1.50') === '1.5' && S.formatIxiAmount('0.005') === '0.005',
+    'N32: NONZERO display is untouched — round stays bare, trailing zeros still trim, the sub-0.01 rescue still shows the real amount (#77 law intact)');
+  ok(S.zeroAmount('0') && S.zeroAmount('0.00') && S.zeroAmount('+0.0') && !S.zeroAmount('0.005') && !S.zeroAmount('1') && !S.zeroAmount('') && !S.zeroAmount('abc'),
+    'N32: zeroAmount is exact — zero in any spelling, never for nonzero/empty/non-numeric (the hero keeps empty-until-pushed)');
+
+  // —— N24: renderAppsList stamps aria-current from state.selectedId ——
+  {
+    const list = d.createElement('div');
+    d.body.append(list);
+    const st = { apps: [{ id: 'a1', name: 'Alpha' }, { id: 'a2', name: 'Beta' }], query: '', layout: 'list', selectedId: 'a2' };
+    S.renderAppsList(list, st, {});
+    const rows = [...list.querySelectorAll('.c-app-item')];
+    const opens = rows.map((r) => r.querySelector('.c-app-item__open'));
+    ok(rows.length === 2 && opens[1].getAttribute('aria-current') === 'true' && !opens[0].hasAttribute('aria-current')
+      && rows.every((r) => !r.hasAttribute('aria-current')),
+      'N24: aria-current sits on the selected row\'s __OPEN button — and only there (the wrapper stays attribute-free: base.css guards, SR focus announcement)');
+    st.selectedId = '';
+    S.renderAppsList(list, st, {});
+    ok([...list.querySelectorAll('.c-app-item__open')].every((r) => !r.hasAttribute('aria-current')),
+      'N24: a cleared selection sheds the highlight on REUSED rows (the stamp lives outside the row cache — rowFresh stays selection-blind)');
+    list.remove();
+  }
+
+  // —— N36: a press inside a selecting container paints nothing ——
+  {
+    const pressRoot = d.createElement('div');
+    /* loop B-NIT-9: the REAL production subject — a card .c-button inside a
+       .c-bubble-row inside the selecting log (jsdom has no hit-testing, so the
+       CSS pointer-events belt is invisible here; this exercises the JS bail). */
+    pressRoot.innerHTML = '<div data-selecting><div class="c-bubble-row"><button class="c-button" id="np-in"></button></div></div><div class="c-chatlist-item" id="np-out"></div>';
+    d.body.append(pressRoot);
+    S.attachPressFeedback({ root: pressRoot });
+    const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+    const rowIn = pressRoot.querySelector('#np-in'), rowOut = pressRoot.querySelector('#np-out');
+    rowIn.dispatchEvent(pe('pointerdown', 50, 50));
+    ok(rowIn.dataset.pressed === undefined,
+      'N36 ★: a pointerdown on a card button inside [data-selecting] arms NO press — the selected tint is the only sanctioned visual in select mode');
+    rowIn.dispatchEvent(pe('pointerup', 50, 50));
+    rowOut.dispatchEvent(pe('pointerdown', 50, 50));
+    ok(rowOut.dataset.pressed === 'row',
+      'N36: the SAME listener still presses normally outside the selecting container (the bail is scoped, not a kill-switch)');
+    rowOut.dispatchEvent(pe('pointerup', 50, 50));
+    pressRoot.remove();
+  }
+
+  // —— N14a: the rating nudge carries the rate-me art (backup-nudge grammar) ——
+  {
+    const sheetR = S.showRatingNudge({ host: phone, illustration: 'images/onboarding/rate.png' });
+    const artR = sheetR.querySelector('.c-rating-nudge__illo');
+    const discR = sheetR.querySelector('.c-rating-nudge__disc');
+    ok(!!artR && artR.getAttribute('alt') === '' && discR.hidden,
+      'N14a: the illustration leads (decorative alt="") and the brand disc hides — the backup-nudge grammar, one nudge family');
+    artR.dispatchEvent(new W.Event('error'));
+    ok(!sheetR.querySelector('.c-rating-nudge__illo') && !discR.hidden,
+      'N14a: img error → the disc returns (fail-soft; a missing file can never leave a blank slot)');
+    const sheetR2 = S.showRatingNudge({ host: phone });
+    ok(!sheetR2.querySelector('.c-rating-nudge__illo') && !sheetR2.querySelector('.c-rating-nudge__disc').hidden,
+      'N14a: no illustration opt → the pre-N14a disc look, byte-identical behaviour for demo callers');
+    ok(/illustration: 'images\/onboarding\/rate\.png'/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
+      'N14a: the PRODUCTION shell passes the rate-me art to the nudge (N45 ships the file)');
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

@@ -30,7 +30,7 @@ export function createAppsAdd({ strings = getStrings(), discover = true, onFetch
   const lead = document.createElement('p');
   lead.className = 'c-apps-add__lead';
   lead.textContent = strings.addLead
-    || 'Add a mini app from a link, a QR code, or a file — or explore the directory below.';
+    || 'Add a mini app from a link, a QR code, or a file. Or explore the directory below.';
   el.append(lead);
 
   /* URL field (revealed by the Paste-link tile / a QR scan) */
@@ -116,7 +116,7 @@ export function createAppsAdd({ strings = getStrings(), discover = true, onFetch
     const dtext = document.createElement('span');
     dtext.className = 'c-apps-add__dev-text';
     dtext.textContent = strings.devLead
-      || 'Anyone can build a mini app — web-friendly tech, no backend to run.';
+      || 'Anyone can build a mini app: web-friendly tech, no backend to run.';
     dev.append(dtext);
     const learn = document.createElement('button');
     learn.type = 'button';

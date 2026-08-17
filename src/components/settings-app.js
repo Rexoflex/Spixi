@@ -302,10 +302,10 @@ export function createSettingsDev({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(
           () => { setSuccess(copyBtn, { label: strings.copied || 'Copied' }); },
-          () => { live.textContent = strings.copyLogFailed || 'Couldn’t copy — select the log text instead.'; },
+          () => { live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.'; },
         );
       } else {
-        live.textContent = strings.copyLogFailed || 'Couldn’t copy — select the log text instead.';
+        live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.';
       }
     },
   });
@@ -492,7 +492,7 @@ export function createSettingsAbout({
   const desc = document.createElement('p');
   desc.className = 'c-settings__note c-settings-about__desc';
   desc.textContent = description || strings.aboutBody
-    || 'Spixi lets you chat and send IXI directly, peer-to-peer — no central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+    || 'Spixi lets you chat and send IXI directly, peer-to-peer. No central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
   body.append(desc);
 
   /* links card — website / network / source (degrade to text without onOpenLink) */
@@ -539,7 +539,7 @@ export function createSettingsAbout({
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
-  legal.textContent = strings.aboutLegal || '© Ixian — open source, MIT licensed.';
+  legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
   body.append(legal);
 
   return el;
@@ -567,7 +567,7 @@ export function createSettingsHowTo({
 
   const list = steps || [
     { title: strings.howToStep1 || 'Add a contact',
-      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s — then send a request.' },
+      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s. Then send a request.' },
     { title: strings.howToStep2 || 'Start chatting',
       body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
     { title: strings.howToStep3 || 'Send IXI',

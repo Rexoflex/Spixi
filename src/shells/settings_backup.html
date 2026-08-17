@@ -137,7 +137,7 @@
 
   root.replaceChildren(createSettingsBackup({
     status: backupStatus(),                      // iOS-19 (#283): local stamp (was: standing "Action needed", S2)
-    illustration: 'images/backup.svg',          // Damir: build-shells copies src/demo/images → …/html/images
+    illustration: 'images/backup.png',          // Damir: build-shells copies src/demo/images → …/html/images
     host: document.body,
     strings,
     onBack: () => bridge.send('ixian:back'),     // BackupPage.popPageAsync()

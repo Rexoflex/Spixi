@@ -469,7 +469,22 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:language:", StringComparison.Ordinal))
             {
                 string lang = current_url.Substring("ixian:language:".Length);
-                if (SpixiLocalization.loadLanguage(lang))
+                // N65 (#385) triage instrumentation: EVERYTHING below is gated on this
+                // one call, so a false return was a total no-op with nothing in the log
+                // to say so. loadLanguage now logs its own failure reason; this line
+                // states the request and the code that actually ended up active, which
+                // is what tells apart "the load failed" from "the load worked and the
+                // surfaces disagree" (the four-way split: hub dictionary · row value ·
+                // checkmark · home shell).
+                bool languageLoaded = SpixiLocalization.loadLanguage(lang);
+                // review NIT-3: `lang` arrives on a navigation URL, and ixian.log is
+                // rendered by DevPage and offered through the share sheet — so it is
+                // clamped and stripped before it is written. No secret is involved; this
+                // stops a control character from forging log lines.
+                string langForLog = safeForLog(lang);
+                Logging.info("Language pick: requested '" + langForLog + "', loaded=" + languageLoaded
+                    + ", active now '" + SpixiLocalization.getCurrentLanguage() + "'");
+                if (languageLoaded)
                 {
                     selectedLanguage = lang;
                     Preferences.Default.Set("language", selectedLanguage);
@@ -514,7 +529,17 @@ namespace SPIXI
                 }
                 else
                 {
+                    // N65 (#385): keep the previous language, and SAY SO. A silent
+                    // return here is the reported "the pick does nothing".
+                    Logging.error("Language pick '" + langForLog + "' was refused by loadLanguage; the app language is unchanged.");
                     selectedLanguage = null;
+                    // ★ N65 (#385, review MINOR-1): tell the SCREEN, not only the log. The
+                    // shell moves the check mark optimistically BEFORE it sends the verb
+                    // (settings.html), so a refused pick otherwise leaves the check mark on
+                    // a language the app never loaded — which is exactly the reported "the
+                    // pick does nothing". setLocale carries the language that IS active, so
+                    // the picker snaps back to the truth.
+                    Utils.sendUiCommand(this, "setLocale", SpixiLocalization.getCurrentLanguage());
                 }
             }
             else if (current_url.StartsWith("ixian:lock:", StringComparison.Ordinal))
@@ -694,6 +719,26 @@ namespace SPIXI
             // every Account exit double-booted Home in front of the user. Appearance is
             // applied LIVE at pick time (ixian:appearance above); nothing to do on save.
             // (#285: the language reload moved to pick time too — see ixian:language.)
+        }
+
+        // review NIT-3 — a value that came from a WebView URL, made safe for ixian.log
+        // (DevPage renders that file and offers it through the share sheet).
+        private static string safeForLog(string value)
+        {
+            if (value == null)
+            {
+                return "";
+            }
+            if (value.Length > 32)
+            {
+                value = value.Substring(0, 32);
+            }
+            var sb = new System.Text.StringBuilder(value.Length);
+            foreach (char c in value)
+            {
+                sb.Append(char.IsLetterOrDigit(c) || c == '-' || c == '_' ? c : '?');
+            }
+            return sb.ToString();
         }
 
         private void resetLanguage()

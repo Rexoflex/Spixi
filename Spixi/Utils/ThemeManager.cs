@@ -18,12 +18,26 @@ namespace SPIXI
         private static ThemeAppearance activeAppearance = ThemeAppearance.automatic;
         private static string activeTheme = "spixiui";
 
+        // ★ N66 (#385) — the OS theme, resolved. "automatic" means FOLLOW THE OS,
+        // so it must NOT be read off UserAppTheme: App.xaml.cs now keeps that
+        // Unspecified for the whole session (a concrete value freezes
+        // Application.RequestedTheme, and MAUI then never raises
+        // RequestedThemeChanged — that is what killed the OS-follow path). With
+        // UserAppTheme Unspecified, RequestedTheme IS the platform theme; reading it
+        // also stays correct if a later change ever pins UserAppTheme again.
+        // Unspecified (very early boot, before the platform reports) reads as light,
+        // exactly as the old code did — the boot theme event corrects it.
+        private static bool isPlatformDark()
+        {
+            return Application.Current?.RequestedTheme == AppTheme.Dark;
+        }
+
         public static bool loadTheme(string name, ThemeAppearance appearance)
         {
             string appearance_name = appearance switch
             {
                 ThemeAppearance.dark => "dark",
-                ThemeAppearance.automatic => Application.Current!.UserAppTheme == AppTheme.Dark ? "dark" : "light",
+                ThemeAppearance.automatic => isPlatformDark() ? "dark" : "light",
                 _ => "light"
             };
 
@@ -56,7 +70,7 @@ namespace SPIXI
             }
             else if (activeAppearance == ThemeAppearance.automatic)
             {
-                if (Application.Current.UserAppTheme == AppTheme.Dark)
+                if (isPlatformDark())
                     return "spixiui-dark";
             }
 

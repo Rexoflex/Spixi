@@ -198,6 +198,19 @@ the round that builds them does not re-derive the verdict:
 **No verb, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch, no new
 log line.** The gate finds nothing in this batch.
 
+### #385 — N66 theme fix + N65 instrumentation, lens applied while building (2026-08-18, cloud)
+
+| Item | file:line | Verdict | Baseline? | Action |
+|---|---|---|---|---|
+| **`UserAppTheme` stays `Unspecified`** | App.xaml.cs (boot + the RequestedThemeChanged handler) | No exposure | The pin is baseline (it is what we removed) | Presentation only. It changes which theme MAUI reports, nothing else. No data path |
+| **`isPlatformDark()`** | ThemeManager.cs | No exposure | — | Reads `Application.Current?.RequestedTheme`. No storage, no bridge, no fetch |
+| **The revived OS-flip handler** | App.xaml.cs | ★ Newly REACHABLE legacy code | The body is baseline (#251/#315/AND-1) | `reloadAllPages` + `disposeParkedOverlay` have been dead since the boot event. They now run on a real OS flip. They regenerate live WebViews from the same assets as any page open — no new surface, no new data. **Consequence to watch, not an exposure:** a regenerated page loses transient DOM state, so an in-progress password field is cleared. The shells already scrub those on every leave path (#341) |
+| **`reloadAllPages` hardening** | UIHelpers.cs | No exposure | — | Null `MainPage`, a non-`SpixiContentPage`, and a throwing reload no longer propagate. Strictly narrows what can escape |
+| **★ NEW LOG LINES (N65)** | SpixiLocalization.cs · SettingsPage.xaml.cs | No secret leaves | — | ⚠ `ixian.log` is rendered by DevPage and offered through the share sheet, so this is checked deliberately. What is written: the requested language code, the resolved language code, a bool, a language-file line NUMBER, a translation KEY, and `ex.Message` from parsing a SHIPPED asset. No wallet data, no password, no address, no nickname, no message content, no path from a WebView |
+
+**No verb, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch.** The new
+log lines are the one item the gate flags, and they carry no user secret.
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

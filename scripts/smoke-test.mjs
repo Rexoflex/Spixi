@@ -4725,8 +4725,20 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     && /onRepresented\(\) \{[\s\S]{0,1600}?renderLayout\(\);/.test(settingsSh)
     && /onRepresented\(\) \{[\s\S]{0,1600}?state\.savedName = state\.name;[\s\S]{0,200}?state\.dirtyNick = state\.dirtyAvatar = state\.dirtyLock = false;/.test(settingsSh),
     '#46 r1 MAJOR-1 (+r2): the re-present pushes onRepresented BEFORE the stage becomes interactive; the shell resets the #199 exit latch, RECONCILES the dirty machinery with the already-persisted parking exit (r2: a stale savedName silently DROPPED a nickname revert) and repaints');
-  ok(/reloadAllPages\(\)[\s\S]{0,1400}?SpixiContentPage\.disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Utils/UIHelpers.cs'), 'utf8')),
-    '#46 r1 MAJOR-3: reloadAllPages drops the parked page — an OS auto-theme flip must never re-present yesterday\'s theme (the #251 EmptyDetail class)');
+  /* review MINOR-5: comments are stripped and the window is tight again. This
+   * batch's own comments had grown the method past the old 1400-char window, and
+   * simply widening it degraded the pin to "both strings exist somewhere in the
+   * file, in that order" — it would have passed with the dispose moved into a
+   * different method. */
+  {
+    /* The body, not a character window. A window big enough to hold the method is
+     * also big enough to hold the NEXT method, so it passed with the dispose moved
+     * one method down — which is exactly the drift this pin exists to catch. */
+    const uhBody = (readFileSync(join(root, 'Spixi/Utils/UIHelpers.cs'), 'utf8')
+      .replace(/\r\n/g, '\n').match(/reloadAllPages\(\)\s*\n\s*\{([\s\S]*?)\n        \}\n/) || [])[1] || '';
+    ok(/SpixiContentPage\.disposeParkedOverlay\(\);/.test(uhBody),
+      '#46 r1 MAJOR-3: reloadAllPages drops the parked page — an OS auto-theme flip must never re-present yesterday\'s theme (the #251 EmptyDetail class)');
+  }
   ok(/onLowMemory\(\)[\s\S]{0,900}?disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
     '#46 r1 MINOR-3: low memory releases the warm WebView — the memory dial has a pressure valve, and the content-process-death window shrinks to presented-only');
   ok(/if \(!overlayStack\.Remove\(op\)\)[\s\S]{0,1900}?parkedOverlay = op;\s*\r?\n\s*parked = true;\s*\r?\n\s*\}\s*\r?\n\s*\}\s*\r?\n\s*MainThread\.BeginInvokeOnMainThread/.test(scp)
@@ -8807,6 +8819,67 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     const gen = read('scripts/build-demo-bundle.mjs');
     ok(/readFileSync\(join\(root, f\), 'utf8'\)\.replace\(\/\\r\\n\/g, '\\n'\)/.test(gen),
       '★ #383: build-demo-bundle NORMALISES CRLF on read. 8 component sources carry CRLF in the working tree; `.` never matches \\r, so /^import .*$/gm silently FAILED to strip those imports and the pre-strip gate reported a one-line import as "MULTI-LINE" — the bundle build was DEAD. Same fix, same reason as the smoke harness\'s own #340 normalisation');
+  }
+
+  /* —— N66 (#385): the OS-follow theme path —— */
+  {
+    /* review NIT-1: strip comments here too — the sibling pin below strips them for
+     * the same reason, and this file's prose discusses UserAppTheme. */
+    const tm = read('Spixi/Utils/ThemeManager.cs').replace(/^[ \t]*\/\/.*$/gm, '');
+    /* The two negatives below must see CODE only: this batch's comments quote the
+     * removed line verbatim, and a comment must never satisfy — or defeat — a pin. */
+    const app = read('Spixi/App.xaml.cs').replace(/^[ \t]*\/\/.*$/gm, '');
+
+    ok(/Current\.UserAppTheme = AppTheme\.Unspecified;/.test(app)
+      && !/UserAppTheme = currentTheme/.test(app)
+      && !/UserAppTheme = a\.RequestedTheme/.test(app),
+      '★ N66 (#385): UserAppTheme is NEVER pinned to a concrete value. Application.RequestedTheme returns UserAppTheme whenever it is set, and MAUI drops RequestedThemeChanged when RequestedTheme does not change — so the old pin made every later OS theme flip invisible and left the whole handler (re-bake + reloadAllPages + the parked-Account dispose) as unreachable code');
+
+    ok(/RequestedThemeChanged \+=[\s\S]{0,1600}?if \(ThemeManager\.getActiveAppearance\(\) != ThemeAppearance\.automatic\)\s*\n\s*return;[\s\S]{0,300}?ThemeManager\.changeAppearance\(ThemeAppearance\.automatic\);/.test(app),
+      '★ N66 (#385): the revived handler is gated on "System" and returns EARLY. Everything in it is newly reachable, and under an explicit Light/Dark pick an OS flip must not reload every page for a theme the user does not see (the #242 round-2 flicker lesson)');
+
+    ok(/private static bool isPlatformDark\(\)[\s\S]{0,400}?Application\.Current\?\.RequestedTheme == AppTheme\.Dark/.test(tm)
+      && !/UserAppTheme == AppTheme\.Dark/.test(tm),
+      '★ N66 (#385): ThemeManager resolves "automatic" from the PLATFORM theme, not UserAppTheme. With UserAppTheme now Unspecified for the whole session, the old read would have resolved every automatic theme to light — a harder break than the bug being fixed');
+
+    const uh = read('Spixi/Utils/UIHelpers.cs');
+    ok(/if \(p is not SpixiContentPage page \|\| !page\.hasGeneratedContent\)/.test(uh) && /Application\.Current\?\.MainPage\?\.Navigation\?\.NavigationStack/.test(uh),
+      'N66 (#385): reloadAllPages tolerates an unexpected page and a null MainPage — it is reachable at any moment now, not only during the boot theme event');
+
+    ok(/public bool hasGeneratedContent[\s\S]{0,200}?return loadedHtmlFileName != null;/.test(read('Spixi/Utils/SpixiContentPage.cs'))
+      && (uh.match(/hasGeneratedContent/g) || []).length >= 2,
+      '★ N66 (#385, review MAJOR-1): the sweep SKIPS a page whose content we did not generate. reload() cannot re-theme such a page — it falls through to a raw Reload and RESTARTS it. That page is MiniAppPage, so an OS auto-dark flip would have destroyed a running mini-app\'s state for zero theme gain, and broken the standing rule that third-party content stays out of our sweeps');
+  }
+
+  /* —— N65 (#385): the language pick must never fail silently —— */
+  {
+    const loc = read('Spixi/Lang/SpixiLocalization.cs');
+    const sps = read('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+
+    /* review NIT-2: the loose /missing '=' separator/ clause was ALREADY satisfied by
+     * the pre-existing testFile() helper in the same file — it proved nothing about
+     * the new code. Both clauses now quote the new call sites exactly. */
+    ok(/Logging\.error\("Language file " \+ lang \+ " error on line " \+ line_number \+ ": missing '=' separator"\);/.test(loc)
+      && /Logging\.error\("Language file " \+ lang \+ " error on line " \+ line_number \+ ": empty key"\);/.test(loc)
+      && /Logging\.error\("Language " \+ lang \+ " was NOT loaded/.test(loc),
+      '★ N65 (#385): a refused language file NAMES itself and the line. loadLanguage used to return false with no log line at all, and every caller gates on that return — the reported "the pick does nothing", with nothing to diagnose it');
+
+    ok(/try\s*\n\s*\{[\s\S]{0,2000}?localized_strings\.Add\(last_key, value\);[\s\S]{0,200}?catch \(Exception ex\)[\s\S]{0,400}?success = false;/.test(loc),
+      '★ N65 (#385): the parse cannot THROW out of loadLanguage. A duplicate key made Dictionary.Add throw through the WebView Navigating handler that calls it, leaking the open stream — a failure mode that skips even the else branch');
+
+    ok(/\}\s*\n\s*finally\s*\n\s*\{[\s\S]{0,600}?sr\.Close\(\); sr\.Dispose\(\);[\s\S]{0,300}?file_stream\.Close\(\); file_stream\.Dispose\(\);/.test(loc),
+      'N65 (#385, review NIT-5): the stream close sits in a FINALLY. Left after the catch it still leaks on a throw from the logging call — the exact leak this batch set out to close');
+
+    ok(/Utils\.sendUiCommand\(this, "setLocale", SpixiLocalization\.getCurrentLanguage\(\)\);/.test(sps.split('was refused by loadLanguage')[1] || ''),
+      '★ N65 (#385, review MINOR-1): a REFUSED pick answers the SCREEN, not only the log. The shell moves the check mark BEFORE it sends the verb, so without this push the picker keeps a language the app never loaded — the reported symptom, unchanged');
+
+    ok(/private static string safeForLog\(string value\)/.test(sps)
+      && !/'" \+ lang \+ "', loaded=/.test(sps) && !/Language pick '" \+ lang \+ "'/.test(sps),
+      'N65 (#385, review NIT-3): a value that came off a navigation URL is clamped and stripped before it reaches ixian.log — DevPage renders that file and offers it through the share sheet, so a control character could otherwise forge log lines');
+
+    ok(/bool languageLoaded = SpixiLocalization\.loadLanguage\(lang\);[\s\S]{0,900}?Logging\.info\("Language pick: requested/.test(sps)
+      && /Logging\.error\("Language pick '" \+ langForLog \+ "' was refused/.test(sps),
+      '★ N65 (#385): the pick logs the request AND the code that ended up active. That one line separates "the load failed" from "the load worked and the surfaces disagree" — the four-way split (hub dictionary / row value / checkmark / home shell) needs the second answer before any fix');
   }
 }
 

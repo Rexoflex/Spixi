@@ -74,6 +74,24 @@ namespace SPIXI
             }
         }
 
+        /* ★ N66 (#385, review MAJOR-1): does this page hold content WE generated?
+         * reload() can only help such a page — it re-runs generatePage, which is where
+         * the *SL{SpixiThemeName} / *SL{} substitution happens. For a page with no
+         * generated content reload() falls through to a raw _webView.Reload(), which
+         * re-serves the SAME document and restarts it for nothing.
+         * MiniAppPage is the one page in the tree that assigns _webView directly instead
+         * of calling loadPage, so this is false exactly there — third-party content stays
+         * structurally excluded from our sweeps, the same rule stated at the iOS keyboard
+         * observers below. Without this an OS auto-dark flip would restart a running
+         * mini-app from its entry point and destroy its state, for zero theme gain. */
+        public bool hasGeneratedContent
+        {
+            get
+            {
+                return loadedHtmlFileName != null;
+            }
+        }
+
         // The native surface painted behind (and on) this page's WebView — chosen per
         // shell so the pre-paint frame matches what the shell will render (N1/N3).
         protected Color pageSurfaceColor = ThemeManager.getSurfaceColor();

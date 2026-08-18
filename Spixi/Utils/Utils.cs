@@ -123,14 +123,20 @@ namespace SPIXI
             // and native-convention amounts in the alerts — the exact mixed
             // convention I-6 exists to prevent, introduced BY the batch. When a
             // dictionary ships for one of these, add it here AND there.
+            // N4 (#379): it/id/lt/cn/ja dictionaries shipped — the five move in
+            // TOGETHER with build-strings-iife LOCALES (the "here AND there" rule).
+            // cn-cn is a file code, not a culture tag → resolve as zh-cn (the same
+            // mapping setDocLang applies for <html lang>); ja-jp/cn-cn separators
+            // equal the en defaults anyway, so the catch arm stays correct.
             string lang = SPIXI.Lang.SpixiLocalization.getCurrentLanguage();
             switch (lang)
             {
                 case "de-de": case "es-co": case "fr-fr": case "pt-br":
                 case "ru-ru": case "sl-si": case "sr-sp": case "en-us":
+                case "it-it": case "id-id": case "lt-lt": case "cn-cn": case "ja-jp":
                     try
                     {
-                        var ci = System.Globalization.CultureInfo.GetCultureInfo(lang);
+                        var ci = System.Globalization.CultureInfo.GetCultureInfo(lang == "cn-cn" ? "zh-cn" : lang);
                         group_sep = ci.NumberFormat.NumberGroupSeparator;
                         dec_sep = ci.NumberFormat.NumberDecimalSeparator;
                     }

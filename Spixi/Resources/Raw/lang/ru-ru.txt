@@ -159,7 +159,7 @@ chat-app-launch = Запустить приложение
 
 chat-modal-tip-title = Подарить {0}?
 chat-modal-tip-body = Нажмите на сумму, которую вы желаете подарить, или установите своё значение
-chat-modal-tip-custom = Указать вручную
+chat-modal-tip-custom = Вручную
 chat-modal-tip-pay-button = Оплатить
 chat-modal-tip-confirmation-body = Вы собираетесь подарить'{0}' {1}. Сумма будет списана с текущего баланса.
 chat-modal-tip-confirmed-body = Вы только что подарили '{0}' с {1}. Сумма будет списана с текущего баланса.
@@ -314,7 +314,7 @@ index-side-how-to-subtitle = Узнайте, как использовать Spi
 index-side-about-subtitle = Информация, помощь, контакты, политика конфиденциальности
 index-missing-tx-title = Отсутствуют некоторые транзакции?
 index-missing-tx-text = Spixi читает данные напрямую из блокчейна, а не с централизованных серверов, поэтому синхронизация может занять немного больше времени.
-index-missing-tx-view-all = Просмотреть все транзакции в обозревателе
+index-missing-tx-view-all = Все транзакции в обозревателе
 index-backup-prompt-title = Не забудьте сделать резервную копию
 index-backup-prompt-desc = Spixi полностью децентрализован. Ваши данные хранятся только на вашем устройстве. Чтобы сохранить контакты и восстановить всё позже, создайте резервную копию сейчас.
 index-backup-prompt-create = Да, создать копию

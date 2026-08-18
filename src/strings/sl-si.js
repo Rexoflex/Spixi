@@ -413,7 +413,7 @@ export const slsi = {
   openMedia: "Odpri",
   otherWallet: "Uporabi drugo denarnico…",
   otherWalletBody: "Ta zaslon boste zapustili in odšli na nastavitev za ustvarjanje ali obnovitev druge denarnice. Vaša trenutna denarnica ostane šifrirana na tej napravi.",
-  otherWalletCta: "Pojdi na nastavitev",
+  otherWalletCta: "V nastavitev",
   otherWalletTitle: "Uporabim drugo denarnico?",
   owner: "Lastnik",
   paidMessage: "Paid message",

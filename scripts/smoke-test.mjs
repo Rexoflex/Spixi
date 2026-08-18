@@ -3135,13 +3135,13 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(!!pill && pill.textContent.includes('English'), 'language pill shows the current language');
   pill.click();
   const langSheet = d.querySelector('.c-settings__opts');
-  // #256/#257 (Batch A): the 5 dictionary-less locales (cn/it/id/ja/lt) are HIDDEN
-  // from the pickers until translated → LAUNCH_LANGS ships 8 (was 13; the old
-  // `>= 10` here was stale test drift the #258 loop missed). ≥ 8 still fails
-  // loud on an empty/broken picker; re-adding a translated locale needs no edit.
-  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length >= 8
+  // #256/#257 hid the 5 dictionary-less locales → 8 rows. N4 (#379) shipped
+  // their dictionaries and un-hid them → EXACTLY 13. The old `>= 8` was a
+  // tautology after the un-hide: a stale bundle still shipping the 8-row
+  // picker passed it (Opus loop r1 MINOR-2, the #288 MAJOR-2 class).
+  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length === 13
     && !!langSheet.querySelector('.c-settings__opt-flag'),
-    'language pill opens the settings option sheet (#148⑥ — flags leading, 8 shipped locales post-#256)');
+    'language pill opens the settings option sheet (#148⑥ — flags leading, EXACTLY 13 shipped locales post-N4)');
   W.Spixi.dismissTopOverlay();
   await sleep(400);
   d.querySelector('.c-launch__pill--icon').click();
@@ -6444,13 +6444,14 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
   const enDict = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
   ok(enDict.deleteSelectedMany === 'Delete {n} messages?' && enDict.attachTitle === 'Add to chat',
     'en-us carries the counted confirm + the renamed attach label');
-  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.deleteSelectedMany.includes('{n}') && loc.deleteSelectedMany !== enDict.deleteSelectedMany
       && loc.selectedCount.includes('{n}') && loc.attachTitle !== enDict.attachTitle,
       code + ': the counted confirm, the "{n} selected" bar label and the attach label are really translated');
   }
-  for (const code of ['ru-ru', 'sl-si', 'sr-sp']) {
+  for (const code of ['ru-ru', 'sl-si', 'sr-sp', 'lt-lt']) {   // N4 (#379): Lithuanian splits above 1 too
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(/\(\{n\}\)/.test(loc.deleteSelectedMany),
       code + ': plural rules split above 1 → the count sits in parentheses (count-agnostic; the flat dict has no plural categories)');
@@ -6651,7 +6652,8 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
   const enApps = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
   ok(enApps.addApp === 'Add app' && !!enApps.appsEmptyTitle && !!enApps.appsEmptyBody,
     'APPS COPY: en-us carries the button label + the empty-state headline and supporting line');
-  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.addApp !== enApps.addApp && loc.appsEmptyTitle !== enApps.appsEmptyTitle && loc.appsEmptyBody !== enApps.appsEmptyBody,
       code + ': Add app + the Apps empty-state copy are really translated (not the English fallback)');
@@ -6794,7 +6796,8 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
   ok(enES.chatsEmptyCta === 'Start a chat' && enES.walletEmptyCta === 'Show my address'
     && enES.walletEmptyBody === 'Payments you send and receive show up here.',
     'EMPTY-STATE COPY: en-us carries the three CTAs + the shortened wallet line (one sentence — the second only restated the button)');
-  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.chatsEmptyBody !== enES.chatsEmptyBody && loc.walletEmptyBody !== enES.walletEmptyBody
       && loc.contactsEmptyBody !== enES.contactsEmptyBody && loc.chatsEmptyCta !== enES.chatsEmptyCta
@@ -7664,10 +7667,15 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     '★ I-6 (#360): the input inverse is magnitude-safe BOTH ways — exactly-3-digit runs are grouping (stripped), anything else keeps its decimal meaning. en "12,5" passes through UNTOUCHED so sanitizeAmount\'s #135-M2 decimal rule still owns it, and a canonical "1500.5" dropped into a ","-decimal locale is NOT re-read as grouping');
   /* ★ r2 (loop r1 CRITICAL-1 + MAJOR-4-pins): the round-trip pin now drives the
      REAL per-edit pipeline — display + one typed digit → amountEditToCanonical →
-     sanitizeAmount — across every production locale whose dictionary ships
-     (build-strings-iife: cn/id/it/ja/lt fall back to en). The r1 pin fed the
-     already-known canonical back to the formatter and could not fail. */
-  const LOCALES360 = ['en-US', 'de-DE', 'es-CO', 'fr-FR', 'pt-BR', 'ru-RU', 'sl-SI'];
+     sanitizeAmount — across every production locale whose dictionary ships.
+     The r1 pin fed the already-known canonical back to the formatter and could
+     not fail. N4 (#379): the five un-hidden locales joined, as the RUNTIME
+     codes docLocale() actually serves (<html lang> lowercase; cn-cn → zh-cn
+     via setDocLang). Coverage note (r2 NIT-7): their separator PAIRS duplicate
+     already-pinned ones (ru-RU already brings NBSP) — this is a belt over the
+     exact runtime codes, not new separator coverage. */
+  const LOCALES360 = ['en-US', 'de-DE', 'es-CO', 'fr-FR', 'pt-BR', 'ru-RU', 'sl-SI',
+    'it-it', 'id-id', 'lt-lt', 'zh-cn', 'ja-jp'];
   ok(!icuOk || LOCALES360.every((L) => ['1234', '123456', '3000000'].every((canon) => {
     /* through the ROUTER, with the event shapes the handlers actually receive —
        a router that stops dispatching to the per-edit inverse must fail here
@@ -7713,7 +7721,7 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     && !/Substring\(0, 2\)/.test(utils360.slice(utils360.indexOf('amountToLocalizedDisplayString'), utils360.indexOf('amountToLocalizedDisplayString') + 2200))
     && /SpixiLocalization\.getCurrentLanguage\(\)/.test(utils360),
     '★ I-6 r2 (#360, loop r1 MAJOR-3): the C# alert formatter keeps FULL precision (trailing zeros trimmed, NO 2-dp cap) with separators from the APP LANGUAGE. The insufficient-balance sentence exists to expose a SHORTFALL and the shortfall is usually the 0.005 fee — a 2-dp cap rendered "cost is 10, balance is 10", the exact r4-documented bug. String-only: an IxiNumber never passes through a float');
-  ok(/case "de-de": case "es-co": case "fr-fr": case "pt-br": case "ru-ru": case "sl-si": case "sr-sp": case "en-us":/.test(utils360.replace(/\s+/g, ' '))
+  ok(/case "de-de": case "es-co": case "fr-fr": case "pt-br": case "ru-ru": case "sl-si": case "sr-sp": case "en-us": case "it-it": case "id-id": case "lt-lt": case "cn-cn": case "ja-jp":/.test(utils360.replace(/\s+/g, ' '))
     && utils360.indexOf('switch (lang)') > utils360.indexOf('amountToLocalizedDisplayString')
     && /switch \(lang\)/.test(utils360.slice(utils360.indexOf('amountToLocalizedDisplayString'), utils360.indexOf('bytesToHumanFormatString'))),
     '★ I-6 r3 (#360, r2 MAJOR-2): the C# formatter resolves a culture ONLY for the languages the SHELL also localizes — a language with no FE dictionary keeps <html lang="en"> (build-strings-iife), so without the gate an it/id/lt user saw en-convention amounts on every FE surface and native-convention amounts in the alerts: the mixed convention I-6 exists to prevent, introduced by the batch');
@@ -7795,16 +7803,121 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   const enDict = JSON.parse(read('src/strings/en-us.json'));
   ok(Object.values(enDict).every((v) => !String(v).includes(emDash)),
     'N3a ★ GATE: zero em-dashes in the en-us dictionary — the sweep holds for every future extract');
-  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']) {
+  for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379): the five ride the same gate
     const dict = JSON.parse(read('src/strings/' + code + '.json'));
     ok(Object.values(dict).every((v) => !String(v).includes(emDash)),
       'N3a GATE: zero em-dashes in the BUILT ' + code + ' dictionary (drafts + the six legacy feeder values swept)');
   }
-  for (const code of ['pt-br', 'ru-ru', 'sr-sp', 'sl-si']) {
+  for (const code of ['pt-br', 'ru-ru', 'sr-sp', 'sl-si',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379): all built-locale legacy sets feed now
     const lang = read('Spixi/Resources/Raw/lang/' + code + '.txt');
     const feeders = lang.split('\n').filter((l) => /^(index-backup-prompt-desc|empty-state-detail-2) =/.test(l));
     ok(feeders.length > 0 && feeders.every((l) => !l.includes(emDash)),
       'N3a: the legacy ' + code + ' values that FEED redesigned surfaces (backup nudge reuse · empty_detail *SL) are dash-free — legacy-only ids stay untouched');
+  }
+
+  // —— N4 (#379): the five un-hidden locales ride the SHIPPED strings artifacts ——
+  {
+    const iife = read('src/demo/strings.iife.js');
+    const shipped = read('Spixi/Resources/Raw/html/spixi.strings.js');
+    for (const code of ['it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {
+      ok(iife.includes('"' + code + '":{') && shipped.includes('"' + code + '":{'),
+        'N4: the ' + code + ' dictionary ships in BOTH strings artifacts (demo iife + Raw/html)');
+    }
+    const docMap = /var docCode = code === 'cn-cn' \? 'zh-cn' : code;/;
+    ok(docMap.test(iife) && docMap.test(shipped),
+      'N4: setDocLang maps cn-cn → zh-cn for the DOCUMENT locale only (cn-cn is a lang-file code, not a Chinese BCP-47 tag) — dictionary lookups stay cn-cn end-to-end');
+    // behavioral: the mapping lands on <html lang> AND the lookup still returns Chinese
+    const wCn = new JSDOM('<!doctype html><html lang="en"><body></body></html>', { runScripts: 'outside-only' }).window;
+    wCn.eval(iife);
+    const dCn = wCn.SpixiStrings.get('cn-cn');
+    ok(wCn.document.documentElement.lang === 'zh-cn' && !!dCn.about && dCn.about !== wCn.SpixiStrings.enUS.about,
+      'N4 (behavioral): get("cn-cn") sets <html lang="zh-cn"> and returns the Chinese dictionary, never the en fallback');
+    const wJa = new JSDOM('<!doctype html><html lang="en"><body></body></html>', { runScripts: 'outside-only' }).window;
+    wJa.eval(iife);
+    ok(wJa.SpixiStrings.get('ja-jp').about !== wJa.SpixiStrings.enUS.about && wJa.document.documentElement.lang === 'ja-jp',
+      'N4 (behavioral): get("ja-jp") sets <html lang="ja-jp"> and returns Japanese — an un-hidden locale loads end-to-end');
+
+    /* —— N4 (Opus loop r1 MINOR-5): the four locale lists can only move TOGETHER.
+     * With PENDING_LANGS empty there is no pending-row data left to catch a
+     * picker row added ahead of its dictionary — the A4 half-translated-app bug
+     * would return silently. So pin the sync: settings LANGS === LAUNCH_LANGS
+     * === build-locales LANGS ∪ en-us, and every code ships a dictionary. */
+    const codesOf = (src, marker) => {
+      const seg = src.slice(src.indexOf(marker));
+      return [...seg.slice(0, seg.indexOf('];')).matchAll(/'([a-z]{2}-[a-z]{2})'/g)].map((m) => m[1]);
+    };
+    /* r2 NIT-6: slice to the array's closing `];`, never a fixed window — a
+     * fixed 900 chars truncates ~2 rows past the #378 launch-set growth and
+     * the pin would false-fail at exactly the operation it guards. */
+    const rowsOf = (src, marker) => {
+      const seg = src.slice(src.indexOf(marker));
+      return [...seg.slice(0, seg.indexOf('];')).matchAll(/code: '([a-z]{2}-[a-z]{2})'/g)].map((m) => m[1]);
+    };
+    const settingsLangs = rowsOf(read('src/shells/settings.html'), 'const LANGS = [');
+    const launchLangs = rowsOf(read('src/components/launch-shell.js'), 'const LAUNCH_LANGS = [');
+    const buildLangs = codesOf(read('scripts/build-locales.mjs'), 'const LANGS = [');
+    const iifeLangs = codesOf(read('scripts/build-strings-iife.mjs'), 'const LOCALES = [');
+    const same = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
+    ok(settingsLangs.length === 13 && same(settingsLangs, launchLangs)
+      && same(settingsLangs, ['en-us'].concat(buildLangs)) && same(buildLangs, iifeLangs),
+      'N4: the two pickers, build-locales LANGS and build-strings-iife LOCALES agree (13 = en-us + 12) — a row cannot ship ahead of its dictionary');
+    ok(settingsLangs.every((c) => existsSync(join(root, 'src/strings', c + '.json'))),
+      'N4: every picker code has a built dictionary file in src/strings/');
+
+    /* the overflow audit is a GATE, not an orphan tool (loop r1 NIT-6): a new
+     * locale batch that reintroduces a breaker fails the suite here. Scope
+     * honesty (r2 NIT-9): the audit covers HARVESTED call-site labels — a
+     * label whose call site the harvester cannot parse is not covered.
+     * process.execPath, not 'node' (r2 NIT-5): the suite must not depend on
+     * PATH when invoked via an absolute node. */
+    let overflowOk = true, overflowTail = '';
+    try {
+      const { execSync } = await import('node:child_process');
+      overflowTail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/i18n-overflow-audit.mjs')), { encoding: 'utf8' }).trim().split('\n').pop();
+    } catch (e) { overflowOk = false; overflowTail = String(e.stdout || e.message).trim().split('\n').slice(-3).join(' · '); }
+    ok(overflowOk && /NO BREAKERS/.test(overflowTail),
+      'N4 GATE: i18n-overflow-audit reports NO BREAKERS on harvested labels — ' + overflowTail);
+
+    /* —— N4 loop r2 F1/F4: the badge-caps class stays sentence-case in the
+     * three batch-introduced locales, pinned on the BUILT dictionaries —
+     * build-locales regenerates them from the legacy txt on every run, so a
+     * future BE-side legacy refresh would silently revert the fix (#285/#288
+     * stale-regeneration class). en FE canon is sentence-case; the 7 older
+     * locales keep their inherited caps (logged residual, copy-round scope). */
+    const isShout = (v) => { const L = String(v).replace(/[^A-Za-zÀ-žĀ-ſ]/g, ''); return L.length >= 4 && L === L.toUpperCase(); };
+    for (const code of ['it-it', 'id-id', 'lt-lt']) {
+      const dict4 = JSON.parse(read('src/strings/' + code + '.json'));
+      const shouty = ['declined', 'pending', 'txPending', 'txConfirmed', 'unlocked'].filter((k) => isShout(dict4[k]));
+      ok(shouty.length === 0,
+        'N4 r2: ' + code + ' badge/status values are sentence-case (no ALL-CAPS legacy bleed)' + (shouty.length ? ' — SHOUTING: ' + shouty.join(', ') : ''));
+    }
+    {
+      const idDict = JSON.parse(read('src/strings/id-id.json'));
+      const idShout = ['save', 'unlock', 'install', 'proceed', 'dismiss', 'sendRequest', 'deleteHistory', 'clearDownloads'].filter((k) => isShout(idDict[k]));
+      ok(idShout.length === 0,
+        'N4 r2 (r1 MAJOR-1): the id-id CTA set is sentence-case in the BUILT dictionary — the legacy file was the only shouting outlier and reuse shadows any draft' + (idShout.length ? ' — SHOUTING: ' + idShout.join(', ') : ''));
+      /* r3 N1: MID-value shouts ("Spixi TERKUNCI" on the app-lock title,
+       * "Pembayaran sudah TERKIRIM" payment bubbles) escape the whole-value
+       * predicate — pin the three surfaces with an uppercase-run check.
+       * Latin-only by design (r3 N2 logged): extend to \p{Lu} when the 7
+       * older locales' caps ride the copy round. */
+      const midShout = (v) => /[A-ZÀ-ŽĀ-Ž]{4,}/.test(String(v));
+      const idMid = ['lockTitle', 'paymentSent', 'paymentReceived'].filter((k) => midShout(idDict[k]));
+      ok(idMid.length === 0,
+        'N4 r3: the id-id lock title + payment bubble titles carry no mid-value shout' + (idMid.length ? ' — SHOUTING: ' + idMid.join(', ') : ''));
+    }
+
+    /* —— N4 (loop r1 MINOR-3): variant cultures resolve to the FILE code ——
+     * it-ch prefix-resolves to it-it.txt but getCurrentLanguage() returned the
+     * raw request: translated UI + en-convention amounts (the Utils gate knows
+     * no "it-ch") + a raw-code picker row with a false languagePending hint. */
+    const sl4 = read('Spixi/Lang/SpixiLocalization.cs');
+    ok(/resolved_lang = found_lang_part;/.test(sl4) && /language = resolved_lang;/.test(sl4),
+      'N4: SpixiLocalization.loadLanguage stores the RESOLVED file code — getCurrentLanguage() can never return a variant the culture gate and pickers do not know');
+    ok(/sendUiCommand\(this, "setLanguage", SPIXI\.Lang\.SpixiLocalization\.getCurrentLanguage\(\)\);/.test(read('Spixi/Pages/Settings/SettingsPage.xaml.cs')),
+      'N4: the Account hub S3 push carries the RESOLVED code, not the raw preference — a persisted "it-ch" renders the real Italiano row');
   }
 
   // —— N45: the PNG art really ships where devices load it ——
@@ -8031,11 +8144,12 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   ok(/requestedMembers\.has\(m\.address\)/.test(cdet366) && /requestedMembers\.add\(m\.address\)/.test(cdet366),
     'N26 (loop m1): the contact_details request latch survives change-gated panel rebuilds');
   /* —— N27 strings in all 8 built dictionaries ————————————————————— */
-  const locales366 = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp'];
+  const locales366 = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];   // N4 (#379)
   ok(locales366.every((l) => {
     const t = read('src/strings/' + l + '.js');
     return /removeBlockedTitle/.test(t) && /removeBlockedIntro/.test(t) && /removeBlockedPath/.test(t);
-  }), 'N27: the three remove-blocked keys exist in all 8 built dictionaries');
+  }), 'N27: the three remove-blocked keys exist in all 13 built dictionaries');
 }
 
 {

@@ -1058,7 +1058,7 @@ Referenced as `strings.KEY` whose fallback is a JS constant/variable, not a stri
 - `termsBody` / `privacyBody` — the Terms/Privacy legal text (`TERMS_DEFAULT`/`PRIVACY_DEFAULT` in launch-shell.js). **ENGLISH-ONLY BY DECISION (#169)** — intentionally NOT translated (legal copy needs per-jurisdiction review); every locale renders English. Their TITLES (`termsTitle`/`privacyTitle`) ARE translated.
 - `walletTitle` — falls back to a passed-in wallet name/label (dynamic), so it has no fixed English to translate.
 
-- `privacyBody` — launch-shell.js:530, launch-shell.js:561
-- `termsBody` — launch-shell.js:532, launch-shell.js:554
+- `privacyBody` — launch-shell.js:534, launch-shell.js:565
+- `termsBody` — launch-shell.js:536, launch-shell.js:558
 - `walletTitle` — wallet-hero.js:73
 

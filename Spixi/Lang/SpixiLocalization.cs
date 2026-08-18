@@ -35,6 +35,12 @@ namespace SPIXI.Lang
         {
             loaded = false;
 
+            // N4 (#379, loop r1 MINOR-3): remember the RESOLVED file code, not the
+            // requested one. A variant culture (it-ch, de-at, pt-pt) prefix-resolves
+            // to a shipped file, but storing the raw request made getCurrentLanguage()
+            // return a code the Utils.cs culture gate and the pickers do not know:
+            // translated UI + en-convention amounts + a raw-code picker row.
+            string resolved_lang = lang;
             Stream? file_stream = null;
             try
             {
@@ -50,6 +56,7 @@ namespace SPIXI.Lang
                     if (found_lang_part != null)
                     {
                         lang_file_path = Path.Combine("lang", found_lang_part + ".txt");
+                        resolved_lang = found_lang_part;
                     }
                 }
                 if(lang_file_path != "")
@@ -117,7 +124,7 @@ namespace SPIXI.Lang
 
             loaded = true;
             localizedStrings = localized_strings;
-            language = lang;
+            language = resolved_lang;
 
             return true;
         }

@@ -142,13 +142,13 @@ namespace SPIXI
             // (its _suffix encodes the OfflineTag payment flag; wallet-receive only)
             Utils.sendUiCommand(this, "setAddress", IxianHandler.getWalletStorage().getPrimaryAddress().ToString());
 
-            // S3: current language for the Language row (source: resetLanguage:229)
-            string lang = "en-us";
-            if (Preferences.Default.ContainsKey("language"))
-            {
-                lang = Preferences.Default.Get("language", "") as string;
-            }
-            Utils.sendUiCommand(this, "setLanguage", lang);
+            // S3: current language for the Language row. N4 (#379, loop r1
+            // MINOR-3): push the RESOLVED code SpixiLocalization actually loaded,
+            // not the raw preference — a persisted variant culture ("it-ch")
+            // otherwise puts a raw-code row + false languagePending hint on the
+            // picker while the app runs it-it. resetLanguage() has already loaded
+            // the preference by the time this pushes.
+            Utils.sendUiCommand(this, "setLanguage", SPIXI.Lang.SpixiLocalization.getCurrentLanguage());
 
             var filePath = IxianHandler.localStorage.getOwnAvatarPath();
             if (filePath.Equals("img/spixiavatar.png", StringComparison.Ordinal))

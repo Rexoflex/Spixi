@@ -5,6 +5,8 @@ Damir's list 1 + list 2, deduplicated, reconciled against the live plan
 and what is already built. New items get stable IDs **N1–N45** so sessions can
 reference them. Duplicates between the two lists are merged and noted.
 
+*2026-08-18: **N4 BUILT** (#378/#379, its own cloud session) — 13 locales live, launch-set dial + native review open. R2 is now fully closed.*
+
 *2026-08-17 (late): the D-19b family + N48/N49/N50 + the R2 round are BUILT
 (#370–#373). Struck below. N4 stays open (needs its own session). N51–N55
 added from Damir's #370-era F5 walk (all code-verified). Also struck:
@@ -73,7 +75,7 @@ R1/R2 strikes were ever applied here.*
 
 **R2 — Copy & locale round — ✅ RUN 2026-08-17 (#371; D-7 + I-11 + AND-35 + the one-liners)**
 - ~~**N3**~~ **#371 partial**: apps empty-state = Damir's short line · 17 aria joiners de-dashed · de-de 40 + sl-si 2 en-dashes rewritten. OPEN residue: the "simpler friendlier voice" app-wide sweep has NO target list (ask Damir) · ru copula dashes + lt-lt legacy dashes = Damir's call
-- **N4** Locale expansion: audit existing translations, pick the launch 15–20 languages, add FE dictionaries (⚠ it/id/lt/cn/ja have C# strings but NO FE dictionary — the #360 residual; dictionary + Utils.cs culture gate move TOGETHER), button-label overflow audit per language. (L) — **SKIPPED in #371, needs its own session**
+- ~~**N4**~~ **BUILT #378/#379 (cloud session, 2026-08-18).** The five dictionaries ship (it/id/lt/cn/ja: reuse 120-128 + draft 584-592 each), culture gate + both pickers moved together, overflow audit ran (29 breakers fixed, gate tool committed), #46 loop on Opus 3 rounds → CLEAN. OPEN DIAL (#378): the launch 15–20 set — proposal = 13 existing + tr/pl/ko/vi/uk; NO build beyond the five until Damir answers. Native review of the 5 drafts = open (docs/n4-review-notes.md)
 - ~~**N32**~~ built #361
 
 **R3 — Art & atmosphere round (with the I-3 design round)**

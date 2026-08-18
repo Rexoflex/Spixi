@@ -17,7 +17,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TODO = process.argv.includes('--todo');
-const LANGS = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br'];
+const LANGS = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br',
+  // N4 (#379): the #360 residual — same legacy-reuse-first recipe, drafts in draft/<code>.json
+  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
 const enUS = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
 const KEYS = Object.keys(enUS);
 const PH = /\{[^}]+\}/;

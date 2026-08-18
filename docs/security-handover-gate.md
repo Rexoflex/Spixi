@@ -156,6 +156,18 @@ because the security doc was never written as an introduced-vs-inherited census.
 | **N53 badge · N54 gate · N52 pulse · N56 wash · N59 gap · N36b tap-highlight** | chat.html · scroll-latest wiring · tokens.css · chatlist-item.css · settings-shell.css · message-bubble.css | No exposure | — | Display-only counters and CSS; no storage, no sink, no fetch, no WebView setting |
 | **N52 `messagesToLoad` 25→50** | Config.cs:57 | No exposure | — | Window size only; the D-18 poisoned-window guard re-walked and HOLDS (50→100 guarded→150) |
 
+### #379 — N4 locale expansion, lens applied while building (2026-08-17, cloud)
+
+| Item | file:line | Verdict | Baseline? | Action |
+|---|---|---|---|---|
+| **5 new FE dictionaries + drafts + glossaries** | src/strings/{it-it,id-id,lt-lt,cn-cn,ja-jp}.json/.js · draft/* · both strings artifacts · 22 rebuilt shells | No exposure | — | Static UI copy through textContent sinks only; verify-locales token/placeholder gates green; the glossary jsons carry legacy `<a href>` reference values but build-locales NEVER reads glossaries — all 13 shipped dictionaries are HTML-free (Opus loop r1 verified) |
+| **Utils.cs culture-gate +5 codes (cn-cn resolves as zh-cn)** | Utils.cs:129-131 | No exposure | The switch is #360-ours | Number-display formatting only; string-built, no float, no new data path |
+| **`setDocLang` cn-cn → zh-cn** | build-strings-iife.mjs → both strings artifacts | No exposure | The side effect is #269-ours | Sets `<html lang>` only; dictionary lookups stay cn-cn; Intl consumers get a real tag instead of junk |
+| **`loadLanguage` stores the RESOLVED code + S3 pushes it** | SpixiLocalization.cs · SettingsPage.xaml.cs (S3) | No new verb | The setLanguage push is legacy | Same verb, same closed vocabulary — the payload becomes the resolved file code (13 known values) instead of a raw OS culture string; strictly narrows what reaches the shell |
+| **Un-hidden pickers (13 rows)** | settings.html · launch-shell.js | No exposure | The ixian:language verb is legacy | Vocabulary widened by 5 codes that SpixiLocalization already ships; the picker still emits only list codes |
+| **Legacy lang txt edits (18 ids ×5 · id-id un-swap/case sweep · dash/overflow sweeps)** | Resources/Raw/lang/*.txt | No exposure | — | Static copy; C# testFile grammar verified (no quotes, no argCount drift); all consumers fallback-guarded |
+| **New build tools (overflow audit · smoke execSync gate)** | scripts/i18n-overflow-audit.mjs · smoke-test.mjs | No exposure | — | Build/CI-time only, never shipped; execSync runs process.execPath on a repo-fixed path, no user input |
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

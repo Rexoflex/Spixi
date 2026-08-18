@@ -3849,12 +3849,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * .loadLanguage(), so use these exact codes, NOT the demo's variants. FE ships
    * the list at build time (BE gap §8-4). Flags are emoji stand-ins (SVG later).
    *
-   * A4 (Damir, Batch A interview): cn-cn / it-it / id-id / ja-jp / lt-lt are
-   * HIDDEN until translated — the app ships their legacy lang files, but the
-   * redesigned shells have no dictionary for them (build-locales.mjs LANGS), so
-   * picking one silently rendered English shell copy over a translated C# layer
-   * (a half-translated app). Re-add each code to LANGS the moment its dictionary
-   * lands in src/strings/ (and drop it from PENDING_LANGS below). */
+   * A4 (Damir, Batch A interview): a locale is HIDDEN until translated — the
+   * app ships its legacy lang file, but if the redesigned shells have no
+   * dictionary for it (build-locales.mjs LANGS), picking it silently rendered
+   * English shell copy over a translated C# layer (a half-translated app).
+   * N4 (#379): the #360 residual five (it/id/lt/cn/ja) shipped dictionaries →
+   * their #258 languagePending rows are REAL rows now. PENDING_LANGS below is
+   * empty but the guard grammar stays for any future pre-dictionary code. */
   const LANGS = [
     { code: 'en-us', label: 'English', flag: '🇺🇸' },
     { code: 'es-co', label: 'Español', flag: '🇨🇴' },
@@ -3864,30 +3865,29 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
     { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
     { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
+    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
+    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
+    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
+    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
   ];
 
   /* —— A4 fallback row (hidden-locale REGRESSION guard) ————————————————————————
    * App.xaml.cs:100-107 — on FIRST RUN, with no `language` preference, Spixi
    * auto-detects CultureInfo.CurrentCulture and PERSISTS it if SpixiLocalization
-   * ships that code. it-it / ja-jp / id-id / lt-lt all ship → an Italian /
-   * Japanese / Indonesian / Lithuanian OS user LANDS on a hidden locale without
-   * ever opening a picker. With no row for it the picker showed NO selection:
-   * the user couldn't see their current language, and tapping ANY visible row
-   * silently moved them off their OS language.
-   *
-   * So: when the CURRENT code isn't in LANGS, append ONE row for it (endonym +
-   * flag) — it renders as the selected option and stays inert (the component
-   * early-returns on a click whose value === current, settings-shell.js:142).
-   * A hint line says the interface stays English until its dictionary lands.
-   * (cn-cn is listed for completeness; .NET reports zh-cn, which C# can't map,
-   * so Chinese OS users fall back to en-us and never reach this row.) */
-  const PENDING_LANGS = [
-    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
-    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
-  ];
+   * ships that code. When a shipped code has NO row in LANGS the picker showed
+   * NO selection, and tapping ANY visible row silently moved the user off their
+   * OS language. So: when the CURRENT code isn't in LANGS, append ONE row for it
+   * (endonym + flag) — it renders as the selected option and stays inert (the
+   * component early-returns on a click whose value === current,
+   * settings-shell.js:142). A hint line says the interface stays English until
+   * its dictionary lands.
+   * N4 (#379): the five pending rows (it/id/lt/cn/ja) GRADUATED into LANGS —
+   * this list is empty, but the grammar stays as the guard for any future
+   * legacy-code-without-dictionary state. (.NET reports zh-cn for Chinese OS
+   * users; C# can't map it, so they land on en-us and pick 中文 manually —
+   * the zh→cn map is a logged C# dial, #378.) */
+  const PENDING_LANGS = [];
   const langIsHidden = (code) => !!code && !LANGS.some((l) => l.code === code);
   /* The list handed to the hub AND to every picker — LANGS, plus the current
    * code when it's a hidden one (unknown codes degrade to the raw code label). */

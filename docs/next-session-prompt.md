@@ -1,25 +1,144 @@
-Read docs/handoff-2026-08-19c.md FIRST and verify the git state it describes (the #385 batch on top of 4e348c62 - if the chain does not match, stop and say so). Confirm Spixi/Meta/Config.cs reads "spixi-0.9.22". This session runs in #380 BUDGET MODE - the scope is PINNED, do not widen it.
+★ THIS IS AN OVERNIGHT, UNATTENDED, CLOUD-ONLY SESSION. My computer is OFF. Do not
+call any device tool (device_bash, device_stage_files, device_commit_files,
+device_list_dir) - they will fail. Do not ask me questions; I am not there. Where a
+choice is genuinely mine, pick the reasonable option, STATE the assumption in the
+handoff, and carry on. Deliver everything with SendUserFile (a tarball) - that
+reaches me on my phone and survives my laptop being closed.
 
-THE LAUNCH FLOW ROUND. Four items, ONE body of work, ONE F5 - they all touch the same files, so do not split them into separate rounds. TRIAGE-FIRST (#215) still applies: name the mechanism in code before touching anything.
+SETUP - get the code yourself, both repos clone anonymously (verified 2026-08-18):
 
-THE FINDING THAT DRIVES ALL OF IT (verified at source last session, re-verify): scripts/build-shells.mjs emits ONE source - src/shells/launch.html - FIVE times, differing only by an injected bootView: intro.html (LaunchPage, welcome) - intro_new.html (LaunchCreatePage, create) - intro_restore.html (LaunchRestorePage, restore) - intro_retry.html (LaunchRetryPage, retry) - onboarding.html (OnboardPage, tail). Five C# pages, five WebViews, five parses of the SAME large document, plus a native page push per step. THAT is the flicker Damir reports. The shell already holds every view. This is a STOP NAVIGATING problem, not a preload problem.
+  git clone --branch redesign/frontend https://github.com/Rexoflex/Spixi.git
+  git clone https://github.com/ixian-platform/Ixian-Core.git      # HEAD = 097341a
 
-DO THEM IN THIS ORDER:
+Clone Ixian-Core as a SIBLING of the Spixi folder (Spixi.csproj imports
+..\..\Ixian-Core\IXICore.projitems). You will not compile C# - there is no MAUI
+workload here - so Core is for READING (the group/wallet/friend logic lives there
+and is the source of truth for anything I ask about behaviour).
 
-① N76 - cut the two onboarding steps. Cheapest, and it removes two of the five screens before you collapse anything. DAMIR'S DIALS ARE LOCKED (DECISIONS #388) - do not re-ask, do not re-litigate:
-   (a) BACKUP: trigger on the FIRST REAL ASSET - first contact added, first message sent, or FIRST INCOMING BALANCE. The balance leg is MANDATORY, a user can receive funds before ever messaging. THEN keep the periodic reminder as the backstop (30-day, Config.cs:76, backupReminderTimestamp from #383) and the standing Account row.
-   (b) JOIN BOT: drop the step, put the CTA in the CHAT-LIST EMPTY STATE. It STAYS OPT-IN - ixian:joinbot is opt-in today and does not change. DO NOT auto-add the bot.
-   ★ THE TAIL DIES - THIS IS CLOSED, DO NOT RE-OPEN IT OR ASK ME AGAIN. With both steps gone the tail has nothing left, so OnboardPage and everything that exists only to serve it comes OUT. No modal after account creation: create goes straight into the app, restore goes straight into the app. The full DELETE list is in handoff section 3.2b - work from it, and leave NO dead code behind: OnboardPage (xaml + cs) - the launch-tail key in build-shells.mjs (five launch outputs become four) - Resources/Raw/html/onboarding.html - the tail bootView, onJoinBot, onFinish, the tailJoined latch, tailSkipBackup and the __SPIXI_FROM_RESTORE__ boot script in launch.html - buildTail, toJoin and opts.tailSkipBackup in launch-shell.js - the onboarding block and handleOnboardDone in HomePage - the onboardingFromRestore preference at ALL FOUR sites - and the onboardingComplete preference at ALL FIVE sites plus completeOnboard() and the ixian:onboardingComplete verb (its only job was gating the tail; the new backup trigger keys off the ASSET and the empty-state CTA keys off an EMPTY LIST, so nothing needs it - confirm with a grep including Spixi-PushService before deleting).
-   ★ TWO FINDINGS THAT MAKE THIS CHEAP - verify them, then use them: (1) HomePage ALREADY has the verb. ixian:joinBot (HomePage:788) reaches joinBot() (HomePage:1380-1396), which adds the Spixi Group Chat friend, saves, sends the contact request and refreshes contacts. The empty-state CTA needs NO NEW VERB - the outbound bridge stays frozen. Note the case: HomePage uses ixian:joinBot, the dying OnboardPage used ixian:joinbot; keep HomePage's. (2) NOTHING reads the OnboardingComplete carrier, and completeOnboard() ends with generatePage("index.html") - the LEGACY page. That is dead weight to delete, not something to relocate. The backup side needs no new plumbing either: the tail's ixian:backup called BackupPage.backupAccount(), the same static the Account row already uses - only the trigger point is new.
+VERIFY BEFORE YOU BUILD ANYTHING, and STOP with a one-paragraph answer if it fails:
+- Spixi/Meta/Config.cs reads "spixi-0.9.22";
+- the head commit CONTAINS the launch-flow round: Spixi/Pages/Launch/LaunchPage.xaml.cs
+  is the merged page (it holds onCreateAccount AND onRestore AND proceed), and
+  LaunchCreatePage / LaunchRestorePage / LaunchRetryPage / OnboardPage are GONE;
+- scripts/build-shells.mjs emits ONE launch output (intro.html), 18 shells total.
+If the head does not contain that batch, I failed to push - say so and stop.
 
-② N75 - collapse the launch pages to ONE WebView. Host welcome + create + restore + retry in ONE page, ONE WebView, switch views by push; the four verb sets are small and disjoint. Leave the tail separate IF it survives ①. If a page identity must be kept, reuse the EXISTING PreloadOp park machinery (#315) - do not invent a second one.
+Then: npm install jsdom --no-save, and read docs/handoff-2026-08-19e.md FIRST.
 
-③ N73 - full bleed on welcome, restore, onboarding and the in-app wallet. Damir's framing: together, not one screen at a time. Symptoms: wrong status-bar strip on welcome right after an appearance switch (correct after a restart), on the account-creation screen, and it changes again on the Developer log page. SPlatformUtils.setEdgeToEdge() is the C# lever, ThemeManager.getSurfaceColorString() is the colour truth.
+★ #380 BUDGET MODE IS LIFTED FOR THIS RUN ONLY - this is a big batch and I want it
+done properly, not cheaply. What is NOT lifted: verify every plan at source before
+building it (#215), never build past a missing repro (#294), mutation-prove new
+pins, one DECISIONS row per decision at the time it is made, the security-handover
+gate while building, and bundle BEFORE shells. Smoke stays a bookend: baseline once
+(expect 1992 / the 4 known pre-existers) and final once (state the number). You may
+run ONE #46 audit loop at the end with up to three disjoint read-only auditors plus
+a break-my-verdict reviewer - that is the standard for a batch this size.
 
-④ N72 - rides free: remove the theme picker from the welcome flow. launch.html and lock.html carry NO *SL{SpixiThemeName} boot script - they are fixed dark in both themes by design - so the picker changes nothing the user can see.
+ORDER MATTERS. Build in this order and treat each part as independently shippable,
+so if you run long I still get everything before the cut. If a part balloons, STOP
+at a triage doc and move to the next one - do not half-build.
 
-NOT THIS SESSION: N71 (the theme push-vs-reload round - its own batch, read handoff section 2 so you do not half-do it) - N63 - N64 - N67 - N68 - N69 - N70. Do not touch N57 (Core-side, Damir's protocol run pending), the deferred pile, or anything in the archived 17g section 6.
+PART A - THE #391 F5 FIXES (DECISIONS #395)
 
-ECONOMY RULES (hard): smoke as bookends only - baseline once (expect 1982/4) and final once (state the new number) - plus ONE batched mutation-proof run for any new pins. ONE Opus review round at the end, and only if C#/money/data paths changed; no r2/r3 unless it finds a MAJOR. No agent fan-outs. Standing set otherwise unchanged: cloud twin - verify against code (#215) - bundle BEFORE shells, and READ the bundle build's output, it was silently dead for months (#383) - build-shells has a `launch` shorthand that builds all five launch outputs as a set, use it and read its output - locale pipeline + i18n-lint + pseudo + i18n-overflow-audit IF strings changed (this batch almost certainly changes strings) - DECISIONS rows at decision time - security gate row - tarball delivery + updated handoff + F5 checklist (short - only the legs the session touched). Any C# change means I wipe obj/bin before deploying, and both targets share those folders. I commit.
+F-1 backup nudge fires on an UNACCEPTED contact - ROOT CAUSE FOUND, just fix it.
+Friend.approved DEFAULTS TO TRUE (Ixian-Core Streaming/Friends/Friend.cs:196, ctor
+:233) and every outgoing request adds the friend without passing it
+(HomePage.joinBot:1378, ContactNewPage:195, SingleChatPage:1426,
+SpixiContentPage:2389), so the #393 MAJOR-3 guard is dead code. Use
+friend.state == FriendState.Approved, keep !pendingDeletion / !bot / the balance
+leg, and re-pin the smoke on the STATE.
 
-★ AND REMEMBER #387: a red row can be a DIRTY BUILD. N65 was 🔴 for two sessions and did not reproduce after an obj/bin wipe and a clean rebuild. Before you triage a long-standing user-visible bug, ask whether the reporting build was clean.
+F-2 hardware back exits the app from the create/restore view. The view switch and
+the topbar Back both work, so C#'s currentView is wrong. DO NOT GUESS: add one log
+line in LaunchPage.onNavigating naming every verb it receives (the N65
+instrumentation precedent) so one F5 answers it. Then make it structural - the
+component must report EVERY view change from ONE place, inside show() in
+launch-shell.js, instead of only from the two CTA hooks.
+
+F-3 restore = fatal exception. DEFERRED BY ME - DO NOT TOUCH IT. It rides the
+delete-account / delete-wallet batch (N67). Suspects are already recorded in
+handoff section 2; do not re-derive them, do not "just look".
+
+F-4 the status bar stays dark after unlocking - ROOT CAUSE FOUND. #393 put
+repaintSystemBars in closeOverlay, but the resume lock closes through
+closeModalOverlay (SpixiContentPage.cs:647, from LockPage.performUnlock:165 and
+:119), and the non-confirm path ends in InsertPageBefore + removePage
+(LockPage.xaml.cs:177) with no navigation. Repaint at both lock-close sites. ALSO
+FIX THE PIN - it counted two call sites in the wrong method and passed.
+
+F-5 empty states pop in ~1s late on every screen after a restart. Triage first.
+Prime suspect is the zero-state load-window gate (chats-shell.js:164, zeroReady ===
+false returns null), possibly just newly visible now that I test empty accounts.
+Answer "does the gate open late, or does the burst arrive late" before touching it.
+
+PART B - ITEM 6, DECIDED, BUILD IT (small). The join-community CTA keeps its place
+in the chat-list empty state AND gains a permanent row in How to use, so a user who
+adds one ordinary contact does not lose the door. No dismissible chat row.
+★ Verified shape, do not rediscover: createSettingsHowTo is
+src/components/settings-app.js:553, rendered by src/shells/settings.html:1039, host
+SettingsPage - and SettingsPage does NOT handle ixian:joinBot (zero hits; only
+HomePage:788 -> its private joinBot():1376-1391). Add the action row and make the
+join a SHARED STATIC both pages call (the BackupPage.backupAccount() precedent,
+#243). No second verb, no duplicated addFriend, still opt-in.
+
+PART C - THE FULL-BLEED ROUND (AND-7, DECISIONS #396). This is the one I care most
+about. I want no strip at all: the launch gradient and the WALLET HERO (the balance
+area) must reach the top of the screen. Already triaged in
+docs/android-findings.md:47 - MainActivity's InsetsListener pads the root view top
+by sysInsets.Top while SetDecorFitsSystemWindows(false) already draws edge-to-edge,
+so the fix is to stop padding the top and feed the real top inset to the shells as
+a CSS variable (Android env(safe-area-inset-top) is cutout-only, which is why the
+iOS #282 chrome reads 0 there). Scope: launch gradient, wallet hero, every shell
+topbar, and the bottom inset while you are in there.
+★ I cannot measure for you tonight, so SHIP THE MEASUREMENT: put the real
+sysInsets.Top and what env() reports into the on-screen dev/debug surface (the #304
+probe precedent) so my first F5 confirms or kills the numbers in one look. Keep the
+#391 strip colours as the pre-paint frame - they stop being the mechanism.
+
+PART D - THREE SMALL ONES FROM THE MASTER LIST, all already triaged at source:
+- N63: the English-fallback tail in the 7 older locales (de/fr/es/pt/ru/sl/sr) -
+  10 named keys incl. showOlderMessages, unreadElsewhere, paidMessage, noPeople,
+  noGroups, launchInvite, groupSelectedCount, tipNoAnswer, appUrlPlaceholder.
+  Mechanical: draft them, rebuild locales, and let verify-locales + the overflow
+  audit prove it. Flag anything you are not confident about for native review.
+- N70: the update notice never appears when the app STARTED OFFLINE - UpdateVerify
+  runs at start then hourly (Config.cs:47). Re-arm the check on the offline->online
+  transition; the connectivity arm in HomePage.updateScreen already sees that edge.
+- N44: spinner-on-button while create/restore work (setLoading already exists) -
+  it lands in the launch flow you are already inside for Part A.
+
+PART E - N64 ①, THE UPDATE-NOTICE SCOPE BUG ONLY. homeBanner mounts into
+#chats-banner, which sits inside #chats-view, and .view[hidden]{display:none} - so
+an app-level notice is invisible on Wallet and Apps while the less-global
+connectivity state reaches all three tab titles. Fix the SCOPE. Leave the other
+three N64 design problems alone - those need my eye.
+
+PART F - ONLY IF EVERYTHING ABOVE IS BUILT, GREEN AND REVIEWED: N71, the theme
+push-vs-reload round (the biggest open red, root-caused in handoff 19c section 2 -
+the revived OS-flip path RELOADS where the working explicit-pick path PUSHES, and
+settings.html has no setTheme handler at all, along with eleven other shells).
+If you reach it with real time left, take it. If not, leave it completely - a
+half-done theme round is worse than none, and I would rather have Parts A-E clean.
+Do NOT start it if Parts A-E are not finished.
+
+NOT THIS SESSION, at all: N57 (Core-side, my protocol run) - N67 delete-account /
+delete-wallet (needs the delete->restore error reproduced on a device first, and
+F-3 rides it) - N68 (needs logcat) - N60/N61 (inherited, device) - N63's siblings
+in R3/R5/R6/R8/R9 - anything in the deferred pile.
+
+DELIVERABLES, all through SendUserFile as ONE tarball at the end (plus an earlier
+one if you finish Parts A-C well before the rest, so I have something either way):
+- source + docs only, never node_modules, and tell me which generated files I must
+  rebuild myself;
+- an updated handoff that supersedes 19e, and a next-session prompt;
+- ONE F5 checklist covering only the legs you touched, with the exact build and git
+  commands (I wipe obj/bin and I commit);
+- DECISIONS rows written AS you decide, not summarised at the end;
+- a short "what I could not verify without a device" list - I would rather have an
+  honest gap than a confident guess.
+
+★ REMEMBER #395: a smoke pin can PASS and still prove nothing - F-4 shipped because
+its pin asserted the fix EXISTED rather than that it ran on the path the bug takes.
+Pin the site the behaviour goes through, and mutation-prove it.
+★ REMEMBER #387: a red row can be a DIRTY BUILD - but you cannot rebuild tonight,
+so where that is the likely explanation, SAY SO instead of coding around it.

@@ -1578,7 +1578,9 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
 
 </style><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
 <style data-src="../styles/components/launch-shell.css">
-/* c-launch — welcome carousel · create · restore · retry · onboarding tail
+/* c-launch — welcome carousel · create · restore · retry (★ N76 removed the
+   onboarding tail: the backup nudge moved to the first-asset trigger and the
+   join-community CTA to the chat-list empty state)
    (docs/launch-spec.md, Phase 1 #5). Token surfaces throughout; ONLY the
    welcome view is the #160 brand moment (fixed-dark pin + --gradient-lock —
    interview #0②). Password fields reuse the c-lock__field grammar, so
@@ -1586,7 +1588,7 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
 
 /* premium round 2 (Damir 2026-07-06): the WHOLE launch is ONE continuous
    fixed-dark brand surface — the shell rides --gradient-launch and the JS pins
-   data-theme="dark" on the section (welcome→create→restore→retry→tail feel like
+   data-theme="dark" on the section (welcome→create→restore→retry feel like
    one experience). The lock screen is the precedent: forms live on the gradient
    with GLASS fields. Sheets mount on the host OUTSIDE the pin (themed pickers). */
 .c-launch {
@@ -1997,38 +1999,6 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
 }
 .c-launch__file-check { display: flex; color: var(--icon-success); }
 
-/* —— onboarding tail: centered forward flow, no topbar (spec §2.5) —— */
-.c-launch__tail {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: var(--spacing-24);
-  /* onboarding CTAs clear the iOS home indicator (top inset is handled by the
-     shell's #launch-root .c-launch__tail padding-top rule) */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
-}
-.c-launch__tail-step {
-  margin: auto 0;                   /* vertical centering that still scrolls short */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-12);
-  text-align: center;
-}
-.c-launch__tail-step .c-launch__illo { max-width: 220px; }
-.c-launch__tail-step .c-button { max-width: 320px; }  /* sanctioned: form measure */
-/* legacy join-community art (264×264 shipped SVG) on the gradient (dark set) */
-.c-launch__tail-illo {
-  display: block;
-  width: min(58vw, 232px);          /* sanctioned: art measure, carousel parity */
-  max-height: 34vh;
-  height: auto;
-  margin-bottom: var(--spacing-8);
-  user-select: none;
-  -webkit-user-drag: none;
-}
 
 </style><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <style data-src="../styles/components/settings-screens.css">

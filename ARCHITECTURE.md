@@ -77,14 +77,19 @@ Condensed reference; exact parsing rules, behaviors, and edge cases per command 
 - `contact_new.html`: `onload` · `back` · `error` · `request:<addr>` · `quickscan` · `qrresult:<data>` · `checkAddress:<addr>`
 - `contact_details.html`: `onload` · `back` · `remove` · `removehistory` · `request` · `send` · `chat` · `txdetails:<txid>` · `userdefinednick:<nick>`
 
-### Launch / lock (5 pages)
+### Launch / lock (2 pages)
 
-- `intro.html`: `introload` · `create` · `restore` · `accept` · `language:<code>` · `appearance:<int>`
-- `intro_new.html`: `onload` · `back` · `create:<nick>:<password>` · `error` · `avatar` · `restore`
-- `intro_restore.html`: `back` · `selectfile` · `restore:<password>`
-- `intro_retry.html`: `back` · `proceed:<password>`
+★ N75 (#391) collapsed the four launch pages into ONE (`LaunchPage` + `intro.html`);
+★ N76 (#391) deleted the onboarding tail (`OnboardPage` + `onboarding.html`). The
+verbs below are the union the one page now handles — none were added or removed.
+
+- `intro.html`: `introload` · `create` · `restore` · `back` · `accept` ·
+  `language:<code>` · `avatar` · `error` · `create:<nick>:<password>` ·
+  `selectfile` · `restore:<password>` · `proceed:<password>`
+  (pushes: `setVersion` · `showTerms` · `showOnboardingSection` · `loadAvatar` ·
+  `setUploadedFileName` · `showPasswordError` · `removeLoadingOverlay` ·
+  `setLaunchView`). `appearance:<int>` retired with the welcome picker (N72).
 - `lock.html`: `onload` · `back` (no-op) · `unlock:<password>` · `change`
-- `onboarding.html`: `back` · `joinbot` · `error` · `finish`
 
 ### Settings (4 pages)
 
@@ -137,7 +142,7 @@ Each shell is one HTML file with internal client-side views ("routes"). **The MA
 
 | # | Shell | Absorbs | Internal views |
 |---|---|---|---|
-| 1 | `launch.html` | intro, intro_new, intro_restore, intro_retry, onboarding | welcome (language/theme/terms) · create · restore · retry · onboarding |
+| 1 | `launch.html` | intro (ONE page since N75; intro_new/intro_restore/intro_retry/onboarding deleted) | welcome (language/terms) · create · restore · retry |
 | 2 | `lock.html` | lock, settings_lock, settings_encryption | unlock · confirm-action · set-lock · change-encryption-password |
 | 3 | `home.html` | index, empty_detail | tabs (chats/contacts/wallet/apps) · empty-detail pane |
 | 4 | `chat.html` | chat | 1:1 · group · blind group · bot (already modal internally) |
@@ -152,7 +157,7 @@ Deleted: `address.html` (orphaned — no C# page loads it). Untouched: `MiniAppP
 Why this grouping holds up against the audit:
 
 - **payments** — the send/request pipeline is already one flow artificially split across 5 files with verified copy-pasted `addRecipient`/`generateQR`/`validate` bodies; `wallet_sent.html` already has dual send/receive modes (`setReceivedMode`).
-- **launch** — all five share the fullscreen step-wizard + password-toggle JS; `intro_retry` is a one-step subset of `intro_restore`.
+- **launch** — all of them share the fullscreen step-wizard + password-toggle JS; `intro_retry` is a one-step subset of `intro_restore`. ★ N75 went further than the grouping: one shell AND one C# page AND one WebView, switching views in place.
 - **lock** — three variations of title + password field + error + action; they differ mostly in which `ixian:` verb they emit.
 - **Name-collision fix for free**: today `addPaymentActivity`, `setBalance`, `setChatMode`, `addAppRequest` exist with different arities on different pages. Since shells are separate files, existing C# calls keep working unchanged — each shell implements the arity its C# callers use.
 

@@ -171,6 +171,16 @@ function chatsEmptyState(state, strings, opts = {}) {
       actionLabel: strings.chatsEmptyCta || 'Start a chat',
       actionIcon: 'message-plus',
       onAction: opts.onNewChat,
+      /* ★ N76 (#391, Damir's dial): the join-the-community step left the
+         onboarding tail and lives HERE. A new user's list is empty anyway, this
+         costs no screen, and — unlike a step — it is still here tomorrow for the
+         user who skipped it. It stays OPT-IN: the host emits the existing
+         ixian:joinBot verb only on a tap, nothing is auto-added. The row
+         disappears by itself, because the moment the bot is a chat the list is
+         no longer empty. */
+      secondaryLabel: opts.onJoinBot ? (strings.chatsEmptyJoinCta || 'Join the Spixi community') : '',
+      secondaryIcon: 'users',
+      onSecondary: opts.onJoinBot || null,
     });
   }
   const el = document.createElement('div');

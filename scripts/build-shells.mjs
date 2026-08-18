@@ -27,10 +27,13 @@ const OUT_DIR = join(root, 'Spixi', 'Resources', 'Raw', 'html');
 // key → { in: demo source, out: legacy Resources/Raw/html filename (drop-in), page: C# class }
 // (ARCHITECTURE §5 mapping; `out` is the Stage-4a drop-in target = the file that C# page loads today)
 //
-// LAUNCH is special: the legacy launch flow is FIVE separate C# pages, each loading
-// its own HTML file. The ONE production shell (src/shells/launch.html) holds all five
-// views and boots at whichever `bootView` we inject per output filename (the shell
-// reads window.__LAUNCH_VIEW__). So one source → five drop-in files. ZERO C# change.
+// ★ N75 (#391): LAUNCH IS NO LONGER SPECIAL. It used to be FIVE outputs of this one
+// source — one per legacy C# page, each differing only by an injected bootView, i.e.
+// five WebView boots of the same large document, which is the flicker Damir reported.
+// LaunchPage now hosts every view in ONE WebView and switches in place, so there is
+// ONE output again (intro.html). The boot view arrives as a generatePage carrier
+// (*SL{LaunchBootView}) instead of an injected script. The three orphaned outputs
+// (intro_new/intro_restore/intro_retry) and the onboarding tail (N76) are deleted.
 const SHELLS = {
   chat:     { in: 'src/shells/chat.html',   out: 'chat.html',        page: 'SingleChatPage' },
   contact_details: { in: 'src/shells/contact_details.html', out: 'contact_details.html', page: 'ContactDetails' },
@@ -45,12 +48,8 @@ const SHELLS = {
   downloads:    { in: 'src/shells/downloads.html',    out: 'downloads.html',    page: 'DownloadsPage' },
   dev:          { in: 'src/shells/dev.html',          out: 'dev.html',          page: 'DevPage' },
   contributors: { in: 'src/shells/contributors.html', out: 'contributors.html', page: 'ContributorsPage' },
-  // launch — the five legacy filenames, one bridge-wired shell, per-file boot view:
-  launch:          { in: 'src/shells/launch.html', out: 'intro.html',         page: 'LaunchPage (welcome)',        bootView: 'welcome' },
-  'launch-create': { in: 'src/shells/launch.html', out: 'intro_new.html',     page: 'LaunchCreatePage (create)',   bootView: 'create'  },
-  'launch-restore':{ in: 'src/shells/launch.html', out: 'intro_restore.html', page: 'LaunchRestorePage (restore)', bootView: 'restore' },
-  'launch-retry':  { in: 'src/shells/launch.html', out: 'intro_retry.html',   page: 'LaunchRetryPage (retry)',     bootView: 'retry'   },
-  'launch-tail':   { in: 'src/shells/launch.html', out: 'onboarding.html',    page: 'OnboardPage (tail)',          bootView: 'tail'    },
+  // launch — ONE page, ONE WebView, every view (★ N75)
+  launch:   { in: 'src/shells/launch.html', out: 'intro.html',       page: 'LaunchPage (welcome/create/restore/retry)' },
   payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
   // B3 (#256): transaction details — Stage-4a drop-in over the legacy filename.
   // VIEW-ONLY (no compose/signing — the money path stays C#'s); loaded BOTH as a
@@ -71,20 +70,16 @@ const SHELLS = {
   // dedicated src/shells/ entry (native.js + setRoute), not a demo drop-in.
 };
 
-// `launch` shorthand expands to all five launch filenames (build them as a set).
-const LAUNCH_KEYS = ['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'];
-
-// #288 review (MAJOR, SECOND occurrence): the five launch drop-ins were not in DEFAULT,
+// #288 review (MAJOR, SECOND occurrence): the launch drop-ins were not in DEFAULT,
 // so every routine `node scripts/build-shells.mjs` left them inlining a STALE artifact —
 // #285 and #287 both shipped them one dictionary behind (664 keys vs 665), i.e. English
 // copy in the launch language picker for a translated user. The previous review caught the
 // identical miss one batch earlier and fixed it by hand; hand-discipline did not hold, so
-// the set now builds by DEFAULT. Their five output filenames (intro*/onboarding.html)
-// collide with nothing else in the list.
+// launch builds by DEFAULT. (★ N75 collapsed the five outputs to one; the rule stands —
+// the STALE-artifact class is what DEFAULT membership protects against.)
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
   'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors',
-  'empty_detail', 'wallet_sent', 'call',    // bridge-wired shells (real C# data)
-  ...LAUNCH_KEYS];
+  'empty_detail', 'wallet_sent', 'call', 'launch'];   // bridge-wired shells (real C# data)
 const arg = process.argv.slice(2);
 // #288 review: `all` used to include the two still-LEGACY demo drop-ins — apps.html and
 // wallet_send.html, the MONEY page — silently overwriting them with demo markup (#284 had
@@ -93,8 +88,6 @@ const LEGACY_DEMO_KEYS = ['apps', 'payments'];
 let keys = arg.length === 0 ? DEFAULT
   : arg.includes('all') ? Object.keys(SHELLS).filter((k) => !LEGACY_DEMO_KEYS.includes(k))
   : arg;
-// `launch` alone means the whole launch set (all five drop-in files)
-keys = keys.flatMap((k) => (k === 'launch' && arg.length && !arg.includes('all')) ? LAUNCH_KEYS : [k]);
 keys = [...new Set(keys)];
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -414,11 +407,6 @@ for (const key of keys) {
     + '\'<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">'
     + 'Spixi could not load: \'+m.join(", ")+\'\\n\\nThe shell and its shared assets must sit in the '
     + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs</pre>\';})();</script>\n</body>');
-  // launch: inject the per-file boot view BEFORE any script runs (the shell reads
-  // window.__LAUNCH_VIEW__ to pick welcome/create/restore/retry/tail).
-  if (s.bootView) {
-    html = html.replace(/<body[^>]*>/i, (m) => `${m}\n<script>window.__LAUNCH_VIEW__=${JSON.stringify(s.bootView)};</script>`);
-  }
   const outPath = join(OUT_DIR, s.out);
   writeFileSync(outPath, html);
   n++;

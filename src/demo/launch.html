@@ -39,7 +39,7 @@
      gradient bleeds under the statusbar; themed views clear it via a
      demo-only inset (env(safe-area-inset-top) does this on device) */
   .demo-launch { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; }
-  .demo-launch .c-launch__view, .demo-launch .c-launch__tail { margin-top: 44px; }
+  .demo-launch .c-launch__view { margin-top: 44px; }
   /* device supplies env(safe-area-inset-top); the demo has none, so feed the
      welcome the 44px statusbar height as its inset — the pills clear the clock
      while the gradient still bleeds behind the bar (Damir 2026-07-06) */
@@ -60,7 +60,7 @@
         <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▮</span></div>
         <div class="demo-launch" id="launch-host"></div>
       </div>
-      <div class="demo-caption">Welcome (premium round): 4-slide autoplay carousel with the SHIPPED legacy tour art · language pill + appearance → the settings sheets (#148⑥ flags / #147 preview tiles) · fine-print terms (first CTA tap = ixian:accept) · <code>--gradient-launch</code> (new premium recipe — 5 dials in tokens.css) · create (nick-forms-the-avatar, <code>:</code> hazard gates) · restore (file + password, wrong = inline; password <code>hunter2</code>) · retry (wrong = native-alert contract, silent restore) · tail: backup nudge → join step.</div>
+      <div class="demo-caption">Welcome (premium round): 4-slide autoplay carousel with the SHIPPED legacy tour art · language pill → the settings option sheet (#148⑥ flags; the appearance pill left with N72) · fine-print terms (first CTA tap = ixian:accept) · <code>--gradient-launch</code> (new premium recipe — 5 dials in tokens.css) · create (nick-forms-the-avatar, <code>:</code> hazard gates) · restore (file + password, wrong = inline; password <code>hunter2</code>) · retry (wrong = native-alert contract, silent restore).</div>
     </div>
   </div>
 
@@ -222,11 +222,6 @@
     },
     // intro.html verbs
     onLanguage: (code) => toast('ixian:language:' + code + ' — legacy persists + reloads; live swap at Phase 3'),
-    onAppearance: (i) => {
-      // ThemeAppearance ints 0/1/2 — the demo REALLY swaps tokens (settings precedent)
-      if (i) document.documentElement.dataset.theme = i === 2 ? 'dark' : 'light';
-      toast('ixian:appearance:' + i + (i ? '' : ' — automatic (OS decides)'));
-    },
     onAcceptTerms: () => toast('ixian:accept — terms accepted (in-memory, legacy parity)'),
     // intro_new.html verbs — the password NEVER appears in any toast/log
     onCreateAccount: (nick, pass, ctrl) => {
@@ -268,16 +263,15 @@
         ctrl.fail('');                            // silent restore — the alert spoke
       }, 900);
     },
-    // onboarding tail
-    onBackupNow: () => toast('→ onboardingComplete + Backup screen (launch-spec §9② routing — no new verb)'),
-    onJoinBot: () => toast('ixian:joinbot — “Spixi Group Chat” contact request (C#-side address)'),
-    onFinish: () => toast('ixian:finish — onboarding done; C# pops the modal'),
+    // ★ N76: the onboarding tail is gone — the backup nudge fires on the first
+    // real asset (HomePage) and the join-community CTA lives in the chat-list
+    // empty state.
     onBack: (view) => toast('ixian:back (' + view + ')'),
   });
   document.getElementById('launch-host').append(shell);
 
   /* —— toolbar view jumps (setLaunchView = the C# entry-point mirror) —— */
-  const views = [['Welcome', 'welcome'], ['Create', 'create'], ['Restore', 'restore'], ['Retry', 'retry'], ['Tail', 'tail']];
+  const views = [['Welcome', 'welcome'], ['Create', 'create'], ['Restore', 'restore'], ['Retry', 'retry']];
   const viewSlot = document.getElementById('view-slot');
   for (const [label, view] of views) {
     viewSlot.append(createButton({ label, size: 32, type: 'outline', onClick: () => setLaunchView(shell, view) }));

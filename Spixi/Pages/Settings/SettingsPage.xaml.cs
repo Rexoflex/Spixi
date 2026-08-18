@@ -327,12 +327,12 @@ namespace SPIXI
                             // preference, and Node.loadWallet reads it at every cold start
                             // (Node.cs:248-256). Re-encrypting the wallet without updating it
                             // means the next launch opens the wallet with the OLD password,
-                            // fails, and drops the user on LaunchRetryPage — "my account is
+                            // fails, and drops the user on the retry view — "my account is
                             // gone". BackupPage.xaml.cs:144 encrypts the backup archive with
                             // the same preference, so a backup taken before the next restart
                             // needs one password for the archive and another for the wallet
                             // inside it: unrestorable. Create/restore/retry all set it
-                            // (LaunchCreatePage:197, LaunchRestorePage:139, LaunchRetryPage:64).
+                            // (the create/restore/retry paths, all in LaunchPage since N75).
                             Preferences.Default.Set("walletpass", split_url[2]);
                             encResult = "1";
                             }
@@ -346,7 +346,7 @@ namespace SPIXI
                 catch (Exception ex)
                 {
                     // NEVER log the URL or either password — only the exception itself.
-                    // Same shape as LaunchCreatePage.xaml.cs:215 and LaunchRestorePage:217.
+                    // Same shape as the create/restore paths in LaunchPage.xaml.cs.
                     Logging.error("Exception occured while changing the wallet password: {0}", ex);
                     encResult = "2";
                 }
@@ -886,23 +886,28 @@ namespace SPIXI
                     // Stop network activity
                     NetworkUtils.isolate();
 
-                    Preferences.Default.Remove("onboardingComplete");
                     Preferences.Default.Remove("lockenabled");
                     // ★ #346 (review of #341/#342): the key was spelled "waletpass" — one 'l'.
                     // Every WRITE uses "walletpass" (here :336, EncryptionPassword :85,
-                    // LaunchCreatePage :197, LaunchRestorePage :139, LaunchRetryPage :64) and
-                    // every READ uses "walletpass" (Node.cs :248/:252, BackupPage :144). So this
+                    // LaunchPage :197/:139/:64 before N75 merged them) and every READ uses
+                    // "walletpass" (Node.cs :248/:252, BackupPage :144). So this
                     // line removed a key that has never existed, and the wallet password — stored
                     // in PLAINTEXT, see the two "TODO: encrypt the password" markers — survived
                     // the one action whose whole meaning is "destroy the wallet". It stayed in
                     // Android SharedPreferences / iOS NSUserDefaults, which unencrypted device
                     // backups include, until the user happened to create or restore another
                     // wallet on the same install.
-                    // The same typo at LaunchCreatePage :192 and LaunchRestorePage :135 is
-                    // harmless — both Set("walletpass", …) on the next lines.
+                    // The same typo in the create/restore paths (now both in LaunchPage)
+                    // is harmless — both Set("walletpass", …) on the next lines.
                     Preferences.Default.Remove("walletpass");
 
-                    SpixiLocalization.addCustomString("OnboardingComplete", "false");
+                    /* ★ N76 (#391): the onboardingComplete preference and its
+                     * OnboardingComplete carrier are gone with the onboarding tail — the
+                     * flag's only job was gating that modal. A delete-account now also
+                     * drops backupReminderTimestamp (wipeAccountData leaves preferences
+                     * alone otherwise), so the NEXT account on this install re-arms the
+                     * first-asset backup nudge instead of inheriting this one's period. */
+                    Preferences.Default.Remove("backupReminderTimestamp");
 
                     PendingTransactions.clear();
                     Node.storage.deleteData();

@@ -973,6 +973,8 @@
    * and unread count at delete time, and ANY push (flush or lone) that shows a newer
    * message or a higher unread count brings the conversation back. */
   const deletedChats = new Map();   // address → { ts, unread } captured at delete time
+  // ★ N76: the zero-state "Join the Spixi community" tap is one-shot per document.
+  let joinBotSent = false;
   /* Pin chat (6e.3, #232 ⑤): FE interim persistence — localStorage address list
    * (drafts/myLikes class; per-device, wiped with app data — accepted until CH4
    * lands the durable persist at the BE cutover). Seeded into addChat because a
@@ -1093,6 +1095,19 @@
     onModelChange: () => { setNavBadge(nav, 'chats', navUnreadTotal()); setChatsHeaderCounts(header, chatsHeaderCounts()); },
     // zero-state CTA — the SAME action as the FAB (contacts picker), no new verb
     onNewChat: () => openContacts('start'),
+    /* ★ N76 (#391): the join-the-community CTA the onboarding tail used to carry.
+       It rides the verb HomePage ALREADY handles — ixian:joinBot (HomePage:788 →
+       joinBot(), which adds the Spixi Group Chat friend, saves, sends the contact
+       request and refreshes contacts). No new verb, the outbound bridge stays
+       frozen. ⚠ the case matters: HomePage matches "ixian:joinBot", not the
+       lowercase spelling the dead OnboardPage used.
+       One-shot per document: the add is asynchronous (contact request over the
+       network), so a second tap before the roster refresh would add it twice. */
+    onJoinBot: () => {
+      if (joinBotSent) return;
+      joinBotSent = true;
+      bridge.send('ixian:joinBot');
+    },
   };
 
   /* zero-state gate (see createZeroGate): chats owns a REAL end-of-burst verb, so

@@ -3110,8 +3110,8 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(d.querySelector('.c-launch__welcome').dataset.theme === 'dark',
     'brand: welcome subtree pinned dark over --gradient-launch');
   ok(shell.dataset.theme === 'dark'
-    && [...d.querySelectorAll('.c-launch__view, .c-launch__tail')].every((v) => !v.dataset.theme),
-    'the WHOLE shell is pinned dark on ONE continuous --gradient-launch — form views inherit the pin, none re-pin (welcome→create→restore→retry→tail)');
+    && [...d.querySelectorAll('.c-launch__view')].every((v) => !v.dataset.theme),
+    'the WHOLE shell is pinned dark on ONE continuous --gradient-launch — form views inherit the pin, none re-pin (welcome→create→restore→retry)');
 
   // —— welcome carousel: 4 legacy-tour slides · shipped art · dots · keys ——
   const dots = [...d.querySelectorAll('.c-launch__dot')];
@@ -3127,11 +3127,11 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'dot click drives the track (and retires autoplay — the user took control)');
   d.querySelector('.c-launch__dots').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   ok(dots[1].getAttribute('aria-selected') === 'true', '←/→ arrows page the carousel');
-  // iOS-2 (#283/#284) · N45: the backup nudge now ships the REAL asset (images/backup.png,
-  // the #245b canon); data-placeholder survives only as the img-error fallback.
-  const backupIllo = d.querySelector('.c-launch__illo[data-illo="backup"] .c-launch__illo-img');
-  ok(!!backupIllo && /images\/backup\.png$/.test(backupIllo.getAttribute('src')),
-    'iOS-2/N45: the backup nudge carries the REAL backup.png (join-step img grammar)');
+  // ★ N76 (#391): the onboarding tail is GONE from this shell — with it the backup
+  // step and the join step. The backup art still ships (the periodic nudge on the home
+  // shell uses the same file); what must not survive here is the tail itself.
+  ok(!d.querySelector('.c-launch__tail') && !d.querySelector('.c-launch__tail-step'),
+    '★ N76: no onboarding tail in the launch shell — create/restore land straight in the app');
   ok(d.querySelectorAll('.c-launch__illo[data-placeholder="true"]').length === 0,
     'NO placeholder slots remain (placeholder = img-error fallback only, iOS-2 shipped)');
 
@@ -3149,11 +3149,11 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'language pill opens the settings option sheet (#148⑥ — flags leading, EXACTLY 13 shipped locales post-N4)');
   W.Spixi.dismissTopOverlay();
   await sleep(400);
-  d.querySelector('.c-launch__pill--icon').click();
-  ok(d.querySelectorAll('.c-settings__theme').length === 3,
-    'appearance opens the #147 theme sheet — visual preview tiles, not a cheap inline segment');
-  W.Spixi.dismissTopOverlay();
-  await sleep(400);
+  // ★ N72 (#391): the appearance pill is GONE. The launch flow is fixed dark in both
+  // themes, so the pick changed nothing the user could see and cost a page reload.
+  ok(!d.querySelector('.c-launch__pill--icon')
+    && d.querySelectorAll('.c-launch__top .c-launch__pill').length === 1,
+    '★ N72: the welcome top bar carries the language pill ONLY — no appearance picker');
 
   // —— welcome is a clean brand CHOICE; consent moved to the commit forms
   //    (Damir 2026-07-06) ——
@@ -3166,6 +3166,17 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   // —— create: inline gates (launch-spec §2.2 — incl. BOTH C# parse hazards) ——
   ctas[0].click();
   ok(shell.dataset.view === 'create', 'Create CTA routes internally (the shell absorbs the legacy page)');
+  // ★ N75 (#391): the CTAs switch IN PLACE even when the native notification hooks are
+  // wired — they used to be OVERRIDES, and a wired hook meant C# pushed a whole new page.
+  {
+    let told = 0;
+    const oneP = W.Spixi.createLaunchShell({ view: 'welcome', onGoCreate: () => { told += 1; } });
+    d.body.append(oneP);
+    [...oneP.querySelectorAll('.c-launch__ctas .c-button')][0].click();
+    ok(oneP.dataset.view === 'create' && told === 1,
+      '★ N75: onGoCreate NOTIFIES and the view still switches in place (one page, one WebView)');
+    oneP.remove();
+  }
   const create = d.querySelector('[data-launch-view="create"]');
   const nick = create.querySelector('.c-launch__input');
   const [cpw, crp] = [...create.querySelectorAll('.c-lock__input')];
@@ -3203,18 +3214,14 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(cpw.value === '' && crp.value === '' && cpw.type === 'password',
     'window pagehide scrubs + RE-MASKS the create fields (SECURITY §5)');
 
-  // —— create done() → scrub + tail; tail: backup nudge → join step ——
+  // —— create done(): scrub, hold the success morph — C# navigates to Home ——
   nick.value = 'Damir'; cpw.value = 'hunter2hunter2'; crp.value = 'hunter2hunter2';
   cbtn.click();
-  await sleep(2800);                             // demo bridge 1600ms + 900ms morph beat
-  ok(shell.dataset.view === 'tail' && cpw.value === '' && crp.value === '',
-    'create done() scrubs and advances to the onboarding tail');
-  const tail = d.querySelector('.c-launch__tail');
-  ok(tail.dataset.step === 'backup' && tail.textContent.includes('One file protects everything'),
-    'tail opens on the backup nudge (backup-ux-spec §3.3/§7 copy)');
-  const backupBtns = [...tail.querySelectorAll('.c-launch__tail-step')[0].querySelectorAll('.c-button')];
-  backupBtns[1].click();                         // Later — quiet, allowed
-  ok(tail.dataset.step === 'join', '"Later" is a quiet allowed path → join step');
+  await sleep(2800);                             // demo bridge 1600ms + the morph beat
+  ok(shell.dataset.view === 'create' && cpw.value === '' && crp.value === '',
+    '★ N76: create done() scrubs and STAYS — there is no tail to advance to, C# navigates to Home');
+  ok(nick.disabled && cpw.disabled,
+    '★ N76: the form stays disabled after success — the only thing that follows is the native page change');
 
   // —— restore: file gate · inline fail (showPasswordError path) ——
   W.Spixi.setLaunchView(shell, 'restore');
@@ -3245,23 +3252,11 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(terr.hidden && !tpw.disabled && tpw.value === 'wrongpass',
     'retry wrong password: SILENT restore, value kept (removeLoadingOverlay → ctrl.fail(\'\'), spec §2.4)');
 
-  // —— direct API: entry routing · finish latch · self-cleaning listener ——
+  // —— direct API: entry routing · self-cleaning listener ——
   const entry = W.Spixi.createLaunchShell({ view: 'retry' });
-  ok(entry.dataset.view === 'retry', 'entry-point routing: view:"retry" (LaunchRetryPage repoint mirror)');
-  let joins = 0, finishes = 0;
-  const api = W.Spixi.createLaunchShell({
-    view: 'tail',
-    onJoinBot: () => { joins += 1; },
-    onFinish: () => { finishes += 1; },
-  });
+  ok(entry.dataset.view === 'retry', '★ N75: entry-point routing: view:"retry" — the cold-unlock boot view of the ONE launch page');
+  const api = W.Spixi.createLaunchShell({ view: 'create' });
   d.body.append(api);
-  const apiSteps = [...api.querySelectorAll('.c-launch__tail-step')];
-  apiSteps[0].querySelectorAll('.c-button')[0].click();   // Back up now
-  ok(api.querySelector('.c-launch__tail').dataset.step === 'join',
-    '"Back up now" advances too (onboarding continues after the Backup screen returns)');
-  const jb = [...apiSteps[1].querySelectorAll('.c-button')];
-  jb[0].click(); jb[1].click(); jb[0].click();
-  ok(joins === 1 && finishes === 1, 'finish is latched: joinbot fires once, finish once');
   const apiPw = api.querySelector('[data-launch-view="create"] .c-lock__input');
   api.remove();
   apiPw.value = 'ghost';
@@ -3314,9 +3309,9 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(/var\(--gradient-launch\)/.test(lcss) && /env\(safe-area-inset-top\)/.test(lcss)
     && /--gradient-launch:/.test(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8')),
     'premium round: welcome rides the NEW --gradient-launch (tokens.css dials; the lock keeps its own recipe)');
-  ok(/settingsOptionSheet/.test(ljs) && /settingsThemeSheet/.test(ljs)
-    && /from '\.\/settings-shell\.js'/.test(ljs),
-    'language/theme pickers REUSE the settings sheets — one picker grammar app-wide');
+  ok(/settingsOptionSheet/.test(ljs) && /from '\.\/settings-shell\.js'/.test(ljs)
+    && !/settingsThemeSheet/.test(ljs),
+    '★ N72: the LANGUAGE picker reuses the settings sheet (one picker grammar app-wide); the theme sheet import left with the appearance pill');
   /* N45: the SHIPPED onboarding art is now PNG (smaller by 2.5-4x per asset);
      join-community stays SVG (no PNG export exists). PNG integrity = magic bytes
      + IEND tail, the same truncation class the old <svg check caught. */
@@ -3929,14 +3924,18 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   ok(/call: \{ in: 'src\/shells\/call\.html', out: 'call\.html', page: 'CallPage' \}/.test(buildShellsSrc)
     && /'wallet_sent', 'call',/.test(buildShellsSrc),
     'build-shells maps call.html → CallPage + includes it in DEFAULT');
-  // #288 review (MAJOR, SECOND occurrence): the five launch drop-ins were NOT in DEFAULT,
+  // #288 review (MAJOR, SECOND occurrence): the launch drop-ins were NOT in DEFAULT,
   // so every routine build left them inlining a STALE artifact — #285 and #287 both shipped
   // them one dictionary behind (664 keys vs 665 = English copy in the launch language
-  // picker for a translated user). The previous loop caught the identical miss and fixed it
-  // by hand; hand-discipline did not hold, so the set now builds by DEFAULT.
-  ok(/const LAUNCH_KEYS = \['launch', 'launch-create', 'launch-restore', 'launch-retry', 'launch-tail'\]/.test(buildShellsSrc)
-    && /\.\.\.LAUNCH_KEYS\]/.test(buildShellsSrc),
-    '#288: the five launch drop-ins build by DEFAULT (stale-artifact guard)');
+  // picker for a translated user). ★ N75 collapsed the five outputs to ONE (intro.html);
+  // the DEFAULT membership rule is what still protects against that class.
+  ok(/'call', 'launch'\]/.test(buildShellsSrc)
+    && !/LAUNCH_KEYS/.test(buildShellsSrc)
+    && !/bootView:/.test(buildShellsSrc),
+    "★ N75 + #288: ONE launch output (intro.html), built by DEFAULT — no bootView fan-out, no LAUNCH_KEYS set");
+  ok(/launch:   \{ in: 'src\/shells\/launch\.html', out: 'intro\.html'/.test(buildShellsSrc)
+    && !/intro_new\.html'|intro_restore\.html'|intro_retry\.html'|onboarding\.html'/.test(buildShellsSrc),
+    '★ N75: the three extra launch outputs and the N76 tail output are gone from the shell map');
   ok(/const LEGACY_DEMO_KEYS = \['apps', 'payments'\]/.test(buildShellsSrc)
     && /filter\(\(k\) => !LEGACY_DEMO_KEYS\.includes\(k\)\)/.test(buildShellsSrc),
     "#288: build-shells 'all' no longer overwrites the legacy apps/wallet_send drop-ins");
@@ -4056,8 +4055,62 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       && /function dropAppBoot\(\)/.test(src) && /prefers-reduced-motion/.test(src),
       'splash: ' + name + ' has the input-transparent boot cover + reduced-motion-aware teardown');
   }
-  ok(/html \{ background: #13171b; \}/.test(launch) && /data-desktop/.test(launch),
+  ok(/html \{ background: #1b163c; \}/.test(launch) && /data-desktop/.test(launch),
     'splash: launch gained the dark instant-bg + the #228 platform flag');
+  // ★ N73 (#391): ONE colour for the launch ground — the instant-bg, the page body and
+  // the native surface C# paints behind the WebView. They disagreed (the body carried
+  // var(--surface-screen), which is LIGHT in light mode behind a fixed-dark shell), and
+  // that disagreement is the wrong status-bar strip Damir reported.
+  ok(/html, body \{ margin: 0; height: 100%; background: #1b163c; \}/.test(launch)
+    && !/background: var\(--surface-screen\)/.test(launch.slice(0, launch.indexOf('</head>'))),
+    '★ N73: the launch page ground is the fixed launch dark, not the themed surface');
+  {
+    const rd = (pth) => readFileSync(join(root, pth), 'utf8');
+    const scp = rd('Spixi/Utils/SpixiContentPage.cs');
+    ok(/case "intro\.html":\s*\r?\n\s*return "#1b163c";/.test(scp),
+      '★ N73: C# paints the SAME colour behind the launch WebView (pre-paint frame + safe-area ground)');
+    ok(/setEdgeToEdge\(pageSurfaceColorString\)/.test(scp)
+      && (scp.match(/setEdgeToEdge\(pageSurfaceColorString\)/g) || []).length === 2,
+      '★ N73: the Android bar strip follows the PAGE, at page chrome AND on OnAppearing — walking back to a page must repaint it, or the strip keeps the colour of the screen that just left');
+    const plat = rd('Spixi/Platforms/Android/SPlatformUtils.cs');
+    ok(/setEdgeToEdge\(string surfaceColor = null\)/.test(plat)
+      && /0\.299 \* bgColor\.R/.test(plat),
+      '★ N73: bar ICON appearance reads the luminance of the colour actually painted, not the app theme — a fixed-dark screen in light mode used to get dark icons on a dark strip');
+    ok(/repaintSystemBars\(host\);/.test(scp) && /repaintSystemBars\(overlayHost\);/.test(scp),
+      '★ N73 review MAJOR-4: an OVERLAY (and the in-place resume LOCK) hands the strip back when it closes. Nothing navigates on that path, so neither page chrome nor OnAppearing fires — unlocking in light mode would leave a dark strip with light icons over a light Home');
+
+    /* —— the launch merge: what the review broke and the fixes that hold —— */
+    const lp = rd('Spixi/Pages/Launch/LaunchPage.xaml.cs');
+    ok(/int verb_start = current_url\.IndexOf\("ixian:", StringComparison\.Ordinal\);/.test(lp)
+      && /verb\.StartsWith\("ixian:create:", StringComparison\.Ordinal\)/.test(lp)
+      && /verb\.StartsWith\("ixian:restore:", StringComparison\.Ordinal\)/.test(lp)
+      && /verb\.StartsWith\("ixian:proceed:", StringComparison\.Ordinal\)/.test(lp)
+      && !/current_url\.Contains\("ixian:(create|restore|proceed):"\)/.test(lp),
+      '★ N75 review MAJOR-2 (MONEY PATH): the merged handler dispatches on the ANCHORED verb. A Contains() test for "ixian:create:" runs before the restore and unlock branches and would match a PASSWORD containing that literal — a restore would have generated a new wallet with an EMPTY password instead of restoring');
+    ok(/string payload = current_url\.Substring\(current_url\.IndexOf\("ixian:create:", StringComparison\.Ordinal\)/.test(lp)
+      && /current_url\.Split\(new string\[\] \{ "ixian:restore:" \}/.test(lp)
+      && /current_url\.Split\(new string\[\] \{ "ixian:proceed:" \}/.test(lp),
+      '★ N75 GUARDRAIL: only the branch SELECTION moved to the anchored verb — all three password PARSES still slice current_url exactly as they always did. Existing wallets were encrypted under today\'s decode-and-parse behaviour, so changing one is a lockout vector');
+    ok(/private void setCurrentView\(string view\)/.test(lp)
+      && /addCustomString\("LaunchBootView", currentView\);/.test(lp)
+      && !/currentView = view;\s*\r?\n\s*Utils\.sendUiCommand/.test(lp),
+      '★ N75 review MINOR-2: the boot carrier is re-registered on EVERY view change. reload()/reloadAllPages() regenerate the page at any time (an OS theme flip does), and a stale carrier would re-boot the shell on welcome while C# still believed it was on create — after which one hardware back does nothing');
+    const goHomeBody = lp.slice(lp.indexOf('private void goHome()'));
+    ok(/private void goHome\(\)/.test(lp)
+      && /await Navigation\.PushAsync\(HomePage\.Instance\(true\), Config\.defaultXamarinAnimations\);\s*\r?\n\s*removePage\(this\);/.test(goHomeBody.slice(0, 600))
+      && !/\n\s*Navigation\.PushAsync\(HomePage\.Instance\(true\)/.test(goHomeBody.slice(0, 600))
+      && (lp.match(/goHome\(\);/g) || []).length === 3,
+      '★ N75 review MINOR-3: restore and unlock AWAIT the push before dropping this page. Since the merge this page is the navigation ROOT, and RemovePage on a root that is still displayed is rejected — removePage swallows that and Disposes anyway, leaving a disposed page under Home');
+    const lh = rd('src/shells/launch.html');
+    ok(!/onBack: \(\) => \{ activeCtrl = null/.test(lh) && /let activeCtrl = null;/.test(lh),
+      '★ N75 review MAJOR-1: Back does NOT drop the in-flight control. The form back stays live during a submit, so Back then a wallet-generation failure would arrive at a null control, lose the release, and leave the form dead behind the loading morph — the #334 L1 wedge, which popping the page used to make impossible');
+    const ls = rd('src/components/launch-shell.js');
+    ok(/st\.scrubs\.forEach\(\(s\) => \{ try \{ s\(\); \}/.test(ls.slice(ls.indexOf('export function setLaunchView'))),
+      '★ N75 review MINOR-1 (SECURITY §5): the C#-driven view switch — hardware back, the retry lockout — scrubs every password field. It used to POP the page, so the typed wallet password left with the WebView; now it would sit in a hidden input, still revealed if the user had unmasked it');
+    const hpN76 = rd('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/friend\.approved && !friend\.pendingDeletion && !friend\.bot/.test(hpN76),
+      '★ N76 review MAJOR-3: an "asset" is an APPROVED, non-bot contact. A bare count includes the Spixi bot that this batch\'s own empty-state CTA adds on one tap, and unapproved INCOMING requests — either one fired the nudge on an account with nothing to protect AND burned the 30-day slot');
+  }
 }
 
 console.log('#275 composer lock (legacy states) · #276 address-truncation sweep');
@@ -5680,8 +5733,8 @@ console.log('#348 — W14 delete · W2 auto-save · W8 tip + blindness');
   ok(!/deleteInFlight = false;\s*\r?\n\s*goToWelcome\(\);/.test(sp348),
     '★ W14 (#348): the latch is NOT cleared on a route that navigates away. LockPage can raise authSucceeded twice (password, then a late biometric), and clearing it let the second one re-run the wipe and push a SECOND LaunchPage');
 
-  ok(/IxianHandler\.getWalletList\(\)\.Count > 0/.test(readFileSync(join(root, 'Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'), 'utf8')),
-    '★ W14 (#348): LaunchRestorePage refuses while a wallet exists, exactly as LaunchCreatePage does. Delete-account now routes to welcome and KEEPS the wallet, so a live wallet can sit behind onboarding — and Restore was the one door that would have run straight over it');
+  ok((readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8').match(/IxianHandler\.getWalletList\(\)\.Count > 0/g) || []).length >= 2,
+    '★ W14 (#348), after N75 merged the pages: BOTH doors refuse while a wallet exists — restore as well as create. Delete-account now routes to welcome and KEEPS the wallet, so a live wallet can sit behind onboarding — and Restore was the one door that would have run straight over it');
 
   /* —— W2: auto-save —— */
   ok(/onLock: \(next, ctrl\) => \{[^\n]*?ctrl\.done\(\); state\.dirtyLock = true; syncSave\(\); \}/.test(sh348)
@@ -6046,10 +6099,10 @@ console.log('#341 — Change password renders inside the Account pane');
   ok(FENCED.test(spBranch) && FENCED.test(epBranch),
     '★ #341 audit MAJOR-1 (BOTH routes): the wallet write is fenced. An unguarded throw escapes onNavigating, e.Cancel never runs, and iOSWebViewHandler.cs:116 logs the WHOLE URL into ixian.log — which DevPage renders and offers through the OS share sheet. That is both passwords in cleartext in a shareable file');
   ok(!/Logging\.error\([^)]*current_url/.test(spEnc) && !/Logging\.error\([^)]*current_url/.test(encPage),
-    '★ #341: neither catch logs the URL — only the exception object (the LaunchCreatePage:215 shape)');
+    '★ #341: neither catch logs the URL — only the exception object (the create-path shape in LaunchPage)');
   ok(/Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(spBranch)
     && /Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(epBranch),
-    '★ #341 audit MAJOR-2 (BOTH routes, PRE-EXISTING data loss): the cached walletpass preference follows the wallet. Node.loadWallet reads it at every cold start (Node.cs:248-256), so without this the next launch cannot open the wallet and drops the user on LaunchRetryPage; and BackupPage.xaml.cs:144 encrypts the backup archive with it, so a backup taken in between needs one password for the archive and another for the wallet inside it — unrestorable');
+    '★ #341 audit MAJOR-2 (BOTH routes, PRE-EXISTING data loss): the cached walletpass preference follows the wallet. Node.loadWallet reads it at every cold start (Node.cs:248-256), so without this the next launch cannot open the wallet and drops the user on the retry view; and BackupPage.xaml.cs:144 encrypts the backup archive with it, so a backup taken in between needs one password for the archive and another for the wallet inside it — unrestorable');
   ok(/split_url\.Length == 3 && split_url\[2\]\.Length >= 10/.test(spEnc),
     '#341 audit MINOR-3: C# refuses an empty or short new password on its own. The inline route removed the separate EncryptionPassword page, so the settings shell would otherwise be the ONLY validator of a wallet re-encryption');
   ok(/string encResult = "2";/.test(spEnc) && /encResult = "0";/.test(spEnc) && /encResult = "1";/.test(spEnc),
@@ -8440,10 +8493,16 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
     ok(dashed.length === 0,
       "R2 (#371): ZERO ' — ' string joiners remain in components + shells — the 16 SR aria joiners read as commas now (spoken punctuation follows the N3a prose rule)" + (dashed.length ? ' — OFFENDERS: ' + dashed.join(', ') : ''));
   }
-  const lrp370 = nc(read('Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'));
-  ok(lrp370.includes('intro-restore-walletexists-title') && lrp370.includes('intro-restore-walletexists-text')
-    && !/intro-new-walletexists-title[\s\S]{0,400}?intro-new-walletexists-text/.test(nc(lrp370)),
-    '★ D-7 (#371): the Restore guard has its OWN copy naming the way out — the Create message ("restart to continue with it") left the restoring user with zero doors');
+  {
+    // ★ N75 merged the four launch pages into one file, so scope this to the RESTORE
+    // branch instead of the whole document — the create guard's own copy now lives a
+    // few hundred lines away in the same file.
+    const lp370 = nc(read('Spixi/Pages/Launch/LaunchPage.xaml.cs'));
+    const rBranch = lp370.slice(lp370.indexOf('ixian:restore:'), lp370.indexOf('ixian:proceed:'));
+    ok(rBranch.includes('intro-restore-walletexists-title') && rBranch.includes('intro-restore-walletexists-text')
+      && !rBranch.includes('intro-new-walletexists-title'),
+      '★ D-7 (#371): the Restore guard has its OWN copy naming the way out — the Create message ("restart to continue with it") left the restoring user with zero doors');
+  }
   {
     const langs7 = ['en-us','de-de','es-co','fr-fr','pt-br','ru-ru','sl-si','sr-sp'];
     ok(langs7.every((l) => {
@@ -8769,49 +8828,32 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     }
   }
 
-  /* —— N12: the C# provenance, both legs —— */
+  /* —— N12 leg 2, as N76 left it: the restore seeds the reminder clock —— */
   {
-    const lr = nc(read('Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'));
-    ok(/Preferences\.Default\.Set\("backupReminderTimestamp", Clock\.getTimestamp\(\)\.ToString\(\)\);/.test(lr),
-      '★ N12 (#383) leg 2: a restore SEEDS the reminder clock. displayBackupReminder fires on the first tick whenever the key is absent — which it is on a fresh install — so a restored account was asked to back up within seconds of restoring FROM a backup');
-    ok(/Preferences\.Default\.Set\("onboardingFromRestore", true\);/.test(lr),
-      'N12 (#383) leg 1: the restore records provenance — create and restore both clear onboardingComplete, so nothing else distinguishes them');
-    const lc = nc(read('Spixi/Pages/Launch/LaunchCreatePage.xaml.cs'));
-    ok(/Preferences\.Default\.Remove\("onboardingFromRestore"\);/.test(lc)
-      && /Preferences\.Default\.Remove\("backupReminderTimestamp"\);/.test(lc),
-      '★ N12 (#383, review MINOR-2): a CREATE clears BOTH restore marks. onRestore writes them before the password is verified, so a failed restore followed by a create would inherit them — and the new account would silently lose its first 30-day backup reminder');
-    const hp = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
-    const reg = hp.indexOf('addCustomString("OnboardingFromRestore"');
-    const ctor = hp.indexOf('new OnboardPage()');
-    ok(reg > 0 && ctor > 0 && reg < ctor,
-      '★ N12 (#383): the custom string is registered BEFORE OnboardPage is constructed — loadPage runs in that constructor and generatePage substitutes the *SL{} carriers then. Registering after would silently ship the backup step');
-    ok(/Preferences\.Default\.Remove\("onboardingFromRestore"\);/.test(hp),
-      'N12 (#383): completeOnboard drops the flag — it must not survive into a later delete-account → create on the same install');
-  }
+    const lp = nc(read('Spixi/Pages/Launch/LaunchPage.xaml.cs'));
+    ok(/Preferences\.Default\.Set\("backupReminderTimestamp", Clock\.getTimestamp\(\)\.ToString\(\)\);/.test(lp),
+      '★ N12 (#383) leg 2, kept by N76: a restore SEEDS the reminder clock, so a restored account is never asked to back up right after restoring FROM a backup');
+    ok(/Preferences\.Default\.Remove\("backupReminderTimestamp"\);/.test(lp),
+      '★ N12 (#383, review MINOR-2) + N76: a CREATE clears the stamp — that absence is what ARMS the first-asset nudge, and a failed restore before it must not leave its own stamp behind');
+    ok(!/onboardingFromRestore|onboardingComplete/.test(lp),
+      '★ N76 (#391): the onboarding provenance preferences left with the tail — nothing writes them any more');
 
-  /* —— N12: the carrier reaches the BUILT tail, and the tail honours it —— */
-  {
-    const built = read('Spixi/Resources/Raw/html/onboarding.html');
-    ok(built.includes('*SL' + '{OnboardingFromRestore}') && /tailSkipBackup: !!window\.__SPIXI_FROM_RESTORE__/.test(built),
-      '★ N12 (#383): the carrier + the opt reached the BUILT tail drop-in (the #285/#288 stale-artifact class — onboarding.html is one of the 5 launch outputs that DEFAULT once skipped)');
-    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
-    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
-    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
-    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
-    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
-    try {
-      const { createLaunchShell } = await import('file://' + join(root, 'src/components/launch-shell.js'));
-      const normal = createLaunchShell({ view: 'tail', strings: {} });
-      ok(normal.querySelector('.c-launch__tail').dataset.step === 'backup',
-        'N12 (#383, behavioral): a CREATED account still opens the tail on the backup step — the nudge is skipped for restores only');
-      const restored = createLaunchShell({ view: 'tail', tailSkipBackup: true, strings: {} });
-      const tail = restored.querySelector('.c-launch__tail');
-      ok(tail.dataset.step === 'join' && tail.children[0].hidden === true && tail.children[1].hidden === false,
-        '★ N12 (#383, behavioral, Damir dial): a RESTORED account opens on "Join the community" — the backup step is SKIPPED, not removed, and the join step STAYS (his explicit call)');
-    } finally {
-      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
-      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
-    }
+    // ★ N76: the tail is gone from the C# tree too, and its two steps landed where
+    // Damir put them: the backup nudge on the first REAL asset, the join CTA in the
+    // chat-list empty state (through the verb HomePage already had).
+    const hp = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
+    ok(!/OnboardPage|completeOnboard|handleOnboardDone|onboardingComplete/.test(hp),
+      '★ N76 (#391): HomePage no longer builds, finishes or gates the onboarding modal');
+    ok(/private bool hasBackupWorthyAsset\(\)/.test(hp)
+      && /lock \(FriendList\.friends\)/.test(hp)
+      && /Node\.getAvailableBalance\(\) > 0/.test(hp),
+      '★ N76 (Damir dial): the backup nudge waits for the first REAL asset — a contact OR an incoming balance. The balance leg is not optional: funds can arrive before any messaging');
+    const gate = hp.indexOf('if (!hasBackupWorthyAsset())');
+    const stamp = hp.indexOf('Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());', hp.indexOf('private void displayBackupReminder()'));
+    ok(gate > 0 && stamp > gate,
+      '★ N76: the asset gate RETURNS before the stamp is written — a gated tick must not start the 30-day period on an empty account, or the nudge would be lost for a month');
+    ok(/ixian:joinBot/.test(hp),
+      '★ N76: the join verb the empty-state CTA rides is the one HomePage already had (frozen outbound bridge; note the capital B)');
   }
 
   /* —— the generator fix that unblocked this batch —— */

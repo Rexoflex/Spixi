@@ -148,7 +148,9 @@ namespace Spixi
             return player;
         }
 
-        public static void setEdgeToEdge()
+        // ★ N73 (#391): the parameter exists for signature parity with Android, which is
+        // the only platform that paints a system-bar strip of its own. No-op here.
+        public static void setEdgeToEdge(string surfaceColor = null)
         {
 
         }

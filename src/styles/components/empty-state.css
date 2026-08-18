@@ -85,8 +85,12 @@
   color: var(--text-neutral-02);
 }
 
-/* —— CTA ———————————————————————————————————————————————————————————————— */
+/* —— CTAs ——————————————————————————————————————————————————————————————— */
 .c-empty-state__action { margin-block-start: var(--spacing-16); }
+/* ★ N76: the second, lower-emphasis CTA sits close under the first — one block,
+   not two decisions (the chats zero state: "Start a chat" + "Join the Spixi
+   community"). A text button carries its own tap padding, so the gap is small. */
+.c-empty-state__action--secondary { margin-block-start: var(--spacing-4); }
 
 /* Desktop density (#228): the pane is shorter and wider — tighten the vertical
    rhythm so the state stays optically centred instead of scrolling. */

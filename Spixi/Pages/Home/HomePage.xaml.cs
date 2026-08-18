@@ -781,10 +781,6 @@ namespace SPIXI
 
                 SFileOperations.share(Path.Combine(Config.spixiUserFolder, "spixi.log.zip"), "Share Spixi Log File");
             }
-            else if (current_url.StartsWith("ixian:onboardingComplete"))
-            {
-                completeOnboard();
-            }
             else if (current_url.StartsWith("ixian:joinBot"))
             {
                 joinBot();
@@ -1395,17 +1391,6 @@ namespace SPIXI
             }
         }
 
-        private void completeOnboard()
-        {
-            Preferences.Default.Set("onboardingComplete", true);
-            // ★ N12 (#383): the provenance flag has done its one job — drop it, so a later
-            // delete-account → create on the same install never inherits "restored".
-            Preferences.Default.Remove("onboardingFromRestore");
-
-            SpixiLocalization.addCustomString("OnboardingComplete", "true");
-            generatePage("index.html");
-        }
-
         // Workaround for Android - sometimes the order of the screens isn't correct
         private void setAsRoot()
         {
@@ -1425,15 +1410,6 @@ namespace SPIXI
                 Logging.error("Exception occured while setting HomePage as root: {0}", e);
             }
         }
-        private void handleOnboardDone(object sender, SPIXI.EventArgs<bool> e)
-        {
-            // Join official groupchat if specified
-            if (e.Value)
-                joinBot();
-
-            completeOnboard();
-            Navigation.PopModalAsync();
-        }
         private void onLoaded()
         {
             // #337 audit MAJOR (AND-29): every ixian:onload = a FRESH home document —
@@ -1445,24 +1421,6 @@ namespace SPIXI
             // …and a FRESH document holds no app rows either — the next tab3 entry must
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;
-
-            if (!Preferences.Default.ContainsKey("onboardingComplete"))
-            {
-                /* ★ N12 (#383): tell the tail whether this account was RESTORED. The value
-                 * must be registered BEFORE the page is built — OnboardPage.loadPage runs in
-                 * its constructor and generatePage substitutes the *SL{} carriers then.
-                 * This is the devMode carrier grammar (#314, xaml:136), NOT the #213 trap:
-                 * a custom string reaches a redesigned shell through a carrier SPAN, never
-                 * through window.SL. A restored account opens the tail on the JOIN step —
-                 * asking someone who just restored FROM a backup to make one reads as broken.
-                 * Damir's dial: the join step itself STAYS. */
-                SpixiLocalization.addCustomString("OnboardingFromRestore",
-                    Preferences.Default.Get("onboardingFromRestore", false) ? "true" : "false");
-                // Show onboarding screen
-                var onboardPage = new OnboardPage();
-                onboardPage.onboardDone += handleOnboardDone;
-                Navigation.PushModalAsync(onboardPage);
-            }
 
             setAsRoot();
 
@@ -2285,14 +2243,79 @@ namespace SPIXI
             }
         }
 
+        /* ★ N76 (#391, Damir's dial): does this account hold anything worth losing yet?
+         *
+         * The onboarding tail asked every new user to make a backup on the screen right
+         * after account creation — the one moment they have NOTHING to protect and have
+         * not seen the app. The tail is gone; the nudge now waits for the FIRST REAL
+         * ASSET and fires once, and the 30-day period starts from there.
+         *
+         * A contact covers "a message was sent" on its own: there is no way to send one
+         * without adding a contact first, and the contact is itself the thing a lost
+         * account cannot rebuild. The BALANCE leg is not optional — funds can arrive
+         * before any messaging happens at all.
+         *
+         * Cheap enough for the 1 Hz tick: a count and a cached balance, both already
+         * read elsewhere in this file. Never throws the tick (the whole updateScreen
+         * body is fenced, but a nudge must not be the thing that stops it). */
+        private bool hasBackupWorthyAsset()
+        {
+            try
+            {
+                lock (FriendList.friends)
+                {
+                    /* ★ review MAJOR-3: a bare Count > 0 is not "an asset". It counts
+                     * (a) the Spixi Group Chat bot, which the chat-list empty-state CTA this
+                     * same batch added puts there on ONE tap — so the nudge fired a second
+                     * after the user tapped Join, on an account with nothing to protect, and
+                     * burned the 30-day slot; and (b) UNAPPROVED incoming contact requests,
+                     * which live in this list too (loadChats reads them from here and routes
+                     * them to the requests feed) — one unsolicited request on a fresh account
+                     * did the same. An asset is a contact the user actually has: approved,
+                     * not queued for deletion, not the bot. */
+                    foreach (Friend friend in FriendList.friends)
+                    {
+                        if (friend != null && friend.approved && !friend.pendingDeletion && !friend.bot)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                if (Node.getAvailableBalance() > 0)
+                {
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Exception while testing for a backup-worthy asset: " + e);
+            }
+
+            return false;
+        }
+
         private void displayBackupReminder()
         {
-            if (!Preferences.Default.ContainsKey("backupReminderTimestamp")
-                || Clock.getTimestamp() - long.Parse(Preferences.Default.Get("backupReminderTimestamp", "").ToString()) > Config.backupReminder)
+            if (!Preferences.Default.ContainsKey("backupReminderTimestamp"))
             {
-                Utils.sendUiCommand(this, "toggleAnimatedSlider", "backup-prompt");
-                Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
+                // ★ N76: no stamp = this account has never been nudged. Wait for the
+                // first asset instead of firing on the first tick after creation.
+                // A RESTORE seeds the stamp at the restore itself (LaunchPage.onRestore),
+                // so a restored account skips this branch entirely and only ever sees the
+                // 30-day reminder — "don't ask someone who just restored from a backup".
+                if (!hasBackupWorthyAsset())
+                {
+                    return;
+                }
             }
+            else if (Clock.getTimestamp() - long.Parse(Preferences.Default.Get("backupReminderTimestamp", "").ToString()) <= Config.backupReminder)
+            {
+                return;
+            }
+
+            Utils.sendUiCommand(this, "toggleAnimatedSlider", "backup-prompt");
+            Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
         }
 
         private void updateDebugOverlay()

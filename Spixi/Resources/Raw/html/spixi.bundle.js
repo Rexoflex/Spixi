@@ -1341,9 +1341,14 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
  *   title, body,           // headline + supporting line (plain text — textContent)
- *   actionLabel, onAction, // ONE secondary CTA (tonal by house grammar)
+ *   actionLabel, onAction, // the primary CTA (tonal by house grammar)
  *   actionIcon,            // optional leading glyph name for the CTA
  *   actionType = 'tonal', actionSize = 44,
+ *   secondaryLabel, onSecondary, secondaryIcon,  // ★ N76: at most ONE further,
+ *                          // lower-emphasis CTA under the first (text type) —
+ *                          // the chats zero state carries "Start a chat" AND
+ *                          // "Join the Spixi community". A third would turn an
+ *                          // empty state into a menu; two is the cap.
  *   compact = false,       // tighter vertical rhythm (in-list, not full-screen)
  * }) → section.c-empty-state
  *
@@ -1362,6 +1367,9 @@ function createEmptyState({
   actionIcon = null,
   actionType = 'tonal',
   actionSize = 44,
+  secondaryLabel = '',
+  onSecondary = null,
+  secondaryIcon = null,
   compact = false,
 } = {}) {
   const el = document.createElement('section');
@@ -1409,7 +1417,7 @@ function createEmptyState({
     el.append(p);
   }
 
-  /* —— one secondary CTA —— */
+  /* —— the CTAs (primary, then an optional lower-emphasis second) —— */
   if (actionLabel && onAction) {
     const wrap = document.createElement('div');
     wrap.className = 'c-empty-state__action';
@@ -1421,6 +1429,21 @@ function createEmptyState({
       onClick: onAction,
     }));
     el.append(wrap);
+  }
+
+  /* ★ N76: the second CTA renders on its own, even with no first one — a caller
+     that only has the lower-emphasis action still gets a usable empty state. */
+  if (secondaryLabel && onSecondary) {
+    const wrap2 = document.createElement('div');
+    wrap2.className = 'c-empty-state__action c-empty-state__action--secondary';
+    wrap2.append(createButton({
+      label: secondaryLabel,
+      type: 'text',
+      size: actionSize,
+      icon: secondaryIcon ? icon(secondaryIcon, { size: 20 }) : null,
+      onClick: onSecondary,
+    }));
+    el.append(wrap2);
   }
 
   return el;
@@ -6710,6 +6733,16 @@ function chatsEmptyState(state, strings, opts = {}) {
       actionLabel: strings.chatsEmptyCta || 'Start a chat',
       actionIcon: 'message-plus',
       onAction: opts.onNewChat,
+      /* ★ N76 (#391, Damir's dial): the join-the-community step left the
+         onboarding tail and lives HERE. A new user's list is empty anyway, this
+         costs no screen, and — unlike a step — it is still here tomorrow for the
+         user who skipped it. It stays OPT-IN: the host emits the existing
+         ixian:joinBot verb only on a tap, nothing is auto-added. The row
+         disappears by itself, because the moment the bot is a chat the list is
+         no longer empty. */
+      secondaryLabel: opts.onJoinBot ? (strings.chatsEmptyJoinCta || 'Join the Spixi community') : '',
+      secondaryIcon: 'users',
+      onSecondary: opts.onJoinBot || null,
     });
   }
   const el = document.createElement('div');
@@ -18944,26 +18977,33 @@ function createSettingsHowTo({
 
 /* ---- src/components/launch-shell.js ---- */
 /**
- * launch-shell — welcome carousel · create · restore · retry · onboarding tail
+ * launch-shell — welcome carousel · create · restore · retry
  * (docs/launch-spec.md, Phase 1 #5 — the LAST Phase-1 surface). Absorbs the
- * five legacy launch pages (ARCHITECTURE §5 row 1): intro / intro_new /
- * intro_restore / intro_retry / onboarding. Bridge grammar (bridge-audit-A
- * §7–10, audit-B OnboardPage — FROZEN): introload · accept · language:<code> ·
- * appearance:<int> · create:<nick>:<password> · avatar · selectfile ·
- * restore:<password> · proceed:<password> · joinbot · finish · back.
+ * legacy launch pages (ARCHITECTURE §5 row 1): intro / intro_new /
+ * intro_restore / intro_retry. Bridge grammar (bridge-audit-A §7–10 —
+ * FROZEN): introload · accept · language:<code> · create:<nick>:<password> ·
+ * avatar · selectfile · restore:<password> · proceed:<password> · back.
+ *
+ * ★ N76 (#391, Damir's product dial): the ONBOARDING TAIL IS GONE. Create and
+ * restore now land straight in the app. The two steps it carried MOVED, they
+ * did not die: the backup nudge fires on the FIRST REAL ASSET (a contact, a
+ * message, an incoming balance — HomePage.displayBackupReminder) and the
+ * join-the-community CTA lives in the chat-list EMPTY STATE, still opt-in.
+ * ★ N72: the welcome APPEARANCE picker is gone too — the whole launch flow is
+ * fixed dark in both themes, so the pick changed nothing the user could see.
  *
  * Interview #0 (Damir 2026-07-06): ① welcome carousel ② the #160 brand
  * treatment (fixed-dark pin + brand gradient + bare glowing logo) is
- * WELCOME-ONLY — create/restore/retry/tail are normal themed surfaces
- * ③ tail = backup nudge (backup-ux-spec §3.3) + joinbot step ④ [L2] the
+ * WELCOME-ONLY — create/restore/retry are normal themed surfaces
+ * ③ [L2] the
  * window-pagehide scrub also lands on createLockScreen (lock-shell.js).
  *
  * PREMIUM REWORK (Damir demo pass 2026-07-06): single full-bleed screen —
  * 4-slide autoplay carousel (LEGACY step1–4 art + copy, dark set — the
  * shipped intro.html illustrations, reused verbatim) over always-pinned
- * CTAs · language pill + appearance control reuse the settings sheets
- * (settingsOptionSheet #148⑥ flags / settingsThemeSheet #147 preview tiles —
- * ONE picker grammar app-wide) · terms = fine print; the first Create/Restore
+ * CTAs · the language pill reuses the settings sheet (settingsOptionSheet
+ * #148⑥ flags — ONE picker grammar app-wide; the appearance pill left with
+ * N72) · terms = fine print; the first Create/Restore
  * tap emits ixian:accept (continuing = agreeing — no checkbox) · welcome
  * rides the new --gradient-launch (Damir "more premium colors" ask; the lock
  * keeps --gradient-lock until he converges them).
@@ -18980,14 +19020,12 @@ function createSettingsHowTo({
  * a password containing '<nick>:' would be silently corrupted. Never sent.
  *
  * createLaunchShell({ view, termsRequired, version, onLanguage(code),
- *   onAppearance(int), onAcceptTerms, onGoCreate, onGoRestore,
+ *   onAcceptTerms, onGoCreate, onGoRestore,
  *   onCreateAccount(nick, pass, ctrl), onPickAvatar, onSelectFile,
- *   onRestore(pass, ctrl), onRetry(pass, ctrl), onBackupNow, onJoinBot,
- *   onFinish, onBack(view), strings, host })
- *   onGoCreate/onGoRestore (optional): override the welcome CTAs' INTERNAL
- *   view switch — the native shell emits ixian:create / ixian:restore so C#
- *   navigates to the real LaunchCreatePage / LaunchRestorePage (each a separate
- *   WebView). Absent = internal show() (demo default).
+ *   onRestore(pass, ctrl), onRetry(pass, ctrl), onBack(view), strings, host })
+ *   onGoCreate/onGoRestore (optional, ★ N75): NOTIFICATIONS, not overrides — the
+ *   view switch always happens in place. The native shell uses them to record
+ *   consent and to keep C# in step with the on-screen view.
  *   Ctrl contract (spec §3): one-shot done/fail; NO auto-release anywhere —
  *   create has no covering alert (indefinite loading, flag §6②); restore
  *   fails via showPasswordError → ctrl.fail(msg); retry's host maps
@@ -19010,7 +19048,7 @@ function createSettingsHowTo({
 
 const launchState = new WeakMap(); // el → st
 
-const LAUNCH_VIEWS = ['welcome', 'create', 'restore', 'retry', 'tail'];
+const LAUNCH_VIEWS = ['welcome', 'create', 'restore', 'retry'];
 
 function launchCtrl(onDone, onFail) {            // one-shot (lockCtrl grammar)
   let used = false;
@@ -19158,9 +19196,9 @@ function buildWelcome(st) {
   v.className = 'c-launch__welcome';
   v.dataset.theme = 'dark';                      // #20/#160 subtree pin — welcome only
 
-  // — floating top controls: language pill + appearance. BOTH open the
-  //   settings sheets (one picker grammar app-wide; the sheets mount on the
-  //   host OUTSIDE the dark pin — the lock hatch-modal precedent) —
+  // — floating top control: the language pill. It opens the settings sheet (one
+  //   picker grammar app-wide; the sheet mounts on the host OUTSIDE the dark pin
+  //   — the lock hatch-modal precedent). N72 removed the appearance pill. —
   const top = document.createElement('div');
   top.className = 'c-launch__top';
 
@@ -19208,27 +19246,12 @@ function buildWelcome(st) {
     });
   });
 
-  const themeBtn = document.createElement('button');
-  themeBtn.type = 'button';
-  themeBtn.className = 'c-launch__pill c-launch__pill--icon';
-  themeBtn.setAttribute('aria-label', strings.appearance || 'Appearance');
-  themeBtn.setAttribute('aria-haspopup', 'dialog');
-  themeBtn.append(icon('adjustments-alt', { size: 18 }));
-  let themeCurrent = 0;                          // ThemeAppearance: system (flag §6⑥)
-  themeBtn.addEventListener('click', () => {
-    // #147 preview tiles — the pick stays VISIBLE on the pinned-dark welcome
-    settingsThemeSheet({
-      current: themeCurrent,
-      host: hostEl(st),
-      strings,
-      commit: (val, ctrl) => {
-        try { if (opts.onAppearance) opts.onAppearance(val); } catch { /* pref */ }
-        ctrl.done();
-      },
-      onPicked: (o) => { if (o) themeCurrent = o.value; },
-    });
-  });
-  top.append(langPill, themeBtn);
+  /* ★ N72 (#391, Damir's product call): the APPEARANCE pill is gone. The whole
+     launch flow is a fixed-dark brand surface in both themes (dataset.theme =
+     'dark' below; the shell carries no *SL{SpixiThemeName} boot script), so the
+     pick changed nothing the user could see and cost a page reload. The app
+     rides the system theme until the user reaches Account → Appearance. */
+  top.append(langPill);
   v.append(top);
 
   const logo = document.createElement('span');
@@ -19329,9 +19352,9 @@ function buildWelcome(st) {
   const stopAuto = () => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } };
   const reduced = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // only run autoplay when this shell actually BOOTS at welcome — on the native
-  // form/tail pages every view is built (welcome hidden), and a ticking timer on
-  // a hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
+  // only run autoplay when this shell actually BOOTS at welcome — every view is
+  // built up front (welcome hidden on a retry boot), and a ticking timer on a
+  // hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
   if (!reduced && (st.opts.view || 'welcome') === 'welcome') {
     autoTimer = setInterval(() => {
       if (!v.isConnected) { stopAuto(); return; }
@@ -19362,22 +19385,22 @@ function buildWelcome(st) {
   ctas.className = 'c-launch__ctas';
   const createBtn = createButton({ label: strings.createCta || 'Create new account', size: 56, width: 'full' });
   const restoreBtn = createButton({ label: strings.restoreCta || 'Restore existing account', type: 'outline', size: 56, width: 'full' });
-  // The welcome CTAs route INTERNALLY by default (the shell absorbs the legacy
-  // pages — demo/SPA behavior). On the REAL bridge the five legacy launch pages
-  // still exist as separate C# WebViews, so the native shell passes onGoCreate/
-  // onGoRestore to emit the NAVIGATION verbs (ixian:create / ixian:restore) and
-  // let C# push LaunchCreatePage / LaunchRestorePage instead of switching in
-  // place (a bare LaunchPage can't process create:<nick>:<password>). Additive,
-  // backward-compatible: absent hook = the internal show() (unchanged demo).
+  /* ★ N75 (#391): the welcome CTAs ALWAYS switch in place now — one page hosts
+     every view, so there is no page to push and no frame to flicker. The
+     onGoCreate/onGoRestore hooks stayed, but their meaning changed from OVERRIDE
+     to NOTIFICATION: the native shell uses them to record consent and to tell C#
+     which view is on screen (C# needs that for the hardware back button). The
+     switch happens either way, so a throwing or absent hook cannot strand the
+     user on the welcome screen. */
   createBtn.addEventListener('click', () => {
     stopAuto();
-    if (opts.onGoCreate) { try { opts.onGoCreate(); } catch { /* nav */ } }
-    else show(st, 'create');
+    try { if (opts.onGoCreate) opts.onGoCreate(); } catch { /* notify only */ }
+    show(st, 'create');
   });
   restoreBtn.addEventListener('click', () => {
     stopAuto();
-    if (opts.onGoRestore) { try { opts.onGoRestore(); } catch { /* nav */ } }
-    else show(st, 'restore');
+    try { if (opts.onGoRestore) opts.onGoRestore(); } catch { /* notify only */ }
+    show(st, 'restore');
   });
   ctas.append(createBtn, restoreBtn);
   v.append(ctas);
@@ -19649,15 +19672,15 @@ function buildCreate(st) {
     // NO auto-release (spec §2.2): wallet generation takes seconds and there
     // is no covering native alert — the morph is the loading truth (flag §6②).
     const ctrl = launchCtrl(
-      () => {                                    // C# navigates to Home; shell → tail
+      () => {
+        /* ★ N76: C# navigates to Home from here — there is no tail to hop to any
+           more. Hold the success morph and leave the form disabled: the ONLY
+           thing that follows this state is the native page change. Re-enabling
+           the fields would offer a second create on a screen that is leaving. */
         inFlight = false;
         setLoading(cta, false);
         setSuccess(cta, { label: strings.created || 'Account created' });
         scrub();                                 // SECURITY §5
-        setTimeout(() => {
-          nick.disabled = false; pw.input.disabled = false; rp.input.disabled = false; avBtn.disabled = false;
-          show(st, 'tail');
-        }, 900);                                 // the encpass morph beat
       },
       (msg) => {
         inFlight = false;
@@ -19910,85 +19933,6 @@ function buildRetry(st) {
   return v;
 }
 
-/* —— onboarding tail: backup nudge → join step (spec §2.5) ————————— */
-
-function buildTail(st) {
-  const { opts } = st;
-  const strings = st.strings;
-  const v = document.createElement('div');
-  v.className = 'c-launch__tail';
-  v.dataset.step = 'backup';
-
-  let finished = false;                          // finish is once (latch)
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    try { if (opts.onFinish) opts.onFinish(); } catch { /* nav — modal pops */ }
-  };
-  const toJoin = () => { v.dataset.step = 'join'; backupStep.hidden = true; joinStep.hidden = false; };
-
-  // step 1 — backup nudge (backup-ux-spec §3.3: quiet Later is ALLOWED;
-  // the standing settings-row state takes over from there)
-  const backupStep = document.createElement('div');
-  backupStep.className = 'c-launch__tail-step';
-  backupStep.append(illoSlot('backup', opts.backupIllustration || 'images/backup.png'));
-  const bTitle = document.createElement('h1');
-  bTitle.className = 'c-launch__slide-title';
-  bTitle.textContent = strings.backupHeadline || 'One file protects everything';
-  const bCopy = document.createElement('p');
-  bCopy.className = 'c-launch__slide-copy';
-  bCopy.textContent = strings.backupCopy
-    || 'Your identity, wallet and contacts: encrypted with your password into a single backup file.';
-  const backupBtn = createButton({ label: strings.backupCta || 'Back up now', size: 56, width: 'full' });
-  backupBtn.addEventListener('click', () => {
-    // integration (§9): onboarding-complete + the settings Backup screen —
-    // no new verb; onboarding continues on return, so advance now
-    try { if (opts.onBackupNow) opts.onBackupNow(); } catch { /* nav */ }
-    toJoin();
-  });
-  const laterBtn = createButton({ label: strings.backupLater || 'Later', type: 'text', size: 56, width: 'full' });
-  laterBtn.addEventListener('click', toJoin);
-  backupStep.append(bTitle, bCopy, backupBtn, laterBtn);
-
-  // step 2 — join the official bot (legacy onboarding.html joinbot/finish)
-  const base = opts.illustrationBase || 'images/onboarding/';
-  const joinStep = document.createElement('div');
-  joinStep.className = 'c-launch__tail-step';
-  joinStep.hidden = true;
-  const jIllo = document.createElement('img');    // the SHIPPED legacy join-community art
-  jIllo.className = 'c-launch__tail-illo';
-  jIllo.src = base + 'join-community.svg';
-  jIllo.alt = '';                                 // decorative — the copy carries meaning
-  jIllo.draggable = false;
-  jIllo.addEventListener('error', () => { jIllo.hidden = true; }, { once: true });
-  const jTitle = document.createElement('h1');
-  jTitle.className = 'c-launch__slide-title';
-  jTitle.textContent = strings.joinTitle || 'Join the Spixi community';
-  const jCopy = document.createElement('p');
-  jCopy.className = 'c-launch__slide-copy';
-  jCopy.textContent = strings.joinCopy
-    || 'Say hi in the official Spixi group chat and get updates from the team.';
-  const joinBtn = createButton({ label: strings.joinCta || 'Join the community', size: 56, width: 'full' });
-  joinBtn.addEventListener('click', () => {
-    if (finished) return;                        // one-shot: joinbot rides the finish latch
-    try { if (opts.onJoinBot) opts.onJoinBot(); } catch { /* contact add — C#-side */ }
-    finish();
-  });
-  const skipBtn = createButton({ label: strings.joinSkip || 'Not now', type: 'text', size: 56, width: 'full' });
-  skipBtn.addEventListener('click', finish);
-  joinStep.append(jIllo, jTitle, jCopy, joinBtn, skipBtn);
-
-  v.append(backupStep, joinStep);
-
-  /* ★ N12 (#383, Damir 2026-08-18): a RESTORED account opens on the JOIN step. Asking
-     someone who just restored FROM a backup file to make a backup reads as broken. The
-     join step stays (his dial) and the backup step is only SKIPPED here, never removed:
-     the standing settings Backup row and the periodic reminder still cover the user. */
-  if (opts.tailSkipBackup) toJoin();
-
-  return v;
-}
-
 /* —— shell ————————————————————————————————————————————————— */
 
 function createLaunchShell(opts = {}) {
@@ -19997,7 +19941,7 @@ function createLaunchShell(opts = {}) {
   el.className = 'c-launch';
   el.dataset.theme = 'dark';                       // premium round 2: the WHOLE launch is
   // one continuous fixed-dark brand surface on --gradient-launch (welcome→create→
-  // restore→retry→tail). The lock screen precedent: forms live on the gradient with
+  // restore→retry). The lock screen precedent: forms live on the gradient with
   // glass fields. Sheets still mount on the host OUTSIDE this pin (themed pickers).
 
   const st = {
@@ -20020,8 +19964,7 @@ function createLaunchShell(opts = {}) {
   st.views.create = buildCreate(st);
   st.views.restore = buildRestore(st);
   st.views.retry = buildRetry(st);
-  st.views.tail = buildTail(st);
-  el.append(st.views.welcome, st.views.create, st.views.restore, st.views.retry, st.views.tail);
+  el.append(st.views.welcome, st.views.create, st.views.restore, st.views.retry);
 
   // SECURITY §5 + #162 grammar: ONE window-level pagehide listener scrubs
   // every password field the shell owns (backgrounded WebView). The shell IS
@@ -20038,11 +19981,20 @@ function createLaunchShell(opts = {}) {
   return el;
 }
 
-/** Entry-point router mirror — C# repoints LaunchRetryPage with view:'retry',
- *  the HomePage onboarding modal with view:'tail' (#44 free-fn grammar). */
+/** Entry-point router mirror — ★ N75: ONE C# page now hosts every launch view
+ *  and switches them with this push (#44 free-fn grammar). */
 function setLaunchView(el, view) {
   const st = launchState.get(el);
   if (!st || !LAUNCH_VIEWS.includes(view) || st.view === view) return;
+  /* ★ review MINOR-1 (SECURITY §5): every view switch the COMPONENT drives scrubs the
+     password fields it leaves behind (the topbar Back handlers do it explicitly). This
+     entry point is the one C# drives — hardware back, and the retry lockout — and it
+     used to switch without scrubbing. Before N75 those paths POPPED the page and the
+     WebView went with it; now the typed wallet password would sit in a hidden input,
+     still revealed if the user had unmasked it, until pagehide. Scrub every field the
+     shell owns: each scrub clears and re-masks only its own, so this is safe to run
+     on any switch. */
+  st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
   show(st, view);
 }
 

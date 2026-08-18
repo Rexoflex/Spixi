@@ -177,7 +177,10 @@ public partial class App : Application
 
                 if (wallet_decrypted == false)
                 {
-                    MainPage = new NavigationPage(new LaunchRetryPage());
+                    // ★ N75 (#391): the retry screen is a VIEW of LaunchPage now, not its
+                    // own page — same cold-start root, one WebView. The boot view rides a
+                    // generatePage carrier, so retry paints on the first frame.
+                    MainPage = new NavigationPage(new LaunchPage("retry"));
                 }
                 else
                 {

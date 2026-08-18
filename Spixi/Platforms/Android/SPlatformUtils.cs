@@ -180,8 +180,27 @@ namespace Spixi
             return player;
         }
 
-        public static void setEdgeToEdge()
+        /* ★ N73 (#391): `surfaceColor` names the colour the SCREEN ON TOP actually
+         * paints. Null (every historical caller) keeps the old meaning — the themed
+         * app surface. The launch and lock screens are fixed dark in BOTH themes, so
+         * in light mode this strip used to paint light above a dark screen (the wrong
+         * status-bar strip Damir reported) and the bar ICONS were drawn dark on that
+         * dark screen. Both now follow the painted colour, not the app theme. */
+        public static void setEdgeToEdge(string surfaceColor = null)
         {
+            string colorString = string.IsNullOrEmpty(surfaceColor) ? ThemeManager.getSurfaceColorString() : surfaceColor;
+
+            Android.Graphics.Color bgColor;
+            try
+            {
+                bgColor = Android.Graphics.Color.ParseColor(colorString);
+            }
+            catch (Exception)
+            {
+                // an unparseable override must never cost the user their bar chrome
+                bgColor = Android.Graphics.Color.ParseColor(ThemeManager.getSurfaceColorString());
+            }
+
             // Get the root content view that MAUI uses
             var rootView = MainActivity.Instance.FindViewById(Android.Resource.Id.Content);
 
@@ -191,22 +210,26 @@ namespace Spixi
                 // bars are transparent, MainActivity). It painted the LEGACY launch-blue
                 // (getBackgroundColorString) under redesigned shells that sit on
                 // --surface-screen — repointed to the shell-matched surface color.
-                Android.Graphics.Color bgColor = Android.Graphics.Color.ParseColor(ThemeManager.getSurfaceColorString());
                 rootView.SetBackgroundColor(bgColor);
             }
 
-            // AND-6 (#334): bar icon appearance is theme-driven, owned HERE so every
-            // re-run (boot · explicit pick SettingsPage:392 · OS auto-flip App.xaml.cs)
-            // fixes color + icons together. Light surface -> dark icons (true);
-            // dark surface -> light icons (false). Was hardcoded white in MainActivity —
+            // AND-6 (#334): bar icon appearance is owned HERE so every re-run (boot ·
+            // explicit pick SettingsPage:392 · OS auto-flip App.xaml.cs · ★ N73 page
+            // chrome) fixes colour + icons together. Light strip -> dark icons (true);
+            // dark strip -> light icons (false). Was hardcoded white in MainActivity —
             // unreadable over the light surface.
+            // ★ N73: read the LUMINANCE of the colour we just painted instead of the
+            // theme name. For the themed surface the answer is identical to before; for
+            // a fixed-dark screen in light mode it is the opposite one, which is the
+            // point. Rec. 601 weights, the same rule the platform docs use.
             var window = MainActivity.Instance.Window;
             if (window != null)
             {
                 var controller = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
                 if (controller != null)
                 {
-                    bool lightSurface = ThemeManager.getResolvedAppearanceName() == "light";
+                    double luma = (0.299 * bgColor.R + 0.587 * bgColor.G + 0.114 * bgColor.B) / 255.0;
+                    bool lightSurface = luma > 0.5;
                     controller.AppearanceLightStatusBars = lightSurface;
                     controller.AppearanceLightNavigationBars = lightSurface;
                 }

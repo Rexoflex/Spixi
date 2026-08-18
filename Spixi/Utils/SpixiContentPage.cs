@@ -95,27 +95,49 @@ namespace SPIXI
         // The native surface painted behind (and on) this page's WebView — chosen per
         // shell so the pre-paint frame matches what the shell will render (N1/N3).
         protected Color pageSurfaceColor = ThemeManager.getSurfaceColor();
+        // ★ N73: the same value as a hex string, for the Android system-bar strip.
+        private string pageSurfaceColorString = ThemeManager.getSurfaceColorString();
 
         // Redesigned shells sit on --surface-screen; the REMAINING legacy blue-themed
         // pages keep the legacy colour (don't trade one mismatch for another — audit m3);
         // the lock shell is always-dark by design.
         private static Color surfaceColorFor(string html_file_name)
         {
+            return Color.FromArgb(surfaceColorStringFor(html_file_name));
+        }
+
+        // ★ N73 (#391): the same answer as a hex string — Android's bar-strip painter
+        // takes one (SPlatformUtils.setEdgeToEdge), and round-tripping a Color back to
+        // hex for it would be a second source of truth.
+        private static string surfaceColorStringFor(string html_file_name)
+        {
             switch (html_file_name)
             {
                 case "lock.html":
-                    return Color.FromArgb("#13171b");
+                    return "#13171b";
+                /* ★ N73 (#391): the LAUNCH flow is fixed dark in both themes (the shell
+                 * pins data-theme="dark" and paints --gradient-launch), but this returned
+                 * the THEMED surface — so in light mode the native ground behind and
+                 * around a dark screen was light. That is the wrong status-bar strip
+                 * Damir reported on welcome and on the account-creation screen. The value
+                 * is the TOP of --gradient-launch (linear 200deg, first stop), and the
+                 * shell's own html/body background + instant-bg use the same one, so the
+                 * strip, the pre-paint frame and the first painted pixels all agree.
+                 * The lock keeps its own #13171b until Damir converges the two gradients
+                 * (tokens.css --gradient-lock note). */
+                case "intro.html":
+                    return "#1b163c";
                 case "wallet_recipient.html":
                 case "wallet_request.html":
                 case "wallet_send_2.html":
                 case "wallet_contact_request.html":
                 case "address.html":
-                    return ThemeManager.getBackgroundColor();
+                    return ThemeManager.getBackgroundColorString();
                 // wallet_sent.html left this list at #259 (B3 redesigned shell,
                 // instant-bg = --surface-screen) — stale legacy-blue entry fixed with
                 // the edge-to-edge batch (pre-paint frame now matches the shell).
                 default:
-                    return ThemeManager.getSurfaceColor();
+                    return ThemeManager.getSurfaceColorString();
             }
         }
 
@@ -138,7 +160,8 @@ namespace SPIXI
 
         private void applyPageSurfaceColor()
         {
-            pageSurfaceColor = surfaceColorFor(loadedHtmlFileName ?? "");
+            pageSurfaceColorString = surfaceColorStringFor(loadedHtmlFileName ?? "");
+            pageSurfaceColor = Color.FromArgb(pageSurfaceColorString);
             this.BackgroundColor = pageSurfaceColor;
             if (Content != null)
             {
@@ -283,6 +306,16 @@ namespace SPIXI
             this.BackgroundColor = pageSurfaceColor;
 #endif
 #if ANDROID
+            /* ★ N73 (#391): repaint the system-bar strip for THIS page. On Android the
+             * visible status/nav strip is the activity root background (both bars are
+             * transparent, MainActivity + AND-6), and it was painted from the APP THEME
+             * — so a fixed-dark screen (launch, lock) in light mode got a light strip
+             * above it, and dark bar icons on top of that dark screen. The colour is the
+             * one this page already paints behind its WebView, so the two can never
+             * disagree; every other page passes the themed surface, i.e. exactly the old
+             * value. Also re-run on OnAppearing, so walking BACK to a page repaints. */
+            SPlatformUtils.setEdgeToEdge(pageSurfaceColorString);
+
             // Fix edge-to-edge on Android 15 for modals
             if (OperatingSystem.IsAndroidVersionAtLeast(35))
             {
@@ -970,6 +1003,10 @@ namespace SPIXI
                 {
                     Logging.error("Overlay close failed: " + ex);
                 }
+                // ★ N73 review MAJOR-4: the overlay took the strip with it — give it back
+                // to the page that is visible again, BEFORE the host's own close hook runs
+                // (that hook may navigate, and a navigation repaints on its own anyway).
+                repaintSystemBars(host);
                 try
                 {
                     host?.onOverlayClosed(op.target);
@@ -979,6 +1016,31 @@ namespace SPIXI
                     Logging.error("onOverlayClosed failed: " + ex);
                 }
             });
+        }
+
+        /* ★ N73 review MAJOR-4: repaint the Android system-bar strip for a page that is
+         * becoming visible again WITHOUT a navigation. applyPlatformPageChrome covers a
+         * page that loads, OnAppearing covers a page that is re-attached — an overlay
+         * (chat info, Account) and an in-place LOCK are neither: the host was never
+         * detached, so nothing fires when they go away. The resume lock is the sharp case,
+         * because it paints the strip its own fixed dark and light icons: without this,
+         * unlocking in light mode left a dark strip with light icons over a light Home
+         * until the next real page navigation. No-op on every other platform. */
+        private static void repaintSystemBars(SpixiContentPage? page)
+        {
+#if ANDROID
+            try
+            {
+                if (page != null)
+                {
+                    SPlatformUtils.setEdgeToEdge(page.pageSurfaceColorString);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("repaintSystemBars: " + ex);
+            }
+#endif
         }
 
         // Host hook: fired on the overlay HOST (HomePage) after an overlay closed —
@@ -1648,8 +1710,11 @@ namespace SPIXI
                         else
                         {
                             // The user navigated away while the page was staging — drop it
-                            // and tear the hidden WebView down.
+                            // and tear the hidden WebView down. ★ N73 review MAJOR-4: the
+                            // staged page's own load already repainted the strip (its
+                            // WebView navigated), so hand it back to the host.
                             op.target.Dispose();
+                            repaintSystemBars(overlayHost);
                         }
                     }
                 }
@@ -1923,6 +1988,13 @@ namespace SPIXI
             base.OnAppearing();
 #if IOS
             attachKeyboardInsetObserver();   // iOS-29 r2 (#303): chat.html pages only, no-op elsewhere
+#endif
+#if ANDROID
+            // ★ N73 (#391): coming BACK to a page never re-navigates its WebView, so
+            // applyPlatformPageChrome does not run — without this the strip would keep
+            // the colour of the page that just left (e.g. the fixed-dark lock screen
+            // sitting above a light Home).
+            SPlatformUtils.setEdgeToEdge(pageSurfaceColorString);
 #endif
             UIHelpers.refreshAppRequests = true;
             updateScreen();

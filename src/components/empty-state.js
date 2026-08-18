@@ -14,9 +14,14 @@
  *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
  *   title, body,           // headline + supporting line (plain text — textContent)
- *   actionLabel, onAction, // ONE secondary CTA (tonal by house grammar)
+ *   actionLabel, onAction, // the primary CTA (tonal by house grammar)
  *   actionIcon,            // optional leading glyph name for the CTA
  *   actionType = 'tonal', actionSize = 44,
+ *   secondaryLabel, onSecondary, secondaryIcon,  // ★ N76: at most ONE further,
+ *                          // lower-emphasis CTA under the first (text type) —
+ *                          // the chats zero state carries "Start a chat" AND
+ *                          // "Join the Spixi community". A third would turn an
+ *                          // empty state into a menu; two is the cap.
  *   compact = false,       // tighter vertical rhythm (in-list, not full-screen)
  * }) → section.c-empty-state
  *
@@ -35,6 +40,9 @@ export function createEmptyState({
   actionIcon = null,
   actionType = 'tonal',
   actionSize = 44,
+  secondaryLabel = '',
+  onSecondary = null,
+  secondaryIcon = null,
   compact = false,
 } = {}) {
   const el = document.createElement('section');
@@ -82,7 +90,7 @@ export function createEmptyState({
     el.append(p);
   }
 
-  /* —— one secondary CTA —— */
+  /* —— the CTAs (primary, then an optional lower-emphasis second) —— */
   if (actionLabel && onAction) {
     const wrap = document.createElement('div');
     wrap.className = 'c-empty-state__action';
@@ -94,6 +102,21 @@ export function createEmptyState({
       onClick: onAction,
     }));
     el.append(wrap);
+  }
+
+  /* ★ N76: the second CTA renders on its own, even with no first one — a caller
+     that only has the lower-emphasis action still gets a usable empty state. */
+  if (secondaryLabel && onSecondary) {
+    const wrap2 = document.createElement('div');
+    wrap2.className = 'c-empty-state__action c-empty-state__action--secondary';
+    wrap2.append(createButton({
+      label: secondaryLabel,
+      type: 'text',
+      size: actionSize,
+      icon: secondaryIcon ? icon(secondaryIcon, { size: 20 }) : null,
+      onClick: onSecondary,
+    }));
+    el.append(wrap2);
   }
 
   return el;

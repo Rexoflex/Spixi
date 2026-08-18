@@ -12,14 +12,17 @@
 <style>
   /* The launch flow is a FIXED-DARK brand surface in BOTH themes (--gradient-
      launch, lock.html precedent #160): paint a deep dark IMMEDIATELY — launch
-     previously had NO instant-bg at all, so a slow load flashed default-white. */
-  html { background: #13171b; }
+     previously had NO instant-bg at all, so a slow load flashed default-white.
+     ★ N73 (#391): the value is the TOP of --gradient-launch (linear 200deg, first
+     stop #1b163c), not the lock's #13171b — the status-bar strip and the boot
+     cover now match the first pixels the shell actually paints. */
+  html { background: #1b163c; }
   /* Splash boot moment (Batch B, #256 ⑭) — dark-pinned variant (lock grammar):
      pulsing brand logo in white over the deep surface, dropped at window load. */
   .app-boot {
     position: fixed; inset: 0; z-index: 99;
     display: flex; align-items: center; justify-content: center;
-    background: #13171b; transition: opacity var(--duration-200, 200ms) ease-out;
+    background: #1b163c; transition: opacity var(--duration-200, 200ms) ease-out;
     /* never intercept input — see home.html app-boot note (audit B-1). */
     pointer-events: none;
   }
@@ -1816,7 +1819,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 </style><!-- #147 theme preview tiles -->
 <style data-src="../styles/components/launch-shell.css">
-/* c-launch — welcome carousel · create · restore · retry · onboarding tail
+/* c-launch — welcome carousel · create · restore · retry (★ N76 removed the
+   onboarding tail: the backup nudge moved to the first-asset trigger and the
+   join-community CTA to the chat-list empty state)
    (docs/launch-spec.md, Phase 1 #5). Token surfaces throughout; ONLY the
    welcome view is the #160 brand moment (fixed-dark pin + --gradient-lock —
    interview #0②). Password fields reuse the c-lock__field grammar, so
@@ -1824,7 +1829,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 /* premium round 2 (Damir 2026-07-06): the WHOLE launch is ONE continuous
    fixed-dark brand surface — the shell rides --gradient-launch and the JS pins
-   data-theme="dark" on the section (welcome→create→restore→retry→tail feel like
+   data-theme="dark" on the section (welcome→create→restore→retry feel like
    one experience). The lock screen is the precedent: forms live on the gradient
    with GLASS fields. Sheets mount on the host OUTSIDE the pin (themed pickers). */
 .c-launch {
@@ -2235,58 +2240,29 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-launch__file-check { display: flex; color: var(--icon-success); }
 
-/* —— onboarding tail: centered forward flow, no topbar (spec §2.5) —— */
-.c-launch__tail {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: var(--spacing-24);
-  /* onboarding CTAs clear the iOS home indicator (top inset is handled by the
-     shell's #launch-root .c-launch__tail padding-top rule) */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
-}
-.c-launch__tail-step {
-  margin: auto 0;                   /* vertical centering that still scrolls short */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-12);
-  text-align: center;
-}
-.c-launch__tail-step .c-launch__illo { max-width: 220px; }
-.c-launch__tail-step .c-button { max-width: 320px; }  /* sanctioned: form measure */
-/* legacy join-community art (264×264 shipped SVG) on the gradient (dark set) */
-.c-launch__tail-illo {
-  display: block;
-  width: min(58vw, 232px);          /* sanctioned: art measure, carousel parity */
-  max-height: 34vh;
-  height: auto;
-  margin-bottom: var(--spacing-8);
-  user-select: none;
-  -webkit-user-drag: none;
-}
 
 </style>
 <style>
   /* Production launch shell: fill the WebView. The redesigned launch-shell is
      ONE continuous fixed-dark brand surface (--gradient-launch); it already sets
      height:100% + the gradient, and the welcome view clears env(safe-area-inset-
-     top) itself. The FORM views (create/restore/retry) + the tail have no top
+     top) itself. The FORM views (create/restore/retry) have no top
      inset in the component (the demo added a 44px stand-in) — feed them the
      device safe-area here so the transparent topbar clears the OS statusbar while
      the gradient still bleeds behind it (#160b⑧ full-bleed precedent). */
-  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  /* ★ N73 (#391): the launch flow is FIXED DARK in both themes, so the page
+     ground must be too — var(--surface-screen) painted LIGHT behind a dark shell
+     in light mode, which is the wrong status-bar strip Damir reported. This is
+     the same value C# paints behind the WebView (SpixiContentPage.surfaceColorFor)
+     and the same value the instant-bg above uses: one colour, three layers. */
+  html, body { margin: 0; height: 100%; background: #1b163c; }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #launch-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #launch-root > .c-launch { flex: 1; min-height: 0; }
-  #launch-root .c-launch__view,
-  #launch-root .c-launch__tail { padding-top: env(safe-area-inset-top); }
+  #launch-root .c-launch__view { padding-top: env(safe-area-inset-top); }
 
-  /* W15 (#348): on a wide window the FORM views (create / restore / retry) and
-     the onboarding tail stretched their content from edge to edge. Cap the
-     CONTENT COLUMN only.
+  /* W15 (#348): on a wide window the FORM views (create / restore / retry)
+     stretched their content from edge to edge. Cap the CONTENT COLUMN only.
        · .c-launch keeps the full-bleed --gradient-launch — the brand surface is
          never capped.
        · The hero and tour art size themselves (min(46vw,176px) / min(58vw,232px)
@@ -2300,12 +2276,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      own pane breakpoint (HomePage.OnPageSizeChanged — `Width < 700`).
      ★ review NIT-15: cap the body's CHILDREN, not the body. .c-launch__body is the
      scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
-     in from the window edge on a wide window. The footer and the tail step are not
-     scrollers, so they cap directly. */
+     in from the window edge on a wide window. The footer is not a scroller, so it
+     caps directly. */
   @media (min-width: 700px) {
     #launch-root .c-launch__body > *,
-    #launch-root .c-launch__footer,
-    #launch-root .c-launch__tail-step {
+    #launch-root .c-launch__footer {
       width: 100%;
       max-width: 640px;
       margin-inline: auto;
@@ -2315,7 +2290,6 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
-<script>window.__LAUNCH_VIEW__="welcome";</script>
   <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
        dropped in signalReady (window load). -->
   <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
@@ -2332,42 +2306,39 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      ?lang= still overrides (demos/tests); in a plain-browser preview the marker stays
      un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.__SPIXI_LANG__ = new URLSearchParams(location.search).get('lang') || '*SL{language-code}';window.SL = window.SpixiStrings.get(window.__SPIXI_LANG__);</script>
-<!-- ★ N12 (#383): restore provenance. HomePage registers this custom string right
-     before it builds OnboardPage (xaml:1465), so generatePage substitutes it on THIS
-     page load — the devMode carrier grammar (#314), not the #213 window.SL trap. A
-     browser preview leaves the marker un-substituted → false → the backup step shows,
-     which is also the correct fail-safe for an old exe that never registers the key.
-     ?restored=1 is the preview switch. -->
-<script>window.__SPIXI_FROM_RESTORE__ = ('*SL{OnboardingFromRestore}' === 'true') || new URLSearchParams(location.search).get('restored') === '1';</script>
+<!-- ★ N75 (#391): ONE launch document, ONE WebView, every view. The BOOT view
+     arrives as a generatePage carrier (the devMode grammar, #314) so the cold
+     unlock (retry) paints its own view on the FIRST frame — a push would show a
+     welcome frame first. C# registers it before every loadPage; an
+     un-substituted marker (plain-browser preview) falls back to welcome, and
+     ?view= still overrides for demos/tests. -->
+<script>(function(){var c='*SL{LaunchBootView}';var q=new URLSearchParams(location.search).get('view');var ok=/^(welcome|create|restore|retry)$/;window.__LAUNCH_VIEW__=ok.test(q||'')?q:(ok.test(c)?c:'welcome');})();</script>
 <script src="spixi.bundle.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Launch / onboarding shell — the redesigned launch-shell wired to
    * the REAL C# MAUI bridge (native.js in the bundle).
    *
-   * WHY THIS SHELL IS DIFFERENT (five pages, not one): unlike the single-page
-   * shells (settings, chat) or the tabbed home shell, the legacy launch flow is
-   * FIVE separate C# pages, each with its own WebView + HTML file + onNavigating
-   * handler (ARCHITECTURE §5 row 1, bridge-audit-A §7–10 + audit-B OnboardPage):
+   * ★ N75 (#391): ONE PAGE, ONE WEBVIEW, EVERY VIEW. The launch flow used to be
+   * five C# pages, each with its own WebView loading its own copy of THIS SAME
+   * document (intro / intro_new / intro_restore / intro_retry / onboarding) —
+   * five parses of one large file plus a native page push per step, which is the
+   * flicker Damir reported. The shell always held every view internally, so the
+   * fix was to stop navigating: LaunchPage now hosts welcome + create + restore +
+   * retry and switches them in place; C# follows along through the verbs it
+   * already received (create / restore / back) and can drive the view with the
+   * setLaunchView push. ★ N76 removed the onboarding tail entirely.
    *
-   *   intro.html          LaunchPage         welcome  · introload/create/restore/
-   *                                                     accept/language/appearance
-   *   intro_new.html      LaunchCreatePage   create   · onload/back/create:<n>:<p>/
-   *                                                     avatar/restore  → loadAvatar
-   *   intro_restore.html  LaunchRestorePage  restore  · back/selectfile/restore:<p>
-   *                                                     → setUploadedFileName/
-   *                                                       showPasswordError/removeLoadingOverlay
-   *   intro_retry.html    LaunchRetryPage    retry    · back/proceed:<p>
-   *                                                     → removeLoadingOverlay
-   *   onboarding.html     OnboardPage        tail     · back/joinbot/finish
+   * Verbs (bridge-audit-A §7–10 — FROZEN, no new outbound verb):
+   *   introload · accept · language:<code> · create · restore · back ·
+   *   create:<nick>:<password> · avatar · error · selectfile ·
+   *   restore:<password> · proceed:<password>
+   * Pushes: setVersion · showTerms · showOnboardingSection · loadAvatar ·
+   *   setUploadedFileName · showPasswordError · removeLoadingOverlay ·
+   *   setLaunchView.
    *
-   * The redesigned launch-shell holds ALL FIVE views internally (SPA), but on the
-   * real bridge the C# page navigation IS the routing: each legacy filename boots
-   * this SAME shell at its own view. build-shells.mjs writes this file to all five
-   * names and injects `window.__LAUNCH_VIEW__` per output (browser test: ?view=).
-   *
-   * ZERO C# change, bridge FROZEN. Contract source of truth: the five
-   * Spixi/Pages/Launch/*.xaml.cs + OnboardPage.xaml.cs. Spec: docs/launch-spec.md.
+   * Contract source of truth: Spixi/Pages/Launch/LaunchPage.xaml.cs.
+   * Spec: docs/launch-spec.md.
    *
    * SECURITY.md: passwords live ONLY in field values, transiently — the component
    * scrubs them on back / ctrl.done / window pagehide. Shells emit INTENT; C#
@@ -2376,16 +2347,17 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * component gates the create:<nick>:<password> parse hazards inline (§1).
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile,
+    createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
     createNativeBridge, installExecuteUiCommand,
   } = window.Spixi;
   const strings = window.SL || {};
 
-  /* —— which legacy page is hosting this shell? ————————————————————————————— */
-  const VIEWS = ['welcome', 'create', 'restore', 'retry', 'tail'];
-  const bootRaw = window.__LAUNCH_VIEW__
-    || new URLSearchParams(location.search).get('view')
-    || 'welcome';
+  /* —— which view does this document boot on? ——————————————————————————————
+   * ★ N75: there is no longer one HTML file per view — this ONE document holds
+   * welcome/create/restore/retry and switches between them in place. C# only
+   * chooses the FIRST one (welcome on a fresh install, retry on a cold unlock). */
+  const VIEWS = ['welcome', 'create', 'restore', 'retry'];
+  const bootRaw = window.__LAUNCH_VIEW__ || 'welcome';
   const view = VIEWS.includes(bootRaw) ? bootRaw : 'welcome';
 
   /* —— bridge transport ————————————————————————————————————————————————————
@@ -2415,8 +2387,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* —— consent ————————————————————————————————————————————————————————————
    * LaunchPage.onLoad pushes showTerms only when terms are NOT yet accepted. We
    * record consent (ixian:accept) ONCE, at the first Create/Restore tap on the
-   * WELCOME page — the only page whose C# handler processes ixian:accept (the
-   * create/restore/retry pages don't). Premium round: "continuing = agreeing"
+   * welcome view. Premium round: "continuing = agreeing"
    * (the fine-print consent line + in-app Terms/Privacy sheets render on the
    * create/restore forms; the binding tap is the welcome CTA that navigates). */
   let termsRequired = false, acceptSent = false;
@@ -2435,129 +2406,89 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   const langRaw = String(window.__SPIXI_LANG__ || '');
   const language = /^[a-z]{2}-[a-z]{2}$/.test(langRaw) ? langRaw : 'en-us';
 
-  /* —— per-view wiring ———————————————————————————————————————————————————— */
-  const baseOpts = { view, host, strings, language };
-  let opts = baseOpts;
-  let handlers = {};
-  let readyCmd = null;             // the ready/onload verb this page's C# expects
-  let createCtrl = null, restoreCtrl = null, retryCtrl = null;
-
+  /* —— wiring ————————————————————————————————————————————————————————————
+   * ★ N75 (#391): ONE page hosts every view, so EVERY opt and EVERY push handler
+   * is registered once, up front — there is no per-page branch left. The views
+   * are mutually exclusive on screen, so their C#→JS pushes cannot collide:
+   * setVersion is the same value for all of them, showTerms/loadAvatar/
+   * setUploadedFileName each belong to exactly one view, and only ONE submit can
+   * be in flight at a time (each form disables itself while it waits), which is
+   * what lets the three removeLoadingOverlay paths share one release. */
   const baseName = (p) => String(p || '').replace(/\\/g, '/').split('/').pop();
 
-  if (view === 'welcome') {
-    // intro.html · LaunchPage
-    opts = Object.assign({}, baseOpts, {
-      // language / appearance persist + RELOAD intro.html C#-side (LaunchPage
-      // onNavigating) — fire-and-forget; the reload re-boots this welcome shell.
-      onLanguage: (code) => bridge.send('ixian:language:' + code),
-      onAppearance: (idx) => bridge.send('ixian:appearance:' + idx),
-      // welcome CTAs NAVIGATE to the real create/restore pages (the hooks added
-      // to launch-shell.js) instead of switching in place — a bare LaunchPage
-      // can't process create:<nick>:<password>. Consent rides the first tap.
-      onGoCreate: () => { recordConsent(); bridge.send('ixian:create'); },
-      onGoRestore: () => { recordConsent(); bridge.send('ixian:restore'); },
-    });
-    handlers = {
-      setVersion: (v) => setLaunchVersion(el, v),
-      showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
-      showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
-    };
-    readyCmd = 'ixian:introload';                       // LaunchPage's onLoad trigger (NOT ixian:onload)
-  } else if (view === 'create') {
-    // intro_new.html · LaunchCreatePage
-    opts = Object.assign({}, baseOpts, {
-      onPickAvatar: () => bridge.send('ixian:avatar'),  // native picker → loadAvatar(path)
-      // Loading until C# resolves (spec §2.2): on success C# generates the wallet
-      // then navigates to Home + tears this page down (the morph never resolves —
-      // correct); on FAILURE C# now shows the native alert AND pushes
-      // removeLoadingOverlay (#334 L1, was the wedge: no release signal → inputs +
-      // button permanently dead). Capture the ctrl so that push can release it.
-      onCreateAccount: (nick, pass, ctrl) => { createCtrl = ctrl; bridge.send('ixian:create:' + nick + ':' + pass); },
-      onBack: () => bridge.send('ixian:back'),          // C# pops LaunchCreatePage → welcome
-    });
-    handlers = {
-      setVersion: (v) => setLaunchVersion(el, v),
-      // loadAvatar(path) — native picker result. The absolute file path doesn't
-      // resolve inside the self-contained shell (repo-wide avatar flag) → the
-      // preview falls back to the deterministic gradient. Wired for honesty.
-      loadAvatar: (path) => setLaunchAvatar(el, path || null),
-      // #334 L1: create-failure release. SILENT fail('') — the retry-view grammar
-      // (see the retry branch below): the native alert already carries the words;
-      // fail('') re-enables the form + keeps the typed values for a retry.
-      removeLoadingOverlay: () => { if (createCtrl) createCtrl.fail(''); },
-    };
-    readyCmd = 'ixian:onload';                          // LaunchCreatePage.onLoad → setVersion
-  } else if (view === 'restore') {
-    // intro_restore.html · LaunchRestorePage (NO onload handler → no ready verb)
-    opts = Object.assign({}, baseOpts, {
-      onSelectFile: () => bridge.send('ixian:selectfile'),   // native file picker → setUploadedFileName
-      onRestore: (pass, ctrl) => { restoreCtrl = ctrl; bridge.send('ixian:restore:' + pass); },
-      onBack: () => bridge.send('ixian:back'),
-    });
-    handlers = {
-      // C# sends the full tmp filepath — display the basename (legacy parity,
-      // intro_restore.html:135). Confirms a file was picked + enables submit.
-      setUploadedFileName: (path) => setLaunchFile(el, baseName(path)),
-      // wrong password → inline error on the field (spec §2.3). One-shot latch:
-      // C# fires showPasswordError THEN removeLoadingOverlay — the error wins.
-      showPasswordError: () => { if (restoreCtrl) restoreCtrl.fail(strings.restoreFailed || 'That password didn’t open the backup.'); },
-      removeLoadingOverlay: () => { if (restoreCtrl) restoreCtrl.fail(''); },   // latched no-op after the error; bare release otherwise
-    };
-  } else if (view === 'retry') {
-    // intro_retry.html · LaunchRetryPage (NO onload handler → no ready verb)
-    opts = Object.assign({}, baseOpts, {
-      onRetry: (pass, ctrl) => { retryCtrl = ctrl; bridge.send('ixian:proceed:' + pass); },
-      onBack: () => bridge.send('ixian:back'),
-    });
-    handlers = {
-      // wrong password = NATIVE alert + removeLoadingOverlay → SILENT restore
-      // (fail('') keeps the value, no inline dup — the alert already spoke;
-      // the unlock-screen grammar, spec §2.4).
-      removeLoadingOverlay: () => { if (retryCtrl) retryCtrl.fail(''); },
-    };
-  } else {
-    // onboarding.html · OnboardPage (tail — modal presented by HomePage after
-    // create; NO onload handler, NO back per spec §2.5).
-    // On the Join path the component calls onJoinBot() THEN onFinish() (its SPA
-    // model: "add the bot" + "complete onboarding" are two steps). But the native
-    // OnboardPage's `ixian:joinbot` ALREADY finishes onboarding + pops the modal
-    // (OnboardPage.xaml.cs:36 → finishOnboarding), so a trailing `ixian:finish`
-    // would double-fire onboardDone + pop the page beneath. Guard: joinbot and
-    // finish are MUTUALLY EXCLUSIVE terminal verbs — emit finish only when the
-    // user did NOT join. (Skip only calls onFinish → ixian:finish.)
-    let tailJoined = false;
-    opts = Object.assign({}, baseOpts, {
-      // #334 L3/AND-5: "Back up now" is LIVE — OnboardPage now handles
-      // ixian:backup (→ BackupPage.backupAccount(), the #243 static: share-sheet
-      // LAUNCH, C# names every path). Mirror the settings backup-stamp semantics
-      // (settings.html BACKUP_STAMP_KEY: timestamp ONLY, no addresses/content —
-      // #254 storage-partition rule); home reads it lazily at badge/nudge
-      // evaluation, so there is no race with the HomePage beneath this modal.
-      // NON-terminal: the component advances to the join step itself (toJoin),
-      // and the joinbot/finish mutual-exclusion latch below is untouched.
-      onBackupNow: () => {
-        try { localStorage.setItem('spixi.backup.last', String(Date.now())); } catch (e) {}
-        bridge.send('ixian:backup');
-      },
-      onJoinBot: () => { tailJoined = true; bridge.send('ixian:joinbot'); },  // OnboardPage → joinBot + finish + pop
-      onFinish: () => { if (!tailJoined) bridge.send('ixian:finish'); },      // skip path only (joinbot already finished)
-      // ★ N12 (#383, Damir): a RESTORED account skips the backup step and opens on
-      // "Join the community" — the join step itself stays (his dial). The nudge is not
-      // suppressed forever: the standing settings Backup row and the 30-day reminder
-      // (seeded at the restore, LaunchRestorePage) both still apply.
-      tailSkipBackup: !!window.__SPIXI_FROM_RESTORE__,
-    });
-    handlers = {};   // no C#→JS pushes for the tail
-  }
+  // the ONE in-flight submit control (create | restore | retry). launchCtrl is
+  // one-shot, so a late release after showPasswordError is a no-op, not a bug.
+  let activeCtrl = null;
+
+  const opts = {
+    view, host, strings, language,
+    // language persists + RELOADS intro.html C#-side (LaunchPage onNavigating) —
+    // fire-and-forget; the reload re-boots this shell on the welcome view.
+    // ★ N72: there is no appearance hook any more — the pill is gone.
+    onLanguage: (code) => bridge.send('ixian:language:' + code),
+    /* ★ N75: the welcome CTAs now switch IN PLACE (launch-shell does the show()
+       itself). These hooks stay as NOTIFICATIONS so C# can follow the view — it
+       needs the current view for the hardware back button, and it is the only
+       place that may record consent. No page is pushed any more. */
+    onGoCreate: () => { recordConsent(); bridge.send('ixian:create'); },
+    onGoRestore: () => { recordConsent(); bridge.send('ixian:restore'); },
+    onPickAvatar: () => bridge.send('ixian:avatar'),   // native picker → loadAvatar
+    // Loading until C# resolves (spec §2.2): on success C# generates the wallet
+    // then navigates to Home + tears this page down (the morph never resolves —
+    // correct); on FAILURE C# shows the native alert AND pushes
+    // removeLoadingOverlay (#334 L1, was the wedge: no release signal → inputs +
+    // button permanently dead).
+    onCreateAccount: (nick, pass, ctrl) => { activeCtrl = ctrl; bridge.send('ixian:create:' + nick + ':' + pass); },
+    onSelectFile: () => bridge.send('ixian:selectfile'),
+    onRestore: (pass, ctrl) => { activeCtrl = ctrl; bridge.send('ixian:restore:' + pass); },
+    onRetry: (pass, ctrl) => { activeCtrl = ctrl; bridge.send('ixian:proceed:' + pass); },
+    /* back from a form view — the component already switched to welcome; this only
+       tells C# so its hardware-back knows where it is.
+       ★ review MAJOR-1: do NOT drop activeCtrl here. The form's Back control is live
+       while a submit is in flight (only the fields and the CTA are disabled), and the
+       submit runs on a C# background thread — so Back, then a wallet-generation
+       failure, would arrive at a null control and the release would be LOST. The form
+       would then be permanently dead behind the loading morph, which is exactly the
+       #334 L1 wedge: before N75, Back POPPED the page and re-entry rebuilt the WebView,
+       so it could not survive. The control is one-shot and re-enables the form it owns,
+       so releasing a hidden view is correct, not a leak. */
+    onBack: () => { bridge.send('ixian:back'); },
+  };
+
+  const handlers = {
+    setVersion: (v) => setLaunchVersion(el, v),
+    showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
+    showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
+    // ★ N75: C# view router (hardware back, and the retry lockout falling back to
+    // welcome). setLaunchView ignores an unknown or unchanged view.
+    setLaunchView: (v) => setLaunchView(el, String(v || '')),
+    // loadAvatar(path) — native picker result (create view).
+    loadAvatar: (path) => setLaunchAvatar(el, path || null),
+    // C# sends the full tmp filepath — display the basename (legacy parity,
+    // intro_restore.html:135). Confirms a file was picked + enables submit.
+    setUploadedFileName: (path) => setLaunchFile(el, baseName(path)),
+    // restore: wrong password → inline error on the field (spec §2.3). One-shot
+    // latch: C# fires showPasswordError THEN removeLoadingOverlay — the error wins.
+    showPasswordError: () => { if (activeCtrl) activeCtrl.fail(strings.restoreFailed || 'That password didn\u2019t open the backup.'); },
+    /* the shared release. SILENT fail('') everywhere: create and retry are both
+       covered by a native alert that already spoke, and restore's own message
+       already landed through showPasswordError. fail('') keeps the typed values
+       and re-enables the form. */
+    removeLoadingOverlay: () => { if (activeCtrl) activeCtrl.fail(''); },
+  };
+
+  // LaunchPage.onLoad → setVersion (+ showTerms). ONE ready verb for the whole
+  // flow now: ixian:introload. The old per-page ixian:onload is gone with the
+  // create page (#391 N75).
+  const readyCmd = 'ixian:introload';
 
   const el = createLaunchShell(opts);
   root.append(el);
   bridge.exposeAll(handlers);
 
   /* —— page ready — fire the page's ready verb on window LOAD (#177 load-timing
-   *    invariant): firing during parse races C#'s first push. Restore/retry/tail
-   *    have no C# onload handler, so they send nothing (the boot cover still
-   *    drops for them — signalReady runs on every view). ————————————————————— */
+   *    invariant): firing during parse races C#'s first push. ONE verb for the
+   *    whole flow now — the document loads once. ——————————————————————————— */
   // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
   // transitionend + timeout fallback (the #29 morph pattern).
   function dropAppBoot() {

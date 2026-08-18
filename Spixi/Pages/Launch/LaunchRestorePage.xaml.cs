@@ -156,6 +156,21 @@ namespace SPIXI
             Preferences.Default.Remove("lockenabled");
             Preferences.Default.Remove("waletpass");
 
+            /* ★ N12 (#383, Damir 2026-08-18): "when restoring an account, we shouldn't
+             * nudge the user to back up immediately, since it's restoring from backup."
+             * TWO nudges fired on a fresh restore, and they are independent:
+             *   leg 1 — the onboarding tail's FIRST step is the backup nudge. Restore and
+             *           create both clear onboardingComplete, so HomePage could not tell
+             *           them apart. This pref carries the provenance; HomePage reads it
+             *           just before it builds OnboardPage and the tail opens on the JOIN
+             *           step instead. Damir's dial: the join step STAYS for restorers.
+             *   leg 2 — displayBackupReminder fires on the first tick whenever
+             *           backupReminderTimestamp is absent, which it is on a fresh install.
+             *           Seeding it here starts the 30-day period (Config.backupReminder)
+             *           at the restore. Existing key, existing period — nothing new. */
+            Preferences.Default.Set("onboardingFromRestore", true);
+            Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
+
             SpixiLocalization.addCustomString("OnboardingComplete", "false");
 
             Preferences.Default.Set("walletpass", pass);

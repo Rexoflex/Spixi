@@ -1398,6 +1398,9 @@ namespace SPIXI
         private void completeOnboard()
         {
             Preferences.Default.Set("onboardingComplete", true);
+            // ★ N12 (#383): the provenance flag has done its one job — drop it, so a later
+            // delete-account → create on the same install never inherits "restored".
+            Preferences.Default.Remove("onboardingFromRestore");
 
             SpixiLocalization.addCustomString("OnboardingComplete", "true");
             generatePage("index.html");
@@ -1445,6 +1448,16 @@ namespace SPIXI
 
             if (!Preferences.Default.ContainsKey("onboardingComplete"))
             {
+                /* ★ N12 (#383): tell the tail whether this account was RESTORED. The value
+                 * must be registered BEFORE the page is built — OnboardPage.loadPage runs in
+                 * its constructor and generatePage substitutes the *SL{} carriers then.
+                 * This is the devMode carrier grammar (#314, xaml:136), NOT the #213 trap:
+                 * a custom string reaches a redesigned shell through a carrier SPAN, never
+                 * through window.SL. A restored account opens the tail on the JOIN step —
+                 * asking someone who just restored FROM a backup to make one reads as broken.
+                 * Damir's dial: the join step itself STAYS. */
+                SpixiLocalization.addCustomString("OnboardingFromRestore",
+                    Preferences.Default.Get("onboardingFromRestore", false) ? "true" : "false");
                 // Show onboarding screen
                 var onboardPage = new OnboardPage();
                 onboardPage.onboardDone += handleOnboardDone;
@@ -1481,7 +1494,8 @@ namespace SPIXI
             // sent the clear — a fresh document could wear "Connecting…" while online.
             // An unconditional clear makes the fresh document's state KNOWN-empty; the
             // updateScreen() call below re-pushes the warning within a tick if the app
-            // is really offline (and the update-available banner re-pushes every tick).
+            // is really offline, and the update-available banner re-pushes on the next tick
+            // too (#383 dropped the C#-side push latch — the shell owns the dismissal).
             Utils.sendUiCommand(this, "showWarning", "");
             warningDisplayed = false;
 
@@ -2318,6 +2332,59 @@ namespace SPIXI
                     return;
                 }
 
+                /* ★ N40 (#383, Damir 2026-08-18): connectivity and "update available" were the
+                 * two arms of ONE if/else. Three defects came out of that:
+                 *   1. An advertised update hid the offline state FOREVER — the connectivity
+                 *      arm was simply unreachable. The version check runs on a 1-hour period
+                 *      (Config.cs:47), which is why the state was honest at boot and gone
+                 *      "after long use" (the whole D-21/N40 symptom).
+                 *   2. The update arm never owned `warningDisplayed`, so the latch it competed
+                 *      for was left true and the `if (!warningDisplayed)` guard blocked the
+                 *      offline push even if the arm had been reachable.
+                 *   3. A throw anywhere in the version computation took the connectivity state
+                 *      with it, on every tick, silently.
+                 * Fix: connectivity FIRST and UNCONDITIONALLY, in its own try, and BEFORE every
+                 * other worker in this method (review MINOR-5: a recurring throw in
+                 * displayBackupReminder/loadApps/loadChats/loadTransactions aborts the tick
+                 * and would starve connectivity through a different door); the version
+                 * check runs last, in its own try. Damir's dial: BOTH may show — the shell
+                 * routes them to different regions (title-state vs banner, home.html) and no
+                 * longer clears one when the other lands. */
+                try
+                {
+                    // Check the ixian dlt
+                    if (NetworkClientManager.getConnectedClients(true).Count() > 0)
+                    {
+                        if (warningDisplayed)
+                        {
+                            Utils.sendUiCommand(this, "showWarning", "");
+                            warningDisplayed = false;
+                        }
+                        connectivityWarningDelayCounter = 0;
+                    }
+                    else
+                    {
+                        // delay warning for one refresh cycle
+                        if (connectivityWarningDelayCounter > 0)
+                        {
+                            if (!warningDisplayed)
+                            {
+                                Utils.sendUiCommand(this, "showWarning", SpixiLocalization._SL("global-connecting-dlt"));
+                                warningDisplayed = true;
+                            }
+                            connectivityWarningDelayCounter = 0;
+                        }
+                        else
+                        {
+                            connectivityWarningDelayCounter++;
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.error("Exception occurred in HomePage.UpdateScreen: " + e);
+                }
+
                 displayBackupReminder();
 
                 loadApps(false);
@@ -2341,38 +2408,13 @@ namespace SPIXI
 
                     if (UpdateVerify.compareVersionsWithSuffix(new_version, cur_version) > 0)
                     {
+                        /* Pushed EVERY tick, as it always was. Review MINOR-3: a C#-side
+                          * "pushed already" latch is the D-20/#357 strand class all over again
+                          * — a tick that lands in a reload window latches a DYING document and
+                          * the notice is gone for the session. It is also redundant: the shell
+                          * refuses a re-push of a notice the user dismissed (home.html
+                          * dismissedNotice), so the dismissal survives without C# state. */
                         Utils.sendUiCommand(this, "showWarning", String.Format(SpixiLocalization._SL("global-update-available"), new_version));
-                    }
-                    else
-                    {
-                        // Check the ixian dlt
-                        if (NetworkClientManager.getConnectedClients(true).Count() > 0)
-                        {
-                            if (warningDisplayed)
-                            {
-                                Utils.sendUiCommand(this, "showWarning", "");
-                                warningDisplayed = false;
-                            }
-                            connectivityWarningDelayCounter = 0;
-                        }
-                        else
-                        {
-                            // delay warning for one refresh cycle
-                            if (connectivityWarningDelayCounter > 0)
-                            {
-                                if (!warningDisplayed)
-                                {
-                                    Utils.sendUiCommand(this, "showWarning", SpixiLocalization._SL("global-connecting-dlt"));
-                                    warningDisplayed = true;
-                                }
-                                connectivityWarningDelayCounter = 0;
-                            }
-                            else
-                            {
-                                connectivityWarningDelayCounter++;
-                            }
-                        }
-
                     }
                 }
                 catch (Exception e)

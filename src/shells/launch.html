@@ -101,6 +101,13 @@
      ?lang= still overrides (demos/tests); in a plain-browser preview the marker stays
      un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.__SPIXI_LANG__ = new URLSearchParams(location.search).get('lang') || '*SL{language-code}';window.SL = window.SpixiStrings.get(window.__SPIXI_LANG__);</script>
+<!-- ★ N12 (#383): restore provenance. HomePage registers this custom string right
+     before it builds OnboardPage (xaml:1465), so generatePage substitutes it on THIS
+     page load — the devMode carrier grammar (#314), not the #213 window.SL trap. A
+     browser preview leaves the marker un-substituted → false → the backup step shows,
+     which is also the correct fail-safe for an old exe that never registers the key.
+     ?restored=1 is the preview switch. -->
+<script>window.__SPIXI_FROM_RESTORE__ = ('*SL{OnboardingFromRestore}' === 'true') || new URLSearchParams(location.search).get('restored') === '1';</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -303,6 +310,11 @@
       },
       onJoinBot: () => { tailJoined = true; bridge.send('ixian:joinbot'); },  // OnboardPage → joinBot + finish + pop
       onFinish: () => { if (!tailJoined) bridge.send('ixian:finish'); },      // skip path only (joinbot already finished)
+      // ★ N12 (#383, Damir): a RESTORED account skips the backup step and opens on
+      // "Join the community" — the join step itself stays (his dial). The nudge is not
+      // suppressed forever: the standing settings Backup row and the 30-day reminder
+      // (seeded at the restore, LaunchRestorePage) both still apply.
+      tailSkipBackup: !!window.__SPIXI_FROM_RESTORE__,
     });
     handlers = {};   // no C#→JS pushes for the tail
   }

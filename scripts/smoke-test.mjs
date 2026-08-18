@@ -1830,9 +1830,14 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'Q10a: composer entry autofocus gated to desktop (#228 flag)');
   ok(/CONNECTIVITY_TEXTS/.test(chat) && /setTopbarSub\(topbarHost, topbarSubText\(/.test(chat),
     'M16: chat connectivity → topbar sub title-state, updated IN PLACE (aria-live, audit A-2)');
-  ok(/CONNECTIVITY_TEXTS/.test(home) && /setChatsTitleState\(isConn \? t : ''\)/.test(home)
-    && /createWarningBanner\(\{ strings: window\.SL \|\| \{\} \}\)/.test(home),
-    'M16: home connectivity → root title-state; banner reserved for actionable warnings');
+  /* REBASED by #383 (N40): M16's original one-line handler routed BOTH surfaces from
+     one ternary, so each push cleared the other surface — that is exactly the defect
+     N40 removed (Damir dial: both may show). The invariant M16 actually owns is what
+     is pinned now: connectivity drives the TITLE, and the banner exists for the rest. */
+  ok(/CONNECTIVITY_TEXTS/.test(home) && /CONNECTIVITY_TEXTS\.has\(t\)\) \{ setChatsTitleState\(t\); return; \}/.test(home)
+    && /createWarningBanner\(\{\s*\n\s*strings: window\.SL \|\| \{\},/.test(home)
+    && /setWarning\(homeBanner, raw\);/.test(home),
+    'M16 (rebased #383): home connectivity → root title-state; the banner carries everything else — and neither push clears the other any more');
 }
 
 console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
@@ -8671,6 +8676,137 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
       && /!avatarSeen\.has\(c\.address\)/.test(cs)
       && /hit\.src === c\.avatar && hit\.group === \(c\.type === 'group'\) && hit\.name === nm/.test(cs),
       'N58: the cache is CAPPED (prune only unseen keys — a search render must not evict the list), dup-guarded (a node moved twice per render would vanish from a row), and field-wise fresh (never a joined signature — #340: joining copies the data-URI per row per render)');
+  }
+}
+
+/* ═══ #383 — N12 (restore must not nudge for a backup) + N40 (connectivity vs the
+   update notice). Both were traced in #381/#382 before a line was written. ═══ */
+console.log('#383 — N12 restore-nudge + N40 connectivity/update');
+{
+  const read = (pth) => readFileSync(join(root, pth), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /* —— N40: the C# state machine —— */
+  {
+    const hp = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const conn = hp.indexOf('NetworkClientManager.getConnectedClients(true).Count() > 0');
+    const cmp = hp.indexOf('UpdateVerify.compareVersionsWithSuffix(new_version, cur_version)');
+    ok(conn > 0 && cmp > 0 && conn < cmp,
+      '★ N40 (#383): connectivity is evaluated BEFORE the version check and OUTSIDE it. They used to be the two arms of one if/else, so an advertised update made the offline state unreachable FOREVER — the whole D-21 symptom (the check runs hourly, Config.cs:47, which is why the state was honest at boot and gone "after long use")');
+    // the connectivity block must no longer sit inside the update `else`
+    const updBlock = hp.slice(cmp, cmp + 900);
+    ok(!/getConnectedClients/.test(updBlock),
+      '★ N40 (#383): the version arm contains NO connectivity code — a re-nest would silently restore the starvation');
+    ok(!/updateNoticeText/.test(hp),
+      '★ N40 (#383, review MINOR-3): there is NO C#-side "already pushed" latch for the notice. A first cut had one; a tick that lands in a reload window would latch a DYING document and lose the notice for the whole session — the D-20/#357 strand class. The shell owns the dismissal instead, so the state cannot strand');
+    const backup = hp.indexOf('displayBackupReminder();');
+    ok(conn > 0 && backup > 0 && conn < backup,
+      '★ N40 (#383, review MINOR-5): connectivity runs before EVERY other worker in updateScreen — a recurring throw in displayBackupReminder/loadApps/loadChats/loadTransactions aborts the tick, which would starve the connectivity state through a different door than the one this batch closed');
+  }
+
+  /* —— N40: the shell contract — the two surfaces stop clearing each other —— */
+  {
+    const home = read('src/shells/home.html');
+    const h = home.slice(home.indexOf('showWarning(text) {'), home.indexOf('showWarning(text) {') + 1600);
+    ok(/if \(!t\) \{\s*\n\s*setChatsTitleState\(''\);/.test(h)
+      && /CONNECTIVITY_TEXTS\.has\(t\)\) \{ setChatsTitleState\(t\); return; \}/.test(h)
+      && !/setWarning\(homeBanner, isConn/.test(h),
+      '★ N40 (#383, Damir dial "both can show"): a connectivity push no longer touches the banner and a notice push no longer clears the title-state. The old one-line handler cleared whichever surface it was not addressing');
+    ok(/if \(t === dismissedNotice\) return;/.test(h),
+      'N40 (#383): a dismissed notice is not resurrected by a re-push — the dismissal lives in MEMORY (dies with the document = returns after a restart), never in a spixi.* localStorage key (MAJOR #4 partition rule)');
+    ok(!/localStorage[^\n]*dismissedNotice|dismissedNotice[^\n]*localStorage/.test(home),
+      'N40 (#383): the dismissal is not persisted — restart must bring the notice back');
+    ok(/CONNECTIVITY_TEXTS\.has\(String\(cur\.textContent \|\| ''\)\.trim\(\)\)\) setWarning\(homeBanner, ''\)/.test(h),
+      '★ N40 (#383, review MINOR-4): the "" belt — if an UNRECOGNISED connectivity string ever reaches the banner, the clear still collapses it. Without this, one missed CONNECTIVITY_TEXTS id would strand a permanent, DISMISSABLE "Connecting…" banner, which is the one thing non-negotiable 5 forbids');
+  }
+
+  /* —— N40: the banner component gains an OPTIONAL dismiss —— */
+  {
+    const b = read('src/components/banner.js');
+    ok(/onDismiss \} = \{\}\)/.test(b) && /typeof onDismiss === 'function'/.test(b),
+      'N40 (#383): the close control is opt-in — every existing caller (chat.html, the demo) keeps the passive strip it had');
+    ok(/try \{ close\.blur\(\); \} catch/.test(b),
+      'N40 (#383, review MINOR-1): dismissing moves focus OFF the control before the strip collapses');
+    {
+      const css = read('src/styles/components/banner.css');
+      ok(/\.c-banner:not\(\[data-open\]\) \.c-banner__close \{ visibility: hidden; \}/.test(css),
+        '★ N40 (#383, review MINOR-1): max-height/opacity do NOT remove a descendant from the focus order — a collapsed strip left an invisible Dismiss button in the Tab order on every boot, announced by screen readers on a screen with no banner');
+      ok(/max-height: 160px;/.test(css),
+        'N40 (#383, review NIT-7): the open cap fits a long localized notice beside the 44px close control — 96px clipped de-de/fr-fr on a 360px phone with no scroll and no ellipsis');
+    }
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { createWarningBanner, setWarning } = await import('file://' + join(root, 'src/components/banner.js'));
+      const plain = createWarningBanner({ strings: {} });
+      ok(!plain.querySelector('.c-banner__close') && !plain.classList.contains('c-banner--dismissable'),
+        '★ N40 (#383, behavioral): NO onDismiss → no close button and no layout modifier. Connectivity must never be dismissable, and the chat shell\'s banner is untouched by this batch');
+      let dismissed = 0;
+      const el = createWarningBanner({ strings: {}, onDismiss: () => { dismissed += 1; } });
+      setWarning(el, 'Update available (0.9.23)');
+      ok(el.dataset.open !== undefined, 'N40 (#383, behavioral): the notice opens the strip');
+      el.querySelector('.c-banner__close').dispatchEvent(new pinDom.window.Event('click', { bubbles: true }));
+      ok(dismissed === 1 && el.dataset.open === undefined,
+        '★ N40 (#383, behavioral): the close control collapses the strip AND reports the dismissal, so the shell can refuse the next identical re-push');
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+
+  /* —— N12: the C# provenance, both legs —— */
+  {
+    const lr = nc(read('Spixi/Pages/Launch/LaunchRestorePage.xaml.cs'));
+    ok(/Preferences\.Default\.Set\("backupReminderTimestamp", Clock\.getTimestamp\(\)\.ToString\(\)\);/.test(lr),
+      '★ N12 (#383) leg 2: a restore SEEDS the reminder clock. displayBackupReminder fires on the first tick whenever the key is absent — which it is on a fresh install — so a restored account was asked to back up within seconds of restoring FROM a backup');
+    ok(/Preferences\.Default\.Set\("onboardingFromRestore", true\);/.test(lr),
+      'N12 (#383) leg 1: the restore records provenance — create and restore both clear onboardingComplete, so nothing else distinguishes them');
+    const lc = nc(read('Spixi/Pages/Launch/LaunchCreatePage.xaml.cs'));
+    ok(/Preferences\.Default\.Remove\("onboardingFromRestore"\);/.test(lc)
+      && /Preferences\.Default\.Remove\("backupReminderTimestamp"\);/.test(lc),
+      '★ N12 (#383, review MINOR-2): a CREATE clears BOTH restore marks. onRestore writes them before the password is verified, so a failed restore followed by a create would inherit them — and the new account would silently lose its first 30-day backup reminder');
+    const hp = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const reg = hp.indexOf('addCustomString("OnboardingFromRestore"');
+    const ctor = hp.indexOf('new OnboardPage()');
+    ok(reg > 0 && ctor > 0 && reg < ctor,
+      '★ N12 (#383): the custom string is registered BEFORE OnboardPage is constructed — loadPage runs in that constructor and generatePage substitutes the *SL{} carriers then. Registering after would silently ship the backup step');
+    ok(/Preferences\.Default\.Remove\("onboardingFromRestore"\);/.test(hp),
+      'N12 (#383): completeOnboard drops the flag — it must not survive into a later delete-account → create on the same install');
+  }
+
+  /* —— N12: the carrier reaches the BUILT tail, and the tail honours it —— */
+  {
+    const built = read('Spixi/Resources/Raw/html/onboarding.html');
+    ok(built.includes('*SL' + '{OnboardingFromRestore}') && /tailSkipBackup: !!window\.__SPIXI_FROM_RESTORE__/.test(built),
+      '★ N12 (#383): the carrier + the opt reached the BUILT tail drop-in (the #285/#288 stale-artifact class — onboarding.html is one of the 5 launch outputs that DEFAULT once skipped)');
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { createLaunchShell } = await import('file://' + join(root, 'src/components/launch-shell.js'));
+      const normal = createLaunchShell({ view: 'tail', strings: {} });
+      ok(normal.querySelector('.c-launch__tail').dataset.step === 'backup',
+        'N12 (#383, behavioral): a CREATED account still opens the tail on the backup step — the nudge is skipped for restores only');
+      const restored = createLaunchShell({ view: 'tail', tailSkipBackup: true, strings: {} });
+      const tail = restored.querySelector('.c-launch__tail');
+      ok(tail.dataset.step === 'join' && tail.children[0].hidden === true && tail.children[1].hidden === false,
+        '★ N12 (#383, behavioral, Damir dial): a RESTORED account opens on "Join the community" — the backup step is SKIPPED, not removed, and the join step STAYS (his explicit call)');
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+
+  /* —— the generator fix that unblocked this batch —— */
+  {
+    const gen = read('scripts/build-demo-bundle.mjs');
+    ok(/readFileSync\(join\(root, f\), 'utf8'\)\.replace\(\/\\r\\n\/g, '\\n'\)/.test(gen),
+      '★ #383: build-demo-bundle NORMALISES CRLF on read. 8 component sources carry CRLF in the working tree; `.` never matches \\r, so /^import .*$/gm silently FAILED to strip those imports and the pre-strip gate reported a one-line import as "MULTI-LINE" — the bundle build was DEAD. Same fix, same reason as the smoke harness\'s own #340 normalisation');
   }
 }
 

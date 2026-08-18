@@ -2519,13 +2519,19 @@ function anchorSheetAbove(sheet, trigger, { host = document.body, width = 380 } 
  * ARCHITECTURE.md §4). NOT a modal overlay: no scrim, no focus trap; passive
  * status that persists while the condition lasts (docs/overlays-spec.md).
  *
- * createWarningBanner({ strings }) → el (mount once, directly under the top bar)
+ * createWarningBanner({ strings, onDismiss }) → el (mount once, under the top bar)
  * setWarning(el, text) — non-empty opens/updates, empty/null collapses (#44 free fn)
+ *
+ * N40 (#383): `onDismiss` is OPTIONAL and adds a close control. Callers that omit
+ * it get the byte-identical passive strip they had before. The button is only for
+ * notices the user may reasonably wave away (the update notice); a condition the
+ * app is still IN — connectivity — must never be dismissable, and connectivity does
+ * not use this strip at all (it is a topbar title-state, #59/M16).
  */
 
 
 
-function createWarningBanner({ strings = getStrings() } = {}) {
+function createWarningBanner({ strings = getStrings(), onDismiss } = {}) {
   const el = document.createElement('div');
   el.className = 'c-banner';
   el.setAttribute('role', 'status');
@@ -2540,6 +2546,23 @@ function createWarningBanner({ strings = getStrings() } = {}) {
   text.className = 'c-banner__text';
   inner.append(text);
   el.append(inner);
+
+  if (typeof onDismiss === 'function') {
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'c-banner__close';
+    close.setAttribute('aria-label', strings.dismiss || 'Dismiss');
+    close.append(icon('x', { size: 18 }));
+    close.addEventListener('click', () => {
+      // review MINOR-1: the strip collapses but stays in the DOM — move focus out
+      // before it goes invisible, or the user is left on a control they cannot see.
+      try { close.blur(); } catch (_) {}
+      setWarning(el, '');
+      try { onDismiss(); } catch (_) { /* caller-side bookkeeping only */ }
+    });
+    el.append(close);
+    el.classList.add('c-banner--dismissable');
+  }
   return el;
 }
 
@@ -19956,6 +19979,13 @@ function buildTail(st) {
   joinStep.append(jIllo, jTitle, jCopy, joinBtn, skipBtn);
 
   v.append(backupStep, joinStep);
+
+  /* ★ N12 (#383, Damir 2026-08-18): a RESTORED account opens on the JOIN step. Asking
+     someone who just restored FROM a backup file to make a backup reads as broken. The
+     join step stays (his dial) and the backup step is only SKIPPED here, never removed:
+     the standing settings Backup row and the periodic reminder still cover the user. */
+  if (opts.tailSkipBackup) toJoin();
+
   return v;
 }
 

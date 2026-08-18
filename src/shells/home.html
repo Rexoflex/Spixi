@@ -665,7 +665,20 @@
     const t = chatsTopbarEl.querySelector('.c-topbar__title');
     if (t) t.setAttribute('aria-live', 'polite');
   })();
-  const homeBanner = createWarningBanner({ strings: window.SL || {} });
+  /* ★ N40 (#383): the update notice is DISMISSABLE (Damir's dial — "show again after
+     restarting the app"). The dismissal is IN-MEMORY on purpose: it must survive C#'s
+     re-push within this document but die with the document, which is exactly what a
+     restart produces — and, honestly, a language re-bake or an OS theme flip too,
+     since those replace the document as well (review NIT-8). No localStorage key — a
+     `spixi.*` key would join the mini-app storage-partition hazard (security-review
+     MAJOR #4) for a banner. C# re-pushes the notice every tick; the guard below is what
+     makes the dismissal stick, so no C# state can strand it (review MINOR-3). */
+  let dismissedNotice = '';
+  let lastNoticeText = '';
+  const homeBanner = createWarningBanner({
+    strings: window.SL || {},
+    onDismiss: () => { dismissedNotice = lastNoticeText; },
+  });
   document.getElementById('chats-banner').append(homeBanner);
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
@@ -2843,11 +2856,35 @@
     // M16 (#59): connectivity → chats-topbar TITLE-STATE; anything else
     // (update available = the only other HomePage push, xaml:1760) → banner.
     // "" clears both (one C#-side warningDisplayed flag → states never coexist).
+    /* ★ N40 (#383): the two states are INDEPENDENT now — Damir's dial is "both can
+       show". Before, one push cleared the other: a connectivity push wiped the banner
+       and an update push wiped the title-state, which is how an advertised update
+       silently hid an offline app (with the C# arms mutually exclusive on top of it).
+       Each surface now answers ONLY to its own kind of push:
+         connectivity text → title-state ON, banner untouched
+         ""               → title-state OFF, banner untouched (only the connectivity
+                            arm ever sends "", and C# resets both latches when the
+                            document is replaced, so nothing can strand the banner)
+         anything else    → banner, title-state untouched */
     showWarning(text) {
-      const t = String(text || '').trim();
-      const isConn = !!t && CONNECTIVITY_TEXTS.has(t);
-      setChatsTitleState(isConn ? t : '');
-      setWarning(homeBanner, isConn ? '' : (text || ''));
+      const raw = text || '';
+      const t = String(raw).trim();
+      if (!t) {
+        setChatsTitleState('');
+        /* Belt (review MINOR-4): "" is only ever sent by the connectivity arm, so it must
+           not touch the banner — UNLESS the banner is itself showing a connectivity string
+           that CONNECTIVITY_TEXTS failed to recognise. Without this, one unrecognised
+           connectivity id would strand a permanent, DISMISSABLE "Connecting…" banner:
+           exactly the invariant this batch protects. */
+        const cur = homeBanner.querySelector('.c-banner__text');
+        if (cur && CONNECTIVITY_TEXTS.has(String(cur.textContent || '').trim())) setWarning(homeBanner, '');
+        return;
+      }
+      if (CONNECTIVITY_TEXTS.has(t)) { setChatsTitleState(t); return; }
+      // a notice the user already waved away must not come back on a re-push
+      if (t === dismissedNotice) return;
+      lastNoticeText = t;
+      setWarning(homeBanner, raw);
     },
     // A5 (#302). C# re-pushes while Preferences("rating_action")=="show" — from
     // onLoaded (:1375), SingleChatPage overlay close (:2295) and OnAppearing

@@ -168,6 +168,36 @@ because the security doc was never written as an introduced-vs-inherited census.
 | **Legacy lang txt edits (18 ids ×5 · id-id un-swap/case sweep · dash/overflow sweeps)** | Resources/Raw/lang/*.txt | No exposure | — | Static copy; C# testFile grammar verified (no quotes, no argCount drift); all consumers fallback-guarded |
 | **New build tools (overflow audit · smoke execSync gate)** | scripts/i18n-overflow-audit.mjs · smoke-test.mjs | No exposure | — | Build/CI-time only, never shipped; execSync runs process.execPath on a repo-fixed path, no user input |
 
+### #381–#382 — the N12/N40 triage session, lens applied (2026-08-18, cloud)
+
+**Nothing to gate: this session shipped DOCS ONLY.** No source file was
+changed — no verb, no `spixi.*` key, no WebView setting, no HTML sink, no
+network fetch, no log line. Smoke stayed at the 1947/same-4 baseline
+because no code moved.
+
+Two fix shapes were RECORDED for later rounds. Both are pre-gated here so
+the round that builds them does not re-derive the verdict:
+
+| Planned item | Shape | Pre-verdict |
+|---|---|---|
+| **N12 leg 2** — seed `backupReminderTimestamp` in `LaunchRestorePage.onRestore` | Writes an EXISTING C# Preference key with a clock value | No exposure — no new key, no new surface, no user input |
+| **N12 leg 1** — restore provenance to the onboarding tail | A C# Preference read at `OnboardPage` construction, delivered as a **C#→WebView push**, NOT a new `ixian:` verb | Inbound push only; the outbound bridge stays frozen. ⚠ The build must keep it a push — an `ixian:` addition would need its own gate row |
+| **N40** — latch/ordering fix in `HomePage.updateScreen` | Assigns an existing `volatile bool`, reorders two arms of one `if/else`, adds a `try` | No exposure — no new data path; the pushed strings are the existing localized `showWarning` vocabulary |
+
+### #383 — N12 + N40, lens applied while building (2026-08-18, cloud)
+
+| Item | file:line | Verdict | Baseline? | Action |
+|---|---|---|---|---|
+| **`onboardingFromRestore` + `backupReminderTimestamp` seeds** | LaunchRestorePage.xaml.cs (onRestore) · LaunchCreatePage.xaml.cs | No exposure | `backupReminderTimestamp` is a baseline key | C# Preferences, not `spixi.*` localStorage — outside the mini-app storage partition (MAJOR #4). Values are a bool and a clock stamp; no address, no content |
+| **`OnboardingFromRestore` custom string + `*SL{}` carrier** | HomePage.xaml.cs (pre-OnboardPage) · src/shells/launch.html | No new verb | The carrier grammar is legacy (#314 devMode) | Inbound C#→WebView only. Vocabulary = `"true"`/`"false"`; an un-substituted marker fails safe to the backup step. The outbound `ixian:` bridge is untouched |
+| **`tailSkipBackup` opt** | launch-shell.js buildTail | No exposure | — | Pure presentation: which of two already-built steps opens first |
+| **updateScreen restructure (connectivity first, own try)** | HomePage.xaml.cs updateScreen | No exposure | The block is legacy | Reorders existing arms and drops a latch. No new data path; the pushed strings stay the existing localized `showWarning` vocabulary |
+| **Dismissable update notice** | banner.js · banner.css · src/shells/home.html | No exposure | — | Dismissal is an in-memory variable — deliberately NOT a `spixi.*` key (MAJOR #4). No verb, no fetch, no sink: `textContent` only |
+| **CRLF normalisation on read** | scripts/build-demo-bundle.mjs | No exposure | — | Build-time only, never shipped. Reads the same repo files it always read |
+
+**No verb, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch, no new
+log line.** The gate finds nothing in this batch.
+
 ### Legacy — his, hand over untouched
 
 | Item | What |

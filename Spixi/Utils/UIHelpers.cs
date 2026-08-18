@@ -1,6 +1,8 @@
 ﻿using IXICore;
+using IXICore.Meta;
 using IXICore.Streaming;
 using Microsoft.Maui.Controls;
+using System;
 using System.Linq;
 
 namespace SPIXI
@@ -29,16 +31,42 @@ namespace SPIXI
         // On iOS it will also pop the current page in the navigation stack
         public static void reloadAllPages()
         {
-            var stack = Application.Current.MainPage.Navigation.NavigationStack;
-            foreach (Page p in stack)
+            // ★ N66 (#385): until this batch the OS-theme-flip caller could never
+            // reach this method (App.xaml.cs pinned UserAppTheme, so MAUI never
+            // raised RequestedThemeChanged again after boot). It is now REACHABLE at
+            // any moment, on any navigation stack — so it must not throw on a page
+            // it did not expect, and it must not strand the LATER pages when one
+            // reload fails. Every Spixi page derives from SpixiContentPage today;
+            // the pattern match keeps a future one from turning an OS theme change
+            // into an InvalidCastException.
+            var stack = Application.Current?.MainPage?.Navigation?.NavigationStack;
+            if (stack != null)
             {
-                ((SpixiContentPage)p).reload();
+                foreach (Page p in stack)
+                {
+                    // ★ N66 (#385, review MAJOR-1): skip a page whose content we did not
+                    // generate. reload() cannot re-theme it — it can only restart it. That
+                    // is MiniAppPage: a running mini-app would lose all of its state on an
+                    // OS auto-dark flip, and gain nothing (third-party content carries no
+                    // Spixi theme).
+                    if (p is not SpixiContentPage page || !page.hasGeneratedContent)
+                    {
+                        continue;
+                    }
+                    try { page.reload(); }
+                    catch (Exception ex) { Logging.warn("reloadAllPages (stack page): " + ex.Message); }
+                }
             }
             // #225: overlay pages are live surfaces outside the NavigationStack
             // (reload() regenerates the page, picking up the current theme/language).
             foreach (SpixiContentPage overlay in SpixiContentPage.getOverlayPages())
             {
-                overlay.reload();
+                if (!overlay.hasGeneratedContent)
+                {
+                    continue;   // ★ N66 (#385, review MAJOR-1) — same rule as the stack above
+                }
+                try { overlay.reload(); }
+                catch (Exception ex) { Logging.warn("reloadAllPages (overlay): " + ex.Message); }
             }
             // #251: the default detail (EmptyDetail in HomePage.rightContent) is in
             // neither collection — regenerate it too (theme/language), or it keeps

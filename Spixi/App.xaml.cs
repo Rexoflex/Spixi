@@ -109,8 +109,18 @@ public partial class App : Application
             movePersonalFiles();
 
             // Load theme and appearance
-            AppTheme currentTheme = Current.RequestedTheme;
-            Current.UserAppTheme = currentTheme;
+            // ★ N66 (#385) — DO NOT pin UserAppTheme to a concrete value here.
+            // Application.RequestedTheme returns UserAppTheme whenever it is not
+            // Unspecified, and MAUI drops the RequestedThemeChanged event when
+            // RequestedTheme does not change (dotnet/maui Application.cs
+            // TriggerThemeChangedActual: `if (_themeChangedFiring || newTheme ==
+            // _lastAppTheme) return;`). The old two lines therefore made every
+            // later OS theme flip invisible to the app: the handler below (re-bake
+            // of *SL{SpixiThemeName} + reloadAllPages + the parked-Account dispose)
+            // was UNREACHABLE code, which is why only the OS-follow path was broken
+            // while explicit Light/Dark picks themed everything correctly.
+            // Unspecified = follow the platform, which is what "System" means.
+            Current.UserAppTheme = AppTheme.Unspecified;
             ThemeAppearance themeAppearance = ThemeAppearance.automatic;
             if (Preferences.Default.ContainsKey("appearance"))
             {
@@ -119,10 +129,21 @@ public partial class App : Application
             ThemeManager.loadTheme("spixiui", themeAppearance);
             Current.RequestedThemeChanged += (s, a) =>
             {
-                // Respond to the theme change
-                Current.UserAppTheme = a.RequestedTheme;
-                if (ThemeManager.getActiveAppearance() == ThemeAppearance.automatic)
-                    ThemeManager.changeAppearance(ThemeAppearance.automatic);
+                // Respond to the theme change.
+                // ★ N66 (#385). Two changes, both deliberate:
+                //  1. The old first line — `Current.UserAppTheme = a.RequestedTheme;`
+                //     — permanently disabled THIS handler (see the boot comment
+                //     above). It is gone. UserAppTheme stays Unspecified for the whole
+                //     session; the appearance PICK is carried by ThemeManager
+                //     (Preferences + *SL{SpixiThemeName}), not by MAUI.
+                //  2. The body is gated on "System". Everything below is newly
+                //     REACHABLE, and under an explicit Light/Dark pick an OS flip
+                //     changes nothing the user should see — a full reloadAllPages
+                //     there would be pure flicker (the #242 round-2 lesson). Explicit
+                //     picks keep owning their own live re-theme in SettingsPage.
+                if (ThemeManager.getActiveAppearance() != ThemeAppearance.automatic)
+                    return;
+                ThemeManager.changeAppearance(ThemeAppearance.automatic);
 
                 // AND-6 (#334): re-run the edge-to-edge pass on an OS auto-theme flip —
                 // it repaints the Android bar strip + bar icon appearance for the new

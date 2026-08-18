@@ -81,36 +81,57 @@ namespace SPIXI.Lang
 
             bool success = true;
 
-            while(!sr.EndOfStream)
+            // N65 (#385): the parse must never fail SILENTLY and must never throw out
+            // of here. Both used to happen: a malformed line returned false with no
+            // log line at all (the caller in SettingsPage then did nothing, said
+            // nothing), and a DUPLICATE key made Dictionary.Add throw straight out of
+            // loadLanguage — through the WebView Navigating handler that calls it —
+            // leaking the open stream on the way. Every failure now names the file and
+            // the line, so one ixian.log answers "did the pick fail, and where".
+            int line_number = 0;
+            try
             {
-                string line = sr.ReadLine()!.Trim();
-                if(line == "" || line.StartsWith(";"))
+                while (!sr.EndOfStream)
                 {
-                    continue;
-                }
+                    line_number++;
+                    string line = sr.ReadLine()!.Trim();
+                    if (line == "" || line.StartsWith(";"))
+                    {
+                        continue;
+                    }
 
-                int sep_index = line.IndexOf("=");
-                if(sep_index == -1)
-                {
-                    success = false;
-                    break;
-                }
+                    int sep_index = line.IndexOf("=");
+                    if (sep_index == -1)
+                    {
+                        Logging.error("Language file " + lang + " error on line " + line_number + ": missing '=' separator");
+                        success = false;
+                        break;
+                    }
 
-                last_key = line.Substring(0, sep_index).Trim();
-                string value = line.Substring(sep_index + 1).Trim();
-                if(last_key == "")
-                {
-                    success = false;
-                    break;
+                    last_key = line.Substring(0, sep_index).Trim();
+                    string value = line.Substring(sep_index + 1).Trim();
+                    if (last_key == "")
+                    {
+                        Logging.error("Language file " + lang + " error on line " + line_number + ": empty key");
+                        success = false;
+                        break;
+                    }
+                    localized_strings.Add(last_key, value);
                 }
-                localized_strings.Add(last_key, value);
             }
-
-            sr.Close();
-            sr.Dispose();
-
-            file_stream.Close();
-            file_stream.Dispose();
+            catch (Exception ex)
+            {
+                Logging.error("Language file " + lang + " failed to parse on line " + line_number + " (key '" + last_key + "'): " + ex.Message);
+                success = false;
+            }
+            finally
+            {
+                // N65 (#385, review NIT-5): the close belongs in a finally. Leaving it
+                // after the catch means a throw from the logging call above still leaks
+                // the very stream this batch set out to stop leaking.
+                try { sr.Close(); sr.Dispose(); } catch (Exception) { }
+                try { file_stream.Close(); file_stream.Dispose(); } catch (Exception) { }
+            }
 
             foreach (var customString in customStrings)
             {
@@ -119,6 +140,7 @@ namespace SPIXI.Lang
 
             if (!success)
             {
+                Logging.error("Language " + lang + " was NOT loaded; the previous language stays active.");
                 return false;
             }
 

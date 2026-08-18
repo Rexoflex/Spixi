@@ -62,6 +62,31 @@ This is the same suspect the #357 loop r1 note recorded. It is now traced
 end to end, and the second-order defect is named: **the update arm does not
 own the latch it competes for.**
 
+### ★ F5 RESULT (Damir, 2026-08-18) — the soak PASSED
+
+**The long offline soak keeps showing "Connecting…"** (§4 step 2 / checklist
+§B6), on top of all 9 §B legs passing. That is the outcome the fix predicts.
+
+Read it with its scope:
+
+* **M1 is closed.** With an update advertised, the state now shows and KEEPS
+  showing for hours. Before #383 it could not appear at all in that condition.
+* **M2 · M3 · M4 did not reproduce during the soak either.** All three are
+  independent of the update arm, so they would have shown on any build. This is
+  real evidence against them — not proof, because the original report was
+  intermittent and may need conditions the soak did not reach (long uptime plus
+  network churn, rather than a flat offline period).
+* ⚠ **What the soak proves about the ORIGINAL D-21 report depends on which
+  build it ran on.** On the temporarily lowered `spixi-0.9.0` build it confirms
+  the fix but does not re-test the original conditions (the original device had
+  no update advertised, since the served version equals the shipping build). On
+  an unmodified `spixi-0.9.22` build it is a direct negative repro of D-21.
+
+**Verdict: N40 is BUILT and CONFIRMED. D-21 is downgraded from open to
+WATCH** — no mechanism is currently reproducing. If it returns, §4 step 4
+(home versus the chat screen) still splits M2/M3/M4 in one look, and **N69(a)**
+is the first place to look.
+
 ### ★ RESULT of the zero-device check (Damir, 2026-08-18)
 
 The served file advertises **0.9.22 — the same number as the real build**

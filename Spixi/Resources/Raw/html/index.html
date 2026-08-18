@@ -1616,7 +1616,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
               opacity var(--duration-200) var(--easing-standard);
 }
 .c-banner[data-open] {
-  max-height: 96px; /* fits two lines; content is single-line in practice */
+  /* #383 (review NIT-7): raised from 96px. The update notice is the first message this
+     strip actually renders, and the close control eats ~44px of line width — a long
+     locale (de-de/fr-fr) wraps to four lines on a 360px phone and used to be clipped
+     with no scroll and no ellipsis. */
+  max-height: 160px;
   opacity: 1;
 }
 
@@ -1631,6 +1635,44 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-banner__inner svg { flex: none; color: var(--icon-warning); }
 .c-banner__text { min-width: 0; }
+
+/* N40 (#383): the OPTIONAL dismiss control. Only rendered when the caller passes
+   onDismiss (today: the home update notice). The passive strip is unchanged when
+   it is absent — every rule below is scoped to the modifier class. */
+.c-banner--dismissable {
+  display: flex;
+  align-items: flex-start;
+}
+.c-banner--dismissable .c-banner__inner {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.c-banner__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* the strip is short; pad OUT to a real target instead of growing the strip */
+  min-width: 44px;
+  align-self: stretch;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  background: none;
+  color: var(--icon-warning);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-banner__close svg { flex: none; }
+/* review MINOR-1: max-height/opacity do NOT remove a descendant from the focus order.
+   Without this, a collapsed strip left an invisible "Dismiss" button in the Tab order
+   on every boot, and a screen reader announced it on a screen showing no banner. */
+.c-banner:not([data-open]) .c-banner__close { visibility: hidden; }
+
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-banner__close:hover { color: var(--text-warning); }
+}
+.c-banner__close:active { color: var(--text-warning); }
 
 </style><!-- M16: actionable warnings (update available) -->
 <style data-src="../styles/components/backup-nudge.css">
@@ -4408,7 +4450,20 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     const t = chatsTopbarEl.querySelector('.c-topbar__title');
     if (t) t.setAttribute('aria-live', 'polite');
   })();
-  const homeBanner = createWarningBanner({ strings: window.SL || {} });
+  /* ★ N40 (#383): the update notice is DISMISSABLE (Damir's dial — "show again after
+     restarting the app"). The dismissal is IN-MEMORY on purpose: it must survive C#'s
+     re-push within this document but die with the document, which is exactly what a
+     restart produces — and, honestly, a language re-bake or an OS theme flip too,
+     since those replace the document as well (review NIT-8). No localStorage key — a
+     `spixi.*` key would join the mini-app storage-partition hazard (security-review
+     MAJOR #4) for a banner. C# re-pushes the notice every tick; the guard below is what
+     makes the dismissal stick, so no C# state can strand it (review MINOR-3). */
+  let dismissedNotice = '';
+  let lastNoticeText = '';
+  const homeBanner = createWarningBanner({
+    strings: window.SL || {},
+    onDismiss: () => { dismissedNotice = lastNoticeText; },
+  });
   document.getElementById('chats-banner').append(homeBanner);
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
@@ -6586,11 +6641,35 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // M16 (#59): connectivity → chats-topbar TITLE-STATE; anything else
     // (update available = the only other HomePage push, xaml:1760) → banner.
     // "" clears both (one C#-side warningDisplayed flag → states never coexist).
+    /* ★ N40 (#383): the two states are INDEPENDENT now — Damir's dial is "both can
+       show". Before, one push cleared the other: a connectivity push wiped the banner
+       and an update push wiped the title-state, which is how an advertised update
+       silently hid an offline app (with the C# arms mutually exclusive on top of it).
+       Each surface now answers ONLY to its own kind of push:
+         connectivity text → title-state ON, banner untouched
+         ""               → title-state OFF, banner untouched (only the connectivity
+                            arm ever sends "", and C# resets both latches when the
+                            document is replaced, so nothing can strand the banner)
+         anything else    → banner, title-state untouched */
     showWarning(text) {
-      const t = String(text || '').trim();
-      const isConn = !!t && CONNECTIVITY_TEXTS.has(t);
-      setChatsTitleState(isConn ? t : '');
-      setWarning(homeBanner, isConn ? '' : (text || ''));
+      const raw = text || '';
+      const t = String(raw).trim();
+      if (!t) {
+        setChatsTitleState('');
+        /* Belt (review MINOR-4): "" is only ever sent by the connectivity arm, so it must
+           not touch the banner — UNLESS the banner is itself showing a connectivity string
+           that CONNECTIVITY_TEXTS failed to recognise. Without this, one unrecognised
+           connectivity id would strand a permanent, DISMISSABLE "Connecting…" banner:
+           exactly the invariant this batch protects. */
+        const cur = homeBanner.querySelector('.c-banner__text');
+        if (cur && CONNECTIVITY_TEXTS.has(String(cur.textContent || '').trim())) setWarning(homeBanner, '');
+        return;
+      }
+      if (CONNECTIVITY_TEXTS.has(t)) { setChatsTitleState(t); return; }
+      // a notice the user already waved away must not come back on a re-push
+      if (t === dismissedNotice) return;
+      lastNoticeText = t;
+      setWarning(homeBanner, raw);
     },
     // A5 (#302). C# re-pushes while Preferences("rating_action")=="show" — from
     // onLoaded (:1375), SingleChatPage overlay close (:2295) and OnAppearing

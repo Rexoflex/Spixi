@@ -105,7 +105,14 @@ const declaredIn = new Map();  // top-level symbol -> file (collision detection)
 let body = '';
 
 for (const f of FILES) {
-  const raw = readFileSync(join(root, f), 'utf8');
+  /* ★ N40/N12 batch (#383): NORMALISE CRLF FIRST. 8 component sources carry CRLF in
+   * the working tree, and every regex below is LF-shaped: `.` never matches `\r`, so
+   * `/^import .*$/gm` silently FAILS to strip a CRLF import (bare `import` survives
+   * into the IIFE) and the pre-strip gate then reports a one-line import as
+   * "MULTI-LINE". The bundle build was DEAD for anyone whose checkout has those CRLF
+   * files. Normalising the read is the fix — it touches no source file and the output
+   * has always been LF. */
+  const raw = readFileSync(join(root, f), 'utf8').replace(/\r\n/g, '\n');
 
   // Guard: imports from icons.js may only use the aliased names.
   for (const m of raw.matchAll(/^\s*import\s+([^;]+?)\s+from\s+['"][^'"]*\bicons\.js['"]/gm)) {

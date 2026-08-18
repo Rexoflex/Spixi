@@ -190,6 +190,12 @@ namespace SPIXI
                         Preferences.Default.Remove("onboardingComplete");
                         Preferences.Default.Remove("lockenabled");
                         Preferences.Default.Remove("waletpass");
+                        /* ★ N12 (#383): a CREATE is not a restore. Clear BOTH restore marks —
+                          * onRestore writes them before the password is verified, so a failed
+                          * restore followed by a create would otherwise inherit them and the new
+                          * account would lose its first 30-day backup reminder (review MINOR-2). */
+                        Preferences.Default.Remove("onboardingFromRestore");
+                        Preferences.Default.Remove("backupReminderTimestamp");
 
                         SpixiLocalization.addCustomString("OnboardingComplete", "false");
 

@@ -1034,6 +1034,13 @@ function buildTail(st) {
   joinStep.append(jIllo, jTitle, jCopy, joinBtn, skipBtn);
 
   v.append(backupStep, joinStep);
+
+  /* ★ N12 (#383, Damir 2026-08-18): a RESTORED account opens on the JOIN step. Asking
+     someone who just restored FROM a backup file to make a backup reads as broken. The
+     join step stays (his dial) and the backup step is only SKIPPED here, never removed:
+     the standing settings Backup row and the periodic reminder still cover the user. */
+  if (opts.tailSkipBackup) toJoin();
+
   return v;
 }
 

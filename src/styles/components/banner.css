@@ -11,7 +11,11 @@
               opacity var(--duration-200) var(--easing-standard);
 }
 .c-banner[data-open] {
-  max-height: 96px; /* fits two lines; content is single-line in practice */
+  /* #383 (review NIT-7): raised from 96px. The update notice is the first message this
+     strip actually renders, and the close control eats ~44px of line width — a long
+     locale (de-de/fr-fr) wraps to four lines on a 360px phone and used to be clipped
+     with no scroll and no ellipsis. */
+  max-height: 160px;
   opacity: 1;
 }
 
@@ -26,3 +30,41 @@
 }
 .c-banner__inner svg { flex: none; color: var(--icon-warning); }
 .c-banner__text { min-width: 0; }
+
+/* N40 (#383): the OPTIONAL dismiss control. Only rendered when the caller passes
+   onDismiss (today: the home update notice). The passive strip is unchanged when
+   it is absent — every rule below is scoped to the modifier class. */
+.c-banner--dismissable {
+  display: flex;
+  align-items: flex-start;
+}
+.c-banner--dismissable .c-banner__inner {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.c-banner__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* the strip is short; pad OUT to a real target instead of growing the strip */
+  min-width: 44px;
+  align-self: stretch;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  background: none;
+  color: var(--icon-warning);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-banner__close svg { flex: none; }
+/* review MINOR-1: max-height/opacity do NOT remove a descendant from the focus order.
+   Without this, a collapsed strip left an invisible "Dismiss" button in the Tab order
+   on every boot, and a screen reader announced it on a screen showing no banner. */
+.c-banner:not([data-open]) .c-banner__close { visibility: hidden; }
+
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-banner__close:hover { color: var(--text-warning); }
+}
+.c-banner__close:active { color: var(--text-warning); }

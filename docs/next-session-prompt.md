@@ -1,58 +1,25 @@
-Read docs/handoff-2026-08-19.md FIRST and verify the git state it describes
-(the #381-#384 batch on top of 26f29133 - if the chain does not match, stop and
-say so). Confirm Spixi/Meta/Config.cs reads "spixi-0.9.22" (it was lowered for
-an F5 and reverted in that batch). This session runs in **#380 BUDGET MODE -
-the scope is PINNED, do not widen it.**
+Read docs/handoff-2026-08-19c.md FIRST and verify the git state it describes (the #385 batch on top of 4e348c62 - if the chain does not match, stop and say so). Confirm Spixi/Meta/Config.cs reads "spixi-0.9.22". This session runs in #380 BUDGET MODE - the scope is PINNED, do not widen it.
 
-THE BUG ROUND. Six findings came out of the #383 F5. **PICK ONE, TWO AT MOST**,
-in this order. Every one of them is TRIAGE-FIRST (#215) - name the mechanism in
-code before touching anything, and if it balloons or needs a dial, STOP at a
-triage doc + plan and hand off.
+THE LAUNCH FLOW ROUND. Four items, ONE body of work, ONE F5 - they all touch the same files, so do not split them into separate rounds. TRIAGE-FIRST (#215) still applies: name the mechanism in code before touching anything.
 
-① **N65 - Windows: the language pick does NOTHING** (highest value - visible,
-reproducible on your dev machine, suspect already named). SettingsPage.xaml.cs
-:469-497 puts the preference, the setLocale push, reloadShell() and the live
-chat reloads ALL inside `if (SpixiLocalization.loadLanguage(lang))` - a false
-return is a silent total no-op. FIRST: log what loadLanguage("pt-br") actually
-returns on Windows. If TRUE, the bug is the FOUR-way state split Damir
-screenshotted in one frame (hub French - row value Deutsch - checkmark pt-br -
-app German): enumerate the four sources separately. Either way the handler must
-stop failing silently.
+THE FINDING THAT DRIVES ALL OF IT (verified at source last session, re-verify): scripts/build-shells.mjs emits ONE source - src/shells/launch.html - FIVE times, differing only by an injected bootView: intro.html (LaunchPage, welcome) - intro_new.html (LaunchCreatePage, create) - intro_restore.html (LaunchRestorePage, restore) - intro_retry.html (LaunchRetryPage, retry) - onboarding.html (OnboardPage, tail). Five C# pages, five WebViews, five parses of the SAME large document, plus a native page push per step. THAT is the flicker Damir reports. The shell already holds every view. This is a STOP NAVIGATING problem, not a preload problem.
 
-② **N66 - only the OS-FOLLOW theme path is broken.** Explicit Dark/Light themes
-everything correctly; System leaves the Android Account screen light and makes
-the Windows panes disagree. DIFF THE TWO PATHS, do not invent a third. Prime
-suspect: the parked Account WebView (#315) is missing from the flip fan-out -
-the same "a collection was missed" class as #251 and #284.
+DO THEM IN THIS ORDER:
 
-③ **N69 - first connect after account creation never completes until restart**,
-and a contact request sent in that window reports success and is LOST. SPLIT
-IT: (b) the silent loss is FE/C# and fixable alone - queue-and-say-pending, or
-refuse honestly. (a) is C#/Core and may also explain the original D-21 symptom
-(see docs/n40-triage-connecting.md - M1 is confirmed in code but CANNOT be what
-I originally saw, the served version equals the shipping build).
+① N76 - cut the two onboarding steps. Cheapest, and it removes two of the five screens before you collapse anything. DAMIR'S DIALS ARE LOCKED (DECISIONS #388) - do not re-ask, do not re-litigate:
+   (a) BACKUP: trigger on the FIRST REAL ASSET - first contact added, first message sent, or FIRST INCOMING BALANCE. The balance leg is MANDATORY, a user can receive funds before ever messaging. THEN keep the periodic reminder as the backstop (30-day, Config.cs:76, backupReminderTimestamp from #383) and the standing Account row.
+   (b) JOIN BOT: drop the step, put the CTA in the CHAT-LIST EMPTY STATE. It STAYS OPT-IN - ixian:joinbot is opt-in today and does not change. DO NOT auto-add the bot.
+   ★ THE TAIL DIES - THIS IS CLOSED, DO NOT RE-OPEN IT OR ASK ME AGAIN. With both steps gone the tail has nothing left, so OnboardPage and everything that exists only to serve it comes OUT. No modal after account creation: create goes straight into the app, restore goes straight into the app. The full DELETE list is in handoff section 3.2b - work from it, and leave NO dead code behind: OnboardPage (xaml + cs) - the launch-tail key in build-shells.mjs (five launch outputs become four) - Resources/Raw/html/onboarding.html - the tail bootView, onJoinBot, onFinish, the tailJoined latch, tailSkipBackup and the __SPIXI_FROM_RESTORE__ boot script in launch.html - buildTail, toJoin and opts.tailSkipBackup in launch-shell.js - the onboarding block and handleOnboardDone in HomePage - the onboardingFromRestore preference at ALL FOUR sites - and the onboardingComplete preference at ALL FIVE sites plus completeOnboard() and the ixian:onboardingComplete verb (its only job was gating the tail; the new backup trigger keys off the ASSET and the empty-state CTA keys off an EMPTY LIST, so nothing needs it - confirm with a grep including Spixi-PushService before deleting).
+   ★ TWO FINDINGS THAT MAKE THIS CHEAP - verify them, then use them: (1) HomePage ALREADY has the verb. ixian:joinBot (HomePage:788) reaches joinBot() (HomePage:1380-1396), which adds the Spixi Group Chat friend, saves, sends the contact request and refreshes contacts. The empty-state CTA needs NO NEW VERB - the outbound bridge stays frozen. Note the case: HomePage uses ixian:joinBot, the dying OnboardPage used ixian:joinbot; keep HomePage's. (2) NOTHING reads the OnboardingComplete carrier, and completeOnboard() ends with generatePage("index.html") - the LEGACY page. That is dead weight to delete, not something to relocate. The backup side needs no new plumbing either: the tail's ixian:backup called BackupPage.backupAccount(), the same static the Account row already uses - only the trigger point is new.
 
-④ **N67 - ONE "Delete Spixi account" action** (my product call). Destructive
-path: reproduce the delete-then-restore error FIRST, security-gate row, keep the
-W14/#348 live-wallet guard.
+② N75 - collapse the launch pages to ONE WebView. Host welcome + create + restore + retry in ONE page, ONE WebView, switch views by push; the four verb sets are small and disjoint. Leave the tail separate IF it survives ①. If a page identity must be kept, reuse the EXISTING PreloadOp park machinery (#315) - do not invent a second one.
 
-⑤ **N68** - the fatal-exception dialog on failed-restore then create. Logcat
-before code.
+③ N73 - full bleed on welcome, restore, onboarding and the in-app wallet. Damir's framing: together, not one screen at a time. Symptoms: wrong status-bar strip on welcome right after an appearance switch (correct after a restart), on the account-creation screen, and it changes again on the Developer log page. SPlatformUtils.setEdgeToEdge() is the C# lever, ThemeManager.getSurfaceColorString() is the colour truth.
 
-⑥ **N70** - the update notice does not appear when the app started offline
-(re-arm the hourly version check on the offline-to-online edge). Small.
+④ N72 - rides free: remove the theme picker from the welcome flow. launch.html and lock.html carry NO *SL{SpixiThemeName} boot script - they are fixed dark in both themes by design - so the picker changes nothing the user can see.
 
-NOT THIS SESSION: N63 (locale fallback tail) - N64 (update-notice design round)
-- N10/N15/N39. Do not touch N57 (Core-side, my protocol run pending), the
-deferred pile, or anything in the archived 17g handoff section 6.
+NOT THIS SESSION: N71 (the theme push-vs-reload round - its own batch, read handoff section 2 so you do not half-do it) - N63 - N64 - N67 - N68 - N69 - N70. Do not touch N57 (Core-side, Damir's protocol run pending), the deferred pile, or anything in the archived 17g section 6.
 
-ECONOMY RULES (hard): smoke as bookends only - baseline once (expect 1971/4) and
-final once (state the new number) - plus ONE batched mutation-proof run for any
-new pins. ONE Opus review round at the end, and only if C#/money/data paths
-changed; no r2/r3 unless it finds a MAJOR. No agent fan-outs. Standing set
-otherwise unchanged: cloud twin - verify against code (#215) - **bundle BEFORE
-shells, and READ the bundle build's output, it was silently dead for months
-(#383)** - locale pipeline + i18n-lint + pseudo + i18n-overflow-audit only IF
-strings changed - DECISIONS rows at decision time - security gate row - tarball
-delivery + updated handoff + F5 checklist (short - only the legs the session
-touched). Any C# change means I wipe obj/bin before deploying. I commit.
+ECONOMY RULES (hard): smoke as bookends only - baseline once (expect 1982/4) and final once (state the new number) - plus ONE batched mutation-proof run for any new pins. ONE Opus review round at the end, and only if C#/money/data paths changed; no r2/r3 unless it finds a MAJOR. No agent fan-outs. Standing set otherwise unchanged: cloud twin - verify against code (#215) - bundle BEFORE shells, and READ the bundle build's output, it was silently dead for months (#383) - build-shells has a `launch` shorthand that builds all five launch outputs as a set, use it and read its output - locale pipeline + i18n-lint + pseudo + i18n-overflow-audit IF strings changed (this batch almost certainly changes strings) - DECISIONS rows at decision time - security gate row - tarball delivery + updated handoff + F5 checklist (short - only the legs the session touched). Any C# change means I wipe obj/bin before deploying, and both targets share those folders. I commit.
+
+★ AND REMEMBER #387: a red row can be a DIRTY BUILD. N65 was 🔴 for two sessions and did not reproduce after an obj/bin wipe and a clean rebuild. Before you triage a long-standing user-visible bug, ask whether the reporting build was clean.

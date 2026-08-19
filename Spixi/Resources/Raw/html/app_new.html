@@ -889,7 +889,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     createTopbar, setLoading,
     createAppsAdd, setAddUrl, setAddError,
     createNativeBridge, installExecuteUiCommand,
-  } = window.Spixi;
+    applyPushedTheme,
+    } = window.Spixi;
   const strings = window.SL || {};
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
@@ -956,6 +957,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
+     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
+     * input; it pushes now, so this shell must be able to receive one. Shared body
+     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
+     * WebView's prefers-color-scheme can disagree with the app theme. */
+    setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     // QR-scan result → reveal + prefill the URL field (C# already trims the ":ixi…"
     // suffix + applies its 20<len<128 heuristic before pushing).

@@ -1237,7 +1237,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   const {
     createAddContact, setAddContactAddress,
     createNativeBridge, installExecuteUiCommand,
-  } = window.Spixi;
+    applyPushedTheme,
+    } = window.Spixi;
   const strings = window.SL || {};
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
@@ -1308,6 +1309,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
+     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
+     * input; it pushes now, so this shell must be able to receive one. Shared body
+     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
+     * WebView's prefers-color-scheme can disagree with the app theme. */
+    setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     // constructor preset (ContactNewPage(wal_id)) + QR-scan result → prefill +
     // re-run live validation (setAddContactAddress no-ops during an in-flight send).

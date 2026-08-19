@@ -74,6 +74,25 @@ namespace SPIXI
             }
         }
 
+        /* ★ N71 (#421): does this page re-theme from a `setTheme` PUSH, or only from a
+         * regenerate? The redesigned shells swap one data-theme attribute and every
+         * token follows. The 8 remaining legacy pages have no setTheme global at all —
+         * they carry the theme in a `<link href="css/*SL{SpixiThemeMode}">` BAKED at
+         * generatePage time, so the only thing that re-themes them is reload().
+         *
+         * The expression is identical to supportsRawDataUriArgs above, and that is not
+         * an accident — it is the same "was this file regenerated onto the new bridge"
+         * question. It gets its own name because the REASON differs, and a reader who
+         * finds a theme sweep branching on a data-URI transport flag would rightly
+         * distrust it. Keep all three in sync with hasLegacyPageChrome. */
+        public bool rethemesByPush
+        {
+            get
+            {
+                return loadedHtmlFileName != null && !hasLegacyPageChrome(loadedHtmlFileName);
+            }
+        }
+
         /* ★ N66 (#385, review MAJOR-1): does this page hold content WE generated?
          * reload() can only help such a page — it re-runs generatePage, which is where
          * the *SL{SpixiThemeName} / *SL{} substitution happens. For a page with no
@@ -196,7 +215,18 @@ namespace SPIXI
             _webView.Navigating += webViewNavigating;
         }
 
-        private void applyPageSurfaceColor()
+        /* ★ N71 (#421, break-my-verdict MAJOR-1): INTERNAL, so the theme sweep can
+         * refresh a page's native backing WITHOUT the rest of the chrome pass.
+         * applyPlatformPageChrome() looks page-local and is not: on Android it calls
+         * SPlatformUtils.setEdgeToEdge, which paints the ACTIVITY root view and the
+         * window insets controller — one process-wide pair of bars. Calling it once
+         * per enumerated page made the LAST page in the list decide the status-bar
+         * glyph colour, overwriting the repaintSystemBarsFor(null) both callers run
+         * two lines earlier from the VISIBLE page. That is the AND-7b/c/d/e defect
+         * (#407–#410) reintroduced, on the wallet hero and the lock screen.
+         * This method has no global side effect: page background, content background,
+         * WebView background, and the two cached surface fields. */
+        internal void applyPageSurfaceColor()
         {
             pageSurfaceColorString = surfaceColorStringFor(loadedHtmlFileName ?? "");
             pageSurfaceColor = Color.FromArgb(pageSurfaceColorString);
@@ -700,6 +730,46 @@ namespace SPIXI
         {
         }
 
+        /** ★ N71 1.5: the LIVE lock page, or null. The lock is the visible surface
+         *  whenever it is up, and it is fixed dark in both themes — so anything that
+         *  paints from "the current surface" (the system bars) has to find it. The
+         *  in-place case is the one that needs the modalOverlayOp lookup: such a lock is
+         *  in no navigation collection at all. Read-only, never constructs. */
+        private static SpixiContentPage? liveLockPage()
+        {
+            try
+            {
+                lock (preloadLock)
+                {
+                    if (modalOverlayOp != null && modalOverlayOp.target is LockPage inPlace)
+                    {
+                        return inPlace;
+                    }
+                }
+                INavigation? nav = Application.Current?.MainPage?.Navigation;
+                if (nav == null)
+                {
+                    return null;
+                }
+                foreach (Page p in nav.ModalStack)
+                {
+                    if (p is LockPage modal)
+                    {
+                        return modal;
+                    }
+                }
+                if (nav.NavigationStack.LastOrDefault() is LockPage top)
+                {
+                    return top;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("liveLockPage: " + ex);
+            }
+            return null;
+        }
+
         /** True while a lock is shown in place — hosts must swallow back-button
          *  presses (the lock page is not the CurrentPage, so its own
          *  OnBackButtonPressed guard never runs). */
@@ -1131,6 +1201,29 @@ namespace SPIXI
         {
             try
             {
+                /* ★ N71 1.5 (Damir F5 2026-08-19): A LOCK OUTRANKS EVERYTHING.
+                 *
+                 * A lock shown IN PLACE (#230) is in no collection this method used to
+                 * consult — not overlayStack, not the NavigationStack — so the bars were
+                 * painted from whatever sits UNDER it, and flipping the OS theme with the
+                 * lock up recoloured the status and navigation bars against a screen that
+                 * is fixed dark in both themes.
+                 *
+                 * The blindness is not new; the SYMPTOM is. reloadAllPages used to reload
+                 * every page in turn, and each reload ran its own chrome pass, so the lock
+                 * happened to repaint last and accidentally corrected the answer. #421
+                 * replaced that sweep with a push, which is right — but it also removed a
+                 * piece of last-wins luck the bars had been relying on.
+                 *
+                 * Same three tests CallPage.lockUp() uses, in the same order and for the
+                 * same reason: in-place first (the case that has no page to find), then
+                 * the modal stack, then the top of the navigation stack. Cheap, and it
+                 * fails safe — if no lock is up, nothing below changes. */
+                SpixiContentPage? lockPage = liveLockPage();
+                if (lockPage != null)
+                {
+                    return lockPage;
+                }
                 lock (preloadLock)
                 {
                     if (overlayStack.Count > 0)

@@ -25,7 +25,12 @@
   overflow: hidden;
   background: var(--surface-neutral-02);
   box-sizing: border-box;
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
+     relied on elevation to separate. On the cream canvas it measures 1.03:1
+     against the ground, so the shadow is doing nothing — carry the same
+     incoming hairline the received bubble now uses. Dark needs neither: the
+     deeper #0f1115 ground GAINED separation. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -129,6 +134,11 @@
    outgoing GIF/image reads as "yours", matching the sent bubble (Damir 2026-07-08). */
 .c-bubble-row[data-direction="sent"] .c-mbubble {
   border: 2px solid var(--surface-bubble-sent);
+  /* ★ N81 (#422, break-my-verdict MINOR-1): drop the incoming hairline on the SENT
+     side, exactly as typed-bubbles.css does for the cards. An inset shadow paints at
+     the padding edge, i.e. INSIDE this 2px border — the same nested composite that
+     was removed one file over and missed here. */
+  box-shadow: none;
 }
 
 /* iOS-17 (#283): the tile can now be NARROWER than the anchor (media-bubble.js

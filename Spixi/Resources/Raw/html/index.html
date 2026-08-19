@@ -4177,7 +4177,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     showBackupNudge, showRatingNudge,
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
-    zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial)
+    zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial),
+    applyPushedTheme,
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -6318,16 +6319,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // disagree with the app theme; Damir F5). Transitions suppressed for the swap
     // (#53) so tokens flip in one clean frame; persisted value already written by
     // the Account shell (same origin).
-    setTheme(name) {
-      const t = name === 'dark' ? 'dark' : 'light';
-      const r = document.documentElement;
-      if (r.dataset.theme === t) return;
-      try { r.classList.add('theme-switching'); } catch (e) {}
-      r.dataset.theme = t;
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { r.classList.remove('theme-switching'); } catch (e) {}
-      }));
-    },
+    // ★ N71 (#421): body moved to theme-runtime.js — five shells carried a copy of
+    // it and thirteen carried none, which is how #251 and #288 MAJOR-1 both happened.
+    setTheme(name) { applyPushedTheme(name); },
 
     // #245: the Account pane closed (HomePage.onOverlayClosed) — the rail
     // highlight falls back from Account to the real in-page tab.

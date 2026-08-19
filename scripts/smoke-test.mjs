@@ -1300,9 +1300,10 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const swatches = [...intensityGroup.querySelectorAll('.c-settings-swatch')];
   ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
-    && swatches.length === 4
+    && swatches.length === 3
+    && swatches.map((s) => s.dataset.value).join() === '0,1,2'
     && swatches.every((s) => s.getAttribute('role') === 'radio' && s.getAttribute('aria-label')),
-    '#334 iOS-60: pattern = 4 swatch tiles (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills)');
+    '★ N81: pattern = 3 swatch tiles — Off / Default / Strong (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills)');
   const offTile = appear.querySelector('.c-settings-swatch[data-off]');
   ok(!!offTile && swatches.every((s) => s.querySelector('.c-settings-swatch__canvas.c-chat-canvas')),
     '#334 iOS-60: every tile face rides the REAL chat-canvas paint; the Off tile is marked distinct (data-off)');
@@ -4096,15 +4097,18 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
   // B2: hard-force gone, platform-aware default, forcing script ordered above the pattern read
   ok(!/:root\[data-desktop\] \.c-chat-canvas::before \{ display: none; \}/.test(chat),
     'B2: the #207 desktop pattern hard-force is DELETED from chat.html');
-  ok(/html\[data-desktop\]\[data-theme="dark"\] \.c-chat-canvas \{ --chat-canvas-base: var\(--neutral-1000\); \}/.test(chat),
-    'B2: the desktop dark grey-1000 ground rule is KEPT');
-  ok(/if\(isNaN\(p\)\)p=de\?0:0\.5;/.test(chat),
-    'B2: chat boot pattern default is platform-aware (desktop 0 / mobile 0.5)');
-  ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('isNaN(p))p=de?0:0.5'),
-    'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives');
+  ok(!/--chat-canvas-base: var\(--neutral-1000\)/.test(chat),
+    '★ N81: the desktop dark grey-1000 ground rule is RETIRED (it was #207/B2). #111213 is LIGHTER than Damir\'s new #0f1115, so keeping it would have made desktop dark PALER than mobile — the opposite of what it was written for, plus a second undocumented dark canvas colour');
+  ok(/if\(!isFinite\(p\)\)lv=de\?0:1;/.test(chat),
+    'B2 + ★ N81: chat boot pattern default is platform-aware — desktop Off (0), mobile Default (1). The value is a LEVEL INDEX now, not an alpha');
+  ok(/else if\(p<=0\)lv=0;else if\(p===1\|\|p===2\)lv=p;else lv=p>0\.5\?2:1;/.test(chat),
+    '★ N81 MIGRATION: the pre-paint script maps a LEGACY fractional pref (0.3/0.5/0.7) onto the new ladder — old Bold → Strong, everything else → Default. Old and new values overlap only at 0, which means Off in both, so the mapping needs no guessing');
+  ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('if(!isFinite(p))lv=de?0:1;'),
+    'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives (re-pinned on the #422 literal — the ordering is the contract, not the expression)');
   ok(/const desktop = document\.documentElement\.hasAttribute\('data-desktop'\);/.test(settings)
-    && /let pattern = desktop \? 0 : 0\.5/.test(settings),
-    'B2: settings readChatPrefs mirrors the platform-aware default');
+    && /let pattern = desktop \? 0 : 1/.test(settings)
+    && /pattern = readPatternLevel\(localStorage\.getItem\(CHAT_PREFS\.pattern\), pattern\);/.test(settings),
+    '★ N81: settings readChatPrefs mirrors the platform-aware default on the new LEVEL ladder (desktop 0 / mobile 1) — the Chat-appearance swatch must pre-select what the chat actually paints');
   // B3: tx tap routed to the detail page; shell contract markers present
   ok(/onTx: \(tx\) => bridge\.send\('ixian:txdetails:' \+ tx\.txid\)/.test(home),
     'B3: home wallet tab routes a tx tap to ixian:txdetails:<txid>');
@@ -5464,8 +5468,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const cdet337 = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
   ok(/const bin = atob\(v\);/.test(ed337) && /new TextDecoder\(\)/.test(ed337),
     '#337 W1: the empty_detail stub dispatcher decodes base64 args (the welcome pane never re-themed — Windows runtime evidence)');
-  ok(/setTheme\(name\)/.test(cdet337) && /theme-switching/.test(cdet337),
-    '#337 W1: contact_details has a live setTheme handler (was a swallowed bare-global push)');
+  ok(/setTheme\(name\) \{ applyPushedTheme\(name\); \}/.test(cdet337),
+    '#337 W1: contact_details has a live setTheme handler (was a swallowed bare-global push). ★ N81/N71 (#421): the body is the SHARED one now — theme-runtime.js still suppresses transitions across the swap (#53), it just does it in one place instead of five');
   // W3: takeover kind chips = default size (parity with the chats header).
   const csjs337 = readFileSync(join(root, 'src/components/contacts-shell.js'), 'utf8');
   ok(/createChip\(\{ label, selected: value === 'all', strings \}\)/.test(csjs337),
@@ -5526,13 +5530,69 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
    * INK moved, not the ladder: primary-400 puts light at 1.08 / 1.14 / 1.20, i.e.
    * parity with dark, which is left byte-identical. */
   const tok5 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
-  ok(/--chat-pattern-ink: var\(--primary-400\);/.test(tok5),
-    '★ W5 F5: the LIGHT pattern ink is primary-400 — the faintness was the ink, not the opacity ladder');
-  ok(/--chat-pattern-ink: hsla\(242, 76%, 72%, 1\);/.test(tok5) && /--chat-pattern-opacity: 0\.18;/.test(tok5),
-    'W5 F5: dark keeps its own ink AND its own 0.18 — the light fix cannot reach dark');
-  const lv5 = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
-  ok(/\{ value: 0, key: 'patternOff'[^]*?\{ value: 0\.3,[^]*?\{ value: 0\.5,[^]*?\{ value: 0\.7, key: 'patternBold'/.test(lv5),
-    'W5 F5: PATTERN_LEVELS is untouched (0 / 0.3 / 0.5 / 0.7) — Standard is still the theme default it has always been');
+  /* ★ N81 (#422) — Damir's palette supersedes the whole W5 F5 ink investigation.
+   * That round measured a pattern-vs-gradient contrast ratio and moved the LIGHT
+   * ink up the primary ramp, because a translucent ink multiplied by an opacity
+   * made the rendered strength unreadable from either number. The new model has
+   * ONE number: the ink is opaque and --chat-pattern-opacity carries the whole
+   * alpha, so the ladder value IS the stroke alpha on screen. Pin the values he
+   * gave, per theme, and pin the property that makes them trustworthy. */
+  /* tokens.css is LAYERED — four top-level `:root` blocks and TWO
+   * `[data-theme="dark"]` blocks, interleaved. A naive slice on the first
+   * `[data-theme="dark"]` lands in a COMMENT on line 12 and hands the whole file
+   * to `dark`, which makes every assertion below pass for the wrong reason. Walk
+   * the top-level blocks instead and concatenate by selector. */
+  const tokensN81 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const blocksN81 = (sel) => {
+    const out = [];
+    const re = new RegExp('^' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{$', 'gm');
+    let m;
+    while ((m = re.exec(tokensN81)) !== null) {
+      const end = tokensN81.indexOf('\n}', m.index);
+      out.push(tokensN81.slice(m.index, end < 0 ? tokensN81.length : end));
+    }
+    return out.join('\n');
+  };
+  const lightN81 = blocksN81(':root');
+  const darkN81 = blocksN81('[data-theme="dark"]');
+  ok(lightN81.length > 1000 && darkN81.length > 1000 && !darkN81.includes('--grey-1000'),
+    '★ N81 harness self-check: the token blocks split by SELECTOR, not by the first textual match — a slice on the first "[data-theme=\"dark\"]" hits a comment on line 12 and would hand the whole file to `dark`, passing every assertion below for the wrong reason');
+  ok(/--chat-pattern-ink: #181a20;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.042;/.test(lightN81)
+    && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
+    '★ N81: LIGHT line art = rgba(24,26,32,0.042) at Default, 0.1 at Strong (Damir 2026-08-19)');
+  ok(/--chat-pattern-ink: #f0f4ff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.045;/.test(darkN81)
+    && /--chat-pattern-alpha-2: 0\.1;/.test(darkN81),
+    '★ N81: DARK line art = rgba(240,244,255,0.045) at Default, 0.1 at Strong (Damir 2026-08-19)');
+  ok(/--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(lightN81)
+    && /--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(darkN81),
+    '★ N81: the UNSET default resolves to each theme\'s own alpha — an absent preference must not fall back to one theme\'s number');
+  ok(/--chat-canvas-base: #fcfbfa;/.test(lightN81) && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
+    '★ N81: LIGHT canvas is FLAT cream #fcfbfa — the sky-blue diagonal wash is gone (Damir\'s dial: a wash over cream is not cream)');
+  ok(/--chat-canvas-base: #0f1115;/.test(darkN81)
+    && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.10\) 0%, transparent 58%\), var\(--chat-canvas-base\);/.test(darkN81),
+    '★ N81: DARK keeps its radial glow OVER the new #0f1115 base (Damir\'s P.S.) — the asymmetry with light is deliberate');
+  ok(/--gradient-bubble-sent: #1956b2;/.test(lightN81) && /--gradient-bubble-sent: #1956b2;/.test(darkN81)
+    && /--surface-bubble-sent: #1956b2;/.test(lightN81) && /--surface-bubble-sent: #1956b2;/.test(darkN81),
+    '★ N81: ONE outgoing blue #1956B2 in BOTH themes, and the solid fallback AGREES with the gradient token (a fallback that disagrees is a colour change nobody can reproduce)');
+  /* ★ N81 (#422, #46 audit MAJOR): the flat bubble INTRODUCED a sub-AA timestamp.
+   * Dark's old sent gradient (#353FB7→#2046A7) carried --neutral-300 at 5.06–5.17;
+   * on the flat #1956B2 the same ink measures 4.28 at 12px regular. One ink in both
+   * themes now, at 5.77 — matching the one-bubble-colour logic and clearing AA.
+   * Pinned as the TOKEN, both blocks, because a single-theme fix is how it broke. */
+  ok(/--text-bubble-sent-meta: var\(--primary-50\);/.test(lightN81)
+    && /--text-bubble-sent-meta: var\(--primary-50\);/.test(darkN81),
+    '★ N81 (#422, #46 audit): the sent-bubble META ink is ONE value in BOTH themes and clears AA on #1956B2 (5.77:1 at 12px). The dark value this replaces measured 4.28 — an AA failure this batch introduced by flattening the bubble');
+  ok(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8'))
+    && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/typing-indicator.css'), 'utf8')),
+    '★ N81 (#422, #46 audit): the surfaces that FLOATED on the old blue canvas carry the hairline too. White on cream is 1.03:1, so "white pops on the gradient" stopped being true — and the Chat-appearance PREVIEW bubble was one of them, i.e. the one screen whose whole job is showing what the chat looks like');
+  ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
+    '★ N81 (#422): the superseded dark sent-meta ink is GONE, not merely shadowed — a leftover declaration in the dark block would win on source order');
+  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1a1d24;/.test(darkN81)
+    && /--border-bubble-received: rgba\(0, 0, 0, 0\.04\);/.test(lightN81)
+    && /--border-bubble-received: rgba\(255, 255, 255, 0\.05\);/.test(darkN81),
+    '★ N81: incoming bubble + its faint hairline, both themes (Damir 2026-08-19)');
+  ok(!/--chat-canvas-base: var\(--neutral-1000\)/.test(readFileSync(join(root, 'src/shells/chat.html'), 'utf8')),
+    '★ N81: the #207 desktop dark GROUND override is retired — grey-1000 (#111213) is LIGHTER than the new #0f1115, so it would have made desktop dark paler than mobile, inverting its own purpose');
 
   const flow = readFileSync(join(root, 'src/components/chat-flow.js'), 'utf8');
   ok(/speed: 0\.85/.test(flow) && /spacing: 15/.test(flow) && /dash: 7/.test(flow)
@@ -5589,10 +5649,18 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5 live-apply: the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
   ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);\s*\n\s*applyChatPatternStyle\(\);/.test(chatW5),
     'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once');
-  ok(/String\(dark \? Math\.round\(prefs\.level \* 36\) \/ 100 : prefs\.level\)/.test(chatW5),
-    'W5 live-apply: the #76 ×0.36 dark derivation is re-run on every apply — a live setTheme push used to leave dark painting the LIGHT number until a reload');
-  ok(/applyPatternPrefs\(readPatternPrefs\(\)\);/.test(chatW5.slice(chatW5.indexOf('setTheme(name)'))),
-    'W5 live-apply: setTheme re-derives the intensity, not just the flow repaint');
+  /* ★ N81 (#422): this used to pin that the ×0.36 dark derivation was RE-RUN on
+   * every apply. There is no derivation left to re-run — the level is an index and
+   * the alpha is a per-theme token, so CSS resolves it. Pin the ABSENCE, at all
+   * three sites that used to carry a copy of the multiply: if any of them grows one
+   * back, the class of bug it caused (dark painting the light number after a live
+   * setTheme push) comes back with it. */
+  ok(!/\*\s*36\b/.test(chatW5) && !/\*\s*0\.36\b/.test(chatW5),
+    '★ N81: chat.html carries NO ×0.36 dark derivation — neither in the pre-paint script nor in applyPatternPrefs');
+  ok(/r\.style\.setProperty\('--chat-pattern-opacity', patternLevelVar\(prefs\.level\)\);/.test(chatW5),
+    '★ N81: the live apply assigns the per-theme VAR REFERENCE, so the value resolves under whatever theme is current at paint time');
+  ok(/applyPatternPrefs\(readPatternPrefs\(\)\)/.test(chatW5.slice(chatW5.indexOf('setTheme(name)'))),
+    '★ N81: setTheme still re-runs the pattern ladder via the shared onApplied hook — the INTENSITY no longer needs it (CSS resolves that), but the flow canvas genuinely does: under prefers-reduced-motion there is no loop to re-theme itself');
 
   const setW5 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   ok(/patternStyle: 'spixi\.chat\.patternstyle'/.test(setW5) && /onPatternStyle: \(v\) =>/.test(setW5),
@@ -5622,8 +5690,16 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   styleTiles[1].click();
   ok(prev5.dataset.chatPattern === 'matrix', 'W5: the live preview reflects the style pick');
   const intensityFaces = [...ap5.querySelectorAll('.c-settings-swatches:not(.c-settings-swatches--style) .c-settings-swatch__canvas')];
-  ok(intensityFaces.length === 4 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
-    'W5: the intensity tiles re-skin to the picked style — four line-art tiles under a Data-matrix pick would be a lie');
+  ok(intensityFaces.length === 3 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
+    'W5: the intensity tiles re-skin to the picked style — line-art tiles under a Data-matrix pick would be a lie (3 levels since ★ N81)');
+  /* ★ N81: the tiles must carry the per-theme VAR, not a baked number. This is what
+   * closes the #239 ⓐ flag — the preview used to paint the raw light-scale value
+   * while the real dark chat rendered v × 0.36, so in dark theme it promised a
+   * pattern the chat never showed. Same var(), same theme, same pixels. */
+  ok(intensityFaces[0].style.getPropertyValue('--chat-pattern-opacity') === '0'
+    && /^calc\(var\(--chat-pattern-alpha-1\) \* \d+\)$/.test(intensityFaces[1].style.getPropertyValue('--chat-pattern-opacity'))
+    && /^calc\(var\(--chat-pattern-alpha-2\) \* \d+\)$/.test(intensityFaces[2].style.getPropertyValue('--chat-pattern-opacity')),
+    '★ N81 (closes #239 ⓐ): each intensity tile assigns the per-theme ALPHA VAR, so the preview resolves under its own theme instead of baking one theme\'s number');
   // fail-soft: this harness has no canvas backend, so picking Live flow must
   // land on the line-art tile rather than a bare gradient or a thrown error
   styleTiles[2].click();
@@ -7648,6 +7724,113 @@ console.log('BUG-1 — chats-list membership (C# predicate)');
  * Everything below drives the real dispatcher and the real handlers in the shipped
  * document, not a demo mock: window.executeUiCommand(window.addChat, 'b64'…) is
  * byte-for-byte what Utils.sendUiCommand injects. */
+/* ★ N71/N81 (#421/#422, #46 audit MAJOR-1) — BOOT THE BUILT CHAT SHELL.
+ *
+ * This gate exists because of a real, shipped-to-the-audit defect: chat.html called
+ * two new bundle exports (readPatternLevel / patternLevelVar) that it never added to
+ * its `const { … } = window.Spixi` destructure. readPatternPrefs() runs at MODULE TOP
+ * LEVEL, so the main script threw before bridge.exposeAll — nothing was exposed, C#
+ * never received ixian:onload, and EVERY conversation would have booted to a
+ * permanent spinner. On the most-used screen in the app.
+ *
+ * ⚠ NEITHER EXISTING GATE COULD SEE IT, and that is the point of adding this one:
+ *   · build-shells' preflight validates DESTRUCTURED symbols against the bundle it
+ *     inlines. A symbol that is never destructured is invisible to it — its premise
+ *     is staleness, not omission.
+ *   · every other chat pin in this suite is a REGEX READ of the file. A regex cannot
+ *     see a throw.
+ * The only thing that catches this class is executing the artifact, so we execute it.
+ */
+/* ★ N71(a) — DAMIR F5 2026-08-19. RUN the repro, do not describe it.
+ *
+ * This defect shipped past a full #46 round, a break-my-verdict pass and 20 mutated
+ * pins, because every one of those pins READ SOURCE. The behaviour only exists in the
+ * interaction between three things — the shell's cached System answer, which appearance
+ * is selected, and whether C# pushes at this page at all — and no regex over any one of
+ * them can see it. So the two cases are driven end to end, through the same handlers
+ * and the same base64 wire C# uses, against the BUILT shell. */
+console.log('★ N71(a) — the appearance picker, driven end to end');
+{
+  const setShellPath = join(root, 'Spixi/Resources/Raw/html/settings.html');
+  if (!existsSync(setShellPath)) {
+    ok(false, 'built settings shell exists (run build-shells.mjs before the smoke suite)');
+  } else {
+    const domS = new JSDOM(readFileSync(setShellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + setShellPath, virtualConsole: new VirtualConsole(),
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2000);
+    const WS = domS.window;
+    const b64s = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+    const themeNow = () => domS.window.document.documentElement.dataset.theme;
+
+    /* CASE 1 — Damir's exact report. OS dark, appearance Light (so the document booted
+     * light and cached that as its System answer), then the user picks System. */
+    WS.executeUiCommand(WS.setAppearance, b64s('1'));      // appearance = Light
+    await sleep(50);
+    WS.executeUiCommand(WS.setAppearance, b64s('0'));      // user picks System
+    await sleep(50);
+    WS.executeUiCommand(WS.setTheme, b64s('dark'));        // C# resolves automatic → dark
+    await sleep(120);
+    ok(themeNow() === 'dark',
+      '★ N71(a) (Damir F5): appearance Light → pick SYSTEM with a DARK OS, and the Account FOLLOWS. This is the reported bug — the whole app went dark and the Account stayed light, because C# excluded the picker from its own sweep. Got: ' + themeNow());
+
+    /* CASE 2 — the poisoning the #46 round was right to worry about. The pushed name is
+     * the PICK when the pick is explicit, so it must NOT be cached as the OS answer. */
+    WS.executeUiCommand(WS.setTheme, b64s('light'));       // a light OS
+    WS.executeUiCommand(WS.setAppearance, b64s('2'));      // user picks Dark
+    await sleep(50);
+    WS.executeUiCommand(WS.setTheme, b64s('dark'));        // carries the PICK, not the OS
+    await sleep(50);
+    WS.executeUiCommand(WS.setAppearance, b64s('0'));      // user picks System; OS is light
+    await sleep(120);
+    ok(themeNow() === 'light',
+      '★ N71(a) case 2: picking Dark then SYSTEM on a LIGHT OS lands on light with no dark flash — the explicit pick never poisons the cached System answer. Both cases, one guard, keyed on the SELECTED appearance. Got: ' + themeNow());
+    domS.window.close();
+  }
+}
+
+console.log('★ N71/N81 — the built CHAT shell actually boots');
+{
+  const chatShellPath = join(root, 'Spixi/Resources/Raw/html/chat.html');
+  if (!existsSync(chatShellPath)) {
+    ok(false, 'built chat shell exists (run build-shells.mjs before the smoke suite)');
+  } else {
+    const vcC = new VirtualConsole();
+    const bootErrors = [];
+    vcC.on('jsdomError', (e) => bootErrors.push(String(e.message) + ' :: ' + ((e.detail && e.detail.message) || '')));
+    const domC = new JSDOM(readFileSync(chatShellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + chatShellPath, virtualConsole: vcC,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2000);
+    const WC = domC.window;
+    const refErrs = bootErrors.filter((e) => /ReferenceError|is not defined/.test(e));
+    ok(refErrs.length === 0,
+      '★ N71/N81 (#46 MAJOR-1): the built chat shell boots with NO ReferenceError. A bundle export used but not destructured throws at module top level, before bridge.exposeAll — a permanently blank conversation. Errors: ' + (refErrs.slice(0, 2).join(' | ') || 'none'));
+    ok(typeof WC.executeUiCommand === 'function' && typeof WC.addMe === 'function'
+      && typeof WC.onChatScreenReady === 'function',
+      '★ N71/N81: bridge.exposeAll was REACHED — the C#-callable page globals exist. This is the assertion that fails when the main script dies partway, which no regex pin can detect');
+    ok(typeof WC.setTheme === 'function',
+      '★ N71 (#421): setTheme is a real global on the BUILT chat shell, not just present in the source. C# emits it as a bare identifier, so this is the exact lookup the WebView performs');
+    /* the shell must survive the push it will actually receive, arguments and all */
+    let themeThrew = null;
+    try { WC.executeUiCommand(WC.setTheme, Buffer.from('dark', 'utf8').toString('base64')); }
+    catch (e) { themeThrew = e; }
+    ok(themeThrew === null && domC.window.document.documentElement.dataset.theme === 'dark',
+      '★ N71 (#421) END-TO-END: a real base64 setTheme push through the real dispatcher flips data-theme on the built shell — the pin is on the wire C# uses, not on the handler in isolation');
+    domC.window.close();
+  }
+}
+
 console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
 {
   const shellPath = join(root, 'Spixi/Resources/Raw/html/index.html');
@@ -9395,11 +9578,164 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       '★ N66 (#385): ThemeManager resolves "automatic" from the PLATFORM theme, not UserAppTheme. With UserAppTheme now Unspecified for the whole session, the old read would have resolved every automatic theme to light — a harder break than the bug being fixed');
 
     const uh = read('Spixi/Utils/UIHelpers.cs');
-    ok(/if \(p is not SpixiContentPage page \|\| !page\.hasGeneratedContent\)/.test(uh) && /Application\.Current\?\.MainPage\?\.Navigation\?\.NavigationStack/.test(uh),
-      'N66 (#385): reloadAllPages tolerates an unexpected page and a null MainPage — it is reachable at any moment now, not only during the boot theme event');
+    /* ★ N71 (#421): these two invariants moved into getLiveShellPages — the ONE
+     * enumerator both sweeps now run on. They are pinned at that site, because that
+     * is where the behaviour runs; a pin on reloadAllPages' own body would now pass
+     * while proving nothing about the push path that shares it. */
+    ok(/if \(p is SpixiContentPage sp && sp\.hasGeneratedContent && !pages\.Contains\(sp\)\)/.test(uh)
+      && /Application\.Current\?\.MainPage\?\.Navigation/.test(uh),
+      'N66 (#385) via ★ N71 (#421): the shared enumerator tolerates an unexpected page and a null MainPage — it is reachable at any moment, on any navigation stack');
+
+    /* ═══ ★ N71 (#421) — the OS theme flip PUSHES instead of reloading ═══════════
+     * N78: an evening OS auto-switch threw the user from wherever they were back to
+     * Chats with every empty-state gate re-armed, because reloadAllPages builds a
+     * fresh document and home.html's Fix #8 sends ixian:tab:tab1 on every boot. A
+     * PUSH creates no document, so one change closes both halves. */
+    const app421 = read('Spixi/App.xaml.cs');
+    ok(/SpixiContentPage\.repaintSystemBarsFor\(null\);[\s\S]{0,1400}?UIHelpers\.pushThemeToAllPages\(\);/.test(app421)
+      && !/UIHelpers\.reloadAllPages\(\);/.test(app421),
+      '★ N71 (#421): the RequestedThemeChanged handler PUSHES the theme and no longer calls reloadAllPages — the reload was N78 (yanked to Chats) and #385 MINOR-3 (unsaved input discarded)');
+    ok(/public static void pushThemeToAllPages\(\)\s*\n\s*\{\s*\n\s*string themeName = ThemeManager\.getResolvedAppearanceName\(\);/.test(uh),
+      '★ N71 (#421) + ★ #410: the pushed name is READ per push from getResolvedAppearanceName (which resolves isPlatformDark live), never remembered from boot');
+    ok(/private static List<SpixiContentPage> getLiveShellPages\(bool includeModal\)/.test(uh)
+      && /getLiveShellPages\(true\)/.test(uh) && /getLiveShellPages\(false\)/.test(uh),
+      '★ N71 (#421): ONE enumerator, both sweeps. Every hand-rolled "re-theme them all" list in this project has missed a collection (#251 EmptyDetail · #284 getChatPages · #288 MAJOR-1 the open tx pane) — there is a single place to grow now');
+    ok(/if \(includeModal && nav\?\.ModalStack != null\)/.test(uh),
+      '★ N71 (#421): the PUSH sweeps the modal stack and the RELOAD does not. That asymmetry is the #385 MINOR-2 finding resolved, not a wart: reloading a page during a live call is the risk that kept ModalStack out, and swapping a CSS attribute carries none of it');
+    ok(uh.indexOf('getLiveShellPages(true)') < uh.indexOf('public static void reloadAllPages()')
+      && /getDefaultDetailContent\(\)\);/.test(uh),
+      '★ N71 (#421): the #251 EmptyDetail resting pane is inside the shared enumerator, so the PUSH path gets it too — it is in neither the NavigationStack nor the overlay list, and every earlier sweep that forgot it shipped a stale-theme welcome pane');
+    const settingsPage421 = read('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+    ok(/UIHelpers\.pushThemeToAllPages\(\);/.test(settingsPage421)
+      && !/sendUiCommand\(home, "setTheme"/.test(settingsPage421)
+      && !/getDetailContent\(\) is SpixiContentPage detail/.test(settingsPage421),
+      '★ N71 (#421): the EXPLICIT-PICK path runs the SAME sweep. It used to hand-roll its own list — which is how the two theme paths drifted — and that list included getDetailContent(), DEAD since HomePage.detailContent is only ever assigned null (HomePage.xaml.cs, the #288 branch): a guard that covered nothing');
+
+    /* ★ N71(a) — DAMIR F5 2026-08-19. This pin is INVERTED from what the #46 round
+     * asked for, and the inversion is the finding. That round had me exclude the
+     * picker from its own sweep; shipped alongside the shell-side guard it re-opened
+     * N71(a) — pick System with the OS dark and the whole app went dark while the
+     * Account stayed light, because the one surface that needed the resolved answer
+     * was the one surface not told it. There must be NO exclusion: the guard keys on
+     * the SELECTED appearance, not on who sent the push, and covers both cases. */
+    ok(/public static void pushThemeToAllPages\(\)/.test(uh)
+      && !/if \(page == except\)/.test(uh) && !/pushThemeToAllPages\(this\)/.test(settingsPage421),
+      '★ N71(a) (Damir F5): the sweep has NO exclusion, and the picker calls it with no argument. An unused exclusion hook on a sweep is an invitation to re-add this exact bug, so the parameter is gone rather than defaulted');
+    ok(/if \(!page\.rethemesByPush\)[\s\S]{0,1400}?page\.reload\(\);/.test(uh)
+      && /public bool rethemesByPush/.test(read('Spixi/Utils/SpixiContentPage.cs')),
+      '★ N71 (#421, #46 audit MAJOR): the sweep is HYBRID — push where the document has a setTheme, RELOAD where the theme is baked. The 8 legacy pages carry the theme in a <link href="css/*SL{SpixiThemeMode}"> and have no setTheme global at all, so a push both threw a bare-global ReferenceError into them AND left them in yesterday\'s theme, on the MONEY path. reload() is exactly what they got before this batch — the security gate says introduce nothing');
+    ok(/add\(SpixiContentPage\.getStagingPage\(\)\);/.test(uh) && /add\(CallPage\.getLiveSurface\(\)\);/.test(uh)
+      && uh.indexOf('getStagingPage') > uh.indexOf('if (includeModal)'),
+      '★ N71 (#421, #46 audit): the STAGING slot and the in-place CALL surface are swept, PUSH-ONLY. Both are live WebViews in none of the standard collections; neither may be RELOADED — a reload mid-stage destroys the ixian:onload the present waits for, and reloading during a live call is what kept the modal stack out of the reload sweep');
+    ok(/try \{ page\.applyPageSurfaceColor\(\); \}/.test(uh) && !/page\.applyPlatformPageChrome\(\)/.test(uh),
+      '★ N71 (#421, break-my-verdict MAJOR-1): the per-page refresh is applyPageSurfaceColor and NEVER applyPlatformPageChrome. The latter looks page-local and is not — on Android it calls setEdgeToEdge, which paints the ONE activity root view and the ONE window insets controller, so running it per page let the LAST page in the list pick the system-bar glyph colour and overwrote the repaintSystemBarsFor(null) both callers run from the VISIBLE page. That is the whole #407–#410 bar round undone, on the wallet hero');
+    ok(/SpixiContentPage\.disposeParkedOverlay\(\);[\s\S]{0,700}?repaintSystemBarsFor\(null\)/.test(uh),
+      '★ N71 (#421, break-my-verdict MAJOR-1 belt): the sweep ENDS by re-asserting the bars from the VISIBLE page. The legacy reload() branch repaints them asynchronously from whatever page it belongs to, and ★ #410 says the bars are read from the surface actually on screen — never from whatever happened to be last in a list');
+
+    /* ★ N71 1.5 (Damir F5 2026-08-19): the bars must find a LOCK shown in place. */
+    const scp421 = read('Spixi/Utils/SpixiContentPage.cs');
+    ok(/private static SpixiContentPage\? liveLockPage\(\)/.test(scp421)
+      && /modalOverlayOp\.target is LockPage inPlace/.test(scp421)
+      && scp421.indexOf('SpixiContentPage? lockPage = liveLockPage();') < scp421.indexOf('if (overlayStack.Count > 0)'),
+      '★ N71 1.5 (Damir F5): a live LOCK outranks every other surface when the system bars are painted, and it is checked FIRST. A lock shown in place (#230) is in no navigation collection, so the bars were painted from whatever sits under it — flipping the OS theme with the lock up recoloured them against a screen that is fixed dark in both themes');
+    ok(/foreach \(Page p in nav\.ModalStack\)/.test(scp421) && /nav\.NavigationStack\.LastOrDefault\(\) is LockPage top/.test(scp421),
+      '★ N71 1.5: all THREE lock presentations are covered — in-place, modal stack, top of the navigation stack. The same three CallPage.lockUp() uses, because they are the same three ways a lock can be up');
+
+    /* ★ THE BARE-GLOBAL HAZARD. C# emits `executeUiCommand(setTheme, '<b64>')` with
+     * setTheme as a bare identifier (Utils.sendUiCommand builds the string), so an
+     * UNDEFINED one throws a ReferenceError while the ARGUMENTS are evaluated —
+     * before executeUiCommand is entered and before its own try/catch can run. That
+     * is the #258 addAppRequest lesson, which cost ten shells. Now that the push
+     * reaches the NavigationStack and the modal stack, EVERY shell can receive one. */
+    const shellDir421 = join(root, 'src/shells');
+    const missing421 = readdirSync(shellDir421).filter((f) => f.endsWith('.html'))
+      /* the mutation run caught this: the first cut matched the WORD `setTheme`,
+       * so a shell whose DEFINITION was deleted still passed on the comment that
+       * described it. Match a definition — a `setTheme(name) {` handler-map entry
+       * or a `window.setTheme =` assignment — and nothing else. */
+      .filter((f) => !/(setTheme\s*\(\s*name\s*\)\s*\{|window\.setTheme\s*=)/.test(readFileSync(join(shellDir421, f), 'utf8')));
+    ok(missing421.length === 0,
+      '★ N71 (#421): EVERY shell defines setTheme — including the fixed-surface ones, where it is a deliberate no-op. An undefined bare global throws before the dispatcher can catch it (#258). Missing: ' + (missing421.join(', ') || 'none'));
+    /* ★ THE DESTRUCTURE GATE (#46 audit MAJOR-1, then AGAIN in the fix round).
+     * A shell that USES a bundle export without destructuring it is a ReferenceError,
+     * and the symptom depends only on WHERE the call sits: at module top level the
+     * shell dies at boot (blank conversation); inside a handler it boots perfectly and
+     * breaks silently when that push arrives. It happened twice in one session, in the
+     * same file, with both symptoms — so it is gated structurally rather than by
+     * remembering. build-shells' preflight cannot do this: it validates the symbols a
+     * shell DOES destructure, so an omitted one is invisible to it by construction. */
+    /* the bundle emits ONE line: `window.Spixi = { a: a, b: b, … };` */
+    const bundleSrc421 = readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8');
+    const exportLine421 = bundleSrc421.slice(bundleSrc421.lastIndexOf('window.Spixi = {'));
+    const bundleExports421 = new Set(
+      [...exportLine421.slice(0, exportLine421.indexOf('};')).matchAll(/([A-Za-z_$][\w$]*)\s*:/g)].map((m) => m[1]));
+    /* strip JS block/line comments AND html comments — a bundle name mentioned in a
+       <!-- … --> note is not a call (launch.html mentions passwordField in one) */
+    const stripComments421 = (t) => t
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    const undeclared421 = [];
+    for (const f of readdirSync(shellDir421).filter((n) => n.endsWith('.html'))) {
+      const src = readFileSync(join(shellDir421, f), 'utf8');
+      const m = src.match(/const \{([\s\S]*?)\} = window\.Spixi;/);
+      if (!m) continue;   // empty_detail is deliberately bundle-less
+      /* record BOTH sides of an ALIASED import (`showAppRemoved: showAppRemovedModal`).
+         The left side is the bundle export — genuinely imported — and the right side is
+         the local binding. A shell aliases precisely so it can define its OWN global of
+         the export's name (chat.html's addReactions handler, app_details' modal), so
+         neither side may count as an undeclared call. */
+      const declared = new Set();
+      for (const tok of stripComments421(m[1]).split(/[,\n]/)) {
+        const t = tok.trim();
+        if (!t) continue;
+        for (const half of t.split(':')) {
+          const nm = half.trim();
+          if (/^[A-Za-z_$][\w$]*$/.test(nm)) declared.add(nm);
+        }
+      }
+      const body = stripComments421(src);
+      for (const name of bundleExports421) {
+        if (declared.has(name)) continue;
+        // a bare call `name(` that is not a property access `.name(` or `window.Spixi.name(`
+        if (new RegExp('(^|[^\\w$.])' + name + '\\s*\\(', 'm').test(body)) undeclared421.push(f + ':' + name);
+      }
+    }
+    ok(undeclared421.length === 0,
+      '★ THE DESTRUCTURE GATE: no shell calls a bundle export it did not destructure. Found: ' + (undeclared421.join(', ') || 'none'));
+    ok(bundleExports421.size > 200 && bundleExports421.has('applyPushedTheme') && bundleExports421.has('patternLevelVar'),
+      '★ the destructure gate reads a REAL export list (a mis-parsed empty set would make the gate above vacuously pass — the failure mode of every "check nothing is missing" test)');
+
+    const themeRt421 = readFileSync(join(root, 'src/components/theme-runtime.js'), 'utf8');
+    ok(/export function applyPushedTheme\b/.test(themeRt421) && /export function ignorePushedTheme\b/.test(themeRt421)
+      && /theme-switching/.test(themeRt421),
+      '★ N71 (#421): ONE implementation of the swap body (transitions suppressed across it, #53). Five shells carried a copy and thirteen carried none — copies drift, which is the #251/#288 story twice');
+    const lockShell421 = readFileSync(join(shellDir421, 'lock.html'), 'utf8');
+    const launchShell421 = readFileSync(join(shellDir421, 'launch.html'), 'utf8');
+    ok(/ignorePushedTheme/.test(lockShell421) && /ignorePushedTheme/.test(launchShell421)
+      && !/applyPushedTheme/.test(lockShell421) && !/applyPushedTheme/.test(launchShell421),
+      '★ N71 (#421): the lock and the launch flow IGNORE the push — they are brand-dark in BOTH themes (#203 / N73), so following a flip would repaint fixed chrome against a token set that moved under it. They still DEFINE the global, which is the point');
+
+    /* ★ settings.html is the one shell whose handler needs more than the shared body. */
+    const setShell421 = readFileSync(join(shellDir421, 'settings.html'), 'utf8');
+    ok(/p = readPatternLevel\(p, de \? 0 : 1\);/.test(readFileSync(join(shellDir421, 'chat.html'), 'utf8')),
+      '★ N81 MIGRATION, the RUNTIME half: readPatternPrefs migrates through the SAME readPatternLevel the component exports. The pre-paint script must inline its own copy (it runs before the bundle), so these two are the pair that has to agree — pinning only the inline one left the live re-read unpinned');
+    ok(/let autoTheme = document\.documentElement\.dataset\.theme \|\| '';/.test(setShell421)
+      && !/const bootTheme =/.test(setShell421),
+      '★ N71 (#421) + ★ #410: the Auto resolution is MUTABLE. It was a const captured at document boot, which was only safe while a flip RELOADED the document; with a push nothing rebuilds it, and a later applyTheme(0) would snap the page back to the boot theme and silently undo the push');
+    ok(/if \(state\.theme === 0\) autoTheme = name === 'dark' \? 'dark' : 'light';\s*\n\s*applyPushedTheme\(name\);/.test(setShell421),
+      '★ N71 (#421, #46 audit — BOTH auditors found this independently): settings.html trusts a pushed name as the SYSTEM answer ONLY while System is selected, and refreshes it BEFORE applying. The pushed value is getResolvedAppearanceName(), which returns the PICK when the pick is explicit — unguarded it poisoned the Auto cache with a value the OS never reported, and the next "System" pick painted the Account from it');
+    ok(!/setTheme\(name\)[\s\S]{0,300}?spixi\.appearance/.test(setShell421),
+      '★ N71 (#421): the push does NOT write spixi.appearance. An OS flip does not change the user\'s PICK (still System) — writing an idx here would silently convert their Auto choice into a hard Light/Dark one');
+
+    /* ★ THE DO-NOT-PATCH RULE. Fix #8 is CORRECT for the reload it was written for
+     * (the Save-from-Account echo, #8). N71 works by removing the reload, not by
+     * touching this line — patching it in isolation would re-open #8. */
+    ok(/bridge\.send\('ixian:tab:tab1'\);/.test(readFileSync(join(shellDir421, 'home.html'), 'utf8')),
+      '★ N71 (#421): Fix #8 is UNCHANGED. It is correct for the Save-from-Account reload echo it exists for; N78 is fixed by removing the OS-flip RELOAD, never by weakening this line');
 
     ok(/public bool hasGeneratedContent[\s\S]{0,200}?return loadedHtmlFileName != null;/.test(read('Spixi/Utils/SpixiContentPage.cs'))
-      && (uh.match(/hasGeneratedContent/g) || []).length >= 2,
+      && (uh.match(/hasGeneratedContent/g) || []).length >= 1,
       '★ N66 (#385, review MAJOR-1): the sweep SKIPS a page whose content we did not generate. reload() cannot re-theme such a page — it falls through to a raw Reload and RESTARTS it. That page is MiniAppPage, so an OS auto-dark flip would have destroyed a running mini-app\'s state for zero theme gain, and broken the standing rule that third-party content stays out of our sweeps');
   }
 

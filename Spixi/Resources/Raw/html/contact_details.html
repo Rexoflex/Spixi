@@ -2021,7 +2021,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     attachPressFeedback,
     createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
-    showToast,                                       // N55: optimistic request-sent feedback
+    showToast,                                       // N55: optimistic request-sent feedback,
+    applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -2332,16 +2333,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // ReferenceError, the #258 class), so a live chat-info/group-info pane could
     // never re-theme. Same grammar as home.html's handler (args arrive DECODED via
     // the real dispatcher; #53 transition suppression for a one-frame flip).
-    setTheme(name) {
-      const t = name === 'dark' ? 'dark' : 'light';
-      const r = document.documentElement;
-      if (r.dataset.theme === t) return;
-      try { r.classList.add('theme-switching'); } catch (e) {}
-      r.dataset.theme = t;
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { r.classList.remove('theme-switching'); } catch (e) {}
-      }));
-    },
+    // ★ N71 (#421): body moved to theme-runtime.js — five shells carried a copy of
+    // it and thirteen carried none, which is how #251 and #288 MAJOR-1 both happened.
+    setTheme(name) { applyPushedTheme(name); },
 
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage
     // (identity comes from C#'s Friend, so the roster resolve is obsolete too).

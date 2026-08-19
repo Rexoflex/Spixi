@@ -591,36 +591,30 @@ namespace SPIXI
                     // reload — the redesigned shell already applied the new theme LIVE
                     // (applyTheme on the pick) and persisted it; the full reload here was
                     // the visible flicker, and the regenerated boot theme comes along on
-                    // the next natural open. Re-theme the OTHER live WebViews (Home and,
-                    // on desktop, its detail pane) with a lightweight setTheme push —
-                    // C#-resolved, so "auto" follows the app, not the WebView's own
-                    // prefers-color-scheme (which disagreed on WinUI).
-                    string themeName = ThemeManager.getResolvedAppearanceName();
-                    HomePage? home = HomePage.Instance();
-                    if (home != null)
-                    {
-                        Utils.sendUiCommand(home, "setTheme", themeName);
-                        if (home.getDetailContent() is SpixiContentPage detail)
-                        {
-                            Utils.sendUiCommand(detail, "setTheme", themeName);
-                        }
-                        // #251 (Damir F5): the EmptyDetail resting pane is neither an
-                        // overlay nor detailContent — without this it kept the old
-                        // theme (dark welcome pane on a light app).
-                        if (home.getDefaultDetailContent() is SpixiContentPage emptyDetail)
-                        {
-                            Utils.sendUiCommand(emptyDetail, "setTheme", themeName);
-                        }
-                    }
-                    // #225: other live overlays (an open conversation under this Account
-                    // overlay) re-theme too; this page itself already applied the pick.
-                    foreach (SpixiContentPage overlay in getOverlayPages())
-                    {
-                        if (overlay != this)
-                        {
-                            Utils.sendUiCommand(overlay, "setTheme", themeName);
-                        }
-                    }
+                    // the next natural open.
+                    //
+                    /* ★ N71 (#421): the OTHER live WebViews are re-themed by the SHARED
+                     * sweep now. This branch used to hand-roll its own enumeration —
+                     * Home, Home's detail pane, the EmptyDetail resting pane, then the
+                     * open overlays — which is how the two theme paths drifted apart in
+                     * the first place: one pushed a hand-written list, the other
+                     * reloaded a different hand-written list, and neither covered the
+                     * NavigationStack or the modal stack. They are one code path now.
+                     *
+                     * Three things this fixes on the pick path specifically:
+                     *  · getDetailContent() is DEAD (HomePage.detailContent is only ever
+                     *    assigned null — HomePage.xaml.cs:3123, the same dead branch #288
+                     *    logged in getChatPages). It read like a guard and covered
+                     *    nothing, which is exactly the trap #399's F-1 fix called out.
+                     *  · pages BEHIND this one in the NavigationStack were never reached.
+                     *  · THIS page is INCLUDED. ★ Damir F5 2026-08-19: the #46 round had
+                     *    me EXCLUDE it, and that re-opened N71(a) — pick System with the
+                     *    OS dark and the whole app went dark while the Account stayed
+                     *    light, because the one surface that needed the resolved answer
+                     *    was the one surface not told it. The shell's own guard keys on
+                     *    the SELECTED appearance, not on who sent the push, and handles
+                     *    both cases; see the header on pushThemeToAllPages. */
+                    UIHelpers.pushThemeToAllPages();
                 }
             }
             else

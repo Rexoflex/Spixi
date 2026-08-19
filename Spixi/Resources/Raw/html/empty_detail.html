@@ -111,6 +111,9 @@
    * as executeUiCommand(setTheme, 'light'), i.e. a BARE GLOBAL fn reference. Provide
    * the global + a minimal dispatcher (loop C-4 hardening folded in: unknown pushes
    * must not throw into EvaluateJavaScriptAsync). */
+  /* ★ N71 (#421): this is the ONE shell that keeps a LOCAL copy of the body. It is
+   * deliberately bundle-less (see the dispatcher note below), so it cannot import
+   * theme-runtime.js like the other seventeen. Keep the two in step by hand. */
   window.setTheme = function (name) {
     if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
   };

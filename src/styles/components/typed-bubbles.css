@@ -10,7 +10,12 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
+     these cards are that surface — leaving them on elevation-1 beside hairlined
+     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
+     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 /* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
    below) carry the same 2px outgoing-colour border as sent media tiles
@@ -18,6 +23,12 @@
 .c-bubble-row[data-direction="sent"] .c-tcard,
 .c-bubble-row[data-direction="sent"] .c-fbubble {
   border: 2px solid var(--surface-bubble-sent);
+  /* ★ N81 (#422, #46 audit NIT): drop the incoming hairline on the SENT side. An
+     inset shadow paints at the padding edge, i.e. INSIDE this 2px border, so a sent
+     card was drawing a 2px blue edge with a 1px hairline nested in it — a composite
+     that did not exist before (the old elevation-1 sat OUTSIDE the border). The
+     border already says "yours"; the hairline is the incoming affordance. */
+  box-shadow: none;
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
@@ -209,7 +220,12 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
+     these cards are that surface — leaving them on elevation-1 beside hairlined
+     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
+     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   text-align: start;
   font-family: var(--font-secondary);

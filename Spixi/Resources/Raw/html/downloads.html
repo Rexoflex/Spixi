@@ -1632,7 +1632,8 @@ button.c-settings-howto__join:disabled {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
-  } = window.Spixi;
+    applyPushedTheme,
+    } = window.Spixi;
   /* D-16 r2/r3 (audits C-4 + Opus finding 2): this shell renders the Downloads
      surface — the FILE rows (.c-settings-dl__open, a press family since r3) and
      one destructive .c-settings__row — and was the one rows-bearing shell without
@@ -1687,6 +1688,12 @@ button.c-settings-howto__join:disabled {
   }
 
   const handlers = {
+    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
+     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
+     * input; it pushes now, so this shell must be able to receive one. Shared body
+     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
+     * WebView's prefers-color-scheme can disagree with the app theme. */
+    setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     clearFiles() { buf = []; settle(); },
     addFile(name, ctime) {

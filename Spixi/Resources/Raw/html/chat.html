@@ -33,14 +33,12 @@
 <script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
 <!-- Chat appearance prefs (6e.2, FE-only): pattern intensity + message text size
      picked on the Account screen persist in localStorage (same origin) — applied
-     here pre-paint (AFTER the theme script: dark derives its intensity as the
-     stored light-scale pick × 0.36, keeping the #76 theme-tuned 0.5/0.18 ratio).
-     B2 (#256): ONE pref key, PLATFORM-AWARE DEFAULT when unset — desktop 0 (Off),
-     mobile 0.5 (Standard) — replacing the #207 hard-forced desktop pattern-off,
-     so an explicit user pick now works on BOTH platforms. The unset-mobile value
-     matches chat-pattern.css's own defaults (0.5 light / 0.18 dark = ×0.36), so
-     mobile is unchanged by construction. #76 ink values untouched. Clamped so a
-     corrupted value can't blow up bubble text. -->
+     here pre-paint (a level resolved after first paint flashes the wrong canvas).
+     B2 (#256): ONE pref key, PLATFORM-AWARE DEFAULT when unset — desktop Off,
+     mobile Default — replacing the #207 hard-forced desktop pattern-off, so an
+     explicit user pick works on BOTH platforms.
+     ★ N81 (#422): the value is a LEVEL INDEX and the alpha is a per-theme token,
+     so the old "dark = light × 0.36" line that used to live here is gone. -->
 <!-- W5 (Damir 2026-08-12): the pattern STYLE pref rides the SAME pre-paint script
      as the intensity, for the same reason — a style resolved after first paint
      flashes the wrong pattern. It sets `data-chat-pattern` on <html>, which
@@ -51,7 +49,14 @@
      Live flow is DESKTOP-ONLY — a mobile client carrying the pref (restore,
      hand-edited storage) falls back to line art here rather than burning
      battery on a constant rAF loop. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),dark=document.documentElement.dataset.theme==='dark',p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}if(isNaN(p))p=de?0:0.5;p=Math.min(1,Math.max(0,p));r.setProperty('--chat-pattern-opacity',String(dark?Math.round(p*36)/100:p));if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='lineart';if(s!=='lineart'&&s!=='matrix'&&s!=='flow')s='lineart';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
+<!-- ★ N81 (#422): the level is an INDEX (0 Off / 1 Default / 2 Strong) and the
+     alpha comes from the theme's own --chat-pattern-alpha-N. The old dark ×0.36
+     derivation is GONE from every script — CSS resolves var() under the current
+     theme, so a live setTheme push can no longer leave dark painting the light
+     number. Legacy fractional prefs migrate here exactly as readPatternLevel()
+     does in settings-screens.js; this copy is inline because it must run BEFORE
+     the bundle loads (pre-paint). Keep the two in step. -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else if(p===1||p===2)lv=p;else lv=p>0.5?2:1;r.setProperty('--chat-pattern-opacity',lv===2?'var(--chat-pattern-alpha-2)':lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='lineart';if(s!=='lineart'&&s!=='matrix'&&s!=='flow')s='lineart';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -657,7 +662,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row[data-direction="received"] .c-bubble {
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1); /* audit: lifts white bubbles off the pale canvas bottom */
+  /* ★ N81 (#422): a faint HAIRLINE, not a shadow (Damir's palette). The shadow was
+     there to lift a white bubble off the old pale-blue canvas bottom; on the cream
+     canvas it read as grime, and on the midnight canvas a shadow is invisible by
+     definition. `inset` keeps the bubble's box size unchanged, so the #63 grouped
+     radii still line up exactly.
+     🟡 MEASURED, and worth Damir's eye (break-my-verdict MINOR-2): in DARK the
+     hairline is a real edge — rgba(255,255,255,.05) over #1a1d24 reads 1.28:1
+     against the #0f1115 ground, up from the bubble's own 1.12. In LIGHT it buys
+     1.034 → 1.055, because rgba(0,0,0,.04) over white is #f5f5f5 against a #fcfbfa
+     ground. Both alphas are Damir's specified values, so they are NOT changed here —
+     but the light bubble is close to invisible on the cream, and ~rgba(0,0,0,0.10)
+     would land near 1.15 if he wants a visible edge. His dial, flagged not taken. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {
   /* premium saturated gradient (Damir 2026-07-07); solid --surface-bubble-sent is
@@ -764,6 +781,12 @@ button.c-bubble__sender {
    the bubble too, 74% stays comfortable */
 :root { --reply-label-l: 26%; }
 [data-theme="dark"] { --reply-label-l: 74%; }
+/* ★ N81 (#422, #46 audit): the quote's own fill against the NEW dark received bubble
+   (#1a1d24) is 1.017:1 on --surface-neutral-02 (#1b1f23) — the block stopped reading
+   as a surface at all, leaving only its 2px hue bar to say "this is a quote". One
+   step up the same neutral family restores it (1.19:1). Light is untouched: #edf0f2
+   on #ffffff was 1.14:1 before this batch and still is. */
+[data-theme="dark"] .c-bubble__reply { background: var(--surface-neutral-03); }
 .c-bubble__reply {
   display: flex;
   align-items: center;
@@ -1353,7 +1376,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
+     these cards are that surface — leaving them on elevation-1 beside hairlined
+     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
+     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 /* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
    below) carry the same 2px outgoing-colour border as sent media tiles
@@ -1361,6 +1389,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-tcard,
 .c-bubble-row[data-direction="sent"] .c-fbubble {
   border: 2px solid var(--surface-bubble-sent);
+  /* ★ N81 (#422, #46 audit NIT): drop the incoming hairline on the SENT side. An
+     inset shadow paints at the padding edge, i.e. INSIDE this 2px border, so a sent
+     card was drawing a 2px blue edge with a 1px hairline nested in it — a composite
+     that did not exist before (the old elevation-1 sat OUTSIDE the border). The
+     border already says "yours"; the hairline is the incoming affordance. */
+  box-shadow: none;
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
@@ -1552,7 +1586,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
+     these cards are that surface — leaving them on elevation-1 beside hairlined
+     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
+     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   text-align: start;
   font-family: var(--font-secondary);
@@ -2041,7 +2080,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
+     relied on elevation to separate. On the cream canvas it measures 1.03:1
+     against the ground, so the shadow is doing nothing — carry the same
+     incoming hairline the received bubble now uses. Dark needs neither: the
+     deeper #0f1115 ground GAINED separation. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 
 .c-typing__name {
@@ -2091,7 +2135,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  /* ★ N81 (#422, #46 audit): outline-neutral-01 measured 1.15:1 against the cream
+     canvas — a floating control has to have a findable edge. -02 is the same token
+     family one step stronger, and dark is unaffected (it gained ground contrast). */
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
   border-radius: var(--radius-full);
   background: var(--surface-menu);
   color: var(--icon-neutral-01);
@@ -2474,7 +2521,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-16);
   /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
   background: var(--surface-neutral-02);
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
+     relied on elevation to separate. On the cream canvas it measures 1.03:1
+     against the ground, so the shadow is doing nothing — carry the same
+     incoming hairline the received bubble now uses. Dark needs neither: the
+     deeper #0f1115 ground GAINED separation. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   text-align: center;
 }
 .c-sysnotice__medallion {
@@ -3810,7 +3862,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   overflow: hidden;
   background: var(--surface-neutral-02);
   box-sizing: border-box;
-  box-shadow: var(--elevation-1);
+  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
+     relied on elevation to separate. On the cream canvas it measures 1.03:1
+     against the ground, so the shadow is doing nothing — carry the same
+     incoming hairline the received bubble now uses. Dark needs neither: the
+     deeper #0f1115 ground GAINED separation. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -3914,6 +3971,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    outgoing GIF/image reads as "yours", matching the sent bubble (Damir 2026-07-08). */
 .c-bubble-row[data-direction="sent"] .c-mbubble {
   border: 2px solid var(--surface-bubble-sent);
+  /* ★ N81 (#422, break-my-verdict MINOR-1): drop the incoming hairline on the SENT
+     side, exactly as typed-bubbles.css does for the cards. An inset shadow paints at
+     the padding edge, i.e. INSIDE this 2px border — the same nested composite that
+     was removed one file over and missed here. */
+  box-shadow: none;
 }
 
 /* iOS-17 (#283): the tile can now be NARROWER than the anchor (media-bubble.js
@@ -4159,13 +4221,16 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   #chat-composer { transition: margin-bottom 280ms cubic-bezier(0.38, 0.7, 0.125, 1); }
   @media (prefers-reduced-motion: reduce) { #chat-composer { transition: none; } }
   /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
-     the base to grey-1000 (#207); data-desktop is on <html>, same element as
-     data-theme, so the dark rule is a COMPOUND selector (not descendant).
+     the base to grey-1000 (#207).
      B2 (#256): the #207 HARD-FORCED `::before{display:none}` pattern-off is GONE —
-     desktop now defaults to pattern Off via the pre-paint pref script above
-     (--chat-pattern-opacity: 0 when unset), and an explicit Chat-appearance pick
-     turns the doodle pattern on/off on desktop too. Gradient wash unchanged. */
-  html[data-desktop][data-theme="dark"] .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
+     desktop now defaults to pattern Off via the pre-paint pref script above, and an
+     explicit Chat-appearance pick turns the doodle pattern on/off on desktop too.
+     ★ N81 (#422): the desktop dark GROUND override is RETIRED too, and the reason is
+     that it inverted itself. It existed to deepen the desktop ground below the old
+     --surface-neutral-01; Damir's new dark canvas is #0f1115, which is already deeper
+     than the grey-1000 (#111213) the override pointed at — so keeping it would have
+     made desktop dark PALER than mobile dark, the exact opposite of its purpose, and
+     an undocumented second dark canvas colour on top of that. One dark canvas now. */
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }
@@ -4195,10 +4260,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     padding: var(--spacing-8) var(--spacing-16);
     border-radius: var(--radius-full);
     /* #265 (Damir ⑦): the tonal wash vanished on the light-blue canvas — ride
-       the received-bubble surface + elevation instead (white pops on the
-       gradient, the dark bubble surface reads in dark mode). */
+       the received-bubble surface instead.
+       ★ N81 (#422, #46 audit): "white pops on the gradient" was TRUE of the old
+       sky-blue canvas and is false of the cream one — white on #fcfbfa is 1.03:1.
+       The elevation is replaced by the same incoming hairline the received bubble
+       now carries, which is what actually draws the edge in both themes. */
     background: var(--surface-bubble-received);
-    box-shadow: var(--elevation-1);
+    box-shadow: inset 0 0 0 1px var(--border-bubble-received);
     color: var(--text-neutral-01);
     font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm);
     text-align: center;
@@ -4450,6 +4518,23 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     attachChatFlow, syncChatFlow, detachChatFlow, // W5: "Live flow" animated pattern style (desktop-only)
     createNativeBridge, installExecuteUiCommand,
+    /* ★ N81 (#422) — MISSED IN THE FIRST CUT, caught by the #46 audit executing the
+     * BUILT artifact. readPatternPrefs() runs at module top level, so an unimported
+     * name here is not a latent bug: the main script throws before bridge.exposeAll,
+     * nothing is exposed, and every conversation boots to a permanent spinner.
+     * ⚠ Neither gate could see it. build-shells' preflight validates DESTRUCTURED
+     * symbols against the bundle — a symbol that is never destructured is invisible
+     * to it, because its premise is staleness, not omission. The smoke pins regex-read
+     * the file and never execute it. The new pin below is a destructure pin for that
+     * reason. */
+    patternLevelVar, readPatternLevel,
+    /* ★ N71 (#421): and applyPushedTheme — the SECOND time this exact omission
+     * happened in this file, in the same session, and the reason both gates below
+     * now exist. The first cut died at boot (top-level call). This one did NOT: the
+     * reference sits inside a handler, so the shell booted perfectly and the theme
+     * push was the only thing that broke — which the boot gate cannot see and only
+     * the END-TO-END push pin caught. Two different symptoms, one root cause. */
+    applyPushedTheme,
   } = window.Spixi;
 
   /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
@@ -4487,7 +4572,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * no-op read in the steady state and never repaints under a live chat.
    *
    * The re-resolve is the SAME ladder as the head script (platform-aware default,
-   * clamp, desktop-only Live flow, the #76 ×0.36 dark derivation), then
+   * clamp, desktop-only Live flow, the legacy-alpha migration), then
    * applyChatPatternStyle() mounts or detaches the canvas. Tile-vs-canvas can
    * never double-paint: chat-pattern.css sets --chat-pattern-tile:none under
    * [data-chat-pattern='flow'] (::before display:none) and every non-flow style
@@ -4500,18 +4585,24 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
       s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
     } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
-    if (isNaN(p)) p = de ? 0 : 0.5;              // B2 (#256) platform-aware default
-    p = Math.min(1, Math.max(0, p));
+    // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
+    // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
+    // survives unchanged — desktop Off, mobile Default.
+    p = readPatternLevel(p, de ? 0 : 1);
     if (s === 'flow' && !de) s = 'lineart';      // Live flow is desktop-only (battery)
     if (s !== 'lineart' && s !== 'matrix' && s !== 'flow') s = 'lineart';
     return { level: p, style: s };
   }
   function applyPatternPrefs(prefs) {
     const r = document.documentElement;
-    const dark = r.dataset.theme === 'dark';
-    // #76 ratio, the SAME derivation as the head script and settings.html's
-    // readChatPrefs: the stored value is the LIGHT-scale pick; dark renders ×0.36.
-    r.style.setProperty('--chat-pattern-opacity', String(dark ? Math.round(prefs.level * 36) / 100 : prefs.level));
+    /* ★ N81 (#422): NO theme derivation here any more. This function used to read
+     * data-theme and multiply the stored value by 0.36 for dark — the same
+     * derivation the head script and settings.html each carried their own copy of,
+     * three places that had to agree. The level is an index now and the alpha comes
+     * from --chat-pattern-alpha-N, which CSS resolves under whatever theme is
+     * current at paint time. The setTheme hook still calls this (the flow canvas
+     * genuinely does need a repaint), but it can no longer paint the wrong number. */
+    r.style.setProperty('--chat-pattern-opacity', patternLevelVar(prefs.level));
     r.setAttribute('data-chat-pattern', prefs.style);
     applyChatPatternStyle();     // mount / detach the flow canvas for the new style
     syncFlowIfActive();          // …and repaint it now (reduced motion = no loop to self-heal)
@@ -7228,31 +7319,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     },
 
 
-    // Round 2 (DECISIONS #222/#224): live re-theme push from C# (SettingsPage on an
-    // appearance pick / HomePage on return from Account). C#-RESOLVED name — never
-    // re-derive 'auto' from matchMedia here (the WebView's prefers-color-scheme can
-    // disagree with the app theme; Damir F5). Transitions suppressed for the swap
-    // (#53) so tokens flip in one clean frame; persisted value already written by
-    // the Account shell (same origin).
-    setTheme(name) {
-      const t = name === 'dark' ? 'dark' : 'light';
-      const r = document.documentElement;
-      if (r.dataset.theme === t) return;
-      try { r.classList.add('theme-switching'); } catch (e) {}
-      r.dataset.theme = t;
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { r.classList.remove('theme-switching'); } catch (e) {}
-        // W5: the flow canvas reads its ink from computed style each frame, so a
-        // RUNNING loop re-themes itself. Under prefers-reduced-motion there is no
-        // loop (one static frame), so the repaint has to be pushed explicitly.
-        // W5 F5: re-derive the INTENSITY too. The stored pref is the light-scale
-        // pick and dark renders it ×0.36 (#76) — that derivation used to happen
-        // once, in the pre-paint script, so a live setTheme push left dark
-        // painting the LIGHT number (0.5 where the theme wants 0.18) until the
-        // next reload. applyPatternPrefs re-runs the ladder and repaints.
-        applyPatternPrefs(readPatternPrefs());
-      }));
-    },
+    /* Round 2 (DECISIONS #222/#224): live re-theme push from C#. C#-RESOLVED name —
+     * never re-derive 'auto' from matchMedia here (the WebView's prefers-color-scheme
+     * can disagree with the app theme; Damir F5).
+     *
+     * ★ N71 (#421): swap body SHARED (theme-runtime.js), transitions suppressed across
+     * it (#53). ⚠ This migration was applied, then silently REVERTED by a later
+     * comment cleanup in the same session, and the break-my-verdict reviewer caught
+     * both the drift AND the reason the pin missed it — the pin matched a substring
+     * that the hand-rolled copy also satisfied. The pin now asserts the CALL SHAPE.
+     *
+     * The onApplied hook is this shell's own and is not optional: the W5 flow canvas
+     * reads its ink from computed style each frame, so a RUNNING loop re-themes
+     * itself — but under prefers-reduced-motion there is no loop (one static frame),
+     * so the repaint has to be pushed explicitly. The pattern INTENSITY no longer
+     * needs it (★ N81: CSS resolves the per-theme alpha). */
+    setTheme(name) { applyPushedTheme(name, { onApplied: () => applyPatternPrefs(readPatternPrefs()) }); },
 
     // C13: the LOCAL user's own nick (SingleChatPage.onLoad). Lets the shell identify
     // "me" for self-mention emphasis + the @ jump-to-mention FAB. Refresh the memoized

@@ -895,7 +895,12 @@
   /* canvas base = the SOLID color layer under the gradient wash. Split out so a
      surface (e.g. desktop, docs/desktop-split-spec.md item 2) can drop the doodle
      pattern AND swap the base without touching the gradient overlay itself. */
-  --chat-canvas-base: #fcfbfa;
+  /* ★ N82(a) (#427, Damir 2026-08-19): the warm cream is REJECTED and this is his
+     pick from the measured set in #426 — light cool grey. It drops the yellow cast
+     that made white incoming bubbles read muddy, and it lifts white-bubble
+     separation from 1.034 to 1.083, which is better than cream ever managed WITH
+     the hairline (1.055). Superseded: #fcfbfa (#422). */
+  --chat-canvas-base: #f4f6f9;
   /* ★ N81 (#422): FLAT cream — no wash (Damir's dial). The sky-blue diagonal that
      used to sit here was tuned to make a BLUE canvas read as depth; over a warm
      off-white it only turns the cream blue again, which is the one thing the new
@@ -915,9 +920,28 @@
      --text-bubble-sent = neutral-10 #f9fafb, which measures 6.66:1. Both clear AA —
      the number is corrected here so the next reader does not trust the wrong one.) */
   --gradient-bubble-sent: #1956b2;
-  /* the hairline that lifts an INCOMING bubble off the canvas — new in #422, and
-     the reason the received bubble no longer needs a shadow to be findable. */
-  --border-bubble-received: rgba(0, 0, 0, 0.04);
+  /* ★ N82(b) (#427, Damir 2026-08-19): the bubble hairline comes OFF — in BOTH
+     themes. It was hired in #422 for one job and light no longer needs it: the cream
+     canvas left a white bubble at 1.034:1, and the new #f4f6f9 canvas gives 1.083 on
+     its own. In light the hairline had in fact gone WORSE than useless — the pixel it
+     paints (rgba(0,0,0,.04) over white = #f5f5f5) measures 1.007:1 against #f4f6f9,
+     i.e. indistinguishable from the ground, so its 1px was erasing 1px of the
+     bubble's own separation.
+     ⚠ DARK WAS THE OPEN QUESTION AND DAMIR ANSWERED IT ON THE RENDER. There the
+     hairline WAS doing real work — the pixel reads 1.281:1 against the #0f1115
+     ground against the bubble's own 1.120 — so it was built asymmetric, rendered
+     side by side, and he chose symmetric removal with that number in front of him.
+     Recorded because the measurement and the pick disagree: dark bubbles now
+     separate on 1.120 alone. The dark line below is DELETED rather than set, so both
+     themes inherit this one value.
+     ⚠ THE EIGHT box-shadow RULES THAT READ THIS TOKEN ARE KEPT ON PURPOSE. The token
+     is transparent, not absent, so the hairline is one line from returning in either
+     theme; deleting the rules would mean re-deriving eight sites, and re-adding it
+     per theme would put [data-theme="dark"] selectors into eight component files —
+     the exact must-agree shape #422 spent a batch removing. Consumers:
+     message-bubble · typed-bubbles (×2) · media-bubble · typing-indicator ·
+     system-notice · settings-screens · chat.html .chat-event__chip. */
+  --border-bubble-received: transparent;
   /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
      white glyph, so the same fills read in light AND dark). Assigned per-glyph by
      discGrad() so discs don't repeat; error = reserved destructive red. Raw hex
@@ -1035,7 +1059,10 @@
      asked for one outgoing blue across both themes, so the dark-only two-stop
      gradient (#353FB7→#2046A7) is retired. */
   --gradient-bubble-sent: #1956b2;
-  --border-bubble-received: rgba(255, 255, 255, 0.05);
+  /* ★ N82(b) (#427): the dark override is GONE — see the light block. Dark inherits
+     `transparent` from :root now, on Damir's pick made against the rendered
+     comparison. Restoring dark alone = put this line back with
+     rgba(255, 255, 255, 0.05); it measured 1.281:1 against the #0f1115 ground. */
 }
 
 @media (prefers-reduced-motion: reduce) {

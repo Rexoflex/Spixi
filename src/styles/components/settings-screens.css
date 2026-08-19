@@ -53,9 +53,9 @@
   align-self: flex-start;
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422, #46 audit): the preview must show what the chat shows. Without the
-     hairline this bubble is 1.03:1 on the cream canvas — invisible on the one screen
-     whose entire job is previewing the chat. */
+  /* ★ N81 (#422, #46 audit): the preview must show what the chat shows — which is
+     why it reads the SAME token rather than baking an edge. ★ N82(b) (#427): that
+     now means no edge in EITHER theme, exactly as the chat renders. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   border-radius: var(--radius-16);
   border-end-start-radius: var(--radius-4);

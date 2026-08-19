@@ -709,22 +709,32 @@
   // omission is Damir's accepted dial; chat.html + other subscreens would need a
   // C# push-routing change, logged, not built). aria-live stays on the CHATS title
   // alone — one polite announcement, not three.
+  /* ★ N19 (#428): each target also names the BAR that owns the bottom edge, so the
+     connecting LINE and the connecting TITLE are driven by one call and cannot
+     disagree. The wallet hero carries `bar: null` deliberately — it is not a
+     `.c-topbar`, it has no bottom hairline to replace, and its bottom corners are
+     rounded by --radius-24, so a straight sweep across it would cut the corners.
+     The hero keeps the title state alone; that is a scope note, not an omission. */
   function titleStateTargets() {
     const out = [];
     const chats = chatsTopbarEl.querySelector('.c-topbar__title');
-    if (chats) out.push({ holder: chats, word: chats.querySelector('span') || chats, base: chatsTitleBase });
+    if (chats) out.push({ holder: chats, word: chats.querySelector('span') || chats, base: chatsTitleBase, bar: chatsTopbarEl });
     try {
       const apps = appsTopbarEl.querySelector('.c-topbar__title');
-      if (apps) out.push({ holder: apps, word: apps.querySelector('span') || apps, base: strings.tabApps || 'Apps' });
+      if (apps) out.push({ holder: apps, word: apps.querySelector('span') || apps, base: strings.tabApps || 'Apps', bar: appsTopbarEl });
     } catch (e) { /* pre-build TDZ — first push always lands after parse */ }
     try {
       const wh = hero.querySelector('.c-wallet-hero__title');
-      if (wh) out.push({ holder: wh, word: wh, base: strings.wallet || 'Wallet' });
+      if (wh) out.push({ holder: wh, word: wh, base: strings.wallet || 'Wallet', bar: null });
     } catch (e) { /* same */ }
     return out;
   }
   function setChatsTitleState(text) {
-    for (const { holder, word, base } of titleStateTargets()) {
+    for (const { holder, word, base, bar } of titleStateTargets()) {
+      if (bar) {
+        if (text) bar.setAttribute('data-connecting-bar', '');
+        else bar.removeAttribute('data-connecting-bar');
+      }
       if (text) {
         holder.setAttribute('data-connecting', '');
         word.textContent = strings.connecting || 'Connecting';

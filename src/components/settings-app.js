@@ -554,6 +554,12 @@ export function createSettingsHowTo({
   steps,
   links,
   onOpenLink,
+  /* ★ Item 6 (#397/#400): the PERMANENT door into the Spixi community. The chat-list
+     empty-state CTA is the right first impression, but it disappears the moment the
+     user adds any ordinary contact — after that there was no way in at all. Optional:
+     without the hook the row is not rendered, so every other caller (demo, tests) is
+     unchanged. Opt-in by construction — nothing is added until it is tapped. */
+  onJoinCommunity,
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -601,6 +607,50 @@ export function createSettingsHowTo({
   }
   groupWrap.append(card);
   body.append(groupWrap);
+
+  /* ★ Item 6: the community row. One-shot in the DOCUMENT (this takeover is rebuilt
+     ⚠ i18n: this is a hand-built link-row, not a createButton/createChip, so
+     scripts/i18n-overflow-audit.mjs does NOT harvest its labels — a clean overflow run
+     says nothing about them. It is safe because .c-settings-links__label sets no
+     white-space and has flex:1, so a long localized label WRAPS inside the 52px row
+     rather than clipping. Keep it that way, or teach the audit this grammar first.
+     on every open, so the latch does not persist — deliberately: the host knows
+     nothing about the roster, and the honest failure is a second request, which
+     addFriend absorbs). It reports done in place rather than through a toast, because
+     the user is looking straight at the control they pressed. */
+  if (onJoinCommunity) {
+    const jw = document.createElement('div');
+    jw.className = 'c-settings__groupwrap';
+    const jc = document.createElement('div');
+    jc.className = 'c-settings__group c-settings-links';
+    const jb = document.createElement('button');
+    jb.type = 'button';
+    jb.className = 'c-settings-links__row c-settings-howto__join';
+    const jlab = document.createElement('span');
+    jlab.className = 'c-settings-links__label';
+    jlab.textContent = strings.howToJoinCta || 'Join the Spixi community';
+    const jglyph = icon('users', { size: 18 });
+    jb.append(jlab, jglyph);
+    jb.addEventListener('click', () => {
+      if (jb.disabled) return;
+      jb.disabled = true;
+      try { onJoinCommunity(); } catch { /* the row must not throw out of the screen */ }
+      /* ★ audit MINOR: NOT "Added". FriendList.addFriend returns NULL when the address is
+         already in the list (Ixian-Core FriendList.cs:366-370), so a repeat tap adds
+         nothing — and this row is PERMANENT, aimed exactly at users who are past their
+         first contact and most likely to hold the bot already. The confirmation has to be
+         true in both cases, so it states where the chat IS rather than what just happened. */
+      jlab.textContent = strings.howToJoinDone || 'Spixi group chat is in your chats';
+      jglyph.replaceWith(icon('check', { size: 18 }));
+    });
+    jc.append(jb);
+    const note = document.createElement('p');
+    note.className = 'c-settings__note';
+    note.textContent = strings.howToJoinBody
+      || 'Adds the Spixi group chat to your chats, where you can ask questions and follow updates.';
+    jw.append(jc, note);
+    body.append(jw);
+  }
 
   const linkList = links || [
     // iOS-21: the help centre, not the marketing home page — this is the

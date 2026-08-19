@@ -1523,6 +1523,40 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'Send log hides without its callback (§9 honesty — no bridge command yet)');
   dvhost.remove();
 
+  /* ★ Item 6 (#397/#400) BEHAVIOURAL: the permanent community door in How to use.
+   * The chat-list empty-state CTA is the right first impression, but it disappears the
+   * moment the user adds ANY ordinary contact — after that there was no way in at all. */
+  {
+    let joins = 0;
+    const htHost = d.createElement('div');
+    d.body.append(htHost);
+    const plain = S.createSettingsHowTo({ onBack() {} });
+    htHost.append(plain);
+    ok(!plain.querySelector('.c-settings-howto__join'),
+      '★ Item 6: NO row without the hook — every existing caller (demo, tests) is untouched, and a row that cannot act must not render');
+    const ht = S.createSettingsHowTo({ onBack() {}, onJoinCommunity: () => { joins++; } });
+    htHost.append(ht);
+    const joinBtn = ht.querySelector('.c-settings-howto__join');
+    ok(!!joinBtn && joinBtn.tagName === 'BUTTON',
+      '★ Item 6: How to use carries the community row — the door that does not close on the first contact');
+    joinBtn.click();
+    joinBtn.click();                                  // latched — a second tap must not re-request
+    ok(joins === 1 && joinBtn.disabled,
+      '★ Item 6: the join is OPT-IN and fires ONCE — nothing is added until the tap, and a double tap does not send a second contact request');
+    /* ★ break-my-verdict MAJOR-2: this asserted /Added/i, so it CERTIFIED the stale copy —
+     * and would have turned red the moment the fix actually landed. "Added" is a false
+     * claim on a repeat tap: FriendList.addFriend returns null for an address already in
+     * the list (Core FriendList.cs:365-370), and this row is PERMANENT, aimed at exactly
+     * the users who already hold the bot. Pin what the copy must SAY. */
+    ok(!/^Added\b/i.test(joinBtn.textContent.trim()) && /chats/i.test(joinBtn.textContent),
+      '★ Item 6: it reports done IN PLACE and states where the chat IS, not what just happened — a repeat tap adds nothing, so "Added" would be a lie on the tap this permanent row exists to serve');
+    const htThrow = S.createSettingsHowTo({ onBack() {}, onJoinCommunity: () => { throw new Error('bridge not ready'); } });
+    htHost.append(htThrow);
+    htThrow.querySelector('.c-settings-howto__join').click();
+    ok(true, '★ Item 6: a throwing hook does not escape the row (the click above would have failed the run)');
+    htHost.remove();
+  }
+
   /* contributors — static port of the legacy 12 */
   const con = S.createSettingsContributors({ onBack() {} });
   const conNames = [...con.querySelectorAll('.c-settings-contrib__name')];
@@ -3091,8 +3125,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
   ok(/c-lock__brand/.test(ljs) && /c-lock__spacer/.test(lcss) && /flex: 1\.2 1 0/.test(lcss),
     '#160b: brand/form/spacer/tail zones present — action cluster rides the lower half');
   ok(/\.demo-lock \{ position: absolute; inset: 0;/.test(setHtml)
-    && /env\(safe-area-inset-top\)/.test(lcss),
-    '#160b⑧: lock takeover is FULL-BLEED (gradient under the statusbar; safe-area padding for the real page)');
+    && /var\(--safe-top, 0px\)/.test(lcss),
+    '#160b⑧: lock takeover is FULL-BLEED (gradient under the statusbar; safe-area padding for the real page) — ★ AND-7 (#401) moved the top inset behind --safe-top, because a raw env() reads 0 on Android and the lock would have padded by nothing there');
   ok(!/c-lock__logo \{[^}]*border-radius/.test(lcss.replace(/\n/g, ' ')) && /drop-shadow/.test(lcss),
     '#160: logo is a bare glowing glyph — no disc/circle chrome');
 }
@@ -3177,6 +3211,29 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
       '★ N75: onGoCreate NOTIFIES and the view still switches in place (one page, one WebView)');
     oneP.remove();
   }
+  /* ★ F-2 (#395/#399) BEHAVIOURAL: every view change reports, from ONE place.
+   * C# swallows the hardware back button only while it believes a FORM view is on
+   * screen. Reporting from the two CTA hooks left every other route silent — the
+   * form Back controls, the retry lockout, anything added later — and the reported
+   * symptom was back EXITING THE APP from create/restore. */
+  {
+    const seen = [];
+    const vp = W.Spixi.createLaunchShell({ view: 'welcome', onViewChange: (v) => seen.push(v) });
+    d.body.append(vp);
+    ok(seen.length === 0,
+      '★ F-2: the BOOT view is NOT reported — C# chose it and put it in the carrier, and this runs during parse where an outgoing navigation races C#\'s first push (#177)');
+    [...vp.querySelectorAll('.c-launch__ctas .c-button')][1].click();
+    ok(seen.join() === 'restore', '★ F-2: the welcome CTA reports through show(), not through its own hook');
+    vp.querySelector('[data-launch-view="restore"] .c-topbar .c-button').click();   // the back icon-button is the topbar's first control
+    ok(seen.join() === 'restore,welcome',
+      '★ F-2: the form BACK control reports too — it used to report through a SEPARATE hook, so a route that forgot to wire it left C# believing a form was still up');
+    W.Spixi.setLaunchView(vp, 'retry');
+    ok(vp.dataset.view === 'retry' && seen.join() === 'restore,welcome',
+      '★ F-2: the switch C# ITSELF drives does not echo back — it already knows, and an echo is a second navigation for no new information');
+    W.Spixi.setLaunchView(vp, 'retry');
+    ok(seen.join() === 'restore,welcome', '★ F-2: an unchanged view reports nothing');
+    vp.remove();
+  }
   const create = d.querySelector('[data-launch-view="create"]');
   const nick = create.querySelector('.c-launch__input');
   const [cpw, crp] = [...create.querySelectorAll('.c-lock__input')];
@@ -3217,6 +3274,15 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   // —— create done(): scrub, hold the success morph — C# navigates to Home ——
   nick.value = 'Damir'; cpw.value = 'hunter2hunter2'; crp.value = 'hunter2hunter2';
   cbtn.click();
+  /* ★ N44 (#402) — VERIFIED ALREADY BUILT, now PINNED so it cannot regress silently.
+   * The worklist carried "spinner-on-button masking create/restore work" as an open
+   * item; a jsdom probe on the shipped bundle shows all three commit buttons already
+   * enter the loading state. Create is the one that matters — wallet generation takes
+   * seconds behind a screen with nothing else moving — and it had NO assertion at all,
+   * which is exactly how a build item stays open on paper while being done in code. */
+  ok(!!cbtn.querySelector('.c-button__spinner') && cbtn.getAttribute('aria-busy') === 'true'
+    && cbtn.disabled,
+    '★ N44 (#402): CREATE masks the wallet-generation wait — spinner, aria-busy and a disabled control the moment the submit is accepted');
   await sleep(2800);                             // demo bridge 1600ms + the morph beat
   ok(shell.dataset.view === 'create' && cpw.value === '' && crp.value === '',
     '★ N76: create done() scrubs and STAYS — there is no tail to advance to, C# navigates to Home');
@@ -3237,6 +3303,8 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     && restore.querySelector('.c-launch__file-name').textContent.includes('spixi-backup'),
     'setUploadedFileName renders the picked file (+ check glyph)');
   rpw.value = 'wrongpass'; rbtn.click();
+  ok(!!rbtn.querySelector('.c-button__spinner') && rbtn.getAttribute('aria-busy') === 'true',
+    '★ N44 (#402): RESTORE masks its wait the same way (the sibling half — the wrong-password path below then releases it)');
   await sleep(1100);
   ok(!rerr.hidden && !rpw.disabled,
     'wrong restore password → INLINE error, fields restored (showPasswordError → ctrl.fail(msg), spec §2.3)');
@@ -3306,9 +3374,9 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'launch-shell imports passwordField/ENC_MIN from lock-shell and bundles AFTER it (one field grammar)');
   ok(/lock-shell\.css/.test(lhtml) && /launch-shell\.css/.test(lhtml),
     'launch demo links lock-shell.css (c-lock__field styles) + launch-shell.css');
-  ok(/var\(--gradient-launch\)/.test(lcss) && /env\(safe-area-inset-top\)/.test(lcss)
+  ok(/var\(--gradient-launch\)/.test(lcss) && /var\(--safe-top, 0px\)/.test(lcss)
     && /--gradient-launch:/.test(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8')),
-    'premium round: welcome rides the NEW --gradient-launch (tokens.css dials; the lock keeps its own recipe)');
+    'premium round: welcome rides the NEW --gradient-launch (tokens.css dials; the lock keeps its own recipe) and clears the top safe area — ★ AND-7 (#401) via --safe-top, because a raw env() reads 0 on Android');
   ok(/settingsOptionSheet/.test(ljs) && /from '\.\/settings-shell\.js'/.test(ljs)
     && !/settingsThemeSheet/.test(ljs),
     '★ N72: the LANGUAGE picker reuses the settings sheet (one picker grammar app-wide); the theme sheet import left with the appearance pill');
@@ -4069,18 +4137,375 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     const scp = rd('Spixi/Utils/SpixiContentPage.cs');
     ok(/case "intro\.html":\s*\r?\n\s*return "#1b163c";/.test(scp),
       '★ N73: C# paints the SAME colour behind the launch WebView (pre-paint frame + safe-area ground)');
-    ok(/setEdgeToEdge\(pageSurfaceColorString\)/.test(scp)
-      && (scp.match(/setEdgeToEdge\(pageSurfaceColorString\)/g) || []).length === 2,
-      '★ N73: the Android bar strip follows the PAGE, at page chrome AND on OnAppearing — walking back to a page must repaint it, or the strip keeps the colour of the screen that just left');
+    {
+      /* ★ AND-7 (#401, audit): OnAppearing now calls applyPlatformPageChrome() rather than
+       * only the strip repaint — since the root view no longer pads the top, the PAGE's own
+       * padding and the shell's --android-inset-top are what keep content clear of the
+       * status bar, and both can be stale when a page is walked back to. That method opens
+       * with the same setEdgeToEdge call, so the N73 behaviour is preserved, not dropped. */
+      const onAppearing = scp.slice(scp.indexOf('protected override void OnAppearing()'));
+      ok(/setEdgeToEdge\(liveSurfaceColorString\(\), systemBarSurfaceColorString\(\)\)/.test(scp)
+        && /#if ANDROID[\s\S]{0,900}?applyPlatformPageChrome\(\);/.test(onAppearing),
+        '★ N73 + AND-7: the Android bar strip follows the PAGE, at page chrome AND on OnAppearing — walking back to a page must repaint it, or the strip keeps the colour of the screen that just left');
+    }
+    /* ═══ ★ AND-7 (#396/#401) FULL BLEED — the strip stops existing ═══
+     * #391 made the Android system-bar strip MATCH each screen; Damir asked for there
+     * to be no strip: "full bleed to the top", named for the wallet hero and the launch
+     * gradient. Root cause (docs/android-findings.md:47): the window already draws
+     * edge-to-edge, but MainActivity's insets listener padded the ROOT CONTENT VIEW
+     * down by the status-bar height, so every WebView started below it. */
+    {
+      const ma = rd('Spixi/Platforms/Android/MainActivity.cs');
+      const listener = ma.slice(ma.indexOf('private class InsetsListener'));
+      ok(/vg\?\.SetPadding\(0, 0, 0, Math\.Max\(imeInsets\.Bottom, sysInsets\.Bottom\)\);/.test(listener),
+        '★ AND-7 (#401): the root view is NO LONGER padded at the top — the page tree, and every WebView with it, reaches y=0. That padding WAS the strip');
+      ok(/Math\.Max\(imeInsets\.Bottom, sysInsets\.Bottom\)/.test(listener),
+        '★ AND-7: the BOTTOM padding is untouched — it carries the IME inset, and the Android keyboard behaviour was measured on exactly this mechanism (#334/AND-16). Moving it into CSS would double-pad the bottom nav or re-open that round');
+      ok(/publishTopInset\(sysInsets\.Top \/ density\)/.test(listener)
+        && /DisplayMetrics\?\.Density/.test(listener),
+        '★ AND-7: the inset is published in CSS px — Android insets are PHYSICAL pixels and CSS px are DIPs (the removed Android-15 modal hack divided by a hardcoded 3 for the same reason)');
+      ok(/addCustomString\("AndroidInsetTop"/.test(ma)
+        && /CultureInfo\.InvariantCulture/.test(ma),
+        '★ AND-7: it travels as a generatePage carrier (the *SL{SpixiThemeName} grammar) so it lands in the FIRST FRAME — and formats invariant, or a comma-decimal locale would emit "24,5px"');
+      const mapp = rd('Spixi/Platforms/Android/MainApplication.cs');
+      ok(/status_bar_height/.test(mapp) && /publishTopInset/.test(mapp)
+        && mapp.indexOf('publishTopInset') < mapp.indexOf('base.OnCreate();'),
+        '★ AND-7: a BOOTSTRAP estimate is registered BEFORE base.OnCreate builds the MAUI app — the first document is generated inside that call, long before the insets listener has ever fired, and without it the very first screen would paint its topbar under the clock');
+      ok(/\{ "AndroidInsetTop", "0" \}/.test(rd('Spixi/Lang/SpixiLocalization.cs')),
+        '★ AND-7: the key is SEEDED for every platform — an unknown *SL{} key is not silently empty, localizeHtml logs an error for it on every page load (SpixiLocalization:207), and ixian.log is a file the user shares');
+      /* the C# page-chrome half */
+      const chromeA = scp.slice(scp.indexOf('#if ANDROID', scp.indexOf('internal void applyPlatformPageChrome()')));
+      ok(/hasLegacyPageChrome\(loadedHtmlFileName \?\? ""\) \|\| !hasGeneratedContent/.test(chromeA),
+        '★ AND-7: only the 8 legacy Raw/html pages and MINI-APP pages keep native top padding. Mini-app content is third-party and cannot be assumed inset-aware — hasGeneratedContent is false exactly there (it never calls loadPage)');
+      /* ★ break-my-verdict MINOR-4: the push is only safe INSIDE the redesigned-shell
+       * branch. Utils.sendUiCommand emits the command as a BARE GLOBAL IDENTIFIER, and the
+       * 8 legacy Raw/html pages and every mini-app WebView do not define window.setInsetTop
+       * — an undefined global there throws BEFORE executeUiCommand is entered, so its own
+       * try/catch cannot fail soft. That is the #258 addAppRequest class, already shipped
+       * once. Pin the containment, not only the branch condition. */
+      {
+        const elseBranch = chromeA.slice(chromeA.indexOf('this.Padding = new Thickness(0);'));
+        ok(/Utils\.sendUiCommand\(this, "setInsetTop"/.test(elseBranch)
+          && chromeA.split('Utils.sendUiCommand(this, "setInsetTop"').length === 2,
+          '★ AND-7: the setInsetTop push fires ONLY for redesigned shells — exactly one call site, inside the branch that already proved the page is one of ours');
+      }
+      /* ★ AND-7b (#407, Damir F5 2026-08-19): full bleed put the WebView UNDER the status
+       * bar, so the pixels behind the clock are what the SHELL paints — and the home shell
+       * paints a themed topbar on Chats/Apps and the DARK HERO on Wallet. One page-level
+       * colour cannot be right for both, which is what put dark glyphs over the hero.
+       * Damir's rule: wallet + launch always carry light glyphs, everything else follows
+       * the app theme. Pin the per-tab override AND the repaint that delivers it — a tab
+       * switch navigates nothing, so nothing else would repaint. */
+      ok(/protected virtual string systemBarSurfaceColorString\(\)/.test(scp)
+        && /SPlatformUtils\.setEdgeToEdge\(liveSurfaceColorString\(\), systemBarSurfaceColorString\(\)\)/.test(scp)
+        && !/setEdgeToEdge\([a-zA-Z.]*pageSurfaceColorString/.test(scp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+        '★ AND-7b (#407): the STATUS-bar glyphs are decided by a per-PAGE-overridable surface, not by the page background — since full bleed, the two are different questions');
+      /* ★ AND-7d (#409, Damir F5): and they are THREE questions, not two. The root-view
+       * background is still visible at the BOTTOM (MainActivity keeps padding there), so it
+       * is literally the strip behind the OS navigation controls — passing the wallet HERO
+       * for both painted the navigation bar blue. */
+      {
+        const plat409 = rd('Spixi/Platforms/Android/SPlatformUtils.cs');
+        ok(/setEdgeToEdge\(string surfaceColor = null, string topColor = null\)/.test(plat409)
+          && /AppearanceLightStatusBars = topLuma > 0\.5;/.test(plat409)
+          && /AppearanceLightNavigationBars = luma > 0\.5;/.test(plat409),
+          '★ AND-7d (#409): the STATUS bar reads the TOP colour and the NAVIGATION bar reads the BOTTOM one — they sit on different surfaces since full bleed, and one colour for both turned the nav bar blue on the wallet tab');
+        ok(/protected string liveSurfaceColorString\(\)/.test(scp),
+          '★ AND-7e (#410): BOTH bar colours resolve live. The bottom used to read the field refreshed only by applyPlatformPageChrome, so a tab switch or a theme change painted the navigation bar one theme behind — Damir\'s screenshots inverted cleanly in both directions, which is a cache and not a race');
+        ok(/rootView\.SetBackgroundColor\(bgColor\);/.test(plat409),
+          '★ AND-7d: the root view is still painted with the BOTTOM colour — that background is what shows behind the OS navigation controls');
+        for (const stub of ['Windows', 'MacCatalyst', 'iOS']) {
+          ok(/setEdgeToEdge\(string surfaceColor = null, string topColor = null\)/.test(
+            rd('Spixi/Platforms/' + stub + '/SPlatformUtils.cs')),
+            '★ AND-7d: the ' + stub + ' stub keeps signature parity — every platform defines this method and a shared caller must compile everywhere');
+        }
+      }
+      {
+        const hpBar = rd('Spixi/Pages/Home/HomePage.xaml.cs')
+          .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        ok(/protected override string systemBarSurfaceColorString\(\)/.test(hpBar)
+          && /currentTab == "tab2"[\s\S]{0,200}?ThemeManager\.getHeroColorString\(\)/.test(hpBar),
+          '★ AND-7b: the WALLET tab reports the HERO colour, so its glyphs stay light over the dark hero (Damir\'s rule: wallet and launch always light, the rest follow the theme)');
+        const tabBranch = hpBar.slice(hpBar.indexOf('currentTab = current_url.Split'),
+          hpBar.indexOf('else if (current_url.Equals("ixian:downloads"'));
+        ok(tabBranch.length > 100 && /repaintOwnSystemBars\(\);/.test(tabBranch),
+          '★ AND-7b: the tab switch REPAINTS the bars. A tab change navigates nothing and closes no overlay, so without this the glyph colour would keep the previous tab\'s answer');
+        ok(/getHeroColorString/.test(rd('Spixi/Utils/ThemeManager.cs')),
+          '★ AND-7b: the hero colour has ONE definition, themed, mirroring tokens.css --surface-hero');
+      }
+      /* ★ AND-7c (#408, Damir F5 2026-08-19): the bar colour must be resolved LIVE.
+       * `pageSurfaceColorString` is baked once at loadPage time, so after a theme change
+       * it sits one theme behind the shell — proven on device in ONE frame: the wallet
+       * override (live) said #3050bd while the default (cached) said #13171b, in the same
+       * session, and both branch on the same resolved appearance. */
+      ok(/return liveSurfaceColorString\(\);/.test(
+        scp.slice(scp.indexOf('protected virtual string systemBarSurfaceColorString()'),
+          scp.indexOf('// ★ N73 (#391): the same answer as a hex string')))
+        && /return surfaceColorStringFor\(loadedHtmlFileName \?\? ""\);/.test(
+          scp.slice(scp.indexOf('protected string liveSurfaceColorString()'),
+            scp.indexOf('protected virtual string systemBarSurfaceColorString()'))),
+        '★ AND-7c (#408): the bar surface is resolved LIVE from the theme, never read from the field cached at page load — a cached answer is how light glyphs ended up over the light Chats and Apps tabs');
+      ok(/applyPageSurfaceColor\(\);\s*\r?\n#if IOS \|\| MACCATALYST/.test(scp),
+        '★ AND-7c: every chrome pass re-derives the page surface too, on BOTH platforms — otherwise the pre-paint frame behind the WebView stays one theme behind the shell, which is the other half of "the OS theme switch does not follow through"');
+      {
+        const app = rd('Spixi/App.xaml.cs');
+        const setp = rd('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+        ok(/SpixiContentPage\.repaintSystemBarsFor\(null\);/.test(app)
+          && /SpixiContentPage\.repaintSystemBarsFor\(null\);/.test(setp)
+          && !/SPlatformUtils\.setEdgeToEdge\(\);/.test(app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
+          && !/SPlatformUtils\.setEdgeToEdge\(\);/.test(setp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+          '★ AND-7c: BOTH theme-change paths repaint from the page that is VISIBLE, not from the raw theme. The argument-less setEdgeToEdge always answers with the themed screen surface — wrong on exactly the screens whose glyphs must stay light (wallet hero, launch, lock)');
+      }
+      ok(!/MainActivity\.Insets\.Value\.Top \/ 3/.test(scp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+        '★ AND-7: the Android-15 modal `Insets.Top / 3` hack is GONE — it existed because the root padding did not reach a modal container; with no root top padding every page is unpadded the same way and the lock/call/scan shells pad themselves');
+      ok(/hasLegacyPageChrome\(loadedHtmlFileName \?\? ""\) \|\| !hasGeneratedContent/.test(
+        scp.slice(scp.indexOf('#if IOS || MACCATALYST', scp.indexOf('internal void applyPlatformPageChrome()')),
+          scp.indexOf('#if ANDROID', scp.indexOf('internal void applyPlatformPageChrome()')))),
+        '★ security-review MAJOR #6(b), fixed with its Android twin: mini-app pages lost their iOS safe-area inset at #282 and have been rendering under the notch since — same one-token classification');
+    }
+    {
+      /* the CSS half */
+      const base = rd('src/styles/base.css');
+      ok(/--safe-top: max\(env\(safe-area-inset-top, 0px\), var\(--android-inset-top, 0px\)\)/.test(base),
+        '★ AND-7: ONE expression for the top safe area. iOS populates env(); Android env() is CUTOUT-ONLY (0 on an ordinary status bar), so the real inset arrives as a variable — max() is correct on both, and an unset variable degrades to the pre-batch geometry');
+      {
+        /* ★ break-my-verdict NIT-2: every USE site carries `, 0px`. The migration replaced
+         * env(...) — which always resolves — with a bare var(); if base.css were ever
+         * absent or ordered late, `calc(var(--layout-bar-top) + var(--safe-top))` would be
+         * invalid-at-computed-value and the topbar height would COLLAPSE rather than
+         * degrade to zero inset, which is what base.css's own header promises. */
+        const bare = [];
+        const walkUse = (dir) => {
+          for (const f of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, f.name);
+            if (f.isDirectory()) walkUse(full);
+            else if (/\.(css|html)$/.test(f.name) && !full.endsWith('base.css')) {
+              const t = readFileSync(full, 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '')
+                .replace(/probeMeasure\([^)]*\)/g, '');
+              if (/var\(--safe-top\)/.test(t)) bare.push(f.name);
+            }
+          }
+        };
+        walkUse(join(root, 'src/styles'));
+        walkUse(join(root, 'src/shells'));
+        ok(bare.length === 0,
+          '★ AND-7: every --safe-top USE site carries the 0px fallback, so base.css\'s stated degradation holds by construction' + (bare.length ? ' — BARE: ' + bare.join(', ') : ''));
+      }
+      ok(!/--safe-bottom|--android-inset-bottom/.test(base),
+        '★ AND-7: there is deliberately NO bottom twin — MainActivity still pads the root bottom (the IME inset), so a bottom variable would double-pad');
+      /* ★ THE STRUCTURAL PIN: no site may reach for the raw top env() again. Android
+       * reads 0 there, so a new raw site is invisible on the platform this fixes. */
+      /* ★ #412 (Damir's 2026-08-19 log): NO source may contain an EMPTY carrier, even
+       * inside a COMMENT. localizeHtml is line-by-line and substitutes any match it
+       * finds, so `*SL{}` wrote `Unknown localization key;` to ixian.log on every single
+       * generation of that document — noise in the one file the user shares with us —
+       * and blanked the surrounding comment text in the built output. */
+      {
+        const emptyCarrier = [];
+        for (const d of ['src/shells', 'src/components']) {
+          for (const f of readdirSync(join(root, d))) {
+            if (!/\.(html|js)$/.test(f)) continue;
+            if (readFileSync(join(root, d, f), 'utf8').includes('*SL{}')) emptyCarrier.push(f);
+          }
+        }
+        ok(emptyCarrier.length === 0,
+          '★ #412: no source carries an EMPTY *SL{} carrier — the localizer substitutes matches inside COMMENTS too, and an empty one writes an error line to ixian.log on every page generation' + (emptyCarrier.length ? ' — OFFENDERS: ' + emptyCarrier.join(', ') : ''));
+      }
+      const cssDirC = join(root, 'src/styles');
+      const scanTop = [];
+      /* CODE only. Every shell head DOCUMENTS why Android cannot use env(safe-area-inset-top)
+       * — a pin that greps raw text would be satisfied by its own explanation, which is the
+       * mutation-dead class this suite has been bitten by before (#340 r2). */
+      /* One legitimate raw reader survives: the dev-HUD probe MEASURES env() on purpose,
+       * to print it beside the variable so a wrong number can be attributed. */
+      const codeOnly = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/probeMeasure\([^)]*\)/g, '');
+      const walkCss = (dir) => {
+        for (const f of readdirSync(dir, { withFileTypes: true })) {
+          const full = join(dir, f.name);
+          if (f.isDirectory()) walkCss(full);
+          else if (/\.css$/.test(f.name) && codeOnly(readFileSync(full, 'utf8')).includes('env(safe-area-inset-top')
+            && !full.endsWith('base.css')) scanTop.push(f.name);
+        }
+      };
+      walkCss(cssDirC);
+      for (const f of readdirSync(join(root, 'src/shells'))) {
+        if (f.endsWith('.html') && codeOnly(readFileSync(join(root, 'src/shells', f), 'utf8')).includes('env(safe-area-inset-top')) scanTop.push(f);
+      }
+      ok(scanTop.length === 0,
+        '★ AND-7 STRUCTURAL: NO component or shell reads env(safe-area-inset-top) directly any more — every top site goes through --safe-top. A raw env() site is silently 0 on Android, i.e. invisible on the platform this batch fixes' + (scanTop.length ? ' — OFFENDERS: ' + scanTop.join(', ') : ''));
+      ok(/padding-block-start: var\(--safe-top, 0px\)/.test(rd('src/styles/components/wallet-hero.css')),
+        '★ AND-7 (Damir\'s named ask): the WALLET HERO gradient bleeds to y=0 and its content clears the status bar');
+      ok(/padding-top: max\(var\(--spacing-16\), var\(--safe-top, 0px\)\)/.test(rd('src/styles/components/launch-shell.css')),
+        '★ AND-7 (Damir\'s named ask): the LAUNCH gradient bleeds to y=0');
+      ok(/height: calc\(var\(--layout-bar-top\) \+ var\(--safe-top, 0px\)\)/.test(rd('src/styles/components/topbar.css'))
+        && /padding-top: var\(--safe-top, 0px\)/.test(rd('src/styles/components/topbar.css')),
+        '★ AND-7: every shell topbar GROWS by the inset and keeps painting its own surface under the status bar — the #282 iOS rule, now true on Android too');
+    }
+    {
+      /* every shell must carry the pre-paint carrier, or that shell alone paints under
+       * the status bar — the #288 DEFAULT-membership class of miss, one level down. */
+      /* ★ break-my-verdict MINOR-3: the numeric-guard check used to read home.html ALONE,
+       * so rewriting the head script in any of the other 17 shells to drop the validation
+       * kept every AND-7 pin green. The guard is the SECURITY property — a value that
+       * arrives through the same *SL{} substitution channel as every other carrier, and
+       * through a runtime push — so it is asserted BYTE-FOR-BYTE in the sweep instead. */
+      const GUARD = "function a(v){if(/^\\d{1,3}(\\.\\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}";
+      const missing = [];
+      const unguarded = [];
+      for (const f of readdirSync(join(root, 'src/shells'))) {
+        if (!f.endsWith('.html')) continue;
+        const html = readFileSync(join(root, 'src/shells', f), 'utf8');
+        if (!/\*SL\{AndroidInsetTop\}/.test(html)
+          || !/setProperty\('--android-inset-top'/.test(html)) missing.push(f);
+        if (!html.includes(GUARD) || !/window\.setInsetTop\s*=/.test(html)) unguarded.push(f);
+      }
+      ok(missing.length === 0,
+        '★ AND-7: EVERY shell sets --android-inset-top before first paint' + (missing.length ? ' — MISSING: ' + missing.join(', ') : ''));
+      ok(unguarded.length === 0,
+        '★ AND-7 SECURITY, all 18: BOTH entry points — the baked carrier and the runtime setInsetTop push — go through the SAME numeric validation before anything reaches a style property' + (unguarded.length ? ' — OFFENDERS: ' + unguarded.join(', ') : ''));
+      const home = rd('src/shells/home.html');
+      {
+        const cp = rd('Spixi/Pages/Call/CallPage.xaml.cs');
+        ok(/#elif ANDROID[\s\S]{0,900}?stripHeight \+= Spixi\.MainActivity\.TopInsetDip;/.test(cp)
+          && /stripHeight \+= win\.SafeAreaInsets\.Top;/.test(cp),
+          '★ AND-7 audit MAJOR-1: the in-call STRIP grows by the inset on BOTH platforms. call.html\'s bar grew by --safe-top, and on Android the native stage stayed 64dip — inside `body { overflow: hidden }` that clips the identity row and the HANG-UP control, on the one surface a user must be able to hit during a call');
+        /* ★ break-my-verdict MINOR-2: this is a TWO-SIDED contract and only the C# side was
+         * pinned. Deleting either CSS line reaches the same user-visible failure from the
+         * other direction, and the structural env() sweep cannot see a REMOVED site. */
+        const callSrc = rd('src/shells/call.html');
+        ok(/height: calc\(var\(--call-bar-h\) \+ var\(--safe-top, 0px\)\)/.test(callSrc)
+          && /padding-top: var\(--safe-top, 0px\)/.test(callSrc),
+          '★ AND-7 MAJOR-1, the OTHER half: the bar GROWS by and PADS by the same inset the native stage grew by. If the two ever disagree the hang-up control is clipped or sits under the clock');
+      }
+      {
+        /* ★ N77 (#413, Damir 2026-08-19): MEASURE the community-bot open before building
+         * a loading affordance for it. His stated mechanism — "entering re-renders each
+         * message" — is already handled (the burst suppresses every render and paints
+         * once), so the 10-20 s is elsewhere. Leading candidate: opening the chat runs
+         * OnAppearing -> reloadScreen -> loadMessages, a SECOND full flush of the same
+         * history while the first is still streaming. TWO bursts with the same n proves
+         * it and needs no new UI; ONE long burst means the delivery really is that slow. */
+        const chatSrc = rd('src/shells/chat.html');
+        ok(/loadProbeBurstStart\(\);/.test(chatSrc) && /loadProbeBurstEnd\(\);/.test(chatSrc)
+          && /if \(bursting\) \{ loadProbeRow\(\); armBurstSafety\(\); return; \}/.test(chatSrc),
+          '★ N77 (#413): the chat open is MEASURED at all three points — burst start, every row (the one choke point each insert already passes through), and burst end');
+        {
+          /* ★ #420: the dev-only i18n exemption is CAPPED. It exists so an engineering
+           * instrument can render English without evading the linter by assembling the
+           * literal in a variable — which would have been easier and strictly worse. A
+           * cap is what stops "dev-only" becoming the way copy gets shipped untranslated. */
+          const marked = [];
+          for (const d of ['src/shells', 'src/components']) {
+            for (const f of readdirSync(join(root, d))) {
+              if (!/\.(html|js)$/.test(f)) continue;
+              const t = readFileSync(join(root, d, f), 'utf8');
+              const n = (t.match(/i18n-lint-ok:dev/g) || []).length;
+              if (n) marked.push(f + '×' + n);
+            }
+          }
+          ok(marked.length === 1 && marked[0] === 'chat.html×1',
+            '★ #420: the i18n dev exemption is used ONCE, on the load probe. It is greppable and counted by the linter on purpose — "dev-only" must never become the door untranslated copy walks through (found: ' + (marked.join(', ') || 'none') + ')');
+        }
+        ok(/if \(now - loadProbeLastPaint < 200\) return;/.test(chatSrc),
+          '★ N77 (#416): the line repaints WHILE the burst runs, throttled to 200 ms. The first cut painted only at start and end, so mid-load it read n=0 — useless at the one moment it is being looked at — and an unthrottled write per message would pollute the hot path it measures');
+        ok(/slCarrier\('sl-devmode', 'false'\) === 'true'/.test(chatSrc)
+          && /\*SL\{devMode\}/.test(chatSrc),
+          '★ N77: dev-mode gated through the carrier HomePage already registers at boot — no new verb, no storage, nothing rendered when dev mode is off');
+      }
+      ok(/probeMark\('rdy'\)/.test(home) && /probeMark\('flush'\)/.test(home)
+        && /probeMark\('done'\)/.test(home) && /probeMark\('zero'\)/.test(home)
+        && /INSET var=/.test(home),
+        '★ SHIP THE MEASUREMENT (#294/#304): the dev HUD prints the three inset numbers AND the four boot marks. F-5 ("empty states pop in a second late") has two candidate mechanisms and this line says which — rdy late ⇒ the burst, only zero late ⇒ the gate');
+    }
+
     const plat = rd('Spixi/Platforms/Android/SPlatformUtils.cs');
-    ok(/setEdgeToEdge\(string surfaceColor = null\)/.test(plat)
-      && /0\.299 \* bgColor\.R/.test(plat),
-      '★ N73: bar ICON appearance reads the luminance of the colour actually painted, not the app theme — a fixed-dark screen in light mode used to get dark icons on a dark strip');
-    ok(/repaintSystemBars\(host\);/.test(scp) && /repaintSystemBars\(overlayHost\);/.test(scp),
-      '★ N73 review MAJOR-4: an OVERLAY (and the in-place resume LOCK) hands the strip back when it closes. Nothing navigates on that path, so neither page chrome nor OnAppearing fires — unlocking in light mode would leave a dark strip with light icons over a light Home');
+    ok(/setEdgeToEdge\(string surfaceColor = null, string topColor = null\)/.test(plat)
+      && /0\.299 \* bgColor\.R/.test(plat) && /0\.299 \* topBgColor\.R/.test(plat),
+      '★ N73 + AND-7d: bar ICON appearance reads the luminance of the colour actually painted, not the app theme — and since full bleed it reads TWO of them, because the status bar and the navigation bar no longer sit on the same surface');
+    /* ★ F-4 (#395/#399): THIS PIN SHIPPED THE BUG. It counted two `repaintSystemBars`
+     * call sites and passed while BOTH were in `closeOverlay` — the method the resume
+     * lock never reaches. It measured the fix's existence, not its reach (#395's lesson).
+     * Pin the two methods the two lock-close PATHS actually run through, by slicing them
+     * out of the file: the resume lock closes via `closeModalOverlay`, and the cold-start
+     * lock rewrites the navigation stack from `LockPage.performUnlock`. */
+    const modalClose = scp.slice(scp.indexOf('public static bool closeModalOverlay('),
+      scp.indexOf('public static void setOverlayHost('));
+    ok(modalClose.length > 100 && /repaintSystemBars\(/.test(modalClose),
+      '★ F-4 (#395): the RESUME lock repaints from closeModalOverlay — the method LockPage.performUnlock and the ixian:change confirm path actually call. The old pin passed with both call sites in closeOverlay, which that lock never enters');
+    ok(/repaintSystemBars\(visibleSurfacePage\(host\)\);/.test(scp),
+      '★ N73 review MAJOR-4 (kept): an OVERLAY hands the strip back when it closes. Nothing navigates on that path, so neither page chrome nor OnAppearing fires');
+    ok(/private static SpixiContentPage\? visibleSurfacePage\(/.test(scp)
+      && /public static void repaintSystemBarsFor\(/.test(scp),
+      '★ F-4: an overlay still open UNDER the thing that closed is what the user sees — the repaint asks for the TOP surface, not always the host');
+    {
+      /* ★ break-my-verdict MINOR-1: ONE broad pin over performUnlock passed with EITHER of
+       * its two calls deleted, and the third leg — the ixian:change confirm path, which
+       * lives in onNavigating — had no pin at all. That is the #395 lesson one level down.
+       * Three legs, three assertions, each mutation-proven by deleting its own call. */
+      const lock = rd('Spixi/Pages/Launch/LockPage.xaml.cs');
+      const unlock = lock.slice(lock.indexOf('private async void performUnlock()'),
+        lock.indexOf('protected override bool OnBackButtonPressed()'));
+      const chg = lock.slice(lock.indexOf('current_url.Equals("ixian:change"'),
+        lock.indexOf('private async void performUnlock()'));
+      const cut = unlock.indexOf('Navigation.InsertPageBefore(');
+      ok(chg.length > 50 && /repaintSystemBarsFor\(null\)/.test(chg),
+        '★ F-4 leg 1: the ixian:change CONFIRM path repaints — it takes the same modal-fallback pop, and it had no pin at all');
+      ok(cut > 0 && /repaintSystemBarsFor\(null\)/.test(unlock.slice(0, cut)),
+        '★ F-4 leg 2: the MODAL-FALLBACK unlock repaints. That leg is ALWAYS taken by the SettingsPage delete flows — the lock is staged on SettingsPage while the overlay host is HomePage, so closeModalOverlay returns false and PopModalAsync is not a navigation');
+      ok(cut > 0 && /repaintSystemBarsFor\(home\)/.test(unlock.slice(cut)),
+        '★ F-4 leg 3: the COLD-START lock unlocks by REWRITING the navigation stack (InsertPageBefore + removePage) — no navigation, no overlay teardown, so nothing else repaints the strip it painted its own fixed dark');
+    }
 
     /* —— the launch merge: what the review broke and the fixes that hold —— */
     const lp = rd('Spixi/Pages/Launch/LaunchPage.xaml.cs');
+
+    /* ★ F-2 (#395/#399): the view report + its instrumentation. */
+    ok(/verb\.StartsWith\("ixian:view:", StringComparison\.Ordinal\)/.test(lp),
+      '★ F-2: the view report is dispatched on the ANCHORED verb, the same grammar every payload verb uses (#393 MAJOR-2) — not a Contains() over the whole URL');
+    ok(/v == "welcome" \|\| v == "create" \|\| v == "restore" \|\| v == "retry"/.test(lp),
+      '★ F-2: the reported view is CLAMPED to the four we know. This field decides whether the hardware back button is swallowed, so it never takes an arbitrary string off a navigation URL');
+    ok(/current_url\.Equals\("ixian:create", StringComparison\.Ordinal\)/.test(lp)
+      && /current_url\.Equals\("ixian:restore", StringComparison\.Ordinal\)/.test(lp)
+      && /current_url\.Equals\("ixian:back", StringComparison\.Ordinal\)/.test(lp),
+      '★ F-2: the three legacy bare verbs stay handled — they cost nothing and a STALE built intro.html (the #288 class) still tracks its view through them');
+    /* ★ audit MAJOR-3: the COMPONENT end and the C# end were both pinned; the wire
+     * between them was not. Gutting `onViewChange` in the shell reproduces the reported
+     * bug (hardware back exits the app from create/restore) with a fully green suite. */
+    {
+      const lhF2 = rd('src/shells/launch.html');
+      ok(/onViewChange: \(v\) => bridge\.send\('ixian:view:' \+ v\)/.test(lhF2),
+        '★ F-2 (#399) THE WIRE: launch.html actually passes onViewChange, and it sends the verb C# dispatches. Without this line the component reports into a void and C# never learns which view is on screen');
+      ok(!/bridge\.send\('ixian:create'\)/.test(lhF2) && !/bridge\.send\('ixian:restore'\)/.test(lhF2)
+        && !/bridge\.send\('ixian:back'\)/.test(lhF2),
+        '★ F-2: the three per-hook reports are GONE from the shell — two sources of truth for one field is how the retry lockout and the form Back controls went unreported in the first place');
+    }
+    ok(/logVerbName\(verb\);/.test(lp) && /Logging\.info\("LaunchPage back: view=" \+ currentView\);/.test(lp),
+      '★ F-2 (#215, Damir: do NOT guess): both halves are instrumented — which verbs arrive, and what the field says when back is pressed. One F5 separates "the report never lands" from "the handler never runs"');
+    {
+      /* ★ SECURITY (handover gate): three verbs on this page carry a WALLET PASSWORD, and
+       * ixian.log is a file the user SHARES from Account → Developer. The logger must cut
+       * at the verb name and never touch the payload. */
+      const logger = lp.slice(lp.indexOf('private static void logVerbName('),
+        lp.indexOf('protected override bool OnBackButtonPressed()'));
+      ok(logger.length > 100
+        && /verb\.IndexOf\(':', "ixian:"\.Length\)/.test(logger)
+        && /Substring\(0, sep \+ 1\)/.test(logger),
+        '★ F-2 SECURITY: the verb logger cuts at the SECOND colon — "ixian:create:bob:hunter2" reaches ixian.log as "ixian:create:". A raw log line here would write the wallet password into a file the user shares with the engineer');
+      /* ★ audit MAJOR-2: the pin that used to sit here COULD NOT FAIL — it was `A || B`
+       * with A unsatisfiable, so appending `+ " raw=" + verb` to the log line (writing the
+       * nickname AND the wallet password into the file the user shares from Account →
+       * Developer) passed the suite. Assert the property directly instead: inside this
+       * method, the ONLY thing that may reach a Logging call is the cut `name` or one of
+       * the two fixed strings. `verb` itself must never appear in a logging argument. */
+      const logCalls = (logger.match(/Logging\.[a-z]+\([^;]*\);/g) || [])
+        .map((c) => c.replace(/"(?:[^"\\]|\\.)*"/g, '""'));   // the FIXED strings say "verb:" — test the EXPRESSIONS
+      ok(logCalls.length >= 3 && logCalls.every((c) => !/\bverb\b/.test(c)),
+        '★ F-2 SECURITY: the RAW verb never reaches a Logging call — only the cut name or a fixed string. ixian:create:/restore:/proceed: all carry a WALLET PASSWORD, and ixian.log is shared with the engineer (found ' + logCalls.length + ' log calls)');
+      ok(/char\.IsLetterOrDigit\(c\)/.test(logger),
+        '★ F-2 SECURITY (#385 NIT-3): the name is alphabet-clamped before it reaches ixian.log — DevPage renders that file and offers it through the share sheet, so a control character could forge log lines');
+    }
     ok(/int verb_start = current_url\.IndexOf\("ixian:", StringComparison\.Ordinal\);/.test(lp)
       && /verb\.StartsWith\("ixian:create:", StringComparison\.Ordinal\)/.test(lp)
       && /verb\.StartsWith\("ixian:restore:", StringComparison\.Ordinal\)/.test(lp)
@@ -4108,8 +4533,13 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     ok(/st\.scrubs\.forEach\(\(s\) => \{ try \{ s\(\); \}/.test(ls.slice(ls.indexOf('export function setLaunchView'))),
       '★ N75 review MINOR-1 (SECURITY §5): the C#-driven view switch — hardware back, the retry lockout — scrubs every password field. It used to POP the page, so the typed wallet password left with the WebView; now it would sit in a hidden input, still revealed if the user had unmasked it');
     const hpN76 = rd('Spixi/Pages/Home/HomePage.xaml.cs');
-    ok(/friend\.approved && !friend\.pendingDeletion && !friend\.bot/.test(hpN76),
-      '★ N76 review MAJOR-3: an "asset" is an APPROVED, non-bot contact. A bare count includes the Spixi bot that this batch\'s own empty-state CTA adds on one tap, and unapproved INCOMING requests — either one fired the nudge on an account with nothing to protect AND burned the 30-day slot');
+    /* ★ F-1 (#399) SUPERSEDES the #393 predicate this pin was written for. `friend.approved`
+     * is DEAD for this purpose — Ixian-Core defaults it to true and no outgoing-request site
+     * in this app clears it, so the guard was true from the moment you SENT a request and the
+     * nudge fired on the community bot one second after the Join tap. The live predicate is
+     * the STATE; the full pin lives beside the asset gate in the #383 block. */
+    ok(/friend\.state == FriendState\.Approved && !friend\.pendingDeletion && !friend\.bot/.test(hpN76),
+      '★ N76 review MAJOR-3, as corrected by F-1 (#399): an "asset" is a contact in the APPROVED STATE, not queued for deletion and not the bot — the flag this pin used to read is true from the moment a request is sent');
   }
 }
 
@@ -5026,8 +5456,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const mvcss337 = readFileSync(join(root, 'src/styles/components/media-viewer.css'), 'utf8');
   ok(/c-mviewer__foot/.test(mv337) && /c-mviewer__close/.test(mv337),
     '#337 iOS-65: the viewer close is the bottom-centered foot button');
-  ok(/safe-area-inset-bottom/.test(mvcss337) && /safe-area-inset-top/.test(mvcss337),
-    '#337 iOS-65: viewer foot + bar carry the safe-area insets (the top-bar ✕ sat under the iOS status bar)');
+  ok(/safe-area-inset-bottom/.test(mvcss337) && /var\(--safe-top, 0px\)/.test(mvcss337),
+    '#337 iOS-65: viewer foot + bar carry the safe-area insets (the top-bar ✕ sat under the iOS status bar) — ★ AND-7 (#401) routes the TOP one through --safe-top, since a raw env() reads 0 on Android');
   // W1: the bundle-less empty_detail stub DECODES args (base64 bridge convention);
   // contact_details gained its missing setTheme handler.
   const ed337 = readFileSync(join(root, 'src/shells/empty_detail.html'), 'utf8');
@@ -7440,6 +7870,39 @@ console.log('BUG-3 — built home shell, the exact scenario that bit Damir');
     await sleep(120);
     ok(walletSearch.value === '' && !d.querySelector('#wallet-scroll > .c-wallet-tools').classList.contains('is-pinned'),
       '★ BUG-3: the wallet field inherits the identical rule — the fix lives in search-field.js, so Apps and Wallet cannot drift from Chats');
+
+    /* ═══ ★ N64 ① (#403) — the app-level notice is no longer chats-only ═══
+     * It mounted into #chats-banner, which lives INSIDE #chats-view, and
+     * `.view[hidden] { display: none }` — so "an update is available" was invisible
+     * on Wallet and Apps while the far less global connectivity state reached all
+     * three tab titles. Driven here through the REAL showWarning push. */
+    W.executeUiCommand(W.showWarning, b64('An update is available (0.9.99)'));
+    await sleep(120);
+    const bannerEl = () => d.querySelector('.c-banner');
+    const bannerVisible = () => {
+      const b = bannerEl();
+      if (!b) return false;
+      for (let n = b; n && n !== d.body; n = n.parentElement) {
+        if (n.hasAttribute && n.hasAttribute('hidden')) return false;
+      }
+      return true;
+    };
+    ok(!!bannerEl() && bannerVisible(),
+      '★ N64 ① setup: the update notice renders on the chats tab (the only place it EVER rendered)');
+    tap('.c-bottomnav__item[data-id="wallet"]');
+    await sleep(120);
+    ok(bannerVisible() && !!d.querySelector('#wallet-banner .c-banner'),
+      '★ N64 ①: it FOLLOWS to Wallet — one element re-parented into the visible tab\'s slot. Three copies would each need their own dismissal state, and dismissing one would leave the notice standing on the next tab');
+    ok(!!d.querySelector('#wallet-view > #wallet-hero + #wallet-banner'),
+      '★ N64 ①: on Wallet the slot sits BELOW the hero — the hero owns the top safe area and bleeds under the status bar (AND-7 / #401), so a strip above it would land where the clock is');
+    tap('.c-bottomnav__item[data-id="apps"]');
+    await sleep(120);
+    ok(bannerVisible() && !!d.querySelector('#apps-banner .c-banner'),
+      '★ N64 ①: …and to Apps');
+    tap('.c-bottomnav__item[data-id="chats"]');
+    await sleep(120);
+    ok(bannerVisible() && !!d.querySelector('#chats-banner .c-banner'),
+      '★ N64 ①: …and back to Chats. The notice is app-level; the tab it happens to be parented to is an implementation detail');
     dom.window.close();
   }
 }
@@ -8848,12 +9311,59 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       && /lock \(FriendList\.friends\)/.test(hp)
       && /Node\.getAvailableBalance\(\) > 0/.test(hp),
       '★ N76 (Damir dial): the backup nudge waits for the first REAL asset — a contact OR an incoming balance. The balance leg is not optional: funds can arrive before any messaging');
+    /* ★ F-1 (#399). The pin this replaces asserted only that a gate EXISTED, and the
+     * gate it was written for read `friend.approved` — a flag Ixian-Core DEFAULTS TO
+     * TRUE and that no outgoing-request site in this app ever clears, so the nudge
+     * fired on the community bot one second after the Join tap. Pin the PREDICATE, and
+     * pin the dead flag OUT of it: `state == FriendState.Approved` is the only value
+     * the handshake actually writes (CoreStreamProcessor :1908/:1991/:2181/:2236). */
+    const asset = hp.slice(hp.indexOf('private bool hasBackupWorthyAsset()'),
+      hp.indexOf('private void displayBackupReminder()'));
+    ok(/friend\.state == FriendState\.Approved/.test(asset)
+      && /!friend\.pendingDeletion/.test(asset)
+      && /!friend\.bot/.test(asset),
+      '★ F-1 (#395/#399): the contact leg keys on the STATE — approved + not queued for deletion + not the bot. `Friend.approved` defaults to true (Core Friend.cs:196) and all four outgoing sites pass FriendState.RequestSent without touching it, so the flag is true from the moment you SEND a request');
+    ok(!/friend\.approved/.test(asset),
+      '★ F-1 (#399): the DEAD flag is gone from this predicate. Leaving `friend.approved &&` beside the state test is harmless today and a trap tomorrow — it reads like a second guard while contributing nothing, which is exactly how it survived the #393 review');
     const gate = hp.indexOf('if (!hasBackupWorthyAsset())');
     const stamp = hp.indexOf('Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());', hp.indexOf('private void displayBackupReminder()'));
     ok(gate > 0 && stamp > gate,
       '★ N76: the asset gate RETURNS before the stamp is written — a gated tick must not start the 30-day period on an empty account, or the nudge would be lost for a month');
     ok(/ixian:joinBot/.test(hp),
       '★ N76: the join verb the empty-state CTA rides is the one HomePage already had (frozen outbound bridge; note the capital B)');
+
+    /* ★ Item 6 (#397/#400): the join is a SHARED STATIC, and How to use is the door that
+     * never closes — the empty-state CTA disappears on the user's first ordinary contact. */
+    ok(/public static void joinCommunity\(\)/.test(hp) && /private void joinBot\(\)\s*\r?\n\s*\{\s*\r?\n\s*joinCommunity\(\);/.test(hp),
+      '★ Item 6 (#400): the join body is a PUBLIC STATIC (the BackupPage.backupAccount precedent, #243) and HomePage\'s own verb delegates to it');
+    const sp = nc(read('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    ok(/current_url\.Equals\("ixian:joinBot", StringComparison\.Ordinal\)/.test(sp)
+      && /HomePage\.joinCommunity\(\);/.test(sp),
+      '★ Item 6 (#400): SettingsPage now HANDLES the verb it never had — How to use is rendered by this page, and its row must reach the same code path');
+    ok(!/FriendList\.addFriend\(/.test(sp),
+      '★ Item 6 (#400): SettingsPage does NOT carry its own copy of the addFriend call — one join body, two callers');
+    /* ★ audit MAJOR-4: the component renders the row ONLY when the hook is passed, so
+     * deleting one line from the shell removes the permanent community door from the
+     * shipped app — and every other pin in this batch stayed green. Pin the wire. */
+    ok(/onJoinCommunity: \(\) => bridge\.send\('ixian:joinBot'\)/.test(read('src/shells/settings.html')),
+      '★ Item 6 (#400) THE WIRE: settings.html passes onJoinCommunity, and it sends the verb SettingsPage now handles. Without it the How-to screen silently has no community row at all');
+    {
+      /* the anti-duplication pin that matters: the community address exists in exactly
+       * ONE place in the C# tree. Two copies drift, and the stale one keeps sending
+       * contact requests to an address nobody reads. */
+      const walk = (dir, out = []) => {
+        for (const f of readdirSync(join(root, dir), { withFileTypes: true })) {
+          if (f.name === 'obj' || f.name === 'bin') continue;
+          const rel = dir + '/' + f.name;
+          if (f.isDirectory()) walk(rel, out);
+          else if (f.name.endsWith('.cs')) out.push(readFileSync(join(root, rel), 'utf8'));
+        }
+        return out;
+      };
+      const cs = walk('Spixi').join('\n');
+      const hits = (cs.match(/419jmKRKVFcsjmwpDF1XSZ7j1fez6KWaekpiawHvrpyZ8TPVmH1v6bhT2wFc1uddV/g) || []).length;
+      ok(hits === 1, '★ Item 6 (#400): the community address exists ONCE in the C# tree (found ' + hits + ')');
+    }
   }
 
   /* —— the generator fix that unblocked this batch —— */

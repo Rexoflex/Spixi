@@ -9,6 +9,15 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
+     BEFORE first paint. MainActivity no longer pads the root view down by the status
+     bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
+     (base.css). Android's env(safe-area-inset-top) cannot carry this — it reports the
+     display CUTOUT only. Off Android the carrier resolves to the seeded "0"
+     (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
+     UNRESOLVED marker also fails the numeric test and leaves the variable unset.
+     The value is validated as a plain number before it reaches a style property. -->
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Account</title>
 <style>
@@ -195,8 +204,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -1531,6 +1540,19 @@ button.c-settings-links__row {
 }
 button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }
 .c-settings-links__row--static { flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+
+/* ★ Item 6 (#400): the How-to community row. Same link-row grammar; the leading
+   emphasis is the ACTION colour, because this row DOES something rather than
+   navigating away. Once taken it reads as done and stops responding — a disabled
+   button already leaves the tab order, so nothing extra is needed for a11y. */
+.c-settings-howto__join { color: var(--text-action-default); }
+.c-settings-howto__join .c-settings-links__label { color: inherit; }
+.c-settings-howto__join svg { color: inherit; }
+button.c-settings-howto__join:disabled {
+  cursor: default;
+  color: var(--text-neutral-02);
+  background: transparent;
+}
 .c-settings-links__label { flex: 1; font-weight: var(--font-weight-semibold); }
 .c-settings-links__url {
   color: var(--text-neutral-02);
@@ -1617,7 +1639,7 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
   /* #160b⑧ precedent: the gradient bleeds under the OS statusbar (LaunchPage
      owns the whole screen) — content stays clear of the inset, paint doesn't.
      Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
-  padding-top: max(var(--spacing-16), env(safe-area-inset-top));
+  padding-top: max(var(--spacing-16), var(--safe-top, 0px));   /* ★ AND-7: the launch GRADIENT bleeds to y=0 */
   padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */
@@ -2495,7 +2517,7 @@ button.c-settings-links__row:active { background: var(--surface-interactive-pres
   /* #160b⑧: the gradient BLEEDS under the OS statusbar (LockPage owns the
      whole screen) — content stays clear of the notch/inset, paint doesn't.
      Bottom: the hatch/cancel footer clears the home indicator the same way. */
-  padding-top: max(var(--spacing-24), env(safe-area-inset-top));
+  padding-top: max(var(--spacing-24), var(--safe-top, 0px));   /* ★ AND-7 */
   padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
 }
 /* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
@@ -4557,6 +4579,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       case 'howto': return createSettingsHowTo({
         host: document.body, strings,
         onOpenLink: openExternal,     // iOS-21 — "Learn more" → the help centre
+        /* ★ Item 6 (#397/#400): the permanent community door. SettingsPage had no
+           handler for ixian:joinBot at all (only HomePage did) — this batch gave it one
+           that calls the SAME shared static, so nothing is duplicated and no second verb
+           exists. Opt-in: the row does nothing until it is tapped. */
+        onJoinCommunity: () => bridge.send('ixian:joinBot'),
         onBack: showHub,
       });
       case 'contributors': return createSettingsContributors({
@@ -4793,8 +4820,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // state SURVIVES (better than the #274 stash, which stays as belt for any
     // residual reload path). Components read strings at render time
     // (getStrings → window.SL) — no further plumbing. KNOWN residuals
-    // (accepted, DECISIONS #334): C#-pushed verbatim text + *SL{} carriers keep
-    // the old language until the next natural regenerate.
+    // (accepted, DECISIONS #334): C#-pushed verbatim text + generatePage carriers
+    // keep the old language until the next natural regenerate.
+    // ⚠ Do NOT write the carrier syntax literally in this file, not even in a
+    // comment: localizeHtml is line-by-line and substitutes ANY match it finds, so
+    // an empty one logged `Unknown localization key;` to ixian.log on EVERY
+    // settings.html generation (found in Damir's 2026-08-19 log) and blanked the
+    // comment text in the generated document.
     setLocale(code) {
       let dict = null;
       try { dict = window.SpixiStrings.get(String(code || '')); } catch (e) { dict = null; }

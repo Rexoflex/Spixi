@@ -6,7 +6,7 @@
   color: var(--text-on-hero);
   /* the hero owns the top safe-area so the status-bar region paints hero-colored with
      NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
-  padding-block-start: env(safe-area-inset-top, 0px);
+  padding-block-start: var(--safe-top, 0px);   /* ★ AND-7: the hero GRADIENT bleeds to y=0, its content clears the status bar (Damir's named ask) */
   padding-block-end: var(--spacing-24);
   border-end-start-radius: var(--radius-24);
   border-end-end-radius: var(--radius-24);

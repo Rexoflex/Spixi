@@ -37,7 +37,7 @@
   /* #160b⑧ precedent: the gradient bleeds under the OS statusbar (LaunchPage
      owns the whole screen) — content stays clear of the inset, paint doesn't.
      Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
-  padding-top: max(var(--spacing-16), env(safe-area-inset-top));
+  padding-top: max(var(--spacing-16), var(--safe-top, 0px));   /* ★ AND-7: the launch GRADIENT bleeds to y=0 */
   padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */

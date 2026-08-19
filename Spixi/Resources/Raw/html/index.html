@@ -9,6 +9,15 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
+     BEFORE first paint. MainActivity no longer pads the root view down by the status
+     bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
+     (base.css). Android's env(safe-area-inset-top) cannot carry this — it reports the
+     display CUTOUT only. Off Android the carrier resolves to the seeded "0"
+     (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
+     UNRESOLVED marker also fails the numeric test and leaves the variable unset.
+     The value is validated as a plain number before it reaches a style property. -->
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
 <!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
      platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
@@ -206,8 +215,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -2648,7 +2657,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--text-on-hero);
   /* the hero owns the top safe-area so the status-bar region paints hero-colored with
      NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
-  padding-block-start: env(safe-area-inset-top, 0px);
+  padding-block-start: var(--safe-top, 0px);   /* ★ AND-7: the hero GRADIENT bleeds to y=0, its content clears the status bar (Damir's named ask) */
   padding-block-end: var(--spacing-24);
   border-end-start-radius: var(--radius-24);
   border-end-end-radius: var(--radius-24);
@@ -3878,7 +3887,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   .view[hidden] { display: none; }
   /* M16: actionable-warning strip pins under the chats topbar (chat.html parity;
      the wrapper is the flex item — the banner inside needs no flex rule) */
-  #chats-banner { flex: none; }
+  #chats-banner, #wallet-banner, #apps-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   /* selected tx row (two-pane selectTx) — W4a (#348): the rule moved INTO
      txlist-item.css so it sits beside the chat row's identical rule and cannot
@@ -3933,6 +3942,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   }
   :root[data-desktop] .dev-hud { right: var(--spacing-8); }   /* no FAB to clear */
   .dev-hud__cell { white-space: nowrap; }
+  /* ★ the two HUD regions (#401): C#-pushed counters, then the shell PROBE line
+     (AND-7 insets + the F-5 boot timeline). The probe wraps to its own row and must
+     survive the per-second rebuild of the counters — hence two elements, not one. */
+  .dev-hud__native { display: flex; gap: var(--spacing-12); flex-wrap: wrap; }
+  .dev-hud__probe { display: block; width: 100%; white-space: nowrap; opacity: 0.9; }
   /* Contacts takeover — full-viewport cover mounted OVER the shell (FAB picker +
      topbar directory). Mirrors chat.html .chat-info-takeover: z-30 sits above the
      bars but below any sheet/modal it spawns; the c-contacts panel is height:100%
@@ -4077,11 +4091,17 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   <!-- tab2: wallet -->
   <div class="view" id="wallet-view" hidden>
     <div id="wallet-hero"></div>
+    <!-- ★ N64 ① (#403): the app-level notice slot for this tab. It sits BELOW the hero,
+         not above it, because the hero owns the top safe area and bleeds under the
+         status bar (AND-7 / #401) — a strip above it would put the notice where the
+         clock is. ONE banner element moves between these slots (see showView). -->
+    <div id="wallet-banner"></div>
     <div class="u-scroll" id="wallet-scroll"></div>
   </div>
   <!-- tab3: apps -->
   <div class="view" id="apps-view" hidden>
     <div id="apps-topbar"></div>
+    <div id="apps-banner"></div>   <!-- ★ N64 ①: under the topbar, chats parity -->
     <div id="apps-header"></div>
     <div class="u-scroll" id="apps-scroll"></div>
   </div>
@@ -4286,6 +4306,55 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * registry — 'adjustments-alt' stands in until Damir's next Figma icon export)
    * that sends ixian:dev. Visibility: the *SL{devMode} carrier (survives
    * restarts) OR the just-toggled state. Send-log stays §9-gated in dev.html. */
+  /* ★ THE PROBE (#401/#399) — ship the MEASUREMENT, do not guess at it (#294/#304).
+   *
+   * Two questions this batch could not answer from the cloud, both answerable in one
+   * look on a real device, both rendered into the dev HUD that already exists:
+   *
+   *   INSET — AND-7's numbers. What did C# actually publish for the Android top inset,
+   *   what does env(safe-area-inset-top) report next to it, and what did --safe-top
+   *   resolve to? If the full-bleed screens look wrong, this line says which of the
+   *   three is at fault instead of starting a guessing round.
+   *
+   *   BOOT — F-5's discriminator. "Empty states pop in about a second late" has exactly
+   *   two candidate mechanisms: the zero-state gate opens late, or the data burst
+   *   arrives late. The marks are ms from document start: rdy = when this shell fired
+   *   its ready verb (window load — it waits for fonts and illustrations, which is the
+   *   prime suspect), flush = the first clearChats, done = clearChatsDone (the gate
+   *   opens here), zero = the first frame that actually rendered the zero state.
+   *   rdy≈flush≈done and only `zero` late ⇒ the gate. rdy late and the rest following
+   *   it ⇒ the burst, i.e. the ready-verb timing (#177 — NOT to be changed blind).
+   *
+   * Dev-mode gated like the rest of the HUD (10 taps on the chats logotype; the choice
+   * PERSISTS, so enable it once and restart to measure a cold boot). No storage, no
+   * bridge verb, no cost when dev mode is off. */
+  const probeMarks = Object.create(null);
+  let renderProbe = () => {};
+  function probeMark(name) {
+    if (probeMarks[name] !== undefined) return;         // FIRST occurrence only
+    try { probeMarks[name] = Math.round(performance.now()); } catch (e) { return; }
+    try { renderProbe(); } catch (e) { /* a probe must never break the shell */ }
+  }
+  function probeMeasure(expr) {
+    try {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;padding-top:' + expr;
+      document.body.append(d);
+      const v = getComputedStyle(d).paddingTop;
+      d.remove();
+      return v;
+    } catch (e) { return '?'; }
+  }
+  function probeText() {
+    const m = probeMarks;
+    const boot = ['rdy', 'flush', 'done', 'zero']
+      .map((k) => k + '=' + (m[k] === undefined ? '-' : m[k])).join(' ');
+    return 'INSET var=' + probeMeasure('var(--android-inset-top, 0px)')
+      + ' env=' + probeMeasure('env(safe-area-inset-top, 0px)')
+      + ' safe=' + probeMeasure('var(--safe-top)')
+      + ' | BOOT ' + boot;
+  }
+
   let renderDevHud = () => {};   // #321: assigned inside the dev IIFE; updateDebugInfo routes here
   (function () {
     let devMode = slCarrier('sl-devmode', 'false') === 'true';
@@ -4300,10 +4369,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     hud.className = 'dev-hud';
     hud.hidden = true;
     hud.setAttribute('aria-hidden', 'true');
+    /* ★ the HUD now has TWO regions: the C#-pushed counters (rebuilt every second) and
+       the shell-owned PROBE line, which must survive that rebuild — the old renderer
+       cleared the whole element. */
+    const hudNative = document.createElement('span');
+    hudNative.className = 'dev-hud__native';
+    const hudProbe = document.createElement('span');
+    hudProbe.className = 'dev-hud__probe';
+    hud.append(hudNative, hudProbe);
     document.body.append(hud);
+    renderProbe = () => {
+      if (!devMode) return;
+      hudProbe.textContent = probeText();
+      hud.hidden = false;
+    };
     renderDevHud = (info) => {
       if (!devMode) { hud.hidden = true; return; }
-      hud.textContent = '';
+      hudNative.textContent = '';
       let anchors = [];
       try {
         anchors = new DOMParser().parseFromString(String(info || ''), 'text/html').querySelectorAll('a');
@@ -4315,15 +4397,17 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
           const t = a.getAttribute('title');
           if (t) cell.title = t;
           cell.textContent = a.textContent;
-          hud.append(cell);
+          hudNative.append(cell);
         }
       } else {
-        hud.textContent = String(info || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        hudNative.textContent = String(info || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       }
-      hud.hidden = !hud.firstChild && !hud.textContent;
+      renderProbe();                       // the probe rides every native push
+      hud.hidden = !hudNative.firstChild && !hudNative.textContent && !hudProbe.textContent;
     };
     function syncDevAffordance() {
       if (!devMode) hud.hidden = true;   // toggle-off clears the strip immediately
+      else renderProbe();                // ★ the probe does not wait for a C# push
       if (devMode && !devBtn && actionsWrap) {
         devBtn = createButton({
           type: 'text', size: 44,
@@ -4469,6 +4553,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     onDismiss: () => { dismissedNotice = lastNoticeText; },
   });
   document.getElementById('chats-banner').append(homeBanner);
+  /* ★ N64 ① (#403): re-parent the ONE banner into the slot of the tab being shown.
+     Called from showView, the single chokepoint every tab path goes through (both the
+     user's nav taps and C#'s selectTab push). Any id that is not wallet/apps — including
+     the tab4 placeholder, which has no slot of its own — parks the banner back on the
+     CHATS slot: both parents are hidden at that moment, so it is invisible either way,
+     and the notice is never DETACHED. The `slot &&` guard is a belt against a future
+     markup change, not a live branch. */
+  function moveHomeBanner(navId) {
+    const slot = document.getElementById(
+      navId === 'wallet' ? 'wallet-banner' : navId === 'apps' ? 'apps-banner' : 'chats-banner');
+    if (slot && homeBanner.parentNode !== slot) slot.append(homeBanner);
+  }
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
    * The FAB opens the picker takeover. Tap a row → open the 1:1 (ixian:chat).
@@ -5042,6 +5138,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     renderChatsList(list, state, opts);
     if (opts.onModelChange) opts.onModelChange(state);   // updates nav badge + chip counts (setChatsHeaderCounts)
     if (selectedAddress) highlightSelected(selectedAddress);
+    /* ★ F-5 probe: the frame the TRUE zero state actually reached the screen. Read
+       against `done` (the gate) and `rdy` (the burst) — one of the two gaps is the
+       reported second, and this mark says which. */
+    /* the TRUE zero state only — a filter/search miss renders a different node
+       (.c-chats-empty), but gate on the model too so the mark cannot be claimed by a
+       no-results frame if that ever changes. */
+    if (!(state.query || '').trim() && (state.filter || 'all') === 'all'
+      && list.querySelector('.c-empty-state')) probeMark('zero');
   }
   // CH2: when the last pending request is accepted/declined while the Requests filter
   // is active, the chip hides (setChatsHeaderCounts) — so leaving the user on an empty
@@ -5986,6 +6090,21 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      * is on screen, and re-entering a tab you never left mid-query is a no-op.
      * Chip filters are untouched (see leaveSurfaceSearch). */
     leaveSurfaceSearch(isChats ? chatsView : isWallet ? walletView : isApps ? appsView : null);
+    /* ★ N64 ① (#403): the app-level notice follows the visible tab.
+     *
+     * It used to mount into #chats-banner, which lives INSIDE #chats-view, and
+     * `.view[hidden] { display: none }` — so an APP-LEVEL notice ("an update is
+     * available") was invisible on Wallet and Apps, while the far less global
+     * connectivity state reached all three tab titles. That was an accident of where
+     * the element was parented, not a decision.
+     *
+     * ONE element MOVES rather than three elements existing: a duplicated banner
+     * would need its own dismissal state per copy, and dismissing on one tab would
+     * leave the notice standing on the next — the #383 rule is that the shell owns
+     * the dismissal and a dismissed notice is never resurrected. Moving a live node
+     * carries its content, its dismissal and its collapsed/open state with it.
+     * Only the three redesigned tabs have a slot; the tab4 placeholder keeps none. */
+    moveHomeBanner(navId);
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
@@ -6248,6 +6367,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // Batch start of a FULL flush: reset the model + enter flushing mode so the
     // per-row addChat upserts don't each render (clearChatsDone renders once).
     clearChats() {
+      probeMark('flush');               // ★ F-5 probe: the burst begins
       chatsFlushing = true;
       armChatsFlushWatchdog();          // iOS-28 belt: a half-run flush must not latch the list dead
       // Zero-state gate: a re-flush over a roster that HAD rows must not flash
@@ -6372,6 +6492,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
     // Batch complete: leave flushing mode, render once, re-apply any selection.
     clearChatsDone() {
+      probeMark('done');                // ★ F-5 probe: the burst ends — the zero gate opens here
       chatsFlushing = false;
       disarmChatsFlushWatchdog();
       chatsZero.open();                 // the roster is authoritative now — an empty one may say so
@@ -6745,6 +6866,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // rAF gap serializes the two location.href sends — a synchronous double-set would
     // drop the first (native.js emits via location.href, no queue).
     bridge.send('ixian:tab:tab1');
+    /* ★ F-5 probe: the ready verb is what starts C#'s first flush, and it fires on
+       window LOAD — which waits for fonts and illustrations. If this mark is already
+       ~1s on a cold start, the empty state is not late, the DATA is. */
+    probeMark('rdy');
     requestAnimationFrame(() => bridge.ready());
   }
   if (document.readyState === 'complete') signalReady();

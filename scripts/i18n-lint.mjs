@@ -37,12 +37,24 @@ function isCopy(lit) {
   return /[A-Za-z]/.test(inner) && /\s|[.!?…]/.test(inner) || /^[A-Z]/.test(inner);
 }
 
+/* ★ #420: a NARROW, AUDITED opt-out for DEV-ONLY diagnostic surfaces.
+ *
+ * The dev HUD and the load probe render English deliberately — they are engineering
+ * instruments, aria-hidden, and gated behind dev mode (the #301 precedent). They must
+ * still not be able to hide: the marker has to be written on the sink line itself, and
+ * every use is COUNTED and printed, so an exemption cannot accumulate quietly. A smoke
+ * pin caps the total. Evading the linter by assembling the literal in a variable would
+ * have been easier and strictly worse — this way the exemption is greppable. */
+const DEV_MARK = 'i18n-lint-ok:dev';
+let exempt = 0;
+
 const hits = [];
 function lintFile(dir, f) {
   const lines = readFileSync(join(dir, f), 'utf8').split('\n');
   lines.forEach((line, i) => {
     const t = line.trim();
     if (t.startsWith('*') || t.startsWith('//') || t.startsWith('/*')) return;
+    if (line.includes(DEV_MARK)) { exempt += 1; return; }
     for (const s of SINKS) {
       const m = line.match(s.re);
       if (!m) continue;
@@ -60,7 +72,8 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith('.js') && !SKIP.has(x)
 for (const f of readdirSync(SHELLS_DIR).filter((x) => x.endsWith('.html'))) lintFile(SHELLS_DIR, f);
 
 if (!hits.length) {
-  console.log('i18n-lint: no hardcoded user-facing strings in direct DOM sinks ✓');
+  console.log('i18n-lint: no hardcoded user-facing strings in direct DOM sinks ✓'
+    + (exempt ? ` (${exempt} dev-only line(s) exempted via ${DEV_MARK})` : ''));
   process.exit(0);
 }
 console.log(`i18n-lint: ${hits.length} possible hardcoded string(s):`);

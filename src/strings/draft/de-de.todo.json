@@ -4,17 +4,8 @@
   "backupInsideWallet": "Wallet",
   "details": "Details",
   "downloads": "Downloads",
-  "filter": "Filter",
-  "groupSelectedCount": "{n} selected",
   "handshakeReady": "",
-  "launchInvite": "Invite a contact",
-  "noGroups": "No groups yet.",
-  "noPeople": "No contacts yet.",
   "ok": "OK",
-  "paidMessage": "Paid message",
-  "showOlderMessages": "Show older messages",
   "status": "Status",
-  "tipNoAnswer": "No answer from the app. The tip may not have been sent.",
-  "unreadElsewhere": "Unread messages",
   "version": "Version"
 }

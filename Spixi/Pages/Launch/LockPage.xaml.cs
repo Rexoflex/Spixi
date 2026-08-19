@@ -1,4 +1,5 @@
 ﻿using IXICore;
+using Microsoft.Maui.ApplicationModel;   // ★ F-4: MainThread
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Plugin.Fingerprint.Abstractions;
@@ -120,6 +121,12 @@ namespace SPIXI
                     if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
                     {
                         Navigation.PopModalAsync();
+                        // ★ F-4 (#399, audit): the MODAL-FALLBACK leg needs the repaint too.
+                        // It is taken whenever the lock could not be shown in place — which
+                        // is ALWAYS for the SettingsPage delete flows, because the lock is
+                        // staged on SettingsPage while the overlay host is HomePage. Popping
+                        // a modal is not a navigation, so nothing else gives the strip back.
+                        MainThread.BeginInvokeOnMainThread(() => repaintSystemBarsFor(null));
                     }
                 }
                 else
@@ -171,12 +178,26 @@ namespace SPIXI
                 if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
                 {
                     Navigation.PopModalAsync();
+                    MainThread.BeginInvokeOnMainThread(() => repaintSystemBarsFor(null));   // ★ F-4, same leg
                 }
                 return;
             }
-            Navigation.InsertPageBefore(HomePage.Instance(true), this);
+            var home = HomePage.Instance(true);
+            Navigation.InsertPageBefore(home, this);
 
-            removePage(this);           
+            removePage(this);
+
+            /* ★ F-4 (#399), SECOND SITE. The COLD-START lock (App.xaml.cs:193, `new
+             * LockPage()`) is not an overlay and not a modal — it unlocks by REWRITING the
+             * navigation stack, so nothing navigates and no overlay teardown runs. The
+             * lock paints the Android strip its own fixed dark with light icons; without
+             * this, the first screen after a cold unlock kept that strip over a light Home
+             * until the next real page navigation. The resume lock is the sibling case and
+             * is fixed in closeModalOverlay. No-op off Android. */
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                repaintSystemBarsFor(home);
+            });
         }
 
         protected override bool OnBackButtonPressed()

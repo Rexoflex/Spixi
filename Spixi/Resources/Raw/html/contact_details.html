@@ -9,6 +9,15 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
+     BEFORE first paint. MainActivity no longer pads the root view down by the status
+     bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
+     (base.css). Android's env(safe-area-inset-top) cannot carry this — it reports the
+     display CUTOUT only. Off Android the carrier resolves to the seeded "0"
+     (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
+     UNRESOLVED marker also fails the numeric test and leaves the variable unset.
+     The value is validated as a plain number before it reaches a style property. -->
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Contact</title>
 <style>
@@ -181,8 +190,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -1759,7 +1768,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   align-items: center;
   gap: var(--spacing-8);
   /* #336: top safe-area inset so the caption/Save clear the notch/status bar. */
-  padding: max(var(--spacing-8), env(safe-area-inset-top)) var(--spacing-8) 0;
+  padding: max(var(--spacing-8), var(--safe-top, 0px)) var(--spacing-8) 0;   /* ★ AND-7 */
 }
 /* #336 (Damir F5 iOS #1): close moved out of the top bar (unreachable under the
    iOS status bar) to a prominent bottom-centered button clear of the home indicator. */

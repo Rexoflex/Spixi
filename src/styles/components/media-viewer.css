@@ -16,7 +16,7 @@
   align-items: center;
   gap: var(--spacing-8);
   /* #336: top safe-area inset so the caption/Save clear the notch/status bar. */
-  padding: max(var(--spacing-8), env(safe-area-inset-top)) var(--spacing-8) 0;
+  padding: max(var(--spacing-8), var(--safe-top, 0px)) var(--spacing-8) 0;   /* ★ AND-7 */
 }
 /* #336 (Damir F5 iOS #1): close moved out of the top bar (unreachable under the
    iOS status bar) to a prominent bottom-centered button clear of the home indicator. */

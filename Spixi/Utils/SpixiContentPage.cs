@@ -106,6 +106,44 @@ namespace SPIXI
             return Color.FromArgb(surfaceColorStringFor(html_file_name));
         }
 
+        /* ★ AND-7b (#407, Damir F5 2026-08-19): which colour decides the SYSTEM BAR GLYPHS.
+         *
+         * Before full bleed the strip was the activity root background, so one colour per
+         * PAGE was the whole truth. Now the WebView paints under the status bar, so the
+         * pixels behind the clock are whatever the SHELL draws there — and on the home
+         * shell that changes per TAB: a light topbar on Chats and Apps, the dark hero on
+         * Wallet. One page-level answer cannot be right for both, which is why the glyphs
+         * went dark over the wallet hero.
+         *
+         * HomePage overrides this. Every other page has one surface all the way across,
+         * so the default is the page surface it already paints behind its WebView. */
+        /* ★ AND-7e (#410, Damir F5 2026-08-19): the BOTTOM colour, resolved LIVE.
+         *
+         * #408 made the TOP live and left the bottom reading the cached
+         * `pageSurfaceColorString` — which is refreshed only by applyPlatformPageChrome.
+         * The repaint paths that do NOT go through it (a tab switch, a theme change)
+         * therefore painted the navigation bar with whatever the theme was at the last
+         * page LOAD. Damir's two screenshots are the proof and they invert cleanly: a
+         * LIGHT app reported `bottom=#13171b` and a DARK app reported `bottom=#f9fafb`.
+         * Exactly one theme behind, in both directions — a cache, not a race. */
+        protected string liveSurfaceColorString()
+        {
+            return surfaceColorStringFor(loadedHtmlFileName ?? "");
+        }
+
+        protected virtual string systemBarSurfaceColorString()
+        {
+            /* ★ AND-7c (#408, Damir F5 2026-08-19): resolve LIVE, never from the cached
+             * field. `pageSurfaceColorString` is baked once in applyPageSurfaceColor at
+             * loadPage time, so it drifts from the theme the shell is actually rendering —
+             * which is what put LIGHT glyphs over the light Chats and Apps tabs. The
+             * device proved it in one frame: the wallet override (which asks ThemeManager
+             * live) reported the LIGHT hero #3050bd while this default reported the DARK
+             * surface #13171b, in the same session. Both branch on the same resolved
+             * appearance, so they can only disagree if one of them is stale. */
+            return liveSurfaceColorString();
+        }
+
         // ★ N73 (#391): the same answer as a hex string — Android's bar-strip painter
         // takes one (SPlatformUtils.setEdgeToEdge), and round-tripping a Color back to
         // hex for it would be a second source of truth.
@@ -286,6 +324,14 @@ namespace SPIXI
         // without the re-apply every preloaded page would render under the notch (audit M2).
         internal void applyPlatformPageChrome()
         {
+            /* ★ AND-7c (#408, Damir F5 2026-08-19): re-derive the page surface from the
+             * LIVE theme before anything is painted with it. `pageSurfaceColorString` and
+             * `pageSurfaceColor` are baked once at loadPage time, so after a theme change
+             * they sit one theme behind the shell — the pre-paint frame goes light behind
+             * a dark shell, and on Android the bar glyphs are chosen from the wrong
+             * luminance. Every chrome pass refreshes them now: page load, re-present, and
+             * OnAppearing. Idempotent, cross-platform, and it costs one switch. */
+            applyPageSurfaceColor();
 #if IOS || MACCATALYST
             // iOS-1/3/4 edge-to-edge: redesigned shells draw under the status bar + home
             // indicator (viewport-fit=cover is in every shell; fixed chrome pads itself
@@ -293,7 +339,16 @@ namespace SPIXI
             // including after a load-then-move present, with no M2-style re-read race).
             // The themed page background stays: it is the pre-paint frame (N1/N3) and
             // the transition/keyboard backing. Legacy pages keep the native inset.
-            if (hasLegacyPageChrome(loadedHtmlFileName ?? ""))
+            /* ★ AND-7 sibling (#401), and the fix security-review MAJOR #6(b) asks for:
+             * `!hasGeneratedContent` is TRUE exactly for MiniAppPage, which never calls
+             * loadPage (it points its WebView at the publisher's own entry point). That
+             * page carries THIRD-PARTY HTML, which cannot be assumed inset-aware — #282
+             * dropped the blanket padding on the premise that every non-legacy page is a
+             * viewport-fit shell we wrote, and mini-app UIs have been rendering under the
+             * notch and the home indicator since. Same one-token classification the
+             * Android branch below uses; MAJOR #6(a), the link-handoff trust tier, is a
+             * separate and still-open ask. */
+            if (hasLegacyPageChrome(loadedHtmlFileName ?? "") || !hasGeneratedContent)
             {
                 var insets = this.On<iOS>().SafeAreaInsets();
                 this.Padding = new Thickness(0, insets.Top, 0, 10);
@@ -314,19 +369,52 @@ namespace SPIXI
              * one this page already paints behind its WebView, so the two can never
              * disagree; every other page passes the themed surface, i.e. exactly the old
              * value. Also re-run on OnAppearing, so walking BACK to a page repaints. */
-            SPlatformUtils.setEdgeToEdge(pageSurfaceColorString);
+            /* ★ AND-7d (#409): the BOTTOM keeps the page surface — the root-view background is
+             * still visible behind the OS navigation controls — and only the TOP takes the
+             * per-tab answer. One colour for both painted the nav bar blue on Wallet. */
+            SPlatformUtils.setEdgeToEdge(liveSurfaceColorString(), systemBarSurfaceColorString());
 
-            // Fix edge-to-edge on Android 15 for modals
-            if (OperatingSystem.IsAndroidVersionAtLeast(35))
+            /* ★ AND-7 (#396/#401) FULL BLEED — the Android half of the iOS-#282 rule.
+             * MainActivity no longer pads the root content view at the top, so the page
+             * tree reaches y=0 and a redesigned shell paints its own chrome under the
+             * status bar (the launch gradient and the wallet hero bleed; every topbar
+             * grows by the inset and keeps its surface). The inset reaches the shells as
+             * the *SL{AndroidInsetTop} carrier, in CSS px, on the first frame.
+             *
+             * Two kinds of page CANNOT do that and keep the native padding instead —
+             * both were already enumerated for the same reason on iOS:
+             *   · the 8 remaining LEGACY Raw/html pages (no viewport-fit=cover, no
+             *     env() chrome) — hasLegacyPageChrome;
+             *   · MINI-APP pages, which never call loadPage, so loadedHtmlFileName is
+             *     null. That is third-party content: it must never be asked to handle
+             *     an inset it was not told about (the standing rule that our sweeps
+             *     structurally exclude mini-app WebViews).
+             *
+             * This REPLACES the Android-15 modal branch that padded every modal by
+             * `MainActivity.Insets.Value.Top / 3` — a hardcoded density divide that only
+             * existed because the root padding did not reach a modal container. With no
+             * root top padding, every page is unpadded the same way and the lock, the
+             * call surface and scan pad themselves in CSS like every other shell. */
+            if (hasLegacyPageChrome(loadedHtmlFileName ?? "") || !hasGeneratedContent)
             {
-                bool isModal = Navigation.ModalStack.Contains(this);
-                if (isModal)
-                {
-                    if (MainActivity.Insets != null)
-                    {
-                        this.Padding = new Thickness(0, MainActivity.Insets.Value.Top / 3, 0, 0);
-                    }
-                }
+                this.Padding = new Thickness(0, MainActivity.TopInsetDip, 0, 0);
+            }
+            else
+            {
+                this.Padding = new Thickness(0);
+                /* ★ AND-7 (audit MINOR): the carrier is baked at generatePage time, so a
+                 * document that is ALREADY OPEN when the inset changes keeps the old value.
+                 * The activity handles Orientation/ScreenSize itself (MainActivity's
+                 * ConfigurationChanges), so nothing re-generates. Re-push the current value
+                 * on every page-chrome pass — page load, re-present, and OnAppearing — which
+                 * heals a stale inset on the next visit to any screen.
+                 * Gated to REDESIGNED shells: they define window.setInsetTop in their head
+                 * script; the 8 legacy pages and mini-app WebViews do not, and they keep
+                 * native padding anyway (the branch above).
+                 * ⚠ RESIDUAL, logged not hidden: a rotation while a page is on screen is
+                 * not covered — see docs/android-findings.md. */
+                Utils.sendUiCommand(this, "setInsetTop",
+                    MainActivity.TopInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
             }
             this.BackgroundColor = pageSurfaceColor;
 #endif
@@ -674,6 +762,14 @@ namespace SPIXI
                 {
                     Logging.error("Modal overlay close failed: " + ex);
                 }
+                /* ★ F-4 (#395/#399): give the strip back to the page that is visible again.
+                 * #393 MAJOR-4 put this in closeOverlay and believed it covered the resume
+                 * lock — it does not. The lock is a MODAL overlay and closes through THIS
+                 * method (LockPage.performUnlock and the ixian:change confirm path), so
+                 * unlocking in light mode kept the lock's fixed-dark strip with light icons
+                 * over a light Home until the next real navigation. This is the site the
+                 * behaviour runs through (#395: pin the path, not the fix's existence). */
+                repaintSystemBars(visibleSurfacePage(op.host));
             });
             // Q4-③ review (MAJOR-1): a call surface is never presented while a lock is up
             // — re-assert the VoIP state now the lock is going away (ring/bar returns on
@@ -1006,7 +1102,7 @@ namespace SPIXI
                 // ★ N73 review MAJOR-4: the overlay took the strip with it — give it back
                 // to the page that is visible again, BEFORE the host's own close hook runs
                 // (that hook may navigate, and a navigation repaints on its own anyway).
-                repaintSystemBars(host);
+                repaintSystemBars(visibleSurfacePage(host));
                 try
                 {
                     host?.onOverlayClosed(op.target);
@@ -1026,6 +1122,59 @@ namespace SPIXI
          * because it paints the strip its own fixed dark and light icons: without this,
          * unlocking in light mode left a dark strip with light icons over a light Home
          * until the next real page navigation. No-op on every other platform. */
+        /* ★ F-4: which page owns the strip once the thing on top of it goes away? An
+         * overlay may still be open UNDER a closing lock (Account, chat info, the form
+         * pane), and it — not the host — is what the user sees. Fall back to the caller's
+         * page when the stack is empty. Cheap, and it removes the same approximation from
+         * the overlay close path, where a second open overlay had the identical problem. */
+        private static SpixiContentPage? visibleSurfacePage(SpixiContentPage? fallback)
+        {
+            try
+            {
+                lock (preloadLock)
+                {
+                    if (overlayStack.Count > 0)
+                    {
+                        return overlayStack[overlayStack.Count - 1].target;
+                    }
+                }
+                /* ★ F-4 (audit r2): with no overlay open and no caller page, the surface
+                 * that becomes visible is the root navigation's CURRENT page. Reached when a
+                 * modal-fallback lock was staged over a plain PUSHED page with no overlay
+                 * open — the legacy money flow, scan, backup. (With the Account pane open
+                 * the branch above already answers with that overlay, which is what the
+                 * user sees.) Popping a modal is not a navigation, so without this
+                 * repaintSystemBarsFor(null) resolved to null and repainted nothing. */
+                if (fallback == null)
+                {
+                    return (Application.Current?.MainPage as NavigationPage)?.CurrentPage as SpixiContentPage;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("visibleSurfacePage: " + ex);
+            }
+            return fallback;
+        }
+
+        /** ★ F-4: the ONE entry point for a page that becomes visible with no navigation
+         *  and no overlay teardown behind it — today the COLD-START lock, which unlocks by
+         *  rewriting the navigation stack (InsertPageBefore + removePage in LockPage.performUnlock)
+         *  rather than by navigating or by closing an overlay. Same defect as the resume
+         *  lock, second site. */
+        /** ★ AND-7b (#407): repaint the bar for THIS page's own current surface. The home
+         *  shell calls it on every tab change, because the surface under the status bar
+         *  changes with the tab and nothing navigates. */
+        protected void repaintOwnSystemBars()
+        {
+            repaintSystemBars(this);
+        }
+
+        public static void repaintSystemBarsFor(SpixiContentPage? page)
+        {
+            repaintSystemBars(visibleSurfacePage(page));
+        }
+
         private static void repaintSystemBars(SpixiContentPage? page)
         {
 #if ANDROID
@@ -1033,7 +1182,7 @@ namespace SPIXI
             {
                 if (page != null)
                 {
-                    SPlatformUtils.setEdgeToEdge(page.pageSurfaceColorString);
+                    SPlatformUtils.setEdgeToEdge(page.liveSurfaceColorString(), page.systemBarSurfaceColorString());   // ★ AND-7d/e: bottom, top — BOTH live
                 }
             }
             catch (Exception ex)
@@ -1588,8 +1737,9 @@ namespace SPIXI
                             await (rootNav ?? op.host.Navigation).PushModalAsync(op.target, Config.defaultXamarinAnimations);
 
                             // Reviewer MINOR-2: re-apply platform page chrome now the page is
-                            // really attached (iOS insets read 0 while staged; the Android-15
-                            // modal branch needs ModalStack membership) — mirrors the push path.
+                            // really attached (iOS insets read 0 while staged) —
+                            // mirrors the push path. ★ AND-7 (#401) deleted the Android-15
+                            // modal branch this used to also serve.
                             await Task.Delay(250);
                             op.target.applyPlatformPageChrome();
                         }
@@ -1994,7 +2144,12 @@ namespace SPIXI
             // applyPlatformPageChrome does not run — without this the strip would keep
             // the colour of the page that just left (e.g. the fixed-dark lock screen
             // sitting above a light Home).
-            SPlatformUtils.setEdgeToEdge(pageSurfaceColorString);
+            // ★ AND-7 (#401, audit): run the WHOLE chrome pass, not just the strip repaint.
+            // Since the root view no longer pads the top, the page's own padding and the
+            // shell's --android-inset-top are what keep content clear of the status bar,
+            // and both can be stale by the time a page is walked back to. This method
+            // starts with the same setEdgeToEdge call, so nothing is lost.
+            applyPlatformPageChrome();
 #endif
             UIHelpers.refreshAppRequests = true;
             updateScreen();

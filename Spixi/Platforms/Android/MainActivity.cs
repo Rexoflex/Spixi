@@ -44,6 +44,39 @@ public class MainActivity : MauiAppCompatActivity
     public TaskCompletionSource<SpixiImageData?> PickImageTaskCompletionSource { set; get; }
     internal static MainActivity Instance { get; private set; }
     public static Thickness? Insets = null;
+
+    /* ★ AND-7 (#396/#401) FULL BLEED. The top system-bar inset, in CSS pixels
+     * (device-independent), for the WebView shells to pad THEMSELVES with.
+     *
+     * Why this exists: the window already draws edge-to-edge
+     * (SetDecorFitsSystemWindows(false), below) and both bars are transparent, but the
+     * InsetsListener then padded the ROOT CONTENT VIEW down by the status-bar height —
+     * so every page, WebView included, started BELOW the status bar and the visible
+     * strip was the root background. #391 made that strip MATCH each screen; Damir's
+     * ask is for it not to EXIST ("full bleed to the top", named for the wallet hero
+     * and the launch gradient). So the top padding is gone and the inset travels into
+     * the shells instead, where the iOS-#282 chrome already knows what to do with it.
+     * Android's env(safe-area-inset-top) cannot carry it — it reports the display
+     * CUTOUT only, which is why the #282 chrome reads 0 here.
+     *
+     * Physical px ÷ density: Android insets are physical pixels, CSS px are DIPs. (The
+     * old Android-15 modal branch in SpixiContentPage divided by a hardcoded 3 for the
+     * same reason — that hack goes with this change.) */
+    public static double TopInsetDip = 0;
+
+    // Publish the inset as a generatePage carrier (*SL{AndroidInsetTop}). Same grammar
+    // as *SL{SpixiThemeName} and *SL{LaunchBootView}: it lands in the FIRST FRAME of
+    // every document, so no shell ever paints one frame under the status bar.
+    internal static void publishTopInset(double dip)
+    {
+        if (dip < 0 || double.IsNaN(dip) || double.IsInfinity(dip))
+        {
+            return;
+        }
+        TopInsetDip = dip;
+        SpixiLocalization.addCustomString("AndroidInsetTop",
+            dip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+    }
     protected override void OnCreate(Bundle? bundle)
     {
         Instance = this;
@@ -181,11 +214,30 @@ public class MainActivity : MauiAppCompatActivity
             {
                 if (v is ViewGroup vg)
                 {
-                    // Apply top padding for status bar, bottom padding for keyboard
-                    vg?.SetPadding(0, sysInsets.Top, 0, Math.Max(imeInsets.Bottom, sysInsets.Bottom));
+                    /* ★ AND-7 (#401): NO TOP PADDING. The page tree — and therefore every
+                     * WebView — now reaches y=0, so the launch gradient, the wallet hero
+                     * and each shell's own topbar surface paint under the status bar.
+                     * The inset is published below and consumed in CSS.
+                     *
+                     * ⚠ The BOTTOM padding is deliberately UNCHANGED. It carries the IME
+                     * inset, and the Android keyboard behaviour was measured and settled
+                     * in #334/AND-16 on exactly this mechanism (adjustResize shrinks
+                     * innerHeight because this padding shrinks the content view). Moving
+                     * the bottom into CSS as well would either double-pad the bottom nav
+                     * or re-open the keyboard round; neither is what "full bleed to the
+                     * top" asked for. */
+                    vg?.SetPadding(0, 0, 0, Math.Max(imeInsets.Bottom, sysInsets.Bottom));
                 }
 
                 Insets = new Thickness(sysInsets.Left, sysInsets.Top, sysInsets.Right, Math.Max(imeInsets.Bottom, sysInsets.Bottom));
+
+                // ★ AND-7: the AUTHORITATIVE value — it replaces the bootstrap estimate
+                // MainApplication registered before the MAUI app existed.
+                float density = 1f;
+                try { density = v?.Resources?.DisplayMetrics?.Density ?? 1f; }
+                catch (Exception) { density = 1f; }
+                if (density <= 0f) density = 1f;
+                publishTopInset(sysInsets.Top / density);
             }
 
             return WindowInsetsCompat.Consumed; // We've handled insets manually

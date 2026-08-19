@@ -18909,6 +18909,12 @@ function createSettingsHowTo({
   steps,
   links,
   onOpenLink,
+  /* ★ Item 6 (#397/#400): the PERMANENT door into the Spixi community. The chat-list
+     empty-state CTA is the right first impression, but it disappears the moment the
+     user adds any ordinary contact — after that there was no way in at all. Optional:
+     without the hook the row is not rendered, so every other caller (demo, tests) is
+     unchanged. Opt-in by construction — nothing is added until it is tapped. */
+  onJoinCommunity,
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -18956,6 +18962,50 @@ function createSettingsHowTo({
   }
   groupWrap.append(card);
   body.append(groupWrap);
+
+  /* ★ Item 6: the community row. One-shot in the DOCUMENT (this takeover is rebuilt
+     ⚠ i18n: this is a hand-built link-row, not a createButton/createChip, so
+     scripts/i18n-overflow-audit.mjs does NOT harvest its labels — a clean overflow run
+     says nothing about them. It is safe because .c-settings-links__label sets no
+     white-space and has flex:1, so a long localized label WRAPS inside the 52px row
+     rather than clipping. Keep it that way, or teach the audit this grammar first.
+     on every open, so the latch does not persist — deliberately: the host knows
+     nothing about the roster, and the honest failure is a second request, which
+     addFriend absorbs). It reports done in place rather than through a toast, because
+     the user is looking straight at the control they pressed. */
+  if (onJoinCommunity) {
+    const jw = document.createElement('div');
+    jw.className = 'c-settings__groupwrap';
+    const jc = document.createElement('div');
+    jc.className = 'c-settings__group c-settings-links';
+    const jb = document.createElement('button');
+    jb.type = 'button';
+    jb.className = 'c-settings-links__row c-settings-howto__join';
+    const jlab = document.createElement('span');
+    jlab.className = 'c-settings-links__label';
+    jlab.textContent = strings.howToJoinCta || 'Join the Spixi community';
+    const jglyph = icon('users', { size: 18 });
+    jb.append(jlab, jglyph);
+    jb.addEventListener('click', () => {
+      if (jb.disabled) return;
+      jb.disabled = true;
+      try { onJoinCommunity(); } catch { /* the row must not throw out of the screen */ }
+      /* ★ audit MINOR: NOT "Added". FriendList.addFriend returns NULL when the address is
+         already in the list (Ixian-Core FriendList.cs:366-370), so a repeat tap adds
+         nothing — and this row is PERMANENT, aimed exactly at users who are past their
+         first contact and most likely to hold the bot already. The confirmation has to be
+         true in both cases, so it states where the chat IS rather than what just happened. */
+      jlab.textContent = strings.howToJoinDone || 'Spixi group chat is in your chats';
+      jglyph.replaceWith(icon('check', { size: 18 }));
+    });
+    jc.append(jb);
+    const note = document.createElement('p');
+    note.className = 'c-settings__note';
+    note.textContent = strings.howToJoinBody
+      || 'Adds the Spixi group chat to your chats, where you can ask questions and follow updates.';
+    jw.append(jc, note);
+    body.append(jw);
+  }
 
   const linkList = links || [
     // iOS-21: the help centre, not the marketing home page — this is the
@@ -19111,10 +19161,28 @@ function illoSlot(name, src) {
 
 /* —— view plumbing ———————————————————————————————————————————— */
 
-function show(st, view) {
+/* ★ F-2 (#395/#399): ONE reporting point for the whole component.
+ *
+ * The hardware back button is C#'s, and C# can only swallow it while it believes a
+ * FORM view is on screen. Before this, only the two welcome CTA hooks told it
+ * anything (`onGoCreate`/`onGoRestore`) and the topbar Back told it separately
+ * (`onBack`) — three call sites, and every OTHER way a view can change told it
+ * nothing at all: the retry lockout, a future deep link, and the boot view itself.
+ * Reporting from `show()` makes the contract structural: if the view changed, C#
+ * heard about it, whatever moved it.
+ *
+ * `silent` suppresses the echo for the one switch C# ITSELF drives (setLaunchView) —
+ * it already knows, and an echo would be a second navigation for no new information.
+ * The report is fired AFTER the DOM switch and fenced: a throwing or absent host hook
+ * must never strand the user on the view they just left. */
+function show(st, view, silent) {
+  const changed = st.view !== view;
   st.view = view;
   st.root.dataset.view = view;
   for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view;
+  if (changed && !silent && st.opts && st.opts.onViewChange) {
+    try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
+  }
 }
 
 const errLine = () => {
@@ -19977,7 +20045,10 @@ function createLaunchShell(opts = {}) {
   window.addEventListener('pagehide', onPageHide);
 
   setLaunchVersion(el, version);
-  show(st, LAUNCH_VIEWS.includes(view) ? view : 'welcome');
+  /* ★ F-2: the BOOT view is not reported. C# chose it and put it in the carrier, so
+     it already knows — and this line runs during PARSE, where an outgoing navigation
+     races C#'s first push (the #177 load-timing invariant). Only real CHANGES report. */
+  show(st, LAUNCH_VIEWS.includes(view) ? view : 'welcome', true);
   return el;
 }
 
@@ -19995,7 +20066,7 @@ function setLaunchView(el, view) {
      shell owns: each scrub clears and re-masks only its own, so this is safe to run
      on any switch. */
   st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
-  show(st, view);
+  show(st, view, true);      // ★ F-2: C# drove this one — do not echo it back
 }
 
 /** ← setVersion(Config.version) — quiet welcome footer line. */

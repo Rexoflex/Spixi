@@ -222,6 +222,25 @@ quote must degrade to nothing, never to a broken render or a throw) · does anyt
 land in a `spixi.*` storage key. The worklist already classes a peer-controlled body
 marker as the same hostile-parsing family as N18 — treat it that way.
 
+# ★ WORK IN THE CLOUD, AND TELL ME WHEN I CAN SHUT THE COMPUTER DOWN
+
+**Everything in this batch is built in YOUR OWN CLONE, in the cloud** — clone, edit,
+pipeline, smoke, all of it. My machine is not needed for any of that work.
+
+**The moment you have (a) cloned both repos, (b) confirmed `Config.cs` reads
+`spixi-0.9.22`, and (c) confirmed smoke is green at 2135 / the same 4 — SEND ME ONE
+SHORT MESSAGE SAYING I CAN TURN THE COMPUTER OFF.** Say it plainly and early, e.g.
+*"Setup verified, smoke 2135 — you can shut down now."* Do not make me sit through the
+batch waiting to find out. If the setup check FAILS, say that instead and stop.
+
+Then work the whole batch to completion without me.
+
+**When you finish:** deliver every changed file with **SendUserFile** — that reaches me
+whether or not my machine is on. ALSO attempt to write them to my disk via the device
+bridge. **If my computer is off the bridge will fail, and that is EXPECTED** — say so in
+one line and leave the files in the conversation for the morning. Do NOT retry the
+bridge in a loop, and do NOT hold the batch open waiting for me to come back.
+
 # DELIVERY — how I work, follow it
 
 * I run everything on Windows, in PowerShell, and I will read this in the morning.

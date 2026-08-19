@@ -17,6 +17,15 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
+     BEFORE first paint. MainActivity no longer pads the root view down by the status
+     bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
+     (base.css). Android's env(safe-area-inset-top) cannot carry this — it reports the
+     display CUTOUT only. Off Android the carrier resolves to the seeded "0"
+     (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
+     UNRESOLVED marker also fails the numeric test and leaves the variable unset.
+     The value is validated as a plain number before it reaches a style property. -->
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
 <!-- Preview forcing for the platform flag (?desktop=1 sets / ?mobile=1 clears;
      the app passes no query). MUST run BEFORE the pattern-pref script below —
      since B2 the pattern DEFAULT is platform-aware, so the flag has to be final
@@ -50,6 +59,19 @@
      (neutral-10 / neutral-900); tokens.css takes over once loaded. */
   html { background: #f9fafb; }
   html[data-theme="dark"] { background: #13171b; }
+  /* ★ N77 (#413): the load probe strip — dev-mode only, pointer-transparent,
+     English-only diagnostics (the #301 precedent). Pinned above the composer. */
+  .load-probe {
+    position: fixed; left: var(--spacing-8); right: var(--spacing-8);
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    z-index: var(--z-10);
+    width: max-content; max-width: calc(100% - 16px);
+    padding: 3px var(--spacing-8); border-radius: var(--radius-8, 8px);
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; line-height: 14px;
+    pointer-events: none;
+  }
 </style>
 
 <link rel="stylesheet" href="spixi.tokens.css">
@@ -215,8 +237,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -2362,7 +2384,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  padding-top: env(safe-area-inset-top, 0px);   /* host may be taller than its bar; keep the row clear of the notch */
+  padding-top: var(--safe-top, 0px);   /* host may be taller than its bar; keep the row clear of the notch (★ AND-7) */
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -3922,7 +3944,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   align-items: center;
   gap: var(--spacing-8);
   /* #336: top safe-area inset so the caption/Save clear the notch/status bar. */
-  padding: max(var(--spacing-8), env(safe-area-inset-top)) var(--spacing-8) 0;
+  padding: max(var(--spacing-8), var(--safe-top, 0px)) var(--spacing-8) 0;   /* ★ AND-7 */
 }
 /* #336 (Damir F5 iOS #1): close moved out of the top bar (unreachable under the
    iOS status bar) to a prominent bottom-centered button clear of the home indicator. */
@@ -4347,6 +4369,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        browser preview leaves the markers raw → the JS reader falls back to en-us.
        ⚠ #248: every marker here is same-line-closed — never write one that isn't. -->
   <div id="sl-carriers" hidden aria-hidden="true">
+    <!-- ★ N77 (#413): dev-mode carrier, same grammar as home.html's. HomePage
+         registers "devMode" with addCustomString at boot, so it resolves in EVERY
+         generated document, not only index.html. Gates the load probe below. -->
+    <span id="sl-devmode">*SL{devMode}</span>
     <span id="sl-payment-received">*SL{chat-payment-received}</span>
     <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
     <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
@@ -6580,8 +6606,88 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     loadPhase = false;
     boundaryLatched = false;
   }
+  /* ★ N77 (#413, Damir 2026-08-19): MEASURE the community-bot open, do not guess at it.
+   *
+   * Reported: joining the Spixi group chat takes 10-20 s to load, and entering the chat
+   * during that window "prolongs it since it renders each message". The RENDER half of
+   * that is already handled — the burst above suppresses every render and paints once —
+   * so the cost is somewhere else, and the leading candidate is that opening the chat
+   * runs SingleChatPage.OnAppearing -> reloadScreen -> loadMessages, a SECOND full
+   * clearMessages -> insertMessage x N flush of the same history while the first is
+   * still streaming. Two overlapping flushes, every message its own
+   * EvaluateJavaScriptAsync round trip.
+   *
+   * So count them. Each burst records how many rows arrived and how long it took, and
+   * the line reads e.g.
+   *     LOAD b1 n=142 in 2180ms | b2 n=142 in 9640ms | total 11.8s
+   * TWO bursts with the SAME n is the duplicate-flush answer and needs no new UI at all.
+   * ONE burst spanning the whole window means the bot delivery is genuinely that slow,
+   * and only then is a "loading" affordance the right thing to build.
+   *
+   * Dev-mode gated, no storage, no bridge verb, nothing rendered when dev mode is off. */
+  const loadProbe = { bursts: [], cur: null, t0: 0 };
+  let loadProbeEl = null;
+  function loadProbeDev() {
+    try { return slCarrier('sl-devmode', 'false') === 'true'; } catch (e) { return false; }
+  }
+  function loadProbeRender() {
+    if (!loadProbeDev()) return;
+    try {
+      if (!loadProbeEl) {
+        loadProbeEl = document.createElement('div');
+        loadProbeEl.className = 'load-probe';
+        loadProbeEl.setAttribute('aria-hidden', 'true');
+        document.body.append(loadProbeEl);
+      }
+      const nowMs = performance.now();
+      const parts = loadProbe.bursts.map((b, i) =>
+        'b' + (i + 1) + ' n=' + b.n + ' in '
+        + (b.ms === null ? Math.round(nowMs - b.start) + 'ms…' : b.ms + 'ms'));
+      const total = loadProbe.t0 ? Math.round(performance.now() - loadProbe.t0) : 0;
+      loadProbeEl.textContent = 'LOAD ' + (parts.join(' | ') || '—')   // i18n-lint-ok:dev — engineering instrument, aria-hidden, dev-gated (#301)
+        + (total ? ' | total ' + (total / 1000).toFixed(1) + 's' : '');
+    } catch (e) { /* a probe must never break the chat */ }
+  }
+  function loadProbeBurstStart() {
+    try {
+      const now = performance.now();
+      // a burst long after the previous one is a NEW open, not part of the same load
+      if (loadProbe.cur && now - loadProbe.cur.start > 30000) { loadProbe.bursts = []; loadProbe.t0 = 0; }
+      if (!loadProbe.t0) loadProbe.t0 = now;
+      loadProbe.cur = { n: 0, ms: null, start: now };
+      loadProbe.bursts.push(loadProbe.cur);
+      if (loadProbe.bursts.length > 6) loadProbe.bursts.shift();   // bounded
+      loadProbeRender();
+    } catch (e) {}
+  }
+  function loadProbeBurstEnd() {
+    try {
+      if (loadProbe.cur && loadProbe.cur.ms === null) {
+        loadProbe.cur.ms = Math.round(performance.now() - loadProbe.cur.start);
+      }
+      loadProbeRender();
+    } catch (e) {}
+  }
+  /* ★ #416: repaint while the burst RUNS, throttled. The first cut rendered only at
+     burst start and end, so mid-load the line always read `n=0 in …` — useless at
+     exactly the moment Damir is looking at it. Throttled to 200 ms because this is the
+     hot path being measured: a textContent write per message would pollute the number
+     the probe exists to report. */
+  let loadProbeLastPaint = 0;
+  function loadProbeRow() {
+    try {
+      if (!loadProbe.cur) return;
+      loadProbe.cur.n += 1;
+      const now = performance.now();
+      if (now - loadProbeLastPaint < 200) return;
+      loadProbeLastPaint = now;
+      loadProbeRender();
+    } catch (e) {}
+  }
+
   function beginBurst() {
     bursting = true;
+    loadProbeBurstStart();
     armBurstSafety();
   }
   function armBurstSafety() {
@@ -6592,10 +6698,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     clearTimeout(burstSafety);
     if (!bursting) return;
     bursting = false;
+    loadProbeBurstEnd();
     renderLogNow();
   }
   function renderLog() {
-    if (bursting) { armBurstSafety(); return; }   // suppress during the load burst
+    if (bursting) { loadProbeRow(); armBurstSafety(); return; }   // suppress during the load burst (★ #413 counts here — every insert calls this)
     if (renderQueued) return;
     renderQueued = true;
     requestAnimationFrame(() => { renderQueued = false; renderLogNow(); });

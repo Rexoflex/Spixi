@@ -150,7 +150,12 @@ public partial class App : Application
                 // theme (the explicit-pick path SettingsPage:392 already re-runs it;
                 // this path only ever reloaded pages). No-op on the other platforms
                 // (every SPlatformUtils defines it; iOS/Windows/MacCatalyst are empty).
-                SPlatformUtils.setEdgeToEdge();
+                /* ★ AND-7c (#408): repaint from the PAGE THAT IS VISIBLE, not from the raw
+                 * theme. setEdgeToEdge() with no argument always answers with the themed
+                 * screen surface — which is the wrong colour whenever the visible surface
+                 * is not the themed one: the wallet hero, the launch flow, the lock. Since
+                 * full bleed those are exactly the screens whose glyphs must stay light. */
+                SpixiContentPage.repaintSystemBarsFor(null);
 
                 UIHelpers.reloadAllPages();
             };

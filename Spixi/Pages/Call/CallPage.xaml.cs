@@ -1,4 +1,4 @@
-using IXICore;
+﻿using IXICore;
 using IXICore.Meta;
 using IXICore.Streaming;
 using Microsoft.Maui;
@@ -592,7 +592,7 @@ namespace SPIXI
                     // iOS edge-to-edge: the host grid now starts at the SCREEN top (the
                     // native inset padding is gone) — grow the strip by the status-bar
                     // inset so the 64dip content row lands below it. call.html mirrors
-                    // this with padding-top: env(safe-area-inset-top) on the bar.
+                    // this with padding-top: var(--safe-top) on the bar.
                     var win = UIKit.UIApplication.SharedApplication.ConnectedScenes
                         .OfType<UIKit.UIWindowScene>()
                         .SelectMany(s => s.Windows)
@@ -601,6 +601,16 @@ namespace SPIXI
                     {
                         stripHeight += win.SafeAreaInsets.Top;
                     }
+#elif ANDROID
+                    /* ★ AND-7 (#401, audit MAJOR-1): the ANDROID twin, and it is not
+                     * optional. MainActivity stopped padding the root view at the top, so
+                     * this stage — like every other page — now starts at the SCREEN top,
+                     * and call.html's bar grew by --safe-top to match. Without the same
+                     * growth here the stage stays 64dip while its content is pushed down
+                     * by the inset inside `body { overflow: hidden }`: the identity row
+                     * and the HANG-UP control get clipped, on the one surface a user must
+                     * be able to hit during a call. */
+                    stripHeight += Spixi.MainActivity.TopInsetDip;
 #endif
                     stage.HeightRequest = stripHeight;
                 }

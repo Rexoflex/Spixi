@@ -146,6 +146,17 @@ namespace SPIXI
         private volatile bool warningDisplayed = false;
         private int connectivityWarningDelayCounter = 0;
 
+        /* ★ N70 (#402): the update notice never appeared when the app STARTED OFFLINE.
+         * UpdateVerify checks once at start and then sleeps its whole period
+         * (Config.cs:47 — one hour), so a session that began with no network showed
+         * nothing until that hour elapsed or the app was restarted. Inherited
+         * behaviour; #383 is what made it visible.
+         * `sawOffline` is the EDGE detector — `warningDisplayed` is not, because the
+         * offline state is only DISPLAYED after a delay cycle, so a short outage sets no
+         * flag while still leaving the version answer stale. One re-arm per session. */
+        private bool sawOffline = false;
+        private bool updateCheckRearmed = false;
+
         // Interal cache object to store contact status items
         private struct contactStatusCacheItem
         {
@@ -684,6 +695,9 @@ namespace SPIXI
                     closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
                     closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
                 }
+                // ★ AND-7b (#407): the surface under the status bar changed with the tab,
+                // and NOTHING navigates on a tab switch — so nothing else repaints it.
+                repaintOwnSystemBars();
                 if (currentTab == "tab2")
                 {
                     loadTransactions(true);
@@ -1373,7 +1387,49 @@ namespace SPIXI
             }
         }
 
+        /* ★ AND-7b (#407, Damir F5 2026-08-19): THE HOME SHELL IS THE EXCEPTION.
+         *
+         * Full bleed put the WebView under the status bar, so the pixels behind the clock
+         * are whatever the shell paints there — and this shell paints two different things
+         * depending on the tab: a THEMED topbar on Chats and Apps, and the DARK HERO on
+         * Wallet. A single page-level colour was therefore wrong on one tab or the other,
+         * and the reported symptom was dark glyphs over the dark wallet hero.
+         *
+         * Damir's rule, verbatim: the wallet and the launch flow ALWAYS carry light
+         * glyphs; every other screen follows the app theme. The launch flow already gets
+         * that for free (intro.html is a fixed dark surface); this is the wallet half.
+         * tab2 is the wallet tab (HomePage's own tab ids, see the ixian:tab: branch). */
+        protected override string systemBarSurfaceColorString()
+        {
+            if (currentTab == "tab2")
+            {
+                return ThemeManager.getHeroColorString();
+            }
+            return base.systemBarSurfaceColorString();
+        }
+
         private void joinBot()
+        {
+            joinCommunity();
+        }
+
+        /* ★ Item 6 (#397/#400): the join is a SHARED STATIC now — the
+         * BackupPage.backupAccount() precedent (#243), which is how the Account Backup row
+         * and the dead onboarding tail already shared one code path.
+         *
+         * Why: the community CTA lives in the chat-list EMPTY STATE, and that state
+         * disappears the moment the user adds any ordinary contact — so the one door into
+         * the community closed forever after the first contact. Damir's dial (#397): keep
+         * the empty-state CTA AND add a permanent row in How to use. How to use is rendered
+         * by SettingsPage, which does NOT handle ixian:joinBot and must not grow a second
+         * copy of the addFriend call. Body moved here VERBATIM; no new verb on either page.
+         *
+         * Still opt-in: nothing is added until a row is tapped. Tapping twice is safe, but
+         * NOT because the request is re-sent: FriendList.addFriend returns NULL when the
+         * address is already in the list (Ixian-Core FriendList.cs:366-370), so a repeat
+         * tap is a complete no-op — no save, no second contact request, no refresh. That is
+         * the safe failure; the ROW's confirmation copy is worded to be true either way. */
+        public static void joinCommunity()
         {
             Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, new Address("419jmKRKVFcsjmwpDF1XSZ7j1fez6KWaekpiawHvrpyZ8TPVmH1v6bhT2wFc1uddV"), null, "Spixi Group Chat", null, null, 0);
             if (friend != null)
@@ -2272,10 +2328,32 @@ namespace SPIXI
                      * which live in this list too (loadChats reads them from here and routes
                      * them to the requests feed) — one unsolicited request on a fresh account
                      * did the same. An asset is a contact the user actually has: approved,
-                     * not queued for deletion, not the bot. */
+                     * not queued for deletion, not the bot.
+                     *
+                     * ★ F-1 (#395, #399): the guard above read `friend.approved`, and that flag
+                     * is DEAD for this purpose. `Friend.approved` DEFAULTS TO TRUE
+                     * (Ixian-Core Friend.cs:196; ctor :233 `bool approve = true`) and every
+                     * OUTGOING request in this app adds the friend without passing it
+                     * (joinBot · ContactNewPage :195 · SingleChatPage :1426 ·
+                     * SpixiContentPage.addContactByAddress) — line numbers deliberately omitted where
+                     * this batch moved the code — so it is true from the moment you SEND a
+                     * request, and the nudge fired on the community bot one second after the
+                     * Join tap and on a scanned QR before the other side accepted. Only an
+                     * INCOMING request clears it (CoreStreamProcessor :1763/:1837 pass false).
+                     *
+                     * The live signal is the STATE. All four outgoing sites pass
+                     * FriendState.RequestSent; the handshake sets Approved
+                     * (CoreStreamProcessor :1908/:1991/:2181/:2236); a pre-v6 stored friend is
+                     * upgraded to Approved on load when an aes key is present (Friend.cs:341),
+                     * so legacy accounts still count. Two useful consequences: a GROUP is
+                     * created Approved (GroupChat.cs:34/:70) and counts, which is right — a
+                     * group is not rebuildable either; and the community BOT never reaches
+                     * Approved at all (handleAcceptAddBot :2072-2097 sets bot mode and the
+                     * handshake status, never the state), so it is excluded even in the window
+                     * before `bot` flips true. Keep `!friend.bot` as the belt. */
                     foreach (Friend friend in FriendList.friends)
                     {
-                        if (friend != null && friend.approved && !friend.pendingDeletion && !friend.bot)
+                        if (friend != null && friend.state == FriendState.Approved && !friend.pendingDeletion && !friend.bot)
                         {
                             return true;
                         }
@@ -2330,6 +2408,14 @@ namespace SPIXI
             info += "<a title='Stream Messages (Received/To Send/Sent)'><span>STRM:</span>" + CoreStreamProcessor.receivedStreamMessages + "/" + PendingMessageProcessor.toSendStreamMessages + "/" + PendingMessageProcessor.sentStreamMessages + "</a>";
             info += "<a title='Offline Messages (Received/Sent)'><span>OFFM:</span>" + OfflinePushMessages.receivedOfflineMessages + "/" + OfflinePushMessages.sentOfflineMessages + "</a>";
             info += "<a title='Pending Stream Messages'><span>PSTRM:</span>" + CoreStreamProcessor.pendingMessageProcessor.countPendingMessages() + "</a>";
+#if ANDROID
+            /* ★ AND-7b (#407): show what the app actually asked the system bars for, live
+             * and per tab. Damir reported the glyphs inverting against the app theme; the
+             * rule here is instrument, do not guess (#215), and the on-screen probe is
+             * faster for him than sharing a log. "glyphs=dark" = we asked for dark icons,
+             * i.e. we believe the surface under them is light. */
+            info += "<a title='System bars: colour asked for, its luminance, and the glyph colour requested'><span>BAR:</span>" + Spixi.SPlatformUtils.lastBarState + "</a>";
+#endif
             Utils.sendUiCommand(this, "updateDebugInfo", info);
         }
 
@@ -2384,9 +2470,16 @@ namespace SPIXI
                             warningDisplayed = false;
                         }
                         connectivityWarningDelayCounter = 0;
+                        // ★ N70: the offline→online EDGE. Nothing else in the app sees it.
+                        if (sawOffline)
+                        {
+                            sawOffline = false;
+                            rearmUpdateCheck();
+                        }
                     }
                     else
                     {
+                        sawOffline = true;
                         // delay warning for one refresh cycle
                         if (connectivityWarningDelayCounter > 0)
                         {
@@ -2806,6 +2899,49 @@ namespace SPIXI
                 checkForRating();
             }
             base.OnAppearing();
+        }
+
+        /* ★ N70 (#402): ask UpdateVerify to check again, now that there is a network.
+         *
+         * Core owns the checker and exposes only start()/stop(), so the re-arm is a
+         * stop-then-start: stop() interrupts the sleeping loop thread and start() spawns
+         * a fresh one, which checks IMMEDIATELY before sleeping the period again. Core is
+         * read-only for us — no change there.
+         *
+         * Two guards that are not optional:
+         *   · only when the last answer was an ERROR. `ready && error` is exactly the
+         *     "we tried and could not reach the server" state, which is what a start-
+         *     offline session leaves behind. A successful check must never be thrown away
+         *     and restarted for a passing network blip.
+         *   · OFF THIS THREAD. stop() ends in Thread.Join(), and the loop may be parked
+         *     inside a blocking HTTP wait where an Interrupt does nothing — joining there
+         *     could stall for the HTTP timeout. This runs on Node.updateUILoop's tick, so
+         *     a stall would starve chats, wallet and apps together. Task.Run keeps it off.
+         * One-shot per session either way: a re-arm that fails must not retry every tick. */
+        private void rearmUpdateCheck()
+        {
+            if (updateCheckRearmed)
+            {
+                return;
+            }
+            if (!UpdateVerify.ready || !UpdateVerify.error)
+            {
+                return;   // never checked yet, or already has a good answer
+            }
+            updateCheckRearmed = true;
+            Task.Run(() =>
+            {
+                try
+                {
+                    UpdateVerify.stop();
+                    UpdateVerify.start();
+                    Logging.info("Update check re-armed after the network came back (N70).");
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Update check re-arm failed: " + e);
+                }
+            });
         }
 
         private string checkForUpdate()

@@ -150,6 +150,17 @@ namespace SPIXI
             int verb_start = current_url.IndexOf("ixian:", StringComparison.Ordinal);
             string verb = verb_start >= 0 ? current_url.Substring(verb_start) : current_url;
 
+            /* ★ F-2 (#395/#399) INSTRUMENTATION — Damir asked for this instead of a guess.
+             * Hardware back exits the app from create/restore while the view switch and the
+             * topbar Back both work, so either the verb never arrives or the field is reset
+             * later. One line here answers it in one F5 (the N65 precedent).
+             * ★ SECURITY: log the verb NAME ONLY. Three of the verbs on this page carry a
+             * WALLET PASSWORD (ixian:create:<nick>:<pass> · ixian:restore:<pass> ·
+             * ixian:proceed:<pass>) and ixian.log is a file the user SHARES with the
+             * engineer from Account → Developer. Cut at the second ':' — never the payload,
+             * never the nickname, never the URL. */
+            logVerbName(verb);
+
             // The bare view verbs are matched with Equals, the payload verbs with
             // StartsWith on the anchored verb.
             if (current_url.Equals("ixian:introload", StringComparison.Ordinal))
@@ -168,6 +179,22 @@ namespace SPIXI
             {
                 // The shell already switched back to welcome — this only keeps us in step.
                 trackView("welcome");
+            }
+            /* ★ F-2 (#399): THE view report. The shell now tells us from its ONE switch
+             * point (`show()` in launch-shell.js), so every way a view can move is covered —
+             * the welcome CTAs, the form Back controls, the retry lockout, anything later.
+             * The three bare verbs above are KEPT: they cost nothing, and a stale built
+             * intro.html (the #288 class) still tracks create/restore/back through them.
+             * Dispatched on the ANCHORED verb, like every payload verb (#393 MAJOR-2), and
+             * the value is clamped to the four views we know — this field decides whether
+             * the hardware back button is swallowed, so it never takes an arbitrary string. */
+            else if (verb.StartsWith("ixian:view:", StringComparison.Ordinal))
+            {
+                string v = verb.Substring("ixian:view:".Length);
+                if (v == "welcome" || v == "create" || v == "restore" || v == "retry")
+                {
+                    trackView(v);
+                }
             }
             else if (current_url.Equals("ixian:accept", StringComparison.Ordinal))
             {
@@ -291,8 +318,45 @@ namespace SPIXI
          * now it walks the view back to welcome inside the same document. On welcome
          * (and on a cold-unlock retry, which is the root page) we fall through to the
          * default — leaving the app, exactly as before. */
+        /* ★ F-2 SECURITY-SAFE instrumentation. Returns the verb NAME with no payload:
+         * "ixian:create:bob:hunter2" logs as "ixian:create:". Anything that is not an
+         * ixian: verb is reported by shape only, never by content — this method's input
+         * comes off a WebView navigation URL, and DevPage renders ixian.log and offers it
+         * through the share sheet (the #385 NIT-3 rule). */
+        private static void logVerbName(string verb)
+        {
+            try
+            {
+                if (verb == null || !verb.StartsWith("ixian:", StringComparison.Ordinal))
+                {
+                    Logging.info("LaunchPage verb: <non-ixian navigation>");
+                    return;
+                }
+                int sep = verb.IndexOf(':', "ixian:".Length);
+                string name = sep >= 0 ? verb.Substring(0, sep + 1) : verb;
+                // belt: only the fixed alphabet our own verbs use ever reaches the log
+                foreach (char c in name)
+                {
+                    if (!char.IsLetterOrDigit(c) && c != ':')
+                    {
+                        Logging.info("LaunchPage verb: <unrecognized>");
+                        return;
+                    }
+                }
+                Logging.info("LaunchPage verb: " + name);
+            }
+            catch (Exception)
+            {
+                // instrumentation must never break the dispatch it observes
+            }
+        }
+
         protected override bool OnBackButtonPressed()
         {
+            /* ★ F-2: the OTHER half of the answer. If this line never appears in the log
+             * when back is pressed, the handler is not reached at all and the field is
+             * innocent; if it appears with the wrong view, the report is the problem. */
+            Logging.info("LaunchPage back: view=" + currentView);
             if (currentView == "create" || currentView == "restore")
             {
                 switchView("welcome");

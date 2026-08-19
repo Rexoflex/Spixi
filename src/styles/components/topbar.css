@@ -12,8 +12,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);

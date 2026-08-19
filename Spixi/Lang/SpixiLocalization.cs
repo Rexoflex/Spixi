@@ -29,7 +29,17 @@ namespace SPIXI.Lang
         private static bool loaded = false;
         private static string language = "en-us";
         private static Dictionary<string, string> localizedStrings = new Dictionary<string, string>();
-        private static Dictionary<string, string> customStrings = new Dictionary<string, string>();
+        /* ★ AND-7 (#401): AndroidInsetTop is SEEDED here, not only registered by
+         * MainActivity. Every shell head carries the carrier now, and an unknown *SL{}
+         * key is not silently empty — localizeHtml LOGS an error for it (both `Unknown localization key` sites) on
+         * every page load. Seeding "0" means iOS, MacCatalyst and Windows resolve the
+         * carrier cleanly to the value that is already correct for them (their chrome
+         * reads env(safe-area-inset-top), which the platform populates), and only
+         * Android ever overwrites it. */
+        private static Dictionary<string, string> customStrings = new Dictionary<string, string>()
+        {
+            { "AndroidInsetTop", "0" }
+        };
 
         public static bool loadLanguage(string lang)
         {

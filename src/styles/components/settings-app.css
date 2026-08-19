@@ -232,6 +232,19 @@ button.c-settings-links__row {
 }
 button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }
 .c-settings-links__row--static { flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+
+/* ★ Item 6 (#400): the How-to community row. Same link-row grammar; the leading
+   emphasis is the ACTION colour, because this row DOES something rather than
+   navigating away. Once taken it reads as done and stops responding — a disabled
+   button already leaves the tab order, so nothing extra is needed for a11y. */
+.c-settings-howto__join { color: var(--text-action-default); }
+.c-settings-howto__join .c-settings-links__label { color: inherit; }
+.c-settings-howto__join svg { color: inherit; }
+button.c-settings-howto__join:disabled {
+  cursor: default;
+  color: var(--text-neutral-02);
+  background: transparent;
+}
 .c-settings-links__label { flex: 1; font-weight: var(--font-weight-semibold); }
 .c-settings-links__url {
   color: var(--text-neutral-02);

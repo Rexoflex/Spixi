@@ -133,10 +133,28 @@ function illoSlot(name, src) {
 
 /* —— view plumbing ———————————————————————————————————————————— */
 
-function show(st, view) {
+/* ★ F-2 (#395/#399): ONE reporting point for the whole component.
+ *
+ * The hardware back button is C#'s, and C# can only swallow it while it believes a
+ * FORM view is on screen. Before this, only the two welcome CTA hooks told it
+ * anything (`onGoCreate`/`onGoRestore`) and the topbar Back told it separately
+ * (`onBack`) — three call sites, and every OTHER way a view can change told it
+ * nothing at all: the retry lockout, a future deep link, and the boot view itself.
+ * Reporting from `show()` makes the contract structural: if the view changed, C#
+ * heard about it, whatever moved it.
+ *
+ * `silent` suppresses the echo for the one switch C# ITSELF drives (setLaunchView) —
+ * it already knows, and an echo would be a second navigation for no new information.
+ * The report is fired AFTER the DOM switch and fenced: a throwing or absent host hook
+ * must never strand the user on the view they just left. */
+function show(st, view, silent) {
+  const changed = st.view !== view;
   st.view = view;
   st.root.dataset.view = view;
   for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view;
+  if (changed && !silent && st.opts && st.opts.onViewChange) {
+    try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
+  }
 }
 
 const errLine = () => {
@@ -999,7 +1017,10 @@ export function createLaunchShell(opts = {}) {
   window.addEventListener('pagehide', onPageHide);
 
   setLaunchVersion(el, version);
-  show(st, LAUNCH_VIEWS.includes(view) ? view : 'welcome');
+  /* ★ F-2: the BOOT view is not reported. C# chose it and put it in the carrier, so
+     it already knows — and this line runs during PARSE, where an outgoing navigation
+     races C#'s first push (the #177 load-timing invariant). Only real CHANGES report. */
+  show(st, LAUNCH_VIEWS.includes(view) ? view : 'welcome', true);
   return el;
 }
 
@@ -1017,7 +1038,7 @@ export function setLaunchView(el, view) {
      shell owns: each scrub clears and re-masks only its own, so this is safe to run
      on any switch. */
   st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
-  show(st, view);
+  show(st, view, true);      // ★ F-2: C# drove this one — do not echo it back
 }
 
 /** ← setVersion(Config.version) — quiet welcome footer line. */

@@ -186,9 +186,30 @@ namespace Spixi
          * in light mode this strip used to paint light above a dark screen (the wrong
          * status-bar strip Damir reported) and the bar ICONS were drawn dark on that
          * dark screen. Both now follow the painted colour, not the app theme. */
-        public static void setEdgeToEdge(string surfaceColor = null)
+        /* ★ AND-7b (#407): the LAST state actually applied to the system bars, rendered
+         * live into the dev HUD. Damir reported the glyphs inverting against the app
+         * theme; rather than guess, the app now SHOWS what it asked the OS for, per tab,
+         * on screen (the #304 probe precedent). Dev-mode only — see updateDebugOverlay. */
+        public static string lastBarState = "";
+
+        /* ★ AND-7d (#409, Damir F5 2026-08-19): TWO colours, because since full bleed these
+         * became two different questions.
+         *
+         *   surfaceColor — what is painted at the BOTTOM of the window. The root view
+         *     background is still visible there (MainActivity keeps padding the bottom by
+         *     the nav-bar inset), so this is literally the strip behind the OS navigation
+         *     controls, and it also decides THEIR glyph colour.
+         *   topColor — what the SHELL paints under the STATUS bar. Only the status-bar
+         *     glyphs are decided from it. Defaults to surfaceColor when a caller has one
+         *     answer for the whole screen (launch, lock, every single-surface page).
+         *
+         * Passing one colour for both is what turned the navigation bar BLUE on the wallet
+         * tab: the hero is the right answer for the top of that screen and the wrong answer
+         * for the bottom, where the shell paints the ordinary themed surface. */
+        public static void setEdgeToEdge(string surfaceColor = null, string topColor = null)
         {
             string colorString = string.IsNullOrEmpty(surfaceColor) ? ThemeManager.getSurfaceColorString() : surfaceColor;
+            string topColorString = string.IsNullOrEmpty(topColor) ? colorString : topColor;
 
             Android.Graphics.Color bgColor;
             try
@@ -228,10 +249,25 @@ namespace Spixi
                 var controller = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
                 if (controller != null)
                 {
+                    Android.Graphics.Color topBgColor;
+                    try
+                    {
+                        topBgColor = Android.Graphics.Color.ParseColor(topColorString);
+                    }
+                    catch (Exception)
+                    {
+                        topBgColor = bgColor;
+                    }
                     double luma = (0.299 * bgColor.R + 0.587 * bgColor.G + 0.114 * bgColor.B) / 255.0;
-                    bool lightSurface = luma > 0.5;
-                    controller.AppearanceLightStatusBars = lightSurface;
-                    controller.AppearanceLightNavigationBars = lightSurface;
+                    double topLuma = (0.299 * topBgColor.R + 0.587 * topBgColor.G + 0.114 * topBgColor.B) / 255.0;
+                    // ★ AND-7d: the STATUS bar reads the top colour, the NAVIGATION bar reads
+                    // the bottom one — they sit on different surfaces now.
+                    controller.AppearanceLightStatusBars = topLuma > 0.5;
+                    controller.AppearanceLightNavigationBars = luma > 0.5;
+                    // ★ AND-7b: report what was asked for. "glyphs=dark" means we asked
+                    // the OS for DARK icons, i.e. we believe the surface under them is light.
+                    lastBarState = "top=" + topColorString + "/" + (topLuma > 0.5 ? "dark" : "light")
+                        + " bottom=" + colorString + "/" + (luma > 0.5 ? "dark" : "light");
                 }
             }
         }

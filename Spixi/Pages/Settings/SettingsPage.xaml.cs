@@ -456,6 +456,17 @@ namespace SPIXI
             {
                 _ = BackupPage.backupWallet();
             }
+            /* ★ Item 6 (#397/#400): the permanent door into the Spixi community. The
+             * chat-list empty-state CTA disappears the moment the user adds any ordinary
+             * contact, so How to use carries the row that never closes. Same SHARED STATIC
+             * HomePage's own ixian:joinBot verb calls — no duplicated addFriend, no second
+             * verb name (this page simply had no handler for the one that already exists).
+             * Opt-in: nothing happens until the row is tapped. The chats list refreshes on
+             * its own — joinCommunity sets UIHelpers.shouldRefreshContacts. */
+            else if (current_url.Equals("ixian:joinBot", StringComparison.Ordinal))
+            {
+                HomePage.joinCommunity();
+            }
             else if (current_url.Equals("ixian:avatar", StringComparison.Ordinal))
             {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -573,7 +584,9 @@ namespace SPIXI
 
                 if (ThemeManager.changeAppearance(selectedAppearance))
                 {
-                    SPlatformUtils.setEdgeToEdge();
+                    // ★ AND-7c (#408): the visible page decides, not the raw theme —
+                    // see the twin comment on the OS-flip path in App.xaml.cs.
+                    SpixiContentPage.repaintSystemBarsFor(null);
                     // Round 2 (Damir F5 "changing theme still flickers"): NO settings.html
                     // reload — the redesigned shell already applied the new theme LIVE
                     // (applyTheme on the pick) and persisted it; the full reload here was

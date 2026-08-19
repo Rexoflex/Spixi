@@ -9,6 +9,15 @@
      set BEFORE first paint, constant across window resize. iPad (Macintosh UA +
      touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
+     BEFORE first paint. MainActivity no longer pads the root view down by the status
+     bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
+     (base.css). Android's env(safe-area-inset-top) cannot carry this — it reports the
+     display CUTOUT only. Off Android the carrier resolves to the seeded "0"
+     (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
+     UNRESOLVED marker also fails the numeric test and leaves the variable unset.
+     The value is validated as a plain number before it reaches a style property. -->
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
 <style>
   /* The launch flow is a FIXED-DARK brand surface in BOTH themes (--gradient-
      launch, lock.html precedent #160): paint a deep dark IMMEDIATELY — launch
@@ -195,8 +204,8 @@
      WKWebView only populates it for a WebView actually touching the screen top —
      desktop panes / phone-frame demos are untouched. border-box: grow the fixed
      height by the same inset so the row keeps --layout-bar-top. */
-  height: calc(var(--layout-bar-top) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--layout-bar-top) + var(--safe-top, 0px));   /* ★ AND-7: Android's env() is cutout-only — --safe-top carries the real inset */
+  padding-top: var(--safe-top, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-topbar);
   color: var(--text-topbar);
@@ -751,7 +760,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* #160b⑧: the gradient BLEEDS under the OS statusbar (LockPage owns the
      whole screen) — content stays clear of the notch/inset, paint doesn't.
      Bottom: the hatch/cancel footer clears the home indicator the same way. */
-  padding-top: max(var(--spacing-24), env(safe-area-inset-top));
+  padding-top: max(var(--spacing-24), var(--safe-top, 0px));   /* ★ AND-7 */
   padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
 }
 /* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
@@ -1858,7 +1867,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* #160b⑧ precedent: the gradient bleeds under the OS statusbar (LaunchPage
      owns the whole screen) — content stays clear of the inset, paint doesn't.
      Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
-  padding-top: max(var(--spacing-16), env(safe-area-inset-top));
+  padding-top: max(var(--spacing-16), var(--safe-top, 0px));   /* ★ AND-7: the launch GRADIENT bleeds to y=0 */
   padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */
@@ -2259,7 +2268,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   body { display: flex; flex-direction: column; overflow: hidden; }
   #launch-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #launch-root > .c-launch { flex: 1; min-height: 0; }
-  #launch-root .c-launch__view { padding-top: env(safe-area-inset-top); }
+  /* ★ AND-7 audit (#401): this rule is GONE. Every .c-launch__view (create/restore/
+     retry) starts with a createTopbar, and topbar.css already grows by --safe-top AND
+     pads by it — so the view rule added the inset a SECOND time, leaving dead space
+     above the Back control equal to twice the status bar. Harmless-looking on iOS,
+     where it landed in #391; AND-7 makes it visible on Android too. The WELCOME view is
+     .c-launch__welcome, has no topbar, and owns its inset in launch-shell.css:40. */
 
   /* W15 (#348): on a wide window the FORM views (create / restore / retry)
      stretched their content from edge to edge. Cap the CONTENT COLUMN only.
@@ -2426,12 +2440,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // fire-and-forget; the reload re-boots this shell on the welcome view.
     // ★ N72: there is no appearance hook any more — the pill is gone.
     onLanguage: (code) => bridge.send('ixian:language:' + code),
-    /* ★ N75: the welcome CTAs now switch IN PLACE (launch-shell does the show()
-       itself). These hooks stay as NOTIFICATIONS so C# can follow the view — it
-       needs the current view for the hardware back button, and it is the only
-       place that may record consent. No page is pushed any more. */
-    onGoCreate: () => { recordConsent(); bridge.send('ixian:create'); },
-    onGoRestore: () => { recordConsent(); bridge.send('ixian:restore'); },
+    /* ★ F-2 (#399): the view report moved OUT of these hooks and into the component's
+       one switch point (`show()` → onViewChange below). C# needs the current view for
+       the hardware back button, and reporting it from the two CTA hooks meant every
+       OTHER way the view can move — the retry lockout, a future entry point — told C#
+       nothing, which is the reported "back exits the app from create/restore".
+       What is left here is the ONE thing only the host can do: record consent. */
+    onGoCreate: () => { recordConsent(); },
+    onGoRestore: () => { recordConsent(); },
+    /* the single view report. `ixian:view:<name>` is dispatched with the SAME anchored
+       StartsWith grammar as the payload verbs (#393 MAJOR-2), and the three legacy bare
+       verbs stay handled C#-side so a STALE built intro.html still tracks. */
+    onViewChange: (v) => bridge.send('ixian:view:' + v),
     onPickAvatar: () => bridge.send('ixian:avatar'),   // native picker → loadAvatar
     // Loading until C# resolves (spec §2.2): on success C# generates the wallet
     // then navigates to Home + tears this page down (the morph never resolves —
@@ -2452,7 +2472,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
        #334 L1 wedge: before N75, Back POPPED the page and re-entry rebuilt the WebView,
        so it could not survive. The control is one-shot and re-enables the form it owns,
        so releasing a hidden view is correct, not a leak. */
-    onBack: () => { bridge.send('ixian:back'); },
+    /* ★ F-2: no longer sends — `show()` already reported the switch to welcome before
+       this hook runs. Kept as a registered hook only so the comment above (and the
+       MAJOR-1 rule it guards) stays attached to the control it describes. */
+    onBack: () => {},
   };
 
   const handlers = {

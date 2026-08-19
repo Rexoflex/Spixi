@@ -121,5 +121,20 @@ namespace SPIXI
             return Color.FromArgb(getSurfaceColorString());
         }
 
+        /* ★ AND-7b (#407, Damir F5 2026-08-19): the WALLET HERO surface — the colour the
+         * home shell actually paints under the status bar while the Wallet tab is open.
+         * Mirrors tokens.css --surface-hero: --primary-600 (#3050bd) in light,
+         * --primary-800 (#192853) in dark. Both are dark enough to demand LIGHT bar
+         * glyphs, which is the rule Damir set: the wallet and the launch flow always
+         * carry white glyphs, every other screen follows the app theme.
+         * The hero also paints --gradient-hero-overlay on top, which only darkens it —
+         * so this base value can never flip the luminance decision the wrong way. */
+        public static string getHeroColorString()
+        {
+            if (getResolvedAppearanceName() == "light")
+                return "#3050bd";
+            return "#192853";
+        }
+
     }
 }

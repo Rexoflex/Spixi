@@ -8,6 +8,28 @@
    scripts/build-shells.mjs (a smoke pin holds them together). */
 :root { --spixi-base-css: 1; }
 
+/* ★ AND-7 (#396/#401) — THE TOP SAFE AREA, one expression for every platform.
+ *
+ * iOS gives us the real inset in `env(safe-area-inset-top)` and always has (#282).
+ * ANDROID DOES NOT: `env()` there reports the display CUTOUT only, so it is 0 on a
+ * phone with an ordinary status bar — which is why the #282 chrome measured 0 on
+ * Android and why MainActivity padded the whole root view down instead, producing the
+ * strip Damir asked us to remove. That padding is gone; the real inset now arrives as
+ * the `*SL{AndroidInsetTop}` carrier (CSS px) and each shell writes it into
+ * `--android-inset-top` in a head-top script, BEFORE first paint.
+ *
+ * `max()` of the two is right on every platform: iOS never sets the variable (0px →
+ * env wins), Android's env is 0 (the variable wins), and a desktop WebView has
+ * neither. An unresolved or malformed carrier leaves the variable unset, which on
+ * Android degrades to NO top inset (not to the pre-batch root padding — that padding
+ * is what this batch removed). Every use site writes `var(--safe-top, 0px)`, so the
+ * degradation holds even if this declaration itself never arrives.
+ *
+ * Nothing equivalent exists for the BOTTOM on purpose: MainActivity still pads the
+ * root there (it carries the IME inset, and the Android keyboard behaviour was
+ * measured on that mechanism in #334/AND-16), so a bottom variable would double-pad. */
+:root { --safe-top: max(env(safe-area-inset-top, 0px), var(--android-inset-top, 0px)); }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }

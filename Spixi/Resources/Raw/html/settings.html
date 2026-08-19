@@ -296,6 +296,60 @@
   .c-topbar__dots span { animation: none; opacity: 1; }
 }
 
+/* ★ N19 (#428, Damir's dial 2026-08-19): the CONNECTING line — an animated gradient
+   sweeping along the bar's bottom edge.
+   ⚠ CONNECTING-ONLY, and that was the dial, not a shortcut. The alternative on the
+   table was a shared loading affordance, and #417 measured why not: during a
+   community-bot join essentially NOTHING reaches the shell (`n=0`), so a general
+   loading line would sit still through the exact 90 seconds it was hired for. The
+   connectivity state is different — C# pushes it (showWarning, xaml:1760/1781), the
+   shells already recognise it (M16/#59, CONNECTIVITY_TEXTS) and already render it as
+   a title-state. This is that same state's visual half, driven by the SAME attribute,
+   so the two can never disagree.
+   The attribute is set on the BAR by the shells beside the existing title swap
+   (home.html setChatsTitleState · chat.html applyConnectivity). It rides ::after
+   rather than border-image: the bar is `position: sticky` (a positioned value), so
+   the pseudo-element's containing block is the bar itself, and an absolutely
+   positioned strip cannot disturb the bar's height the way a thicker border would —
+   the height is `--layout-bar-top + --safe-top` and full bleed made that arithmetic
+   load-bearing (★ AND-7).
+   `inset-inline: 0` is the house logical grammar (media-bubble/reactions); the block
+   axis stays physical because `bottom` is correct in both writing directions.
+   The sweep is a moving background-position on an oversized gradient — one
+   compositable property, no layout, no repaint of the bar.
+   Reduced motion: the line HOLDS as a solid action-tinted rule. It must not vanish —
+   it is state, not decoration, and the title's own dots follow the same rule above. */
+.c-topbar[data-connecting-bar]::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--outline-width-2);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--surface-action-default) 35%,
+    var(--surface-action-default) 65%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: topbar-connecting 1.6s linear infinite;
+  pointer-events: none;
+}
+@keyframes topbar-connecting {
+  from { background-position: -110% 0; }
+  to   { background-position: 210% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-topbar[data-connecting-bar]::after {
+    animation: none;
+    background-image: none;
+    background-color: var(--surface-action-default);
+    opacity: 0.6;
+  }
+}
+
 /* view variant — secondary screens (app details, add, discover). Hairline below so the
    sticky bar reads against the scrolling content, same language as the chat bar (Damir). */
 .c-topbar[data-variant="view"] {
@@ -436,6 +490,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   .screen--hero .c-topbar .c-button[data-type="text"]:hover { background: var(--surface-wash-on-hero); }
 }
 .screen--hero .c-topbar .c-button[data-type="text"]:active { background: var(--surface-wash-on-hero-pressed); }
+
+/* ★ N19 (#428): while the state is live the sweep IS the bottom border — the bar's
+   own hairline under it would read as a second line.
+   ⚠ THE PLACEMENT AND THE SECOND SELECTOR ARE BOTH LOAD-BEARING. This rule has to
+   sit AFTER the view/chat variant blocks above, which set the `border-bottom`
+   SHORTHAND at equal specificity (source order decides), and it needs the
+   [data-theme="dark"] twin because the dark overrides are (0,3,0) and would
+   otherwise out-specify a (0,2,0) reset — i.e. the hairline would keep painting in
+   dark only. Written the first time as one low-specificity rule high up in the file,
+   where it silently lost to all four. Pinned in smoke against computed style. */
+.c-topbar[data-connecting-bar],
+[data-theme="dark"] .c-topbar[data-connecting-bar] { border-bottom-color: transparent; }
 
 </style>
 <style data-src="../styles/components/avatar.css">
@@ -2079,9 +2145,9 @@ button.c-settings-howto__join:disabled {
   align-self: flex-start;
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422, #46 audit): the preview must show what the chat shows. Without the
-     hairline this bubble is 1.03:1 on the cream canvas — invisible on the one screen
-     whose entire job is previewing the chat. */
+  /* ★ N81 (#422, #46 audit): the preview must show what the chat shows — which is
+     why it reads the SAME token rather than baking an edge. ★ N82(b) (#427): that
+     now means no edge in EITHER theme, exactly as the chat renders. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   border-radius: var(--radius-16);
   border-end-start-radius: var(--radius-4);
@@ -2878,13 +2944,14 @@ button.c-settings-howto__join:disabled {
      canvas it read as grime, and on the midnight canvas a shadow is invisible by
      definition. `inset` keeps the bubble's box size unchanged, so the #63 grouped
      radii still line up exactly.
-     🟡 MEASURED, and worth Damir's eye (break-my-verdict MINOR-2): in DARK the
-     hairline is a real edge — rgba(255,255,255,.05) over #1a1d24 reads 1.28:1
-     against the #0f1115 ground, up from the bubble's own 1.12. In LIGHT it buys
-     1.034 → 1.055, because rgba(0,0,0,.04) over white is #f5f5f5 against a #fcfbfa
-     ground. Both alphas are Damir's specified values, so they are NOT changed here —
-     but the light bubble is close to invisible on the cream, and ~rgba(0,0,0,0.10)
-     would land near 1.15 if he wants a visible edge. His dial, flagged not taken. */
+     ★ N82(b) (#427): the hairline is OFF in BOTH themes — --border-bubble-received
+     is `transparent`, so this rule paints nothing and stays as the reversal hook.
+     Light no longer needs it (the #f4f6f9 canvas gives the white bubble 1.083:1 on
+     its own, and the hairline pixel measured 1.007:1 against that canvas — it was
+     erasing 1px of the bubble's own edge). Dark was the real question: there the
+     pixel read 1.281:1 against the #0f1115 ground versus the bubble's own 1.120, so
+     it WAS the edge — Damir chose symmetric removal on the rendered comparison, with
+     that number in front of him. One line in tokens.css restores either. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {

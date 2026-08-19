@@ -94,13 +94,14 @@
      canvas it read as grime, and on the midnight canvas a shadow is invisible by
      definition. `inset` keeps the bubble's box size unchanged, so the #63 grouped
      radii still line up exactly.
-     🟡 MEASURED, and worth Damir's eye (break-my-verdict MINOR-2): in DARK the
-     hairline is a real edge — rgba(255,255,255,.05) over #1a1d24 reads 1.28:1
-     against the #0f1115 ground, up from the bubble's own 1.12. In LIGHT it buys
-     1.034 → 1.055, because rgba(0,0,0,.04) over white is #f5f5f5 against a #fcfbfa
-     ground. Both alphas are Damir's specified values, so they are NOT changed here —
-     but the light bubble is close to invisible on the cream, and ~rgba(0,0,0,0.10)
-     would land near 1.15 if he wants a visible edge. His dial, flagged not taken. */
+     ★ N82(b) (#427): the hairline is OFF in BOTH themes — --border-bubble-received
+     is `transparent`, so this rule paints nothing and stays as the reversal hook.
+     Light no longer needs it (the #f4f6f9 canvas gives the white bubble 1.083:1 on
+     its own, and the hairline pixel measured 1.007:1 against that canvas — it was
+     erasing 1px of the bubble's own edge). Dark was the real question: there the
+     pixel read 1.281:1 against the #0f1115 ground versus the bubble's own 1.120, so
+     it WAS the edge — Damir chose symmetric removal on the rendered comparison, with
+     that number in front of him. One line in tokens.css restores either. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {

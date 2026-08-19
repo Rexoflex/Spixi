@@ -19,10 +19,11 @@
   /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
   background: var(--surface-neutral-02);
   /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
-     relied on elevation to separate. On the cream canvas it measures 1.03:1
-     against the ground, so the shadow is doing nothing — carry the same
-     incoming hairline the received bubble now uses. Dark needs neither: the
-     deeper #0f1115 ground GAINED separation. */
+     relied on elevation to separate, so it took the same incoming hairline the
+     received bubble carries.
+     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
+     on the rendered comparison), so this rule paints nothing and is kept only as
+     the one-line reversal hook. See tokens.css --border-bubble-received. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   text-align: center;
 }
@@ -63,4 +64,36 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .c-sysnotice__link:hover { color: var(--text-neutral-01); }
+}
+
+/* ★ N82(c) (#427, Damir 2026-08-19; deepened on his review of the first render):
+   the secure-chat notice goes DARKER and MORE SATURATED — ⚠ IN DARK MODE ONLY.
+   His constraint, and it is the whole shape of the change: LIGHT KEEPS ITS NOTICE
+   EXACTLY AS IT IS, so this is a [data-theme="dark"] override and NOT an edit to
+   --surface-neutral-02, which would drag light along with it. It also replaces the
+   radial gradient N14 used to ask for (#422 dropped it): a second radial over a
+   surface that sits ON the canvas competes with the one glow dark still has
+   (--gradient-chat).
+   MEASURED against the #0f1115 ground — "darker" and "stands out" pull opposite
+   ways on luminance, so the CARD takes the darker value and the EDGE carries the
+   prominence:
+     card                       luminance  vs ground  saturation
+       grey-800 #1b1f23 (was)     0.01334     1.140       23%
+       #141c33 (first render)     0.01218     1.119       61%
+       #0c1a4a (shipped)          0.01311     1.140       84%   ← darker than the
+                                                                  old card AND the
+                                                                  most chromatic
+     edge   white 5% (the shared bubble hairline)          1.281 vs ground
+            rgba(118,157,255,.35) (shipped)                2.19  vs ground
+   The edge is deliberately stronger than a bubble's ever was: that is what makes
+   the notice read as ABOVE the thread rather than as one more card in it — and
+   since N82(b) took the bubble hairline off in BOTH themes, this is now the only
+   edge on the canvas, which is the whole point.
+   Ink stays legible and improves on the old card: title 13.99:1 · body 8.93:1 ·
+   link 6.37:1 (was 13.94 / 8.90 / 6.34).
+   ⚠ The edge is written here, not via --border-bubble-received: that token is the
+   BUBBLE hairline, it is shared with seven other surfaces, and N82(b) retired it. */
+[data-theme="dark"] .c-sysnotice__card {
+  background: #0c1a4a;
+  box-shadow: inset 0 0 0 1px rgba(118, 157, 255, 0.35);
 }

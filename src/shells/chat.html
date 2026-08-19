@@ -279,9 +279,13 @@
     /* #265 (Damir ⑦): the tonal wash vanished on the light-blue canvas — ride
        the received-bubble surface instead.
        ★ N81 (#422, #46 audit): "white pops on the gradient" was TRUE of the old
-       sky-blue canvas and is false of the cream one — white on #fcfbfa is 1.03:1.
+       sky-blue canvas and is false of the cream one — white on #fcfbfa was 1.03:1.
        The elevation is replaced by the same incoming hairline the received bubble
-       now carries, which is what actually draws the edge in both themes. */
+       carries.
+       ★ N82 (#427): the canvas is #f4f6f9 now, which gives a white chip 1.083:1 on
+       its own, and --border-bubble-received is `transparent` in BOTH themes. The
+       rule is unchanged on purpose — it follows the token, which is one line from
+       bringing the edge back. */
     background: var(--surface-bubble-received);
     box-shadow: inset 0 0 0 1px var(--border-bubble-received);
     color: var(--text-neutral-01);
@@ -889,6 +893,12 @@
     // the identity lands (address known) — the slot reserves space, then the real avatar
     // (or the correct address-gradient) appears once, with no wrong-colour flash.
     if (!identity.address) tb.classList.add('is-avatar-pending');
+    /* ★ N19 (#428): the connecting line rides the BAR, and this rebuild happens on
+       six triggers (setNickname, setOnlineStatus, setAvatar, setChatMode, channel
+       select, the rAF coalescer). Applied HERE, from state, for the same reason the
+       unread dot below is: a one-shot poke from the showWarning handler would
+       evaporate on the next presence tick — the #188 typing-pill lesson. */
+    if (connectivitySub) tb.setAttribute('data-connecting-bar', '');
     /* A3 (#302): unread-elsewhere dot on the back button. Applied HERE, inside the
        render, because renderTopbarNow rebuilds the whole topbar (textContent=''
        at :582) on six different triggers — setNickname, setOnlineStatus, setAvatar,
@@ -3819,6 +3829,15 @@
         // (presence/nick pushes) recompose the same text via topbarSubText().
         if (topbarHost.querySelector('.c-topbar__sub')) {
           setTopbarSub(topbarHost, topbarSubText(mode.isBot && channelState.has));
+          /* ★ N19 (#428): this branch deliberately does NOT rebuild the bar (the
+             aria-live node must survive), so the line has to be toggled in place
+             here as well as in renderTopbarNow. Both read the same
+             `connectivitySub`, so they cannot disagree. */
+          const bar = topbarHost.querySelector('.c-topbar');
+          if (bar) {
+            if (connectivitySub) bar.setAttribute('data-connecting-bar', '');
+            else bar.removeAttribute('data-connecting-bar');
+          }
         } else {
           renderTopbar();   // no sub yet (pre-first-paint edge) → normal rebuild
         }

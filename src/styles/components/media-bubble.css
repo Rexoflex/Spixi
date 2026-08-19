@@ -26,10 +26,11 @@
   background: var(--surface-neutral-02);
   box-sizing: border-box;
   /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
-     relied on elevation to separate. On the cream canvas it measures 1.03:1
-     against the ground, so the shadow is doing nothing — carry the same
-     incoming hairline the received bubble now uses. Dark needs neither: the
-     deeper #0f1115 ground GAINED separation. */
+     relied on elevation to separate, so it took the same incoming hairline the
+     received bubble carries.
+     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
+     on the rendered comparison), so this rule paints nothing and is kept only as
+     the one-line reversal hook. See tokens.css --border-bubble-received. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;

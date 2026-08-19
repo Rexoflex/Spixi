@@ -5566,8 +5566,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(lightN81)
     && /--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(darkN81),
     '★ N81: the UNSET default resolves to each theme\'s own alpha — an absent preference must not fall back to one theme\'s number');
-  ok(/--chat-canvas-base: #fcfbfa;/.test(lightN81) && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
-    '★ N81: LIGHT canvas is FLAT cream #fcfbfa — the sky-blue diagonal wash is gone (Damir\'s dial: a wash over cream is not cream)');
+  ok(/--chat-canvas-base: #f4f6f9;/.test(lightN81) && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
+    '★ N82(a) (#427): LIGHT canvas is FLAT #f4f6f9 — Damir rejected the #fcfbfa cream on F5 and picked the light cool grey from the measured set. Still flat: the sky-blue diagonal wash stays gone (#422)');
+  ok((lightN81.match(/--chat-canvas-base:/g) || []).length === 1
+    && !/--chat-canvas-base: #fcfbfa/.test(lightN81),
+    '★ N82(a): exactly ONE --chat-canvas-base declaration in the light block, and it is not the cream — a leftover declaration would win on source order (the #422 sent-meta lesson). Counted rather than grepped for the hex, because the comment that RECORDS the supersession names the old value on purpose');
   ok(/--chat-canvas-base: #0f1115;/.test(darkN81)
     && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.10\) 0%, transparent 58%\), var\(--chat-canvas-base\);/.test(darkN81),
     '★ N81: DARK keeps its radial glow OVER the new #0f1115 base (Damir\'s P.S.) — the asymmetry with light is deliberate');
@@ -5584,15 +5587,58 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81 (#422, #46 audit): the sent-bubble META ink is ONE value in BOTH themes and clears AA on #1956B2 (5.77:1 at 12px). The dark value this replaces measured 4.28 — an AA failure this batch introduced by flattening the bubble');
   ok(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8'))
     && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/typing-indicator.css'), 'utf8')),
-    '★ N81 (#422, #46 audit): the surfaces that FLOATED on the old blue canvas carry the hairline too. White on cream is 1.03:1, so "white pops on the gradient" stopped being true — and the Chat-appearance PREVIEW bubble was one of them, i.e. the one screen whose whole job is showing what the chat looks like');
+    '★ N81/N82(b): the surfaces that FLOATED on the old blue canvas still READ the hairline token (transparent since #427) rather than baking their own edge — including the Chat-appearance PREVIEW bubble, the one screen whose whole job is showing what the chat looks like. If it ever baked an edge the preview would stop matching the chat');
   ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
     '★ N81 (#422): the superseded dark sent-meta ink is GONE, not merely shadowed — a leftover declaration in the dark block would win on source order');
-  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1a1d24;/.test(darkN81)
-    && /--border-bubble-received: rgba\(0, 0, 0, 0\.04\);/.test(lightN81)
-    && /--border-bubble-received: rgba\(255, 255, 255, 0\.05\);/.test(darkN81),
-    '★ N81: incoming bubble + its faint hairline, both themes (Damir 2026-08-19)');
+  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1a1d24;/.test(darkN81),
+    '★ N81: the incoming bubble surface, both themes (Damir 2026-08-19) — unchanged by N82');
+  ok(/--border-bubble-received: transparent;/.test(lightN81)
+    && !/--border-bubble-received:/.test(darkN81),
+    '★ N82(b) (#427): the bubble hairline is OFF in BOTH themes — one `transparent` in :root and NO dark override. Damir chose symmetric removal against the rendered comparison; the asymmetric build (transparent in light, rgba(255,255,255,.05) in dark) is what he was shown, not what ships');
+  {
+    /* ★ N82(b): the eight consumers are KEPT on purpose — the token is transparent,
+     * not absent, so the hairline is one line from returning in either theme.
+     * Pinned because a later "dead rule" cleanup would silently make the reversal a
+     * re-derivation of eight sites (#423: a comment cleanup already reverted a
+     * migration once in this project). */
+    const HAIR = [
+      'src/styles/components/message-bubble.css', 'src/styles/components/typed-bubbles.css',
+      'src/styles/components/media-bubble.css', 'src/styles/components/typing-indicator.css',
+      'src/styles/components/system-notice.css', 'src/styles/components/settings-screens.css',
+      'src/shells/chat.html',
+    ];
+    const missing = HAIR.filter((f) => !/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\)/
+      .test(readFileSync(join(root, f), 'utf8')));
+    ok(HAIR.length === 7 && missing.length === 0,
+      '★ N82(b): all seven files still READ --border-bubble-received (eight rules — typed-bubbles carries two), so restoring the hairline stays a one-line token edit. Missing: ' + (missing.join(', ') || 'none'));
+  }
   ok(!/--chat-canvas-base: var\(--neutral-1000\)/.test(readFileSync(join(root, 'src/shells/chat.html'), 'utf8')),
     '★ N81: the #207 desktop dark GROUND override is retired — grey-1000 (#111213) is LIGHTER than the new #0f1115, so it would have made desktop dark paler than mobile, inverting its own purpose');
+
+  /* ★ N82(c) (#427) — the security notice, DARK ONLY.
+   * The constraint IS the design: Damir narrowed it to dark in the same breath he
+   * asked for it, so light must be provably untouched. That makes the shape of the
+   * change assertable — a [data-theme="dark"] override, never a token edit, because
+   * editing --surface-neutral-02 would have dragged light along with it (and every
+   * other consumer of that surface). Pinned from both ends. */
+  {
+    const notice = readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8');
+    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background: #0c1a4a;[^}]*\}/.test(notice),
+      '★ N82(c): the dark notice card is the deepened #0c1a4a (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
+    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*box-shadow: inset 0 0 0 1px rgba\(118, 157, 255, 0\.35\);[^}]*\}/.test(notice),
+      '★ N82(c): the saturated edge is what makes the notice STAND OUT — 2.19:1 against the ground, where the retired bubble hairline was 1.281. "Darker" and "stands out" pull opposite ways on luminance, so the card went darker and the edge carries the prominence');
+    /* ⚠ the dark rule is REMOVED before this test: its own `background: #0c1a4a` is
+     * the thing being allowed, and an unanchored `.c-sysnotice__card {` matches
+     * inside the dark selector too — which is how the first version of this pin
+     * failed against a correct file. What is left must be light-only. */
+    const noticeLight = notice.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
+    ok(!/\.c-sysnotice__card[^{]*\{[^}]*background: #/.test(noticeLight)
+      && /\.c-sysnotice__card \{[^}]*background: var\(--surface-neutral-02\)/.test(noticeLight),
+      '★ N82(c): ⚠ LIGHT IS UNTOUCHED — outside the dark override the card still resolves to var(--surface-neutral-02) and no literal colour is baked into it. This is the half of Damir\'s instruction that is easiest to break by accident');
+    ok(/--surface-neutral-02: var\(--neutral-800\);/.test(darkN81)
+      && /--surface-neutral-02: var\(--neutral-50\);/.test(lightN81),
+      '★ N82(c): …and --surface-neutral-02 itself is UNCHANGED in both themes. A token edit would have recoloured every other surface that reads it — the reason this is written as a component override');
+  }
 
   const flow = readFileSync(join(root, 'src/components/chat-flow.js'), 'utf8');
   ok(/speed: 0\.85/.test(flow) && /spacing: 15/.test(flow) && /dash: 7/.test(flow)
@@ -6027,7 +6073,20 @@ console.log('#343 — instant chrome, first-commit fade, message window');
       + '<div class="c-chatlist-item" id="rsel" aria-current="true"></div>'
       + '<div class="c-txlist-item" id="txsel" aria-current="true"></div>'
       + '<button class="c-button" id="pb" data-pressed="control"></button>'
-      + '<button class="fab" id="pf" data-pressed="control"></button></body></html>');
+      + '<button class="fab" id="pf" data-pressed="control"></button>'
+      /* ★ N19 (#428): the connecting line REPLACES the bar's hairline, and getting
+       * that reset to win is a pure cascade question — the first build wrote it as
+       * one (0,2,0) rule high in topbar.css, where it lost to the view/chat
+       * `border-bottom` SHORTHAND below it AND to the (0,3,0) dark overrides. It read
+       * perfectly.
+       * ⚠ DARK ONLY here, and deliberately: jsdom's cssstyle drops a `border-bottom`
+       * shorthand containing var(), so the light bars would report transparent for
+       * the wrong reason. Light is pinned by source order in the topbarCss block. */
+      + '<div data-theme="dark">'
+      + '<header class="c-topbar" data-variant="chat" id="tbdc"></header>'
+      + '<header class="c-topbar" data-variant="chat" data-connecting-bar id="tbdcc"></header>'
+      + '<header class="c-topbar" data-variant="view" data-connecting-bar id="tbdvc"></header>'
+      + '</div></body></html>');
     const pw = probe.window;
     const tr = (id) => pw.getComputedStyle(pw.document.getElementById(id)).transition;
     ok(/width/.test(tr('m')) && /transform/.test(tr('m')),
@@ -6060,6 +6119,72 @@ console.log('#343 — instant chrome, first-commit fade, message window');
        with a green suite. */
     ok(/background-color/.test(tr('sr')) && /background-color/.test(tr('tx')),
       '★ #346 review r2: .c-settings__row and .c-txlist-item still declare their OWN background-color transition — which is why base.css correctly does not name them. Drop it in the component and the press release snaps off with nothing else to catch it');
+
+    /* ★ N19 (#428) — the connecting line's border reset, resolved through the real
+     * cascade rather than read off the file. */
+    {
+      const bbc = (id) => pw.getComputedStyle(pw.document.getElementById(id)).borderBottomColor;
+      const isTransparent = (v) => /^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/.test(String(v).trim());
+      /* ★ HARNESS HONESTY, and it changes what can be claimed here. jsdom's cssstyle
+       * DROPS a `border-bottom` SHORTHAND that contains var() — which is exactly how
+       * the light variants declare their hairline. So in light, a non-connecting bar
+       * already computes to transparent for a reason that has nothing to do with this
+       * feature, and a light assertion would pass vacuously (#421: a check that
+       * passes vacuously is worse than no check). The dark overrides are LONGHAND
+       * `border-bottom-color` with var(), which cssstyle keeps — so dark is where the
+       * cascade is genuinely observable, and dark is also the half that actually
+       * broke. Light is pinned by SOURCE ORDER below, which is its real mechanism. */
+      ok(bbc('tbdc') === 'var(--outline-neutral-02)',
+        '★ N19 harness self-check: a non-connecting DARK bar still reports its longhand hairline, so the assertions below are reading a live cascade and not an empty one');
+      ok(isTransparent(bbc('tbdcc')) && isTransparent(bbc('tbdvc')),
+        '★ N19 (#428): a CONNECTING bar drops its own hairline in DARK, both bordered variants — the sweep IS the bottom border while the state is live. The dark overrides are (0,3,0), so without the [data-theme="dark"] twin the reset loses HERE ONLY: the single-theme miss this project has shipped before (#423 MAJOR-3)');
+      ok(!isTransparent(bbc('tbdc')),
+        '★ N19: a DARK bar that is NOT connecting keeps its hairline — the reset is scoped to the state, not to the variant');
+    }
+    {
+      const topbarCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
+      ok(/@keyframes topbar-connecting \{[^}]*background-position/.test(topbarCss)
+        && /animation: topbar-connecting [\d.]+s linear infinite;/.test(topbarCss),
+        '★ N19: the sweep animates BACKGROUND-POSITION on an oversized gradient — one compositable property. Animating width/inset would relayout the bar on every frame, and full bleed made the bar height arithmetic load-bearing');
+      const rm = topbarCss.slice(topbarCss.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+      ok(/\[data-connecting-bar\]::after/.test(rm) && /animation: none/.test(rm)
+        && /background-color: var\(--surface-action-default\)/.test(rm),
+        '★ N19: under reduced motion the line HOLDS as a solid rule rather than disappearing — it is state, not decoration. The title dots follow the same rule (iOS-48)');
+      /* ★ N19 LIGHT, pinned by the mechanism that actually decides it. The light
+       * variants set the `border-bottom` SHORTHAND at (0,2,0); the reset is (0,2,0)
+       * too, so the ONLY thing that makes it win is being declared later in the file.
+       * The first build put it near the top and it silently lost to all four rules. */
+      const iReset = topbarCss.lastIndexOf('[data-connecting-bar] { border-bottom-color: transparent');
+      const iLastBorder = topbarCss.lastIndexOf('border-bottom: var(--outline-width-1)');
+      ok(iReset > 0 && iLastBorder > 0 && iReset > iLastBorder,
+        '★ N19 (#428): the hairline reset is declared AFTER the last variant `border-bottom` shorthand. Equal specificity means source order is the whole answer in light, and jsdom cannot see it (it drops var()-bearing shorthands) — so it is pinned here, positionally');
+      ok(/\[data-theme="dark"\] \.c-topbar\[data-connecting-bar\]/.test(topbarCss),
+        '★ N19: …and the dark twin exists in the same rule. Dropping it would break dark ONLY, with light still green');
+      ok(/var\(--surface-action-default\)/.test(topbarCss) && !/var\(--surface-action\)[^-]/.test(topbarCss),
+        '★ N19: the ink is --surface-action-DEFAULT. The first build used var(--surface-action), which does not exist — an invalid var() inside a gradient kills the whole background-image, so the line rendered as NOTHING while the CSS read fine. Found by rendering it');
+    }
+    {
+      /* ★ N19 shell wiring, both ends. The chat topbar is REBUILT on six triggers
+       * (setNickname, setOnlineStatus, setAvatar, setChatMode, channel select, the
+       * rAF coalescer), so the attribute has to be applied FROM STATE inside the
+       * render — a one-shot poke from the push handler evaporates on the next
+       * presence tick. That is the #188 typing-pill defect, and it has recurred in
+       * this shell often enough to be worth its own pin. */
+      const chatShellSrc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+      ok(/if \(connectivitySub\) tb\.setAttribute\('data-connecting-bar', ''\);/.test(chatShellSrc),
+        '★ N19: chat.html sets the line inside renderTopbarNow FROM connectivitySub — so it survives all six topbar rebuilds');
+      /* ⚠ matched on the CALL, not on the token appearing nearby: a proximity match
+       * is satisfied by a comment (#421 caught three self-defeating pins of exactly
+       * this shape — a word-match, a prefix-match, and one aimed at the wrong site). */
+      ok(/setTopbarSub\(topbarHost[\s\S]{0,600}?bar\.setAttribute\('data-connecting-bar', ''\);[\s\S]{0,200}?bar\.removeAttribute\('data-connecting-bar'\);/.test(chatShellSrc),
+        '★ N19: …and ALSO in the in-place sub-swap branch, which deliberately does not rebuild (the aria-live node must survive, audit A-2) — and it CLEARS as well as sets, or the line would outlive the state on that path. Both branches read the same connectivitySub, so they cannot disagree');
+      const homeShellSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+      ok(/base: chatsTitleBase, bar: chatsTopbarEl/.test(homeShellSrc)
+        && /strings\.tabApps \|\| 'Apps', bar: appsTopbarEl/.test(homeShellSrc),
+        '★ N19: home.html carries the owning BAR on each title-state target, so one setChatsTitleState call drives the title and the line together');
+      ok(/strings\.wallet \|\| 'Wallet', bar: null/.test(homeShellSrc),
+        '★ N19: the wallet HERO carries bar:null deliberately — it is not a .c-topbar, has no hairline to replace, and its bottom corners are rounded by --radius-24, so a straight sweep would cut them. It keeps the title state alone');
+    }
 
     /* ★ #346 review MAJOR-1: INSTANT ON must beat the release rules. Both are (0,2,1),
        so the winner is whichever is declared LAST. The instant-on rule used to sit
@@ -8049,6 +8174,36 @@ console.log('BUG-3 — built home shell, the exact scenario that bit Damir');
     await sleep(80);
     ok(walletSearch.value === 'ixi',
       'BUG-3: re-selecting the tab you are ALREADY on keeps the query — keepWithin covers the surface being entered, so the rule never eats a query in front of the user');
+
+    /* ★ N19 (#428) — the connecting LINE, driven end to end through the real push.
+     * The state already existed as a title swap (M16/#59); this batch gives it the
+     * bar. Both halves are driven by one call so they cannot disagree — and that is
+     * exactly what a source read cannot prove, which is why it is executed here.
+     * ⚠ The apps bar matters as much as the chats bar: #322 landed the title state on
+     * all three tab titles precisely because a connecting app that shows "Apps" is
+     * misleading, and a line on one bar only would re-open that. */
+    {
+      const chatsBar = d.querySelector('#chats-view .c-topbar');
+      const appsBar = d.querySelector('#apps-view .c-topbar');
+      ok(!!chatsBar && !!appsBar, 'N19 setup: the chats and apps topbars are mounted in the built home shell');
+      W.executeUiCommand(W.showWarning, b64('Connecting to Ixian Platform...'));
+      await sleep(80);
+      ok(chatsBar.hasAttribute('data-connecting-bar') && appsBar.hasAttribute('data-connecting-bar'),
+        '★ N19 (#428): a recognised connectivity push lights the line on BOTH in-page bars, not just the one the user is looking at');
+      ok(chatsBar.querySelector('.c-topbar__title[data-connecting]'),
+        '★ N19: …and the TITLE state still lands with it. One call drives both, so the line can never outlive the state that explains it');
+      W.executeUiCommand(W.showWarning, b64(''));
+      await sleep(80);
+      ok(!chatsBar.hasAttribute('data-connecting-bar') && !appsBar.hasAttribute('data-connecting-bar'),
+        '★ N19: the clear push removes the line from both bars. C# sends "" once connected (xaml:1929) — a line that survived it would advertise an offline app forever');
+      /* an UNRECOGNISED warning is a banner, never the line — the #383/N40 split */
+      W.executeUiCommand(W.showWarning, b64('A new version is available'));
+      await sleep(80);
+      ok(!chatsBar.hasAttribute('data-connecting-bar'),
+        '★ N19: an actionable/unrecognised warning goes to the BANNER and leaves the line alone. Connecting-only was Damir\'s dial, and #417 is why: a general loading affordance would sit still through the 90 s it was hired for');
+      W.executeUiCommand(W.showWarning, b64(''));
+      await sleep(60);
+    }
     tap('.c-bottomnav__item[data-id="chats"]');
     await sleep(120);
     ok(walletSearch.value === '' && !d.querySelector('#wallet-scroll > .c-wallet-tools').classList.contains('is-pinned'),

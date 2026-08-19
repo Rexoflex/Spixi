@@ -10,11 +10,14 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+  /* ★ N81 (#422): the same incoming hairline the text bubble carries
      (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
      these cards are that surface — leaving them on elevation-1 beside hairlined
      bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
-     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+     if he wants the cards to keep lifting: put var(--elevation-1) back here.
+     ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
+     carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
+     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
 }
 /* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
@@ -220,11 +223,14 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422): the same incoming hairline the text bubble now carries
+  /* ★ N81 (#422): the same incoming hairline the text bubble carries
      (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
      these cards are that surface — leaving them on elevation-1 beside hairlined
      bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
-     if he wants the cards to keep lifting: put var(--elevation-1) back here. */
+     if he wants the cards to keep lifting: put var(--elevation-1) back here.
+     ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
+     carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
+     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   text-align: start;

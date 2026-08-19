@@ -95,6 +95,7 @@
   const {
     mountEncPassPage,
     createNativeBridge, installExecuteUiCommand,
+    applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -114,6 +115,16 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   installExecuteUiCommand();                     // defines window.executeUiCommand for C# (§9 pre-wires)
+
+  /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
+   * theme flip — which threw the user back to Chats (N78) and discarded unsaved
+   * input — and it PUSHES now, so this shell must be able to receive one. This
+   * shell exposes no handler map, so the global is defined directly; it MUST
+   * exist either way, because C# emits `executeUiCommand(setTheme, …)` with
+   * setTheme as a bare identifier, and an undefined one throws a ReferenceError
+   * while the arguments are evaluated — before the dispatcher's own try/catch can
+   * run (the #258 addAppRequest lesson). Shared body: theme-runtime.js. */
+  window.setTheme = function (name) { applyPushedTheme(name); };
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
 
   // Q4-③ (#270): the Batch-A call-ui wiring is GONE — calls present on the ONE

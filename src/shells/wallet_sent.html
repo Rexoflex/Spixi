@@ -136,7 +136,8 @@
     truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
     createButton,                        // #285: the per-view reveal button
     formatTxTimestamp,                   // iOS-55 (#325): epoch → localized display (docLocale)
-    groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js)
+    groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js),
+    applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -416,9 +417,10 @@
       if (rendered) render();
     },
     // #251 defense: theme re-push lands as a bare global — accept it.
-    setTheme(name) {
-      if (name === 'light' || name === 'dark') document.documentElement.dataset.theme = name;
-    },
+    // ★ N71 (#421): body shared (theme-runtime.js). This shell carried a MINIMAL
+    // variant with no transition suppression, so its swap animated every colour on
+    // the page at once (#53); sharing the body fixes that for free.
+    setTheme(name) { applyPushedTheme(name); },
   };
   bridge.exposeAll(handlers);
 

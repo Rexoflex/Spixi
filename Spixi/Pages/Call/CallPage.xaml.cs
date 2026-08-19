@@ -80,6 +80,24 @@ namespace SPIXI
 
         private static readonly object callLock = new object();
         private static CallPage? current = null;
+
+        /* ★ N71 (#421, #46 audit): the LIVE call surface, for the theme sweep.
+         * On the normal path this page is staged as a ContentView inside the overlay
+         * host's Grid — it is in no NavigationStack, no ModalStack and no overlayStack,
+         * so UIHelpers.getLiveShellPages cannot see it, and an OS theme flip mid-call
+         * left the in-call strip in the old theme for the rest of the call. Only the
+         * modal FALLBACK path was ever enumerable. Read-only, never constructs. */
+        public static CallPage? getLiveSurface()
+        {
+            /* break-my-verdict NIT: read under callLock like every other reader of
+             * `current` in this file. hideSurface nulls it synchronously under the lock
+             * before any Dispose, so an unlocked read could hand the sweep a page that
+             * is mid-teardown. */
+            lock (callLock)
+            {
+                return current;
+            }
+        }
         private static ContentView? callStage = null;   // in-place path only (null when modal fallback)
         private static Grid? callHostGrid = null;
         private static bool modalFallback = false;      // presented via PushModalAsync (legacy page on top)

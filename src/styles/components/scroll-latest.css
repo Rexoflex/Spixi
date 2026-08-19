@@ -13,7 +13,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  /* ★ N81 (#422, #46 audit): outline-neutral-01 measured 1.15:1 against the cream
+     canvas — a floating control has to have a findable edge. -02 is the same token
+     family one step stronger, and dark is unaffected (it gained ground contrast). */
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
   border-radius: var(--radius-full);
   background: var(--surface-menu);
   color: var(--icon-neutral-01);

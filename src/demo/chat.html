@@ -116,7 +116,7 @@
         <option value="neutral">Neutral (400 / 600)</option>
         <option value="white">White (legacy)</option>
       </select>
-      <label for="ink-opacity">Opacity <input type="range" id="ink-opacity" min="0" max="100" value="50" style="width:90px"></label>
+      <label for="ink-opacity">Opacity <input type="range" id="ink-opacity" min="0" max="300" value="100" style="width:90px"><!-- ★ N81 (#422): per-mille of the shipped Default; 100 = shipped, ~240 = Strong --></label>
     </span>
     <span id="caps-slot"></span>
     <span id="voice-slot"></span>
@@ -412,7 +412,14 @@
     const pair = INKS[inkSelect.value];
     if (pair) root.style.setProperty('--chat-pattern-ink', pair[root.dataset.theme === 'dark' ? 'dark' : 'light']);
     else root.style.removeProperty('--chat-pattern-ink');
-    root.style.setProperty('--chat-pattern-opacity', String(inkOpacity.value / 100));
+    /* ★ N81 (#422, #46 audit): this #76 tuning harness was built for the OLD regime,
+       where the ink was translucent and the slider's 0–1 multiplied it. The ink is
+       OPAQUE now and this value IS the rendered stroke alpha, so /100 painted a solid
+       grid at every position above a few percent. The slider is per-mille of the
+       shipped Default (0.042/0.045) so the useful range is where the dial actually
+       lives; 100 = the shipped value, 240 ≈ the Strong step. */
+    const base = getComputedStyle(root).getPropertyValue('--chat-pattern-alpha-1').trim() || '0.042';
+    root.style.setProperty('--chat-pattern-opacity', String(parseFloat(base) * (inkOpacity.value / 100)));
   };
   inkSelect.addEventListener('change', applyPattern);
   inkOpacity.addEventListener('input', applyPattern);

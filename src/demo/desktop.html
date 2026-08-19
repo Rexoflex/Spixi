@@ -203,7 +203,9 @@
      pattern-off only; its gradient + surface-screen base stay. A real desktop shell
      should carry the same .dt-frame/.is-desktop wrapper class. */
   .dt-frame .c-chat-canvas::before { display: none; }
-  [data-theme="dark"] .dt-frame .c-chat-canvas { --chat-canvas-base: var(--neutral-1000); }
+  /* ★ N81 (#422): the desktop dark GROUND override is retired here too — it is the
+     rule src/shells/chat.html dropped, and for the same reason: grey-1000 (#111213)
+     is LIGHTER than the new #0f1115, so it made desktop dark PALER than mobile. */
 
   /* Damir 2026-07-06 ③: bottom sheets read poorly on desktop — inside the frame
      they PRESENT as centered dialogs. Presentation-only demo CSS: the #56 stack,
@@ -1323,7 +1325,7 @@
     address: '425HqzWpMkV3dTgJnS85CQen',
     theme: 0, language: 'en-us', lockEnabled: false,
     backup: { last: null, dirtyCount: 0 },      // never backed up → warning nudge
-    patternOpacity: 0.5, textScale: 1,
+    patternOpacity: 1, textScale: 1,            // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
     files: [
       { name: 'ixian-whitepaper.pdf', time: '05/07/2026 10:12:44' },
       { name: 'holiday-group-photo.jpg', time: '04/07/2026 21:03:11' },
@@ -1388,7 +1390,8 @@
     chatAppearance: () => createChatAppearance({
       patternOpacity: stgs.patternOpacity, textScale: stgs.textScale, strings,
       onBack: dtSettingsBack,
-      onPattern: (v) => { stgs.patternOpacity = v; document.documentElement.style.setProperty('--chat-pattern-opacity', String(v)); },
+      // ★ N81 (#422, #46 audit): index → per-theme alpha token (see the settings demo).
+      onPattern: (v) => { stgs.patternOpacity = v; document.documentElement.style.setProperty('--chat-pattern-opacity', window.Spixi.patternLevelVar(v)); },
       onTextScale: (v) => { stgs.textScale = v; document.documentElement.style.setProperty('--chat-text-scale', String(v)); },
     }),
     privacy: () => createPrivacy({

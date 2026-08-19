@@ -61,9 +61,18 @@ const DYNAMIC = {
   themeLight: 'Light',
   themeDark: 'Dark',
   patternOff: 'Off',
-  patternSubtle: 'Subtle',
-  patternStandard: 'Standard',
-  patternBold: 'Bold',
+  /* ★ N81 (#422): three levels now — Off / Default / Strong. The old Subtle /
+   * Standard / Bold are REMOVED, which is safe here and only here: this table is
+   * the sole definition site, so dropping a row genuinely retires the key.
+   * ⚠ I walked straight into the trap the note below records. PATTERN_LEVELS is
+   * read as strings[o.key], so renaming the levels in settings-screens.js changed
+   * nothing until this table changed too — extract-strings reported "0 fallback
+   * conflicts", build-locales reported every locale clean, and the three tiles
+   * would still have shipped in English in all 12 languages. Both i18n gates are
+   * blind by construction: they compare locales against EACH OTHER, so a key that
+   * is missing from all of them is perfectly "consistent". */
+  patternDefault: 'Default',
+  patternStrong: 'Strong',
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key] exactly like
   // PATTERN_LEVELS, so it is unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —

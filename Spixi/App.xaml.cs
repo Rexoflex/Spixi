@@ -157,7 +157,21 @@ public partial class App : Application
                  * full bleed those are exactly the screens whose glyphs must stay light. */
                 SpixiContentPage.repaintSystemBarsFor(null);
 
-                UIHelpers.reloadAllPages();
+                /* ★ N71 (#421): PUSH the theme, do not reload. This line used to be
+                 * UIHelpers.reloadAllPages(), and once #385/N66 made this handler
+                 * reachable that reload became N78 — an evening OS auto-switch built a
+                 * fresh document, home.html's Fix #8 sent ixian:tab:tab1 on the new
+                 * boot, and the user was thrown from wherever they were back to Chats
+                 * with every empty-state gate re-armed. It also discarded unsaved
+                 * input (#385 MINOR-3).
+                 *
+                 * The explicit Light/Dark pick has always PUSHED setTheme and has
+                 * always been correct; this path simply does the same thing now. A
+                 * push creates no document, so there is no Fix #8 and nothing to
+                 * re-arm — which is why one change closes both halves of the report,
+                 * and why Fix #8 itself must stay exactly as it is (it is correct for
+                 * the reload it was written for, #8). */
+                UIHelpers.pushThemeToAllPages();
             };
 
             // Start Ixian code

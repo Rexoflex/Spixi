@@ -1608,7 +1608,8 @@ button.c-settings-howto__join:disabled {
   const {
     createSettingsDev, setDevLog,
     createNativeBridge, installExecuteUiCommand,
-  } = window.Spixi;
+    applyPushedTheme,
+    } = window.Spixi;
   const strings = window.SL || {};
 
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
@@ -1654,6 +1655,12 @@ button.c-settings-howto__join:disabled {
   buildDev();
 
   const handlers = {
+    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
+     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
+     * input; it pushes now, so this shell must be able to receive one. Shared body
+     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
+     * WebView's prefers-color-scheme can disagree with the app theme. */
+    setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     setLog(text) { lastLog = text || ''; setDevLog(devEl, lastLog); },
     // #321: capability declaration (settings.html:1028 grammar — in-place store

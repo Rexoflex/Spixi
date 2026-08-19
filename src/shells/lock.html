@@ -97,11 +97,21 @@
   const {
     mountLockPage,
     createNativeBridge, installExecuteUiCommand,
+    ignorePushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   installExecuteUiCommand();                     // defines window.executeUiCommand for C# (setJustConfirm)
+
+  /* ★ N71 (#421): a DELIBERATE no-op — the lock is dark in BOTH themes (#203), so
+   * it must not follow a theme flip. It must still DEFINE the global: C# emits
+   * `executeUiCommand(setTheme, …)` with setTheme as a bare identifier, and an
+   * undefined one throws a ReferenceError while the arguments are evaluated,
+   * before the dispatcher can catch it (the #258 addAppRequest lesson). Throwing
+   * into the page while the user is at a password field is the failure this
+   * prevents. Shared body: theme-runtime.js. */
+  window.setTheme = function (name) { ignorePushedTheme(name); };
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
 
   /* mountLockPage appends the screen, exposes setJustConfirm AND fires

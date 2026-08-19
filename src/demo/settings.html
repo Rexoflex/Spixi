@@ -118,7 +118,7 @@
     language: 'en-us',
     lockEnabled: false,
     backup: { last: null, dirtyCount: 0 },      // never backed up → warning nudge
-    patternOpacity: 0.5, textScale: 1,          // chat appearance (FE-only, #147)
+    patternOpacity: 1, textScale: 1,            // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
     readReceipts: true, typing: true,           // privacy (§9-gated)
     notifs: { enabled: true, previews: true, sounds: true },   // §9-gated
     securityTier: 'basic',                      // §9-gated (#147 tiers)
@@ -203,7 +203,11 @@
       // FE-only: root var = every chat canvas follows; persistence = WebView localStorage (spec §10)
       onPattern: (v) => {
         state.patternOpacity = v;
-        document.documentElement.style.setProperty('--chat-pattern-opacity', String(v));
+        /* ★ N81 (#422, #46 audit): the callback hands back a LEVEL INDEX (0/1/2), not an
+         alpha. Assigning it raw put `opacity: 1` (or 2, clamped) on the pattern mask —
+         a fully opaque near-black grid over the whole canvas. patternLevelVar maps the
+         index onto the per-theme alpha token. */
+        document.documentElement.style.setProperty('--chat-pattern-opacity', window.Spixi.patternLevelVar(v));
       },
       onTextScale: (v) => {
         state.textScale = v;

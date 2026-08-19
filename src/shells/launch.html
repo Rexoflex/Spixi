@@ -163,7 +163,8 @@
   const {
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
     createNativeBridge, installExecuteUiCommand,
-  } = window.Spixi;
+    ignorePushedTheme,
+    } = window.Spixi;
   const strings = window.SL || {};
 
   /* —— which view does this document boot on? ——————————————————————————————
@@ -279,6 +280,13 @@
   };
 
   const handlers = {
+    /* ★ N71 (#421): a DELIBERATE no-op. This surface is brand-dark in BOTH themes,
+     * so it must not follow a theme flip — but it must still DEFINE the global,
+     * because C# emits `executeUiCommand(setTheme, …)` with setTheme as a bare
+     * identifier: an undefined one throws a ReferenceError while the arguments are
+     * evaluated, before the dispatcher's own try/catch can run (the #258
+     * addAppRequest lesson). Silence here is the feature. */
+    setTheme(name) { ignorePushedTheme(name); },
     setVersion: (v) => setLaunchVersion(el, v),
     showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs

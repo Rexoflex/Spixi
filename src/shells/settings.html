@@ -188,6 +188,8 @@
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
+    applyPushedTheme,
+    readPatternLevel,
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
   // bottom bar for the LEFT RAIL + drops the topbar back (rail = the exit).
@@ -366,16 +368,27 @@
    * The redesign swaps the token theme via data-theme (no page reload needed),
    * but C# STILL reloads settings.html on ixian:appearance (SettingsPage:178) —
    * we apply locally for instant feedback; the reload re-pushes setAppearance. */
-  // 'Auto' resolves to the C#-injected boot theme (the app's own resolution of the
-  // OS scheme), captured before any applyTheme call — NOT to this WebView's
+  // 'Auto' resolves to the C#-injected theme (the app's own resolution of the OS
+  // scheme), captured before any applyTheme call and REFRESHED by setTheme — NOT to
+  // this WebView's
   // matchMedia, whose prefers-color-scheme can disagree with the app theme
   // (Damir F5: Account rendered light while the whole app was dark).
-  const bootTheme = document.documentElement.dataset.theme || '';
+  /* ★ N71 (#421) — this was `const bootTheme`, and making it MUTABLE is the whole
+   * point. 'Auto' resolves to the app's own answer, captured at document boot. That
+   * was safe only while an OS theme flip RELOADED the document: the constant was
+   * re-captured with the new theme every time. The flip PUSHES now, so nothing
+   * rebuilds this document — and a stale constant would quietly undo the push. The
+   * exact failure: OS flips to dark → setTheme lands and the screen goes dark → any
+   * later applyTheme(0) (a setAppearance re-push, a rebuild) snaps it back to the
+   * boot value. That is ★ #410 — since full bleed, anything derived from "the
+   * current surface" must be READ, not REMEMBERED — and it is why settings.html is
+   * the one shell whose handler needs more than the shared body. */
+  let autoTheme = document.documentElement.dataset.theme || '';
   function applyTheme(idx) {
     const r = document.documentElement;
     if (idx === 1) r.dataset.theme = 'light';
     else if (idx === 2) r.dataset.theme = 'dark';
-    else r.dataset.theme = bootTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    else r.dataset.theme = autoTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     // PERSIST the choice so EVERY other shell (same Resources/Raw/html origin)
     // adopts it at boot — the redesigned shells otherwise read only the OS scheme,
     // so a light/dark pick "stayed on Account" (Damir F5). idx 0 = auto → shells
@@ -392,24 +405,25 @@
    * Persisted to localStorage (same Resources/Raw/html origin); the CONSUMER is
    * chat.html, which reads both keys at boot and sets the root vars (nothing in
    * THIS document paints a chat canvas — the takeover preview self-sets its own
-   * vars). The stored pattern value is the LIGHT-scale pick (PATTERN_LEVELS);
-   * dark chat derives its intensity as v × 0.36 (0.18/0.5 — keeps the #76
-   * theme-tuned ratio, Standard = both theme defaults). Clamped on read so a
-   * corrupted value can't blow up bubble text. */
+   * vars).
+   * ★ N81 (#422): the stored pattern value is a LEVEL INDEX (0 Off / 1 Default /
+   * 2 Strong), not an alpha. The alpha lives in the theme (--chat-pattern-alpha-N),
+   * so this document does no derivation — the old "v × 0.36 for dark" line is gone
+   * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
+   * readPatternLevel migrates the legacy fractional values. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle' };
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
-    // mobile Standard (0.5, the #76 locked value). Mirrors chat.html's pre-paint
-    // boot read so the Chat-appearance radio pre-selects what the chat shows.
+    // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
+    // Chat-appearance swatch pre-selects what the chat actually shows.
     const desktop = document.documentElement.hasAttribute('data-desktop');
-    let pattern = desktop ? 0 : 0.5, textScale = 1;   // · scale M
+    let pattern = desktop ? 0 : 1, textScale = 1;   // · scale M
     // W5: the STYLE default is line art (the pre-W5 look — an absent pref must
     // change nothing). 'flow' is desktop-only, so a stored 'flow' on mobile
     // reads back as line art, exactly what chat.html's pre-paint script applies.
     let patternStyle = 'lineart';
     try {
-      const p = parseFloat(localStorage.getItem(CHAT_PREFS.pattern));
-      if (!isNaN(p)) pattern = Math.min(1, Math.max(0, p));
+      pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
       if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
@@ -1027,8 +1041,12 @@
    * · contributors — static component data (#240 un-gated; no verb needed).
    * · chatappearance — FE-only (6e.2 / #147): live preview + presets; persists to
    *   localStorage, chat.html consumes at boot (see CHAT_PREFS note above).
-   *   KNOWN FLAG: in dark theme the preview shows the light-scale intensity
-   *   (component sets raw v); real dark chat renders v × 0.36 — logged (#239 ⓐ). */
+   *   ★ N81 (#422) CLOSES the #239 ⓐ flag: the preview used to paint the raw
+   *   light-scale value while the real dark chat rendered v × 0.36, so in dark
+   *   theme it promised a pattern the chat never showed. The preview now assigns
+   *   var(--chat-pattern-alpha-N), which resolves under the PREVIEW's own theme —
+   *   it is the same number the chat will paint, by construction rather than by
+   *   two derivations agreeing. */
   function buildScreen(view) {
     switch (view) {
       case 'danger': return createSettingsDanger({
@@ -1324,6 +1342,34 @@
 
     // setNickname(nick) — SettingsPage.onLoad:43
     setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
+
+    /* ★ N71 (#421): the live re-theme push. Two jobs, and the second is the one
+     * that is easy to miss. (a) apply the swap, shared body (theme-runtime.js).
+     * (b) REFRESH the 'Auto' resolution — this page owns the appearance picker, so
+     * when the appearance is System the pushed name IS the new answer for every
+     * later applyTheme(0). Without (b) a rebuild after an OS flip would snap the
+     * page back to the boot theme and silently undo the push (★ #410).
+     *
+     * The order matters: autoTheme is updated FIRST, so anything the swap triggers
+     * already reads the fresh value. Deliberately does NOT touch
+     * `spixi.appearance` — an OS flip does not change the user's PICK (still
+     * 'System'), and writing an idx here would silently convert their Auto choice
+     * into a hard Light/Dark one. */
+    setTheme(name) {
+      /* ★ #46 audit (both auditors, independently): trust the pushed name as the
+       * SYSTEM answer ONLY while System is the selected appearance. The pushed value
+       * is getResolvedAppearanceName(), which returns the PICK whenever the pick is
+       * explicit — so an unguarded assignment poisons the Auto cache with a value the
+       * OS never reported. It is reachable because #421 newly routes the explicit-pick
+       * path through the same sweep, and this page is now in it.
+       * The sequence it broke (app = System, OS = light): pick Dark → autoTheme
+       * becomes 'dark' → pick System → applyTheme(0) runs BEFORE the verb is sent and
+       * paints from the poisoned cache → the Account flashes dark, then C#'s correct
+       * push flips it back. A visible wrong-theme flash on the picker itself, which is
+       * the one screen #242 round 2 cleaned up. */
+      if (state.theme === 0) autoTheme = name === 'dark' ? 'dark' : 'light';
+      applyPushedTheme(name);
+    },
 
     // setAppearance(idx) — onLoad:46; idx = (int)ThemeAppearance
     setAppearance(idx) { const n = parseInt(idx, 10); state.theme = isNaN(n) ? 0 : n; applyTheme(state.theme); scheduleRebuild(); },

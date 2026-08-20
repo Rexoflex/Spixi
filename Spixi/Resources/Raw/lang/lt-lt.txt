@@ -660,6 +660,7 @@ global-invalid-address-title = Neteisingas adresas
 global-invalid-address-text = Prašome įvesti galiojantį adresą.
 
 global-friend-request-accepted = {0} priėmė jūsų kontakto prašymą.
+global-friend-request-connected = Dabar esate susisiekę su {0}.
 
 global-update-available = Yra nauja Spixi versija ({0}). Atnaujinkite, kad gautumėte geriausią patirtį.
 global-modal-external-link-title = Aplankyti išorinę nuorodą

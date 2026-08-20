@@ -306,6 +306,25 @@ Kind legend: **signal** = new C#→JS event/push · **data** = extra fields on a
 | Launch | **Explicit create-failure signal** — today a silent death = indefinite spinner | signal | FE can only spin | launch-spec §9③ |
 | Launch | **Backup-tail routing** — "Back up now" = onboardingComplete + open Backup; confirm `ixian:backup` reuse, no new verb | confirm | tail built on the reuse assumption | launch-spec §9② |
 
+### 9.6 New `ixian:` verbs landed by the 2026-08-19 overnight batch (#441–#447)
+
+The bridge is frozen unless BE approves a new command (§8). Three verbs were added in this
+batch, each with its C# handler in the same commit, and each listed here so the freeze
+stays an accounting rule rather than an honour system.
+
+| Verb | Host page | What it does | Why it needed a verb | Ref |
+|---|---|---|---|---|
+| `ixian:chatreply:<id-hex>:<text>` | `SingleChatPage` | send a message that references another | a reply target cannot ride `ixian:chat:` — its payload is the raw body | #441 |
+| `ixian:txexplorer:<txid>` | `HomePage` | open ONE transaction on explorer.ixian.io | only an address-scoped `ixian:explorer` existed (this closes **W3** on this page) | #443 |
+| `ixian:viewcontact:<address>` | `ContactNewPage` | open the contact you already have | the add-contact screen had no route to an existing contact | #443 |
+
+★ **`ixian:chatreply:` is unreachable AND has no carrier (#448).** The `reply` capability
+is declared by no `setCaps` call, so nothing can create a reply — and the Ixian-Core field a
+reply would ride is held out for the BE cutover
+(`docs/be-cutover-ixian-core-reply-carrier.md`), so a target that somehow arrived would be
+parsed, logged and dropped. The verb ships now so the FE↔C# contract is settled and the
+cutover is a small diff. ⚠ Do NOT declare `reply` before the carrier lands.
+
 **Already specified as command proposals in §8** (repeated here so BE reviews them in one pass): favorites + pinned-chat persistence (`ixian:chatFlag…` + `addChat` flags, **#67** — the Chats shell parks pin/mute on this), voice messages (**#64**), full-text message-history search (`ixian:search` → `setSearchResults`), `patchList` delta list updates, the `showWarning(text, kind)` connectivity class, reply + edit context actions (**#25**), `getStrings`/`setStrings` instant language switching (Phase 3 i18n rides this), hosted desktop panes, `ixian:sendlog` (**#153②**), Share app (**#128①**), the OS share sheet (**#137/#148⑤**), the settings preference family incl. security tiers + confirm-payments (**#147/#150⑤**), and the `addApp` publisher field (**#122**).
 
 ---

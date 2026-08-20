@@ -133,7 +133,7 @@
    *      button + show inline copy.
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    createAddContact, setAddContactAddress,
+    createAddContact, setAddContactAddress, setAddContactKnown,   // #435(b)
     createNativeBridge, installExecuteUiCommand,
     applyPushedTheme,
     } = window.Spixi;
@@ -198,6 +198,9 @@
     // scan → native ScanPage (ixian:quickscan); the result returns via setAddress.
     onScan: () => bridge.send('ixian:quickscan'),
 
+    // #435(b): "View contact" — C# replaces this form with the contact's own page.
+    onViewContact: (addr) => bridge.send('ixian:viewcontact:' + addr),
+
     // onOpened never fires here (success navigates away before ctrl.done()); kept
     // for the standalone/demo path where a request resolves in-page.
   });
@@ -222,6 +225,18 @@
     // Exact correlation (which address C# validated) needs a BE onValidAddress(addr)
     // — logged; the component's own input-unchanged guard covers the common case.
     onValidAddress() { if (pendingValidCtrl) { pendingValidCtrl.done(); pendingValidCtrl = null; } },
+    /* #435(b): checkAddress now answers WHICH outcome an address has. 'contact' and
+       'self' are not failures, so they never resolve pendingValidCtrl (which would
+       show the ✓) — they are consumed and dropped, and the panel is the answer.
+       An old exe never sends this and the screen behaves exactly as before. */
+    onKnownAddress(kind, address, nick, checked) {
+      // `checked` = the address C# was asked about. Only consume the pending ✓ ctrl when
+      // the answer is about what the field still holds (audit MINOR-5) — otherwise a
+      // stale answer for an earlier address would swallow the tick for the current one.
+      // Only consume the pending ✓ ctrl when the answer was actually APPLIED — a stale
+      // answer for an earlier address must not swallow the tick for the current one.
+      if (setAddContactKnown(addEl, kind, address, nick, checked)) pendingValidCtrl = null;
+    },
   };
 
   bridge.exposeAll(handlers);

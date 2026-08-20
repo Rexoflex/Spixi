@@ -590,6 +590,175 @@ namespace SPIXI
         // memory dial (iOS-46 (a): "hold one warm instance").
         private static PreloadOp? parkedOverlay = null;
 
+        /* ————— #438 PRIVACY SHIELD ————————————————————————————————————————————
+         * ★ THE DEFECT IT CLOSES. With the app lock ON, returning to Spixi painted the
+         * FULL CHATS LIST for about a second before the lock appeared. It is not the
+         * cold-start path (App.xaml.cs makes LockPage the NavigationPage root there) —
+         * it is the RESUME path, and it is the COST of #229's load-then-present: the
+         * lock's WebView is staged HIDDEN on the current page and the modal is pushed
+         * only once lock.html signals ready, so for that whole window the page
+         * underneath is what is on screen. #229 removed the lock's own boot flicker and
+         * silently bought this with it.
+         *
+         * ⚠ DO NOT "fix" this by reverting to a plain modal push — that re-opens the
+         * flicker and trades one defect for the other (#423). The shape that gets both
+         * is a synchronous opaque cover: shield first, stage behind it, present.
+         *
+         * The colour is the lock's own ground (#13171b, fixed dark in BOTH themes per
+         * N73/#203), so the cover reads as the lock arriving rather than as a glitch.
+         *
+         * INPUT: the shield is NOT input-transparent — it swallows taps for its whole
+         * lifetime, which is a superset of the staging freeze pushModalLoaded already
+         * applies.
+         *
+         * Z-ORDER: above the native call surface (Z_CALL_SURFACE) and below the lock's
+         * own stage (Z_CALL_SURFACE * 2). A ring showing the caller's name and photo is
+         * content too — #272 ruled the lock outranks the call surface, and the shield
+         * inherits that ruling. */
+        private const string PRIVACY_SHIELD_COLOR = "#13171b";
+        private static readonly List<(Grid grid, ContentView view)> privacyShields = new List<(Grid, ContentView)>();
+
+        // Generation guard. OnSleep arms the safety release and a delayed continuation
+        // does not run while the app is backgrounded — so a long background can land its
+        // callback JUST AFTER OnResume re-armed the shield and tear down the live one.
+        // Every arm bumps the generation; a callback that does not match is stale.
+        private static int privacyShieldGeneration = 0;
+        // true when the shield was raised for a RESUME lock (a lock is expected to
+        // present); false for the OnSleep cover, which is meant to sit for the whole
+        // background and whose safety release is not a diagnosis.
+        private static bool privacyShieldForeground = false;
+
+        /** Cover every visible surface, synchronously. ADDITIVE — safe to call again. */
+        public static void showPrivacyShield(bool expectingLock = false)
+        {
+            if (expectingLock) privacyShieldForeground = true;
+            try
+            {
+                /* ★ Audit MAJOR-3: this used to EARLY-RETURN once anything was shielded,
+                 * so it never covered a surface created AFTER the first call. The real
+                 * case: OnSleep shields, a call RINGS while the app is backgrounded and
+                 * takes CallPage's modal fallback (which lands on the ModalStack, above
+                 * the page-tree grids the shield lives in), and OnResume's lock branch
+                 * then added nothing — the caller's nickname and photo were on screen on
+                 * an unauthenticated device. It is additive now: re-scan every time and
+                 * shield any grid that is not already covered. */
+                NavigationPage? nav = Application.Current?.MainPage as NavigationPage;
+                if (nav == null)
+                {
+                    armPrivacyShieldSafety();   // keep any live shield's belt fresh
+                    return;
+                }
+
+                // Every resume shape, not just Chats: the page on top of the navigation
+                // stack (an open conversation is an OVERLAY inside it, so its host grid
+                // is the same grid), the registered overlay host, and — because the
+                // ModalStack sits ABOVE the page tree and a page-grid cover can never
+                // reach it — the top modal page as well.
+                List<Page> targets = new List<Page>();
+                Page? top = nav.Navigation.NavigationStack.LastOrDefault();
+                if (top != null) targets.Add(top);
+                SpixiContentPage? oh;
+                lock (preloadLock) { oh = overlayHost; }
+                if (oh != null && !targets.Contains(oh)) targets.Add(oh);
+                foreach (Page m in nav.Navigation.ModalStack)
+                {
+                    if (!targets.Contains(m)) targets.Add(m);
+                }
+
+                foreach (Page page in targets)
+                {
+                    /* ★ break-my-verdict MAJOR-2: NEVER cover a lock. The ModalStack walk
+                     * above reaches a modally-presented LockPage, whose Content is a Grid
+                     * like any other — so the shield landed ON TOP of the password field
+                     * and the user saw a blank screen with no way in. */
+                    if (page is LockPage) continue;
+                    Grid? grid = (page as ContentPage)?.Content as Grid;
+                    if (grid == null) continue;
+                    if (privacyShields.Exists(sh => sh.grid == grid)) continue;   // already covered
+                    ContentView view = new ContentView
+                    {
+                        BackgroundColor = Color.FromArgb(PRIVACY_SHIELD_COLOR),
+                        Opacity = 1,
+                        InputTransparent = false,
+                        CascadeInputTransparent = false,   // audit NIT-16: same contract as the lock stage
+                        ZIndex = (CallPage.Z_CALL_SURFACE * 2) - 1,
+                    };
+                    if (grid.ColumnDefinitions.Count > 1) Grid.SetColumnSpan(view, grid.ColumnDefinitions.Count);
+                    if (grid.RowDefinitions.Count > 1) Grid.SetRowSpan(view, grid.RowDefinitions.Count);
+                    grid.Children.Add(view);
+                    privacyShields.Add((grid, view));
+                }
+
+                armPrivacyShieldSafety();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("showPrivacyShield failed: " + ex);
+                try { hidePrivacyShield(); } catch { }
+            }
+        }
+
+        /* Belt: a shield can never outlive a failed lock present and strand the app
+         * behind an opaque view with no way in. onLockPresentFailed leaves the user
+         * UNLOCKED, so failing closed here would be failing dead. */
+        private static void armPrivacyShieldSafety()
+        {
+            int gen = ++privacyShieldGeneration;
+            Task.Delay(8000).ContinueWith(_ =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (gen != privacyShieldGeneration)
+                    {
+                        return;   // stale arm — the live shield is not ours to drop
+                    }
+                    if (privacyShields.Count == 0)
+                    {
+                        return;
+                    }
+                    /* The OnSleep shield sits there for the whole background, so this
+                     * fires on every ordinary app switch longer than 8 s. Only the
+                     * FOREGROUND case means "the lock never presented" — say so honestly
+                     * rather than logging a false diagnosis on the common path (audit
+                     * MINOR-7: a log line that lies is worse than no log line). */
+                    if (privacyShieldForeground)
+                    {
+                        Logging.warn("Privacy shield safety release — the lock never presented.");
+                    }
+                    hidePrivacyShield();
+                });
+            });
+        }
+
+        /** Uncover. Safe to call when nothing is covered. */
+        public static void hidePrivacyShield()
+        {
+            privacyShieldGeneration++;   // invalidate any armed safety release
+            privacyShieldForeground = false;
+            if (privacyShields.Count == 0)
+            {
+                return;
+            }
+            List<(Grid grid, ContentView view)> shields = new List<(Grid, ContentView)>(privacyShields);
+            privacyShields.Clear();
+            /* Removing a child is a UI operation. Every caller today is already on the
+             * main thread (the App lifecycle, onUnlock, and the two present paths, which
+             * run inside BeginInvokeOnMainThread) — but a biometric callback is the kind
+             * of thing that arrives on a platform thread, and a throw here would strand
+             * the cover until the safety release. Marshal only when we have to: an
+             * unconditional BeginInvoke defers to the next loop turn even when already on
+             * the main thread, which could reorder a hide/show pair. */
+            Action drop = () =>
+            {
+                foreach ((Grid grid, ContentView view) in shields)
+                {
+                    try { grid.Children.Remove(view); } catch { }
+                }
+            };
+            if (MainThread.IsMainThread) drop();
+            else MainThread.BeginInvokeOnMainThread(drop);
+        }
+
         /** The parked page (or null) — HomePage checks the type + mode before re-presenting. */
         public static SpixiContentPage? getParkedOverlay()
         {
@@ -1726,6 +1895,10 @@ namespace SPIXI
                 try
                 {
                     await hostNav.PushModalAsync(target, Config.defaultXamarinAnimations);
+                    if (target is LockPage)
+                    {
+                        hidePrivacyShield();   // #438: the lock is on screen — uncover
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1736,6 +1909,7 @@ namespace SPIXI
                     if (target is LockPage)
                     {
                         (Application.Current as App)?.onLockPresentFailed();
+                        hidePrivacyShield();   // #438: a failed lock leaves the app UNLOCKED
                     }
                 }
             });
@@ -1811,6 +1985,9 @@ namespace SPIXI
                             {
                                 modalOverlayOp = op;   // closed via closeModalOverlay (LockPage)
                             }
+                            // #438: the lock's stage is now visible ABOVE the privacy
+                            // shield — uncover, the lock is the cover from here.
+                            hidePrivacyShield();
                             // OnAppearing never fires for an in-place present — give the
                             // page its "really visible now" signal (LockPage arms
                             // biometrics off it; default is a no-op).
@@ -1828,6 +2005,7 @@ namespace SPIXI
                             op.target.presentedFromPreload = true;
                             // A lock must never be silently dropped — root nav, else the host's.
                             await (rootNav ?? op.host.Navigation).PushModalAsync(op.target, Config.defaultXamarinAnimations);
+                            hidePrivacyShield();   // #438: the modal is on screen — uncover
 
                             // Reviewer MINOR-2: re-apply platform page chrome now the page is
                             // really attached (iOS insets read 0 while staged) —
@@ -1968,6 +2146,9 @@ namespace SPIXI
                     if (op.modalMode && op.target is LockPage)
                     {
                         (Application.Current as App)?.onLockPresentFailed();
+                        // #438: onLockPresentFailed leaves the user UNLOCKED, so a shield
+                        // left up here would strand the app opaque with no way in.
+                        hidePrivacyShield();
                     }
                     try { op.target.Dispose(); } catch { }
                 }

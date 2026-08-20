@@ -179,3 +179,34 @@ this round is **N71**.
 
 | **N75** | **Collapse the launch flow to ONE hosted page — the flicker Damir reports is FIVE WebView boots of the SAME document** (Damir 2026-08-18). Verified at source: `scripts/build-shells.mjs` emits ONE source, `src/shells/launch.html`, FIVE times — `intro.html` (welcome) · `intro_new.html` (create) · `intro_restore.html` (restore) · `intro_retry.html` (retry) · `onboarding.html` (tail) — and the ONLY difference is an injected `bootView`. Five C# pages (`LaunchPage`, `LaunchCreatePage`, `LaunchRestorePage`, `LaunchRetryPage`, `OnboardPage`) each construct their own WebView and re-parse the same large document, and every step is also a native page push. **The shell already holds every view and can switch in-document with zero flicker.** So this is not a preload problem — it is a "stop navigating" problem. Fix shape, in order of value: (1) host welcome + create + restore + retry in ONE page with ONE WebView and switch views by push, the four verb sets are small and disjoint; (2) leave the TAIL separate — it runs post-account under `HomePage`; (3) if the C# page identity must be kept for any of them, use the EXISTING `PreloadOp` park machinery (#315) instead of inventing a second one. ⚠ Do this WITH N73 (full-bleed) — same files, same F5  **✅ BUILT #391** (2026-08-18) — `LaunchCreatePage`/`LaunchRestorePage`/`LaunchRetryPage` merged into `LaunchPage`. ONE page, ONE WebView, views switch in place; the boot view rides `*SL{LaunchBootView}`; the three password parses moved verbatim; 5 launch outputs → 1; 22 shells → 18. Pending Damir F5.| C# + FE | M–L |
 | **N76** | **Cut the backup and join-bot steps out of the onboarding tail** (Damir question, 2026-08-18 — product dial, his call). Today: welcome → create → **backup** → **join Spixi bot**, or welcome → restore → **join Spixi bot**. Recommendation on file: **(a) BACKUP — move it out of the create flow and trigger it on the first REAL asset** (first contact added · first message sent · ★ first incoming balance — the balance leg is not optional, a user can receive funds before any messaging event). At creation the user has nothing to lose and has not seen the app; the loss cost grows from zero. The machinery already exists — `backupReminderTimestamp` (#383), the 30-day period (`Config.cs:76`) and the standing Account row. **(b) JOIN BOT — drop the step, fold the CTA into the chat-list EMPTY STATE.** A new user's chat list is empty anyway, which is the worst first impression a messenger can make; the empty state is the natural home for "Join the Spixi community", it costs no screen, it does not auto-add a contact the user never asked for (`ixian:joinbot` is opt-in today and must stay opt-in), and unlike an onboarding step it is STILL THERE tomorrow for the user who skipped it. Net: welcome → create, and welcome → restore. Two screens removed, which is also the cheapest half of N75  **✅ BUILT #391** (2026-08-18) — the tail is deleted. The backup nudge waits for the first REAL asset (an APPROVED non-bot contact, or an incoming balance — the bot and unapproved requests are excluded, DECISIONS #393 MAJOR-3); the join CTA is the chat-list empty state on the existing `ixian:joinBot`. Both onboarding preferences are gone. Pending Damir F5.| FE + C# | M |
+
+
+---
+
+## ✅ CLOSED by the 2026-08-20 overnight batch (#441–#447)
+
+Read `docs/handoff-2026-08-20.md` before re-opening any of these.
+
+| Row | State |
+|---|---|
+| **M1 reply-to** | The FE half BUILT and DARK behind `bridge.cap('reply')` (#441). ★ The Ixian-Core carrier is **HELD OUT** for the BE cutover (#448) — `docs/be-cutover-ixian-core-reply-carrier.md` holds the patch and the plan. Not testable until it lands |
+| **#438** the pre-auth lock exposure | CLOSED (#442). Two dials open — see the handoff §5 |
+| **#434** the connected chip | CLOSED (#443), both accept paths, one direction-neutral sentence |
+| **#435** add-contact | CLOSED (#443) — both halves; the duplicate is detected before the request is sent |
+| **N43** search bars | CLOSED (#443) as "always visible". 🟡 Scope call: on mobile chats and wallet the row still SCROLLS with the list |
+| **N63** the English tail | CLOSED (#445). Every remaining fallback is a genuine loanword |
+| **N70** update notice when started offline | CLOSED (#443) — and hardened so an in-flight first check no longer costs an hour |
+| **N80** rate-me on the 5th open | CLOSED (#443) |
+| **N25** tx-detail disclosure | CLOSED (#443). The detail PAGE opts out |
+| **N42** contacts in Account | CLOSED (#443) |
+| **#440** blockchain-scan strip | BUILT (#444). 🟡 Copy and art need Damir's sign-off |
+| Damir's mid-batch add: tx explorer button | CLOSED (#443) — new `ixian:txexplorer:<txid>` verb, closes **W3** on HomePage |
+
+**The BE cutover now carries three asks** (`docs/be-cutover-ixian-core-reply-carrier.md`):
+the reply carrier, plus two latent Ixian-Core defects that are independent of it — the null
+StreamMessage id in `sendChatStreamMessage`, and the char-vs-byte size check in
+`ChatStreamMessage`.
+
+**Still open and deliberately untouched:** N31 (tipping + payment bubble — deferred) ·
+group rename / photo / add-members (verified NOT in Ixian-Core — a BE ask) · wallet-send
+(LAST) · the final graphic polish round (#433) · N64 the update-notice design round.

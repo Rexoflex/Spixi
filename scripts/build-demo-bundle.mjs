@@ -76,6 +76,9 @@ const FILES = [
   'src/components/apps-discover.js',
   'src/components/apps-feed.js',
   'src/components/wallet-hero.js',
+  // #452: BEFORE wallet-shell — the missing-tx sheet imports its ring helpers, and the
+  // bundle is a concatenation, so a consumer must never precede its provider.
+  'src/components/scan-progress.js',   // #440/#443: the blockchain-scan progress row
   'src/components/wallet-shell.js',
   'src/components/wallet-send.js',
   'src/components/qr.js',

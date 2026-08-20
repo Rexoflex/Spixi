@@ -36,6 +36,7 @@ import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
+import { createScanRing, setScanRing } from './scan-progress.js';   // #452: the sheet card's ring
 import { setWalletHeroCompact } from './wallet-hero.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { formatTxTimestamp } from './timestamp.js';
@@ -93,8 +94,14 @@ function walletEmpty(state, strings, opts = {}) {
   if (!q && f === 'all') {
     if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.png',
-      glyph: 'wallet',                              // art blocked/missing → token glyph tile
+      /* ★ #453 (Damir on device): NO illustration on the wallet zero state. The hero
+         already owns ~300px above this block, so the art pushed the one action that
+         matters — "Show my address" — toward the bottom nav, and it said nothing the
+         headline did not. The `glyph` below is what renders instead: a small token tile,
+         which is also the path this state already took whenever the art failed to load.
+         A host that WANTS art can still pass `emptyArt` explicitly. */
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
+      glyph: 'wallet',                              // the tile — now the default, not the fallback
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
       // sentence ("share your address…") only restated the CTA. In de-de it wrapped
@@ -224,6 +231,9 @@ export function createWalletFilters(state, opts = {}) {
   miss.title = strings.missingTx || 'Missing a transaction?';   // #278: desktop hover keeps the wording when compacted
   miss.addEventListener('click', () => openMissingTxSheet({
     host: opts.host, strings, onExplorer: opts.onExplorer,
+    // #440/#443: opts.scan is a GETTER, read at open time — the scan state moves while
+    // the wallet is on screen, and a value captured at build time would go stale.
+    scan: typeof opts.scan === 'function' ? opts.scan() : opts.scan,
   }));
   row.append(miss);
   // #278 (Damir F5: pill cut off in the desktop pane): the 360px viewport query
@@ -300,8 +310,24 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, re
     const input = tools.querySelector('input');
     return !!(input && input.value.trim());
   };
+  /* ★ N43 (#443, Damir): the wallet SEARCH + FILTER row never hides. Same ruling as
+   * the chats header — "always visible" — so the tuck-away half of this behaviour is
+   * off while the HERO collapse (which he likes, and which is a different affordance)
+   * stays. One flag from returning. */
+  const N43_ALWAYS_VISIBLE = true;
   const setTools = (hiddenFlag) => {
     if (!tools) return;
+    if (N43_ALWAYS_VISIBLE) {
+      // Clear any tuck a previous build (or a previous attach) left behind, then stop.
+      // Audit MINOR-12: onScroll calls this on every scroll event, so bail before the
+      // querySelectorAll when there is nothing tucked (the normal case, forever).
+      if (hiddenFlag || !('hidden' in tools.dataset)) return;
+      delete tools.dataset.hidden;
+      tools.removeAttribute('aria-hidden');
+      if ('inert' in tools) tools.inert = false;
+      for (const f of tools.querySelectorAll('button, input')) f.removeAttribute('tabindex');
+      return;
+    }
     if (hiddenFlag) {
       if (toolsBusy()) return;
       tools.dataset.hidden = '';
@@ -315,6 +341,8 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, re
       for (const f of tools.querySelectorAll('button, input')) f.removeAttribute('tabindex');
     }
   };
+
+  setTools(false);   // N43: start (and stay) revealed, whatever a previous attach left
 
   const onScroll = () => {
     const top = scrollEl.scrollTop;
@@ -400,7 +428,9 @@ function sheetRow(label, value) {
   return r;
 }
 
-export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {}) {
+let txSheetSeq = 0;   // unique ids for the N25 disclosure's aria-controls
+
+export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -425,14 +455,30 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
     dir.append(icon(tx.direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', { size: 24 }));
     head.append(dir);
   }
+  /* ★ B2 (#453, Damir on device): the header is TWO LINES, the chat-row grammar — a small
+     kicker over the counterparty — instead of one sentence that wrapped a 65-character
+     address across three lines. The kicker is body-sm/neutral-02; the name keeps the
+     label-lg the title already used, which is what makes the two read as one object.
+     With no counterparty there is nothing to put underneath, so it stays a single line. */
   const htext = document.createElement('div');
   htext.className = 'c-txsheet__headtext';
   const title = document.createElement('h2');
   title.className = 'c-txsheet__title';
-  title.textContent = tx.direction === 'in'
-    ? (isContact ? ((strings.receivedFrom || 'Received from {name}').split('{name}').join(tx.name)) : (strings.received || 'Received'))
-    : (isContact ? ((strings.sentTo || 'Sent to {name}').split('{name}').join(tx.name)) : (strings.sent || 'Sent'));
-  htext.append(title);
+  if (isContact) {
+    const kicker = document.createElement('span');
+    kicker.className = 'c-txsheet__kicker';
+    kicker.textContent = tx.direction === 'in'
+      ? (strings.receivedFromLabel || 'Received from')
+      : (strings.sentToLabel || 'Sent to');
+    const who = document.createElement('span');
+    who.className = 'c-txsheet__who';
+    who.textContent = tx.name;
+    htext.append(kicker, title);
+    title.append(who);
+  } else {
+    title.textContent = tx.direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent');
+    htext.append(title);
+  }
   head.append(htext);
   head.append(createBadge({ label: strings[meta.key] || meta.label, type: meta.type, weight: 'tonal', icon: meta.glyph }));
   content.append(head);
@@ -450,6 +496,18 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
     content.append(fiat);
   }
 
+  /* ★ N25 (#443, Damir): everything below the amount is SECONDARY — the address, the
+     date, the fee and the transaction id — and it used to make the sheet a wall of
+     monospace the moment it opened. It now lives behind a "See details" disclosure so
+     the sheet answers the first question (how much, to whom, did it go through) in one
+     glance, and the forensic half is one tap away.
+     Status stays OUTSIDE the disclosure: it is the other half of "did it go through". */
+  const details = document.createElement('div');
+  details.className = 'c-txsheet__details';
+  details.hidden = true;
+  txSheetSeq += 1;
+  const detailsId = 'c-txsheet-details-' + txSheetSeq;
+
   /* address — member-sheet addr-chip pattern (#99): FULL address, wrapping, working copy.
      Labelled by WHOSE address it is (Damir #135): received → sender's, sent → recipient's. */
   if (tx.address) {
@@ -465,11 +523,15 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
     addr.className = 'c-txsheet__addrvalue u-tabular';
     addr.textContent = tx.address;
     addrRow.append(addr, copyButton(tx.address, addrLabel.textContent, strings));
-    content.append(addrLabel, addrRow);
+    details.append(addrLabel, addrRow);   // N25
   }
 
   /* meta — rows render only when the bridge provided the field (data-honest);
      Status always renders (legacy confirmation enum incl. unknown, Damir #134) */
+  /* ★ D2 (#453, Damir on device): Status moved INTO the drawer, below the address and
+     above the date. The badge in the header already says it, so a Status row in the
+     collapsed view said the same thing twice on the one screen where the glance matters.
+     It stays available — just one tap down, with the rest of the forensic detail. */
   const metaBox = document.createElement('div');
   metaBox.className = 'c-txsheet__meta';
   const rows = [
@@ -509,16 +571,58 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
     rows.push(idRow);
   }
   metaBox.append(...rows);
-  content.append(metaBox);
+  details.append(metaBox);
 
-  /* explorer — routes through the external-link confirm in the shell (onExplorer duty) */
+  /* N25 disclosure. Rendered only when there is something to disclose — a row with
+     no address, no date, no fee and no id would otherwise offer an empty drawer.
+     ★ Audit MINOR-8: `disclose:false` for a host whose whole PURPOSE is those fields.
+     wallet_sent.html is the transaction DETAIL page — hiding the detail behind a tap
+     there inverts the screen, and its #285 "Show amounts" reveal re-renders, which
+     would have collapsed the drawer again every time. */
+  if (details.children.length && !disclose) {
+    content.append(details);
+    details.hidden = false;
+  } else if (details.children.length) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'c-txsheet__disclose';
+    toggle.setAttribute('aria-expanded', 'false');
+    const tlabel = document.createElement('span');
+    tlabel.textContent = strings.seeDetails || 'See details';
+    const chev = icon('chevron-down', { size: 18 });
+    chev.classList.add('c-txsheet__chev');
+    toggle.append(tlabel, chev);
+    toggle.setAttribute('aria-controls', detailsId);   // audit NIT-18
+    details.id = detailsId;
+    toggle.addEventListener('click', () => {
+      const open = details.hidden;
+      details.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      if (open) toggle.dataset.open = ''; else delete toggle.dataset.open;
+      tlabel.textContent = open ? (strings.hideDetails || 'Hide details')
+                                : (strings.seeDetails || 'See details');
+    });
+    content.append(toggle, details);
+  }
+
+  /* explorer — routes through the external-link confirm in the shell (onExplorer duty).
+     ★ #443 (Damir): this opens the TRANSACTION, so it says so. The old copy came from
+     the address-only verb the wallet tab used to have. */
   if (onExplorer) {
     content.append(createButton({
-      label: strings.viewExplorer || 'View in Explorer', type: 'outline', size: 44, width: 'full',
+      label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
       icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
       onClick: latched(() => sheet, () => onExplorer(tx)),
     }));
   }
+
+  /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every
+     other sheet in the app offers a text action; this one lost it when the explorer CTA
+     was added below it. `type: 'text'` so it never competes with the explorer button. */
+  content.append(createButton({
+    label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
+    onClick: () => closeSheet(sheet),
+  }));
 
   const sheet = createSheet({ content, host, strings, title: '' });   // head carries the identity
   sheet.setAttribute('aria-label', strings.txDetails || 'Transaction details');
@@ -528,7 +632,7 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer 
 
 /* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
 
-export function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
+export function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = null } = {}) {
   const content = document.createElement('div');
   content.className = 'c-misstx';
   const body = document.createElement('p');
@@ -536,6 +640,52 @@ export function openMissingTxSheet({ host, strings = getStrings(), onExplorer } 
   body.textContent = strings.missingTxBody
     || 'Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here.';
   content.append(body);
+
+  /* ★ #440/#443/#452: this sheet finally has a CONCRETE answer, and it is TWO answers.
+   *
+   * ① While a scan is running, the scan IS the answer — shown as a card with the large
+   *    ring, the same reading the slim row on the wallet shows, because the row is what
+   *    opened this sheet.
+   * ② ★ AND ALWAYS, running or not: Spixi only looks at blocks from a FIXED STARTING
+   *    POINT built into the app and never walks back past it, so a transaction older
+   *    than that point will never be listed here no matter how long anyone waits. The
+   *    sheet used to end at "the scan is finished, so that is not why", which closes off
+   *    the true explanation at exactly the moment it is needed (Damir, on device). That
+   *    also makes the Explorer button the real resolution rather than a consolation. */
+  if (scan && (scan.state === 'scanning' || scan.state === 'unknown')) {
+    const card = document.createElement('div');
+    card.className = 'c-misstx__scancard';
+    card.dataset.state = scan.state;
+
+    const ring = createScanRing({ size: 56, stroke: 5, showPercent: scan.state === 'scanning' });
+    if (scan.state === 'unknown') setScanRing(ring, { indeterminate: true });
+    else setScanRing(ring, { percent: Number(scan.percent) || 0 });
+
+    const col = document.createElement('div');
+    col.className = 'c-misstx__scancol';
+    const h = document.createElement('p');
+    h.className = 'c-misstx__scanhead';
+    const b = document.createElement('p');
+    b.className = 'c-misstx__scanbody';
+    if (scan.state === 'scanning') {
+      h.textContent = strings.chainScanTitle || 'Checking for your transactions';
+      b.textContent = strings.chainScanNote
+        || 'Spixi is looking through recent blocks for transactions that involve your address.';
+    } else {
+      h.textContent = strings.chainScanConnecting || 'Connecting';
+      b.textContent = strings.chainScanNoteUnknown
+        || 'Spixi will check for transactions that involve your address once it reaches the network.';
+    }
+    col.append(h, b);
+    card.append(ring, col);
+    content.append(card);
+  }
+
+  const origin = document.createElement('p');
+  origin.className = 'c-misstx__origin';
+  origin.textContent = strings.missingTxOldest
+    || 'Spixi only checks blocks from a fixed starting point. Transactions older than that are not listed here. The Explorer has your full history.';
+  content.append(origin);
 
   const actions = document.createElement('div');
   actions.className = 'c-misstx__actions';

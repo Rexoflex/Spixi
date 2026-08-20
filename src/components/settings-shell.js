@@ -293,6 +293,8 @@ export function createSettingsHub({
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
+  onAddressInfo,                 // #443: ⓘ beside copy/share — explains what the address IS
+  onContacts,                    // ★ N42 (#443): open the contacts directory from Account
   onAvatarChange,                // (ctrl) — ixian:avatar picker; ctrl.done({ src })
   onAvatarRemove,                // (ctrl) — ixian:remove
   onTheme,                       // (index, ctrl) — ixian:appearance:<int>
@@ -578,6 +580,22 @@ export function createSettingsHub({
       row.append(share);
     }
     hero.append(row);
+
+    /* ★ #443 (Damir V1, Account clarity): the address sat on the screen with a QR above
+       it and nothing saying what either is FOR.
+       ⚠ #453: this was an ⓘ INSIDE the address row, which put three 32px icon buttons in
+       a chip that is already holding a 65-character address — cramped, and it made the
+       share button harder to hit. It is its own text action under the row now: says what
+       it does, needs no legend, and leaves the chip alone. */
+    if (onAddressInfo) {
+      const info = createButton({
+        label: strings.whatIsThisAddress || 'What is this address?',
+        type: 'text', size: 32,
+        onClick: () => onAddressInfo({ address }),
+      });
+      info.classList.add('c-settings__addrinfo');
+      hero.append(info);
+    }
   }
   body.append(hero);
 
@@ -707,6 +725,17 @@ export function createSettingsHub({
 
   /* ——— preferences ——— */
   const prefs = group(strings.preferences || 'Preferences');
+
+  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
+     ever reachable from the chats topbar, which is not where someone looks for "my
+     people". Opt-in: a host that cannot route there passes no handler and no row
+     appears. */
+  if (onContacts) prefs.card.append(settingRow({
+    glyph: 'users', hue: 'info',
+    label: strings.contacts || 'Contacts', key: 'contacts',
+    sub: strings.contactsSub || 'See and manage everyone you have added',
+    onClick: () => onContacts(),
+  }).section);
 
   if (onTheme) {
     const themeLabelFor = (v) => {

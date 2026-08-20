@@ -654,6 +654,7 @@ global-invalid-address-title = That address didn't work
 global-invalid-address-text = Please enter a valid address.
 
 global-friend-request-accepted = {0} has accepted your contact request.
+global-friend-request-connected = You are now connected with {0}.
 
 global-update-available = New version of Spixi ({0}) is available. Please update for best experience.
 global-modal-external-link-title = Visit External Link

@@ -1070,6 +1070,21 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   .c-settings__switch, .c-settings__switch-knob { transition: none; }
 }
 
+/* #443: the "what is this address" explainer body — two short paragraphs, the second
+   quieter than the first (the promise, not the pitch). */
+.c-settings__addrinfo-body { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-settings__addrinfo-body p {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-settings__addrinfo-body p + p { color: var(--text-neutral-02); }
+
+/* #453: the address explainer is a text action UNDER the address chip, not a third icon
+   inside it. Centred with the QR and the chip above it. */
+.c-settings__addrinfo { align-self: center; }
+
 </style><!-- shared body/note grammar -->
 <style data-src="../styles/components/settings-app.css">
 /* c-settings "App" screens (settings-app.js, spec §9b): Downloads · Developer

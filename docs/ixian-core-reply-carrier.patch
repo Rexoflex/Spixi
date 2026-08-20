@@ -1,0 +1,222 @@
+diff --git a/Streaming/CoreStreamProcessor.cs b/Streaming/CoreStreamProcessor.cs
+index de8e4fc..6fc83f6 100644
+--- a/Streaming/CoreStreamProcessor.cs
++++ b/Streaming/CoreStreamProcessor.cs
+@@ -2213,7 +2213,13 @@ namespace IXICore.Streaming
+             SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chatStream, chat_stream_message.getBytes(), channel);
+             byte[] spixi_msg_bytes = spixi_message.getBytes();
+ 
+-            sendSpixiMessage(friend, spixi_message, null, null, true, true, true, false);
++            // ★ The StreamMessage id MUST be the chat message id, exactly as
++            // sendChatMessage passes friend_message.id. The receiver acknowledges with
++            // sendReceivedConfirmation(friend, message.id) — the STREAM message id —
++            // and the sender then looks the record up by FriendMessage id. With a
++            // generated id those two never match and every delivery/read tick is lost.
++            // This function was written and never called, so the defect was latent.
++            sendSpixiMessage(friend, spixi_message, null, chat_stream_message.MessageId, true, true, true, false);
+ 
+             return true;
+         }
+diff --git a/Streaming/Friends/FriendList.cs b/Streaming/Friends/FriendList.cs
+index 2605dde..51ecb8f 100644
+--- a/Streaming/Friends/FriendList.cs
++++ b/Streaming/Friends/FriendList.cs
+@@ -243,6 +243,7 @@ namespace IXICore.Streaming
+             }
+             FriendMessage friend_message = new FriendMessage(id, chat_stream_message.Message, timestamp, local_sender, type, set_sender_address, sender_nick, chat_stream_message.Sequence);
+             friend_message.payableDataLen = payable_data_len;
++            friend_message.replyToId = chat_stream_message.ReplyToId;   // M1 reply-to (additive)
+ 
+             List<FriendMessage>? messages = friend.getMessages(channel);
+             if(messages == null)
+@@ -286,6 +287,11 @@ namespace IXICore.Streaming
+                             tmp_msg.message = chat_stream_message.Message;
+                             tmp_msg.sequence = chat_stream_message.Sequence;
+                             tmp_msg.timestamp = timestamp;
++                            // M1 audit MINOR-4: a REPLACE carries its own reply reference.
++                            // Without this the record kept the reference the FIRST version
++                            // had, so an edit that added or removed a reply rendered the
++                            // wrong quote — or none.
++                            tmp_msg.replyToId = chat_stream_message.ReplyToId;
+                         }
+                         else if (chat_stream_message.Sequence == tmp_msg.sequence + 1)
+                         {
+diff --git a/Streaming/Friends/FriendMessage.cs b/Streaming/Friends/FriendMessage.cs
+index 46bcddd..ca54b1c 100644
+--- a/Streaming/Friends/FriendMessage.cs
++++ b/Streaming/Friends/FriendMessage.cs
+@@ -62,6 +62,14 @@ namespace IXICore.Streaming
+ 
+         public int sequence = 0;
+ 
++        /// <summary>
++        /// M1 reply-to: the id of the message this message replies to, or null.
++        /// Appended LAST in getBytes() and read behind the existing append-tolerant
++        /// `if (m.Position &lt; m.Length)` guard, which is exactly how transactionId,
++        /// reactions, sent, errorSending and sequence were each added.
++        /// </summary>
++        public byte[]? replyToId = null;
++
+         public FriendMessage(byte[]? id, string msg, long time, bool local_sender, FriendMessageType t, Address? sender_address = null, string sender_nick = "", int sequence = 0)
+         {
+             _id = id;
+@@ -170,6 +178,16 @@ namespace IXICore.Streaming
+                         {
+                             sequence = reader.ReadInt32();
+                         }
++                        if (m.Position < m.Length)
++                        {
++                            // M1 reply-to. A record written by an older build simply
++                            // ends here and replyToId stays null.
++                            int reply_id_len = reader.ReadInt32();
++                            if (reply_id_len > 0 && reply_id_len <= CoreConfig.maxMessageIdSize)
++                            {
++                                replyToId = reader.ReadBytes(reply_id_len);
++                            }
++                        }
+                     }
+                     catch (Exception)
+                     {
+@@ -237,6 +255,17 @@ namespace IXICore.Streaming
+                     writer.Write(sent);
+                     writer.Write(errorSending);
+                     writer.Write(sequence);
++
++                    // M1 reply-to, appended last (see the field comment).
++                    if (replyToId != null && replyToId.Length > 0 && replyToId.Length <= CoreConfig.maxMessageIdSize)
++                    {
++                        writer.Write(replyToId.Length);
++                        writer.Write(replyToId);
++                    }
++                    else
++                    {
++                        writer.Write((int)0);
++                    }
+                 }
+                 return m.ToArray();
+             }
+diff --git a/Streaming/Models/ChatStreamMessage.cs b/Streaming/Models/ChatStreamMessage.cs
+index 09209f7..242ff46 100644
+--- a/Streaming/Models/ChatStreamMessage.cs
++++ b/Streaming/Models/ChatStreamMessage.cs
+@@ -23,12 +23,24 @@ namespace IXICore.Streaming.Models
+         public int Sequence { get; set; }
+         public bool IsStream { get; set; }
+ 
+-        public ChatStreamMessage(byte[]? messageId, string message, int sequence, bool isStream)
++        /// <summary>
++        /// M1 reply-to: the id of the message this message replies to, or null.
++        /// ADDITIVE and OPTIONAL. It is written LAST in getBytes() and ONLY when it
++        /// is set, so a message that is not a reply serialises byte-identically to
++        /// the pre-M1 format. The parser reads it behind a bounds check, so a build
++        /// that does not know the field ignores the trailing bytes and shows a plain
++        /// message. ★ Do not add a length assertion to the parser — that tolerance
++        /// IS the backward-compatibility contract.
++        /// </summary>
++        public byte[]? ReplyToId { get; set; }
++
++        public ChatStreamMessage(byte[]? messageId, string message, int sequence, bool isStream, byte[]? replyToId = null)
+         {
+             MessageId = messageId;
+             Message = message;
+             Sequence = sequence;
+             IsStream = isStream;
++            ReplyToId = replyToId;
+         }
+ 
+         public ChatStreamMessage(byte[] data)
+@@ -57,11 +69,51 @@ namespace IXICore.Streaming.Models
+ 
+             IsStream = data[offset] == 1;
+             offset += 1;
++
++            // M1 reply-to, OPTIONAL TAIL. Everything below is peer-controlled, so it
++            // must never be able to drop a legitimate message: an absent, malformed or
++            // over-long reference degrades to "no reply" and the message still shows.
++            // A throw here would reach the receive path and lose the whole message.
++            if (offset < data.Length)
++            {
++                try
++                {
++                    // Audit MINOR-6: ReadIxiBytes allocates `new byte[len]` BEFORE any
++                    // bound is applied, so a peer could declare ~2 GB with no payload.
++                    // The catch below would swallow the OutOfMemoryException, but the
++                    // transient allocation is an OS-kill risk on a phone. Refuse a
++                    // declared length that cannot fit in what is left of the buffer.
++                    var declared = data.GetIxiVarUInt(offset);
++                    if (declared.num > (ulong)(data.Length - offset - declared.bytesRead))
++                    {
++                        throw new Exception("Reply id length exceeds the remaining buffer.");
++                    }
++                    var replyBytes = data.ReadIxiBytes(offset);
++                    if (replyBytes.bytes != null
++                        && replyBytes.bytes.Length > 0
++                        && replyBytes.bytes.Length <= CoreConfig.maxMessageIdSize)
++                    {
++                        ReplyToId = replyBytes.bytes;
++                    }
++                    offset += replyBytes.bytesRead;
++                }
++                catch (Exception)
++                {
++                    ReplyToId = null;
++                }
++            }
+         }
+ 
+         public byte[] getBytes()
+         {
+-            if (Message.Length > CoreConfig.maxChatMessageSize)
++            // Audit MAJOR-2: the parser checks UTF-8 BYTES (:59) while this checked
++            // UTF-16 CHARACTERS, so a long non-ASCII body passed every sender check and
++            // then threw inside the receiver's parser — the message lost, no receipt
++            // sent, the sender's bubble stuck on the clock forever. Measure what the
++            // reader measures. (Callers still gate on characters, which is stricter for
++            // ASCII and is the legacy contract; this is the backstop that used to lie.)
++            byte[] messageUtf8 = Encoding.UTF8.GetBytes(Message);
++            if (messageUtf8.Length > CoreConfig.maxChatMessageSize)
+             {
+                 throw new Exception("Chat message exceeds maximum size limit.");
+             }
+@@ -71,7 +123,7 @@ namespace IXICore.Streaming.Models
+             var messageIdBytes = MessageId.GetIxiBytes();
+             totalSize += messageIdBytes.Length;
+ 
+-            var messageBytes = Encoding.UTF8.GetBytes(Message).GetIxiBytes();
++            var messageBytes = messageUtf8.GetIxiBytes();
+             totalSize += messageBytes.Length;
+ 
+             var sequenceBytes = Sequence.GetIxiVarIntBytes();
+@@ -79,6 +131,19 @@ namespace IXICore.Streaming.Models
+ 
+             totalSize += 1; // IsStream
+ 
++            // M1: written ONLY when this is a reply, so a plain message keeps the
++            // exact pre-M1 byte layout.
++            byte[]? replyIdBytes = null;
++            if (ReplyToId != null && ReplyToId.Length > 0)
++            {
++                if (ReplyToId.Length > CoreConfig.maxMessageIdSize)
++                {
++                    throw new Exception("Chat reply id exceeds maximum size limit.");
++                }
++                replyIdBytes = ReplyToId.GetIxiBytes();
++                totalSize += replyIdBytes.Length;
++            }
++
+             byte[] result = new byte[totalSize];
+             int offset = 0;
+ 
+@@ -94,6 +159,12 @@ namespace IXICore.Streaming.Models
+             result[offset] = IsStream ? (byte)1 : (byte)0;
+             offset += 1;
+ 
++            if (replyIdBytes != null)
++            {
++                replyIdBytes.CopyTo(result, offset);
++                offset += replyIdBytes.Length;
++            }
++
+             return result;
+         }
+     }

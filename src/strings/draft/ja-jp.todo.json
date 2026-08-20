@@ -1,3 +1,5 @@
 {
-  "handshakeReady": ""
+  "handshakeReady": "",
+  "receivedFromLabel": "Received from",
+  "sentToLabel": "Sent to"
 }

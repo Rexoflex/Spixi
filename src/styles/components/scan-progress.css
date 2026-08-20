@@ -1,0 +1,116 @@
+/* Blockchain-scan progress — the slim row and the shared ring (#440 / #443 / #452).
+ *
+ * ★ ART DIRECTION, Damir's call on a rendered comparison rather than in the abstract.
+ * The wallet screen has ONE hero, the balance, and this must not compete with it. So the
+ * scan is a SLIM ROW at the top of the transaction list — ring, one line, percentage,
+ * chevron — that opens the "Missing a transaction?" sheet, where the full card and the
+ * large ring live. Tokens only; no raw colours. */
+
+/* ————— the ring, shared by the row and the sheet card ————————————————————————
+ * At 20px the arc is a MOTION CUE and the number beside it is what gets read; at 56px it
+ * is a real object and carries the number inside. Same code, two sizes. */
+.c-scanring__track { stroke: var(--surface-progress-track); }
+.c-scanring__arc {
+  stroke: var(--surface-progress-fill);
+  /* SHORT on purpose: TIV lands headers 250 at a time, so the ring genuinely steps. A
+     long ease would animate a smoothness the data does not have. */
+  transition: stroke-dashoffset var(--duration-200) var(--easing-standard);
+}
+.c-scanring__label {
+  fill: var(--text-neutral-01);
+  font-size: 15px;                  /* sanctioned: inside a 56px ring, scales with it */
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+/* dark: the global track token equals the surface here too — the typed-bubbles
+   precedent (audit MAJOR) — so step it one rung or the ring has no groove. */
+[data-theme="dark"] .c-scanring__track { stroke: var(--surface-neutral-04); }
+
+/* ★ INDETERMINATE: we have no numbers yet, so the ring must not claim one. A quarter
+   arc rotating says "working" without asserting a position, and there is no percentage
+   anywhere. It resolves into a filling ring the moment both numbers are real. */
+.c-scanring[data-indeterminate] { animation: scanring-spin 1.1s linear infinite; }
+.c-scanring[data-indeterminate] .c-scanring__arc { transition: none; }
+@keyframes scanring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-scanring[data-indeterminate] { animation: none; opacity: var(--opacity-disabled); }
+  .c-scanring__arc { transition: none; }
+}
+
+/* ————— the slim row ————————————————————————————————————————————————————————— */
+/* ★ #453 (Damir on device): the row sits directly in the wallet SCROLLER, which has no
+   inset of its own — every other child brings its own. Without this it ran full bleed to
+   both edges while the search field and the chips above it were inset, and it read as
+   belonging to a different screen. Matches .c-wallet-tools' padding-inline exactly, so
+   the row's left edge lines up with the search field's. */
+.c-scanprog { display: block; padding-inline: var(--spacing-16); }
+.c-scanprog__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  width: 100%;
+  min-height: 44px;                 /* the touch target, even though the row draws smaller */
+  padding: var(--spacing-8) var(--spacing-12);
+  margin-block-end: var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-scanprog__row:hover { background: var(--surface-interactive-hover); }
+}
+.c-scanprog__row:active { background: var(--surface-interactive-pressed); }
+.c-scanprog__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-scanprog__pct {
+  flex: none;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-scanprog__chev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
+
+/* ————— the sheet card ———————————————————————————————————————————————————————
+ * Lives in wallet-shell.css's sheet, but the tokens belong with the ring. */
+.c-misstx__scancard {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  margin-block-end: var(--spacing-12);
+}
+.c-misstx__scancol { flex: 1 1 auto; min-width: 0; }
+.c-misstx__scanhead {
+  margin: 0 0 var(--spacing-2);
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.c-misstx__scanbody {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+/* ★ The standing truth, shown whether or not a scan is running: Spixi never walks back
+   past its fixed starting point, so an older transaction will never be listed. */
+.c-misstx__origin {
+  margin: var(--spacing-8) 0 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}

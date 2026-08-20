@@ -110,6 +110,18 @@ const CHATS_REVEAL_AT = 1;
  * toggle only on collapse⇄reveal transitions.
  */
 export function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
+  /* ★ N43 (#443, Damir): THE SEARCH BAR IS ALWAYS VISIBLE. His answer to "show the
+   * search only when the content overflows" was the opposite — never hide it — and a
+   * bar that vanishes on a downward scroll and returns at the top is the same defect
+   * from the other side. It also explains the "flicker" he reported on Apps: the
+   * flicker WAS the bar disappearing and reappearing.
+   * Kept as a live attachment rather than deleted at the call sites so the behaviour
+   * is one flag from returning (the R3 reversal-hook pattern) and so the a11y
+   * teardown contract, the demo and the smoke pins all stay honest. */
+  const N43_ALWAYS_VISIBLE = true;
+  if (N43_ALWAYS_VISIBLE) {
+    return function detachChatsCollapse() { /* nothing was attached */ };
+  }
   const rm = reducedMotion != null ? reducedMotion
     : (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 

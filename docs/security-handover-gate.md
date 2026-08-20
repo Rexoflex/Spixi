@@ -224,13 +224,59 @@ log lines are the one item the gate flags, and they carry no user secret.
 
 ### We already caught and fixed our own — worth saying in the handover
 
-Three MAJORs the redesign introduced were found by our own review loops and fixed before
+Four MAJORs the redesign introduced were found by our own review loops and fixed before
 they ever reached him: the back-dismissable in-place lock (**#2**), the call ring that
-could cover — and pop — the lock (**#5**), and the GC-collectable WKWebView delegates that
-could silently drop the http/https block (**#7**).
+could cover — and pop — the lock (**#5**), the GC-collectable WKWebView delegates that
+could silently drop the http/https block (**#7**), and **#438** below.
 
 And two legacy items were tightened in passing: the `waletpass` typo, so delete-wallet now
 actually clears the plaintext password (#346), and the downloads path traversal (#267).
 
 The handover note should say this. His read should be "they tightened things", not "here
 is a pile".
+
+---
+
+## The 2026-08-20 batch through the gate (#441–#447)
+
+Four things in this batch touch the gate. Three introduce nothing; one is ours and is
+fixed.
+
+**★ #438 — a PRE-AUTH CONTENT EXPOSURE, and it is OURS.** With the app lock on, a resume
+painted the full chats list for about a second before the lock appeared. Apply the gate's
+one question — *does this exposure exist at the baseline?* — and the answer is **no**: at
+`0e85a4b8` the resume lock was a plain modal push, which flickered but never showed the
+page underneath. **#229 introduced it**, by staging the lock's WebView hidden on the
+current page and presenting only once `lock.html` signalled ready. So it is ours, and it
+was fixed before handover (#442): a synchronous opaque cover in the lock's own ground
+colour, over every page-tree grid and the modal stack, released only when the lock is
+really on screen or when auth succeeds. Android's task-switcher snapshot is covered too.
+🟡 One residual is UNVERIFIED on device: whether a view added at `OnSleep` reaches that
+snapshot at all. `FLAG_SECURE` is the canonical mechanism and is deliberately not used,
+because it would also block screenshots — a product decision, not a security one.
+
+**M1 reply-to would add a PEER-CONTROLLED reference to the message body path** (#441) — the
+same hostile-parsing family the worklist puts N18 in. ⚠ **It did NOT ship** (#448): the
+carrier is held out for the BE cutover, so nothing in the shipped build parses a reply
+reference. The gate walk below therefore describes the HELD patch in
+`docs/be-cutover-ixian-core-reply-carrier.md`, and it is the review the BE engineer should
+be handed with it:
+
+* it is **length-clamped** to `CoreConfig.maxMessageIdSize` before anything keeps it, and
+  the declared length is bounded against the remaining buffer BEFORE the allocation;
+* the parse sits in a `try` that degrades to "no reply" — **a throw there would reach the
+  receive path and lose the whole message**, so failing closed would mean failing lossy;
+* an **unknown target fails soft** to a generic quote label: never nothing (which reads as
+  a broken render), never a throw;
+* it reaches the WebView **hex-encoded** and is used only as a `Map` key. It never reaches
+  `innerHTML`, an attribute, a selector, a path or a URL — the quote's visible text comes
+  from the shell's own local row, not from the peer payload;
+* nothing new lands in a `spixi.*` storage key.
+
+**The add-contact duplicate check** (#443) adds a local detection branch and one echoed
+argument. No new sink, no new storage, and it makes the screen send FEWER requests than
+before.
+
+**Two new `spixi.*` keys** (#443, N80): `spixi.rating.opens` (a small integer) and
+`spixi.rating.lastopen` (a timestamp). Neither is personal, so neither widens MAJOR #4 —
+which is the standing question for anything written to that partition.

@@ -4558,6 +4558,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+    <span id="sl-request-connected">*SL{global-friend-request-connected}</span>
+    <!-- #434: the LEGACY sentence is still carried, and only for history. The copy
+         changed to one direction-neutral line, but chats written before that build
+         hold the old text — without this carrier they would stop matching and
+         degrade from a centred event chip to an ordinary message bubble. -->
     <span id="sl-request-accepted">*SL{global-friend-request-accepted}</span>
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
     <span id="sl-online">*SL{chat-online}</span>
@@ -4611,6 +4616,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   const {
     createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, setComposerCost, createTypingIndicator, createScrollToLatest,
+    setComposerContext, getComposerContext,   // M1 reply-to (#441): the quote strip above the input
     setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
     attachPressFeedback,
     setMessageStatus, removeMessage,
@@ -4816,18 +4822,35 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      titles already use in this file — locale-proof by construction. */
   const ONLINE_TEXT = slCarrier('sl-online', 'Online');
 
-  const ACCEPTED_TPL = slCarrier('sl-request-accepted', '{0} has accepted your contact request.');
-  const ACCEPTED_PARTS = (() => {
-    const i = ACCEPTED_TPL.indexOf('{0}');
-    return i === -1 ? null : [ACCEPTED_TPL.slice(0, i), ACCEPTED_TPL.slice(i + 3)];
-  })();
-  function acceptedEventSubject(text) {
-    if (!ACCEPTED_PARTS) return null;
+  /* #434: TWO templates, because the copy changed. The live one is the
+     direction-neutral "you are now connected" sentence C# writes from now on; the
+     legacy "has accepted your contact request" one is kept so existing histories
+     still render as a chip. Matching is longest-prefix-first so a locale in which
+     one sentence is a prefix of the other cannot mis-attribute the subject. */
+  function tplParts(tpl) {
+    const i = tpl.indexOf('{0}');
+    return i === -1 ? null : [tpl.slice(0, i), tpl.slice(i + 3)];
+  }
+  const ACCEPTED_TPL = slCarrier('sl-request-connected', 'You are now connected with {0}.');
+  const ACCEPTED_PARTS = tplParts(ACCEPTED_TPL);
+  const EVENT_TPLS = [
+    ACCEPTED_PARTS,
+    tplParts(slCarrier('sl-request-accepted', '{0} has accepted your contact request.')),
+  ].filter(Boolean).sort((a, b) => (b[0].length + b[1].length) - (a[0].length + a[1].length));
+  /** → { parts, subject } for the template that matched, else null. */
+  function acceptedEventMatch(text) {
     const t = String(text || '');
-    const [p, s] = ACCEPTED_PARTS;
-    if (t.length <= p.length + s.length) return null;
-    if (!t.startsWith(p) || !t.endsWith(s)) return null;
-    return t.slice(p.length, t.length - s.length);
+    for (const parts of EVENT_TPLS) {
+      const [p, sfx] = parts;
+      if (t.length <= p.length + sfx.length) continue;
+      if (!t.startsWith(p) || !t.endsWith(sfx)) continue;
+      return { parts, subject: t.slice(p.length, t.length - sfx.length) };
+    }
+    return null;
+  }
+  function acceptedEventSubject(text) {
+    const m = acceptedEventMatch(text);
+    return m ? m.subject : null;
   }
 
   /* M16 (#59): the two connectivity strings C# routes through showWarning
@@ -5457,6 +5480,100 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     return pos;
   }
 
+  /* —— M1 reply-to ————————————————————————————————————————————————————————————
+   * C# pushes only the TARGET ID (hex) on addMe/addThem; the quote itself is
+   * resolved here against the rows this shell already holds. That keeps the push
+   * unchanged in size and means the quote can never disagree with the row it
+   * points at.
+   * ★ FAIL SOFT is the whole contract. The id is peer-controlled on an incoming
+   * message and the target may simply be older than the loaded window, so an
+   * unknown id renders a GENERIC quote label rather than nothing (which reads as
+   * a broken reply) and never a broken node or a throw. */
+  function replyKindOf(rec) {
+    if (!rec) return null;
+    if (rec.kind === 'file') return 'file';
+    if (rec.kind === 'payment') return 'payment';
+    if (rec.kind === 'app') return 'app';
+    if (rec.kind === 'call') return 'call';
+    const media = mediaUrlOf(rec.text);
+    if (media) return /\.gif(\?|#|$)/i.test(media) ? 'gif' : 'image';
+    return null;
+  }
+  const REPLY_TEXT_MAX = 140;   // the quote is one clamped line; the bubble clamps visually too
+  function replyQuoteFor(rec) {
+    if (!rec || !rec.replyTo) return null;
+    const s2 = window.SL || {};
+    const target = model.get(String(rec.replyTo));
+    if (!target) {
+      // outside the loaded window, or deleted → honest placeholder, no sender, no tap
+      return { text: (window.SL && window.SL.replyUnavailable) || 'Original message', sender: '', address: '' };
+    }
+    const kind = replyKindOf(target);
+    const isOwn = target.direction === 'sent';
+    const sender = isOwn
+      ? (s2.you || 'You')
+      : (senderHasNick(target) ? target.senderNick
+          : (mode.isMulti && mode.blind ? (s2.hiddenMember || 'Hidden member')
+              : (identity.nick || '')));
+    let text = '';
+    if (!kind) {
+      text = String(target.text || '').replace(/\s+/g, ' ').trim();
+      if (text.length > REPLY_TEXT_MAX) text = text.slice(0, REPLY_TEXT_MAX - 1) + '…';
+    } else if (kind === 'file') {
+      text = String(target.name || '');
+    }
+    return {
+      sender,
+      address: isOwn ? '' : (target.senderAddress || identity.address || ''),
+      text,
+      kind,
+      thumb: null,   // media originals: the tile is fetched on demand (#82), so no thumb to quote
+    };
+  }
+
+  /* The composer strip's view of the row you are replying TO (not the same as
+     replyQuoteFor, which reads a row's OWN reply target). */
+  function replySourceFor(rec) {
+    if (!rec || !rec.id) return null;
+    const s2 = window.SL || {};
+    const kind = replyKindOf(rec);
+    const isOwn = rec.direction === 'sent';
+    const sender = isOwn ? (s2.you || 'You')
+      : (senderHasNick(rec) ? rec.senderNick
+          : (mode.isMulti && mode.blind ? (s2.hiddenMember || 'Hidden member')
+              : (identity.nick || '')));
+    let text = '';
+    if (!kind) {
+      text = String(rec.text || '').replace(/\s+/g, ' ').trim();
+      if (text.length > REPLY_TEXT_MAX) text = text.slice(0, REPLY_TEXT_MAX - 1) + '…';
+    } else if (kind === 'file') text = String(rec.name || '');
+    return { sender, text, kind };
+  }
+
+  /* Shared scroll-to-and-pulse. Extracted from the @-mention FAB so the reply
+     quote lands on the SAME behaviour (and the same stale-node re-bind). */
+  function jumpToRow(id, onArrive) {
+    const first = rows.get(id); if (!first) return false;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    first.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    /* N52: start the pulse when the row is actually VISIBLE, not when the tap
+       landed — on a far jump the 1.4s animation is otherwise spent mid-scroll.
+       loop B-4: renderLogNow rebuilds rows, so re-bind through the id each frame. */
+    const pulseFrom = performance.now();
+    (function pulseWhenVisible() {
+      const live = rows.get(id);
+      if (!live || !live.isConnected) { if (performance.now() - pulseFrom <= 1500) requestAnimationFrame(pulseWhenVisible); return; }
+      if (mentionRowVisible(live) || performance.now() - pulseFrom > 1500) {
+        live.setAttribute('data-mention-pulse', '');
+        live.addEventListener('animationend', () => live.removeAttribute('data-mention-pulse'), { once: true });
+        setTimeout(() => { live.removeAttribute('data-mention-pulse'); if (onArrive) onArrive(); }, 1600);
+        return;
+      }
+      requestAnimationFrame(pulseWhenVisible);
+    })();
+    return true;
+  }
+
   function buildRow(rec, position) {
     if (rec.kind === 'file') return buildFileRow(rec);
     if (rec.kind === 'app') return buildAppRow(rec);
@@ -5543,6 +5660,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // store). Same gate family as sender/onSenderClick above.
       roleBadge: (!isSent && mode.isMulti && !mode.blind && isOwnerAddr(rec.senderAddress))
         ? ((window.SL || {}).owner || 'Owner') : null,
+      // M1 reply-to (#441). Rendered whenever the push carried a target — the
+      // `reply` CAPABILITY gates who can CREATE one, not whether an incoming one
+      // is shown, because a peer on a newer build can send one either way.
+      reply: replyQuoteFor(rec),
+      onReplyClick: (rec.replyTo && rows.get(String(rec.replyTo)))
+        ? () => jumpToRow(String(rec.replyTo)) : null,
     });
   }
 
@@ -5750,7 +5873,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * base58 address renders middle-truncated). textContent-only (the subject is
    * counterpart-controlled). */
   function buildEventRow(rec) {
-    const subject = acceptedEventSubject(rec.text) || '';
+    // #434: rebuild from the template that actually MATCHED this row — a legacy
+    // line must not be re-rendered inside the new sentence.
+    const matched = acceptedEventMatch(rec.text);
+    const parts = matched ? matched.parts : ACCEPTED_PARTS;
+    const subject = matched ? matched.subject : '';
     const looksAddr = /^[a-zA-Z0-9]{24,}$/.test(subject);
     const display = looksAddr ? truncateAddressMiddle(subject) : subject;
     const row = document.createElement('div');
@@ -5761,7 +5888,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon('heart-handshake', { size: 16 }));
     } catch (e) { /* glyph optional */ }
     const line = document.createElement('span');
-    line.textContent = ACCEPTED_PARTS ? (ACCEPTED_PARTS[0] + display + ACCEPTED_PARTS[1]) : rec.text;
+    line.textContent = parts ? (parts[0] + display + parts[1]) : rec.text;
     chip.append(line);
     row.append(chip);
     return row;
@@ -6188,7 +6315,36 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     }
     if (action === 'report') { bridge.send('ixian:contextAction:report:' + id); return; }
     if (action === 'tip') { openTipForMessage(rec); return; }
-    // reply/edit are capability-gated off → never reached in v1
+    // M1 reply-to (#441). The menu item only renders behind bridge.cap('reply'),
+    // and this arm re-checks it: an action can only arrive from a menu built with
+    // the capability on, but the guard makes the gate one thing, not two.
+    if (action === 'reply') {
+      if (!bridge.cap('reply') || !composerEl) return;
+      const q = replySourceFor(rec);
+      if (!q) return;
+      setComposerContext(composerEl, {
+        kind: 'reply',
+        title: ((window.SL && window.SL.replyingTo) || 'Reply to') + (q.sender ? ' ' + q.sender : ''),
+        text: q.text,
+        replyId: String(rec.id),
+        strings: window.SL || {},
+      });
+      // In a group, replying also addresses the person — the @-mention half of M1
+      // is pure FE and rides along. Only for a NAMED sender, never an address, and
+      // never when the mention is already there.
+      if (mode.isMulti && !mode.blind && senderHasNick(rec) && rec.direction !== 'sent') {
+        const input = composerEl.querySelector('.c-composer__input');
+        const tag = '@' + rec.senderNick + ' ';
+        if (input && !input.value.includes('@' + rec.senderNick)) {
+          input.value = tag + input.value;
+          input.dispatchEvent(new Event('input'));
+        }
+      }
+      const inp = composerEl.querySelector('.c-composer__input');
+      if (inp) inp.focus();
+      return;
+    }
+    // edit is still capability-gated off → never reached in v1
     dbg('menu action (gated/unhandled)', action);
   }
 
@@ -7062,6 +7218,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (extra.avatar !== undefined) rec.avatar = extra.avatar || null;
       // D-5/N26 (#366): per-sender relation (validated in addThem; '' = unknown)
       if (extra.relation !== undefined) rec.relation = extra.relation || '';
+      // M1 (#441): the reply TARGET id (hex). Only ever SET, never cleared by a
+      // later status push that omits it — updateMessage carries no reply arg.
+      if (extra.replyTo !== undefined && extra.replyTo) rec.replyTo = String(extra.replyTo);
     }
     rec.status = statusFrom(flags || {});
     /* A2 (#302): the paid marker. `paid` has always been PASSED (addMe/addThem
@@ -7377,10 +7536,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
-    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending) {
+    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo) {
+      // M1 (#441): `relation` and `replyTo` are the two trailing ADDITIVE args C#
+      // now sends on BOTH prefixes (one sendUiCommand). addMe declared 11 params
+      // and would otherwise silently discard the reply target on own messages —
+      // which is precisely the sender-persistence case that killed C8 (#215).
       upsertText(id, text, 'sent', toMs(time),
         { sent, confirmed, read, paid, errorSending },
-        { avatar: resolveAvatar(avatar) });
+        { avatar: resolveAvatar(avatar), replyTo: replyTo || '' });
     },
 
     // TEXT create — incoming message. C# pushes the FULL 11-arg shape for both
@@ -7391,7 +7554,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // derive the A3 unread boundary from the open burst.
     // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self'|'')
     // — an old C# exe leaves it undefined → the sheet falls back to 'none'.
-    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation) {
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo) {
       const av = resolveAvatar(avatar);
       // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
       // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
@@ -7409,7 +7572,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       }
       upsertText(id, text, 'received', toMs(time), { paid },
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av,
-          relation: RELATIONS.has(relation) ? relation : '' });
+          relation: RELATIONS.has(relation) ? relation : '',
+          replyTo: replyTo || '' });   // M1 (#441)
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
       // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
@@ -8126,28 +8290,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function resetMentionTracking() { loadMentionSeen(); }   // per-peer: restore the durable seen set
   mentionFab.addEventListener('click', () => {
     const id = mentionFab._next; if (!id) return;
-    const row = rows.get(id); if (!row) return;
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    row.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-    /* N52 (verify-first, second half): the pulse used to start the moment the tap
-       landed — DURING the smooth scroll — so on a far jump the 1.4s animation was
-       spent before the row ever entered the viewport. Start it when the row is
-       actually visible (rAF poll, 1.5s cap so a stalled scroll still pulses). */
-    const pulseFrom = performance.now();
-    (function pulseWhenVisible() {
-      /* loop B-4: renderLogNow REBUILDS every row, so the closed-over node can go
-         stale mid-scroll (a delivery tick, a reaction) — re-bind through the id
-         each frame so the pulse lands on the LIVE node instead of silently dying. */
-      const live = rows.get(id);
-      if (!live || !live.isConnected) { if (performance.now() - pulseFrom <= 1500) requestAnimationFrame(pulseWhenVisible); return; }
-      if (mentionRowVisible(live) || performance.now() - pulseFrom > 1500) {
-        live.setAttribute('data-mention-pulse', '');
-        live.addEventListener('animationend', () => live.removeAttribute('data-mention-pulse'), { once: true });
-        setTimeout(() => { live.removeAttribute('data-mention-pulse'); updateMentionFab(); }, 1600);
-        return;
-      }
-      requestAnimationFrame(pulseWhenVisible);
-    })();
+    // M1 (#441): the scroll-and-pulse body now lives in jumpToRow, shared with the
+    // reply quote so the two can never drift.
+    if (!jumpToRow(id, updateMentionFab)) return;
     mentionSeen.add(id); saveMentionSeen();              // viewing it counts as seen (persisted) → next tap advances
     updateMentionFab();
   });
@@ -8371,7 +8516,20 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (!text) return;
       if (composerLock) return;   // ⑪ belt-and-braces: no compose path while pending
       if (text.length > MAX_MESSAGE_CHARS) return;    // A7 belt — composer already blocked it
-      bridge.send('ixian:chat:' + encodeURIComponent(text));
+      /* M1 reply-to (#441). A reply goes out on its own verb carrying the target id;
+         everything else keeps the exact ixian:chat: grammar. The context is read
+         BEFORE the send and cleared after, so a failed send cannot leave the strip
+         pointing at a message the next send would silently quote. The id is a hex
+         string produced by C# (Crypto.hashToString) — no colon, so the single-colon
+         split on the C# side is unambiguous. */
+      const ctx = composerEl ? getComposerContext(composerEl) : null;
+      if (ctx && ctx.kind === 'reply' && ctx.replyId && bridge.cap('reply')) {
+        bridge.send('ixian:chatreply:' + encodeURIComponent(ctx.replyId) + ':' + encodeURIComponent(text));
+        setComposerContext(composerEl, null);
+      } else {
+        bridge.send('ixian:chat:' + encodeURIComponent(text));
+        if (ctx) setComposerContext(composerEl, null);
+      }
       clearDraft();                                   // sent → drop the saved draft (CH7)
       // composer already clears its own field on send; this is belt-and-braces.
     },

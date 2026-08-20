@@ -103,11 +103,72 @@ namespace SPIXI
                 {
                     ext_recipient_address = new ExtendedAddress(address);
 
-                    Utils.sendUiCommand(this, "onValidAddress");
+                    /* ★ #435(b): answer WHICH outcome this address has, not just "parses".
+                     * The shell used to learn that an address was already a contact only
+                     * from onRequest — which shows a native alert reading "it could be
+                     * invalid or already in your contacts", i.e. two different outcomes
+                     * sharing one failure branch, on a screen that had ALREADY shown a
+                     * green tick. Damir's dial: report it BEFORE the request is sent,
+                     * as a short line plus a View contact button — not an error, because
+                     * an address you already know is not a failure.
+                     * ⚠ The dial assumed the shell could detect this locally from a
+                     * contacts list. It cannot: production add-contact is this STANDALONE
+                     * page (ContactNewPage → contact_new.html), which never receives a
+                     * roster. Pushing the whole roster to it would be strictly worse —
+                     * more data in a WebView, for one boolean. So the answer rides the
+                     * check that was already round-tripping.
+                     * The two rejections mirror onRequest exactly, so the screen can
+                     * never disagree with what the request would do. */
+                    Address routing_address = ext_recipient_address.RoutingAddress;
+                    if (routing_address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
+                    {
+                        Utils.sendUiCommand(this, "onKnownAddress", "self", "", "", address);
+                    }
+                    else
+                    {
+                        Friend? known = FriendList.getFriend(routing_address);
+                        // pendingDeletion is NOT a duplicate — onRequest removes and re-adds it.
+                        if (known != null && !known.pendingDeletion)
+                        {
+                            // The 4th arg is the string we were ASKED about, echoed back:
+                            // the shell correlates the async answer with the field's current
+                            // value, and the ROUTING address can differ from what was typed
+                            // (an extended address resolves to it), so it cannot serve.
+                            Utils.sendUiCommand(this, "onKnownAddress", "contact",
+                                routing_address.ToString(), known.nickname == null ? "" : known.nickname, address);
+                        }
+                        else
+                        {
+                            Utils.sendUiCommand(this, "onValidAddress");
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     Logging.error("Invalid address format: " + ex.Message);
+                }
+            }
+            else if (current_url.StartsWith("ixian:viewcontact:", StringComparison.Ordinal))
+            {
+                // #435(b): the "View contact" affordance. Replaces this form with the
+                // contact's own page (same slot, same tag) — the SingleChatPage
+                // precedent (:442). Nothing is sent and nothing is added.
+                string address = current_url.Substring("ixian:viewcontact:".Length);
+                try
+                {
+                    Friend? known = FriendList.getFriend(new Address(address));
+                    if (known != null)
+                    {
+                        // tag/column left at their defaults ON PURPOSE: with `replaces`
+                        // set, pushPageLoaded INHERITS the replaced overlay's slot (the Q1
+                        // fix) — so on a wide window the contact page lands in the SAME
+                        // detail column the form occupied instead of a full-window takeover.
+                        pushPageLoaded(new ContactDetails(known, false, null, false), 4000, null, -1, this);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("viewcontact failed: " + ex.Message);
                 }
             }
             else

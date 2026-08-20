@@ -1,18 +1,14 @@
 {
   "app": "App",
-  "backupFailed": "Couldn’t back up.",
   "backupInsideAvatar": "Avatar",
   "backupInsideContacts": "Contacts",
   "contact": "Contact",
   "contacts": "Contacts",
-  "developer": "Developer",
-  "groupNeedsTwo": "Select at least 2 people to create a group.",
   "handshakeReady": "",
-  "languagePending": "Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.",
-  "notDeliveredNoRetry": "Not delivered",
   "notifications": "Notifications",
   "ok": "OK",
+  "receivedFromLabel": "Received from",
+  "sentToLabel": "Sent to",
   "source": "Source: ",
-  "version": "Version",
-  "viewExplorerAddress": "View address in Explorer"
+  "version": "Version"
 }

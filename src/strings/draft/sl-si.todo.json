@@ -1,11 +1,6 @@
 {
-  "backupFailed": "Couldn’t back up.",
   "backupInsideAvatar": "Avatar",
-  "developer": "Developer",
-  "groupNeedsTwo": "Select at least 2 people to create a group.",
   "handshakeReady": "",
-  "languagePending": "Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.",
-  "notDeliveredNoRetry": "Not delivered",
-  "status": "Status",
-  "viewExplorerAddress": "View address in Explorer"
+  "receivedFromLabel": "Received from",
+  "sentToLabel": "Sent to"
 }

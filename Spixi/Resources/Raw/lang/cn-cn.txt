@@ -660,6 +660,7 @@ global-invalid-address-title = 无效地址
 global-invalid-address-text = 请输入有效地址。
 
 global-friend-request-accepted = {0} 已接受您的联系人请求。
+global-friend-request-connected = 你现在已与 {0} 建立联系。
 
 global-update-available = Spixi 有新版本可用 ({0})。请更新以获得最佳体验。
 global-modal-external-link-title = 外部链接

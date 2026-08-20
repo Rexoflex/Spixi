@@ -275,6 +275,12 @@ public partial class App : Application
     {
         isLockScreenActive = false;
         unlockedDate = DateTime.Now;
+        /* ★ #438 break-my-verdict MAJOR-2: AUTH IS THE DEFINITIVE RELEASE. Background
+         * while the lock is on screen and OnSleep raised a shield that nothing else
+         * would ever take down: the resume skips the lock branch (a lock is already up)
+         * and skips the guarded uncover, so the unlock removed the lock stage and
+         * revealed an opaque, input-swallowing cover for up to 8 seconds. */
+        SpixiContentPage.hidePrivacyShield();
         // Q4-③ review (MAJOR-1): the call surface is suppressed while locked. Re-assert
         // the current VoIP state on the next UI tick — a call that survived the lock
         // (still ringing, or still connected) gets its ring/bar back; no call = no-op.
@@ -337,6 +343,15 @@ public partial class App : Application
         // background gave Seconds==3 → no lock. TotalSeconds is the real elapsed time.
         if (isLockEnabled() && ts.TotalSeconds > 5 && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
+            /* ★ #438 — COVER FIRST, SYNCHRONOUSLY, BEFORE ANYTHING ELSE.
+             * #229 stages the lock's WebView hidden on the CURRENT page and presents it
+             * only once lock.html signals ready, so without this line the user's chat
+             * list stays on screen for that whole window — Damir measured about a
+             * second on Android, unauthenticated. The shield is dropped the moment the
+             * lock is actually visible (SpixiContentPage.presentPreload /
+             * presentPlainModal), and has an 8s safety release so a failed present can
+             * never strand the app behind it. */
+            SpixiContentPage.showPrivacyShield(true);   // true = a lock IS expected to present
             // Show the lock screen
             isLockScreenActive = true;
             OfflinePushMessages.resetCooldown();
@@ -366,6 +381,18 @@ public partial class App : Application
             return;
         }
 
+        /* #438: this resume does NOT lock (cooldown, own-intent round trip, lock off) —
+         * drop any shield OnSleep put down. Placed after the branch above so a resume
+         * that DOES lock never uncovers for a frame.
+         * ★ Audit MINOR-9: `isLockScreenActive` is already true while a lock is STAGING
+         * (the #229 window) and while one is up, and the branch above skips those. Both
+         * fall through to here, where an unguarded uncover would expose exactly the
+         * content the shield was raised over. */
+        if (!isLockScreenActive)
+        {
+            SpixiContentPage.hidePrivacyShield();
+        }
+
         if (MainPage != null && ((NavigationPage)MainPage).CurrentPage != null && ((NavigationPage)MainPage).CurrentPage is SpixiContentPage)
         {
             SpixiContentPage p = (SpixiContentPage)((NavigationPage)MainPage).CurrentPage;
@@ -384,6 +411,27 @@ public partial class App : Application
     protected override void OnSleep()
     {
         base.OnSleep();
+        /* ★ #438, the OTHER half. Android captures a snapshot of the visible window for
+         * the task switcher when the app goes to the background, and that snapshot is
+         * what it draws during the app-open animation — BEFORE OnResume runs. No
+         * resume-time cover can reach it. Putting the shield down on the way OUT means
+         * the recents thumbnail and the open animation both show the lock's ground
+         * instead of the conversation the user was reading.
+         * ⚠ Only while the lock is enabled: with no lock there is nothing to protect.
+         * 🟡 DAMIR'S DIAL (audit MINOR-8): with the lock ON this covers EVERY background,
+         * including an app switch shorter than the 5 s cooldown that will not lock on the
+         * way back — so those switches show the lock's ground in recents and for the open
+         * animation. That is the price of a protected thumbnail, and the alternative
+         * (only shielding after the cooldown) cannot work: OnSleep does not know how long
+         * the user will be away. Flip the guard to `false` here to trade it back. */
+        /* ★ break-my-verdict MAJOR-2: not while a lock is ALREADY up — the lock IS the
+         * cover, and shielding over it is how a shield gets stranded (nothing on the
+         * resume path would take it down) or, on the modal lock path, painted straight
+         * over the password field. */
+        if (isLockEnabled() && !isLockScreenActive)
+        {
+            SpixiContentPage.showPrivacyShield();
+        }
         isInForeground = false;
         IxianHandler.localStorage?.flush();
         Node.pause();

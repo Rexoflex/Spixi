@@ -228,6 +228,26 @@ namespace SPIXI
                     }
                 }
             }
+            else if (current_url.StartsWith("ixian:chatreply:", StringComparison.Ordinal))
+            {
+                // M1 reply-to. Grammar: ixian:chatreply:<reply-id-hex>:<url-encoded text>.
+                // ★ No prefix collision with "ixian:chat:" — the character after "chat"
+                // is 'r', not ':'. The shell only ever emits this behind the `reply`
+                // capability, which is OFF until a 2-device test passes.
+                string payload = current_url.Substring("ixian:chatreply:".Length);
+                int sep = payload.IndexOf(':');
+                if (sep > 0)
+                {
+                    onSend(payload.Substring(sep + 1), payload.Substring(0, sep));
+                }
+                else
+                {
+                    // Malformed → treat it as a plain message rather than dropping it.
+                    // Audit NIT-12: an EMPTY id ("ixian:chatreply::text") gives sep == 0,
+                    // so the separator must still be removed or the body keeps a leading ':'.
+                    onSend(sep == 0 ? payload.Substring(1) : payload);
+                }
+            }
             else if (current_url.StartsWith("ixian:chat:"))
             {
                 string msg = current_url.Substring("ixian:chat:".Length);
@@ -694,6 +714,17 @@ namespace SPIXI
             // on an old exe would otherwise wait 12 s after a SUCCESSFUL tip and then say it
             // may have failed; without the cap it keeps the old immediate-confirm behaviour.
             Utils.sendUiCommand(this, "setCaps", "tipResult");
+            /* ★ M1 REPLY-TO (#441/#448) — THE SHELL IS BUILT, THE CARRIER IS NOT.
+             * The whole FE surface (quote bubble, composer strip, menu action, jump,
+             * group @-mention prefill) is in place and the `ixian:chatreply:` verb is
+             * wired — but the protocol field lives in Ixian-Core, which is HELD OUT of
+             * this batch for the BE cutover. Until that lands, a reply degrades to a
+             * plain message.
+             * ⚠ So do NOT add ",reply" here yet: it would render a Reply action that
+             * silently drops the quote. The order is (1) land the Core patch in
+             * docs/be-cutover-ixian-core-reply-carrier.md, (2) restore the two seams
+             * marked "THE SEAM" in this file, (3) add ",reply", (4) run the 2-device
+             * checklist, and only then ship it un-gated. */
 
             warningDisplayed = false;
             unreadIndicatorDisplayed = false;
@@ -803,7 +834,7 @@ namespace SPIXI
             });
         }
 
-        public void onSend(string str)
+        public void onSend(string str, string reply_to_id_hex = "")
         {
             str = str.Trim(new char[] { ' ', '\t', '\r', '\n' });
             if (str.Length < 1)
@@ -831,11 +862,57 @@ namespace SPIXI
                 }
             }
 
+            /* ★ M1 REPLY-TO — THE CARRIER IS NOT HERE. Damir, 2026-08-20.
+             *
+             * The reply reference lives in Ixian-Core (`ChatStreamMessage.ReplyToId` +
+             * `FriendMessage.replyToId`), and Core is HELD OUT of this batch to be landed
+             * with the BE engineer at cutover — see
+             * `docs/be-cutover-ixian-core-reply-carrier.md`, which holds the exact patch.
+             *
+             * So this send is EXACTLY the pre-batch send: `SpixiMessageCode.chat`, a raw
+             * UTF-8 body, through `sendChatMessage`. ⚠ It deliberately does NOT use
+             * `sendChatStreamMessage`: stock Core passes a NULL StreamMessage id there
+             * (cutover ask 2), so the envelope id and the record id would disagree and
+             * every delivery and read tick would be lost.
+             *
+             * `reply_to_id_hex` is parsed and validated so the SEAM is exercised and the
+             * cutover diff is small — but with no field to put it in, a reply degrades to
+             * a plain message. Nothing can reach this today: the `reply` capability is
+             * declared by no `setCaps` call, so the shell cannot create one. */
+            if (!string.IsNullOrEmpty(reply_to_id_hex))
+            {
+                try
+                {
+                    byte[] parsed = Crypto.stringToHash(reply_to_id_hex);
+                    if (parsed == null || parsed.Length == 0 || parsed.Length > CoreConfig.maxMessageIdSize)
+                    {
+                        Logging.warn("Reply target id is not usable; sending a plain message.");
+                    }
+                    else
+                    {
+                        Logging.warn("Reply target received, but the Ixian-Core carrier is not landed yet; sending a plain message. See docs/be-cutover-ixian-core-reply-carrier.md.");
+                    }
+                }
+                catch (Exception)
+                {
+                    Logging.warn("Reply target id could not be parsed; sending a plain message.");
+                }
+            }
+
             SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chat, Encoding.UTF8.GetBytes(str), selectedChannel);
             byte[] spixi_msg_bytes = spixi_message.getBytes();
 
             // store the message and display it
             FriendMessage friend_message = Node.addMessageWithType(null, FriendMessageType.standard, friend.walletAddress, selectedChannel, str, true, null, 0, true, true, spixi_msg_bytes.Length);
+
+            // Audit NIT-11: addMessageWithType returns null when the friend is gone or the
+            // channel is invalid. Transmitting a message that was never stored or shown
+            // would leave the peer with something this device has no record of.
+            if (friend_message == null)
+            {
+                Logging.error("Chat message could not be stored — not sending it.");
+                return;
+            }
 
             // Finally, clear the input field
             Utils.sendUiCommand(this, "clearInput");
@@ -994,6 +1071,13 @@ namespace SPIXI
             UIHelpers.shouldRefreshContacts = true;
 
             StreamProcessor.sendAcceptAdd(friend, true);
+
+            // #434: the local accept writes the connected line too (see
+            // HomePage.writeConnectedLine — ONE implementation, two call sites).
+            // Node.addMessageWithType → UIHelpers.insertMessage already pushes the new
+            // line into a VISIBLE chat screen, so no extra refresh is needed here (and
+            // an updateScreen() would re-run the pending/waiting branches mid-accept).
+            HomePage.writeConnectedLine(friend);
         }
 
         public void onViewPayment(string msg_id)
@@ -2082,7 +2166,19 @@ namespace SPIXI
                 // Call webview methods on the main UI thread only
                 // D-5/N26 (#366): trailing `relation` arg — ADDITIVE (an older shell
                 // ignores extras; a missing arg reads as undefined → 'none' FE-side).
-                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString(), relation);
+                /* M1 reply-to: trailing arg, ADDITIVE (an older shell ignores extras; a
+                   missing arg reads as undefined → no quote). Hex, never raw bytes; the
+                   shell resolves it against its own loaded rows and degrades to a generic
+                   quote label when the original is outside the window.
+                   ★ THE SEAM. `FriendMessage.replyToId` lives in Ixian-Core, which is held
+                   out of this batch for the BE cutover — so this is always empty and no
+                   quote ever renders. The arg is pushed anyway so the shell contract, its
+                   signature and its pins all stay in place and the cutover is ONE line:
+                       message.replyToId != null && message.replyToId.Length > 0
+                           ? Crypto.hashToString(message.replyToId) : ""
+                   See docs/be-cutover-ixian-core-reply-carrier.md. */
+                string reply_to = "";
+                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)

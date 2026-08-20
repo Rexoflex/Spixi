@@ -69,6 +69,7 @@
 <link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
 <link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- A11 (#302): periodic backup reminder -->
 <link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- A5 (#302): store-rating prompt -->
+<link rel="stylesheet" href="../styles/components/scan-progress.css"><!-- #440/#443: blockchain-scan progress -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
@@ -371,6 +372,11 @@
     createWalletHero, setWalletBalance, setBalanceHidden,
     createWalletTxList, renderWalletTxList, setWalletQuery,
     createWalletFilters, createSearchField, attachWalletScroll,
+    createScanProgress, scanProgressState,
+    setScanProgress: applyScanProgress,   // #440/#443 — aliased: the bridge handler below
+                                         // has the same name, and an object METHOD is not in
+                                         // its own body's scope (the addReactions precedent)
+    openMissingTxSheet,                   // #452: the slim row opens it
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
@@ -1037,6 +1043,18 @@
     const id = sep > 0 ? raw.slice(0, sep) : raw;
     const ts = sep > 0 ? Number(raw.slice(sep + 1)) : 0;
     if (!ts || Date.now() - ts > 15000) return;             // stranded/stale → ignore
+    /* ★ N42 (#443): the Account screen gained a Contacts row, and there is no C#
+       verb for "go home and open the contacts directory" either — so it rides the
+       SAME hand-off. 'contacts' means: land on Chats, then open the directory
+       takeover. Nothing else about the trio changes. */
+    if (id === 'contacts') {
+      activeNav = 'chats';
+      setNavActive(nav, 'chats');
+      showView('chats');
+      bridge.send('ixian:tab:' + NAV_TO_TAB.chats);
+      openContacts('directory');
+      return;
+    }
     if (id === 'account' || !NAV_TO_TAB[id]) return;
     activeNav = id;
     setNavActive(nav, id);
@@ -1255,6 +1273,8 @@
   }
   if (document.documentElement.hasAttribute('data-desktop')) {
     document.getElementById('chats-header').append(header);
+    // ★ N43 (#443): attachChatsCollapse is now a no-op by design (see the component)
+    // — the desktop chats header no longer tucks away on a downward scroll.
     attachChatsCollapse(header, scroller);
   } else {
     scroller.insertBefore(header, list);
@@ -1807,16 +1827,37 @@
       has: (_t, k) => Object.prototype.hasOwnProperty.call(overrides, k) || (k in (window.SL || {})),
     });
   }
-  const walletStrings = slWith({
-    viewExplorer: strings.viewExplorerAddress || 'View address in Explorer',
-  });
+  /* ★ #443 (Damir): the address-scoped OVERRIDE is retired. A tx-scoped verb now
+     exists (ixian:txexplorer:<txid>, HomePage), so the tx sheet's button opens the
+     TRANSACTION and carries the component's own "View transaction on Explorer" copy.
+     The "Missing a transaction?" sheet keeps its own address-scoped label
+     (viewAllExplorer) and its own null-tx call below. */
+  /* Audit NIT-17: with the override gone this is a pass-through, and it stays a PROXY
+     on purpose — `?lang=pseudo` replaces window.SL with a get-trap proxy whose target is
+     empty, so anything that copies (Object.assign, spread) comes out blank and the whole
+     tab silently falls back to English literals. Delegating keeps a later setStrings()
+     swap live too. */
+  const walletStrings = slWith({});
+
+  /* ★ #440/#443: the last blockchain-scan report, kept so the "Missing a transaction?"
+     sheet can answer with the real state instead of a generic reassurance. Derived
+     from the SAME numbers the strip renders, so the two can never disagree. */
+  let scanState = null;
 
   const walletOpts = {
     strings: walletStrings, host: document.body,
-    // Only address-level `ixian:explorer` exists today → the tx passed by the sheet is
-    // ignored; opens the user's address on explorer.ixian.io (C# Browser.OpenAsync).
-    // tx-level explorer = W3, now served by the wallet_sent detail page below.
-    onExplorer: () => bridge.send('ixian:explorer'),
+    /* ★ #443: W3 CLOSED on this page too. A tx with an id opens the transaction
+       (ixian:txexplorer:<txid>, mirroring WalletSentPage:130); the "Missing a
+       transaction?" sheet passes null and still opens the ADDRESS, which is what it
+       is for. A tx without an id degrades to the address rather than a dead button. */
+    onExplorer: (tx) => bridge.send((tx && tx.txid)
+      ? 'ixian:txexplorer:' + tx.txid
+      : 'ixian:explorer'),
+    /* #440/#443: a GETTER, not a value — the "Missing a transaction?" sheet reads the
+       LIVE scan state when it opens. `null` until the first push, which is the correct
+       degrade on an exe that does not send setScanProgress: the sheet keeps its old
+       generic body and adds no false claim. */
+    scan: () => scanState,
     // zero-state CTA — the SAME Receive takeover the hero's Receive opens (hoisted fn)
     onReceive: () => mountWalletReceive(),
     // B3 (#256): tx tap → the FULL-PARITY detail page (redesigned wallet_sent.html).
@@ -2103,10 +2144,37 @@
   });
   const walletFilters = createWalletFilters(walletState, {
     strings: walletStrings, host: document.body, onExplorer: walletOpts.onExplorer,
+    scan: walletOpts.scan,   // #440/#443: live scan state for the "Missing a transaction?" sheet
     onFilter: (id) => bridge.send('ixian:filter:' + id),   // home.js:54 → C# filterTransactions
   });
   walletTools.append(walletSearch, walletFilters);
-  walletScroll.append(walletTools, walletList);
+
+  /* ★ #440/#443/#452 (Damir, variant A on a render): the scan is a SLIM ROW at the top
+     of the transaction list, and tapping it opens the "Missing a transaction?" sheet —
+     which is where the large ring and the fixed-starting-point explanation live. It is
+     hidden until C# says otherwise, so a caught-up client never sees it at all, and the
+     balance hero stays the only hero.
+     ★ ONE ENTRY POINT AT A TIME: while this row is up, the tools row's own
+     "Missing a transaction?" pill is hidden — see syncMissTxPill. The pill comes BACK
+     when the scan is current, because "where is my transaction" is asked hardest AFTER
+     the scan ends, and that is exactly when the row is gone. */
+  const scanProgress = createScanProgress({
+    strings: walletStrings,
+    onOpen: () => openMissingTxSheet({
+      host: document.body, strings: walletStrings,
+      onExplorer: walletOpts.onExplorer, scan: scanState,
+    }),
+  });
+  walletScroll.append(walletTools, scanProgress, walletList);
+
+  /* The pill lives inside the tools row that createWalletFilters built. Hide it by the
+     class the component gives it rather than by rebuilding the row — the row also owns
+     the #278 overflow measurement, and rebuilding it would re-run that on every push. */
+  function syncMissTxPill() {
+    const pill = walletFilters.querySelector('.c-wallet-misstx');
+    if (pill) pill.hidden = !scanProgress.hidden;
+  }
+  syncMissTxPill();
 
   const WALLET_FILTER_ORDER = ['all', 'sent', 'received'];
   function syncWalletFilterChips(f) {
@@ -2254,8 +2322,9 @@
   // search field and the layout toggle for the whole session (pre-D-17 it at
   // least showed live controls). Same philosophy as the chats stall watchdog:
   // degrade to "render what you have", never latch a dead surface.
-  appsHeader.dataset.unknown = '';
-  setTimeout(() => { delete appsHeader.dataset.unknown; }, 1500);
+  // ★ N43 (#443): the D-17 unknown GHOST is gone — the row is always visible, so
+  // there is no window to hide and nothing to watchdog. (apps-header.css carries the
+  // full note; the attribute and its watchdog are removed rather than left inert.)
   document.getElementById('apps-header').append(appsHeader);
   appsScroll.append(appsList);
 
@@ -2273,15 +2342,9 @@
     requestAnimationFrame(() => {
       appsRenderQueued = false;
       renderAppsList(appsList, appsState, appsOpts);
-      // ★ D-17 (#359): first knowledge — rows exist, or the zero gate opened.
-      // Drop the unknown ghost exactly once, in the same frame the answer paints.
-      if ('unknown' in appsHeader.dataset
-        && ((appsState.apps || []).length || appsOpts.zeroReady !== false)) {
-        delete appsHeader.dataset.unknown;
-      }
-      // dead controls off while there is nothing installed (search/layout toggle).
-      // Gated on the SAME flag as the empty state: collapsing the header during the
-      // load window and re-expanding it when the rows land is a visible layout jump.
+      // ★ N43 (#443, Damir): the search row stays even with nothing installed. The
+      // attribute is still reported so the state is inspectable; the CSS no longer
+      // acts on it. This call plus the retired ghost above IS the "apps flicker".
       setAppsHeaderEmpty(appsHeader, !(appsState.apps || []).length && appsOpts.zeroReady !== false);
     });
   }
@@ -2386,6 +2449,33 @@
     return t > 0 && (Date.now() - t) < RATING_SNOOZE_MS;
   }
 
+  /* ★ N80 (#443, decided #424): the store-rating prompt waits for the FIFTH app open.
+   * C# offers it from the first run (checkForRating → Preferences "rating_action"),
+   * which asks a user who has barely used Spixi to rate it — the least informed moment
+   * there is. The counter lives here because this shell is the one thing that boots
+   * once per app open and already owns the nudge queue.
+   * ⚠ A theme or language pick RELOADS this document, which would otherwise count as
+   * an "open". A reload lands within seconds of the previous boot, so a one-minute
+   * debounce separates the two. The cost of being wrong is one extra open, not a
+   * false prompt.
+   * Two values, both non-personal: a small integer and a timestamp. No user data
+   * enters storage (security gate). */
+  const RATING_OPENS_KEY = 'spixi.rating.opens';
+  const RATING_LAST_OPEN_KEY = 'spixi.rating.lastopen';
+  const RATING_MIN_OPENS = 5;
+  const RATING_OPEN_DEBOUNCE_MS = 60 * 1000;
+  let ratingOpens = Number(lsGet(RATING_OPENS_KEY) || 0) || 0;
+  (function countAppOpen() {
+    const last = Number(lsGet(RATING_LAST_OPEN_KEY) || 0) || 0;
+    const now = Date.now();
+    // A clock that moved backwards must not freeze the counter forever.
+    if (last && now >= last && (now - last) < RATING_OPEN_DEBOUNCE_MS) return;
+    ratingOpens = ratingOpens + 1;
+    lsSet(RATING_OPENS_KEY, String(ratingOpens));
+    lsSet(RATING_LAST_OPEN_KEY, String(now));
+  })();
+  function ratingTooEarly() { return ratingOpens < RATING_MIN_OPENS; }
+
   /* Every condition that must hold before ANY nudge may take the screen. */
   function nudgeContextClear() {
     if (nudgeOpen) return false;
@@ -2447,6 +2537,9 @@
         onDismiss: closeNudge,
       });
     } else if (kind === 'rating') {
+      // N80: too early is NOT a snooze — no stamp is written, so the prompt appears
+      // the moment the fifth open happens rather than a week later.
+      if (ratingTooEarly()) { pumpNudges(); return; }
       if (ratingSnoozed()) { pumpNudges(); return; }
       nudgeOpen = 'rating';
       showRatingNudge({
@@ -2837,6 +2930,24 @@
         fiat: (fiatBalance != null && fiatBalance !== '')
           ? '$' + groupAmountDisplay(zeroAmount(fiatBalance) ? '0.00' : fiatBalance) : '',
       });
+    },
+
+    /* ★ #440/#443 — the blockchain-scan progress. C# pushes three BLOCK NUMBERS on
+       its 1 Hz tick, and only when one of them changed:
+         current — how far the header scan has reached (IxianHandler.getLastBlockHeight)
+         target  — the network's height as a majority of connected peers reports it
+         origin  — the height this SESSION started from (never the baked checkpoint)
+       Zero on current or target means UNKNOWN, not 0% — the component owns that
+       distinction. An exe that does not send this leaves the strip hidden forever,
+       which is the correct degrade. */
+    setScanProgress(current, target, origin) {
+      applyScanProgress(scanProgress, {
+        current, target, origin, strings: walletStrings,
+      });
+      // Ask the component for its own reading rather than re-deriving it — a second
+      // percent calculation here is how two surfaces start disagreeing.
+      scanState = scanProgressState(scanProgress);
+      syncMissTxPill();
     },
 
     // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).

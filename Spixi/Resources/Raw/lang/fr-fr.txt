@@ -651,6 +651,7 @@ global-invalid-address-title = Cette adresse n'a pas fonctionné
 global-invalid-address-text = Veuillez entrer une adresse valide.
 
 global-friend-request-accepted = {0} a accepté votre demande de contact.
+global-friend-request-connected = Vous êtes maintenant en contact avec {0}.
 
 global-update-available = Une nouvelle version de Spixi est disponible ({0}). Mettez à jour pour profiter de la meilleure expérience.
 global-modal-external-link-title = Lien externe

@@ -673,6 +673,7 @@ global-invalid-address-title = Ta naslov ne deluje
 global-invalid-address-text = Prosimo, vnesite veljaven naslov.
 
 global-friend-request-accepted = {0} je sprejel vašo zahtevo za stik.
+global-friend-request-connected = Zdaj ste povezani z {0}.
 
 global-update-available = Na voljo je nova različica aplikacije Spixi ({0}). Prosimo, posodobite za najboljšo izkušnjo.
 global-modal-external-link-title = Zunanji link

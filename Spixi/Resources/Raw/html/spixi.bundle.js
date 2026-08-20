@@ -7145,6 +7145,18 @@ const CHATS_REVEAL_AT = 1;
  * toggle only on collapse⇄reveal transitions.
  */
 function attachChatsCollapse(headerEl, scrollEl, { reducedMotion } = {}) {
+  /* ★ N43 (#443, Damir): THE SEARCH BAR IS ALWAYS VISIBLE. His answer to "show the
+   * search only when the content overflows" was the opposite — never hide it — and a
+   * bar that vanishes on a downward scroll and returns at the top is the same defect
+   * from the other side. It also explains the "flicker" he reported on Apps: the
+   * flicker WAS the bar disappearing and reappearing.
+   * Kept as a live attachment rather than deleted at the call sites so the behaviour
+   * is one flag from returning (the R3 reversal-hook pattern) and so the a11y
+   * teardown contract, the demo and the smoke pins all stay honest. */
+  const N43_ALWAYS_VISIBLE = true;
+  if (N43_ALWAYS_VISIBLE) {
+    return function detachChatsCollapse() { /* nothing was attached */ };
+  }
   const rm = reducedMotion != null ? reducedMotion
     : (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -8986,6 +8998,232 @@ function setWalletHeroCompact(el, compact) {
   return el;
 }
 
+/* ---- src/components/scan-progress.js ---- */
+/* Blockchain-scan progress — the slim row (#440 / #443 / #452, Damir's variant A).
+ *
+ * WHAT THIS REPORTS, AND WHY THE COPY MATTERS. Spixi's TIV runs in `Minimal` mode: it
+ * walks block HEADERS against a cuckoo filter of the user's OWN addresses, looking for
+ * transactions that involve them. It is NOT downloading a chain. "Syncing the
+ * blockchain" oversells it and invites the one question we do not want, so every string
+ * here talks about looking for the user's transactions.
+ *
+ * ★ SHAPE (Damir, on device): a SLIM ROW at the top of the transaction list — ring, one
+ * line of text, the percentage, a chevron — that OPENS the "Missing a transaction?"
+ * sheet. The full card with the large ring lives in that sheet. The row exists only
+ * while there is something to report; when the scan is current the sheet's own pill
+ * comes back, because "where is my transaction" is asked hardest AFTER the scan ends.
+ *
+ * ★ ZERO MEANS UNKNOWN, NOT 0%. `getLastBlockHeight()` is 0 before the first header
+ * lands and `determineHighestNetworkBlockNum()` is 0 with no peers — dividing them gives
+ * a confident, wrong 0%. The INDETERMINATE state is that moment: a rotating ring and NO
+ * percentage. It pairs with the N19 connecting line and resolves to a filling ring the
+ * moment both numbers are real.
+ *
+ * ★ THE ORIGIN IS THE CATCH-UP, NOT THE SESSION (#451). C# persists it: closing the app
+ * at 6% and reopening must show 6%, because the scan itself never lost its place —
+ * TransactionInclusion.start resumes from the highest stored header. The origin is
+ * cleared once current, so a week away is a NEW catch-up that starts at 0%.
+ *
+ * It STEPS rather than glides: TIV pulls headers 250 at a time. That is honest.
+ *
+ * createScanProgress+({ strings, onOpen }) -> section, hidden until setScanProgress says
+ *   otherwise. onOpen is the tap target: the shell routes it to the missing-tx sheet.
+ * setScanProgress(el, { current, target, origin, strings }) -> el
+ * scanProgressState(el) -> { state, percent } for whoever needs to mirror it.
+ * createScanRing({ size, stroke, showPercent }) -> svg  — shared by the sheet card.
+ * setScanRing(svg, { percent, indeterminate })
+ */
+
+
+
+/** Parse a bridge number arg: '' / null / NaN / negative -> 0, meaning UNKNOWN. */
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/* ————— the ring, shared by the row and the sheet card ————————————————————————
+ * One implementation, two sizes. The row's ring is a MOTION CUE — at 6% its arc is a
+ * sliver and the NUMBER beside it is what gets read. The sheet's ring is a real object
+ * and carries the number inside. Damir chose both on a render rather than in the
+ * abstract, which is the #433 lesson. */
+function createScanRing({ size = 20, stroke = 3, showPercent = false } = {}) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('c-scanring');
+
+  const r = size / 2 - stroke / 2;
+  const circumference = 2 * Math.PI * r;
+
+  const track = document.createElementNS(NS, 'circle');
+  track.setAttribute('class', 'c-scanring__track');
+  track.setAttribute('cx', String(size / 2));
+  track.setAttribute('cy', String(size / 2));
+  track.setAttribute('r', String(r));
+  track.setAttribute('fill', 'none');
+  track.setAttribute('stroke-width', String(stroke));
+
+  const arc = document.createElementNS(NS, 'circle');
+  arc.setAttribute('class', 'c-scanring__arc');
+  arc.setAttribute('cx', String(size / 2));
+  arc.setAttribute('cy', String(size / 2));
+  arc.setAttribute('r', String(r));
+  arc.setAttribute('fill', 'none');
+  arc.setAttribute('stroke-width', String(stroke));
+  arc.setAttribute('stroke-linecap', 'round');
+  arc.setAttribute('stroke-dasharray', String(circumference));
+  arc.setAttribute('stroke-dashoffset', String(circumference));
+  arc.setAttribute('transform', 'rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')');
+
+  svg.append(track, arc);
+
+  let label = null;
+  if (showPercent) {
+    label = document.createElementNS(NS, 'text');
+    label.setAttribute('class', 'c-scanring__label');
+    label.setAttribute('x', '50%');
+    label.setAttribute('y', '50%');
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dominant-baseline', 'central');
+    svg.append(label);
+  }
+  svg._ring = { circumference, arc, label };
+  return svg;
+}
+
+function setScanRing(svg, { percent = 0, indeterminate = false } = {}) {
+  if (!svg || !svg._ring) return svg;
+  const { circumference, arc, label } = svg._ring;
+  if (indeterminate) {
+    svg.dataset.indeterminate = '';
+    // a fixed quarter-arc; the CSS rotates the whole ring
+    arc.setAttribute('stroke-dashoffset', String(circumference * 0.75));
+    if (label) label.textContent = '';
+    return svg;
+  }
+  delete svg.dataset.indeterminate;
+  const p = Math.max(0, Math.min(100, Number(percent) || 0));
+  arc.setAttribute('stroke-dashoffset', String(circumference * (1 - p / 100)));
+  if (label) label.textContent = p + '%';
+  return svg;
+}
+
+/* ————— the slim row ————————————————————————————————————————————————————————— */
+function createScanProgress({ strings = getStrings(), onOpen } = {}) {
+  const el = document.createElement('section');
+  el.className = 'c-scanprog';
+  el.hidden = true;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'c-scanprog__row';
+  if (onOpen) btn.addEventListener('click', onOpen);
+
+  const ring = createScanRing({ size: 20, stroke: 3 });
+
+  const text = document.createElement('span');
+  text.className = 'c-scanprog__text';
+  /* ★ The live region is on the TEXT, not the section. C# pushes at 1 Hz, so a
+     section-level region re-announced the whole row once a second for the entire
+     catch-up. The text only changes on a STATE change, which is the part worth
+     announcing; the percentage is available on demand from the progressbar. */
+  text.setAttribute('aria-live', 'polite');
+  text.textContent = strings.chainScanTitle || 'Checking for your transactions';
+
+  const pct = document.createElement('span');
+  pct.className = 'c-scanprog__pct u-tabular';
+  pct.setAttribute('role', 'progressbar');
+  pct.setAttribute('aria-valuemin', '0');
+  pct.setAttribute('aria-valuemax', '100');
+  pct.setAttribute('aria-label', strings.chainScanTitle || 'Checking for your transactions');
+
+  const chev = document.createElement('span');
+  chev.className = 'c-scanprog__chev';
+  chev.setAttribute('aria-hidden', 'true');
+  chev.append(icon('chevron-right', { size: 16 }));
+
+  btn.append(ring, text, pct, chev);
+  el.append(btn);
+  el._parts = { btn, ring, text, pct };
+  return el;
+}
+
+/** The row's own reading, for anything that must agree with it (the sheet). */
+function scanProgressState(el) {
+  if (!el) return { state: 'done', percent: 100 };
+  if (el.hidden) return { state: 'done', percent: 100 };
+  return {
+    state: el.dataset.state === 'unknown' ? 'unknown' : 'scanning',
+    percent: Number(el.dataset.percent) || 0,
+  };
+}
+
+function setScanProgress(el, { current, target, origin, strings = getStrings() } = {}) {
+  if (!el || !el._parts) return el;
+  const { ring, text, pct } = el._parts;
+
+  const cur = num(current);
+  const tgt = num(target);
+  const org = num(origin);
+
+  /* ★ WHEN IS A CLIENT "CAUGHT UP".
+   * `getHighestKnownNetworkBlockHeight()` is max(our height, a peer majority that is
+   * itself extrapolated from the last block's timestamp) — so a fully synced phone reads
+   * target = current + 1 for the window between "a block is due" and "TIV fetched it",
+   * about once every 30 seconds. With only a `cur >= tgt` test the row appeared at 98%,
+   * vanished and reappeared, moving the transaction list each time.
+   * So: a LAG THRESHOLD, and it is HYSTERETIC — a wide band to appear, a narrow one to
+   * disappear — keyed on whether we were already reporting a SCAN. ⚠ NOT on visibility:
+   * the indeterminate state un-hides, and C# guarantees an unknown frame on every boot,
+   * so a visibility-keyed test judged the first real frame against the narrow band and
+   * rendered 0% on a caught-up phone. */
+  const SHOW_LAG = 20;
+  const HIDE_LAG = 2;
+  const showing = el.dataset.state === 'scanning';
+  if (cur > 0 && tgt > 0) {
+    const lag = tgt - cur;
+    if (lag <= (showing ? HIDE_LAG : SHOW_LAG)) {
+      el.hidden = true;
+      delete el.dataset.state;
+      delete el.dataset.percent;
+      return el;
+    }
+  }
+
+  // ★ UNKNOWN. Either end at zero means "we have not been told yet" — never 0%.
+  if (cur === 0 || tgt === 0) {
+    el.hidden = false;
+    el.dataset.state = 'unknown';
+    delete el.dataset.percent;
+    setScanRing(ring, { indeterminate: true });
+    text.textContent = strings.chainScanConnecting || 'Connecting';
+    pct.textContent = '';
+    pct.removeAttribute('aria-valuenow');
+    return el;
+  }
+
+  /* The origin is the height this catch-up started from, persisted by C# (#451). An
+   * absent or impossible one falls back to the current height, which reads 0% and climbs
+   * rather than going negative or past 100. */
+  const base = (org > 0 && org < cur) ? org : cur;
+  const span = tgt - base;
+  const done = cur - base;
+  const p = span > 0 ? Math.max(0, Math.min(99, Math.round((done / span) * 100))) : 0;
+
+  el.hidden = false;
+  el.dataset.state = 'scanning';
+  el.dataset.percent = String(p);
+  setScanRing(ring, { percent: p });
+  text.textContent = strings.chainScanTitle || 'Checking for your transactions';
+  pct.textContent = p + '%';
+  pct.setAttribute('aria-valuenow', String(p));
+  return el;
+}
+
 /* ---- src/components/wallet-shell.js ---- */
 /**
  * c-wallet-shell — Wallet flow shell, slice 1 (spec docs/wallet-shell-spec.md, #133/#134):
@@ -9018,6 +9256,7 @@ function setWalletHeroCompact(el, compact) {
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
  */
+
 
 
 
@@ -9082,8 +9321,14 @@ function walletEmpty(state, strings, opts = {}) {
   if (!q && f === 'all') {
     if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/wallet-es.png',
-      glyph: 'wallet',                              // art blocked/missing → token glyph tile
+      /* ★ #453 (Damir on device): NO illustration on the wallet zero state. The hero
+         already owns ~300px above this block, so the art pushed the one action that
+         matters — "Show my address" — toward the bottom nav, and it said nothing the
+         headline did not. The `glyph` below is what renders instead: a small token tile,
+         which is also the path this state already took whenever the art failed to load.
+         A host that WANTS art can still pass `emptyArt` explicitly. */
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
+      glyph: 'wallet',                              // the tile — now the default, not the fallback
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
       // sentence ("share your address…") only restated the CTA. In de-de it wrapped
@@ -9213,6 +9458,9 @@ function createWalletFilters(state, opts = {}) {
   miss.title = strings.missingTx || 'Missing a transaction?';   // #278: desktop hover keeps the wording when compacted
   miss.addEventListener('click', () => openMissingTxSheet({
     host: opts.host, strings, onExplorer: opts.onExplorer,
+    // #440/#443: opts.scan is a GETTER, read at open time — the scan state moves while
+    // the wallet is on screen, and a value captured at build time would go stale.
+    scan: typeof opts.scan === 'function' ? opts.scan() : opts.scan,
   }));
   row.append(miss);
   // #278 (Damir F5: pill cut off in the desktop pane): the 360px viewport query
@@ -9289,8 +9537,24 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 
     const input = tools.querySelector('input');
     return !!(input && input.value.trim());
   };
+  /* ★ N43 (#443, Damir): the wallet SEARCH + FILTER row never hides. Same ruling as
+   * the chats header — "always visible" — so the tuck-away half of this behaviour is
+   * off while the HERO collapse (which he likes, and which is a different affordance)
+   * stays. One flag from returning. */
+  const N43_ALWAYS_VISIBLE = true;
   const setTools = (hiddenFlag) => {
     if (!tools) return;
+    if (N43_ALWAYS_VISIBLE) {
+      // Clear any tuck a previous build (or a previous attach) left behind, then stop.
+      // Audit MINOR-12: onScroll calls this on every scroll event, so bail before the
+      // querySelectorAll when there is nothing tucked (the normal case, forever).
+      if (hiddenFlag || !('hidden' in tools.dataset)) return;
+      delete tools.dataset.hidden;
+      tools.removeAttribute('aria-hidden');
+      if ('inert' in tools) tools.inert = false;
+      for (const f of tools.querySelectorAll('button, input')) f.removeAttribute('tabindex');
+      return;
+    }
     if (hiddenFlag) {
       if (toolsBusy()) return;
       tools.dataset.hidden = '';
@@ -9304,6 +9568,8 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 
       for (const f of tools.querySelectorAll('button, input')) f.removeAttribute('tabindex');
     }
   };
+
+  setTools(false);   // N43: start (and stay) revealed, whatever a previous attach left
 
   const onScroll = () => {
     const top = scrollEl.scrollTop;
@@ -9389,7 +9655,9 @@ function sheetRow(label, value) {
   return r;
 }
 
-function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {}) {
+let txSheetSeq = 0;   // unique ids for the N25 disclosure's aria-controls
+
+function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -9414,14 +9682,30 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
     dir.append(icon(tx.direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', { size: 24 }));
     head.append(dir);
   }
+  /* ★ B2 (#453, Damir on device): the header is TWO LINES, the chat-row grammar — a small
+     kicker over the counterparty — instead of one sentence that wrapped a 65-character
+     address across three lines. The kicker is body-sm/neutral-02; the name keeps the
+     label-lg the title already used, which is what makes the two read as one object.
+     With no counterparty there is nothing to put underneath, so it stays a single line. */
   const htext = document.createElement('div');
   htext.className = 'c-txsheet__headtext';
   const title = document.createElement('h2');
   title.className = 'c-txsheet__title';
-  title.textContent = tx.direction === 'in'
-    ? (isContact ? ((strings.receivedFrom || 'Received from {name}').split('{name}').join(tx.name)) : (strings.received || 'Received'))
-    : (isContact ? ((strings.sentTo || 'Sent to {name}').split('{name}').join(tx.name)) : (strings.sent || 'Sent'));
-  htext.append(title);
+  if (isContact) {
+    const kicker = document.createElement('span');
+    kicker.className = 'c-txsheet__kicker';
+    kicker.textContent = tx.direction === 'in'
+      ? (strings.receivedFromLabel || 'Received from')
+      : (strings.sentToLabel || 'Sent to');
+    const who = document.createElement('span');
+    who.className = 'c-txsheet__who';
+    who.textContent = tx.name;
+    htext.append(kicker, title);
+    title.append(who);
+  } else {
+    title.textContent = tx.direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent');
+    htext.append(title);
+  }
   head.append(htext);
   head.append(createBadge({ label: strings[meta.key] || meta.label, type: meta.type, weight: 'tonal', icon: meta.glyph }));
   content.append(head);
@@ -9439,6 +9723,18 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
     content.append(fiat);
   }
 
+  /* ★ N25 (#443, Damir): everything below the amount is SECONDARY — the address, the
+     date, the fee and the transaction id — and it used to make the sheet a wall of
+     monospace the moment it opened. It now lives behind a "See details" disclosure so
+     the sheet answers the first question (how much, to whom, did it go through) in one
+     glance, and the forensic half is one tap away.
+     Status stays OUTSIDE the disclosure: it is the other half of "did it go through". */
+  const details = document.createElement('div');
+  details.className = 'c-txsheet__details';
+  details.hidden = true;
+  txSheetSeq += 1;
+  const detailsId = 'c-txsheet-details-' + txSheetSeq;
+
   /* address — member-sheet addr-chip pattern (#99): FULL address, wrapping, working copy.
      Labelled by WHOSE address it is (Damir #135): received → sender's, sent → recipient's. */
   if (tx.address) {
@@ -9454,11 +9750,15 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
     addr.className = 'c-txsheet__addrvalue u-tabular';
     addr.textContent = tx.address;
     addrRow.append(addr, copyButton(tx.address, addrLabel.textContent, strings));
-    content.append(addrLabel, addrRow);
+    details.append(addrLabel, addrRow);   // N25
   }
 
   /* meta — rows render only when the bridge provided the field (data-honest);
      Status always renders (legacy confirmation enum incl. unknown, Damir #134) */
+  /* ★ D2 (#453, Damir on device): Status moved INTO the drawer, below the address and
+     above the date. The badge in the header already says it, so a Status row in the
+     collapsed view said the same thing twice on the one screen where the glance matters.
+     It stays available — just one tap down, with the rest of the forensic detail. */
   const metaBox = document.createElement('div');
   metaBox.className = 'c-txsheet__meta';
   const rows = [
@@ -9498,16 +9798,58 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
     rows.push(idRow);
   }
   metaBox.append(...rows);
-  content.append(metaBox);
+  details.append(metaBox);
 
-  /* explorer — routes through the external-link confirm in the shell (onExplorer duty) */
+  /* N25 disclosure. Rendered only when there is something to disclose — a row with
+     no address, no date, no fee and no id would otherwise offer an empty drawer.
+     ★ Audit MINOR-8: `disclose:false` for a host whose whole PURPOSE is those fields.
+     wallet_sent.html is the transaction DETAIL page — hiding the detail behind a tap
+     there inverts the screen, and its #285 "Show amounts" reveal re-renders, which
+     would have collapsed the drawer again every time. */
+  if (details.children.length && !disclose) {
+    content.append(details);
+    details.hidden = false;
+  } else if (details.children.length) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'c-txsheet__disclose';
+    toggle.setAttribute('aria-expanded', 'false');
+    const tlabel = document.createElement('span');
+    tlabel.textContent = strings.seeDetails || 'See details';
+    const chev = icon('chevron-down', { size: 18 });
+    chev.classList.add('c-txsheet__chev');
+    toggle.append(tlabel, chev);
+    toggle.setAttribute('aria-controls', detailsId);   // audit NIT-18
+    details.id = detailsId;
+    toggle.addEventListener('click', () => {
+      const open = details.hidden;
+      details.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      if (open) toggle.dataset.open = ''; else delete toggle.dataset.open;
+      tlabel.textContent = open ? (strings.hideDetails || 'Hide details')
+                                : (strings.seeDetails || 'See details');
+    });
+    content.append(toggle, details);
+  }
+
+  /* explorer — routes through the external-link confirm in the shell (onExplorer duty).
+     ★ #443 (Damir): this opens the TRANSACTION, so it says so. The old copy came from
+     the address-only verb the wallet tab used to have. */
   if (onExplorer) {
     content.append(createButton({
-      label: strings.viewExplorer || 'View in Explorer', type: 'outline', size: 44, width: 'full',
+      label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
       icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
       onClick: latched(() => sheet, () => onExplorer(tx)),
     }));
   }
+
+  /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every
+     other sheet in the app offers a text action; this one lost it when the explorer CTA
+     was added below it. `type: 'text'` so it never competes with the explorer button. */
+  content.append(createButton({
+    label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
+    onClick: () => closeSheet(sheet),
+  }));
 
   const sheet = createSheet({ content, host, strings, title: '' });   // head carries the identity
   sheet.setAttribute('aria-label', strings.txDetails || 'Transaction details');
@@ -9517,7 +9859,7 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer } = {})
 
 /* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
 
-function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
+function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = null } = {}) {
   const content = document.createElement('div');
   content.className = 'c-misstx';
   const body = document.createElement('p');
@@ -9525,6 +9867,52 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer } = {}) {
   body.textContent = strings.missingTxBody
     || 'Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here.';
   content.append(body);
+
+  /* ★ #440/#443/#452: this sheet finally has a CONCRETE answer, and it is TWO answers.
+   *
+   * ① While a scan is running, the scan IS the answer — shown as a card with the large
+   *    ring, the same reading the slim row on the wallet shows, because the row is what
+   *    opened this sheet.
+   * ② ★ AND ALWAYS, running or not: Spixi only looks at blocks from a FIXED STARTING
+   *    POINT built into the app and never walks back past it, so a transaction older
+   *    than that point will never be listed here no matter how long anyone waits. The
+   *    sheet used to end at "the scan is finished, so that is not why", which closes off
+   *    the true explanation at exactly the moment it is needed (Damir, on device). That
+   *    also makes the Explorer button the real resolution rather than a consolation. */
+  if (scan && (scan.state === 'scanning' || scan.state === 'unknown')) {
+    const card = document.createElement('div');
+    card.className = 'c-misstx__scancard';
+    card.dataset.state = scan.state;
+
+    const ring = createScanRing({ size: 56, stroke: 5, showPercent: scan.state === 'scanning' });
+    if (scan.state === 'unknown') setScanRing(ring, { indeterminate: true });
+    else setScanRing(ring, { percent: Number(scan.percent) || 0 });
+
+    const col = document.createElement('div');
+    col.className = 'c-misstx__scancol';
+    const h = document.createElement('p');
+    h.className = 'c-misstx__scanhead';
+    const b = document.createElement('p');
+    b.className = 'c-misstx__scanbody';
+    if (scan.state === 'scanning') {
+      h.textContent = strings.chainScanTitle || 'Checking for your transactions';
+      b.textContent = strings.chainScanNote
+        || 'Spixi is looking through recent blocks for transactions that involve your address.';
+    } else {
+      h.textContent = strings.chainScanConnecting || 'Connecting';
+      b.textContent = strings.chainScanNoteUnknown
+        || 'Spixi will check for transactions that involve your address once it reaches the network.';
+    }
+    col.append(h, b);
+    card.append(ring, col);
+    content.append(card);
+  }
+
+  const origin = document.createElement('p');
+  origin.className = 'c-misstx__origin';
+  origin.textContent = strings.missingTxOldest
+    || 'Spixi only checks blocks from a fixed starting point. Transactions older than that are not listed here. The Explorer has your full history.';
+  content.append(origin);
 
   const actions = document.createElement('div');
   actions.className = 'c-misstx__actions';
@@ -15163,7 +15551,8 @@ function looksLikeAddress(a) {
 }
 
 function createAddContact({
-  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
+  onCheckAddress, onSendRequest, onScan, onOpened, onBack, onViewContact,
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-add';
@@ -15216,6 +15605,25 @@ function createAddContact({
   err.hidden = true;
   group.append(err);
 
+  /* #435(b): the "you already know this address" affordance. NOT an error and NOT a
+     tick — an address already in your contacts is not a failure, it is a different
+     outcome, and legacy answered it with a line plus a way to get there. role=status
+     (not alert) for the same reason. */
+  const known = document.createElement('div');
+  known.className = 'c-contacts-add__known';
+  known.setAttribute('role', 'status');
+  known.hidden = true;
+  const knownText = document.createElement('p');
+  knownText.className = 'c-contacts-add__known-text';
+  known.append(knownText);
+  const knownBtn = createButton({
+    label: strings.viewContact || 'View contact', type: 'outline', size: 32,
+  });
+  knownBtn.classList.add('c-contacts-add__known-btn');
+  knownBtn.hidden = true;
+  known.append(knownBtn);
+  group.append(known);
+
   body.append(group);
 
   // Primary CTA directly beneath the address field + helper/error line (was pinned to
@@ -15230,7 +15638,58 @@ function createAddContact({
   let checkTimer = 0;
   let latched = false;   // F5: true once a send has succeeded and sendBtn is latched disabled
 
-  const setError = (msg) => { err.textContent = msg; err.hidden = !msg; };
+  let knownAddress = '';   // set while the field holds an address we already know
+  let lastChecked = '';    // the value the in-flight checkAddress was issued for
+
+  /* #435(a) — THE ONE-LINE BUG, and it was not cosmetic. setError only ever touched
+     the error line, and `valid.hidden = true` ran only at the TOP of validate() —
+     i.e. on the next KEYSTROKE. So the screen showed a green "this address is valid"
+     and a red "it could be invalid or already in your contacts" AT THE SAME TIME,
+     at exactly the moment the user needs to trust what it says. An error now clears
+     the tick, and the known-contact panel with it. */
+  const setError = (msg) => {
+    err.textContent = msg;
+    err.hidden = !msg;
+    if (msg) { valid.hidden = true; setKnown(null); }
+  };
+
+  /* #435(b): render (or clear) the known-address answer. kind 'contact' = already in
+     contacts → line + View contact; 'self' = your own address → line only, there is
+     nothing to view. Anything else clears. Also clears the ✓, for the same reason
+     setError does: two statements about one address must never be on screen at once. */
+  function setKnown(info) {
+    if (!info || (info.kind !== 'contact' && info.kind !== 'self')) {
+      knownAddress = '';
+      known.hidden = true;
+      knownBtn.hidden = true;
+      sendBtn.disabled = false;        // audit MINOR-6: the CTA comes back with the panel
+      return;
+    }
+    valid.hidden = true;
+    err.hidden = true;
+    err.textContent = '';
+    if (info.kind === 'self') {
+      knownAddress = '';
+      knownText.textContent = strings.ownAddressNote || 'This is your own address.';
+      knownBtn.hidden = true;
+    } else {
+      knownAddress = info.address || '';
+      const who = (info.nick || '').trim();
+      knownText.textContent = who
+        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', who))
+        : (strings.alreadyContact || 'This address is already in your contacts.');
+      knownBtn.hidden = !knownAddress || !onViewContact;
+    }
+    known.hidden = false;
+    /* ★ Audit MINOR-6: DISABLE the CTA rather than let it be tapped and do nothing.
+       The submit guard below stays as a belt, but a button that silently ignores a tap
+       is the dead-end class this batch is removing elsewhere — the panel explains why,
+       and the button now agrees with it. */
+    sendBtn.disabled = true;
+  }
+  knownBtn.addEventListener('click', () => {
+    if (knownAddress && onViewContact) onViewContact(knownAddress);
+  });
 
   // F5: a new, non-empty address after a latched success makes the screen usable
   // again (rather than being permanently stuck on "Request sent"). setSuccess()
@@ -15243,12 +15702,14 @@ function createAddContact({
 
   const validate = () => {
     valid.hidden = true;
+    setKnown(null);          // #435(b): a new keystroke retires the previous answer
     setError('');
     clearTimeout(checkTimer);
     if (!onCheckAddress) return;
     const v = input.value.trim();
     if (v.length < ADDR_MIN || v.length > ADDR_MAX) return;
     checkTimer = setTimeout(() => {
+      lastChecked = v;   // #435(b): staleness key for the async onKnownAddress answer
       const ctrl = contactsCtrl(
         // stale-reply guard + F1: never reveal ✓ while a request is in flight
         // (a slow checkAddress reply must not flash valid on a disabled/latched field)
@@ -15266,6 +15727,14 @@ function createAddContact({
     const a = input.value.trim();
     if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
+      return;
+    }
+    /* #435(b): a duplicate never reaches ixian:request. C# would reject it with a
+       NATIVE alert and no push back, which is the known wedge that leaves Send
+       latched in "loading" for 6 s (see contact_new.html). Same reasoning as
+       looksLikeAddress blocking obvious garbage locally. */
+    if (knownAddress || !known.hidden) {
       input.focus();
       return;
     }
@@ -15308,6 +15777,21 @@ function createAddContact({
     isInFlight: () => inFlight,
     isLatched: () => latched,
     unlatch,
+    // #435(b): the async known-address answer, with the same staleness rule the ✓ uses
+    applyKnown: (info) => {
+      if (inFlight) return false;                            // a send is round-tripping
+      if (!info) { setKnown(null); return true; }
+      /* ★ Audit MINOR-5: correlate against the address the ANSWER IS FOR, not against
+         the latest check. Paste a known address, then paste a new one before the reply
+         lands: the debounce had already moved `lastChecked` on, so the old answer passed
+         the guard and latched "already in your contacts" onto a brand-new address — and
+         the CTA then refused to send it. C# echoes the string it was asked about. */
+      const forAddr = (info.checked || '').trim();
+      if (forAddr) { if (input.value.trim() !== forAddr) return false; }
+      else if (lastChecked && input.value.trim() !== lastChecked) return false;   // old exe: best effort
+      setKnown(info);
+      return true;
+    },
   });
   return el;
 }
@@ -15322,6 +15806,20 @@ function setAddContactAddress(el, address) {
   if (st.isLatched() && next && next !== st.input.value) st.unlatch();
   st.input.value = next;
   st.validate();
+}
+
+/** #435(b): the C# answer to checkAddress — 'contact' (already known), 'self', or
+ *  null/'' to clear. Applied only while the field still holds the checked value. */
+function setAddContactKnown(el, kind, address, nick, checked) {
+  const st = addState.get(el);
+  if (!st || !st.applyKnown) return false;
+  if (!kind) { return !!st.applyKnown(null); }
+  return !!st.applyKnown({
+    kind: String(kind),
+    address: address == null ? '' : String(address),
+    nick: nick == null ? '' : String(nick),
+    checked: checked == null ? '' : String(checked),   // the address this answer is FOR (audit MINOR-5)
+  });
 }
 
 /* ————————————————————————— group setup ————————————————————————— */
@@ -16735,6 +17233,8 @@ function createSettingsHub({
   host,
   onNickname,                    // (nick, ctrl) — shell fires ixian:save:<nick>
   onShare,                       // ({ address }) — NO legacy share command (§9, wallet-receive precedent); shell can navigator.share
+  onAddressInfo,                 // #443: ⓘ beside copy/share — explains what the address IS
+  onContacts,                    // ★ N42 (#443): open the contacts directory from Account
   onAvatarChange,                // (ctrl) — ixian:avatar picker; ctrl.done({ src })
   onAvatarRemove,                // (ctrl) — ixian:remove
   onTheme,                       // (index, ctrl) — ixian:appearance:<int>
@@ -17020,6 +17520,22 @@ function createSettingsHub({
       row.append(share);
     }
     hero.append(row);
+
+    /* ★ #443 (Damir V1, Account clarity): the address sat on the screen with a QR above
+       it and nothing saying what either is FOR.
+       ⚠ #453: this was an ⓘ INSIDE the address row, which put three 32px icon buttons in
+       a chip that is already holding a 65-character address — cramped, and it made the
+       share button harder to hit. It is its own text action under the row now: says what
+       it does, needs no legend, and leaves the chip alone. */
+    if (onAddressInfo) {
+      const info = createButton({
+        label: strings.whatIsThisAddress || 'What is this address?',
+        type: 'text', size: 32,
+        onClick: () => onAddressInfo({ address }),
+      });
+      info.classList.add('c-settings__addrinfo');
+      hero.append(info);
+    }
   }
   body.append(hero);
 
@@ -17149,6 +17665,17 @@ function createSettingsHub({
 
   /* ——— preferences ——— */
   const prefs = group(strings.preferences || 'Preferences');
+
+  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
+     ever reachable from the chats topbar, which is not where someone looks for "my
+     people". Opt-in: a host that cannot route there passes no handler and no row
+     appears. */
+  if (onContacts) prefs.card.append(settingRow({
+    glyph: 'users', hue: 'info',
+    label: strings.contacts || 'Contacts', key: 'contacts',
+    sub: strings.contactsSub || 'See and manage everyone you have added',
+    onClick: () => onContacts(),
+  }).section);
 
   if (onTheme) {
     const themeLabelFor = (v) => {
@@ -21278,5 +21805,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

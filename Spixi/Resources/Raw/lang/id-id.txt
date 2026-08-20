@@ -660,6 +660,7 @@ global-invalid-address-title = Alamat tidak valid
 global-invalid-address-text = Harap masukkan alamat dompet yang valid.
 
 global-friend-request-accepted = {0} telah menerima permintaan pertemanan Anda.
+global-friend-request-connected = Anda sekarang terhubung dengan {0}.
 
 global-update-available = Versi baru Spixi ({0}) telah tersedia. Harap perbarui untuk pengalaman terbaik.
 global-modal-external-link-title = Anda akan mengunjungi tautan eksternal

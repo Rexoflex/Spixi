@@ -619,7 +619,8 @@ function looksLikeAddress(a) {
 }
 
 export function createAddContact({
-  onCheckAddress, onSendRequest, onScan, onOpened, onBack, strings = getStrings(),
+  onCheckAddress, onSendRequest, onScan, onOpened, onBack, onViewContact,
+  strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-contacts-add';
@@ -672,6 +673,25 @@ export function createAddContact({
   err.hidden = true;
   group.append(err);
 
+  /* #435(b): the "you already know this address" affordance. NOT an error and NOT a
+     tick — an address already in your contacts is not a failure, it is a different
+     outcome, and legacy answered it with a line plus a way to get there. role=status
+     (not alert) for the same reason. */
+  const known = document.createElement('div');
+  known.className = 'c-contacts-add__known';
+  known.setAttribute('role', 'status');
+  known.hidden = true;
+  const knownText = document.createElement('p');
+  knownText.className = 'c-contacts-add__known-text';
+  known.append(knownText);
+  const knownBtn = createButton({
+    label: strings.viewContact || 'View contact', type: 'outline', size: 32,
+  });
+  knownBtn.classList.add('c-contacts-add__known-btn');
+  knownBtn.hidden = true;
+  known.append(knownBtn);
+  group.append(known);
+
   body.append(group);
 
   // Primary CTA directly beneath the address field + helper/error line (was pinned to
@@ -686,7 +706,58 @@ export function createAddContact({
   let checkTimer = 0;
   let latched = false;   // F5: true once a send has succeeded and sendBtn is latched disabled
 
-  const setError = (msg) => { err.textContent = msg; err.hidden = !msg; };
+  let knownAddress = '';   // set while the field holds an address we already know
+  let lastChecked = '';    // the value the in-flight checkAddress was issued for
+
+  /* #435(a) — THE ONE-LINE BUG, and it was not cosmetic. setError only ever touched
+     the error line, and `valid.hidden = true` ran only at the TOP of validate() —
+     i.e. on the next KEYSTROKE. So the screen showed a green "this address is valid"
+     and a red "it could be invalid or already in your contacts" AT THE SAME TIME,
+     at exactly the moment the user needs to trust what it says. An error now clears
+     the tick, and the known-contact panel with it. */
+  const setError = (msg) => {
+    err.textContent = msg;
+    err.hidden = !msg;
+    if (msg) { valid.hidden = true; setKnown(null); }
+  };
+
+  /* #435(b): render (or clear) the known-address answer. kind 'contact' = already in
+     contacts → line + View contact; 'self' = your own address → line only, there is
+     nothing to view. Anything else clears. Also clears the ✓, for the same reason
+     setError does: two statements about one address must never be on screen at once. */
+  function setKnown(info) {
+    if (!info || (info.kind !== 'contact' && info.kind !== 'self')) {
+      knownAddress = '';
+      known.hidden = true;
+      knownBtn.hidden = true;
+      sendBtn.disabled = false;        // audit MINOR-6: the CTA comes back with the panel
+      return;
+    }
+    valid.hidden = true;
+    err.hidden = true;
+    err.textContent = '';
+    if (info.kind === 'self') {
+      knownAddress = '';
+      knownText.textContent = strings.ownAddressNote || 'This is your own address.';
+      knownBtn.hidden = true;
+    } else {
+      knownAddress = info.address || '';
+      const who = (info.nick || '').trim();
+      knownText.textContent = who
+        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', who))
+        : (strings.alreadyContact || 'This address is already in your contacts.');
+      knownBtn.hidden = !knownAddress || !onViewContact;
+    }
+    known.hidden = false;
+    /* ★ Audit MINOR-6: DISABLE the CTA rather than let it be tapped and do nothing.
+       The submit guard below stays as a belt, but a button that silently ignores a tap
+       is the dead-end class this batch is removing elsewhere — the panel explains why,
+       and the button now agrees with it. */
+    sendBtn.disabled = true;
+  }
+  knownBtn.addEventListener('click', () => {
+    if (knownAddress && onViewContact) onViewContact(knownAddress);
+  });
 
   // F5: a new, non-empty address after a latched success makes the screen usable
   // again (rather than being permanently stuck on "Request sent"). setSuccess()
@@ -699,12 +770,14 @@ export function createAddContact({
 
   const validate = () => {
     valid.hidden = true;
+    setKnown(null);          // #435(b): a new keystroke retires the previous answer
     setError('');
     clearTimeout(checkTimer);
     if (!onCheckAddress) return;
     const v = input.value.trim();
     if (v.length < ADDR_MIN || v.length > ADDR_MAX) return;
     checkTimer = setTimeout(() => {
+      lastChecked = v;   // #435(b): staleness key for the async onKnownAddress answer
       const ctrl = contactsCtrl(
         // stale-reply guard + F1: never reveal ✓ while a request is in flight
         // (a slow checkAddress reply must not flash valid on a disabled/latched field)
@@ -722,6 +795,14 @@ export function createAddContact({
     const a = input.value.trim();
     if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
       setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      input.focus();
+      return;
+    }
+    /* #435(b): a duplicate never reaches ixian:request. C# would reject it with a
+       NATIVE alert and no push back, which is the known wedge that leaves Send
+       latched in "loading" for 6 s (see contact_new.html). Same reasoning as
+       looksLikeAddress blocking obvious garbage locally. */
+    if (knownAddress || !known.hidden) {
       input.focus();
       return;
     }
@@ -764,6 +845,21 @@ export function createAddContact({
     isInFlight: () => inFlight,
     isLatched: () => latched,
     unlatch,
+    // #435(b): the async known-address answer, with the same staleness rule the ✓ uses
+    applyKnown: (info) => {
+      if (inFlight) return false;                            // a send is round-tripping
+      if (!info) { setKnown(null); return true; }
+      /* ★ Audit MINOR-5: correlate against the address the ANSWER IS FOR, not against
+         the latest check. Paste a known address, then paste a new one before the reply
+         lands: the debounce had already moved `lastChecked` on, so the old answer passed
+         the guard and latched "already in your contacts" onto a brand-new address — and
+         the CTA then refused to send it. C# echoes the string it was asked about. */
+      const forAddr = (info.checked || '').trim();
+      if (forAddr) { if (input.value.trim() !== forAddr) return false; }
+      else if (lastChecked && input.value.trim() !== lastChecked) return false;   // old exe: best effort
+      setKnown(info);
+      return true;
+    },
   });
   return el;
 }
@@ -778,6 +874,20 @@ export function setAddContactAddress(el, address) {
   if (st.isLatched() && next && next !== st.input.value) st.unlatch();
   st.input.value = next;
   st.validate();
+}
+
+/** #435(b): the C# answer to checkAddress — 'contact' (already known), 'self', or
+ *  null/'' to clear. Applied only while the field still holds the checked value. */
+export function setAddContactKnown(el, kind, address, nick, checked) {
+  const st = addState.get(el);
+  if (!st || !st.applyKnown) return false;
+  if (!kind) { return !!st.applyKnown(null); }
+  return !!st.applyKnown({
+    kind: String(kind),
+    address: address == null ? '' : String(address),
+    nick: nick == null ? '' : String(nick),
+    checked: checked == null ? '' : String(checked),   // the address this answer is FOR (audit MINOR-5)
+  });
 }
 
 /* ————————————————————————— group setup ————————————————————————— */

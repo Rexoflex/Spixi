@@ -6,6 +6,8 @@
   "downloads": "Downloads",
   "handshakeReady": "",
   "ok": "OK",
+  "receivedFromLabel": "Received from",
+  "sentToLabel": "Sent to",
   "status": "Status",
   "version": "Version"
 }

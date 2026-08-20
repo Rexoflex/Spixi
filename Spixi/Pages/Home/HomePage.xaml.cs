@@ -157,6 +157,28 @@ namespace SPIXI
         private bool sawOffline = false;
         private bool updateCheckRearmed = false;
 
+        /* #440/#443/#451: blockchain-scan progress.
+         *
+         * `scanOriginBlock` is where the CURRENT catch-up started. ★ #451, Damir on
+         * device: it used to be the first height each RUN observed, so closing the app at
+         * 6% and reopening it showed 0% again — the scan had genuinely kept its place
+         * (TransactionInclusion resumes from the highest stored header) and only the BAR
+         * forgot. It measured "how far since I opened the app" instead of "how far
+         * through this catch-up". So it is PERSISTED now, and it belongs to the catch-up,
+         * not to the session: written when we first fall behind, kept across restarts,
+         * and CLEARED once we are current so the next real gap starts from zero again.
+         *
+         * The two `last` fields make the 1 Hz push change-only. */
+        private const string SCAN_ORIGIN_PREF = "scanOriginBlock";
+        // Matches the shell's HIDE_LAG, so the anchor lives exactly as long as the strip
+        // can be visible. Kept in both places on purpose — the shell must work against an
+        // exe that does not send this at all.
+        private const ulong SCAN_CURRENT_LAG = 2;
+        private bool scanOriginLoaded = false;
+        private ulong scanOriginBlock = 0;
+        private ulong lastScanCurrent = ulong.MaxValue;
+        private ulong lastScanTarget = ulong.MaxValue;
+
         // Interal cache object to store contact status items
         private struct contactStatusCacheItem
         {
@@ -848,6 +870,35 @@ namespace SPIXI
             {
                 // CH2: decline an incoming contact request from the chats-list request card.
                 onDeclineRequest(current_url.Substring("ixian:declineRequest:".Length));
+            }
+            else if (current_url.StartsWith("ixian:txexplorer:", StringComparison.Ordinal))
+            {
+                /* ★ #443 (Damir): the TX-DETAILS explorer button opens the TRANSACTION,
+                 * as legacy does — not the wallet address. Only an ADDRESS-scoped verb
+                 * existed on this page (be-cutover W3), so the mobile tx sheet offered
+                 * "View address in Explorer" from a screen that is entirely about one
+                 * transaction. The URL mirrors WalletSentPage:130 exactly, so the two
+                 * surfaces cannot drift.
+                 * ★ Ordinal + colon, checked BEFORE the address verb below — otherwise
+                 * StartsWith("ixian:explorer") would never see it anyway, but the order
+                 * makes the precedence explicit rather than incidental. */
+                string txid = current_url.Substring("ixian:txexplorer:".Length).Trim();
+                /* ★ Audit MAJOR-1: the first cut demanded HEX and an Ixian txid is not hex.
+                 * Transaction.getTxIdString() returns "<blockHeight>-<Base58Plain>", or
+                 * "stk-<n>-<n>-<Base58Plain>" for a staking reward — so the guard refused
+                 * every real id and the button opened nothing, while the smoke pin blessed
+                 * the regex as if it were the fix. The charset that actually matches is
+                 * Base58 plus digits plus the '-' separator, and every character in it is
+                 * URL-safe, which is the property the guard exists for. */
+                if (txid.Length > 0 && txid.Length <= 128
+                    && System.Text.RegularExpressions.Regex.IsMatch(txid, "^[0-9A-Za-z-]+$"))
+                {
+                    Browser.Default.OpenAsync(new Uri(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, txid)));
+                }
+                else
+                {
+                    Logging.warn("Refused a malformed txid for the explorer link.");
+                }
             }
             else if (current_url.StartsWith("ixian:explorer"))
             {
@@ -2471,10 +2522,16 @@ namespace SPIXI
                         }
                         connectivityWarningDelayCounter = 0;
                         // ★ N70: the offline→online EDGE. Nothing else in the app sees it.
-                        if (sawOffline)
+                        // ★ #443: the edge is consumed only when the re-arm could actually
+                        // ANSWER. If the very first check is still in flight when the network
+                        // returns (!ready && !error), clearing the flag here threw the edge
+                        // away and the next answer waited a full checkVersionSeconds — one
+                        // hour — which is the same "never appears" the row was opened for,
+                        // just slower. Holding the flag costs one early-returning call per
+                        // tick and re-tries on the next tick instead.
+                        if (sawOffline && rearmUpdateCheck())
                         {
                             sawOffline = false;
-                            rearmUpdateCheck();
                         }
                     }
                     else
@@ -2537,6 +2594,95 @@ namespace SPIXI
                 {
                     Logging.error("Exception occurred in HomePage.UpdateScreen: " + e);
                 }
+                /* ★ #440/#443 — BLOCKCHAIN-SCAN PROGRESS. Every number already exists in
+                 * the build; nothing in Spixi/Pages read block height before this.
+                 *   current = IxianHandler.getLastBlockHeight() → Node.cs:599, the
+                 *             TIV header scan's own position.
+                 *   target  = IxianHandler.getHighestKnownNetworkBlockHeight() → Core's
+                 *             default (IxianNode.cs:101) → a middle-third majority over
+                 *             connected peers, clamped by a time estimate.
+                 *   origin  = the FIRST non-zero height this session saw. ⚠ NOT
+                 *             CoreConfig.bakedBlockHeight: a resumed run continues from
+                 *             stored headers nowhere near it, so anchoring there makes
+                 *             every launch read a few percent while the client is current.
+                 * ★ ZERO IS UNKNOWN. getLastBlockHeight() is 0 before the first header
+                 * lands and determineHighestNetworkBlockNum() is 0 with no peers —
+                 * dividing them gives a confident 0%. Both are passed through verbatim
+                 * and the shell owns the indeterminate state.
+                 * Pushed only on CHANGE: this runs every second and the scan steps 250
+                 * headers at a time, so an unconditional push would be mostly noise. */
+                try
+                {
+                    ulong scanCurrent = IxianHandler.getLastBlockHeight();
+                    /* ★ #453, Damir on device: the bar restarted at 0% on EVERY launch even
+                     * after #451 persisted the anchor — because of WHICH height we asked for.
+                     * `getHighestKnownNetworkBlockHeight()` is max(OUR height, the peer
+                     * majority), and the majority is 0 until peers connect. So for the first
+                     * seconds of every launch it returned our OWN height, target == current,
+                     * the caught-up test below read that as "current" and WIPED the anchor.
+                     * Peers then arrived, target jumped, and the anchor re-set to wherever
+                     * the scan was: 0%. It also made the row vanish in that same window.
+                     * `determineHighestNetworkBlockNum()` returns 0 with no peers, which is
+                     * the "we do not know yet" signal — and the shell already owns that
+                     * state as INDETERMINATE. So ask for the raw answer and pass the zero
+                     * through instead of hiding it behind a max(). */
+                    ulong scanTarget = CoreProtocolMessage.determineHighestNetworkBlockNum();
+                    if (scanCurrent > 0)
+                    {
+                        if (!scanOriginLoaded)
+                        {
+                            scanOriginLoaded = true;
+                            try
+                            {
+                                string stored = Preferences.Default.Get(SCAN_ORIGIN_PREF, "");
+                                if (!string.IsNullOrEmpty(stored))
+                                {
+                                    ulong.TryParse(stored, out scanOriginBlock);
+                                }
+                            }
+                            catch (Exception) { scanOriginBlock = 0; }
+                        }
+
+                        ulong newOrigin = scanOriginBlock;
+                        /* ⚠ `scanTarget > 0` is the whole guard: a zero target means NO PEERS,
+                         * not "caught up", and clearing on it is exactly the #453 bug.
+                         * ⚠ And the comparison is ADDITIVE, never `scanTarget - scanCurrent`:
+                         * these are ulongs, so a target BELOW the current height — normal
+                         * when we are momentarily ahead of what peers report — underflows to
+                         * an enormous number and the test silently never fires. */
+                        if (scanTarget > 0 && scanTarget <= scanCurrent + SCAN_CURRENT_LAG)
+                        {
+                            // Caught up — retire the anchor so the NEXT gap starts at 0%.
+                            newOrigin = 0;
+                        }
+                        else if (scanOriginBlock == 0 || scanCurrent < scanOriginBlock)
+                        {
+                            /* We just fell behind, OR the current height dropped below the
+                             * anchor — a re-org, a restore or a storage reset. Without the
+                             * second case the bar sits frozen at 0% for the whole catch-up
+                             * and then jumps (audit MINOR-4). */
+                            newOrigin = scanCurrent;
+                        }
+                        if (newOrigin != scanOriginBlock)
+                        {
+                            scanOriginBlock = newOrigin;
+                            try { Preferences.Default.Set(SCAN_ORIGIN_PREF, scanOriginBlock.ToString()); }
+                            catch (Exception) { }
+                        }
+                    }
+                    if (scanCurrent != lastScanCurrent || scanTarget != lastScanTarget)
+                    {
+                        lastScanCurrent = scanCurrent;
+                        lastScanTarget = scanTarget;
+                        Utils.sendUiCommand(this, "setScanProgress",
+                            scanCurrent.ToString(), scanTarget.ToString(), scanOriginBlock.ToString());
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.error("Exception occurred while reporting scan progress: " + e);
+                }
+
                 IxiNumber availableBalance = Node.getAvailableBalance();
                 string balance = Utils.amountToHumanFormatString(availableBalance);
                 string fiatBalance = Utils.amountToHumanFormatString(Node.fiatPrice * availableBalance);
@@ -2918,15 +3064,21 @@ namespace SPIXI
          *     could stall for the HTTP timeout. This runs on Node.updateUILoop's tick, so
          *     a stall would starve chats, wallet and apps together. Task.Run keeps it off.
          * One-shot per session either way: a re-arm that fails must not retry every tick. */
-        private void rearmUpdateCheck()
+        /** @return true when the edge is SETTLED (re-armed, already re-armed, or a good
+         *  answer exists); false only while the first check is still in flight. */
+        private bool rearmUpdateCheck()
         {
             if (updateCheckRearmed)
             {
-                return;
+                return true;
             }
-            if (!UpdateVerify.ready || !UpdateVerify.error)
+            if (!UpdateVerify.ready && !UpdateVerify.error)
             {
-                return;   // never checked yet, or already has a good answer
+                return false;   // never answered yet — keep the edge, re-check next tick
+            }
+            if (!UpdateVerify.error)
+            {
+                return true;    // already has a good answer; nothing to re-arm
             }
             updateCheckRearmed = true;
             Task.Run(() =>
@@ -2942,6 +3094,7 @@ namespace SPIXI
                     Logging.warn("Update check re-arm failed: " + e);
                 }
             });
+            return true;
         }
 
         private string checkForUpdate()
@@ -3408,6 +3561,58 @@ namespace SPIXI
             friend.handshakePushed = false;
             UIHelpers.shouldRefreshContacts = true;
             StreamProcessor.sendAcceptAdd(friend, true);
+            writeConnectedLine(friend);
+        }
+
+        /* ★ #434: the "you are now connected" line, written when the accept happens
+         * LOCALLY. Every site that wrote it was on the INBOUND path
+         * (StreamProcessor:337/:354/:368 — the other side accepting US), so accepting
+         * an incoming request produced no line at all and the chat opened with nothing
+         * in it. Damir found this on the R3 F5; it has been true since the flow was
+         * built and is not an R3 regression — the shell renders the chip correctly the
+         * moment a line exists.
+         * ★ The COPY changed with it. "{0} has accepted your contact request" is FALSE
+         * when you are the accepter, so a single direction-neutral sentence replaces it
+         * in both directions (Damir's words) — new id `global-friend-request-connected`,
+         * used at all five sites. The old id stays in the language files ONLY so chat
+         * histories written before this build still render as a chip rather than
+         * degrading to a plain bubble.
+         * The id `new byte[] { 1 }` is the same fixed id the inbound sites use, so a
+         * line can never appear twice in one chat (FriendList dedupes on it). */
+        public static void writeConnectedLine(Friend friend)
+        {
+            try
+            {
+                /* ★ Audit MAJOR-3: this line is written because the USER just accepted —
+                 * it is not an incoming message and must not behave like one. With the
+                 * defaults, Node.addMessageWithType incremented unreadMessageCount (the
+                 * chats-list badge and the nav badge with it) and fired a local "New
+                 * Message" push notification for an event the user caused, on the one
+                 * path where no chat page is open. No notification, no alert.
+                 * ★ break-my-verdict MAJOR-3: local_sender stays FALSE. Setting it true
+                 * silenced the notification but fell into the outgoing-status branch of
+                 * the chats-row push, which stamps a permanent "sending" clock glyph on
+                 * a message that is never transmitted — and adds the self-prefix to the
+                 * excerpt. That is the same directional asymmetry #434 exists to remove,
+                 * just pointing the other way. The inbound line has always been written
+                 * with local_sender false; this matches it exactly.
+                 * The unread count is snapshotted and restored because the increment is
+                 * gated on `read`, not on `local_sender` — and clearing it to zero would
+                 * silently mark a genuinely unread request message as read. */
+                int unreadBefore = friend.metaData.unreadMessageCount;
+                Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0,
+                    string.Format(SpixiLocalization._SL("global-friend-request-connected"), friend.nickname),
+                    false, null, 0, false, false);
+                if (friend.metaData.unreadMessageCount != unreadBefore)
+                {
+                    friend.metaData.unreadMessageCount = unreadBefore;
+                    friend.saveMetaData();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("Could not write the connected line: " + ex);
+            }
         }
 
         private void onDeclineRequest(string address)

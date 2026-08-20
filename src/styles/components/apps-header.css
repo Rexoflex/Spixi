@@ -26,23 +26,21 @@
 @media (hover: hover) and (pointer: fine) { .c-apps-header__toggle:hover { background: var(--surface-interactive-hover); } }
 .c-apps-header__toggle:active { background: var(--surface-interactive-pressed); }
 
-/* nothing installed: the search + layout row is dead UI (there is nothing to find
-   or to re-lay-out), so the empty state becomes the hero and the banner stays as the
-   discovery route. Set by setAppsHeaderEmpty() — attribute, not a display:none in JS. */
-.c-apps-header[data-empty] .c-apps-header__row { display: none; }
-
-/* ★ D-17 (#359): the UNKNOWN window — the shell has not yet learned whether the
-   list has rows (appsOpts.zeroReady is closed and no row has ever rendered). The
-   row is INVISIBLE but keeps its box, so neither outcome moves anything:
-   · first knowledge = rows      → the row turns visible in the SAME render frame
-     the rows paint; height was already reserved, so nothing below jumps.
-   · first knowledge = empty     → data-unknown is swapped for data-empty in the
-     same frame the illustrated zero state first renders; the ghost row collapses
-     into a paint that was blank anyway.
-   Pre-D-17 the row painted DURING the unknown window and the zero-gate opening
-   then yanked it (~400 ms later): the field appeared, vanished, and the content
-   jumped (Damir F5 2026-08-15). visibility (not display) is the whole fix. */
-.c-apps-header[data-unknown] .c-apps-header__row { visibility: hidden; }
+/* ★ N43 (#443, Damir): THE SEARCH ROW IS ALWAYS VISIBLE — including the empty state.
+ *
+ * Two rules used to hide it and BOTH are retired here:
+ *   · [data-empty]   — "nothing installed, so the row is dead UI" (setAppsHeaderEmpty)
+ *   · [data-unknown] — the D-17 (#359) load window, invisible-but-boxed
+ *
+ * ★ These two ARE the "apps flicker" Damir reported. The sequence on a tab switch
+ * was: ghost (invisible) → rows or the zero gate open → visible → and, with nothing
+ * installed, immediately hidden again by [data-empty]. A bar that appears and
+ * disappears within half a second is exactly what he described, and it is one bug,
+ * not two. D-17 was a real fix for a real jump — it is simply moot once the row
+ * never changes state at all.
+ *
+ * The attributes are still SET (setAppsHeaderEmpty, the shell's unknown ghost is
+ * gone) so restoring either behaviour is one rule, not an archaeology exercise. */
 
 /* —— Explore / Discover banner ——
    LAYOUT CONTRACT (Damir 2026-08-12 — "align it bottom right"): the illustration is a

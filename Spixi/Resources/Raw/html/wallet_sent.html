@@ -902,6 +902,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--text-neutral-01);
   overflow-wrap: anywhere;
 }
+/* ★ B2 (#453): the kicker over the counterparty — the chat-row grammar. One step down
+   from the name so the two read as one object rather than two labels. */
+.c-txsheet__kicker {
+  display: block;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-txsheet__who { overflow-wrap: anywhere; }
 .c-txsheet__head .c-badge { flex: none; }
 .c-txsheet__amount {
   font-family: var(--font-primary);
@@ -1002,6 +1011,44 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--text-neutral-02);
 }
 .c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }
+
+/* ★ N25 (#443): the "See details" disclosure. Address / date / fee / transaction id
+   sit behind it; the amount, the counterparty and the status stay in the first
+   glance. No height animation — the sheet is already a moving surface and a second
+   transition inside it reads as lag, not polish. */
+.c-txsheet__disclose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-txsheet__disclose:hover { background: var(--surface-interactive-hover); }
+}
+.c-txsheet__disclose:active { background: var(--surface-interactive-pressed); }
+.c-txsheet__chev { transition: transform var(--duration-200) var(--easing-standard); }
+.c-txsheet__disclose[data-open] .c-txsheet__chev { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .c-txsheet__chev { transition: none; } }
+/* ★ Audit MINOR-9: gap 12, NOT 8 — the same gap `.c-txsheet` itself uses. The address
+   label carries margin-block-end: calc(-1 * spacing-8) to hug its chip, tuned against a
+   12 parent; in an 8 parent the negative margin cancels the gap exactly and the label
+   sits flush on the chip. */
+.c-txsheet__details { display: flex; flex-direction: column; gap: var(--spacing-12); }
+
+/* #452: the scan CARD and the fixed-starting-point line inside the "Missing a
+   transaction?" sheet both live in scan-progress.css, beside the ring they share. */
 
 </style><!-- .c-txsheet detail-card grammar -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -1286,6 +1333,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     const ghost = document.createElement('div');
     const sheet = openTxSheet({
       tx, host: ghost, strings,
+      // N25 (#443) audit MINOR-8: this PAGE exists to show the address, fee and id —
+      // do not hide them behind the sheet's "See details" disclosure here.
+      disclose: false,
       // TX-SCOPED explorer (the page's own verb — C# opens ?p=transaction&id=<txid>).
       onExplorer: () => bridge.send('ixian:viewexplorer'),
     });

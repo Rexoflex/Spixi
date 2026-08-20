@@ -179,7 +179,13 @@ console.log('wallet.html');
   const content = d.getElementById('wallet-content');
   const scrollTo = (y) => { content.scrollTop = y; content.dispatchEvent(new W.Event('scroll')); };
   scrollTo(300);
-  ok(hero.hasAttribute('data-compact') && tools.hasAttribute('data-hidden'), 'deep scroll → hero compact + tools tucked');
+  /* ★ N43 (#443, Damir): the SEARCH + FILTER row no longer tucks — "always visible"
+     is his ruling, and a bar that vanishes on a downward scroll is the same defect
+     the Apps "flicker" turned out to be. The HERO collapse stays (a different
+     affordance he likes), so this pins BOTH halves: compact hero, tools untouched. */
+  ok(hero.hasAttribute('data-compact'), 'deep scroll → hero compact');
+  ok(!tools.hasAttribute('data-hidden'),
+    '★ N43 (#443): a deep scroll leaves the wallet tools row ALONE — the tuck is off, so search + filters stay reachable at any scroll position');
   scrollTo(270);
   ok(!tools.hasAttribute('data-hidden') && hero.hasAttribute('data-compact'), 'brief up-scroll → tools return');
   scrollTo(0);
@@ -5349,8 +5355,15 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'iOS-55: no formatted-time push remains in HomePage');
   // #327: chats header = list content on mobile
   ok(/scroller\.insertBefore\(header, list\)/.test(home328)
-    && /data-desktop'\)\)\s*\{\s*\n\s*document\.getElementById\('chats-header'\)\.append\(header\);\s*\n\s*attachChatsCollapse/.test(home328),
-    '#327: mobile mounts the header IN the scroller (native physics); the triggered collapse is DESKTOP-ONLY');
+    && /document\.getElementById\('chats-header'\)\.append\(header\);/.test(home328),
+    '#327: mobile mounts the header IN the scroller (native physics); desktop mounts it OUTSIDE');
+  /* ★ N43 (#443, Damir): the desktop collapse is OFF. attachChatsCollapse is still
+     called — the flag lives in the component so the behaviour is one line from
+     returning (the R3 reversal-hook pattern) — but it attaches nothing. Pinned on the
+     COMPONENT, not on the call site: a pin that only checked the call site would stay
+     green while the collapse ran. */
+  ok(/const N43_ALWAYS_VISIBLE = true;\s*\n\s*if \(N43_ALWAYS_VISIBLE\) \{\s*\n\s*return function detachChatsCollapse\(\)/.test(chdr328),
+    '★ N43 (#443): attachChatsCollapse returns BEFORE it binds a scroll listener — the chats search bar cannot tuck away on a downward scroll');
   const chdrCss328 = readFileSync(join(root, 'src/styles/components/chats-header.css'), 'utf8');
   ok(/\.u-scroll > \.c-chats-header\.is-pinned \{\s*\n\s*position: sticky/.test(chdrCss328),
     '#327: the searching header pins sticky at the scroller top (results cannot scroll the query away)');
@@ -7383,7 +7396,10 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
   /* (a) art path — sibling file, and the file really ships */
   /* N45: chats/wallet art is PNG now (byte dial); contacts-es has no PNG export
      and stays SVG. */
-  for (const [surface, src, ext] of [['chats', chatsSrc, 'png'], ['wallet', walletSrc, 'png'], ['contacts', contactsSrc, 'svg']]) {
+  /* ★ #453 (Damir on device): the WALLET dropped its illustration. The hero owns ~300px
+     above that block, so the art pushed "Show my address" toward the bottom nav and said
+     nothing the headline did not. Chats and Contacts keep theirs — they have no hero. */
+  for (const [surface, src, ext] of [['chats', chatsSrc, 'png'], ['contacts', contactsSrc, 'svg']]) {
     ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'images/" + surface + "-es\\." + ext + "'").test(src),
       surface + ': the empty state points at the SIBLING images/' + surface + '-es.' + ext + ' (an external URL loads as a blank box under file://)');
     ok(existsSync(join(root, 'src/demo/images', surface + '-es.' + ext)),
@@ -7405,7 +7421,13 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
     'the PRODUCTION shell passes both zero-state callbacks (a demo-only wiring would ship a dead button)');
 
   /* wallet compact — the de-de clipping guard */
-  ok(/compact: true,/.test(walletSrc.slice(walletSrc.indexOf('function walletEmpty'), walletSrc.indexOf('function walletEmpty') + 1400)),
+  /* ⚠ Slice to the FUNCTION, not to a byte budget. This was `indexOf + 1400`, and a
+     comment added inside walletEmpty pushed `compact: true` past the window — the pin
+     went red with the behaviour untouched. Same brittleness class as the CRLF note at
+     the top of this file: bounded lookaheads measure the wrong thing. */
+  const walletEmptyFn = walletSrc.slice(walletSrc.indexOf('function walletEmpty'),
+    walletSrc.indexOf('\n}', walletSrc.indexOf('function walletEmpty')));
+  ok(/compact: true,/.test(walletEmptyFn),
     '★ the wallet zero state is COMPACT — the hero owns ~300px above it, and full rhythm put "Show my address" under the bottom nav (worst in de-de)');
   const walletCss = readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8');
   ok(/\.c-wallet-txlist > \.c-empty-state\[data-compact\] \.c-empty-state__illo \{[^}]*width: clamp\(/.test(walletCss),
@@ -7463,8 +7485,8 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
     const txlist = D.querySelector('.c-wallet-txlist');
     S.renderWalletTxList(txlist, { txs: [], filter: 'all', query: '' }, { onReceive: () => { received += 1; } });
     const es = txlist.querySelector('.c-empty-state');
-    ok(!!es && es.dataset.compact !== undefined && !!es.querySelector('.c-empty-state__illo-img'),
-      'wallet zero state renders the compact illustrated block');
+    ok(!!es && es.dataset.compact !== undefined && !es.querySelector('.c-empty-state__illo-img'),
+      '★ #453: the wallet zero state renders the COMPACT block with NO illustration — the glyph tile stands in, which is the path this state already took whenever the art failed to load');
     const cta = es.querySelector('.c-empty-state__action .c-button');
     cta.click();
     ok(received === 1 && /Show my address/.test(cta.textContent),
@@ -8500,20 +8522,24 @@ console.log('#358 — I-2 selected-chip outline');
     '. A brand re-ramp that pushes any pair under the bar turns this red with no CSS change (the #241/#244 re-anchor is the precedent)');
 }
 
-/* —— #359 — D-17: the Apps search field must not paint-then-vanish ————————————— */
-console.log('#359 — D-17 apps header unknown-state ghost');
+/* —— N43 (#443): the Apps search field must never disappear at all ——————————————
+ * ★ SUPERSEDES D-17 (#359). D-17 hid the row during a load window to stop it
+ * painting-then-vanishing; Damir's answer to the whole question is that it must be
+ * ALWAYS VISIBLE, which makes the load window moot — and the D-17 ghost plus the
+ * [data-empty] collapse together WERE the "apps flicker" he reported (ghost → visible
+ * → hidden again with nothing installed). Both rules are retired; the pins invert. */
+console.log('N43 (#443) — the apps search row is always visible (supersedes D-17 #359)');
 {
   const ahCss = readFileSync(join(root, 'src/styles/components/apps-header.css'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '');
-  ok(/\.c-apps-header\[data-unknown\] \.c-apps-header__row\s*\{\s*visibility:\s*hidden;\s*\}/.test(ahCss),
-    '★ D-17 (#359): the UNKNOWN window hides the search/layout row with visibility, NOT display — the box is reserved, so when rows land the row turns visible with zero layout shift, and when the zero gate opens instead, the swap to data-empty happens in a frame that was blank anyway. display:none here would re-create the has-apps down-jump the reservation exists to prevent');
+  ok(!/\[data-unknown\][^{]*\{[^}]*visibility:\s*hidden/.test(ahCss),
+    '★ N43 (#443): the D-17 unknown GHOST rule is GONE from apps-header.css — nothing hides the search row while the surface loads');
+  ok(!/\[data-empty\][^{]*\{[^}]*display:\s*none/.test(ahCss),
+    '★ N43 (#443): the empty-state collapse is GONE too — with nothing installed the search row still shows, which is the half Damir named explicitly');
   const home359 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
-  ok(home359.includes("appsHeader.dataset.unknown = ''")
-    && /if \('unknown' in appsHeader\.dataset\s*&& \(\(appsState\.apps \|\| \[\]\)\.length \|\| appsOpts\.zeroReady !== false\)\) \{\s*delete appsHeader\.dataset\.unknown;\s*\}/.test(home359),
-    '★ D-17 (#359): the header is BORN unknown and the ghost drops exactly once, on FIRST knowledge (rows rendered, or the zero gate opened), inside the same scheduleAppsRender frame that paints the answer. One-way by construction: tab re-entry refills close zeroReady again (#340) but the deleted attribute never returns, so the row cannot blink on a slow-device mid-burst render');
-  ok(/appsHeader\.dataset\.unknown = '';\s*setTimeout\(\(\) => \{ delete appsHeader\.dataset\.unknown; \}, 1500\);/.test(home359),
-    '★ D-17 r2 (#359, loop r1 MAJOR-8): a 1500 ms WATCHDOG bounds the unknown window — the zero gate is armed only by apps bridge traffic, and the #340 latch gives one dropped tab3 push no second chance: without the bound, that failure hid the search field and the layout toggle for the whole session. Same philosophy as the chats stall watchdog: degrade to "render what you have", never latch a dead surface');
+  ok(!home359.includes("appsHeader.dataset.unknown"),
+    '★ N43 (#443): the shell no longer BORNS the header unknown, and the 1500 ms watchdog that bounded that window is gone with it — dead state, not inert state');
 }
 
 /* —— #360 — I-6: locale digit grouping, app-global, display only ——————————————— */
@@ -8935,8 +8961,8 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     && /return "self";/.test(base366) && /return "contact";/.test(base366)
     && /return "pending";/.test(base366) && /return "none";/.test(base366),
     'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
-  ok(/errorSending\.ToString\(\), relation\);/.test(scp366),
-    'D-5: the per-message addMe/addThem push carries the trailing relation arg');
+  ok(/errorSending\.ToString\(\), relation, reply_to\);/.test(scp366),
+    'D-5 + M1 (#441): the per-message addMe/addThem push carries the trailing relation arg — and now the reply-to id after it, additive in the same way');
   ok(/relation = contactRelationFor\(resolvedSender\);/.test(scp366)
     && /!message\.localSender && !relationBlind/.test(scp366),
     'D-5 ★: relation is computed ONLY for received multi-chat rows, NEVER for a blind chat (identity-hint belt), and reads resolvedSender — a #370 reverse-resolved row gets the addressed-row treatment');
@@ -8970,8 +8996,10 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
 
   /* —— N26/D-5 + N27: shell source pins ————————————————————————————— */
   const chat366 = read('src/shells/chat.html');
-  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation\)/.test(chat366),
-    'D-5: chat.html addThem accepts the trailing relation (the old signature silently discarded trailing args)');
+  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo\)/.test(chat366),
+    'D-5 + M1 (#441): chat.html addThem accepts the trailing relation AND replyTo (the old signature silently discarded trailing args)');
+  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo\)/.test(chat366),
+    '★ M1 (#441): addMe grew the SAME two trailing params. It declared 11 and would otherwise have discarded the reply target on OWN messages — which is precisely the sender-persistence case that killed C8 on hardware (#215)');
   ok(/const RELATIONS = new Set\(\['contact', 'pending', 'pending-in', 'none', 'self'\]\);/.test(chat366),
     'D-5: pushed relation values are validated against the closed vocabulary (+ pending-in, #371)');
   ok(/addContact\(address, nick, avatar, role, relation\)/.test(chat366),
@@ -9924,6 +9952,364 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       && /Logging\.error\("Language pick '" \+ langForLog \+ "' was refused/.test(sps),
       '★ N65 (#385): the pick logs the request AND the code that ended up active. That one line separates "the load failed" from "the load worked and the surfaces disagree" — the four-way split (hub dictionary / row value / checkmark / home shell) needs the second answer before any fix');
   }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * #441–#447 — the overnight batch: reply-to, the pre-auth lock exposure, the
+ * banked bugs, the wallet round and the blockchain-scan strip.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet · scan progress');
+{
+  const read4 = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— #441/#448 M1 REPLY-TO — BUILT ON THE SHELL, CARRIER HELD FOR THE BE CUTOVER ——
+   * ★ Damir's call, 2026-08-20: Ixian-Core is OUT of this batch and lands with the BE
+   * engineer. The whole FE surface stays; the two C# seams that need a Core field are
+   * neutralised and MARKED, and the exact Core patch lives in a cutover doc.
+   * These pins therefore assert the OPPOSITE of what they asserted while Core was in
+   * scope — the point of the round is that nothing in this repo depends on an unlanded
+   * Core change. */
+  const coreDir = join(root, '..', 'Ixian-Core');
+  if (existsSync(coreDir)) {
+    /* ★ THE HOLD-OUT GATE. The batch must not sneak a Core edit back in: the tree is a
+     * sibling working copy, so a stray edit there compiles locally and is invisible in
+     * this repo's diff — the worst shape a change can have. Read the FOUR files the
+     * cutover patch touches and require them to be pristine. */
+    const csmNow = readFileSync(join(coreDir, 'Streaming/Models/ChatStreamMessage.cs'), 'utf8');
+    const fmNow = readFileSync(join(coreDir, 'Streaming/Friends/FriendMessage.cs'), 'utf8');
+    const flNow = readFileSync(join(coreDir, 'Streaming/Friends/FriendList.cs'), 'utf8');
+    const cspNow = readFileSync(join(coreDir, 'Streaming/CoreStreamProcessor.cs'), 'utf8');
+    ok(!/ReplyToId/.test(csmNow) && !/replyToId/.test(fmNow) && !/replyToId/.test(flNow),
+      '★ M1 (#448) THE HOLD-OUT GATE: Ixian-Core carries NO reply field. Damir held Core out of this batch for the BE cutover, and a sibling working copy is the worst place for a stray edit — it compiles locally and never appears in this repo\'s diff');
+    /* ⚠ SCOPED TO THE FUNCTION BODY. The first cut matched the bare call and passed
+       vacuously: `sendSpixiMessage(friend, spixi_message, null, null, …)` appears THREE
+       times in this file (msgDelete, msgReaction and this one), so re-patching Core left
+       the pin green. Slice the function first, then match. */
+    const sendCsmBody448 = cspNow.slice(cspNow.indexOf('public static bool sendChatStreamMessage('));
+    const sendCsmFn448 = sendCsmBody448.slice(0, sendCsmBody448.indexOf('\n        public static'));
+    ok(sendCsmFn448.length > 0 && sendCsmFn448.length < 1200
+      && /sendSpixiMessage\(friend, spixi_message, null, null, true, true, true, false\);/.test(sendCsmFn448),
+      '★ M1 (#448): sendChatStreamMessage is UNTOUCHED, null id and all. That null is a real latent defect (cutover ask 2) and it is exactly why the Spixi send must not use this function yet');
+  } else {
+    ok(true, 'M1 (#448): no Ixian-Core sibling in this checkout — the hold-out gate is skipped, and the cutover patch in docs/ is the source of truth');
+  }
+
+  const cutover448 = join(root, 'docs/be-cutover-ixian-core-reply-carrier.md');
+  ok(existsSync(cutover448) && existsSync(join(root, 'docs/ixian-core-reply-carrier.patch')),
+    '★ M1 (#448): the held-out Core work exists as a CUTOVER DOC plus an appliable patch. Held-out work that lives only in someone\'s memory is lost work');
+  {
+    const cut448 = readFileSync(cutover448, 'utf8');
+    ok(/## Ask 1/.test(cut448) && /## Ask 2/.test(cut448) && /## Ask 3/.test(cut448)
+      && /diff --git a\/Streaming\/Models\/ChatStreamMessage\.cs/.test(cut448),
+      '★ M1 (#448): the cutover doc carries all THREE asks — the reply carrier, and the two latent defects beside it (the null envelope id and the char-vs-byte size check), which are independent of the feature and should land either way — and it embeds the real diff, not a description of one');
+  }
+
+  /* —— #441/#448 M1 — the Spixi half, which must compile against STOCK Core —— */
+  const scp441 = read4('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  ok(!/new ChatStreamMessage\(/.test(scp441) && !/sendChatStreamMessage\(/.test(scp441.replace(/\/\*[\s\S]*?\*\//g, '')),
+    '★ M1 (#448): SingleChatPage builds no ChatStreamMessage and calls no sendChatStreamMessage. The 5-argument constructor and the reply field do not exist in stock Core, so either one would be a build break in a repo whose C# nothing here can compile');
+  ok(/SpixiMessage spixi_message = new SpixiMessage\(SpixiMessageCode\.chat, Encoding\.UTF8\.GetBytes\(str\), selectedChannel\);/.test(scp441)
+    && /CoreStreamProcessor\.sendChatMessage\(friend, friend_message, selectedChannel\);/.test(scp441),
+    '★ M1 (#448): the send is EXACTLY the pre-batch send — SpixiMessageCode.chat, raw UTF-8, through sendChatMessage. The wire does not move at all while the carrier is held');
+  ok((scp441.match(/★ THE SEAM/g) || []).length >= 1 && /string reply_to = "";/.test(scp441),
+    '★ M1 (#448): the per-message push seam is MARKED and empty. The arg is still pushed so the shell contract, its signature and its pins stay in place and the cutover is one line');
+  ok(/the Ixian-Core carrier is not landed yet; sending a plain message/.test(scp441),
+    '★ M1 (#448): a reply target that somehow arrives is parsed, LOGGED and dropped — the seam is exercised and the degrade is honest, rather than the verb silently doing nothing');
+  ok(/current_url\.StartsWith\("ixian:chatreply:", StringComparison\.Ordinal\)/.test(scp441)
+    && scp441.indexOf('"ixian:chatreply:"') < scp441.indexOf('current_url.StartsWith("ixian:chat:")'),
+    'M1 (#441): the reply verb is dispatched BEFORE ixian:chat:. There is no prefix collision either way (the character after "chat" is \'r\', not \':\'), but the order makes the precedence explicit rather than incidental');
+  ok(/if \(friend_message == null\)/.test(scp441),
+    'M1 audit NIT-11: addMessageWithType can return null (friend gone, invalid channel) — transmitting a message this device never stored would leave the peer holding something we have no record of');
+  ok(/do NOT add ",reply" here yet/.test(scp441),
+    '★ M1 (#448): the cap note says DO NOT flip it. With the carrier held, declaring `reply` would render a Reply action that silently drops the quote — a worse state than no feature');
+
+  /* ★ audit MINOR-10: pin the ABSENCE of `reply` in EVERY setCaps argument, not one
+     literal spelling — `"tipResult, reply"`, a second call or a trailing comment would
+     all have left a literal pin green. */
+  const setCapsArgs441 = [...scp441.replace(/^\s*\/\/.*$/gm, '')
+    .matchAll(/sendUiCommand\(this, "setCaps",\s*"([^"]*)"/g)].map((m) => m[1]);
+  ok(setCapsArgs441.length > 0 && !setCapsArgs441.some((a) => a.split(',').map((x) => x.trim()).includes('reply')),
+    '★ M1 (#441) THE GATE: `reply` appears in NO setCaps argument. Found: ' + setCapsArgs441.join(' | '));
+
+  const chat441 = read4('src/shells/chat.html');
+  ok(/if \(!bridge\.cap\('reply'\) \|\| !composerEl\) return;/.test(chat441),
+    '★ M1 (#441): the menu action re-checks the capability. The item only renders behind it, so this is a second lock on the same door — the gate is ONE thing, not two');
+  ok(/bridge\.send\('ixian:chatreply:' \+ encodeURIComponent\(ctx\.replyId\) \+ ':' \+ encodeURIComponent\(text\)\)/.test(chat441)
+    && /ctx\.kind === 'reply' && ctx\.replyId && bridge\.cap\('reply'\)/.test(chat441),
+    '★ M1 (#441): a reply leaves on its own verb carrying the target; everything else keeps the exact ixian:chat: grammar. The FE half is COMPLETE and waiting on the carrier');
+  ok(/return \{ text: \(window\.SL && window\.SL\.replyUnavailable\) \|\| 'Original message', sender: '', address: '' \};/.test(chat441),
+    '★ M1 (#441) FAIL SOFT: an unknown target renders an honest generic quote — never nothing (which reads as a broken reply) and never a throw. With the carrier held, EVERY target is unknown, so this is the only branch that runs');
+  ok(/reply: replyQuoteFor\(rec\),/.test(chat441),
+    '★ M1 (#441): an INCOMING reply renders whether or not WE can create one — the capability gates authoring, not display, because a peer on a newer build can send one either way');
+
+  /* —— #438 THE PRE-AUTH LOCK EXPOSURE ————————————————————————————————————— */
+  const app438 = read4('Spixi/App.xaml.cs');
+  const scp438 = read4('Spixi/Utils/SpixiContentPage.cs');
+  ok(/SpixiContentPage\.showPrivacyShield\(true\);[^\n]*\n\s*\/\/ Show the lock screen\s*\n\s*isLockScreenActive = true;/.test(app438),
+    '★ #438: the shield goes down BEFORE anything else in the lock branch. #229 stages the lock hidden on the CURRENT page and presents only once lock.html signals ready — for that whole window the user\'s chat list is what is on screen, unauthenticated. Damir measured about a second on Android');
+  ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)\s*\n\s*\{\s*\n\s*SpixiContentPage\.showPrivacyShield\(\);\s*\n\s*\}\s*\n\s*isInForeground = false;/.test(app438),
+    '★ #438, the OTHER half: OnSleep covers the window too, and ONLY while the lock is enabled. Android snapshots the visible window for the task switcher and draws it during the app-open animation — BEFORE OnResume runs — so no resume-time cover can reach it. With no lock there is nothing to protect and a dark flash on every app switch would be a regression');
+  ok(/if \(!isLockScreenActive\)\s*\n\s*\{\s*\n\s*SpixiContentPage\.hidePrivacyShield\(\);\s*\n\s*\}/.test(app438),
+    '★ #438 (+ audit MINOR-9): a resume that does NOT lock uncovers — but never while a lock is UP or STAGING. isLockScreenActive is already true through the #229 staging window, and the lock branch skips those resumes, so an unguarded uncover here exposed exactly the content the shield was raised over');
+  ok(/privacyShields\.Exists\(sh => sh\.grid == grid\)/.test(scp438)
+    && !/if \(privacyShields\.Count > 0\)\s*\n\s*\{\s*\n\s*armPrivacyShieldSafety\(\);\s*\n\s*return;/.test(scp438),
+    '★ #438 audit MAJOR-3: showPrivacyShield is ADDITIVE. It used to early-return once anything was shielded, so it never covered a surface created AFTER the first call — OnSleep shields, a call RINGS while backgrounded and takes CallPage\'s modal fallback (which lands ABOVE the page-tree grids), and the resume added nothing: the caller\'s name and photo on an unauthenticated device, the exact exposure class this row exists to close');
+  ok(/ZIndex = \(CallPage\.Z_CALL_SURFACE \* 2\) - 1,/.test(scp438),
+    '★ #438 Z-ORDER: the shield sits ABOVE the native call surface and BELOW the lock\'s own stage. A ring showing the caller\'s name and photo is content too — #272 ruled the lock outranks the call surface and the shield inherits that ruling');
+  ok(/foreach \(Page m in nav\.Navigation\.ModalStack\)/.test(scp438),
+    '★ #438: EVERY resume shape, not just Chats. An open conversation is an overlay inside the same host grid, but the ModalStack sits ABOVE the page tree — a page-grid cover can never reach it, so the top modal is shielded too');
+  ok(/hidePrivacyShield\(\);\s*\n\s*\/\/ OnAppearing never fires for an in-place present/.test(scp438)
+    && /PushModalAsync\(op\.target, Config\.defaultXamarinAnimations\);\s*\n\s*hidePrivacyShield\(\);/.test(scp438),
+    '★ #438: the shield is dropped the moment the lock is really visible — on BOTH present paths (#230 in-place and the real modal push)');
+  ok(/\(Application\.Current as App\)\?\.onLockPresentFailed\(\);\s*\n[\s\S]{0,240}?hidePrivacyShield\(\);/.test(scp438),
+    '★ #438: a FAILED lock present uncovers. onLockPresentFailed leaves the user UNLOCKED, so failing closed here would be failing dead — an opaque app with no way in');
+  ok(/if \(gen != privacyShieldGeneration\)/.test(scp438),
+    '★ #438: the 8s safety release is GENERATION-GUARDED. OnSleep arms it and a delayed continuation does not run while backgrounded, so a long background can land the callback just after OnResume re-armed the shield and tear down the live one');
+  ok(/if \(page is LockPage\) continue;/.test(scp438),
+    '★ #438 break-my-verdict MAJOR-2: a LOCK is never covered. The ModalStack walk reaches a modally-presented LockPage, whose Content is a Grid like any other — the shield landed ON TOP of the password field and the user saw a blank screen with no way in');
+  ok(/unlockedDate = DateTime\.Now;[\s\S]{0,700}?SpixiContentPage\.hidePrivacyShield\(\);/.test(app438),
+    '★ #438 break-my-verdict MAJOR-2: AUTH is the definitive release. Background while the lock is on screen and OnSleep raised a cover that nothing else would ever take down — the resume skips the lock branch (one is already up) and skips the guarded uncover, so unlocking removed the lock and revealed an opaque, input-swallowing shield for up to 8 seconds');
+  ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)/.test(app438),
+    '★ #438 break-my-verdict MAJOR-2: OnSleep does not shield over a lock that is ALREADY up — the lock IS the cover, and shielding over it is how the strand happened');
+
+  /* —— #434 THE CONNECTED CHIP ————————————————————————————————————————————— */
+  const hp434 = read4('Spixi/Pages/Home/HomePage.xaml.cs');
+  const sp434 = read4('Spixi/Network/StreamProcessor.cs');
+  ok(/public static void writeConnectedLine\(Friend friend\)/.test(hp434)
+    && /writeConnectedLine\(friend\);/.test(hp434)
+    && /HomePage\.writeConnectedLine\(friend\);/.test(scp441),
+    '★ #434: BOTH local accept handlers write the line, through ONE implementation. Every site that wrote it was on the INBOUND path, so accepting an incoming request produced no line at all — the asymmetry Damir reported, true since the flow was built');
+  ok(/new byte\[\] \{ 1 \}, FriendMessageType\.standard/.test(hp434),
+    '★ #434: the fixed id `{1}` is the SAME one the inbound sites use, so the line can never appear twice in one chat (FriendList dedupes on it)');
+  ok(!/global-friend-request-accepted/.test(sp434)
+    && (sp434.match(/global-friend-request-connected/g) || []).length === 3,
+    '★ #434 COPY: all three inbound sites moved to the direction-neutral sentence. "{0} has accepted your contact request" is FALSE when you are the accepter, so one sentence replaces it in both directions (Damir\'s words)');
+  const enTxt434 = read4('Spixi/Resources/Raw/lang/en-us.txt');
+  ok(/global-friend-request-connected = You are now connected with \{0\}\./.test(enTxt434)
+    && /global-friend-request-accepted = /.test(enTxt434),
+    '★ #434: the NEW id ships and the OLD one STAYS — kept only so chat histories written before this build still render as a centred event chip instead of degrading to a plain bubble');
+  ok(/<span id="sl-request-connected">/.test(chat441) && /<span id="sl-request-accepted">/.test(chat441)
+    && /const EVENT_TPLS = \[/.test(chat441),
+    '★ #434: the shell matches BOTH templates, longest-prefix first — the live sentence and the legacy one, so no history line is orphaned by the copy change');
+
+  /* —— #435 ADD-CONTACT ——————————————————————————————————————————————————— */
+  const cs435 = read4('src/components/contacts-shell.js');
+  ok(/const setError = \(msg\) => \{\s*\n\s*err\.textContent = msg;\s*\n\s*err\.hidden = !msg;\s*\n\s*if \(msg\) \{ valid\.hidden = true; setKnown\(null\); \}/.test(cs435),
+    '★ #435(a): an error now CLEARS the green tick. It only cleared on the next keystroke, so the screen showed "this address is valid" and "it could be invalid or already in your contacts" at the same time — the app contradicting itself at the exact moment the user needs to trust it');
+  ok(/if \(knownAddress \|\| !known\.hidden\) \{\s*\n\s*input\.focus\(\);\s*\n\s*return;\s*\n\s*\}/.test(cs435),
+    '★ #435(b): a duplicate never reaches ixian:request. C# rejects it with a NATIVE alert and no push back — the known wedge that leaves Send latched in "loading" for 6 s. Same reasoning as looksLikeAddress blocking obvious garbage locally');
+  const cnp435 = read4('Spixi/Pages/Contacts/ContactNewPage.xaml.cs');
+  ok(/Utils\.sendUiCommand\(this, "onKnownAddress", "contact",\s*\n\s*routing_address\.ToString\(\), known\.nickname == null \? "" : known\.nickname, address\);/.test(cnp435)
+    && /Utils\.sendUiCommand\(this, "onKnownAddress", "self", "", "", address\);/.test(cnp435),
+    '★ #435(b): checkAddress answers WHICH outcome an address has, not just "it parses". ⚠ The dial assumed the shell could detect this locally from a contacts list — it cannot: production add-contact is the STANDALONE ContactNewPage, which never receives a roster. Pushing the whole roster to a WebView for one boolean would be strictly worse');
+  ok(/current_url\.StartsWith\("ixian:viewcontact:", StringComparison\.Ordinal\)/.test(cnp435)
+    && /pushPageLoaded\(new ContactDetails\(known, false, null, false\), 4000, null, -1, this\)/.test(cnp435),
+    '★ #435(b): "View contact" REPLACES the form in the same slot — tag and column left at their defaults on purpose so pushPageLoaded inherits the replaced overlay\'s slot (the Q1 fix), instead of blowing a pane up into a full-window takeover');
+
+  ok(/const forAddr = \(info\.checked \|\| ''\)\.trim\(\);/.test(cs435)
+    && /if \(forAddr\) \{ if \(input\.value\.trim\(\) !== forAddr\) return false; \}/.test(cs435),
+    '★ #435(b) audit MINOR-5: the async answer is correlated with the address it IS FOR, echoed back by C#. Guarding against the LATEST check was not enough — paste a known address, paste a new one before the reply lands, and the debounce had already moved the key on, so the stale answer latched "already in your contacts" onto a brand-new address and the CTA then refused to send it');
+  ok(/sendBtn\.disabled = true;/.test(cs435) && /sendBtn\.disabled = false;/.test(cs435),
+    '★ #435(b) audit MINOR-6: the CTA is DISABLED while the panel is up rather than silently ignoring a tap — the dead-end class this batch removes elsewhere');
+  const wsent443 = read4('Spixi/Resources/Raw/html/wallet_sent.html');
+  ok(/disclose: false,/.test(wsent443),
+    '★ N25 audit MINOR-8: the transaction DETAIL page opts OUT of the disclosure. Hiding the address, fee and id behind a tap on the screen whose whole purpose is those fields inverts it — and its #285 "Show amounts" reveal re-renders, which would have collapsed the drawer every time');
+
+  /* —— N43 THE SEARCH BAR NEVER HIDES (wallet half; chats + apps pinned above) —— */
+  const ws43 = read4('src/components/wallet-shell.js');
+  ok(/const N43_ALWAYS_VISIBLE = true;[\s\S]{0,400}?if \(N43_ALWAYS_VISIBLE\) \{/.test(ws43),
+    '★ N43 (#443): the wallet tools tuck is off at ONE point inside attachWalletScroll, so the demo and production cannot drift — and the HERO collapse, a different affordance Damir likes, is untouched');
+
+  /* —— N70 / N80 ————————————————————————————————————————————————————————— */
+  ok(/if \(sawOffline && rearmUpdateCheck\(\)\)/.test(hp434)
+    && /return false;\s*\/\/ never answered yet — keep the edge, re-check next tick/.test(hp434),
+    '★ N70 (#443): the offline→online edge is consumed only when the re-arm could ANSWER. If the first check is still in flight when the network returns, clearing the flag threw the edge away and the next answer waited a full checkVersionSeconds — one hour — which is the same "never appears" the row was opened for, just slower');
+  const home443 = read4('Spixi/Resources/Raw/html/index.html');
+  ok(/const RATING_MIN_OPENS = 5;/.test(home443) && /function ratingTooEarly\(\) \{ return ratingOpens < RATING_MIN_OPENS; \}/.test(home443)
+    && /if \(ratingTooEarly\(\)\) \{ pumpNudges\(\); return; \}/.test(home443),
+    '★ N80 (#443, decided #424): the store-rating prompt waits for the FIFTH app open. C# offers it from the first run, which asks a user who has barely used Spixi to rate it');
+  ok(/if \(last && now >= last && \(now - last\) < RATING_OPEN_DEBOUNCE_MS\) return;/.test(home443),
+    '★ N80: a theme or language pick RELOADS this document, which would otherwise count as an open. A one-minute debounce separates the two, and a clock that moved backwards cannot freeze the counter forever');
+  ok(!/if \(ratingTooEarly\(\)\)[\s\S]{0,200}?RATING_SNOOZE_KEY/.test(home443),
+    '★ N80: too early is NOT a snooze — no stamp is written, so the prompt appears the moment the fifth open happens rather than a week later');
+
+  /* —— N25 + the explorer copy ——————————————————————————————————————————— */
+  ok(/toggle\.className = 'c-txsheet__disclose';/.test(ws43) && /details\.hidden = true;/.test(ws43),
+    '★ N25 (#443): address / date / fee / transaction id sit behind a "See details" disclosure. Status stays outside it — it is the other half of "did it go through", which is the question the sheet exists to answer at a glance');
+  ok(/label: strings\.viewTxExplorer \|\| 'View transaction on Explorer'/.test(ws43),
+    '★ #443 (Damir): the tx-details explorer button says what it does. The old "View address in Explorer" copy came from the address-only verb the wallet tab used to have');
+  ok(/current_url\.StartsWith\("ixian:txexplorer:", StringComparison\.Ordinal\)/.test(hp434)
+    && /\?p=transaction&id=\{1\}/.test(hp434),
+    '★ #443: W3 CLOSED on HomePage — a tx-scoped explorer verb, mirroring WalletSentPage:130 so the two surfaces cannot drift');
+  ok(/Regex\.IsMatch\(txid, "\^\[0-9A-Za-z-\]\+\$"\)/.test(hp434) && !/\[0-9a-fA-F\]/.test(hp434),
+    '★ #443 audit MAJOR-1: the txid guard admits what an Ixian txid actually IS. getTxIdString returns "<blockHeight>-<Base58Plain>" (or "stk-<n>-<n>-<Base58>") — the first cut demanded HEX, so it refused EVERY real id and the button opened nothing, while the smoke pin blessed the regex as if it were the fix. Base58 + digits + the separator, all URL-safe, which is the property the guard is for');
+  ok(/false, null, 0, false, false\);/.test(hp434) && !/true, null, 0, false, false\);/.test(hp434),
+    '★ #434 audit MAJOR-3 + break-my-verdict MAJOR-3: no notification, no alert — and local_sender stays FALSE. With the defaults it fired an OS "New Message" push for an event the user caused; with local_sender TRUE it fell into the outgoing-status branch and stamped a permanent "sending" clock on a message that is never transmitted, plus the self-prefix on the excerpt. Both are the directional asymmetry #434 exists to remove');
+  ok(/int unreadBefore = friend\.metaData\.unreadMessageCount;[\s\S]{0,700}?friend\.metaData\.unreadMessageCount = unreadBefore;/.test(hp434),
+    '★ #434 audit MAJOR-3: the unread count is SNAPSHOTTED and restored. The increment is gated on `read`, not on `local_sender`, and clearing it to zero would silently mark a genuinely unread request message as read');
+  ok(/onExplorer: \(tx\) => bridge\.send\(\(tx && tx\.txid\)/.test(home443),
+    '★ #443: a tx with an id opens the TRANSACTION; the "Missing a transaction?" sheet passes null and still opens the ADDRESS, which is what it is for');
+
+  /* —— N42 + the Account address explainer ——————————————————————————————— */
+  const set443 = read4('Spixi/Resources/Raw/html/settings.html');
+  ok(/localStorage\.setItem\('spixi\.landtab', 'contacts:' \+ Date\.now\(\)\)/.test(set443),
+    '★ N42 (#443): Contacts is reachable from Account. There is no C# verb for "go home and open the directory" — the same gap S11 names — so it rides the #238 hand-off the nav taps already use');
+  ok(/if \(id === 'contacts'\) \{/.test(home443) && /openContacts\('directory'\);/.test(home443),
+    '★ N42 (#443): home consumes the hand-off, lands on Chats and opens the directory takeover');
+  ok(/onAddressInfo:/.test(set443) && /addressInfoSafety/.test(set443),
+    '★ #443 (Damir V1): the Account address says what it is FOR. ⚠ COPY IS A DRAFT pending his sign-off — and it deliberately does NOT claim the address hides anything: an Ixian address is public and its balance is visible in any explorer, so the honest promise is about WALLET ACCESS');
+}
+
+
+/* —— #440 — the blockchain-scan strip, EXECUTED (audit MINOR-11) ————————————————
+ * ★ Every other item in this batch got source pins, and neither of the two MAJORs the
+ * audit found here would have been caught by one: "shows 98% once a block on a synced
+ * phone" and "reads 0% at boot" are both about the ARITHMETIC, which only running it
+ * can see. So this block boots the real bundle and drives the component. */
+console.log('#440 — blockchain-scan strip (executed against the built bundle)');
+{
+  const bundle440 = readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8');
+  const dom440 = new JSDOM('<!doctype html><html><body></body></html>', {
+    runScripts: 'dangerously', pretendToBeVisual: true,
+    url: 'file://' + join(root, 'src/demo/scan-probe.html'),
+    beforeParse(w) {
+      w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+      try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+    },
+  });
+  const W440 = dom440.window;
+  // the bundle reads window.SpixiIcons at load time (icons ship as their own IIFE)
+  W440.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8'));
+  W440.eval(bundle440);
+  const S440 = W440.Spixi;
+  ok(!!S440 && typeof S440.createScanProgress === 'function' && typeof S440.setScanProgress === 'function',
+    '★ #440: the strip is a real bundle export — a source-only pin would pass even if the component never loaded');
+  if (S440 && S440.createScanProgress) {
+    const el440 = S440.createScanProgress({ strings: {} });
+    W440.document.body.append(el440);
+    const pct440 = () => (el440.querySelector('.c-scanprog__pct') || {}).textContent;
+
+    ok(el440.hidden === true,
+      '#440: born HIDDEN — a caught-up client must never see it, and "no push yet" is not "0%"');
+
+    /* ★ ZERO IS UNKNOWN. Both ends are zero before the first header lands and before any
+       peer reports a height; dividing them gives a confident, wrong 0%. */
+    S440.setScanProgress(el440, { current: 0, target: 0, origin: 0, strings: {} });
+    ok(!el440.hidden && el440.dataset.state === 'unknown' && pct440() === '',
+      '★ #440 TRAP 1: current=0/target=0 is INDETERMINATE, not 0%. No percentage is shown at all — this is the state that pairs with the N19 connecting line');
+    S440.setScanProgress(el440, { current: 0, target: 1000000, origin: 0, strings: {} });
+    ok(el440.dataset.state === 'unknown',
+      '#440 TRAP 1: a known target with no local height yet is still UNKNOWN — the scan has not reported a position');
+
+    /* ★ THE ORIGIN IS THE SESSION ANCHOR. Anchoring at the baked checkpoint makes every
+       launch of a current client read a few percent. */
+    S440.setScanProgress(el440, { current: 1000500, target: 1001000, origin: 1000000, strings: {} });
+    ok(el440.dataset.state === 'scanning' && pct440() === '50%',
+      '★ #440 TRAP 2: the percentage is measured from the SESSION origin — 500 of 1000 blocks done reads 50%, not "1000500 of 1001000"');
+    S440.setScanProgress(el440, { current: 1000500, target: 1001000, origin: 0, strings: {} });
+    ok(pct440() === '0%',
+      '#440: with NO origin the base falls back to the current height — 0% and climbing, never a negative or a >100 reading');
+
+    /* ★ AUDIT MAJOR-2: a synced client. getHighestKnownNetworkBlockHeight() is
+       max(ourHeight, a peer majority extrapolated from the last block's timestamp), so a
+       caught-up phone reads target = current + 1 roughly once every 30 seconds. */
+    S440.setScanProgress(el440, { current: 1000000, target: 1000001, origin: 1000000, strings: {} });
+    ok(el440.hidden === true,
+      '★ #440 AUDIT MAJOR-2: one block behind is CAUGHT UP. Without a lag threshold a synced phone flashed "98%" between "a block is due" and "TIV fetched it", once per block, inserting and removing a block of layout above the transaction list each time');
+    S440.setScanProgress(el440, { current: 1000000, target: 1000000, origin: 1000000, strings: {} });
+    ok(el440.hidden === true,
+      '★ #440 AUDIT MAJOR-2: origin == current == target at boot used to render a confident "0%" — exactly the reading this component exists to prevent');
+
+    /* HYSTERESIS: a wide band to appear, a narrow one to disappear. */
+    S440.setScanProgress(el440, { current: 1000000, target: 1000021, origin: 1000000, strings: {} });
+    ok(!el440.hidden && el440.dataset.state === 'scanning',
+      '#440: 21 blocks behind is genuinely behind — the strip appears');
+    /* ★ break-my-verdict MAJOR-1: the UNKNOWN state un-hides, and C# guarantees an
+       unknown (0,0,0) frame on every boot — so a visibility-keyed hysteresis judged the
+       FIRST real frame against HIDE_LAG and rendered "0%" on a caught-up phone. */
+    S440.setScanProgress(el440, { current: 0, target: 0, origin: 0, strings: {} });
+    S440.setScanProgress(el440, { current: 1000000, target: 1000006, origin: 1000000, strings: {} });
+    ok(el440.hidden === true,
+      '★ #440 break-my-verdict MAJOR-1: the boot sequence UNKNOWN → 6 blocks behind stays HIDDEN. The hysteresis keys on "was I reporting a SCAN", not on "am I visible" — otherwise the unknown frame every launch produces opened the narrow band and any phone 3 to 20 blocks behind rendered 0%');
+    S440.setScanProgress(el440, { current: 1000000, target: 1000021, origin: 1000000, strings: {} });
+    S440.setScanProgress(el440, { current: 1000016, target: 1000021, origin: 1000000, strings: {} });
+    ok(!el440.hidden,
+      '★ #440 HYSTERESIS: once shown it STAYS shown while it closes the gap. A single threshold would have made it vanish and reappear across its own boundary');
+    S440.setScanProgress(el440, { current: 1000020, target: 1000021, origin: 1000000, strings: {} });
+    ok(el440.hidden === true,
+      '#440 HYSTERESIS: and it disappears completely when the scan is current — never a bar resting at 100%');
+
+    /* ★ #452, the SLIM ROW form: the whole thing is one button that opens the sheet. */
+    S440.setScanProgress(el440, { current: 1000000, target: 1000500, origin: 1000000, strings: {} });
+    ok(el440.querySelector('.c-scanprog__pct').getAttribute('role') === 'progressbar'
+      && !!el440.querySelector('.c-scanprog__pct').getAttribute('aria-label')
+      && el440.querySelector('.c-scanprog__text').getAttribute('aria-live') === 'polite'
+      && el440.getAttribute('aria-live') === null,
+      '★ #440 a11y (audit MINOR-7): the live region is on the TEXT, not the section — C# pushes at 1 Hz and a section-level region re-announced the whole row once a second. The progressbar has a NAME');
+    ok(el440.querySelector('.c-scanprog__row').tagName === 'BUTTON',
+      '★ #452: the row is a BUTTON. Damir put the scan behind the "Missing a transaction?" sheet, so the row must be a real tap target, not a decorated div');
+    ok(!!el440.querySelector('svg.c-scanring'),
+      '★ #452: the row carries the RING. At 20px its arc is a motion cue and the number beside it is what gets read — chosen on a rendered comparison, not in the abstract (#433)');
+    let opened440 = 0;
+    const el440b = S440.createScanProgress({ strings: {}, onOpen: () => { opened440 += 1; } });
+    S440.setScanProgress(el440b, { current: 1000000, target: 1000500, origin: 1000000, strings: {} });
+    el440b.querySelector('.c-scanprog__row').click();
+    ok(opened440 === 1,
+      '★ #452: tapping the row fires onOpen exactly once — the shell routes it to the missing-tx sheet, which is the only way in while the row has replaced the pill');
+    S440.setScanProgress(el440b, { current: 0, target: 0, origin: 0, strings: {} });
+    ok(el440b.querySelector('svg.c-scanring').hasAttribute('data-indeterminate')
+      && el440b.querySelector('.c-scanprog__pct').textContent === '',
+      '★ #452: CONNECTING spins an indeterminate ring and shows NO percentage. It resolves into a filling ring the moment both numbers are real — Damir asked for exactly that transition');
+    // origin BELOW current, so there is real progress to read — origin == current is 0%
+    // by definition and would have made the assertion below vacuous.
+    S440.setScanProgress(el440b, { current: 1000000, target: 1000500, origin: 999500, strings: {} });
+    ok(!el440b.querySelector('svg.c-scanring').hasAttribute('data-indeterminate')
+      && el440b.querySelector('.c-scanprog__pct').textContent === '50%',
+      '★ #452: and back — indeterminate clears once the numbers arrive, and 500 of 1000 blocks done reads 50%');
+    const st440 = S440.scanProgressState(el440b);
+    ok(st440.state === 'scanning' && st440.percent === 50,
+      '★ #452: scanProgressState is the ONE reading. The sheet mirrors the row through it rather than re-deriving a percentage, which is how two surfaces start disagreeing');
+  }
+  dom440.window.close();
+
+  /* the C# half + the shell wiring */
+  const hp440 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  /* ★ NEGATIVE assertions read a COMMENT-STRIPPED copy. Both of the ones below name the
+     thing they forbid in the docblock that explains why it is forbidden, so testing the
+     raw file makes them permanently red — the #421 shape ("a proximity regex is satisfied
+     by a comment"), turned on itself. */
+  const hp440NoComments = hp440.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok(/ulong scanCurrent = IxianHandler\.getLastBlockHeight\(\);/.test(hp440)
+    && /ulong scanTarget = CoreProtocolMessage\.determineHighestNetworkBlockNum\(\);/.test(hp440)
+    && !/getHighestKnownNetworkBlockHeight/.test(hp440NoComments),
+    '★ #453: the target is the RAW peer answer, not getHighestKnownNetworkBlockHeight. That wrapper is max(OUR height, the majority), and the majority is 0 until peers connect — so for the first seconds of every launch it returned our own height, target == current, and the caught-up test wiped the persisted anchor. The raw call returns 0 with no peers, which is the "we do not know yet" the shell already renders as indeterminate');
+  /* pinned on the CODE, not on prose: every assignment to scanOriginBlock must come from
+     the observed height. (The docblock NAMES bakedBlockHeight as the thing not to use, so
+     a "does the word appear" pin would fail on the explanation itself.) */
+  /* #451: the anchor is computed into `newOrigin` and then committed, so BOTH names are
+     read — and the values must still only ever be the observed height, zero, or the
+     persisted value read back from Preferences. */
+  const originAssigns440 = [...hp440.matchAll(/^\s*(?:ulong )?(?:scanOriginBlock|newOrigin)\s*=\s*([^;=][^;]*);/gm)].map((m) => m[1].trim());
+  ok(originAssigns440.length > 0 && originAssigns440.every((v) => v === 'scanCurrent' || v === '0' || v === 'scanOriginBlock' || v === 'newOrigin'),
+    '★ #440 TRAP 2: the origin is the SESSION anchor, never the baked checkpoint. A resumed run continues from stored headers nowhere near CoreConfig.bakedBlockHeight, so anchoring there would make every launch of a current client read a few percent. Assignments found: ' + originAssigns440.join(' | '));
+  ok(/scanOriginBlock == 0 \|\| scanCurrent < scanOriginBlock/.test(hp440),
+    '★ #440 (audit MINOR-4): the origin re-anchors DOWNWARD too — a re-org, a restore or a TIV reset can put the current height below it, which froze the bar at 0% for the whole catch-up and then jumped');
+  ok(/Preferences\.Default\.Set\(SCAN_ORIGIN_PREF/.test(hp440) && /Preferences\.Default\.Get\(SCAN_ORIGIN_PREF/.test(hp440),
+    '★ #451 (Damir on device): the origin is PERSISTED. The scan itself always kept its place — TransactionInclusion.start resumes from the highest stored header — but the bar was anchored per RUN, so closing the app at 6% and reopening showed 0%. It measured "how far since I opened the app" instead of "how far through this catch-up"');
+  ok(/scanTarget > 0 && scanTarget <= scanCurrent \+ SCAN_CURRENT_LAG[\s\S]{0,200}?newOrigin = 0;/.test(hp440)
+    && !/scanTarget - scanCurrent/.test(hp440NoComments),
+    '★ #453: the caught-up test is ADDITIVE, never a ulong SUBTRACTION — a target below the current height, which is normal when we are momentarily ahead of what peers report, underflows to an enormous number and the test silently never fires. And it is guarded on a NON-ZERO target, because zero means no peers, not caught up');
+  ok(/scanTarget > 0 && scanTarget <= scanCurrent \+ SCAN_CURRENT_LAG/.test(hp440),
+    '★ #451: the anchor is CLEARED once we are current, so the next real gap starts from zero again — a week away is a NEW catch-up, not a continuation. Tied to the same 2-block lag the shell hides at, so the anchor lives exactly as long as the strip can be visible');
+  ok(/if \(scanCurrent != lastScanCurrent \|\| scanTarget != lastScanTarget\)/.test(hp440),
+    '#440: the 1 Hz tick pushes only on CHANGE — the scan steps 250 headers at a time, so an unconditional push would be mostly noise');
+  const homeBuilt440 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
+  ok(/setScanProgress\(current, target, origin\) \{/.test(homeBuilt440)
+    && /applyScanProgress\(scanProgress, \{/.test(homeBuilt440),
+    '★ #440: the BUILT shell defines setScanProgress. C# emits it as a BARE GLOBAL, and an undefined one throws before native.js can catch it (#258) — at 1 Hz, on the home shell');
+  ok(/scan: \(\) => scanState,/.test(homeBuilt440),
+    '#440: the "Missing a transaction?" sheet reads the LIVE scan state through a getter — a value captured at build time would be stale by the time the sheet opens');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

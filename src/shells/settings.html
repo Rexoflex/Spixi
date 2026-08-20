@@ -186,6 +186,7 @@
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
+    createSheet, openSheet,          // #443: the "what is this address" explainer
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
     applyPushedTheme,
@@ -778,6 +779,40 @@
       // createSettingsHub builds no action at all when onSave is absent
       // (settings-shell.js:338), so auto-save simply has no check icon.
       onSave: autoSaveOn() ? undefined : commitSave,
+
+      /* ★ N42 (#443, Damir): Contacts, reachable from Account. There is no C# verb
+         for "go home and open the contacts directory" — the same gap S11 names for
+         landing on a tab — so it rides the SAME #238 localStorage hand-off the
+         bottom-nav/rail taps already use, with 'contacts' as the id. home.html
+         consumes it, lands on Chats and opens the directory takeover.
+         The write is a fixed keyword and a timestamp: no user data, no new key. */
+      onContacts: () => {
+        try { localStorage.setItem('spixi.landtab', 'contacts:' + Date.now()); } catch (e) {}
+        exitSettings();
+      },
+
+      /* ★ #443 (Damir V1): what IS this address. One sheet — the desktop overlay
+         grammar (#261 M6) renders every c-sheet as a centred dialog, so this is one
+         component, not a mobile/desktop fork.
+         ⚠ COPY IS A DRAFT — flagged for Damir's sign-off. It deliberately does NOT
+         claim the address hides anything: an Ixian address is public and its balance
+         is visible in any explorer, so the honest promise is about WALLET ACCESS. */
+      onAddressInfo: () => {
+        const body = document.createElement('div');
+        body.className = 'c-settings__addrinfo-body';
+        const p1 = document.createElement('p');
+        p1.textContent = strings.addressInfoBody
+          || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
+        const p2 = document.createElement('p');
+        p2.textContent = strings.addressInfoSafety
+          || 'Sharing it is safe: it never gives anyone access to your wallet.';
+        body.append(p1, p2);
+        const sheet = createSheet({
+          content: body, host: document.body, strings,
+          title: strings.addressInfoTitle || 'Your Ixian address',
+        });
+        openSheet(sheet);
+      },
 
       // About / How to use / Contributors — STATIC in-hub views, zero-C# (no bridge verb).
       onAbout: showAbout,

@@ -660,6 +660,7 @@ global-invalid-address-title = 無効なアドレス
 global-invalid-address-text = 正しいアドレスを入力してください。
 
 global-friend-request-accepted = {0} があなたの連絡先リクエストを承認しました。
+global-friend-request-connected = {0} とつながりました。
 
 global-update-available = Spixi の新しいバージョン ({0}) が利用可能です。最新のエクスペリエンスのために更新してください。
 global-modal-external-link-title = 外部リンク

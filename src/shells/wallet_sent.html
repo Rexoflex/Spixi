@@ -315,6 +315,9 @@
     const ghost = document.createElement('div');
     const sheet = openTxSheet({
       tx, host: ghost, strings,
+      // N25 (#443) audit MINOR-8: this PAGE exists to show the address, fee and id —
+      // do not hide them behind the sheet's "See details" disclosure here.
+      disclose: false,
       // TX-SCOPED explorer (the page's own verb — C# opens ?p=transaction&id=<txid>).
       onExplorer: () => bridge.send('ixian:viewexplorer'),
     });

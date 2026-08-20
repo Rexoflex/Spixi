@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scan progress — variants</title>
+<style>
+:root{
+  --grey-10:#f9fafb;--grey-50:#edf0f2;--grey-100:#e8ecee;--grey-200:#dde2e9;
+  --grey-400:#bbbec4;--grey-490:#4f5664;--grey-500:#31343a;--grey-600:#292d33;
+  --grey-700:#202328;--grey-800:#1b1f23;--grey-900:#13171b;--grey-950:#131415;
+  --brand-400:#769dff;--brand-600:#3050bd;
+  font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+}
+.pane{ --screen:var(--grey-10); --card:var(--grey-50); --n02:var(--grey-50);
+  --track:var(--grey-200); --fill:var(--brand-600); --t1:var(--grey-950);
+  --t2:var(--grey-490); --action:var(--brand-600); }
+.pane[data-theme="dark"]{ --screen:var(--grey-900); --card:var(--grey-800); --n02:var(--grey-800);
+  --track:var(--grey-600); --fill:var(--brand-400); --t1:var(--grey-100);
+  --t2:var(--grey-400); --action:var(--brand-400); }
+
+body{margin:0;background:#0b0d10;color:#cfd4dc;padding:20px;}
+h1{font-size:16px;font-weight:600;margin:0 0 4px;color:#fff;}
+.sub{font-size:13px;color:#8d95a3;margin:0 0 20px;max-width:760px;line-height:1.5;}
+.wrap{display:flex;gap:20px;flex-wrap:wrap;}
+.pane{background:var(--screen);border-radius:16px;padding:14px;width:360px;
+  box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8d95a3;
+  margin:22px 0 8px;font-weight:600;}
+.pane .lbl{color:var(--t2);margin:16px 0 6px;}
+
+/* --- fake wallet chrome so size reads true --- */
+.hero{background:linear-gradient(160deg,#232a52,#1a1f3d);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:10px;}
+.hero .cap{font-size:11px;opacity:.65;}
+.hero .bal{font-size:26px;font-weight:600;letter-spacing:-.02em;}
+.tools{display:flex;gap:6px;margin-bottom:10px;}
+.tools .f{flex:1;height:30px;border-radius:15px;background:var(--card);}
+.row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;}
+.row+.row{margin-top:2px;}
+.dot{width:34px;height:34px;border-radius:50%;background:var(--track);flex:none;}
+.rn{flex:1;min-width:0;}
+.rn b{display:block;font-size:14px;color:var(--t1);font-weight:500;}
+.rn span{font-size:12px;color:var(--t2);}
+.amt{font-size:14px;font-weight:600;color:var(--t1);}
+
+/* --- SLIM ROW variants --- */
+.slim{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;
+  background:var(--n02);margin:0 0 8px;cursor:pointer;}
+.slim .txt{flex:1;min-width:0;font-size:13px;color:var(--t1);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;}
+.slim .pct{font-size:13px;color:var(--t2);font-variant-numeric:tabular-nums;flex:none;}
+.slim .chev{color:var(--t2);flex:none;font-size:15px;line-height:1;}
+.ring{flex:none;}
+.slimbar{flex:1;height:4px;border-radius:2px;background:var(--track);overflow:hidden;}
+.slimbar i{display:block;height:100%;background:var(--fill);border-radius:2px;}
+
+/* --- SHEET CARD variants --- */
+.sheet{background:var(--card);border-radius:18px 18px 0 0;padding:16px;margin-top:8px;}
+.grab{width:34px;height:4px;border-radius:2px;background:var(--track);margin:0 auto 12px;}
+.sh-t{font-size:16px;font-weight:600;color:var(--t1);margin:0 0 8px;}
+.sh-b{font-size:13px;line-height:1.5;color:var(--t2);margin:0 0 12px;}
+.card{display:flex;align-items:center;gap:14px;background:var(--n02);
+  border-radius:12px;padding:14px;margin-bottom:12px;}
+.card .col{flex:1;min-width:0;}
+.card .h{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:3px;}
+.card .p{font-size:12px;line-height:1.45;color:var(--t2);}
+.cardbar{height:4px;border-radius:2px;background:var(--track);overflow:hidden;margin-top:9px;}
+.cardbar i{display:block;height:100%;background:var(--fill);border-radius:2px;}
+.cta{display:block;text-align:center;padding:12px;border-radius:12px;
+  border:1px solid var(--track);color:var(--action);font-size:14px;font-weight:600;}
+.pctbig{font-size:13px;color:var(--t2);font-variant-numeric:tabular-nums;flex:none;}
+@keyframes sweep{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+.indet i{width:35%;animation:sweep 1.6s ease-in-out infinite;}
+</style></head><body>
+
+<h1>Scan progress — slim row + sheet card</h1>
+<p class="sub">Real Spixi tokens, real sizes. Light and dark side by side. The slim row is
+the always-visible entry point; tapping it opens the sheet. Judge the row at arm's length —
+that is how it will actually be seen.</p>
+
+<div class="wrap" id="wrap"></div>
+
+<script>
+const PCTS = [6, 45];
+function ring(pct, size, stroke, showInside){
+  const r = size/2 - stroke/2, c = 2*Math.PI*r;
+  const off = c * (1 - pct/100);
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--fill)" stroke-width="${stroke}"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+      transform="rotate(-90 ${size/2} ${size/2})"/>
+    ${showInside ? `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+      font-size="${size*0.28}" font-weight="600" fill="var(--t1)"
+      font-family="-apple-system,Segoe UI,Roboto,sans-serif">${pct}%</text>` : ''}
+  </svg>`;
+}
+const chrome = `
+  <div class="hero"><div class="cap">Available Balance</div><div class="bal">78.40 IXI</div></div>
+  <div class="tools"><div class="f"></div><div class="f"></div></div>`;
+const txrows = `
+  <div class="row"><div class="dot"></div><div class="rn"><b>Sent to Alex</b><span>Aug 19</span></div><div class="amt">-0.12</div></div>
+  <div class="row"><div class="dot"></div><div class="rn"><b>Received</b><span>Aug 18</span></div><div class="amt">+5.00</div></div>`;
+
+function pane(theme){
+  const p = [];
+  p.push(`<div class="pane" data-theme="${theme}">`);
+  p.push(`<div class="lbl">${theme} — slim row, variant A · ring + number</div>`);
+  p.push(chrome);
+  PCTS.forEach(v => p.push(`<div class="slim">${ring(v,20,3,false)}
+    <span class="txt">Checking for your transactions</span>
+    <span class="pct">${v}%</span><span class="chev">›</span></div>`));
+  p.push(`<div class="slim">${ring(0,20,3,false)}<span class="txt">Connecting…</span><span class="chev">›</span></div>`);
+  p.push(txrows);
+
+  p.push(`<div class="lbl">${theme} — slim row, variant B · inline bar</div>`);
+  PCTS.forEach(v => p.push(`<div class="slim">
+    <span class="txt" style="flex:0 0 auto">Checking transactions</span>
+    <span class="slimbar"><i style="width:${v}%"></i></span>
+    <span class="pct">${v}%</span><span class="chev">›</span></div>`));
+
+  p.push(`<div class="lbl">${theme} — slim row, variant C · number only</div>`);
+  PCTS.forEach(v => p.push(`<div class="slim">
+    <span class="txt">Checking for your transactions — ${v}% done</span><span class="chev">›</span></div>`));
+
+  p.push(`<div class="lbl">${theme} — sheet card, variant 1 · big circle</div>`);
+  p.push(`<div class="sheet"><div class="grab"></div>
+    <div class="sh-t">Missing a transaction?</div>
+    <div class="card">${ring(6,56,5,true)}<div class="col">
+      <div class="h">Checking for your transactions</div>
+      <div class="p">Spixi is looking through recent blocks for transactions that involve your address.</div>
+    </div></div>
+    <div class="sh-b">Spixi only checks blocks from a fixed starting point. Transactions older than that are not listed here.</div>
+    <div class="cta">View all transactions on Explorer ↗</div></div>`);
+
+  p.push(`<div class="lbl">${theme} — sheet card, variant 2 · bar under text</div>`);
+  p.push(`<div class="sheet"><div class="grab"></div>
+    <div class="sh-t">Missing a transaction?</div>
+    <div class="card" style="display:block">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div class="h" style="flex:1">Checking for your transactions</div><div class="pctbig">6%</div></div>
+      <div class="p">Spixi is looking through recent blocks for transactions that involve your address.</div>
+      <div class="cardbar"><i style="width:6%"></i></div></div>
+    <div class="sh-b">Spixi only checks blocks from a fixed starting point. Transactions older than that are not listed here.</div>
+    <div class="cta">View all transactions on Explorer ↗</div></div>`);
+
+  p.push(`<div class="lbl">${theme} — sheet card · indeterminate, no number</div>`);
+  p.push(`<div class="sheet"><div class="grab"></div>
+    <div class="sh-t">Missing a transaction?</div>
+    <div class="card" style="display:block">
+      <div class="h">Connecting</div>
+      <div class="p">Spixi will check for your transactions once it reaches the network.</div>
+      <div class="cardbar indet"><i></i></div></div>
+    <div class="cta">View all transactions on Explorer ↗</div></div>`);
+  p.push(`</div>`);
+  return p.join('');
+}
+document.getElementById('wrap').innerHTML = pane('light') + pane('dark');
+</script></body></html>

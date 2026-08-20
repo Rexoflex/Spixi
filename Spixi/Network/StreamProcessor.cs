@@ -334,7 +334,7 @@ namespace SPIXI
                         {
                             if (friend.approved)
                             {
-                                Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-accepted"), friend.nickname));
+                                Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-connected"), friend.nickname));
                             }
                             else
                             {
@@ -351,7 +351,7 @@ namespace SPIXI
                     case SpixiMessageCode.acceptAdd:
                     case SpixiMessageCode.acceptAdd2:
                         {
-                            Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-accepted"), friend.nickname));
+                            Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-connected"), friend.nickname));
                             CoreProtocolMessage.resubscribeEvents();
                             CoreStreamProcessor.fetchFriendsPresence(friend, true);
                         }
@@ -365,7 +365,7 @@ namespace SPIXI
 
                     case SpixiMessageCode.acceptAddBot:
                         {
-                            Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-accepted"), friend.nickname));
+                            Node.addMessageWithType(new byte[] { 1 }, FriendMessageType.standard, friend.walletAddress, 0, string.Format(SpixiLocalization._SL("global-friend-request-connected"), friend.nickname));
                             var chat_page = Utils.getChatPage(friend);
                             if (chat_page != null)
                             {

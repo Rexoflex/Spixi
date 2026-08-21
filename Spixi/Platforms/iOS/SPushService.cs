@@ -74,6 +74,33 @@ namespace Spixi
 
             OneSignal.Initialize(SPIXI.Meta.Config.oneSignalAppId);
 
+            /* * APNS-1 (2026-08-21) - LOG ONLY. Ships with the entitlement, fixes nothing.
+             *
+             * iOS push has never registered on a device build: the app carried NO
+             * entitlements file, so it never asked iOS for an APNs token and OneSignal had
+             * no subscription to address. With aps-environment now present, ONE open
+             * question remains and only the device can answer it.
+             *
+             * The bundle id was renamed in 10e621f7 (2024-07-12):
+             *     io.ixian.spixi  ->  com.ixilabs.spixi
+             * Legacy Spixi (the OLD id) still receives push, which proves the OneSignal
+             * account and its APNs credential are healthy - for that id. On APNs the bundle
+             * id IS the apns-topic, so if the dashboard's iOS platform still names the old
+             * one, every push aimed at THIS build is rejected however correctly it is signed.
+             *
+             * * A SUBSCRIPTION ID + A TOKEN + NO ARRIVING PUSH IS THAT ANSWER, and it is a
+             * dashboard fix (BE dev), not a code fix. A token that never appears at all is a
+             * different fault and points back here. Read-only: subscribes and logs. */
+            try
+            {
+                logPushSubscription("post-init");
+                OneSignal.User.PushSubscription.Changed += (s, e) => logPushSubscription("changed");
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[APNSDIAG] probe could not attach: " + ex.Message);
+            }
+
             OneSignal.Notifications.RequestPermissionAsync(true).ContinueWith(task =>
             {
                 if (task.IsFaulted)
@@ -105,6 +132,27 @@ namespace Spixi
                 }
                 return Task.CompletedTask;
             });
+        }
+
+        /* * APNS-1 probe. LOG ONLY - see initialize(). Never throws into a caller. */
+        private static void logPushSubscription(string when)
+        {
+            try
+            {
+                var sub = OneSignal.User.PushSubscription;
+                string tok = sub.Token;
+                Logging.info("[APNSDIAG] " + when
+                    + " bundle=" + NSBundle.MainBundle.BundleIdentifier
+                    + " subId=" + (string.IsNullOrEmpty(sub.Id) ? "(none)" : sub.Id)
+                    + " token=" + (string.IsNullOrEmpty(tok)
+                        ? "(NONE - not registered with APNs)"
+                        : tok.Length + " chars")
+                    + " optedIn=" + sub.OptedIn);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[APNSDIAG] " + when + " read failed: " + ex.Message);
+            }
         }
 
         public static void setTag(string tag)

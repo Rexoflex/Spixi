@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  APNS-1 (2026-08-21). The app had NO entitlements file at all, so it never asked iOS
+	  for an APNs device token and OneSignal had no subscription to address. Push has
+	  therefore never worked on any iOS device build of the redesign.
+
+	  `development` pairs with an iOS App Development profile. A distribution/TestFlight
+	  build needs `production` here — see the IsPublish PropertyGroup in Spixi.csproj.
+
+	  DELIBERATELY NOT ADDED: com.apple.security.application-groups. The Notification
+	  Service Extension (Spixi-PushService, written but commented out of Spixi.csproj)
+	  will need an App Group to read mute state from a separate process. Adding the
+	  entitlement before the profile carries it makes codesign FAIL, so it lands with
+	  that batch, not this one.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

@@ -3,6 +3,7 @@ using IXICore.Meta;
 using IXICore.Network;
 using IXICore.Streaming;
 using Microsoft.Maui.ApplicationModel;    // iOS-21: Browser.Default (SingleChatPage:21 precedent)
+using Microsoft.Maui.ApplicationModel.DataTransfer;   // #455 G5: Share.RequestAsync (HomePage:10 precedent)
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Maui.Storage;
@@ -194,6 +195,28 @@ namespace SPIXI
             else if (current_url.Equals("ixian:error", StringComparison.Ordinal))
             {
                 displaySpixiAlert(SpixiLocalization._SL("settings-emptynick-title"), SpixiLocalization._SL("settings-emptynick-text"), SpixiLocalization._SL("global-dialog-ok"));
+            }
+            else if (current_url.Equals("ixian:share", StringComparison.Ordinal))
+            {
+                /* ★ #455 (G5, Damir on device: "the share icon copies instead of
+                 * sharing"). It was never a regression and never a hit-area problem —
+                 * the Account share button HAS NO NATIVE RUNG. Its ladder was
+                 * navigator.share → clipboard, and Android's WebView does not implement
+                 * the Web Share API, so the FIRST rung is missing on the only platform
+                 * that matters and the clipboard was always the answer.
+                 *
+                 * The sibling shell got this right: home.html's wallet-receive Share
+                 * falls back to `ixian:share`, and HomePage:748 dispatches it. Only the
+                 * desktop gate was mirrored into settings.html, not the terminal rung.
+                 *
+                 * Same payload, provably: SettingsPage pushes the Account address with
+                 * `setAddress` from getPrimaryAddress().ToString() (:143), which is the
+                 * exact expression HomePage shares. There is no second address to get
+                 * wrong. */
+                Share.RequestAsync(new ShareTextRequest
+                {
+                    Text = IxianHandler.getWalletStorage().getPrimaryAddress().ToString(),
+                });
             }
             else if (current_url.Equals("ixian:delete", StringComparison.Ordinal))
             {
@@ -915,6 +938,7 @@ namespace SPIXI
                      * alone otherwise), so the NEXT account on this install re-arms the
                      * first-asset backup nudge instead of inheriting this one's period. */
                     Preferences.Default.Remove("backupReminderTimestamp");
+                    Preferences.Default.Remove("walletCreatedHere");   // #456: the marker belongs to the wallet, not the device
 
                     PendingTransactions.clear();
                     Node.storage.deleteData();

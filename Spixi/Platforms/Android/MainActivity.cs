@@ -124,6 +124,92 @@ public class MainActivity : MauiAppCompatActivity
         handleNotificationIntent(Intent);
     }
 
+    /* ★ #454 — the pause hook for the app lock. See App.lockOnPause for the whole
+     * reasoning; in one line: the lock has to be the last frame the app DRAWS, because
+     * the frame Android restores on the way back is on screen before any managed code
+     * runs, and no resume-time cover can get in front of it.
+     *
+     * OnPause, not OnStop. MAUI's Application.OnSleep is raised from OnStop, by which
+     * point the window is already going away — that is exactly why #442's cover was
+     * added to the view tree and never painted. OnPause still has a live, drawing
+     * window.
+     *
+     * Before base.OnPause() so the swap is queued as early as the platform allows.
+     * Guarded and self-contained: with the app lock disabled it does nothing at all. */
+    /* ★ #461 (Damir on device): the residual flash IS the task snapshot.
+     *
+     * #454 made the LIVE view tree show the lock at pause, and that helped — "faster and
+     * smoother" — but the chat list still appeared for a moment on the way back. The
+     * discriminator was one look at the task switcher: its thumbnail showed the CHAT
+     * LIST. That thumbnail and the flash are the SAME PICTURE. Android captures the
+     * window when the task goes to the background and draws that capture during the
+     * app-open animation, before the app draws anything at all. No managed code runs
+     * early enough to get in front of it — the same wall #442 hit from the other side.
+     *
+     * ⚠ The question was framed badly when it was asked: "blank the recents thumbnail"
+     * was offered as a SEPARATE cosmetic item to the resume flash, and Damir reasonably
+     * declined it to keep screenshots. They are ONE item. Declining the thumbnail keeps
+     * the flash.
+     *
+     * `setRecentsScreenshotEnabled(false)` is API 33+ and stops the system taking that
+     * capture at all — WITHOUT blocking screenshots, which is what FLAG_SECURE would
+     * have cost. Damir's phone is Android 14. Below 33 nothing is applied: FLAG_SECURE is
+     * the only lever there, and it is not a trade he chose.
+     *
+     * Only while the app lock is ON, and applied symmetrically so turning the lock off
+     * gives the thumbnail back. Called from OnResume and on the way into OnPause, so it
+     * stays in step with the preference — including when the user enables the lock in
+     * Settings and backgrounds the app with no resume in between. */
+    private void applyRecentsPrivacy()
+    {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(33))
+        {
+            return;
+        }
+        try
+        {
+            bool locked = (Microsoft.Maui.Controls.Application.Current as App)?.isLockEnabled() == true;
+            SetRecentsScreenshotEnabled(!locked);
+        }
+        catch (Exception e)
+        {
+            Logging.error("applyRecentsPrivacy failed: " + e);
+        }
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        applyRecentsPrivacy();   // #461: keep it in step with the lock preference
+    }
+
+    protected override void OnPause()
+    {
+        // #461: before the capture the system is about to take.
+        applyRecentsPrivacy();
+        try
+        {
+            /* ★ AUDIT MINOR-4: OnPause is not the same event as "the user left the app".
+             * ResizeableActivity and SupportsPictureInPicture are both on, and in either
+             * of those a pause means the user tapped the OTHER pane — Spixi is still
+             * visible, so presenting a lock there would put one on screen while they
+             * are looking at it, on every tap. Rotation and theme changes are already
+             * safe: ConfigurationChanges above absorbs them without a pause. */
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.N
+                && (IsInMultiWindowMode || IsInPictureInPictureMode))
+            {
+                base.OnPause();
+                return;
+            }
+            (Microsoft.Maui.Controls.Application.Current as App)?.lockOnPause();
+        }
+        catch (Exception e)
+        {
+            Logging.error("OnPause: lockOnPause failed: " + e);
+        }
+        base.OnPause();
+    }
+
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? intent)
     {
         base.OnActivityResult(requestCode, resultCode, intent);

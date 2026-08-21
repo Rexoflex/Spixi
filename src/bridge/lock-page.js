@@ -58,6 +58,11 @@ export function mountLockPage({ host, bridge, strings, mode, biometrics } = {}) 
   br.exposeAll({
     // C# onload push (confirm mode): setJustConfirm("True")
     setJustConfirm(v) { setLockMode(el, String(v).toLowerCase() === 'true' ? 'confirm' : 'unlock'); },
+    /* ★ #234: setAppLock("True") — the APP LOCK. Pushed AFTER setJustConfirm, because
+       App's resume/pause lock is a justConfirm page (it pops a modal rather than
+       rewriting the navigation stack) and would otherwise render Cancel, which unlocked
+       the app without the password. Neither exit is offered in this mode. */
+    setAppLock(v) { if (String(v).toLowerCase() === 'true') setLockMode(el, 'locked'); },
     // §9 pre-wire — inert until BE ships an explicit wrong-password push
     unlockFailed(msg) { if (unlockCtrl) unlockCtrl.fail(msg); },
   });

@@ -464,6 +464,17 @@ namespace SPIXI
                          * = the nudge, once. onRestore SETS the stamp instead, so a failed
                          * restore followed by a create must not inherit it. */
                         Preferences.Default.Remove("backupReminderTimestamp");
+                        /* ★ #456 (Damir): a wallet GENERATED on this device cannot have
+                         * history behind it, so the blockchain-scan row on the wallet tab
+                         * is noise for it — there is nothing to find. Nothing else in the
+                         * app can tell a new wallet from a restored one: both start with
+                         * empty block storage at CoreConfig.bakedBlockHeight, and the only
+                         * existing restore flag (LocalStorage.accountRestored) is consumed
+                         * inside Node.preStart, before HomePage exists. So the create site
+                         * records it, the restore site clears it, and delete-account clears
+                         * it with the rest. Absent = the old behaviour, which is the right
+                         * way for this to degrade on an upgraded install. */
+                        Preferences.Default.Set("walletCreatedHere", "1");
 
                         // TODO: encrypt the password
                         Preferences.Default.Set("walletpass", pass);
@@ -573,6 +584,11 @@ namespace SPIXI
              * which is exactly "don't ask someone who just restored from a backup".
              * Existing key, existing period — nothing new. */
             Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
+            /* #456: a RESTORE may carry years of history. Clear the create marker here —
+             * this leg runs for BOTH restore paths (the account zip and the bare wallet
+             * file) before either branches, so neither can inherit it from an earlier
+             * create on the same device. */
+            Preferences.Default.Remove("walletCreatedHere");
 
             Preferences.Default.Set("walletpass", pass);
 

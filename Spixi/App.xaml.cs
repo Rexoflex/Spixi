@@ -12,6 +12,7 @@ using SPIXI.Meta;
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;   // #454: ModalStack (IReadOnlyList<Page>).Contains
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -281,6 +282,11 @@ public partial class App : Application
          * and skips the guarded uncover, so the unlock removed the lock stage and
          * revealed an opaque, input-swallowing cover for up to 8 seconds. */
         SpixiContentPage.hidePrivacyShield();
+        /* ★ #454: AUTH also retires the PAUSE lock. The handle is what stops the next
+         * pause from presenting a second one, so a stale one would disable the whole
+         * feature for the rest of the session. LockPage.performUnlock pops the modal
+         * itself (justConfirm leg) — only the handle is ours to clear. */
+        pauseLock = null;
         // Q4-③ review (MAJOR-1): the call surface is suppressed while locked. Re-assert
         // the current VoIP state on the next UI tick — a call that survived the lock
         // (still ringing, or still connected) gets its ring/bar back; no call = no-op.
@@ -323,6 +329,213 @@ public partial class App : Application
         return age.TotalSeconds >= 0 && age.TotalMinutes < 5;
     }
 
+    /* ★ #454 — PRESENT THE LOCK ON THE WAY OUT, NOT ON THE WAY BACK.
+     *
+     * #438/#442 covered the resume with a synchronous opaque shield and it did not
+     * work, for a reason no amount of tuning on the resume path can reach: the cover
+     * is added while Android is already backgrounding the app, so it lands in the view
+     * tree and is NEVER DRAWN. The last real frame stays — and that frame is what the
+     * OS restores on the way back, before a single line of managed code runs. Damir saw
+     * the content on every resume shape: chats, a conversation, wallet, account, a
+     * sheet, a call.
+     *
+     * The only mechanism that removes it is to make the last drawn frame BE the lock.
+     * So the lock is presented at PAUSE, while the app is still on screen and can still
+     * draw. On the way back there is nothing to flash: the lock is already the page.
+     * This is what Signal and WhatsApp do.
+     *
+     * ⚠ THIS IS NOT THE #423 REVERT. #423 forbids trading the lock's own boot flicker
+     * back in by plain-pushing on the RESUME path, where the user watches the WebView
+     * come up. Here nobody is watching — the app is leaving — and by the time they
+     * return lock.html has long finished loading. The #229 load-then-present is the
+     * wrong shape at pause for the opposite reason: it stages the lock INVISIBLE for up
+     * to 1.2 s, and a resume inside that window would show the old content again, which
+     * is the exact defect being fixed. Animation is off for the same reason.
+     *
+     * COOLDOWN (Damir's call): the 5-second no-auth window is kept EXACTLY as it was.
+     * Today it is measured from the last successful UNLOCK — not from the background —
+     * so any background longer than that already asks for the password. The only change
+     * is WHEN the lock is drawn, never WHETHER it is required. A resume inside the
+     * window pops it without asking, same friction as before.
+     *
+     * The RECENTS THUMBNAIL is deliberately NOT addressed (Damir's call): blanking it
+     * needs FLAG_SECURE, which also stops the user taking screenshots of their own app.
+     * The task switcher keeps showing the last real frame. */
+    /* Instance, deliberately — it is written and read in lockstep with the instance
+     * field isLockScreenActive, and a static beside an instance is how two halves of
+     * one state machine drift apart (audit NIT-3). */
+    private LockPage? pauseLock = null;
+
+    /* AND-21 peek. consumeOwnIntentSuppression() CONSUMES, and OnResume owns the
+     * consume — spending the stamp here would let the picker round-trip lock after
+     * all, one resume later. */
+    private static bool ownIntentFresh()
+    {
+        TimeSpan age = DateTime.Now - ownIntentStamp;
+        return age.TotalSeconds >= 0 && age.TotalMinutes < 5;
+    }
+
+    /** Called from the platform pause hook. Safe to call when nothing should happen. */
+    public void lockOnPause()
+    {
+        try
+        {
+            if (!isLockEnabled())
+            {
+                return;                      // C3.1: lock off — nothing happens, ever
+            }
+            if (isLockScreenActive || pauseLock != null)
+            {
+                return;                      // a lock is up, staging, or already ours
+            }
+            /* ★ AUDIT MAJOR-1: the ModalStack and the NavigationStack are BLIND to two of
+             * the three lock kinds, and this codebase already knows it —
+             * CallPage.lockUp() tests these two FIRST for exactly this reason.
+             *   · isLockStaging(): all three SettingsPage authorise locks come up through
+             *     pushModalLoaded, which holds the page on NO stack for up to ~1.3 s. A
+             *     pause inside that window used to stack a second lock, push the settings
+             *     lock onto the modal fallback ABOVE it, and let a delete-wallet complete
+             *     with a now-unopenable lock underneath — the wallet file is gone, so its
+             *     password can never verify again.
+             *   · hasModalOverlay(): an IN-PLACE lock (#230) never touches the ModalStack
+             *     at all. */
+            if (SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging())
+            {
+                return;
+            }
+            if (MainPage is not NavigationPage nav)
+            {
+                return;
+            }
+            if (nav.CurrentPage is LockPage || nav.CurrentPage is LaunchPage)
+            {
+                /* The cold-start lock owns the stack. LaunchPage (audit MINOR-6) is the
+                 * retry screen, which asks for the SAME password — a lock over it would
+                 * unlock into another password prompt. */
+                return;
+            }
+            foreach (Page m in nav.Navigation.ModalStack)
+            {
+                if (m is LockPage)
+                {
+                    /* An AUTHORISE lock is up — turning the app lock off, deleting the
+                     * wallet or the account. Stacking a second lock over it would leave
+                     * the user authenticating twice into a flow they already started. */
+                    return;
+                }
+            }
+            if (ownIntentFresh())
+            {
+                // The picker/save-as round trip. Not a real background.
+                return;
+            }
+
+            isLockScreenActive = true;
+            OfflinePushMessages.resetCooldown();
+            /* #272: the lock outranks the call surface, and it must not be possible for
+             * a ring to sit above it. onUnlock / the grace dismissal both re-arm
+             * refreshAppRequests, so a call that survives gets its ring or bar back. */
+            CallPage.hideSurface();
+
+            // #234: appLock:true — no Cancel, no hatch. Confirm mode's Cancel fired
+            // authSucceeded(false), which onUnlock treats as an unlock: one tap into the
+            // app with no password, on every background once #454 landed.
+            LockPage lockPage = new LockPage(true, true);
+            /* ★ #460: hold the biometric prompt. We are inside OnPause, and the lock's
+             * OnAppearing fires from the push below — firing Plugin.Fingerprint there
+             * gets it cancelled by the pausing activity and latches the attempt, which
+             * takes fingerprint unlock away for this lock entirely. OnResume releases it.
+             * ⚠ An explicit latch, NOT App.isInForeground: that flag is cleared in
+             * OnSleep, which is raised from Android's OnStop — one step AFTER this. */
+            lockPage.deferAuthentication();
+            lockPage.authSucceeded += onUnlock;
+            pauseLock = lockPage;
+            nav.Navigation.PushModalAsync(lockPage, false).ContinueWith(t =>
+            {
+                if (!t.IsFaulted && !t.IsCanceled)
+                {
+                    return;
+                }
+                /* Fail OPEN, the #229 ruling: a lock that never presented must not leave
+                 * the app latched as locked, or every later resume skips locking until
+                 * restart.
+                 * ★ AUDIT MINOR-1: marshalled, and CANCELLED counts. Without the marshal
+                 * these two latches were written from a thread-pool thread and read from
+                 * the UI thread with no barrier; without the IsCanceled arm a cancelled
+                 * push left pauseLock non-null forever, which made every later resume
+                 * return early with NO lock on screen — the app lock silently dead for
+                 * the rest of the session. */
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    Logging.error("lockOnPause: the lock did not present: " + t.Exception);
+                    pauseLock = null;
+                    isLockScreenActive = false;
+                    // AUDIT MINOR-2: hideSurface() already ran. Nothing else re-asserts a
+                    // live call's ring or bar on this path.
+                    UIHelpers.refreshAppRequests = true;
+                });
+            });
+        }
+        catch (Exception e)
+        {
+            Logging.error("lockOnPause failed: " + e);
+            pauseLock = null;
+            isLockScreenActive = false;
+            UIHelpers.refreshAppRequests = true;   // AUDIT MINOR-2, the other failure path
+        }
+    }
+
+    /** Take the pause lock down WITHOUT auth — the cooldown / own-intent grace. */
+    private bool dismissPauseLock(LockPage lp)
+    {
+        /* Not an unlock: `unlockedDate` is deliberately left alone, so the 5-second
+         * window keeps running from the real authentication and cannot be extended by
+         * backgrounding the app over and over.
+         * ★ AUDIT MINOR-3: the latches are cleared only once the page is confirmed to be
+         * on the stack we are about to pop it from. Clearing first meant that a push
+         * which had not committed yet left a lock on screen that the app believed was
+         * not there — and nothing repainted the Android strip back. */
+        try
+        {
+            if (MainPage is NavigationPage nav && nav.Navigation.ModalStack.Contains(lp))
+            {
+                pauseLock = null;
+                isLockScreenActive = false;
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    try
+                    {
+                        await nav.Navigation.PopModalAsync(false);
+                        // The lock paints the Android strip its own fixed dark with light
+                        // icons; popping a modal is not a navigation, so nothing else
+                        // gives the strip back (LockPage's F-4 sites, same reason).
+                        SpixiContentPage.repaintSystemBarsFor(null);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.error("dismissPauseLock: pop failed: " + e);
+                    }
+                });
+            }
+            else
+            {
+                /* The push has not committed. Leave the latches ALONE and let the lock
+                 * present — it is the safe direction: the user authenticates once more
+                 * than strictly needed, instead of the app believing it is unlocked
+                 * while a lock it has forgotten about sits on screen. */
+                Logging.warn("dismissPauseLock: the lock is not on the modal stack yet — leaving it up.");
+                return false;
+            }
+        }
+        catch (Exception e)
+        {
+            Logging.error("dismissPauseLock failed: " + e);
+            return false;
+        }
+        UIHelpers.refreshAppRequests = true;
+        return true;
+    }
+
     protected override void OnResume()
     {
         base.OnResume();
@@ -336,9 +549,32 @@ public partial class App : Application
         // #334 AND-21: consumed unconditionally — see the field docblock.
         bool ownIntentReturn = consumeOwnIntentSuppression();
 
+        /* ★ #454: the lock is already on screen — it went up at pause. This resume only
+         * decides whether it is still REQUIRED. The test is the one that was here
+         * before, unchanged: within 5 s of the last real unlock, or a return from the
+         * app's own picker, it comes down without asking. */
+        // AUDIT NIT-2: ONE reading of the clock, shared with the older branch below —
+        // evaluated twice against a moving clock, the 5 s boundary can satisfy both.
+        TimeSpan sinceUnlock = DateTime.Now - unlockedDate;
+        if (pauseLock != null)
+        {
+            LockPage held = pauseLock;
+            if (!(ownIntentReturn || sinceUnlock.TotalSeconds <= 5) || !dismissPauseLock(held))
+            {
+                /* Stays up — either it is still required, or the push has not committed
+                 * and dismissing it would leave a lock on screen the app has forgotten
+                 * about. Return like the lock branch below does, so the page underneath
+                 * is not resumed behind a lock; onUnlock is what wakes it.
+                 * ★ AUDIT MAJOR-2: the biometric prompt was DEFERRED while the app was
+                 * backgrounded. Now it is really in the foreground, so run it. */
+                held.onForegroundReturned();
+                return;
+            }
+        }
+
         // Popup the lockscreen if necessary
         // Allow a 5 second cooldown after unlock
-        TimeSpan ts = DateTime.Now - unlockedDate;
+        TimeSpan ts = sinceUnlock;   // AUDIT NIT-2: the same reading the block above used
         // #229 (reviewer find): ts.Seconds is the SECONDS COMPONENT (0–59) — 63s in the
         // background gave Seconds==3 → no lock. TotalSeconds is the real elapsed time.
         if (isLockEnabled() && ts.TotalSeconds > 5 && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
@@ -364,7 +600,7 @@ public partial class App : Application
             // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
             // ring/bar re-presents on the first UI tick after the unlock.
             CallPage.hideSurface();
-            var lockPage = new LockPage(true);
+            var lockPage = new LockPage(true, true);   // #234: the app lock offers no way past it
             lockPage.authSucceeded += onUnlock;
             // #229: load-then-present — stage the lock's WebView hidden on the current
             // page and push the modal only once lock.html signals ready (no boot

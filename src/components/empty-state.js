@@ -12,7 +12,9 @@
  *
  * createEmptyState({
  *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
- *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
+ *   glyph,                 // icon name for the fallback tile (e.g. 'apps').
+ *                          // ★ F5: omit BOTH and the illustration slot is not rendered
+ *                          // at all — no empty placeholder tile (the wallet zero state)
  *   title, body,           // headline + supporting line (plain text — textContent)
  *   actionLabel, onAction, // the primary CTA (tonal by house grammar)
  *   actionIcon,            // optional leading glyph name for the CTA
@@ -53,9 +55,21 @@ export function createEmptyState({
   const slot = document.createElement('div');
   slot.className = 'c-empty-state__illo';
   slot.setAttribute('aria-hidden', 'true');
+  /* ★ F5 (Damir on device 2026-08-21): appended HERE, before the branch below, so
+     drawGlyph() can drop it again. A `remove()` on a node that is not in the tree yet
+     is a silent no-op, and the old order appended the slot AFTER the branch ran. */
+  el.append(slot);
   const drawGlyph = () => {
+    /* ★ F5: with NEITHER art NOR a glyph there is nothing to draw, and the placeholder
+       is not free — `.c-empty-state__illo[data-placeholder]` paints a 96×96
+       `--surface-neutral-02` tile at radius-24. Left standing that is an empty grey
+       square, which is exactly what Damir asked to remove from the wallet zero state
+       ("there's no glyph or illustration on wallet activity empty state"). So the whole
+       slot goes, and the flex `gap` goes with it. Every other caller passes a glyph, so
+       this is inert for chats / contacts / apps — including their art-failed path. */
+    if (!glyph) { slot.remove(); return; }
     slot.dataset.placeholder = '';
-    if (glyph) slot.append(icon(glyph, { size: 48 }));
+    slot.append(icon(glyph, { size: 48 }));
   };
   if (illustration) {
     const img = document.createElement('img');
@@ -75,7 +89,6 @@ export function createEmptyState({
   } else {
     drawGlyph();
   }
-  el.append(slot);
 
   /* —— copy —— */
   const h = document.createElement('h2');

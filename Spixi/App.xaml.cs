@@ -208,6 +208,10 @@ public partial class App : Application
                     if (isLockEnabled())
                     {
                         // Show the lock screen
+                        // ★ F1 (audit MAJOR): name the cycle here too. F1 is reported on
+                        // LAUNCH as well as on every background, and only the pause path
+                        // declared one — so the launch leg had no timing at all.
+                        SLockDiag.startCycle("cold-start");
                         isLockScreenActive = true;
                         var lockPage = new LockPage();
                         lockPage.authSucceeded += onUnlock;
@@ -430,6 +434,13 @@ public partial class App : Application
                 return;
             }
 
+            /* ★ F1/F2/F3 INSTRUMENTATION (log only, no behaviour change). The cycle clock
+             * starts here so every later phase is stamped in milliseconds SINCE THE PAUSE
+             * — which is what turns "there is a white flash" into "the flash is the 180 ms
+             * between the push and the WebView's first paint". */
+            SLockDiag.startCycle("pause");
+            SLockDiag.mark("pause/creating-lock");
+
             isLockScreenActive = true;
             OfflinePushMessages.resetCooldown();
             /* #272: the lock outranks the call surface, and it must not be possible for
@@ -450,6 +461,15 @@ public partial class App : Application
             lockPage.deferAuthentication();
             lockPage.authSucceeded += onUnlock;
             pauseLock = lockPage;
+            /* ★ F2 INSTRUMENTATION (log only): the verdict's hypothesis, RECORDED rather
+             * than acted on. `repaintSystemBarsFor` is called on LockPage's own F-4 paths
+             * and in dismissPauseLock, but NOT here — so a pause-presented lock may keep
+             * whatever the previous screen (or the splash) last asked the system bars for,
+             * which would explain the splash-blue status bar. If the next log shows this
+             * `bars/skip` line with no `bars/repaint` before the lock is on screen, the
+             * hypothesis is confirmed and the fix is one call. */
+            SLockDiag.barsNotRepainted("lockOnPause: no repaintSystemBarsFor on this path");
+            SLockDiag.mark("pause/push-requested");
             nav.Navigation.PushModalAsync(lockPage, false).ContinueWith(t =>
             {
                 if (!t.IsFaulted && !t.IsCanceled)
@@ -556,9 +576,21 @@ public partial class App : Application
         // AUDIT NIT-2: ONE reading of the clock, shared with the older branch below —
         // evaluated twice against a moving clock, the 5 s boundary can satisfy both.
         TimeSpan sinceUnlock = DateTime.Now - unlockedDate;
+        /* ★ F3 (audit MINOR): log the resume UNCONDITIONALLY. Instrumented only inside the
+         * branch, silence was ambiguous between "OnResume never ran" and "no pause lock was
+         * held" — and that exact ambiguity, a lifecycle callback not firing where it was
+         * assumed to, is what made BOTH previous F3 fixes wrong. */
+        SLockDiag.mark("resume/entered", "pauseLock=" + (pauseLock != null ? "held" : "null"));
         if (pauseLock != null)
         {
             LockPage held = pauseLock;
+            /* ★ F3 INSTRUMENTATION (log only): the resume decision, printed with the two
+             * inputs that drive it. The verdict asks explicitly whether OnResume reaches
+             * `held.onForegroundReturned()` at all — this line and the one inside that
+             * method answer it together. */
+            SLockDiag.mark("resume/pauseLock-held",
+                "ownIntentReturn=" + ownIntentReturn
+                + " sinceUnlock=" + ((long)sinceUnlock.TotalSeconds) + "s");
             if (!(ownIntentReturn || sinceUnlock.TotalSeconds <= 5) || !dismissPauseLock(held))
             {
                 /* Stays up — either it is still required, or the push has not committed
@@ -567,6 +599,7 @@ public partial class App : Application
                  * is not resumed behind a lock; onUnlock is what wakes it.
                  * ★ AUDIT MAJOR-2: the biometric prompt was DEFERRED while the app was
                  * backgrounded. Now it is really in the foreground, so run it. */
+                SLockDiag.mark("resume/lock-stays-up", "calling onForegroundReturned");
                 held.onForegroundReturned();
                 return;
             }
@@ -600,6 +633,7 @@ public partial class App : Application
             // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
             // ring/bar re-presents on the first UI tick after the unlock.
             CallPage.hideSurface();
+            SLockDiag.startCycle("resume-lock");   // ★ F1: the third lock creation site
             var lockPage = new LockPage(true, true);   // #234: the app lock offers no way past it
             lockPage.authSucceeded += onUnlock;
             // #229: load-then-present — stage the lock's WebView hidden on the current

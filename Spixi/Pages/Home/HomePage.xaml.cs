@@ -2685,6 +2685,29 @@ namespace SPIXI
                          * it is the side that knows the balance and the row count — so
                          * this only reports whether the wallet was generated here. An
                          * older shell ignores the extra argument. */
+                        /* ★ F6 INSTRUMENTATION (log only — Damir: "the scan row appears and
+                         * disappears at random"). #294 forbids building past a missing repro,
+                         * and this one cannot be decided from source: BOTH suspects in
+                         * scan-progress.js:164-224 are consistent with what he saw — the
+                         * SHOW_LAG 20 / HIDE_LAG 2 hysteresis oscillating around the band,
+                         * and the indeterminate (target == 0) frame un-hiding a row the lag
+                         * test had just hidden, which is the #446 MAJOR shape turned on
+                         * itself.
+                         *
+                         * The triple is logged at the PUSH, so the log shows exactly what the
+                         * shell was told and in what order. `lag` is printed because it is
+                         * the number the shell actually branches on: a log that alternates
+                         * lag=3, lag=1, lag=25 is the hysteresis, while one that stays stable
+                         * but is punctuated by target=0 frames is the indeterminate re-show.
+                         * Two different fixes; one 60-second log tells them apart.
+                         *
+                         * Only fires when a value CHANGED (the enclosing guard), so a quiet
+                         * chain writes nothing. */
+                        Logging.info("[SCANDIAG] current=" + scanCurrent
+                            + " target=" + scanTarget
+                            + " origin=" + scanOriginBlock
+                            + " lag=" + blockGap(scanTarget, scanCurrent)
+                            + " createdHere=" + (walletCreatedHere ? "1" : "0"));
                         Utils.sendUiCommand(this, "setScanProgress",
                             scanCurrent.ToString(), scanTarget.ToString(), scanOriginBlock.ToString(),
                             walletCreatedHere ? "1" : "0");
@@ -3118,6 +3141,23 @@ namespace SPIXI
                 return UpdateVerify.serverVersion;
             }
             return "(not checked)";
+        }
+
+        /* ★ F6 probe helper. These are ULONG block heights, and a phone is routinely a
+         * block AHEAD of what peers report — so a bare `target - current` UNDERFLOWS to
+         * ~1.8e19 exactly in the state F6 is suspected to involve, which would have made
+         * the log actively misleading rather than merely noisy. #453 caught the same
+         * class in the caught-up TEST; this is the same rule applied to the diagnostic.
+         * Signed-looking output, never an unsigned subtraction in the wrong direction. */
+        private static string blockGap(ulong target, ulong current)
+        {
+            if (target == 0 || current == 0)
+            {
+                return "n/a";
+            }
+            return target >= current
+                ? (target - current).ToString()
+                : "-" + (current - target).ToString();
         }
 
         private void checkForRating()

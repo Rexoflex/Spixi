@@ -669,6 +669,7 @@ intro-new-walletexists-text = Su questo dispositivo esiste già un account, quin
 intro-restore-walletexists-title = Account già presente su questo dispositivo
 intro-restore-walletexists-text = Su questo dispositivo esiste già un account. Per usarlo, riavvia Spixi. Per ripristinare un altro account: riavvia Spixi, apri Account, tocca Elimina portafoglio, poi apri di nuovo Ripristina.
 notification-new-message = Nuovo messaggio
+notification-new-messages = {0} nuovi messaggi
 notification-incoming-call = Chiamata in entrata
 notification-payment-received = Pagamento ricevuto
 notification-payment-request = Richiesta di pagamento

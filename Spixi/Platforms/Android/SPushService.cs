@@ -121,7 +121,7 @@ namespace Spixi
             clearRemoteNotifications(unreadCount);
         }
 
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message")
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message", int chatUnread = 0)
         {
             if (!channelInitialized)
             {
@@ -173,6 +173,35 @@ namespace Spixi
             if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.O)
             {
                 builder.SetGroup(data);
+            }
+
+            /* ★ NOTIF-4 (Damir: "five notifications for one chat"). Two halves, and the
+             * id half is the one that matters — Node.cs now passes CRC32 of the CHAT
+             * ADDRESS rather than of the message id, so `manager.Notify` UPDATES this
+             * chat's existing row instead of posting another one beside it. SetGroup(data)
+             * has been set since #334 but grouping needs a summary notification to collapse
+             * into, and there was never one; replacing the row is the simpler answer and it
+             * needs no summary, no group-alert policy and no extra channel.
+             *
+             * The count half: `chatUnread` is the per-chat unread total, which was already
+             * being computed and thrown away. With more than one waiting, the row says how
+             * many rather than showing only the newest — the information the four suppressed
+             * rows used to carry.
+             *
+             * ⚠ NOT applied to a CALL. A call is a single live event, not a backlog, and
+             * "2 new messages" on an incoming call would be wrong. SetNumber is also skipped
+             * for it so the launcher badge keeps counting messages only. */
+            if (!isCall && chatUnread > 1)
+            {
+                /* ⚠ AUDIT MINOR: the count goes in SubText, NOT over ContentText. Replacing
+                 * the body destroyed AND-15's per-TYPE line ("Payment request", "File
+                 * received") and NOTIF-2's opt-in sender prefix — so Alice texting and then
+                 * sending a payment request collapsed to a bare "2 new messages" and the
+                 * user lost both facts the notification carried. SubText keeps the newest
+                 * event visible and adds the backlog beside it. SetNumber is kept, but it is
+                 * badge-only and most launchers ignore it, so it is not load-bearing. */
+                builder.SetSubText(string.Format(SPIXI.Lang.SpixiLocalization._SL("notification-new-messages") ?? "{0} new messages", chatUnread));
+                builder.SetNumber(chatUnread);
             }
 
             var notification = builder.Build();

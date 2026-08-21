@@ -1636,7 +1636,11 @@
      lifted detail keeps its one-shot latch — sheet-parity, re-render re-arms. */
   const buildInlineTxDetail = (tx) => {
     const ghost = document.createElement('div');
-    const sheet = openTxSheet({ tx, host: ghost, strings, onExplorer });
+    // ★ F4 (audit): this is the SAME ghost-lift as wallet_sent.html, so it inherits the
+    // same defect — a Close button that calls closeSheet on the sheet discarded on the
+    // next line. Damir uses this demo as the desktop art-direction reference, so it must
+    // not model the bug the production shell just fixed.
+    const sheet = openTxSheet({ tx, host: ghost, strings, onExplorer, showClose: false });
     const detail = sheet.querySelector('.c-txsheet');
     closeSheet(sheet);                            // pops the ghost entry — frame stack untouched
     return detail;

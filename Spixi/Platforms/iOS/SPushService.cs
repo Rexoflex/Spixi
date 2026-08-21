@@ -194,10 +194,16 @@ namespace Spixi
         // #334 AND-15: optional kind hint ("message" | "call") — copy-only on this
         // platform (the localized per-type text arrives via the message arg; no
         // per-kind presentation work here by scope).
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message")
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message", int chatUnread = 0)
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
+                /* ⚠ AUDIT MINOR: NOTIF-4's replace-instead-of-stack applies here too — the
+                 * identifier is now stable per chat — but iOS rendered no count, so where
+                 * the user used to see five rows they would see ONE with no sign that a
+                 * backlog existed. Android puts the count in SubText; iOS has no equivalent
+                 * slot on a plain notification, so it rides the Subtitle. Same information,
+                 * and the Body keeps AND-15's per-type line and the opt-in sender prefix. */
                 var content = new UNMutableNotificationContent
                 {
                     Title = title,
@@ -205,6 +211,11 @@ namespace Spixi
                     Badge = unreadCount,
                     ThreadIdentifier = data
                 };
+
+                if (kind != "call" && chatUnread > 1)
+                {
+                    content.Subtitle = string.Format(SPIXI.Lang.SpixiLocalization._SL("notification-new-messages") ?? "{0} new messages", chatUnread);
+                }
 
                 if (alert)
                 {

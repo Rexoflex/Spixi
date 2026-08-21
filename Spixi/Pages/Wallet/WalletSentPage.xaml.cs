@@ -94,7 +94,17 @@ namespace SPIXI
             // the pane, leaking amount/fiat/name/address next to a masked list.
             // Push the persisted flag BEFORE the burst so the first render is
             // already masked; the shell offers a per-view reveal eye.
-            Utils.sendUiCommand(this, "setHideBalance", Preferences.Default.Get("hidebalance", false).ToString());
+            /* ★ F7 INSTRUMENTATION (log only — Damir: "Show amounts" is not displayed on
+             * Android). The shell offers the eye only when `hideKnown && walletHidden`
+             * (wallet_sent.html:258), and which of the two is false cannot be decided from
+             * source: `hideKnown` is set by the ARRIVAL of this push, `walletHidden` by its
+             * VALUE. Logging the value here splits them — a `false` value means the wallet
+             * is simply not hidden (and the eye is correctly absent), while a `true` value
+             * with no eye on screen means the push did not reach the shell and `hideKnown`
+             * is the one that stayed false. Adjacent to the known pre-exister B3. */
+            bool hideBalancePref = Preferences.Default.Get("hidebalance", false);
+            Logging.info("[WALLETDIAG] setHideBalance push · hidebalance=" + hideBalancePref);
+            Utils.sendUiCommand(this, "setHideBalance", hideBalancePref.ToString());
             checkTransaction();
 
             try

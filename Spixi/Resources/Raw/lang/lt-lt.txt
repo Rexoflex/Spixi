@@ -691,6 +691,7 @@ intro-new-walletexists-text = Šiame įrenginyje jau yra paskyra, todėl naujos 
 intro-restore-walletexists-title = Paskyra jau yra šiame įrenginyje
 intro-restore-walletexists-text = Šiame įrenginyje jau yra paskyra. Norėdami ją naudoti, paleiskite Spixi iš naujo. Norėdami atkurti kitą paskyrą: paleiskite Spixi iš naujo, atidarykite Paskyra, palieskite Ištrinti piniginę ir vėl atidarykite atkūrimą.
 notification-new-message = Nauja žinutė
+notification-new-messages = {0} naujų žinučių
 notification-incoming-call = Įeinantis skambutis
 notification-payment-received = Mokėjimas gautas
 notification-payment-request = Mokėjimo užklausa

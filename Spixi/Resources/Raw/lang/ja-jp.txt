@@ -691,6 +691,7 @@ intro-new-walletexists-text = このデバイスにはすでにアカウント�
 intro-restore-walletexists-title = このデバイスにすでにアカウントがあります
 intro-restore-walletexists-text = このデバイスにはすでにアカウントが存在します。そのアカウントを使用するには、Spixi を再起動してください。別のアカウントを復元するには、Spixi を再起動し、アカウント画面を開いて「ウォレットを削除」をタップしてから、もう一度復元を開いてください。
 notification-new-message = 新しいメッセージ
+notification-new-messages = {0} 件の新着メッセージ
 notification-incoming-call = 着信
 notification-payment-received = 支払いを受け取りました
 notification-payment-request = 支払いリクエスト

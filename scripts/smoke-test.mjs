@@ -4040,7 +4040,10 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
     '★ ensureSurface refuses to present over a lock, and re-arms the refresh flag so the ring returns after the unlock');
   // #234 rebased the constructor call here to the app-lock overload. The ORDER is what
   // this pin is about, and it is unchanged.
-  ok(/CallPage\.hideSurface\(\);\s*\n\s*var lockPage = new LockPage\(true, true\);/.test(app),
+  /* ★ REBASED 2026-08-21: a LOG-ONLY startCycle() marker now sits between these two
+   * statements. The pin is about their ORDER, which is unchanged — hideSurface still
+   * precedes the lock construction, and nothing behavioural was inserted. */
+  ok(/CallPage\.hideSurface\(\);\s*\n(\s*SLockDiag\.[^\n]*\n)?\s*var lockPage = new LockPage\(true, true\);/.test(app),
     '★ App.OnResume tears the call surface down BEFORE staging the resume lock (no modal can sit above a lock)');
   ok(/UIHelpers\.refreshAppRequests = true;/.test(app.slice(app.indexOf('public void onUnlock'), app.indexOf('public void onLockPresentFailed'))),
     '★ onUnlock re-asserts the call state (a call that survived the lock gets its ring/bar back)');
@@ -4733,8 +4736,24 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
     'A4: a free-fn presence toggle exists — stateSig()/buildIfChanged no-op on an unchanged signature, so a rebuild could leave the dot green after the contact went offline');
   ok(/online: state\.online,/.test(cdet) && /if \(next === state\.online\) return;/.test(cdet),
     'A4: presence is in stateSig (a rebuild re-seeds it) and guarded on CHANGE (it arrives at the poll cadence)');
-  ok(/capabilities: \{ presence: true \}/.test(cdet),
+  /* ★ REBASED 2026-08-21 (NOTIF-2). `capabilities` gained a SECOND gate —
+   * `notifications: true`, now that ContactDetails routes the 1:1 mute — while the live
+   * value rides the top-level `notifications` opt, which is exactly the A4 grammar this
+   * pin exists to protect. So the assertion is restated as the RULE rather than as one
+   * literal shape: presence is still a gate, and capabilities carries no `state.` value. */
+  ok(/capabilities: \{ presence: true[,}]/.test(cdet),
     'A4: `capabilities` is a feature GATE again — it was carrying the live value and nothing read it');
+  {
+    /* ★ The A4 rule is narrower than "no state in capabilities", and my first restatement
+     * of it was wrong: the group bag carries `admin: state.group.admin`, which is a real
+     * feature GATE (may I kick/ban) and has always been correct there. What A4 forbids is
+     * a LIVE DISPLAY value sitting in the gate bag where nothing reads it — which is what
+     * `presence` was doing before #302. So the pin asserts exactly that, for the value
+     * this batch added: the live 1:1 mute state must ride the top-level opt. */
+    const capsArg = (cdet.match(/capabilities: \{[^}]*\}/g) || []).join(' | ');
+    ok(capsArg.length > 0 && !/notifications: state\./.test(capsArg) && /notifications: state\.notifications,/.test(cdet),
+      '★ A4 (NOTIF-2): the live 1:1 mute rides the TOP-LEVEL `notifications` opt, not the capabilities gate bag — the same separation presence got in #302');
+  }
   ok(/online: kind === 'contact' && !!online/.test(infoJs),
     'A4: presence is 1:1 only — C# structurally cannot push it for a group/bot');
   // strip comments first: the docblock explaining this fix quotes the OLD regex.
@@ -7508,8 +7527,13 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
     const txlist = D.querySelector('.c-wallet-txlist');
     S.renderWalletTxList(txlist, { txs: [], filter: 'all', query: '' }, { onReceive: () => { received += 1; } });
     const es = txlist.querySelector('.c-empty-state');
-    ok(!!es && es.dataset.compact !== undefined && !es.querySelector('.c-empty-state__illo-img'),
-      '★ #453: the wallet zero state renders the COMPACT block with NO illustration — the glyph tile stands in, which is the path this state already took whenever the art failed to load');
+    /* ★ REBASED 2026-08-21 (audit). This asserted only that no <img> renders, and its own
+     * message described the glyph tile "standing in" — the very thing F5 removed. It passed
+     * vacuously against BOTH the old and the new behaviour, and every new F5 pin is a
+     * source-grep, so nothing tested the DOM outcome. It now asserts what Damir actually
+     * asked for: no illustration node AT ALL on the wallet zero state. */
+    ok(!!es && es.dataset.compact !== undefined && !es.querySelector('.c-empty-state__illo'),
+      '★ #453 + F5: the wallet zero state renders the COMPACT block with NO illustration AND no glyph tile — "THE ICON MUST BE REMOVED" (Damir, on device). The bare placeholder is a 96×96 --surface-neutral-02 square, so dropping the glyph alone would have left an empty grey box');
     const cta = es.querySelector('.c-empty-state__action .c-button');
     cta.click();
     ok(received === 1 && /Show my address/.test(cta.textContent),
@@ -10435,7 +10459,14 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   {
     const lpCs2 = readFileSync(join(root, 'Spixi/Pages/Launch/LockPage.xaml.cs'), 'utf8');
     const lpNC2 = stripCs(lpCs2);
-    ok(/if \(authDeferred\)\s*\r?\n\s*return;\s*\r?\n\s*authAttempted = true;/.test(lpNC2)
+    /* ★ REBASED 2026-08-21, not widened. The lock instrumentation braced this block and
+     * put a diagnostic line inside it, so the old "return immediately followed by
+     * authAttempted = true" shape no longer matches TEXTUALLY. The BEHAVIOUR it guards is
+     * byte-identical: authDeferred still returns before the prompt, and authAttempted is
+     * still set only after that gate. The window is kept tight (diagnostics only) and the
+     * two other clauses — the explicit latch is still set from App, and isInForeground is
+     * still nowhere near this file — are unchanged. */
+    ok(/if \(authDeferred\)\s*\r?\n?\s*\{?[\s\S]{0,260}?return;[\s\S]{0,260}?authAttempted = true;/.test(lpNC2)
       && /lockPage\.deferAuthentication\(\);/.test(appNC)
       && !/isInForeground/.test(lpNC2),
       '★ #460 (Damir on device): no biometric prompt into a PAUSING app, held by an EXPLICIT latch. The first cut guarded on App.isInForeground and did nothing at all — that flag is cleared in App.OnSleep, which MAUI raises from Android\'s OnStop, one step AFTER the OnPause where the lock is created. So it was still true, the prompt fired into the pausing activity, androidx.biometric cancelled it, authAttempted latched, and Damir came back to a password field with no fingerprint offered');
@@ -10538,7 +10569,11 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     // the prose instead of the call. The #453 lesson, applied on the way in.
     {
       const lpNC = stripCs(lpCs);
-      ok(/await AuthenticateAsync\([\s\S]{0,120}?\}\s*catch \(Exception e\)\s*\{[\s\S]{0,200}?revealPasswordForm\(\);/.test(lpNC),
+      /* ★ REBASED 2026-08-21: the try body gained ONE log-only line after the await
+       * (F3's "the prompt resolved" marker), which pushed the catch past the old 120-char
+       * window. Widened by exactly that much, no more — the assertion is still that a
+       * THROW reaches revealPasswordForm. */
+      ok(/await AuthenticateAsync\([\s\S]{0,260}?\}\s*catch \(Exception e\)\s*\{[\s\S]{0,200}?revealPasswordForm\(\);/.test(lpNC),
         '★ #457: a THROW from the fingerprint plugin releases the hold too. Otherwise the user waits behind a spinner for the 3 s belt with no explanation');
     }
     for (const [label, txt] of [['source', lockSrc], ['BUILT shell', lockBuilt]]) {
@@ -10557,6 +10592,261 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
         '#457: exactly ONE live reader of the carrier in the built shell — nowhere else can hold the form by accident');
     }
   }
+}
+
+
+/* ——————————————————————————————————————————————————————————————————————————————
+ * 2026-08-21 BATCH — the four one-liners, the notifications block, the sound
+ * plumbing, and the LOG-ONLY lock/scan/wallet instrumentation.
+ *
+ * ★ Every pin below was MUTATION-VERIFIED: reverted one at a time, each went red,
+ * and the four known pre-existers stayed exactly where they were. A pin that
+ * passes vacuously is worse than none.
+ * ————————————————————————————————————————————————————————————————————————————— */
+{
+  const walletShell = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+  const walletSent = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
+  const emptyState = readFileSync(join(root, 'src/components/empty-state.js'), 'utf8');
+
+  /* —— F4: the Close button belongs to the SHEET —————————————————————————— */
+  ok(/export function openTxSheet\(\{[\s\S]{0,200}?showClose = true \} = \{\}\) \{/.test(walletShell),
+    '★ F4: openTxSheet takes its OWN showClose option, defaulting true. The full-screen tx page LIFTS .c-txsheet out of a ghost sheet and reparents it, so the Close button rode along and called closeSheet() on a sheet discarded lines earlier — it rendered on a surface it could not act on');
+  ok(/if \(showClose\) \{\s*content\.append\(createButton\(\{\s*label: strings\.close/.test(walletShell),
+    '★ F4: the Close button is GATED on showClose, not appended unconditionally');
+  ok(/showClose: false,/.test(walletSent),
+    '★ F4: wallet_sent.html passes showClose:false — the page\'s way out is the topbar back arrow');
+  {
+    // ★ The decoupling is the point of the fix, not an incidental detail: `disclose`
+    // answers "should these fields hide behind a disclosure", `showClose` answers
+    // "does this host own the sheet". Keyed off each other, the next surface inherits
+    // the wrong one. Comment-stripped so the docblock explaining it cannot satisfy it.
+    const wsNC = walletShell.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/showClose\s*=\s*!?\s*disclose/.test(wsNC) && !/disclose\s*&&\s*showClose/.test(wsNC),
+      '★ F4: showClose is NOT derived from disclose — they are different questions and coupling them is how the next surface inherits the wrong one (Damir\'s steer)');
+  }
+
+  /* —— F5: the wallet zero state has NO glyph and NO empty tile ——————————— */
+  ok(/glyph: null,/.test(walletShell) && !/glyph: 'wallet'/.test(walletShell),
+    '★ F5: the wallet zero state passes NO glyph — "THE ICON MUST BE REMOVED, there\'s no glyph or illustration on wallet activity empty state" (Damir)');
+  ok(/if \(!glyph\) \{ slot\.remove\(\); return; \}/.test(emptyState),
+    '★ F5: createEmptyState DROPS the illustration slot when it has neither art nor a glyph. Removing the glyph alone would have left .c-empty-state__illo[data-placeholder] standing — a 96×96 --surface-neutral-02 tile at radius-24, i.e. an empty grey square instead of an icon');
+  {
+    // The slot must be appended BEFORE the branch that may remove it: remove() on a
+    // node that is not in the tree is a silent no-op, and the old order appended it
+    // afterwards regardless.
+    const iAppend = emptyState.indexOf('el.append(slot);');
+    const iDraw = emptyState.indexOf('const drawGlyph = ()');
+    ok(iAppend > 0 && iDraw > 0 && iAppend < iDraw,
+      '★ F5: the slot is appended BEFORE drawGlyph is defined/called — a remove() on a detached node is a silent no-op, so the old ordering would have left the empty tile in place');
+  }
+}
+
+{
+  /* —— NOTIF-1: the private-group mute is honored ————————————————————————— */
+  const nodeCs = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
+  const notifPrefs = readFileSync(join(root, 'Spixi/Meta/SNotificationPrefs.cs'), 'utf8');
+
+  ok(/if \(SNotificationPrefs\.shouldNotify\(friend\)\)/.test(nodeCs),
+    '★ NOTIF-1: the notification gate asks ONE predicate. The old one was `friend.bot == false || (botInfo != null && sendNotification)`');
+  {
+    const nodeNC = nodeCs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/friend\.bot == false/.test(nodeNC),
+      '★ NOTIF-1: the `friend.bot == false ||` short-circuit is GONE. Friend.bot has a private setter and is set only by setBotMode() (Ixian-Core Friend.cs:250-253) — a private group goes through setGroupMode() and never sets it, so that clause was TRUE for every private group and the mute toggle did nothing, while bots took the second clause and were honored. Exactly the split Damir reported');
+  }
+  {
+    /* ★ REBASED after the audit. The first version asserted `friend.bot` appears NOWHERE in
+     * the predicate, which was too blunt. NOTIF-1's finding is that `friend.bot` is the wrong
+     * gate for a GROUP — groups never set it — not that the flag is meaningless: it is still
+     * the correct test for "is this a bot", and the audit found that dropping it entirely
+     * would flip a bot whose BotInfo has not yet arrived from silent to notifying. So the pin
+     * asserts the real rule: the old SHORT-CIRCUIT shape is gone, and any surviving use is
+     * the narrow bot test, never a clause that can pass a muted group. */
+    const prefsNC = notifPrefs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/friend\.bot == false/.test(prefsNC) && !/friend\.bot\s*\|\|/.test(prefsNC),
+      '★ NOTIF-1: the shared predicate never uses friend.bot as the SHORT-CIRCUIT that ignored a private group\'s mute — the surviving use is the narrow "is this a bot" test, which is behaviour-preserving for a bot whose BotInfo has not arrived');
+    ok(/if \(friend\.bot\)\s*\r?\n\s*\{\s*\r?\n\s*return false;/.test(prefsNC),
+      '★ NOTIF-1 (audit): a bot with no BotInfo yet stays SILENT, as it always has. The old predicate returned false for it through both clauses; falling through to the 1:1 default would have flipped that window from silent to notifying');
+  }
+  ok(/return friend\.metaData\.botInfo\.sendNotification;/.test(notifPrefs),
+    'NOTIF-1: groups and bots keep the SYNCED botInfo mute (GroupChat.cs:56/:103, CoreStreamProcessor.cs:2680 are the only writers)');
+  ok(/return !isContactMuted\(friend\.walletAddress\?\.ToString\(\)\);/.test(notifPrefs),
+    '★ NOTIF-2: a 1:1 contact has NO botInfo, so it falls through to a LOCAL device preference — there is nowhere in Ixian-Core to put the flag and this session may not change Core');
+
+  /* —— NOTIF-4: one notification per CHAT, not per message ————————————————— */
+  ok(/Crc32Algorithm\.Compute\(friend\.walletAddress\.addressNoChecksum\)/.test(nodeCs),
+    '★ NOTIF-4: the notification id is CRC32 of the CHAT ADDRESS, so a new message REPLACES that chat\'s row instead of stacking a new one — Damir\'s "five notifications for one chat"');
+  {
+    const nodeNC = nodeCs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/Crc32Algorithm\.Compute\(friend_message\.id\)/.test(nodeNC),
+      '★ NOTIF-4: the per-MESSAGE id is gone — it was what made ten messages ten rows');
+    ok(!/getInputBytes\(\)\)/.test(nodeNC.split('showLocalNotification')[0].slice(-800)),
+      '★ NOTIF-4: NOT getInputBytes() — that returns the PUBLIC KEY when one is populated (Ixian-Core Address.cs:426-437), so the same chat would hash two ways and the one-row-per-chat property would flap');
+  }
+  ok(/int chatUnread = friend\.getUnreadMessageCount\(\);/.test(nodeCs),
+    'NOTIF-4: the per-chat unread count is passed through — it was already computed and thrown away');
+}
+
+{
+  /* —— NOTIF-2/SND: the settings surface is no longer dark ————————————————— */
+  const setPage = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const setShell = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const screens = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
+
+  ok(/setCaps",\s*"settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications"/.test(setPage),
+    '★ NOTIF-2: SettingsPage pushes the globalNotifications capability. createNotificationsScreen has been BUILT since #147 and gated on it, and the production shell never set it — a screen that shipped dark for months');
+  for (const verb of ['ixian:notifEnabled:', 'ixian:notifSenderName:', 'ixian:notifSounds:']) {
+    ok(new RegExp('StartsWith\\("' + verb.replace(/:/g, ':') + '"').test(setPage),
+      `NOTIF-2: SettingsPage dispatches ${verb}`);
+  }
+  ok(/setNotifEnabled[\s\S]{0,400}setNotifSenderName[\s\S]{0,400}setNotifSounds/.test(setPage),
+    'NOTIF-2: all three values are pushed at onLoad so the switches render in the STORED position, not at the component defaults');
+  ok(/globalNotifications: bridge\.cap\('globalNotifications'\)/.test(setShell),
+    '★ NOTIF-2: the shell reads the CAP rather than hardcoding true — an old exe pushes no such cap and keeps the row hidden, instead of showing switches whose verbs nothing handles');
+  ok(/setNotifEnabled\(s\) \{ applyNotifPush\('notifEnabled', s\); \}/.test(setShell),
+    'NOTIF-2: the push handlers are DEFINED — C# emits a push as a bare global and an undefined one throws before the dispatcher can catch it (#258)');
+  ok(/const NOTIF_ACK_MS = 4000;/.test(setShell) && /resolveNotif\(key, false\); \}, NOTIF_ACK_MS\)/.test(setShell),
+    '★ NOTIF-2: the optimistic switch has a TIMEOUT. switchRow waits for done()/fail(); an exe that does not handle the verb would otherwise leave the control pending forever with no way back');
+  ok(/if \(p\) resolveNotif\(key, p\.want === v\);/.test(setShell),
+    '★ NOTIF-2: the switch is resolved against the value C# actually STORED, not against what the user asked for — a write that did not take rolls the control back instead of lying');
+
+  /* ★ The previews row was a DEAD CONTROL as written. */
+  ok(/label: strings\.notifSender \|\| 'Show sender name'/.test(screens),
+    '★ NOTIF-2: the "Show message previews" row is re-labelled to what it can actually do. AND-15 (#334) builds a per-TYPE line with NO sender name and NO message text, so a previews toggle wired as written would have changed nothing — a dead control');
+  {
+    const scNC = screens.replace(/\/\*[\s\S]*?\*\//g, '');
+    ok(!/Off = sender and text hidden on the lock screen/.test(scNC),
+      '★ NOTIF-2: the old sub-label promised control over message TEXT, which is never included on any setting. Corrected rather than shipped as a false promise');
+  }
+  ok(/if \(SNotificationPrefs\.showSenderName\)/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+    'NOTIF-2: the sender name is prefixed only when the user opted in — default off is today\'s copy, byte-identical');
+}
+
+{
+  /* —— NOTIF-3: pushed navigation, not a polled global ————————————————————— */
+  const mainAct = readFileSync(join(root, 'Spixi/Platforms/Android/MainActivity.cs'), 'utf8');
+  const maNC = mainAct.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  ok(!/await Task\.Delay\(500\);\s*handleNotificationIntent/.test(maNC),
+    '★ NOTIF-3: the blind hardcoded 500 ms before the intent was even LOOKED at is gone — it was chosen for the worst case and paid on every tap');
+  ok(/tryNavigateToChat\(0\);/.test(mainAct) && /NOTIF_NAV_MAX_MS = 5000/.test(mainAct),
+    '★ NOTIF-3: the navigation is DRIVEN with a bounded retry instead of waiting for HomePage.updateScreen\'s 1 Hz poll to notice App.startingScreen');
+  ok(/App\.startingScreen = chatId;\s*\n\s*tryNavigateToChat/.test(mainAct),
+    '★ NOTIF-3: the global is still SET first — it is the pre-login backstop (AND-1 #329: a tap before unlock must not construct HomePage) and iOS sets it too. Whichever path gets there first clears it; the other reads "" and does nothing');
+  ok(/if \(App\.startingScreen == ""\)\s*\{\s*\n\s*return;/.test(mainAct),
+    'NOTIF-3: the retry is idempotent — it stops the moment anything else consumed the global');
+}
+
+{
+  /* —— SND: the plumbing, on all four platforms, with NO invented assets ——— */
+  const sounds = readFileSync(join(root, 'Spixi/Meta/SSounds.cs'), 'utf8');
+  ok(/Spixi\.SPlatformUtils\.playEffect\(assetPath\);/.test(sounds),
+    'SND: one facade, one platform verb');
+  ok(/if \(!SNotificationPrefs\.inAppSounds\)\s*\{\s*\n\s*return;/.test(sounds),
+    '★ SND-3: every effect is gated on the in-app-sounds preference, which is per-install and therefore already the desktop-specific off switch');
+  for (const plat of ['Android', 'iOS', 'Windows', 'MacCatalyst']) {
+    const f = readFileSync(join(root, `Spixi/Platforms/${plat}/SPlatformUtils.cs`), 'utf8');
+    ok(/public static void playEffect\(string filePath\)/.test(f),
+      `SND: ${plat} implements playEffect — IPlatformUtils is DEAD CODE (nothing implements or consumes it), so the real binding is the per-platform static class`);
+  }
+  {
+    // ★ No assets are invented — Damir picks them. The app must therefore be SILENT
+    // today and become audible the moment the files land, with no code change.
+    const soundsDir = readdirSync(join(root, 'Spixi/Resources/Raw/sounds'));
+    const effects = ['message_sent.mp3', 'message_received.mp3', 'tx_sent.mp3', 'tx_received.mp3'];
+    ok(effects.every((e) => !soundsDir.includes(e)),
+      '★ SND: NO sound assets are invented — the brief says they are Damir\'s pick. The plumbing and the switch ship; every effect is a fail-soft no-op until the four files land');
+    ok(effects.every((e) => sounds.includes(e)),
+      'SND: the file contract is written down in SSounds so landing the assets is a drop-in');
+  }
+  {
+    const nodeCs2 = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
+    ok(/bool soundable = fire_local_notification\s*\n\s*&& type != FriendMessageType\.sentFunds\s*\n\s*&& type != FriendMessageType\.requestFunds\s*\n\s*&& type != FriendMessageType\.voiceCall/.test(nodeCs2),
+      '★ SND (audit MAJOR): the chat sound respects the SAME guards as the notification. The first cut sat outside all of them, so it would have chimed for events that deliberately show nothing — a peer\'s nickname/avatar carrier ({4}/{5}), every fire_local_notification:false caller (VoIPManager start/end, app-session bookkeeping), and voiceCall chirping UNDER its own ringtone');
+    ok(/&& !friend_message\.id\.SequenceEqual\(new byte\[\] \{ 4 \}\)/.test(nodeCs2)
+      && /&& !friend_message\.id\.SequenceEqual\(new byte\[\] \{ 5 \}\)/.test(nodeCs2),
+      '★ SND (audit MAJOR): the {4}/{5} carrier ids are excluded — those are a peer\'s NICKNAME and AVATAR updates, which the notification has always suppressed. A contact editing their nickname must not ring your phone with nothing on screen to explain it');
+    ok(/else if \(!SNotificationPrefs\.isChatMuted\(friend\)\)/.test(nodeCs2),
+      '★ SND (audit MINOR): both directions are gated on the PER-CHAT mute, not the notification master — otherwise turning notifications off would leave SENDING audible while receiving went silent, which neither switch describes');
+    const tic = readFileSync(join(root, 'Spixi/Meta/SpixiTransactionInclusionCallbacks.cs'), 'utf8');
+    ok(/SSounds\.transactionSent\(\)/.test(tic) && /SSounds\.transactionReceived\(\)/.test(tic),
+      'SND-2: the transaction sound is split by direction');
+    const ticNC = tic.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const refreshBody = ticNC.split('private void refreshTransactionPages')[1] || '';
+    ok(!/SSounds\./.test(refreshBody.slice(0, 1400)),
+      '★ SND-2: the sound is NOT inside refreshTransactionPages — that helper also runs for rejected, expired, cannot-verify and block reorg, and a "payment received" chime on a REJECTED transaction would be a lie the user acts on');
+  }
+}
+
+{
+  /* —— ★ THE LOCK IS LOG-ONLY. Damir's explicit call. ————————————————————— */
+  const lockPage = readFileSync(join(root, 'Spixi/Pages/Launch/LockPage.xaml.cs'), 'utf8');
+  const appCs = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+  const diag = readFileSync(join(root, 'Spixi/Meta/SLockDiag.cs'), 'utf8');
+
+  ok(/public static void authGates\(string where, bool uiReady, bool pageVisible,/.test(diag),
+    '★ F3: all FOUR gates are logged together with the branch taken — uiReady · pageVisible · authAttempted · authDeferred. That is exactly what the verdict asks for, and it is instrumentation, not a third guess');
+  ok((lockPage.match(/SLockDiag\.authGates\("maybeAuthenticate"/g) || []).length === 4,
+    '★ F3: EVERY exit from maybeAuthenticate reports — the three skips (gate, WinUI, deferred) and the PROMPT. A branch that logged nothing would be the one place the answer could hide');
+  ok(/SLockDiag\.mark\("lock\/onForegroundReturned"/.test(lockPage),
+    '★ F3: the verdict asks explicitly whether App.OnResume reached onForegroundReturned() at all — so it says so itself');
+  ok(/SLockDiag\.mark\("resume\/lock-stays-up", "calling onForegroundReturned"\);/.test(appCs),
+    '★ F3: and the caller reports reaching it, so an absent pair localises the fault to App.OnResume\'s branching rather than to the lock');
+  {
+    /* ★ THE LOG-ONLY GUARANTEE, mechanically. The two failed fixes both CHANGED this
+     * method. Nothing in this batch may: every added line is a diagnostic call. */
+    const body = lockPage.split('private async void maybeAuthenticate()')[1].split('private void onNavigating')[0];
+    const bodyNC = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    /* ★ REBASED 2026-08-21 — the first version was a TAUTOLOGY, and the audit caught it:
+     * it filtered the body to lines matching /SLockDiag/ and then asserted those lines were
+     * SLockDiag calls. A behavioural line added to this method does not match the filter, is
+     * never examined, and the gate stays green — the exact failure it was written to prevent.
+     *
+     * It now works the other way round: STRIP the diagnostic lines and assert that what
+     * REMAINS is exactly the shipped control flow, statement for statement. Anything added,
+     * removed or reordered turns it red. */
+    const behavioural = bodyNC
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !/SLockDiag/.test(l) && !/^authAttempted, authDeferred,/.test(l));
+    const expected = [
+      '{',
+      'if (!uiReady || !pageVisible || authAttempted)', '{', 'return;', '}',
+      'if (Device.RuntimePlatform == Device.WinUI)', '{', 'return;', '}',
+      'if (authDeferred)', '{', 'return;', '}',
+      'authAttempted = true;',
+      'try', '{',
+      'await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));', '}',
+      'catch (Exception e)', '{',
+      'Logging.error("LockPage: biometric authentication threw: " + e);',
+      'revealPasswordForm();', '}', '}',
+    ];
+    ok(JSON.stringify(behavioural) === JSON.stringify(expected),
+      '★ THE LOCK IS LOG-ONLY: with the diagnostic lines stripped, maybeAuthenticate is EXACTLY the method that shipped — same statements, same order, same gates. F3 has had two wrong fixes in one day and the surface has only just started working, so Damir\'s instruction was to instrument and not attempt a third. If this goes red, something changed lock BEHAVIOUR');
+    ok(/if \(authDeferred\)/.test(bodyNC) && /authAttempted = true;/.test(bodyNC),
+      '★ LOG-ONLY: the #460 defer latch and the authAttempted latch are UNTOUCHED — the gating logic is exactly what shipped');
+  }
+  ok(/SLockDiag\.barsNotRepainted\("lockOnPause: no repaintSystemBarsFor on this path"\);/.test(appCs),
+    '★ F2: the hypothesis is RECORDED, not acted on — the pause path makes no repaint call, which would explain the splash-blue status bar. One background of log confirms or kills it');
+  {
+    const sccp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+    ok(/SLockDiag\.barsRepainted\(page\.GetType\(\)\.Name, bottom, top\);/.test(sccp),
+      '★ F2: and every repaint that DOES happen is logged with the page that asked and the colours it resolved — so "never called" and "called with the wrong colour" are distinguishable');
+    ok(/if \(\(loadedHtmlFileName \?\? ""\) == "lock\.html"\)/.test(sccp),
+      '★ F1: the colour probe is GATED to the lock — applyPageSurfaceColor runs on every page load and every theme sweep, and an ungated probe would flood the log Damir has to read');
+  }
+  ok(/SLockDiag\.startCycle\("pause"\);/.test(appCs) && /SLockDiag\.mark\("pause\/push-requested"\);/.test(appCs)
+    && /SLockDiag\.mark\("lock\/webview-onload"/.test(lockPage),
+    '★ F1: the phase timeline is stamped in ms from the pause, so the gap the white flash lives in is MEASURED rather than guessed. The verdict\'s first candidate — "the window background (MainTheme) is light" — is false at source: styles.xml:37 points windowBackground at @layout/splash_screen, whose base layer is #144576, and the LockPage constructor paints page/content/WebView #13171b before the push. That leaves the WebView\'s own pre-paint frame');
+}
+
+{
+  /* —— F6 / F7: ship the MEASUREMENT, not a fix (#294) ————————————————————— */
+  const homeCs = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  ok(/\[SCANDIAG\] current=/.test(homeCs) && /" lag=" \+/.test(homeCs),
+    '★ F6: the pushed current/target/origin triple is logged WITH the lag the shell actually branches on. Alternating lag values = the SHOW_LAG 20 / HIDE_LAG 2 hysteresis; stable lag punctuated by target=0 frames = the indeterminate re-show. Two different fixes, and one 60-second log tells them apart');
+  const wsPage = readFileSync(join(root, 'Spixi/Pages/Wallet/WalletSentPage.xaml.cs'), 'utf8');
+  const wsShell = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
+  ok(/\[WALLETDIAG\] setHideBalance push/.test(wsPage) && /\[WALLETDIAG\] setHideBalance arrived/.test(wsShell),
+    '★ F7: BOTH halves are logged — C# logs the value it pushed, the shell logs that the push arrived and what both flags then read. hideKnown is set by the ARRIVAL and walletHidden by the VALUE, so only the pair says which one is false');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

@@ -17,6 +17,37 @@ namespace SPIXI.Meta
             requestBalanceUpdate(tx);
 
             refreshTransactionPages(tx, true);
+
+            /* ★ SND-2 (Damir's 2026-08-21 block): the transaction sound.
+             *
+             * Placed on VERIFIED only, and deliberately NOT inside refreshTransactionPages
+             * — that helper is also called for rejected, expired, cannot-verify and block
+             * reorg, and a "payment received" chime on a REJECTED transaction would be a
+             * lie the user acts on.
+             *
+             * ⚠ MONEY PATH, so the boundary is worth stating: this reads `tx.pubKey` to
+             * pick which of two sounds to play and does nothing else. It signs nothing,
+             * broadcasts nothing, mutates no transaction, moves no balance, and cannot
+             * throw into this callback (SSounds.play swallows everything). With no sound
+             * assets shipped yet it is a no-op on every platform.
+             *
+             * Chat message sounds are suppressed for the funds message types in Node.cs,
+             * so a payment makes ONE sound, here, at the moment it is actually confirmed. */
+            try
+            {
+                if (IxianHandler.isMyAddress(tx.pubKey))
+                {
+                    SSounds.transactionSent();
+                }
+                else
+                {
+                    SSounds.transactionReceived();
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logging.trace("SND-2 transaction sound skipped: " + e.Message);
+            }
         }
 
         private void requestBalanceUpdate(Transaction tx)

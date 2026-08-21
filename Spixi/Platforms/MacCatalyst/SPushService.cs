@@ -30,7 +30,7 @@ namespace Spixi
 
         // #334 AND-15: optional kind hint ("message" | "call") — copy-only on this
         // platform (the localized per-type text arrives via the message arg).
-        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message")
+        public static void showLocalNotification(int messageId, string title, string message, string data, bool alert, int unreadCount, string kind = "message", int chatUnread = 0)
         {
 
         }

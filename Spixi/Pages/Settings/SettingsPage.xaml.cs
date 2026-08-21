@@ -122,7 +122,21 @@ namespace SPIXI
             // the EncryptionPassword page covering the whole Account. Mobile keeps the
             // pushed page (the shell gates the inline route on paneMode too). An old exe
             // never pushes this cap, so a new shell falls back to ixian:encpass.
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline");
+            // ★ NOTIF-2 (Damir's 2026-08-21 block): + globalNotifications. The
+            // Notifications SCREEN and its hub row have been built since #147 and gated on
+            // this exact capability, which the production shell has never set — a screen
+            // that has shipped DARK for months (createNotificationsScreen,
+            // settings-screens.js:551-582; the hub row, settings-shell.js:793-797). The
+            // same gate hides the "In-app sounds" switch, which is why the notifications
+            // block and the sound-effects block are one wiring job.
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications");
+
+            // ★ NOTIF-2: the current values, so the switches render in the right position
+            // rather than at the component defaults. Three bools, one push each — the
+            // house grammar for this page.
+            Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
+            Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
+            Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -575,6 +589,33 @@ namespace SPIXI
                     // the picker snaps back to the truth.
                     Utils.sendUiCommand(this, "setLocale", SpixiLocalization.getCurrentLanguage());
                 }
+            }
+            /* ★ NOTIF-2 (Damir's 2026-08-21 block) — the global notification switches.
+             *
+             * Each one is a straight write to a preference plus an ECHO of the value that
+             * was actually stored. The shell's switchRow is optimistic-with-rollback: it
+             * moves at once and waits for ctrl.done()/ctrl.fail(), so a verb that answered
+             * nothing would leave the switch spinning. The echo is also what makes a
+             * failed write visible instead of silently reverting on the next open.
+             *
+             * No signing, no money, no keys, no user data — three bools in Preferences. */
+            else if (current_url.StartsWith("ixian:notifEnabled:", StringComparison.Ordinal))
+            {
+                string status = current_url.Substring("ixian:notifEnabled:".Length);
+                SNotificationPrefs.notificationsEnabled = status.Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
+            }
+            else if (current_url.StartsWith("ixian:notifSenderName:", StringComparison.Ordinal))
+            {
+                string status = current_url.Substring("ixian:notifSenderName:".Length);
+                SNotificationPrefs.showSenderName = status.Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
+            }
+            else if (current_url.StartsWith("ixian:notifSounds:", StringComparison.Ordinal))
+            {
+                string status = current_url.Substring("ixian:notifSounds:".Length);
+                SNotificationPrefs.inAppSounds = status.Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
             }
             else if (current_url.StartsWith("ixian:lock:", StringComparison.Ordinal))
             {

@@ -7,7 +7,7 @@
 - **Len**: rough budget — short ≤20, medium ≤60, long >60 chars. Keep tight-UI strings (buttons, badges, chips) near the English length.
 - **{…}** placeholders MUST survive translation verbatim (e.g. `{n}`, `{date}`, `{count}`, `{q}`).
 
-Summary: **725** keys · **134** map to a legacy id · **591** new · legacy dict has **594** ids · **0** fallback conflicts to resolve (see end).
+Summary: **725** keys · **134** map to a legacy id · **591** new · legacy dict has **595** ids · **0** fallback conflicts to resolve (see end).
 
 ## app_new.html (3)
 
@@ -755,8 +755,8 @@ Summary: **725** keys · **134** map to a legacy id · **591** new · legacy dic
 |---|---|---|---|---|---|
 | `chatAppearance` | Chat appearance | text/label | short |  | — |
 | `notifAll` | Allow notifications | label | short |  | — |
-| `notifPreviews` | Show message previews | label | medium |  | — |
-| `notifPreviewsSub` | Off = sender and text hidden on the lock screen | label | medium |  | — |
+| `notifSender` | Show sender name | label | short |  | — |
+| `notifSenderSub` | Message text is never shown in notifications | label | medium |  | — |
 | `notifSounds` | In-app sounds | label | short |  | — |
 | `patternDefault` | Default | label | short |  | — |
 | `patternIntensity` | Opacity | text/label | short |  | — |

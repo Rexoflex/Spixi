@@ -17,6 +17,20 @@ source** (file:line in the notes), not inferred from an older row.
 
 ---
 
+## §0b ★ STATUS after the 2026-08-21 batch (#464–#471)
+
+| Row | State |
+|---|---|
+| **F4** · **F5** | ✅ BUILT (#464). Neither was one line — F5 alone would have left an empty grey tile |
+| **NOTIF-1** | ✅ BUILT (#465). 🟡 The badge dial is Damir's: muting already zeroed the badge for groups, Core-side |
+| **N80** | ✅ **ALREADY SHIPPED** in `f10ff1ca` — this table's "unbuilt" was stale (#471) |
+| **NOTIF-2** | ✅ BUILT (#466) — global screen un-darkened + per-1:1 mute. 🟡 previews→sender-name is a corrected dial |
+| **NOTIF-3** · **NOTIF-4** | ✅ BUILT (#467) |
+| **SND-1/2/3** | ✅ plumbing + switch BUILT (#468). 🟡 **assets are Damir's pick** — the app is silent until four files land |
+| **F3** · **F1** · **F2** | 🔎 **INSTRUMENTED ONLY** (#469). No fix attempted, by Damir's explicit call. The next F5 log is the diagnosis |
+| **F6** · **F7** | 🔎 **INSTRUMENTED ONLY** (#470) |
+| **F8 / N67** · **F9** | ⏭ NEXT. Destructive path — repro first (#215/#294) |
+
 ## §1 The one-liners — OURS, no triage needed
 
 | ID | Item | Where | Size |

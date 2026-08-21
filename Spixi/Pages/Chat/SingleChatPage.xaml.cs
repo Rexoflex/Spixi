@@ -315,17 +315,19 @@ namespace SPIXI
                 string msg_id = current_url.Substring("ixian:contextAction:".Length + action.Length + 1);
                 onContextAction(action, msg_id);
             }
+            /* ⚠ AUDIT MINOR: the THIRD mute entry point, brought in line with the other two.
+             * It dereferenced `friend.metaData.botInfo.sendNotification` with NO null check and
+             * NO 1:1 branch — so reaching it for a 1:1, or for a group/bot whose BotInfo has
+             * not arrived, threw an NRE inside onNavigating, which is destructive. Same shape
+             * as ContactDetails now: synced botInfo for groups and bots, local preference for a
+             * 1:1, and the chat list told either way. */
             else if (current_url.StartsWith("ixian:enableNotifications"))
             {
-                friend.metaData.botInfo.sendNotification = true;
-                friend.saveMetaData();
-                StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 1 }, 0, true);
+                setChatNotifications(true);
             }
             else if (current_url.StartsWith("ixian:disableNotifications"))
             {
-                friend.metaData.botInfo.sendNotification = false;
-                friend.saveMetaData();
-                StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 0 }, 0, true);
+                setChatNotifications(false);
             }
             else if (current_url.StartsWith("ixian:sendContactRequest:"))
             {
@@ -1227,6 +1229,32 @@ namespace SPIXI
             displaySpixiAlert(modal_title, modal_body, SpixiLocalization._SL("global-dialog-ok"));
         }
 
+
+        /// <summary>
+        /// ⚠ AUDIT MINOR: one place that knows how a chat is muted, so the three entry points
+        /// (this page, ContactDetails, and the chat-list row menu) cannot disagree.
+        /// </summary>
+        private void setChatNotifications(bool enabled)
+        {
+            try
+            {
+                if (friend.metaData != null && friend.metaData.botInfo != null)
+                {
+                    friend.metaData.botInfo.sendNotification = enabled;
+                    friend.saveMetaData();
+                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { (byte)(enabled ? 1 : 0) }, 0, true);
+                }
+                else
+                {
+                    SNotificationPrefs.setContactMuted(friend.walletAddress.ToString(), !enabled);
+                }
+                UIHelpers.shouldRefreshContacts = true;
+            }
+            catch (Exception e)
+            {
+                Logging.error("setChatNotifications failed: " + e);
+            }
+        }
 
         private void onContextAction(string action, string msg_id_hex)
         {
@@ -2244,7 +2272,9 @@ namespace SPIXI
 
                 IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, channel);
 
-                UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.getUnreadMessageCount(), "", 0);
+                // ★ THE BADGE DIAL (audit MAJOR): the TRUE count — the flush sites and every
+                // live push must agree, or a muted chat's badge flickers on each update.
+                UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
 
                 if (!friend.bot)
                 {

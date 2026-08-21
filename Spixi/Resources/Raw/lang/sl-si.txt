@@ -696,6 +696,7 @@ global-share-sharefile = Deli datoteko
 notification-new-message = Novo sporočilo
 notification-new-messages = {0} novih sporočil
 notification-incoming-call = Dohodni klic
+notification-missed-call = Neodgovorjen klic
 notification-payment-received = Plačilo prejeto
 notification-payment-request = Zahteva za plačilo
 notification-app-invite = Povabilo v aplikacijo

@@ -26,6 +26,39 @@ public partial class App : Application
 
     public static string startingScreen = ""; // Which screen to start on
 
+    /* ★ F3 (2026-08-22): the pause lock whose biometric/pattern prompt is waiting for the
+     * ANDROID ACTIVITY to actually reach RESUMED. Set by OnResume, consumed by
+     * MainActivity.OnResume via releaseDeferredAuth(). Null on every other platform and
+     * whenever no lock is held. */
+    private LockPage? pendingForegroundAuth = null;
+
+    /// <summary>
+    /// ★ F3 — called by MainActivity once the activity is genuinely RESUMED (posted, so it
+    /// runs after handleResumeActivity has finished, not from inside base.OnResume()).
+    /// Idempotent and null-safe: a lock dismissed inside the 5-second window, or a resume
+    /// with no lock at all, simply finds nothing to release.
+    /// </summary>
+    public void releaseDeferredAuth()
+    {
+        try
+        {
+            LockPage? held = pendingForegroundAuth;
+            pendingForegroundAuth = null;
+            if (held == null)
+            {
+                return;
+            }
+            SLockDiag.mark("resume/deferred-auth-released", "activity is resumed");
+            held.onForegroundReturned();
+        }
+        catch (Exception e)
+        {
+            // A failure here must not take down the resume. The password field is always
+            // available, so the worst case is the pre-fix behaviour.
+            Logging.error("releaseDeferredAuth failed: " + e);
+        }
+    }
+
     private bool isLockScreenActive = false;
     private DateTime unlockedDate = DateTime.Now; // Store the last time when the app was unlocked via lockscreen
 
@@ -290,7 +323,13 @@ public partial class App : Application
          * pause from presenting a second one, so a stale one would disable the whole
          * feature for the rest of the session. LockPage.performUnlock pops the modal
          * itself (justConfirm leg) — only the handle is ours to clear. */
+        // ★ F3 (audit MINOR): the deferred-auth handoff dies with the lock. Now that the
+        // release genuinely POSTS, a lock dismissed inside that window would otherwise get
+        // onForegroundReturned() on a popped page — and LockPage.pageVisible is only ever set
+        // to true, so all four gates would pass and a pattern prompt would appear over the
+        // UNLOCKED app with no lock behind it.
         pauseLock = null;
+        pendingForegroundAuth = null;
         // Q4-③ review (MAJOR-1): the call surface is suppressed while locked. Re-assert
         // the current VoIP state on the next UI tick — a call that survived the lock
         // (still ringing, or still connected) gets its ring/bar back; no call = no-op.
@@ -488,7 +527,13 @@ public partial class App : Application
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
                     Logging.error("lockOnPause: the lock did not present: " + t.Exception);
+                    // ★ F3 (audit MINOR): the deferred-auth handoff dies with the lock. Now that the
+                    // release genuinely POSTS, a lock dismissed inside that window would otherwise get
+                    // onForegroundReturned() on a popped page — and LockPage.pageVisible is only ever set
+                    // to true, so all four gates would pass and a pattern prompt would appear over the
+                    // UNLOCKED app with no lock behind it.
                     pauseLock = null;
+                    pendingForegroundAuth = null;
                     isLockScreenActive = false;
                     // AUDIT MINOR-2: hideSurface() already ran. Nothing else re-asserts a
                     // live call's ring or bar on this path.
@@ -499,7 +544,13 @@ public partial class App : Application
         catch (Exception e)
         {
             Logging.error("lockOnPause failed: " + e);
+            // ★ F3 (audit MINOR): the deferred-auth handoff dies with the lock. Now that the
+            // release genuinely POSTS, a lock dismissed inside that window would otherwise get
+            // onForegroundReturned() on a popped page — and LockPage.pageVisible is only ever set
+            // to true, so all four gates would pass and a pattern prompt would appear over the
+            // UNLOCKED app with no lock behind it.
             pauseLock = null;
+            pendingForegroundAuth = null;
             isLockScreenActive = false;
             UIHelpers.refreshAppRequests = true;   // AUDIT MINOR-2, the other failure path
         }
@@ -519,7 +570,13 @@ public partial class App : Application
         {
             if (MainPage is NavigationPage nav && nav.Navigation.ModalStack.Contains(lp))
             {
+                // ★ F3 (audit MINOR): the deferred-auth handoff dies with the lock. Now that the
+                // release genuinely POSTS, a lock dismissed inside that window would otherwise get
+                // onForegroundReturned() on a popped page — and LockPage.pageVisible is only ever set
+                // to true, so all four gates would pass and a pattern prompt would appear over the
+                // UNLOCKED app with no lock behind it.
                 pauseLock = null;
+                pendingForegroundAuth = null;
                 isLockScreenActive = false;
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
@@ -599,8 +656,41 @@ public partial class App : Application
                  * is not resumed behind a lock; onUnlock is what wakes it.
                  * ★ AUDIT MAJOR-2: the biometric prompt was DEFERRED while the app was
                  * backgrounded. Now it is really in the foreground, so run it. */
-                SLockDiag.mark("resume/lock-stays-up", "calling onForegroundReturned");
+                SLockDiag.mark("resume/lock-stays-up", "releasing deferred auth");
+#if ANDROID
+                /* ★ F3 — THE FIX, and it is a TIMING fix, not a gating one. The 2026-08-21
+                 * device log settled three rounds of guessing: all four gates read correctly
+                 * and `maybeAuthenticate` reported `→ PROMPT`, so #460's latch works and this
+                 * path is reached. What it never produced was `lock/auth-returned`.
+                 *
+                 * The log shows why, one line later:
+                 *     15:37:51.3700  auth/maybeAuthenticate … → PROMPT
+                 *     15:37:51.4064  Android OnResume - ensuring Node is running
+                 * MAUI raises Application.OnResume from INSIDE `base.OnResume()`, so we were
+                 * firing the prompt 36 ms before MainActivity's own OnResume body ran — i.e.
+                 * from the middle of the activity's onResume, before it reaches RESUMED.
+                 *
+                 * ★ Why that kills a PATTERN but would not kill a fingerprint: a fingerprint
+                 * prompt is a DialogFragment and tolerates it, while the device-credential
+                 * fallback (AllowAlternativeAuthentication) launches ConfirmDeviceCredential
+                 * — a separate ACTIVITY. Android does not start an activity on behalf of one
+                 * that has not reached RESUMED, so the launch is dropped and the await never
+                 * completes. Damir uses a pattern; a fingerprint would have masked this in
+                 * every previous round. Cold start works because it prompts at +461 ms, long
+                 * after everything settled.
+                 *
+                 * So the release is HANDED TO MainActivity, which posts it once the activity
+                 * is genuinely resumed. Deliberately an explicit, named edge rather than a
+                 * delay — #442, #460 and this row are all the same lesson: a lifecycle flag
+                 * or callback that turns over at a different edge from the one you are
+                 * reasoning about is worse than none. The latch itself is untouched. */
+                pendingForegroundAuth = held;
+#else
+                // Every other platform keeps the original edge. None of them presents the
+                // lock at pause, and none has been on a device for eight batches — changing
+                // their timing here would be a guess with no way to test it.
                 held.onForegroundReturned();
+#endif
                 return;
             }
         }

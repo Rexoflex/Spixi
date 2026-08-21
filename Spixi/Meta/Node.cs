@@ -441,7 +441,13 @@ namespace SPIXI.Meta
                             && friend.relayNode != null)
                         {
                             friend.online = true;
-                            UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.getUnreadMessageCount(), "", 0);
+                            /* ★ THE BADGE DIAL (audit MAJOR): the TRUE count, matching the flush sites.
+                             * Ixian-Core's getUnreadMessageCount() returns 0 for a muted chat, so
+                             * leaving it here meant the row showed its count after a flush and then
+                             * lost it on the very next PRESENCE TICK (~1 Hz) — the badge would
+                             * appear and vanish, reading on device exactly like "the dial doesn't
+                             * work". The flush and the live tick must agree. */
+                            UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
                         }
                     }
                     else
@@ -449,7 +455,13 @@ namespace SPIXI.Meta
                         if (friend.online == true)
                         {
                             friend.online = false;
-                            UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.getUnreadMessageCount(), "", 0);
+                            /* ★ THE BADGE DIAL (audit MAJOR): the TRUE count, matching the flush sites.
+                             * Ixian-Core's getUnreadMessageCount() returns 0 for a muted chat, so
+                             * leaving it here meant the row showed its count after a flush and then
+                             * lost it on the very next PRESENCE TICK (~1 Hz) — the badge would
+                             * appear and vanish, reading on device exactly like "the dial doesn't
+                             * work". The flush and the live tick must agree. */
+                            UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
                         }
                     }
                 }
@@ -902,18 +914,14 @@ namespace SPIXI.Meta
                                     // known at the time — and the one-row-per-chat property
                                     // would flap. The canonical address bytes are always
                                     // present and never change for a given chat.
-                                    int notifId = (int)Crc32Algorithm.Compute(friend.walletAddress.addressNoChecksum);
                                     /* ⚠ AUDIT MAJOR: a CALL must not share the chat's id.
                                      * Calls and messages route to DIFFERENT channels, so with one
                                      * id a text arriving after a missed call silently replaced the
                                      * missed-call row (and an incoming call wiped the "3 new
-                                     * messages" row). One bit of separation keeps replace-per-chat
-                                     * for messages while leaving the call its own row. */
+                                     * messages" row). The id lives in SNotificationPrefs so this
+                                     * poster and 3.14's canceller cannot drift apart. */
                                     bool isCallNotif = type == FriendMessageType.voiceCall;
-                                    if (isCallNotif)
-                                    {
-                                        notifId = notifId ^ 0x5A5A5A5A;
-                                    }
+                                    int notifId = SNotificationPrefs.notificationIdFor(friend.walletAddress, isCallNotif);
                                     SPushService.showLocalNotification(notifId, "Spixi", notifText, friend.walletAddress.ToString(), alert, unreadCount, isCallNotif ? "call" : "message", chatUnread);
                                     SPushService.clearRemoteNotifications(unreadCount);
                                 }
@@ -954,10 +962,24 @@ namespace SPIXI.Meta
                     // The FUNDS types are excluded separately: SND-2 plays when the
                     // transaction is actually VERIFIED, so a payment chimes once, when it
                     // settles, rather than twice with the first chime before the money moved.
+                    /* ⚠ AUDIT MINOR: also gate on `alert` and on the SAME visibility test the
+                     * notification uses. Without them, once the assets land a backgrounded
+                     * message would fire the notification (channel sound + vibrate) AND an
+                     * in-app effect — two sounds for one message — and the `alert == false`
+                     * callers, which are silent by design on the notification side, would be
+                     * audible here. `voiceCallEnd` joins the excluded types for the same reason
+                     * `voiceCall` did: an answered call ending must not play "message received". */
                     bool soundable = fire_local_notification
+                        && alert
+                        // ⚠ The notification fires when `isInForeground == false || chatPage == null`.
+                        // The in-app effect must therefore fire on the COMPLEMENT of that, or the
+                        // two double up: app in the foreground WITH this chat open, where no
+                        // notification is posted and the sound is the only feedback there is.
+                        && App.isInForeground && Utils.getChatPage(friend) != null
                         && type != FriendMessageType.sentFunds
                         && type != FriendMessageType.requestFunds
                         && type != FriendMessageType.voiceCall
+                        && type != FriendMessageType.voiceCallEnd
                         && !friend_message.id.SequenceEqual(new byte[] { 4 })
                         && !friend_message.id.SequenceEqual(new byte[] { 5 });
                     if (!soundable)

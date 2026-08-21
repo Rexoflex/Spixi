@@ -177,6 +177,57 @@ namespace SPIXI.VoIP
         {
             SPlatformUtils.stopRinging();
 
+            /* ★ 3.14 (Damir on device 2026-08-21): "despite being a missed call the
+             * notification says 'Incoming call'."
+             *
+             * It is not wrong copy — it is STALE copy. The row is posted while the call is
+             * genuinely incoming and then outlives the call, because nothing ever took it
+             * down. NOTIF-4 made that more visible: the call keeps its own id instead of
+             * being overwritten by the next message, so the lie persists until tapped.
+             *
+             * ⚠ MY FIRST FIX WAS WRONG, and Damir caught it on device: I CANCELLED the row.
+             * That deleted the missed call instead of correcting it — "the missed call row
+             * doesn't remain in the notification tray, it disappears". A missed call is
+             * exactly the kind of thing a notification tray exists to hold on to; the
+             * verdict said to REWORD it and I over-simplified to a cancel.
+             *
+             * So it is RE-POSTED under the same id with missed-call copy. Same id means it
+             * REPLACES the stale row rather than stacking beside it, and it is call-flavoured
+             * so it can never take down a message row. Silent (`alert: false`) — the ringtone
+             * already happened, and a second buzz for a call you just missed is noise.
+             *
+             * ⚠ Only when the call was NOT answered. `acceptCall` cancels instead: once you
+             * are talking, there is nothing left to tell you. */
+            try
+            {
+                var endedWith = currentCallContact;
+                if (endedWith != null && endedWith.walletAddress != null)
+                {
+                    int callNotifId = SPIXI.Meta.SNotificationPrefs.notificationIdFor(endedWith.walletAddress, true);
+                    if (currentCallAccepted || currentCallCalleeAccepted || currentCallInitiator)
+                    {
+                        // Answered, or we placed it — nothing was missed, so take the row down.
+                        SPushService.cancelNotification(callNotifId);
+                    }
+                    else
+                    {
+                        // ★ A genuinely MISSED incoming call. Correct the row; do not delete it.
+                        SPushService.showLocalNotification(
+                            callNotifId,
+                            "Spixi",
+                            SpixiLocalization._SL("notification-missed-call") ?? "Missed call",
+                            endedWith.walletAddress.ToString(),
+                            false,      // alert: silent — the ring already happened
+                            FriendList.getUnreadMessageCount(),
+                            "call");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("endVoIPSession: could not update the call notification: " + e.Message);
+            }
+
             try
             {
                 if (audioPlayer != null)
@@ -270,6 +321,23 @@ namespace SPIXI.VoIP
 
         public static void acceptCall(byte[] session_id)
         {
+            /* ⚠ AUDIT MINOR (3.14): clear the "Incoming call" row on ANSWER too. Cancelling
+             * only at end-of-call left it standing for the whole conversation — the user
+             * answers from the in-app overlay and never taps the notification, so SetAutoCancel
+             * never fires. Stale copy for the length of every answered call. */
+            try
+            {
+                var acceptedWith = currentCallContact;
+                if (acceptedWith != null && acceptedWith.walletAddress != null)
+                {
+                    SPushService.cancelNotification(
+                        SPIXI.Meta.SNotificationPrefs.notificationIdFor(acceptedWith.walletAddress, true));
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("acceptCall: could not clear the call notification: " + e.Message);
+            }
             if (!hasSession(session_id))
             {
                 return;

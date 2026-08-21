@@ -106,6 +106,33 @@ namespace Spixi
             }
         }
 
+
+        /// <summary>
+        /// ★ 3.14 (Damir on device 2026-08-21): cancel ONE chat's notification.
+        /// Added because an incoming-call row is true when it posts and becomes a lie the
+        /// moment the call is missed — it sat there reading "Incoming call" indefinitely.
+        /// `clearNotifications` cancels EVERYTHING, which would also wipe unread message
+        /// rows the user has not seen, so a targeted cancel was needed.
+        /// </summary>
+        public static void cancelNotification(int messageId)
+        {
+            try
+            {
+                if (manager != null)
+                {
+                    manager.Cancel(messageId);
+                }
+                else
+                {
+                    NotificationManagerCompat.From(Android.App.Application.Context)?.Cancel(messageId);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("cancelNotification failed: " + e.Message);
+            }
+        }
+
         public static void clearNotifications(int unreadCount)
         {
             if (manager != null)
@@ -254,6 +281,40 @@ namespace Spixi
             {
                 Logging.error("Exception occured in handleNotificationReceived: {0}", ex);
             }
+
+            /* ★ NOTIF-5 (Damir device round 2026-08-21) — THE SECOND DOOR.
+             *
+             * Reaching this line means the Ixian fetch above did not handle the push, so the
+             * RAW OneSignal notification is about to be posted. That path has never consulted
+             * a mute, which is why 3.7 (a muted group still notified), 3.4 ("sometimes works,
+             * sometimes doesn't") and 3.12 (a second, unformatted notification beside ours)
+             * were all the same defect wearing three faces. NOTIF-1's fix was in the right
+             * place; there was simply another way in.
+             *
+             * ⚠ Scope, stated honestly: a GROUP push carries the SENDER'S address in `fa`,
+             * not the group's — which is why tapping one opened a 1:1. So this gate covers
+             * the global master and 1:1 chats; the group case needs the payload to carry the
+             * group address and is BE. See SNotificationPrefs.shouldDisplayRawPush. */
+            string? fa = null;
+            try
+            {
+                var extra = e.Notification.AdditionalData;
+                if (extra != null && extra.ContainsKey("fa"))
+                {
+                    fa = Convert.ToString(extra["fa"]);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("handleNotificationReceived: could not read 'fa': " + ex.Message);
+            }
+
+            if (!SPIXI.Meta.SNotificationPrefs.shouldDisplayRawPush(fa))
+            {
+                Logging.info("[NOTIFDIAG] raw push suppressed by mute/global master");
+                return;
+            }
+
             e.Notification.display();
         }
 

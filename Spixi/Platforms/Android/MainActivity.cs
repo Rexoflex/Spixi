@@ -181,6 +181,68 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnResume();
         applyRecentsPrivacy();   // #461: keep it in step with the lock preference
+
+    }
+
+    /* ★ F3 — the lock's deferred auth is released HERE, from OnPostResume, and through a
+     * REAL post.
+     *
+     * ⚠ THE FIRST CUT OF THIS FIX DID NOT WORK, and the audit caught it before the device
+     * did — which would have been the FOURTH no-op fix on this surface. It used
+     * `MainThread.BeginInvokeOnMainThread` from `OnResume`, and that method SHORT-CIRCUITS
+     * when it is already on the main thread:
+     *     if (IsMainThread) { action(); } else { PlatformBeginInvokeOnMainThread(action); }
+     * `OnResume` is always on the main thread, so the "post" executed inline, still inside
+     * handleResumeActivity — the prompt fired microseconds later than before and nothing
+     * observable changed. A posting helper that silently does not post is exactly the
+     * lifecycle-edge trap that cost #442 and #460.
+     *
+     * TWO real guarantees now, and they are independent:
+     *   ① `OnPostResume` is the canonical "resume has completed" edge, and it is where
+     *      androidx dispatches the Lifecycle to RESUMED (ReportFragment.onActivityPostResumed).
+     *      That matters specifically here: androidx.biometric commits a fragment, and the
+     *      device-credential path (Damir's PATTERN) launches ConfirmDeviceCredential — a
+     *      separate ACTIVITY — which is dropped or deferred from a host that is not resumed.
+     *   ② `View.Post` on the decor view ALWAYS enqueues to the view's handler; unlike
+     *      MainThread it has no already-on-thread shortcut, so the work genuinely runs on a
+     *      later message.
+     *
+     * `lifecycle=` is logged with it so the next device round PROVES the mechanism instead
+     * of inferring it: it must now read RESUMED. If it reads STARTED, this is wrong again
+     * and the log says so immediately. */
+    protected override void OnPostResume()
+    {
+        base.OnPostResume();
+        try
+        {
+            var decor = Window?.DecorView;
+            if (decor != null)
+            {
+                decor.Post(() => releaseDeferredAuthNow());
+            }
+            else
+            {
+                releaseDeferredAuthNow();
+            }
+        }
+        catch (Exception e)
+        {
+            Logging.error("OnPostResume: could not schedule releaseDeferredAuth: " + e);
+        }
+    }
+
+    private void releaseDeferredAuthNow()
+    {
+        try
+        {
+            SPIXI.Meta.SLockDiag.mark("resume/activity-resumed",
+                "lifecycle=" + Lifecycle.CurrentState);
+            (Microsoft.Maui.Controls.Application.Current as App)?.releaseDeferredAuth();
+        }
+        catch (Exception e)
+        {
+            Logging.error("releaseDeferredAuthNow failed: " + e);
+        }
     }
 
     protected override void OnPause()

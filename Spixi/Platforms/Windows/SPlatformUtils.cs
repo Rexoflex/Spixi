@@ -164,6 +164,16 @@ namespace Spixi
                 string fullPath = Path.Combine(getAssetsPath(), filePath);
                 if (!File.Exists(fullPath))
                 {
+                    /* ⚠ AUDIT MINOR: warn HERE, not only in the catch. On Android the expected
+                     * failure is OpenFd throwing, so the catch reports it; on Windows the
+                     * expected failure is File.Exists returning false, which returned silently —
+                     * so the two platforms disagreed about whether a missing asset is
+                     * observable, which is precisely the blindness 4.3 was about. Once per
+                     * asset, because the miss is memoised. */
+                    if (!isMissing(filePath))
+                    {
+                        Logging.warn("playEffect(" + filePath + ") skipped: asset not found at " + fullPath);
+                    }
                     markMissing(filePath);
                     return;
                 }
@@ -196,9 +206,18 @@ namespace Spixi
             }
             catch (Exception e)
             {
-                // trace, not error: with no assets shipped this fires on every message.
+                bool firstMiss = !isMissing(filePath);
                 markMissing(filePath);
-                Logging.trace("playEffect(" + filePath + ") skipped: " + e.Message);
+                /* ⚠ 2026-08-22: `Logging.trace` is DROPPED by the shipped app — Config.logVerbosity is
+                 * info|warn|error = 14, trace = 1, and `14 & 1 == 0` (Ixian-Core Logging.cs:191).
+                 * So the original trace line here could never appear in a log, which made the
+                 * whole sound path unobservable: if it threw on every message, nothing would say
+                 * so. Reported at WARN, and only ONCE per asset (the miss is memoised), so it
+                 * stays a single honest line rather than a flood. */
+                if (firstMiss)
+                {
+                    Logging.warn("playEffect(" + filePath + ") skipped: " + e.Message);
+                }
             }
         }
 

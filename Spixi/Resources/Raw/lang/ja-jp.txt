@@ -693,6 +693,7 @@ intro-restore-walletexists-text = このデバイスにはすでにアカウン�
 notification-new-message = 新しいメッセージ
 notification-new-messages = {0} 件の新着メッセージ
 notification-incoming-call = 着信
+notification-missed-call = 不在着信
 notification-payment-received = 支払いを受け取りました
 notification-payment-request = 支払いリクエスト
 notification-app-invite = アプリ招待

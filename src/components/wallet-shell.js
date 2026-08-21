@@ -689,9 +689,18 @@ export function openMissingTxSheet({ host, strings = getStrings(), onExplorer, s
       b.textContent = strings.chainScanNote
         || 'Spixi is looking through recent blocks for transactions that involve your address.';
     } else {
-      h.textContent = strings.chainScanConnecting || 'Connecting';
-      b.textContent = strings.chainScanNoteUnknown
-        || 'Spixi will check for transactions that involve your address once it reaches the network.';
+      /* ★ COPY (Damir, 2026-08-22): "Connecting" read as "the app has no connection".
+     It never meant that — and after the F6 fix it is plainly wrong, because this state now
+     also fires while we ARE connected and the peer heights simply are not credible yet.
+     "Starting the check" names the same activity as the scanning state and marks it as
+     not-yet-underway, so the two read as one sequence rather than two different things. */
+      h.textContent = strings.chainScanStarting || 'Starting the check';
+      /* ⚠ And the BODY was the worse half: "once it reaches the network" states outright
+         that Spixi is offline, which is the very thing Damir flagged people misreading —
+         and it is now false in the common case. It describes what is actually happening
+         instead: working out how far the chain has moved. */
+      b.textContent = strings.chainScanNoteStarting
+        || 'Spixi is working out how far the blockchain has moved. This usually takes a few moments after you open the app.';
     }
     col.append(h, b);
     card.append(ring, col);

@@ -42,6 +42,27 @@
   --grey-950: #131415;
   --grey-1000: #111213;
 
+  /* ★ DARK SURFACE SATURATION (Damir, 2026-08-22): "add saturation, so it's not so greyish
+     — more dark-mode modern, such as WhatsApp or Viber have."
+
+     A PARALLEL ramp rather than an edit to --grey-*, because the grey ramp is shared: LIGHT
+     mode uses --neutral-900 for --surface-neutral-inverse-01 (the dark chip/tooltip on a
+     light ground), so saturating the ramp itself would have re-tinted light mode too. Only
+     [data-theme="dark"] re-points at these.
+
+     Each step keeps its EXISTING LIGHTNESS to the decimal and raises saturation 11-17% → 30%
+     at hue 217°. Two consequences worth stating:
+       · contrast is unchanged, because contrast follows lightness — no text or icon token
+         needs re-checking, and no a11y gate can move.
+       · 217° sits between Telegram's 210° and the Spixi brand's 226° (#3050bd), so the
+         surface reads as the same family as the accent instead of a neutral grey.
+     Reference points: WhatsApp #0b141a is hsl(204, 40%, 7%), Telegram #17212b is
+     hsl(210, 30%, 13%) — this ramp lands on Telegram's saturation exactly. */
+  --ink-700:  #19212f;   /* was #202328 — L 14.1% held */
+  --ink-800:  #161d28;   /* was #1b1f23 — L 12.2% held */
+  --ink-900:  #10151e;   /* was #13171b — L  9.0% held */
+  --ink-1000: #0d1118;   /* was #111213 — L  7.1% held */
+
   /* color/brand */
   --brand-50: #e9ecf3;
   --brand-100: #c9d5ed;
@@ -594,6 +615,17 @@
 }
 
 [data-theme="dark"] {
+  /* ★ DARK SURFACE SATURATION (Damir, 2026-08-22) — re-point the neutral ramp at the
+     saturated ink-* steps. Done HERE, at the ramp, rather than on --surface-neutral-01
+     alone: that token is only one of seven dark surfaces fed by --neutral-900 (screen,
+     topbar, bottombar, composer, input-on-card, inverse-01), and saturating one of them
+     would have produced a patchwork where the chat canvas no longer matched the bars above
+     and below it. One edit, every dark surface moves together, light mode untouched. */
+  --neutral-700: var(--ink-700);
+  --neutral-800: var(--ink-800);
+  --neutral-900: var(--ink-900);
+  --neutral-1000: var(--ink-1000);
+
   /* surface/neutral */
   --surface-neutral-01: var(--neutral-900);
   --surface-neutral-02: var(--neutral-800);

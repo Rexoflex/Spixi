@@ -671,6 +671,7 @@ intro-restore-walletexists-text = Su questo dispositivo esiste già un account. 
 notification-new-message = Nuovo messaggio
 notification-new-messages = {0} nuovi messaggi
 notification-incoming-call = Chiamata in entrata
+notification-missed-call = Chiamata persa
 notification-payment-received = Pagamento ricevuto
 notification-payment-request = Richiesta di pagamento
 notification-app-invite = Invito app

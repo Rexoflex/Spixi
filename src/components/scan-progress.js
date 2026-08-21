@@ -166,8 +166,24 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
   const { ring, text, pct } = el._parts;
 
   const cur = num(current);
-  const tgt = num(target);
+  let tgt = num(target);
   const org = num(origin);
+
+  /* ★ F6 (2026-08-22, Damir on device) — BELT. C# now converts an implausible target into
+     the unknown signal at the push site (HomePage, SCAN_TARGET_STALE_MARGIN), which is the
+     real fix. This is the shell's own guard for the same thing, because an OLDER exe pushes
+     the raw value and would otherwise reopen the defect against a new shell.
+
+     The device log showed the peer majority reporting a height ~700 000 blocks BELOW ours
+     for the first ~40 s of a run. The caught-up test below is `lag <= HIDE_LAG`, and a
+     NEGATIVE lag satisfies it — so the row hid itself while the phone was 150 000 blocks
+     behind. A target below our own height is not "caught up", it is not known, and this
+     component already renders that as indeterminate. */
+  const TARGET_STALE_MARGIN = 16;
+  /* `clamped` distinguishes MY unknown from C#'s. They are different events and #440 already
+     decided what the second one means. */
+  let clamped = false;
+  if (tgt > 0 && cur > tgt + TARGET_STALE_MARGIN) { tgt = 0; clamped = true; }
 
   /* ★ WHEN IS A CLIENT "CAUGHT UP".
    * `getHighestKnownNetworkBlockHeight()` is max(our height, a peer majority that is
@@ -182,13 +198,27 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
    * rendered 0% on a caught-up phone. */
   const SHOW_LAG = 20;
   const HIDE_LAG = 2;
-  const showing = el.dataset.state === 'scanning';
+  /* ★ F6 (audit MINOR) — the hysteresis key must SURVIVE an unknown frame.
+     `showing` decides which band we judge against: the narrow HIDE_LAG while a scan is
+     already on screen, the wide SHOW_LAG otherwise. It was read from `dataset.state`, and
+     the indeterminate branch below overwrites that with 'unknown' — so ONE clamped or
+     peerless frame mid-catch-up demoted the state, and the next credible frame was judged
+     against SHOW_LAG instead of HIDE_LAG.
+
+     Concretely: 12 blocks behind, row on screen at ~95 %; one stale-peer frame arrives and
+     goes indeterminate; the next frame has lag 12, `showing` is now false, `12 <= 20`, so
+     the row HIDES while the scan is still running. That is the #446 hysteresis trap, and it
+     would have been re-opened by the very belt added to close F6. A separate sticky marker
+     records "a scan was in progress" across unknown frames; only a real caught-up or a
+     genuine hide clears it. */
+  const showing = el.dataset.state === 'scanning' || el.dataset.wasScanning !== undefined;
   if (cur > 0 && tgt > 0) {
     const lag = tgt - cur;
     if (lag <= (showing ? HIDE_LAG : SHOW_LAG)) {
       el.hidden = true;
       delete el.dataset.state;
       delete el.dataset.percent;
+      delete el.dataset.wasScanning;   // ★ genuinely caught up — the latch goes with the row
       return el;
     }
   }
@@ -197,9 +227,25 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
   if (cur === 0 || tgt === 0) {
     el.hidden = false;
     el.dataset.state = 'unknown';
+    /* ★ F6 vs #440 — the two unknowns are NOT the same event, and conflating them broke a
+       break-my-verdict pin that was right.
+         · A GENUINE unknown (C# really sent 0/0 — no peers) happens on EVERY boot, before
+           any scan frame. #440 MAJOR-1 established that it must NOT carry a scanning state
+           forward, or the first real frame is judged against the narrow band and a phone 3-20
+           blocks behind renders "0%" on launch. So it clears the latch, exactly as before.
+         · A CLAMPED unknown is mine: a real target we refused to believe, mid-catch-up. That
+           one must NOT demote, or the next credible frame is judged against SHOW_LAG and the
+           row hides at ~95 % while the scan is still running — the #446 trap, re-opened by
+           the very belt added to close F6. */
+    if (!clamped) delete el.dataset.wasScanning;
     delete el.dataset.percent;
     setScanRing(ring, { indeterminate: true });
-    text.textContent = strings.chainScanConnecting || 'Connecting';
+    /* ★ COPY (Damir, 2026-08-22): "Connecting" read as "the app has no connection".
+     It never meant that — and after the F6 fix it is plainly wrong, because this state now
+     also fires while we ARE connected and the peer heights simply are not credible yet.
+     "Starting the check" names the same activity as the scanning state and marks it as
+     not-yet-underway, so the two read as one sequence rather than two different things. */
+    text.textContent = strings.chainScanStarting || 'Starting the check';
     pct.textContent = '';
     pct.removeAttribute('aria-valuenow');
     return el;
@@ -215,6 +261,7 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
 
   el.hidden = false;
   el.dataset.state = 'scanning';
+  el.dataset.wasScanning = '';        // ★ F6: sticky across unknown frames (see `showing`)
   el.dataset.percent = String(p);
   setScanRing(ring, { percent: p });
   text.textContent = strings.chainScanTitle || 'Checking for your transactions';

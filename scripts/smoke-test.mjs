@@ -5702,7 +5702,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/localStorage\.getItem\('spixi\.chat\.patternstyle'\)/.test(chatW5)
     && /setAttribute\('data-chat-pattern',s\)/.test(chatW5),
     'W5: the style is resolved PRE-PAINT in the same script as the intensity — no wrong-pattern flash on load');
-  ok(/if\(s==='flow'&&!de\)s='lineart'/.test(chatW5),
+  /* ★ REBASED 2026-08-22: TRIANGLES replaced line art as the default style, so every
+   * fallback target moved with it. The RULE is unchanged and is what this pin guards —
+   * Live flow is desktop-only and a mobile client carrying that pref must land somewhere
+   * deterministic. */
+  ok(/if\(s==='flow'&&!de\)s='triangles'/.test(chatW5),
     'W5: Live flow is desktop-only — a mobile client carrying the pref falls back to line art (battery)');
   ok(chatW5.indexOf("p.get('desktop')==='1'") < chatW5.indexOf("spixi.chat.patternstyle"),
     'W5: the ?desktop/?mobile forcing still runs BEFORE the style default derives (the B2 ordering rule)');
@@ -5725,7 +5729,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5 live-apply: the #314 grammar verbatim — storage event + focus + visibilitychange + a visibility-guarded 2s poll (WKWebView fires no cross-WebView storage event, and a covered WebView stays "visible")');
   ok(/if \(stamp === seenPatternPrefs\) return;/.test(chatW5),
     'W5 live-apply: gated on an ACTUAL change of the stored pair — the poll is a no-op read under a live chat');
-  ok(/if \(s === 'flow' && !de\) s = 'lineart';/.test(chatW5),
+  ok(/if \(s === 'flow' && !de\) s = 'triangles';/.test(chatW5),
     'W5 live-apply: the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
   ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);\s*\n\s*applyChatPatternStyle\(\);/.test(chatW5),
     'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once');
@@ -5760,14 +5764,17 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const sg = ap5.querySelector('.c-settings-swatches--style');
   ok(!!sg && sg.getAttribute('role') === 'radiogroup', 'W5: the style picker is its own radiogroup');
   const styleTiles = [...sg.querySelectorAll('.c-settings-swatch')];
-  ok(styleTiles.length === 3 && styleTiles.map((b) => b.dataset.value).join() === 'lineart,matrix,flow',
+  ok(styleTiles.length === 4 && styleTiles.map((b) => b.dataset.value).join() === 'triangles,lineart,matrix,flow',
     'W5: desktop offers all three styles in spec order');
   ok(styleTiles.every((b) => b.getAttribute('role') === 'radio' && b.getAttribute('aria-label')),
     'W5: style tiles keep the #334 swatch a11y grammar (role=radio + localized label, no visible text to overflow)');
   ok(styleTiles.every((b) => b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern === b.dataset.value),
     'W5: each style tile paints ITS OWN style (the inherited-custom-property contract)');
   const prev5 = ap5.querySelector('.c-settings-appearance__preview');
-  styleTiles[1].click();
+  /* ★ REBASED 2026-08-22: addressed BY VALUE, not by index. Adding `triangles` at the
+     front shifted every index and turned three pins red at once; a value lookup cannot be
+     broken by the next style anyone adds. */
+  styleTiles.find((b) => b.dataset.value === 'matrix').click();
   ok(prev5.dataset.chatPattern === 'matrix', 'W5: the live preview reflects the style pick');
   const intensityFaces = [...ap5.querySelectorAll('.c-settings-swatches:not(.c-settings-swatches--style) .c-settings-swatch__canvas')];
   ok(intensityFaces.length === 3 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
@@ -5782,13 +5789,13 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81 (closes #239 ⓐ): each intensity tile assigns the per-theme ALPHA VAR, so the preview resolves under its own theme instead of baking one theme\'s number');
   // fail-soft: this harness has no canvas backend, so picking Live flow must
   // land on the line-art tile rather than a bare gradient or a thrown error
-  styleTiles[2].click();
-  ok(prev5.dataset.chatPattern === 'lineart',
+  styleTiles.find((b) => b.dataset.value === 'flow').click();
+  ok(prev5.dataset.chatPattern === 'triangles',
     'W5 fail-soft: no 2d context → the preview falls back to the line-art tile, never a bare gradient');
   styleTiles[1].click();
   const apMobile = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'flow', isDesktop: false });
   const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style .c-settings-swatch')];
-  ok(mobileTiles.length === 2 && mobileTiles.map((b) => b.dataset.value).join() === 'lineart,matrix',
+  ok(mobileTiles.length === 3 && mobileTiles.map((b) => b.dataset.value).join() === 'triangles,lineart,matrix',
     'W5: mobile shows two styles — Live flow is not offered');
   ok(mobileTiles[0].getAttribute('aria-checked') === 'true',
     'W5: a stored desktop-only style falls back to a SELECTED line art on mobile (never an empty radiogroup)');
@@ -10398,7 +10405,10 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '#454: and never over the COLD-START lock, which owns the navigation stack rather than the modal stack');
   ok(/if \(!isLockEnabled\(\)\)[\s\S]{0,120}?return;/.test(appNC),
     '★ #454 / C3.1: with the app lock OFF the pause path does nothing at all. Damir reported a flash on that path too, and this is the guarantee that this change cannot be the cause of it');
-  ok(/pauseLock = null;\s*\r?\n\s*isLockScreenActive = false;/.test(appNC),
+  /* ★ REBASED 2026-08-22: F3's `pendingForegroundAuth` now clears on the same paths (a
+   * deferred prompt must die with its lock, or it fires over an UNLOCKED app). Both original
+   * latches are still cleared together; the window just admits the third line. */
+  ok(/pauseLock = null;\s*\r?\n\s*(pendingForegroundAuth = null;\s*\r?\n\s*)?isLockScreenActive = false;/.test(appNC),
     '★ #454: a lock that FAILED to present clears both latches. Failing closed here would fail dead — #229 ruled that an unpresentable lock must leave the app usable, not latched as locked forever');
   {
     // onUnlock must retire the handle, or the feature disables itself after one use.
@@ -10673,8 +10683,16 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '★ NOTIF-2: a 1:1 contact has NO botInfo, so it falls through to a LOCAL device preference — there is nowhere in Ixian-Core to put the flag and this session may not change Core');
 
   /* —— NOTIF-4: one notification per CHAT, not per message ————————————————— */
-  ok(/Crc32Algorithm\.Compute\(friend\.walletAddress\.addressNoChecksum\)/.test(nodeCs),
+  /* ★ REBASED 2026-08-22: the id moved into SNotificationPrefs.notificationIdFor so the
+   * POSTER (Node.cs) and 3.14's CANCELLER (VoIPManager) cannot drift apart — two places
+   * computing the same id independently is how the missed-call row would go stale again.
+   * The rule is unchanged and is now asserted where it lives. */
+  ok(/int id = \(int\)Force\.Crc32\.Crc32Algorithm\.Compute\(address\.addressNoChecksum\);/.test(notifPrefs),
     '★ NOTIF-4: the notification id is CRC32 of the CHAT ADDRESS, so a new message REPLACES that chat\'s row instead of stacking a new one — Damir\'s "five notifications for one chat"');
+  ok(/return isCall \? \(id \^ 0x5A5A5A5A\) : id;/.test(notifPrefs),
+    '★ 3.14 (audit): a CALL takes a DIFFERENT id from the chat\'s messages — they route to different channels, and sharing one let a text silently replace the missed-call row');
+  ok(/SNotificationPrefs\.notificationIdFor\(friend\.walletAddress, isCallNotif\)/.test(nodeCs),
+    '★ NOTIF-4: Node.cs takes the id from that ONE place rather than recomputing it');
   {
     const nodeNC = nodeCs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     ok(!/Crc32Algorithm\.Compute\(friend_message\.id\)/.test(nodeNC),
@@ -10759,12 +10777,19 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   }
   {
     const nodeCs2 = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
-    ok(/bool soundable = fire_local_notification\s*\n\s*&& type != FriendMessageType\.sentFunds\s*\n\s*&& type != FriendMessageType\.requestFunds\s*\n\s*&& type != FriendMessageType\.voiceCall/.test(nodeCs2),
+    ok(/bool soundable = fire_local_notification[\s\S]{0,900}?&& type != FriendMessageType\.sentFunds[\s\S]{0,120}?&& type != FriendMessageType\.requestFunds[\s\S]{0,120}?&& type != FriendMessageType\.voiceCall/.test(nodeCs2),
       '★ SND (audit MAJOR): the chat sound respects the SAME guards as the notification. The first cut sat outside all of them, so it would have chimed for events that deliberately show nothing — a peer\'s nickname/avatar carrier ({4}/{5}), every fire_local_notification:false caller (VoIPManager start/end, app-session bookkeeping), and voiceCall chirping UNDER its own ringtone');
     ok(/&& !friend_message\.id\.SequenceEqual\(new byte\[\] \{ 4 \}\)/.test(nodeCs2)
       && /&& !friend_message\.id\.SequenceEqual\(new byte\[\] \{ 5 \}\)/.test(nodeCs2),
       '★ SND (audit MAJOR): the {4}/{5} carrier ids are excluded — those are a peer\'s NICKNAME and AVATAR updates, which the notification has always suppressed. A contact editing their nickname must not ring your phone with nothing on screen to explain it');
-    ok(/else if \(!SNotificationPrefs\.isChatMuted\(friend\)\)/.test(nodeCs2),
+    // Comment-stripped: the clause carries a four-line explanation, and a window sized to fit
+  // prose is a window that has stopped testing anything.
+  ok(/&& alert\s+&& App\.isInForeground && Utils\.getChatPage\(friend\) != null/
+      .test(nodeCs2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+      '★ SND (audit MINOR): the effect fires on the COMPLEMENT of the notification\'s own visibility test. The notification posts when the app is backgrounded OR the chat is closed, so without this the two would DOUBLE UP on every backgrounded message once the assets land — channel sound plus in-app effect');
+  ok(/&& type != FriendMessageType\.voiceCallEnd/.test(nodeCs2),
+      '★ SND (audit MINOR): voiceCallEnd is excluded too — an answered call ending must not play "message received"');
+  ok(/else if \(!SNotificationPrefs\.isChatMuted\(friend\)\)/.test(nodeCs2),
       '★ SND (audit MINOR): both directions are gated on the PER-CHAT mute, not the notification master — otherwise turning notifications off would leave SENDING audible while receiving went silent, which neither switch describes');
     const tic = readFileSync(join(root, 'Spixi/Meta/SpixiTransactionInclusionCallbacks.cs'), 'utf8');
     ok(/SSounds\.transactionSent\(\)/.test(tic) && /SSounds\.transactionReceived\(\)/.test(tic),
@@ -10788,7 +10813,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '★ F3: EVERY exit from maybeAuthenticate reports — the three skips (gate, WinUI, deferred) and the PROMPT. A branch that logged nothing would be the one place the answer could hide');
   ok(/SLockDiag\.mark\("lock\/onForegroundReturned"/.test(lockPage),
     '★ F3: the verdict asks explicitly whether App.OnResume reached onForegroundReturned() at all — so it says so itself');
-  ok(/SLockDiag\.mark\("resume\/lock-stays-up", "calling onForegroundReturned"\);/.test(appCs),
+  ok(/SLockDiag\.mark\("resume\/lock-stays-up", "releasing deferred auth"\);/.test(appCs),
     '★ F3: and the caller reports reaching it, so an absent pair localises the fault to App.OnResume\'s branching rather than to the lock');
   {
     /* ★ THE LOG-ONLY GUARANTEE, mechanically. The two failed fixes both CHANGED this
@@ -10847,6 +10872,290 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const wsShell = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
   ok(/\[WALLETDIAG\] setHideBalance push/.test(wsPage) && /\[WALLETDIAG\] setHideBalance arrived/.test(wsShell),
     '★ F7: BOTH halves are logged — C# logs the value it pushed, the shell logs that the push arrived and what both flags then read. hideKnown is set by the ARRIVAL and walletHidden by the VALUE, so only the pair says which one is false');
+}
+
+
+/* ——————————————————————————————————————————————————————————————————————————————
+ * 2026-08-22 BATCH — the four fixes the 2026-08-21 DEVICE LOG diagnosed, plus the
+ * mute UX and the badge dial.
+ *
+ * ★ Every claim below is anchored to evidence in docs/f5-verdict-2026-08-22.md, not
+ * to a reading of the source. Three rounds were lost on this surface to fixes that
+ * looked right; these are the first that a device log actually chose.
+ * ————————————————————————————————————————————————————————————————————————————— */
+{
+  const appCs2 = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+  const mainAct2 = readFileSync(join(root, 'Spixi/Platforms/Android/MainActivity.cs'), 'utf8');
+
+  /* —— F3: the prompt must fire AFTER the activity is resumed ——————————— */
+  ok(/#if ANDROID[\s\S]{0,2200}?pendingForegroundAuth = held;[\s\S]{0,200}?#else[\s\S]{0,400}?held\.onForegroundReturned\(\);[\s\S]{0,40}?#endif/.test(appCs2),
+    '★ F3: on ANDROID the release is HANDED OFF rather than called inline; every other platform keeps the original edge, because none of them presents the lock at pause and none has been on a device for eight batches');
+  ok(/public void releaseDeferredAuth\(\)/.test(appCs2),
+    'F3: one named entry point for the release — not a timer, not a flag polled from somewhere else');
+  {
+    /* ★ Added after mutation: removing these clears left every pin GREEN, and the behaviour
+     * they guard is the worst one in the batch. Now that the release genuinely POSTS, a lock
+     * dismissed inside that window would otherwise get onForegroundReturned() on a POPPED
+     * page — LockPage.pageVisible is only ever set to true, so all four gates pass and a
+     * pattern prompt appears over the UNLOCKED app with no lock behind it.
+     * Every site that drops the lock must drop the handoff with it. */
+    const appNC3 = appCs2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    // ⚠ Statement form only — `private LockPage? pauseLock = null;` is the DECLARATION and
+    // is not a clear site. Counting it made this pin red on a clean tree.
+    const drops = (appNC3.match(/\n\s*pauseLock = null;/g) || []).length;
+    const paired = (appNC3.match(/\n\s*pauseLock = null;\s*pendingForegroundAuth = null;/g) || []).length;
+    ok(drops > 0 && paired === drops,
+      '★ F3 (audit MINOR): EVERY site that clears pauseLock also clears pendingForegroundAuth. A deferred prompt must die with its lock, or it fires over an app that is already unlocked');
+  }
+  /* ★ REBASED 2026-08-22 after the audit found the FIRST fix was a no-op.
+   * `MainThread.BeginInvokeOnMainThread` SHORT-CIRCUITS when already on the main thread
+   * (`if (IsMainThread) { action(); }`), and OnResume always is — so the "post" ran inline
+   * and nothing observable changed. That would have been the FOURTH no-op fix on this
+   * surface. Two independent guarantees replace it, and the pin now demands both. */
+  ok(/protected override void OnPostResume\(\)/.test(mainAct2),
+    '★ F3: released from OnPostResume — the canonical "resume completed" edge, and where androidx dispatches the Lifecycle to RESUMED. That is the state androidx.biometric needs before it can launch ConfirmDeviceCredential, which is what a PATTERN uses');
+  ok(/decor\.Post\(\(\) => releaseDeferredAuthNow\(\)\);/.test(mainAct2),
+    '★ F3: and through View.Post, which ALWAYS enqueues — unlike MainThread it has no already-on-thread shortcut, so the work genuinely runs on a later message');
+  {
+    const maNC2 = mainAct2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/MainThread\.BeginInvokeOnMainThread\([\s\S]{0,200}?releaseDeferredAuth/.test(maNC2),
+      '★ F3: the short-circuiting helper is GONE from this path. A posting helper that silently does not post is the same lifecycle-edge trap that cost #442 and #460');
+  }
+  {
+    // ★ The whole point is that NO duration is guessed. Three rounds died on timing.
+    const maBody = mainAct2.split('protected override void OnResume()')[1].split('protected override void OnPause()')[0];
+    const maNC = maBody.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/Task\.Delay/.test(maNC) && !/PostDelayed/.test(maNC),
+      '★ F3: the release contains NO delay of any kind. A posted message is an ORDERING guarantee; a millisecond count is a guess, and this surface has already paid for two of those');
+  }
+  ok(/SLockDiag\.mark\("resume\/activity-resumed",\s*\n\s*"lifecycle=" \+ Lifecycle\.CurrentState\)/.test(mainAct2),
+    '★ F3: the lifecycle state is logged WITH the release, so the next device round can prove the mechanism instead of inferring it again');
+}
+
+{
+  /* —— F1 / F2: what shows where the app has not painted ————————————————— */
+  const plat = readFileSync(join(root, 'Spixi/Platforms/Android/SPlatformUtils.cs'), 'utf8');
+  const sccp2 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+
+  ok(/window0\.SetBackgroundDrawable\(new Android\.Graphics\.Drawables\.ColorDrawable\(bgColor\)\)/.test(plat),
+    '★ F2: the WINDOW ground is repainted to the app surface. Both system bars are transparent (MainActivity:100-101), so the strip shows whatever lies beneath — and behind a MAUI modal that is the window, whose background is @layout/splash_screen (#144576). Measured: the only source of that blue in the app, which is why Damir\'s word for it was "splash-blue"');
+  ok(/nativeWebView\.SetBackgroundColor\(Android\.Graphics\.Color\.ParseColor\(pageSurfaceColorString\)\)/.test(sccp2),
+    '★ F1: the NATIVE WebView background is set, not just the MAUI one. The log read back page=#13171B and webViewBg=#13171B while the window is #144576 BLUE — so nothing we control was white, which leaves the Android renderer\'s own default before first paint');
+  {
+    // Matches the device result: resume PASSED (WebView already painted), cold start
+    // FAILED (461 ms of un-painted renderer between the push and webview-onload).
+    ok(/#if ANDROID[\s\S]{0,2000}?Handler\?\.PlatformView is Android\.Webkit\.WebView/.test(sccp2),
+      '★ F1: reached through the platform view, because MAUI\'s BackgroundColor does not reliably propagate to android.webkit.WebView — which is exactly why setting the MAUI one was not enough');
+  }
+}
+
+{
+  /* —— F6: a target below our own height is UNKNOWN, never "caught up" ——— */
+  const homeCs2 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const scanJs = readFileSync(join(root, 'src/components/scan-progress.js'), 'utf8');
+
+  ok(/private const ulong SCAN_TARGET_STALE_MARGIN = 16;/.test(homeCs2),
+    '★ F6: a named margin for how far BELOW our height a reported target may sit before we stop believing it. The device log showed the peer majority ~700 000 blocks behind us for the first ~40 s of a run');
+  ok(/if \(scanTarget > 0 && scanCurrent > scanTarget \+ SCAN_TARGET_STALE_MARGIN\)[\s\S]{0,400}?scanTarget = 0;/.test(homeCs2),
+    '★ F6: an implausible target becomes the EXISTING unknown signal (0) rather than a new state — the shell already renders that as indeterminate, so the row stays up and says "Connecting" instead of vanishing');
+  {
+    const hcNC = homeCs2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/scanTarget - scanCurrent/.test(hcNC),
+      '★ F6: still no ulong subtraction anywhere (#453) — the class of bug that a pre-existing pin caught in this batch\'s OWN probe, where it would have printed 18446744073708856823 instead of the negative lag that gave the diagnosis');
+  }
+  ok(/if \(tgt > 0 && cur > tgt \+ TARGET_STALE_MARGIN\) \{ tgt = 0; clamped = true; \}/.test(scanJs),
+    '★ F6 BELT: the shell guards it too, because an OLDER exe pushes the raw value and would otherwise reopen the defect against a new shell');
+  ok(/if \(!clamped\) delete el\.dataset\.wasScanning;/.test(scanJs),
+    '★ F6 vs #440 (audit MINOR): a CLAMPED unknown keeps the scanning band, a GENUINE one clears it. Conflating them turned a break-my-verdict pin red for a good reason — the boot unknown must not promote the narrow band (#440), and a clamped frame mid-catch-up must not demote it (#446)');
+}
+
+{
+  /* —— NOTIF-5: the SECOND notification path ————————————————————————————— */
+  const notifPrefs2 = readFileSync(join(root, 'Spixi/Meta/SNotificationPrefs.cs'), 'utf8');
+  const andPush = readFileSync(join(root, 'Spixi/Platforms/Android/SPushService.cs'), 'utf8');
+  const iosPush = readFileSync(join(root, 'Spixi/Platforms/iOS/SPushService.cs'), 'utf8');
+
+  {
+    /* ★ Added after mutation: without this the group guard could be deleted and every pin
+     * stayed green, while the failure is a LOST MESSAGE. */
+    ok(/bool isOneToOne = friend\.type != FriendType\.Group[\s\S]{0,200}?if \(!isOneToOne\)\s*\n\s*\{\s*\n\s*return true;/.test(notifPrefs2),
+      '★ NOTIF-5 (audit MAJOR): the per-chat mute is consulted ONLY for a genuine 1:1. `fa` on a GROUP push is the SENDER\'S address, so without this, muting your 1:1 with someone silently DROPS their group messages whenever the fetch fails — a lost message, and it contradicts the fail-open rule every other path in this method follows');
+  }
+  ok(/public static bool shouldDisplayRawPush\(string\? fa\)/.test(notifPrefs2),
+    '★ NOTIF-5: the raw OneSignal push has a gate at last. It is a SECOND notification path that no mute ever touched, and it produced THREE device failures at once — 3.7 (a muted group still notified), 3.4 ("sometimes works, sometimes doesn\'t") and 3.12 (an unformatted notification beside ours)');
+  for (const [name, src] of [['Android', andPush], ['iOS', iosPush]]) {
+    ok(/if \(!SPIXI\.Meta\.SNotificationPrefs\.shouldDisplayRawPush\([\s\S]{0,40}?\)\)\s*\n\s*\{[\s\S]{0,200}?return;/.test(src),
+      `★ NOTIF-5 (${name}): the fall-through to e.Notification.display() is gated. Reaching it means the Ixian fetch did NOT handle the push, which is exactly when the mute used to be bypassed`);
+    const idx = src.indexOf('shouldDisplayRawPush');
+    const disp = src.indexOf('e.Notification.display();', idx);
+    ok(idx > 0 && disp > idx,
+      `NOTIF-5 (${name}): the gate is BEFORE the display call, not after it`);
+  }
+  ok(/return true;\s*\n\s*\}\s*\n\s*catch \(Exception e\)\s*\n\s*\{[\s\S]{0,200}?return true;   \/\/ fail OPEN/.test(notifPrefs2)
+    || /fail OPEN: a lost message is worse than an unwanted buzz/.test(notifPrefs2),
+    '★ NOTIF-5: fails OPEN. A push we cannot attribute is not a push we can prove was muted, and silently dropping mail is the worse error');
+}
+
+{
+  /* —— The badge dial, the mute UX, and 3.14 ————————————————————————————— */
+  const homeCs3 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const homeHtml3 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const voip = readFileSync(join(root, 'Spixi/VoIP/VoIPManager.cs'), 'utf8');
+
+  /* ★ REBASED 2026-08-22: the audit showed home.html IGNORES addContact's 5th argument
+   * (it feeds the contacts directory, not the chat list), so that site was reverted and the
+   * dial is pinned where it is actually load-bearing: getFriendMessageHelper, plus the LIVE
+   * setContactStatus ticks — which the first cut missed, so the badge appeared on a flush and
+   * vanished on the next ~1 Hz presence tick. */
+  ok(/FriendMessageHelper helper_msg = new\([\s\S]{0,200}?friend\.metaData\.unreadMessageCount\)/.test(homeCs3),
+    '★ THE BADGE DIAL (Damir, 2026-08-22): a muted chat KEEPS its row count. Ixian-Core\'s getUnreadMessageCount() returns 0 whenever the mute flag is off — it never checks whether the chat is even a group — so a muted chat has silently shown NO badge however many messages piled up');
+  {
+    const nodeLive = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
+    const chatLive = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+    ok((nodeLive.match(/setContactStatus\(friend\.walletAddress, friend\.online, friend\.metaData\.unreadMessageCount/g) || []).length === 2
+      && /setContactStatus\(friend\.walletAddress, friend\.online, friend\.metaData\.unreadMessageCount/.test(chatLive),
+      '★ THE BADGE DIAL (audit MAJOR): the LIVE per-row pushes agree with the flush. Left as getUnreadMessageCount(), the row showed its count after a flush and lost it on the very next presence tick — the badge would appear and vanish, reading on device exactly like "the dial does not work"');
+  }
+  {
+    // ★ The app-wide SUM must NOT change: a muted chat should not inflate the launcher
+    // badge. Row count yes, app badge no — the split Damir actually asked for.
+    const sumBlock = homeCs3.split('int unread = 0;')[1] || '';
+    ok(/friend\.getUnreadMessageCount\(\)/.test(sumBlock.slice(0, 400)),
+      '★ THE BADGE DIAL: the app-wide SUM still excludes muted chats. Only the per-ROW count changed');
+  }
+  ok(/capabilities: \{ pin: true, mute: true, favorites: false, delete: true \}/.test(homeHtml3),
+    '★ MUTE-UX: `mute` is enabled. The row menu item, the swipe action and the muted row treatment have all been built since #67/#108 and were unreachable only because no verb existed behind the flag');
+  ok(/bridge\.send\('ixian:mutechat:' \+ chat\.address \+ ':' \+ \(chat\.muted \? 'on' : 'off'\)\)/.test(homeHtml3),
+    '★ MUTE-UX: the onPersist slot that has carried a "when BE ships the verbs, they slot in here" comment since #67 is finally filled');
+  ok(/chat\.muted = mutedChats\.has\(chat\.address\);/.test(homeHtml3),
+    '★ MUTE-UX: the flag is re-applied on EVERY upsert. addChat re-seeds the row from C# and carries no muted field (FriendMessageHelper is Ixian-Core and may not be extended), so without this the bell-off would blink off on the next message');
+  ok(/setChatMuted\(address, on\)/.test(homeHtml3),
+    'MUTE-UX: the push handler is DEFINED — C# emits pushes as bare globals and an undefined one throws before the dispatcher can catch it (#258)');
+  ok(/StreamProcessor\.sendBotAction\(mf, SpixiBotActionCode\.enableNotifications/.test(homeCs3),
+    '★ MUTE-UX: a group/bot muted from the CHAT LIST still sends the synced bot action — the row menu and chat-info must not disagree about what muting means');
+  /* ★ STRENGTHENED after mutation: the first version matched the call anywhere on the
+   * line, so prefixing it with a disabling `if (false)` left the pin GREEN. A pin that
+   * survives having its subject switched off is not testing the subject. It now requires
+   * the statement to OPEN its line (comment-stripped), so a guard in front of it is a
+   * different string and goes red. */
+  {
+    /* ★ REBASED 2026-08-22 after Damir on device: my first fix CANCELLED the row, which
+     * deleted the missed call instead of correcting it — "the missed call row doesn't remain
+     * in the notification tray, it disappears". A missed call is exactly what a tray exists
+     * to hold. It is RE-POSTED under the same id with missed-call copy, and cancelled only
+     * when the call was actually answered or placed by us. */
+    const voipNC2 = voip.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(/SPushService\.showLocalNotification\(\s*callNotifId,[\s\S]{0,300}?notification-missed-call/.test(voipNC2),
+      '★ 3.14 (Damir on device): a MISSED call RE-POSTS the row as "Missed call" under the same id — it replaces the stale "Incoming call" instead of deleting the only record that the call happened');
+    ok(/if \(currentCallAccepted \|\| currentCallCalleeAccepted \|\| currentCallInitiator\)\s*\{\s*SPushService\.cancelNotification\(callNotifId\);/.test(voipNC2),
+      '★ 3.14: cancelled ONLY when the call was answered or we placed it — once you are talking there is nothing left to tell you');
+    ok(/"call"\);/.test(voipNC2) && /false,\s*$/m.test(voipNC2.split('notification-missed-call')[1].split(');')[0] || 'x'),
+      '★ 3.14: the replacement is SILENT and call-flavoured — the ringtone already happened, and the call id can never take down a message row');
+  }
+  {
+    const voipNC = voip.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/clearNotifications/.test(voipNC),
+      '★ 3.14: TARGETED at this chat\'s call id — clearNotifications would also wipe unread message rows the user has not seen');
+  }
+}
+
+{
+  /* —— the sound path is observable at last ——————————————————————————————— */
+  const snd = readFileSync(join(root, 'Spixi/Meta/SSounds.cs'), 'utf8');
+  const andPlat = readFileSync(join(root, 'Spixi/Platforms/Android/SPlatformUtils.cs'), 'utf8');
+  const sndNC = snd.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const andNC = andPlat.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  ok(!/Logging\.trace/.test(sndNC) && !/Logging\.trace/.test(andNC),
+    '★ 4.3: no Logging.trace on the sound path. The shipped app DROPS trace — Config.logVerbosity is info|warn|error = 14 and trace = 1, so `14 & 1 == 0` (Ixian-Core Logging.cs:191). My own checklist item was therefore unfalsifiable, and a sound path throwing on every message would have said nothing at all');
+  // Comment-stripped: the explanatory block between these two statements is longer than
+  // any sane window, and a window sized to fit prose is a window that stops testing.
+  ok(/bool firstMiss = !isMissing\(filePath\);\s*markMissing\(filePath\);\s*if \(firstMiss\)\s*\{\s*Logging\.warn/.test(andNC.replace(/\s+/g, ' ').replace(/ /g, ' ')) || /bool firstMiss = !isMissing\(filePath\);[\s\S]*?if \(firstMiss\)[\s\S]{0,80}?Logging\.warn/.test(andNC),
+    '★ 4.3: reported at WARN and only ONCE per asset — observable without becoming the flood that would bury the [LOCKDIAG] evidence');
+}
+
+
+{
+  /* —— 2026-08-22: the triangle pattern + the saturated dark surface (Damir) ——— */
+  const tokens2 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const patCss = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
+  const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
+
+  ok(/--chat-pattern-uri-triangles:/.test(patCss) && /\[data-chat-pattern='triangles'\]/.test(patCss),
+    '★ PATTERN: the triangle tile is generated and selectable');
+  ok(/--chat-pattern-uri: var\(--chat-pattern-uri-triangles\);/.test(patCss.split(':root {')[1].split('}')[0]),
+    '★ PATTERN (Damir 2026-08-22): TRIANGLES is the :root default, replacing the line-art doodle. An install with no stored style lands here; anyone who explicitly picked one keeps it, because that pref sets data-chat-pattern and outranks :root');
+  ok(/--chat-pattern-uri-lineart:/.test(patCss) && /\[data-chat-pattern='lineart'\]/.test(patCss),
+    '★ PATTERN: line art is KEPT, not retired — removing a style would silently re-skin every user who had chosen it');
+  {
+    // ★ "It just sits flat on both modes" (Damir). One alpha, no shading, no per-theme
+    // branch in the tile — so --chat-pattern-ink can colour it per theme and it cannot
+    // read heavier in dark than in light.
+    const triBlock = gen.split('function buildTriangleSvg()')[1].split('\nconst triW')[0];
+    ok(/stroke-opacity="\$\{alpha\}"/.test(triBlock) && !/fill="#/.test(triBlock),
+      '★ PATTERN: the tile is a single-alpha STROKE mask with no fills and no per-theme branch — that is what makes it sit flat on both modes rather than needing two tiles');
+    ok(/const rowH = num\(step \* Math\.sqrt\(3\) \/ 2\)/.test(gen),
+      'PATTERN: equilateral geometry — the row height is the true triangle height, so the tessellation closes');
+    ok(/const off = \(r % 2\) \* \(step \/ 2\);/.test(gen),
+      '★ PATTERN: the half-drop is what makes this TRIANGLES rather than a diamond grid — alternate rows shift by half a base');
+  }
+  {
+    // No asset was invented: the tile is geometry synthesized in the generator, the same
+    // way Data matrix is, and the line-art SVG export remains the only shipped artwork.
+    const genNC = gen.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/triangle[^\n]*\.svg/i.test(genNC),
+      '★ PATTERN: no triangle ASSET was invented — the tile is synthesized geometry (the Data matrix precedent). A real export from Damir is a drop-in replacement');
+  }
+
+  /* —— the saturated dark surface —————————————————————————————————————— */
+  ok(/--ink-900:\s*#10151e;/.test(tokens2) && /--ink-800:\s*#161d28;/.test(tokens2),
+    '★ DARK SATURATION (Damir 2026-08-22): a saturated ink-* ramp exists');
+  {
+    const darkBlock = tokens2.split('[data-theme="dark"] {')[1].split('\n}')[0];
+    ok(/--neutral-900: var\(--ink-900\);/.test(darkBlock),
+      '★ DARK SATURATION: re-pointed at the RAMP, not at --surface-neutral-01 alone. That token is one of seven dark surfaces fed by --neutral-900 (screen, topbar, bottombar, composer, input-on-card, inverse-01) — saturating one would have made a patchwork where the chat canvas no longer matched the bars above and below it');
+  }
+  {
+    // ★ LIGHT MODE MUST NOT MOVE. --neutral-900 also feeds light's
+    // --surface-neutral-inverse-01 (the dark chip on a light ground), which is why this is
+    // a parallel ramp and not an edit to --grey-*.
+    ok(/--grey-900:\s*#13171b;/.test(tokens2),
+      '★ DARK SATURATION: the shared --grey-* ramp is UNTOUCHED, so light mode is byte-identical. Editing it in place would have re-tinted the light-mode inverse surface too');
+  }
+  {
+    /* ★ Contrast cannot have moved, because contrast follows LIGHTNESS and each step keeps
+       its own to the decimal. Asserted numerically rather than trusted. */
+    const hexL = (h) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+      return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+    };
+    const pairs = [['#13171b', '#10151e'], ['#1b1f23', '#161d28'], ['#111213', '#0d1118'], ['#202328', '#19212f']];
+    ok(pairs.every(([oldHex, newHex]) => Math.abs(hexL(oldHex) - hexL(newHex)) < 0.006),
+      '★ DARK SATURATION: every step holds its ORIGINAL lightness (±0.6%), so no text or icon token needs re-checking and no contrast gate can move. Only saturation and hue changed');
+  }
+}
+
+
+{
+  /* —— 2026-08-22 COPY: the unknown scan state (Damir) ————————————————————— */
+  const scanJs2 = readFileSync(join(root, 'src/components/scan-progress.js'), 'utf8');
+  const walletJs2 = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+  const enUs = readFileSync(join(root, 'src/strings/en-us.js'), 'utf8');
+
+  ok(/strings\.chainScanStarting \|\| 'Starting the check'/.test(scanJs2)
+    && /strings\.chainScanStarting \|\| 'Starting the check'/.test(walletJs2),
+    '★ COPY (Damir 2026-08-22): the unknown scan state says "Starting the check" on BOTH surfaces — the row and the missing-tx sheet. "Connecting" read as "the app has no connection", and after F6 that state also fires while we ARE connected and the peer heights simply are not credible yet');
+  {
+    const bothNC = (scanJs2 + walletJs2).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/chainScanConnecting/.test(bothNC) && !/'Connecting'/.test(bothNC),
+      '★ COPY: no surface still says "Connecting" — a rename that leaves one of two call sites behind is how the two screens start disagreeing');
+  }
+  // Comment-stripped: the docblock explaining WHY that phrase was wrong quotes it, and a
+  // pin that counts its own explanation is testing nothing.
+  ok(!/once it reaches the network/.test(walletJs2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+    '★ COPY: the sheet BODY was the worse half — "once it reaches the network" states outright that Spixi is offline, which is the misreading being fixed AND is now false in the common case');
+  ok(/chainScanStarting:/.test(enUs) && /chainScanNoteStarting:/.test(enUs)
+    && !/chainScanConnecting:/.test(enUs) && !/chainScanNoteUnknown:/.test(enUs),
+    '★ COPY: the retired keys are GONE from the dictionary, not left orphaned beside their replacements');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

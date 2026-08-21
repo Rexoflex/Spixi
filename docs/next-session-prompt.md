@@ -1,7 +1,14 @@
-# Next session — FINALIZE the wallet rows, then N67. The lock goes LAST.
+# Next session — THE ONE-LINERS, then NOTIFICATIONS + SOUNDS. Lock = LOG ONLY.
 
 Read `docs/f5-verdict-2026-08-21.md` FIRST — it is the device truth for the last batch,
-not a plan — then `docs/handoff-2026-08-21.md`, then DECISIONS.md rows #454–#462.
+not a plan — then `docs/master-worklist-2026-08-21.md` (★ its §0 CORRECTS three standing
+conclusions), then `docs/handoff-2026-08-21.md`, then DECISIONS.md rows #454–#463.
+
+★ **DAMIR CHOSE THIS BATCH, 2026-08-21:** the four one-liners, then the notifications
+block — and the sound-effects block rides the same wiring gate for free.
+★ **THE LOCK IS LOG-ONLY.** Ship the instrumentation for F1/F2/F3 with this batch so his
+NEXT F5 produces the diagnosis. **Do not attempt a fix on any of the three.** F3 has had
+two wrong fixes already and the lock surface has only just started working.
 
 The last batch is **BUILT, DEPLOYED TO ANDROID, F5'd AND COMMITTED**. Smoke baseline is
 **2280 pass / the 4 known pre-existers** (#136 · #149③ · M5 · B3). Shells 18.
@@ -26,7 +33,7 @@ If not, say so and stop.
 
 ## THE WORK, in priority order
 
-### 1 — The two one-liners. They are ROOT-CAUSED. Type them, do not re-investigate.
+### 1 — FOUR one-liners. All ROOT-CAUSED. Type them, do not re-investigate.
 
 **F4 — the Close button on the full-screen tx page does nothing.** My own #453 ④
 regression. `src/shells/wallet_sent.html:307-326` LIFTS `.c-txsheet` out of a ghost sheet
@@ -42,7 +49,80 @@ is how the next surface inherits the wrong one.
 wallet activity empty state."* ⚠ Check `createEmptyState` renders correctly with neither
 an illustration nor a glyph before assuming it is free.
 
-### 2 — Four rows that need a DEVICE LOG before any code (#294)
+**NOTIF-1 — ★ the private-group notification toggle is IGNORED. One line.**
+`Spixi/Meta/Node.cs:838-839`:
+`if (friend.bot == false || (friend.metaData.botInfo != null && friend.metaData.botInfo.sendNotification))`
+`friend.bot` is true **only for bots** (`Ixian-Core Friend.cs:250-253`); a private group is
+made by `setGroupMode()` and never sets it — so the first clause short-circuits TRUE for
+every private group and the toggle does nothing, while bots take the second clause and are
+honored. Exactly the split Damir reported.
+⚠ **Before changing it:** `Friend.getUnreadMessageCount()` returns 0 when
+`sendNotification` is false (`Ixian-Core Friend.cs:513-520`), so muting a chat currently
+also zeroes its badge. Decide whether that is intended — it is a product question, not a
+side effect to inherit silently.
+⚠ And note the CORE-side hazard, which is NOT ours to fix this session:
+`GroupChat.cs:103` re-creates `botInfo` with `sendNotification: true` on every received
+`createGroup`, which would clobber a user's mute.
+
+**N80 — the rating nudge waits for the 5th app open.** Damir's dial is a COUNTER, not a
+day. Gate lives in `home.html` (`RATING_SNOOZE_KEY` / `RATING_SNOOZE_MS`) +
+`HomePage.checkForRating()`; the 7-day snooze and context gates already exist, so this is a
+FIRST-SHOW condition and one new persisted value.
+
+### 2 — ★ NOTIFICATIONS + SOUNDS. Damir's block, and they share one wiring job.
+
+**NOTIF-2 — global + per-chat toggles.** The global SCREEN is already BUILT AND DARK:
+`createNotificationsScreen` (`src/components/settings-screens.js:551-582`) and its hub row
+(`settings-shell.js:793-797`) are gated on `capabilities.globalNotifications`, which the
+production shell never sets (`src/shells/settings.html:756`). Flip the capability and wire
+the verbs. ★ **The same gate hides an "In-app sounds" switch** (`settings-screens.js:571-575`)
+— which is why SND below costs almost nothing extra.
+Per-**group** and per-**bot** toggles already exist (`chat-info.js:467-495` →
+`ixian:enableNotifications` / `ixian:disableNotifications` →
+`SingleChatPage.xaml.cs:318-330`). Per-**1:1** has NO bridge verb yet
+(`contact_details.html:365`) — that is the new surface.
+
+**NOTIF-3 — the OS notification tap is slow and shows the chat list first.** It is not a
+routing problem, it is a POLLED GLOBAL. `SPushService.cs:131-137` builds a plain
+`MainActivity` intent (no deep link); `MainActivity.cs:270-283` sets `App.startingScreen`;
+and the **1 Hz** `HomePage.updateScreen()` reads it at `:2493`. Plus a hardcoded
+`Task.Delay(500)` at `MainActivity.cs:262`. Push the navigation instead of polling for it.
+
+**NOTIF-4 — five notifications for one chat.** `SetGroup(data)` IS set
+(`SPushService.cs:173-176`) but there is **no summary notification, no count, and a unique
+id per message** — `Node.cs:847` uses `CRC32(friend_message.id)`. `unreadCount` is already
+passed into `showLocalNotification` and never used. Either `MessagingStyle`, or one
+updating notification per chat keyed on the friend address.
+
+**SND-1/2/3 — sounds.** Today the app plays exactly FOUR sounds, all call-related, from
+`Spixi/Resources/Raw/sounds/`. `SSystemAlert.flash()` is an **empty method** that
+`Node.cs:854` calls on every message. Plumbing exists on all three platforms
+(`playSoundFromAssets` / `AVAudioPlayer` / NAudio) — what is missing is one generic verb on
+`Spixi/Interfaces/IPlatformUtils.cs:20-24` plus the assets. Message sent/received, tx
+sent/received, and a desktop-specific off switch.
+⚠ Sound assets are a Damir call — do not invent them. Ask, or ship the plumbing with the
+switch and land the assets when he picks them.
+
+### 3 — ★ THE LOCK: INSTRUMENTATION ONLY. NO FIX ATTEMPTS.
+
+Damir's explicit call. Ship the log lines with this batch so the NEXT F5 produces the
+diagnosis for free. **Do not touch the lock's behaviour** — it has only just started
+working and F3 has had two wrong fixes in one day.
+
+* **F3** — log all four gates and the branch: `uiReady` · `pageVisible` · `authAttempted` ·
+  `authDeferred`, and whether `App.OnResume` reached `held.onForegroundReturned()` at all.
+  ⚠ **Damir authenticates with a PATTERN** — the device-credential fallback
+  (`AllowAlternativeAuthentication = true`), not a fingerprint. Cold start DOES prompt, so
+  the plugin and the enrolment are fine; it is the RESUME path alone.
+* **F1** — the white flash. Log or probe which surface paints first. Candidates: the Android
+  window background (`MainTheme`), the modal push transition, lock.html's instant-bg (#203).
+* **F2** — the splash-blue status bar. Log whether `repaintSystemBarsFor` runs for the
+  PAUSE-presented lock. Probably the same root as F1.
+
+DevPage renders the log; dev mode is 10 taps on the "Chats" title. The #304/#401 precedent
+is an on-screen probe.
+
+### 4 — Rows that need a DEVICE LOG before any code (#294)
 Ship the measurement rather than a fix. The #304/#401 precedent is an on-screen probe;
 DevPage renders the log and dev mode is 10 taps on the "Chats" title.
 
@@ -63,7 +143,7 @@ DevPage renders the log and dev mode is 10 taps on the "Chats" title.
   the LockPage F-4 paths and in `dismissPauseLock` but apparently not for the
   PAUSE-presented lock. Likely one missing call, and probably the same root as F1.
 
-### 3 — ★ N67 / F8: ONE ACCOUNT, and wiping it wipes clean. Damir's product call.
+### 5 — NEXT batch, not this one: ★ N67 / F8, ONE ACCOUNT, wipe means wipe.
 Verbatim: *"just make it an account, and if you wipe it it wipes the app clean of any
 account/wallet file, you start clean unless you restore."* Creating a new account after
 deleting the wallet said *"there's an existing account on this device"* and the new
@@ -77,12 +157,20 @@ family in `SettingsPage`.
 is an echo — a live `setBalance` push surviving the swap, or `IxianHandler.balances` not
 being cleared. Separable from N69(a), which is Core-side and now confirmed a third time.
 
-### 4 — The standing no-BE rows
+### 6 — After that, in Damir's stated order
+**Calls** (CALL-1 full-screen incoming with accept/decline · CALL-2 the bar taking layout
+space instead of overlaying · CALL-3 speaker · CALL-4 bubble states) — ⚠ the Android in-call
+strip has NEVER been exercised on hardware; it needs a real two-device call before any of
+it is judged. Then **group photo** (GRP-2, ours — see the worklist §0 correction) and
+**add-members** (GRP-3, triage + BE sign-off). The **Send flow** (WAL-1) stays LAST: it is
+the money path.
+
+### 7 — The standing no-BE rows
 **N80** (rating nudge = open counter, dialled) · **N79** (three blank SL ids on Send IXI —
 Damir's call was to let the redesign retire them) · **N64** (the update-notice round) ·
 **N70**.
 
-### 5 — ★ THE LOCK, LAST, AND WITH A LOG LINE IN FRONT OF IT
+### 8 — Reference: why the lock is log-only (do not act on this, it is context)
 **F3 — no biometric/pattern prompt on resume. TWO failed fixes in one day.**
 * #454's audit fix guarded on `App.isInForeground` — a no-op, because that flag is cleared
   in `OnSleep`, which MAUI raises from Android's **OnStop**, one step after the `OnPause`
@@ -105,7 +193,12 @@ question and a candidate cause.
 3. Do not re-open #442's shield, or the R3 art (#433), or N31, or N61.
 4. Do not build group rename / photo / add-members — verified NOT in Ixian-Core. BE.
 5. Do not fix the lock by reverting to a plain modal push on the RESUME path (#423).
-6. Do not take a third guess at F3 without a log.
+6. ★ Do not take a third guess at F3, F1 or F2. **This session is LOG-ONLY on the lock** —
+   Damir's explicit call. The surface has only just started working.
+7. Do not invent sound assets. They are Damir's pick — ship the plumbing and the switch.
+8. Do not silently inherit the mute-zeroes-the-badge behaviour when fixing NOTIF-1
+   (`Friend.getUnreadMessageCount()` returns 0 when `sendNotification` is false). It is a
+   product question — raise it.
 
 ## STANDING RULES THIS PROJECT KEEPS RE-EARNING
 * ★ **A pin that passes vacuously is worse than none.** Match on the CALL, strip comments

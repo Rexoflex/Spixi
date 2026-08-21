@@ -93,6 +93,14 @@
 	<PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 		<ProvisioningType>manual</ProvisioningType>
 		<CodesignKey>iPhone Developer</CodesignKey>
+		<!-- APNS-1 (2026-08-21): the app had NO entitlements file, so it never registered
+		     for an APNs token and OneSignal had no subscription to address. Push has never
+		     worked on any iOS DEVICE build of the redesign.
+		     WARNING: codesign now VALIDATES this against the profile. A profile without
+		     aps-environment (e.g. the wildcard "iOS Team Provisioning Profile: *") will
+		     FAIL the build by design - that failure is the gate working, not a defect.
+		     Use an App Development profile made for com.ixilabs.spixi with Push ticked. -->
+		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 		<UseInterpreter>true</UseInterpreter>

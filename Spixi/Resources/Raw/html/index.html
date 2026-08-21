@@ -5139,6 +5139,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * pinned flag); the component already sorts pinned-first (chats-shell.js). */
   const PINS_KEY = 'spixi.pins';
   const pinnedChats = new Set();
+  /* ★ MUTE-UX (2026-08-22, Damir): the muted set, seeded and re-seeded by C#.
+     Deliberately NOT localStorage like the pins: unlike a pin, a mute is a real app
+     preference that C# owns and that the notification path reads, so the shell must never
+     be the source of truth for it. C# pushes `setChatMuted` for every chat in the contacts
+     flush, and again as the echo of every toggle. */
+  const mutedChats = new Set();
   try {
     const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
     if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
@@ -5209,6 +5215,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
         if (chat.pinned) pinnedChats.add(chat.address); else pinnedChats.delete(chat.address);
         savePins();
       }
+      /* ★ MUTE-UX (2026-08-22, Damir) — the slot this comment block has been reserving.
+         `applyChatRowAction` has already toggled `chat.muted`, so mirror it locally for an
+         instant row repaint and tell C#, which owns the preference and is what the
+         notification path actually reads. C# echoes `setChatMuted` back, so a write that
+         did not take corrects itself rather than leaving the row lying. */
+      if (action === 'mute' && chat && chat.address) {
+        if (chat.muted) mutedChats.add(chat.address); else mutedChats.delete(chat.address);
+        bridge.send('ixian:mutechat:' + chat.address + ':' + (chat.muted ? 'on' : 'off'));
+      }
     },
     // CH2: Accept an incoming contact request. Emit the verb (C# approves + sends
     // acceptAdd → a contacts re-flush moves the friend into the chat list) AND
@@ -5245,7 +5260,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // Delete ON: the tombstone makes the two-step delete actually stick this session
     // (CH3 interim). Pin ON (6e.3): localStorage interim persist — durable/roaming
     // = CH4 at the cutover. mute/favorites stay parked until their persist verbs.
-    capabilities: { pin: true, mute: false, favorites: false, delete: true },
+    /* ★ MUTE-UX (2026-08-22, Damir): `mute` was false because there was no verb behind it.
+       There is now — `ixian:mutechat:` below — so the swipe action and the long-press menu
+       item that chats-shell has always been able to render are finally reachable. The
+       muted ROW treatment (a toned-down count badge PLUS the bell-off glyph) needs nothing
+       new either: createIndicators has rendered both since Damir's review on 2026-07-02. */
+    capabilities: { pin: true, mute: true, favorites: false, delete: true },
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete/mark-read never leaves a stale chip count.
@@ -5481,9 +5501,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    *  on render, so array position doesn't matter. */
   function upsertChat(chat) {
     if (!chat.address) { state.chats.push(chat); return; }
+    /* ★ MUTE-UX: re-apply the muted flag on EVERY upsert. addChat re-seeds the row from
+       C# on every flush and carries no muted field (FriendMessageHelper lives in
+       Ixian-Core and may not be extended here), so without this the bell-off would blink
+       off on the next message. Same shape as the pin re-application below. */
+    chat.muted = mutedChats.has(chat.address);
     const i = state.chats.findIndex((c) => c && c.address === chat.address);
     if (i === -1) state.chats.push(chat);
     else state.chats[i] = { ...state.chats[i], ...chat };
+  }
+
+  /* ★ MUTE-UX: repaint the list after a muted-state change that did not come from a tap
+     (the C# flush, or the echo of a toggle). */
+  function applyMutedToModel() {
+    for (const c of (state.chats || [])) {
+      if (c && c.address) c.muted = mutedChats.has(c.address);
+    }
   }
 
   /* —— excerpt canon (CH6, best-effort en-us). C# composes the last-message
@@ -7150,6 +7183,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // (worst case = the previous behavior). `publisher` → the creator subtitle (real
     // data — no §8 gap). isSingleUser/isMultiUser (bool.ToString()) drive the launch
     // verb picked by onLaunch (startApp vs startAppMulti).
+    /* ★ MUTE-UX (2026-08-22, Damir): per-chat mute state from C#, which OWNS it.
+       Pushed for every chat in the contacts flush and again as the echo of every toggle.
+       MUST be defined even before it is ever pushed — C# emits pushes as bare globals and
+       an undefined one throws while the arguments are evaluated, before the dispatcher can
+       catch it (#258). Additive: an older exe never sends it and every row reads unmuted,
+       which is exactly today's behaviour. */
+    setChatMuted(address, on) {
+      const addr = address || '';
+      if (!addr) return;
+      const muted = (on === '1' || on === 'true' || on === 'True' || on === true);
+      const had = mutedChats.has(addr);
+      if (muted) mutedChats.add(addr); else mutedChats.delete(addr);
+      if (had === muted) return;             // nothing changed — no repaint
+      applyMutedToModel();
+      scheduleChatsRender();
+    },
+
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
       appsState.apps.push({
         id: id || '',

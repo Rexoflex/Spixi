@@ -674,6 +674,7 @@ global-share-sharefile = Compartilhar arquivo
 notification-new-message = Nova mensagem
 notification-new-messages = {0} novas mensagens
 notification-incoming-call = Chamada recebida
+notification-missed-call = Chamada perdida
 notification-payment-received = Pagamento recebido
 notification-payment-request = Solicitação de pagamento
 notification-app-invite = Convite de app

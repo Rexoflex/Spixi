@@ -31,6 +31,10 @@ import { attachChatFlow, detachChatFlow } from './chat-flow.js';
  * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
  * picker renders two options on mobile, three on desktop. */
 export const PATTERN_STYLES = [
+  /* ★ Damir 2026-08-22: TRIANGLES is the default now, replacing the line-art doodle. Listed
+     first because the picker's first entry is what a new install lands on. Line art is kept
+     — retiring a style would silently re-skin anyone who chose it. */
+  { id: 'triangles', key: 'patternStyleTriangles', label: 'Triangles' },
   { id: 'lineart', key: 'patternStyleLineArt', label: 'Line art' },
   { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
   { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
@@ -253,7 +257,7 @@ const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, field
 function mountFlowFace(face, opts) {
   let ctrl = null;
   try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
-  if (!ctrl) face.dataset.chatPattern = 'lineart';
+  if (!ctrl) face.dataset.chatPattern = 'triangles';   // ★ default style
   return ctrl;
 }
 
@@ -389,7 +393,7 @@ function screenShell(className, title, onBack) {
  */
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'lineart',      // W5: 'lineart' | 'matrix' | 'flow' (flow = desktop only)
+  patternStyle = 'triangles',    // W5 + 2026-08-22: 'triangles' (default) | 'lineart' | 'matrix' | 'flow' (desktop only)
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   onBack,
@@ -421,7 +425,7 @@ export function createChatAppearance({
      somehow says 'flow' sees Line art selected, matching what chat.html's
      pre-paint script actually applies. */
   const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'lineart';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'triangles';
   const styleSec = document.createElement('div');
   styleSec.className = 'c-settings__section';
   const stLab = document.createElement('h3');

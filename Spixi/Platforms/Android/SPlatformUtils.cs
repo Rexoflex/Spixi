@@ -230,8 +230,18 @@ namespace Spixi
                  * fd.Close() below it — there was no finally — so a malformed asset leaked
                  * one file descriptor per received message, and FD exhaustion takes down
                  * sockets and file opens across the whole process, not just audio. */
+                bool firstMiss = !isMissing(filePath);
                 markMissing(filePath);
-                Logging.trace("playEffect(" + filePath + ") skipped: " + e.Message);
+                /* ⚠ 2026-08-22: `Logging.trace` is DROPPED by the shipped app — Config.logVerbosity is
+                 * info|warn|error = 14, trace = 1, and `14 & 1 == 0` (Ixian-Core Logging.cs:191).
+                 * So the original trace line here could never appear in a log, which made the
+                 * whole sound path unobservable: if it threw on every message, nothing would say
+                 * so. Reported at WARN, and only ONCE per asset (the miss is memoised), so it
+                 * stays a single honest line rather than a flood. */
+                if (firstMiss)
+                {
+                    Logging.warn("playEffect(" + filePath + ") skipped: " + e.Message);
+                }
                 try { player?.Release(); } catch (Exception) { }
             }
             finally
@@ -283,6 +293,82 @@ namespace Spixi
          * Passing one colour for both is what turned the navigation bar BLUE on the wallet
          * tab: the hero is the right answer for the top of that screen and the wrong answer
          * for the bottom, where the shell paints the ordinary themed surface. */
+        /* ★ F1/F2 PROBE (2026-08-22) — measurement, NOT another fix.
+         *
+         * F2 has now had TWO wrong hypotheses. The first was "repaintSystemBarsFor is never
+         * called on the pause path" — the log killed it outright (`bars/repaint ·
+         * pageChrome:LockPage bottom=#13171b top=#13171b`). The second was mine: "a MAUI modal
+         * sits above the content view, so the window background shows through". I painted the
+         * window and Damir reports it is STILL splash-blue, so that is wrong too.
+         *
+         * Everything I can reason about says the strip should be dark: both bars are
+         * transparent, the root content view has NO top padding (InsetsListener pads only the
+         * bottom) and is painted #13171b, the window is now painted, and the LockPage itself
+         * is #13171b. It is blue anyway — which means the model is wrong somewhere I cannot
+         * see from source. #294 and this project's own rules say stop guessing and measure.
+         *
+         * So this REPORTS the real view stack at the moment the lock is up: what each layer's
+         * background actually is, what the status bar colour actually is, and what view is
+         * actually on top. One background from Damir and F2 stops being a guess.
+         * Read-only — it changes nothing. */
+        private static string describeBg(Android.Views.View? v)
+        {
+            try
+            {
+                if (v == null) return "null";
+                var d = v.Background;
+                if (d == null) return v.Class.SimpleName + ":noBg";
+                if (d is Android.Graphics.Drawables.ColorDrawable cd)
+                {
+                    return v.Class.SimpleName + ":#" + (cd.Color.ToArgb() & 0xFFFFFF).ToString("x6");
+                }
+                return v.Class.SimpleName + ":" + d.Class.SimpleName;
+            }
+            catch (Exception) { return "err"; }
+        }
+
+        public static string describeBarSurfaces()
+        {
+            try
+            {
+                var act = MainActivity.Instance;
+                if (act == null) return "no-activity";
+                var win = act.Window;
+                if (win == null) return "no-window";
+
+                var decor = win.DecorView;
+                var content = act.FindViewById(Android.Resource.Id.Content) as Android.Views.ViewGroup;
+
+                string top = "none";
+                if (decor is Android.Views.ViewGroup dg && dg.ChildCount > 0)
+                {
+                    top = describeBg(dg.GetChildAt(dg.ChildCount - 1));
+                }
+                string contentTop = "none";
+                int contentPadTop = -1;
+                if (content != null)
+                {
+                    contentPadTop = content.PaddingTop;
+                    if (content.ChildCount > 0)
+                    {
+                        contentTop = describeBg(content.GetChildAt(content.ChildCount - 1));
+                    }
+                }
+
+                return "statusBarColor=#" + (win.StatusBarColor & 0xFFFFFF).ToString("x6")
+                    + " navBarColor=#" + (win.NavigationBarColor & 0xFFFFFF).ToString("x6")
+                    + " decor=" + describeBg(decor)
+                    + " decorTopChild=" + top
+                    + " content=" + describeBg(content)
+                    + " contentPadTop=" + contentPadTop
+                    + " contentTopChild=" + contentTop;
+            }
+            catch (Exception e)
+            {
+                return "probe-failed: " + e.Message;
+            }
+        }
+
         public static void setEdgeToEdge(string surfaceColor = null, string topColor = null)
         {
             string colorString = string.IsNullOrEmpty(surfaceColor) ? ThemeManager.getSurfaceColorString() : surfaceColor;
@@ -309,6 +395,43 @@ namespace Spixi
                 // (getBackgroundColorString) under redesigned shells that sit on
                 // --surface-screen — repointed to the shell-matched surface color.
                 rootView.SetBackgroundColor(bgColor);
+            }
+
+            /* ★ F2 (2026-08-22, Damir on device: "the lock's status bar is splash-blue").
+             *
+             * The 2026-08-21 log killed the original hypothesis outright. `repaintSystemBars`
+             * IS called for the pause lock, twice, and asks for the right colour:
+             *     [pause] bars/repaint · pageChrome:LockPage bottom=#13171b top=#13171b
+             * so the "one-line missing call" fix would have changed nothing — a fourth wrong
+             * guess on this surface, avoided only because the audit made the OTHER
+             * setEdgeToEdge path log too.
+             *
+             * ★ Where the blue actually comes from. Both system bars are TRANSPARENT
+             * (MainActivity:100-101), so the strip shows whatever view lies beneath it. The
+             * root content view above is painted correctly — but a MAUI MODAL (which is what
+             * the pause lock is) is presented ABOVE that view, so at the status-bar inset the
+             * thing showing through is the WINDOW background. That is
+             * `android:windowBackground = @layout/splash_screen` (styles.xml:37), whose base
+             * layer is #144576. Measured: it is the ONLY source of that blue anywhere in the
+             * app, which is why Damir's word for it was literally "splash-blue".
+             *
+             * So the window ground is repainted to the same surface everything else uses. It
+             * fixes the modal case without needing to know MAUI's modal view hierarchy, and
+             * it retires a stale launch drawable that has no business showing after boot.
+             * ⚠ The splash itself is unaffected: this runs from OnCreate onward, long after
+             * the system has already drawn the launch screen. */
+            var window0 = MainActivity.Instance?.Window;
+            if (window0 != null)
+            {
+                try
+                {
+                    window0.SetBackgroundDrawable(new Android.Graphics.Drawables.ColorDrawable(bgColor));
+                }
+                catch (Exception ex)
+                {
+                    // Cosmetic only — never cost the user their chrome over a ground colour.
+                    Logging.warn("setEdgeToEdge: window background not applied: " + ex.Message);
+                }
             }
 
             // AND-6 (#334): bar icon appearance is owned HERE so every re-run (boot ·

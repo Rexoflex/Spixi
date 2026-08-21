@@ -1,5 +1,6 @@
 ﻿using IXICore;
 using IXICore.Activity;
+using IXICore.SpixiBot;   // ★ MUTE-UX: SpixiBotActionCode for the group/bot mute action
 using IXICore.Meta;
 using IXICore.Network;
 using IXICore.Streaming;
@@ -174,6 +175,13 @@ namespace SPIXI
         // can be visible. Kept in both places on purpose — the shell must work against an
         // exe that does not send this at all.
         private const ulong SCAN_CURRENT_LAG = 2;
+        /* ★ F6 (2026-08-22, Damir on device: "the scan row appears and disappears at
+         * random"). How far BELOW our own height a reported network target may sit before we
+         * stop believing it. Being genuinely a block or two ahead of the peer majority is
+         * normal; being 700 000 ahead is not — see the SCANDIAG evidence in
+         * docs/f5-verdict-2026-08-22.md §3. 16 is far outside the legitimate range and far
+         * inside the observed garbage. */
+        private const ulong SCAN_TARGET_STALE_MARGIN = 16;
         private bool scanOriginLoaded = false;
         private ulong scanOriginBlock = 0;
         private ulong lastScanCurrent = ulong.MaxValue;
@@ -674,6 +682,85 @@ namespace SPIXI
                 // #247/#248: contacts DIRECTORY entry → context 'contact' ("Contact
                 // details" + Message). wide = pane, narrow = takeover.
                 openContactDetails(friend, false, false);
+            }
+            else if (current_url.StartsWith("ixian:mutechat:", StringComparison.Ordinal))
+            {
+                /* ★ MUTE-UX (2026-08-22, Damir): mute straight from the chat list — the
+                 * long-press menu and the swipe action. The shell has been able to render
+                 * both since #67; `capabilities.mute` was false only because there was no
+                 * verb behind it, and `onPersist` has carried a comment reserving this exact
+                 * slot ever since.
+                 *
+                 * Payload is `<address>:on|off`. The address is peer-supplied through the
+                 * shell, so it is parsed defensively — a malformed one must never throw
+                 * inside onNavigating (the A-4 rule).
+                 *
+                 * Groups and bots keep the SYNCED botInfo mute (and its bot action); a 1:1
+                 * uses the local device preference. ContactDetails already routes on exactly
+                 * that distinction, so the two entry points cannot disagree. */
+                string muteAddr = "";
+                Friend? mf = null;
+                try
+                {
+                    string payload = current_url.Substring("ixian:mutechat:".Length);
+                    int sep = payload.LastIndexOf(':');
+                    if (sep > 0)
+                    {
+                        muteAddr = payload.Substring(0, sep);
+                        /* ⚠ AUDIT MINOR: `Equals("on")` meant ANY unexpected trailing character
+                         * — a slash, a fragment, whitespace, a case flip added by a WebView —
+                         * silently turned a MUTE request into an UNMUTE, and the echo below then
+                         * confirmed it, so the toggle looked like it refused to stick with
+                         * nothing in the log. Trimmed and case-insensitive, and an unrecognised
+                         * token is REPORTED rather than quietly read as "off". */
+                        string verb = payload.Substring(sep + 1).Trim();
+                        bool mute = verb.Equals("on", StringComparison.OrdinalIgnoreCase);
+                        if (!mute && !verb.Equals("off", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Logging.warn("ixian:mutechat: unrecognised state '" + verb + "' — treating as unmute");
+                        }
+                        mf = FriendList.getFriend(new Address(muteAddr));
+                        if (mf != null)
+                        {
+                            if (mf.metaData != null && mf.metaData.botInfo != null)
+                            {
+                                mf.metaData.botInfo.sendNotification = !mute;
+                                mf.saveMetaData();
+                                StreamProcessor.sendBotAction(mf, SpixiBotActionCode.enableNotifications, new byte[1] { (byte)(mute ? 0 : 1) }, 0, true);
+                            }
+                            else
+                            {
+                                /* ⚠ AUDIT MINOR: write the CANONICAL address, not the token off
+                                 * the URL. Every READ uses friend.walletAddress.ToString(), so
+                                 * keying the write on the raw token means writing key A and
+                                 * reading key B the moment the two ever diverge — the mute would
+                                 * silently never take and the echo would snap the row back. */
+                                SNotificationPrefs.setContactMuted(mf.walletAddress.ToString(), mute);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("ixian:mutechat failed: " + ex);
+                }
+                /* ⚠ AUDIT MINOR: the echo is OUTSIDE the try and outside every guard. Inside,
+                 * it was skipped on exactly the paths it exists for — a malformed payload, an
+                 * unknown address, a throw — leaving the shell rendering an optimistic mute
+                 * that was never stored. It now reports the STORED truth in every outcome,
+                 * including "nothing was stored". */
+                try
+                {
+                    if (!string.IsNullOrEmpty(muteAddr))
+                    {
+                        Utils.sendUiCommand(this, "setChatMuted", muteAddr,
+                            (mf != null && SNotificationPrefs.isChatMuted(mf)) ? "1" : "0");
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    Logging.error("ixian:mutechat echo failed: " + ex2);
+                }
             }
             else if (current_url.Contains("ixian:chatinfo:"))
             {
@@ -1825,7 +1912,15 @@ namespace SPIXI
                     }
                     avatar = Utils.imageToDataUri(avatar);   // X1
 
+                    /* ⚠ AUDIT MINOR: this is the CONTACTS DIRECTORY push, and home.html ignores
+                     * its 5th argument outright (`addContact(..., _unread)`). The badge dial lives
+                     * on the CHAT-LIST path — getFriendMessageHelper below, plus the live
+                     * setContactStatus ticks — so this site keeps the original call rather than
+                     * carrying a change that does nothing while reading like it does. */
                     Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString());
+                    // ★ MUTE-UX: the row's muted state, additive — an older shell ignores it.
+                    Utils.sendUiCommand(this, "setChatMuted", friend.walletAddress.ToString(),
+                        SNotificationPrefs.isChatMuted(friend) ? "1" : "0");
                 }
             }
         }
@@ -2040,7 +2135,10 @@ namespace SPIXI
                 }
             }
 
-            FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.getUnreadMessageCount());
+            // ★ THE BADGE DIAL: the TRUE count — see the addContact site. FriendMessageHelper
+            // lives in Ixian-Core and cannot carry a muted flag, so the mute rides its own
+            // additive `setChatMuted` push instead.
+            FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.metaData.unreadMessageCount);
             return helper_msg;
         }
 
@@ -2634,6 +2732,38 @@ namespace SPIXI
                      * state as INDETERMINATE. So ask for the raw answer and pass the zero
                      * through instead of hiding it behind a max(). */
                     ulong scanTarget = CoreProtocolMessage.determineHighestNetworkBlockNum();
+
+                    /* ★ F6 — THE FIX, and the device log is what found it. #453 already
+                     * handled "no peers yet" (target 0) and "target == current at boot". It
+                     * did NOT handle a target that is a real, non-zero, WILDLY STALE number:
+                     *     [SCANDIAG] current=6028792 target=5333999 origin=0 lag=-694793
+                     * — the peer majority reporting a height ~700 000 blocks behind us, for
+                     * roughly the first 40 seconds of a run.
+                     *
+                     * That single bad reading caused BOTH halves of what Damir saw:
+                     *   · the shell's caught-up test is `lag <= 2`, and a NEGATIVE lag
+                     *     satisfies it, so the row vanished while the phone was 150 000
+                     *     blocks behind — "appears and disappears at random";
+                     *   · worse, the anchor logic below read it as caught up and RETIRED the
+                     *     origin, so when the target corrected the bar re-anchored to the
+                     *     current height and restarted from 0 % — exactly his note, "the scan
+                     *     was at 19 %, I restarted, and now there's no scan".
+                     *
+                     * A target we cannot believe is not "caught up", it is NOT KNOWN — and
+                     * this codebase already has a channel for that, the zero the shell renders
+                     * as indeterminate. So an implausible target is converted into it rather
+                     * than given a new state of its own.
+                     *
+                     * ⚠ ADDITIVE comparison, never a ulong subtraction (#453, and the pin
+                     * that caught the same class in this batch's own probe). */
+                    if (scanTarget > 0 && scanCurrent > scanTarget + SCAN_TARGET_STALE_MARGIN)
+                    {
+                        Logging.info("[SCANDIAG] target " + scanTarget + " is below current "
+                            + scanCurrent + " by more than " + SCAN_TARGET_STALE_MARGIN
+                            + " — not credible, treating as UNKNOWN");
+                        scanTarget = 0;
+                    }
+
                     if (scanCurrent > 0)
                     {
                         if (!scanOriginLoaded)

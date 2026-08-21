@@ -248,6 +248,113 @@ namespace SPIXI.Meta
             return !isContactMuted(friend.walletAddress?.ToString());
         }
 
+        /// <summary>
+        /// ★ NOTIF-4 / 3.14 — the notification id for a chat, in ONE place so the poster and
+        /// the canceller cannot drift apart.
+        ///
+        /// Messages use CRC32 of the CHAT ADDRESS, so a new message REPLACES that chat's row
+        /// instead of stacking (Damir's "five notifications for one chat"). Calls take the
+        /// same id XORed, because they route to a DIFFERENT channel and must not overwrite —
+        /// or be overwritten by — the message row: a text arriving after a missed call was
+        /// silently replacing the missed-call notification.
+        ///
+        /// ⚠ addressNoChecksum, NOT getInputBytes(): the latter returns the PUBLIC KEY when
+        /// one is populated (Ixian-Core Address.cs:426-437), so the same chat would hash two
+        /// different ways and the one-row-per-chat property would flap.
+        /// </summary>
+        public static int notificationIdFor(Address? address, bool isCall)
+        {
+            if (address == null)
+            {
+                return 0;
+            }
+            int id = (int)Force.Crc32.Crc32Algorithm.Compute(address.addressNoChecksum);
+            return isCall ? (id ^ 0x5A5A5A5A) : id;
+        }
+
+        /// <summary>
+        /// ★ NOTIF-5 (Damir device round 2026-08-21) — the gate for the RAW OneSignal push,
+        /// which is a SECOND notification path that no mute has ever touched.
+        ///
+        /// `SPushService.handleNotificationReceived` first tries to pull the real message
+        /// over Ixian (`OfflinePushMessages.fetchPushMessages`); when that succeeds the
+        /// message goes through `Node.addMessageWithType` and NOTIF-1's mute applies, which is
+        /// why muting appeared to work sometimes. When the fetch FAILS — push server
+        /// unreachable, registration failed, a parse error, an HTTP throw — the code fell
+        /// through to `e.Notification.display()` and posted the raw push with no gate at all.
+        ///
+        /// That one fall-through produced three separate device failures:
+        ///   · 3.7 — a muted private group still notified
+        ///   · 3.4 — the global master "sometimes works, sometimes doesn't"
+        ///   · 3.12 — a second, unformatted "legacy-looking" notification beside ours
+        ///
+        /// ⚠ WHAT THIS CANNOT FIX, and it must not be claimed: for a GROUP message the push
+        /// payload's `fa` is the SENDER'S address, not the group's — which is why tapping one
+        /// opened a 1:1 instead of the group. So the recipient cannot identify the group and
+        /// cannot apply the group's mute. That needs the payload to carry the group address
+        /// and is a push-server/protocol change — BE. Until then a muted group can still leak
+        /// a notification through this path whenever the fetch fails, and the honest scope of
+        /// this fix is: the global master, and 1:1 chats.
+        /// </summary>
+        public static bool shouldDisplayRawPush(string? fa)
+        {
+            try
+            {
+                if (!notificationsEnabled)
+                {
+                    return false;
+                }
+                if (string.IsNullOrEmpty(fa))
+                {
+                    // No addressee at all — show it. A push we cannot attribute is not a push
+                    // we can prove the user muted, and silently dropping it would lose mail.
+                    return true;
+                }
+                Friend? friend = null;
+                try
+                {
+                    friend = FriendList.getFriend(new Address(fa));
+                }
+                catch (Exception)
+                {
+                    // A malformed address must never throw inside a push callback.
+                    return true;
+                }
+                if (friend == null)
+                {
+                    return true;   // unknown sender — err toward showing
+                }
+
+                /* ⚠ AUDIT MAJOR — this gate must not apply a 1:1 mute to a GROUP message.
+                 * `fa` on a group push is the SENDER'S address (that mis-attribution is the
+                 * BE gap this whole finding rests on), so `getFriend(fa)` resolves to that
+                 * person's 1:1 record. Consulting the per-chat mute there would mean: mute
+                 * your 1:1 with Alice, and Alice's messages to a group you are in get
+                 * silently dropped whenever the fetch fails. That is a LOST MESSAGE, and it
+                 * contradicts the fail-open rule every other path in this method follows —
+                 * while being the MOST likely path to hit, because it is exactly the case
+                 * the payload cannot describe.
+                 *
+                 * So the per-chat mute is consulted only when the resolved friend is a
+                 * genuine 1:1. Anything else (a group, a bot, a friend whose kind we cannot
+                 * establish) falls through to the global master alone, which was already
+                 * checked above. The honest scope stays what the docblock claims. */
+                bool isOneToOne = friend.type != FriendType.Group
+                    && !friend.bot
+                    && (friend.metaData == null || friend.metaData.botInfo == null);
+                if (!isOneToOne)
+                {
+                    return true;
+                }
+                return shouldNotify(friend);
+            }
+            catch (Exception e)
+            {
+                Logging.error("shouldDisplayRawPush failed: " + e);
+                return true;   // fail OPEN: a lost message is worse than an unwanted buzz
+            }
+        }
+
         /// <summary>Muted state for the UI, for either kind of chat. The inverse of the
         /// per-chat half of shouldNotify — it does NOT consult the global master, because
         /// the global master is a separate switch on its own screen and folding it in

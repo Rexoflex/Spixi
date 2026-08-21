@@ -56,7 +56,7 @@
      number. Legacy fractional prefs migrate here exactly as readPatternLevel()
      does in settings-screens.js; this copy is inline because it must run BEFORE
      the bundle loads (pre-paint). Keep the two in step. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else if(p===1||p===2)lv=p;else lv=p>0.5?2:1;r.setProperty('--chat-pattern-opacity',lv===2?'var(--chat-pattern-alpha-2)':lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='lineart';if(s!=='lineart'&&s!=='matrix'&&s!=='flow')s='lineart';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else if(p===1||p===2)lv=p;else lv=p>0.5?2:1;r.setProperty('--chat-pattern-opacity',lv===2?'var(--chat-pattern-alpha-2)':lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='triangles';if(s!=='lineart'&&s!=='matrix'&&s!=='flow'&&s!=='triangles')s='triangles';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -579,7 +579,7 @@
     const flow = document.documentElement.getAttribute('data-chat-pattern') === 'flow';
     if (!flow) { if (typeof detachChatFlow === 'function') detachChatFlow(chatCanvasEl); return; }
     if (typeof attachChatFlow !== 'function' || !attachChatFlow(chatCanvasEl)) {
-      document.documentElement.setAttribute('data-chat-pattern', 'lineart');
+      document.documentElement.setAttribute('data-chat-pattern', 'triangles');
     }
   }
   applyChatPatternStyle();
@@ -615,8 +615,9 @@
     // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
     // survives unchanged — desktop Off, mobile Default.
     p = readPatternLevel(p, de ? 0 : 1);
-    if (s === 'flow' && !de) s = 'lineart';      // Live flow is desktop-only (battery)
-    if (s !== 'lineart' && s !== 'matrix' && s !== 'flow') s = 'lineart';
+    if (s === 'flow' && !de) s = 'triangles';    // Live flow is desktop-only (battery)
+    // ★ 2026-08-22: unknown/absent → TRIANGLES, the new default (was line art).
+    if (s !== 'lineart' && s !== 'matrix' && s !== 'flow' && s !== 'triangles') s = 'triangles';
     return { level: p, style: s };
   }
   function applyPatternPrefs(prefs) {

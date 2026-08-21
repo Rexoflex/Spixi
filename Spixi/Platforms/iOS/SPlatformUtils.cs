@@ -171,6 +171,11 @@ namespace Spixi
                 string full = Path.Combine(getAssetsPath(), filePath);
                 if (!File.Exists(full))
                 {
+                    // ⚠ AUDIT MINOR: observable once per asset — see the Windows note.
+                    if (!isMissingEffect(filePath))
+                    {
+                        Console.WriteLine("playEffect(" + filePath + ") skipped: asset not found at " + full);
+                    }
                     markMissingEffect(filePath);
                     return;
                 }

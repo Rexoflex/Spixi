@@ -238,6 +238,41 @@ namespace SPIXI
             if (_webView != null)
             {
                 _webView.BackgroundColor = pageSurfaceColor;
+#if ANDROID
+                /* ★ F1 (2026-08-22, Damir on device: a WHITE flash before the lock).
+                 *
+                 * The 2026-08-21 log ruled out every layer we had been guessing at. The MAUI
+                 * page and the MAUI WebView both read back #13171B, and the window ground is
+                 * #144576 — measured, splash BLUE, not light. Nothing we control is white.
+                 *
+                 * What is left is the ANDROID WEBVIEW'S OWN RENDERER, which paints its
+                 * default white until the document commits its first frame. `BackgroundColor`
+                 * above sets the MAUI cross-platform view; it does NOT reliably reach the
+                 * native android.webkit.WebView underneath, so the renderer keeps its
+                 * default. Setting it on the platform view is the only thing that does.
+                 *
+                 * ★ This matches the device result exactly, which is why it is worth doing
+                 * rather than probing again: RESUME now PASSES (1.2) because the lock's
+                 * WebView is already loaded and painted, while COLD START still fails (1.5)
+                 * — and cold start is precisely the path with a 461 ms gap between the push
+                 * and `lock/webview-onload`, i.e. 461 ms of un-painted renderer.
+                 *
+                 * Handler may be null when this runs from the constructor, before the view is
+                 * realised; the later calls (webViewNavigated, OnAppearing, theme sweeps) each
+                 * re-apply it, so the value lands as soon as there is something to land on. */
+                try
+                {
+                    if (_webView.Handler?.PlatformView is Android.Webkit.WebView nativeWebView)
+                    {
+                        nativeWebView.SetBackgroundColor(Android.Graphics.Color.ParseColor(pageSurfaceColorString));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Cosmetic. A flash is better than a crash on the lock surface.
+                    Logging.warn("applyPageSurfaceColor: native WebView background not applied: " + ex.Message);
+                }
+#endif
             }
 
             /* ★ F1 INSTRUMENTATION (log only), gated to the LOCK so the log is not flooded
@@ -265,6 +300,14 @@ namespace SPIXI
                  * white before lock.html's instant-bg commits" — precisely the case where
                  * what we set is not what is on screen — and a probe that reprints its own
                  * input cannot tell "set and stuck" from "set and overridden". */
+                /* ★ F1/F2 PROBE (2026-08-22): the real view stack, not what we believe it to
+                 * be. Two hypotheses for F2 are dead — the bars ARE repainted dark, and
+                 * painting the window did not fix it either. This prints what each layer's
+                 * background actually IS at the moment the lock is up, so the next round has
+                 * a measurement instead of a third guess. Lock-gated, so it cannot flood. */
+#if ANDROID
+                SPIXI.Meta.SLockDiag.mark("lock/bar-surfaces", Spixi.SPlatformUtils.describeBarSurfaces());
+#endif
                 SPIXI.Meta.SLockDiag.mark("lock/surface-applied",
                     "asked=" + pageSurfaceColorString
                     + " page=" + (BackgroundColor != null ? BackgroundColor.ToHex() : "null")

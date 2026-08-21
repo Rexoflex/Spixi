@@ -79,6 +79,7 @@ const DYNAMIC = {
   // and that run silently deleted every translation of them. Both i18n gates were
   // blind to it: they compare locales against each other, and a key dropped from
   // ALL of them stays "consistent".
+  patternStyleTriangles: 'Triangles',   // ★ 2026-08-22: the new DEFAULT style
   patternStyleLineArt: 'Line art',
   patternStyleMatrix: 'Data matrix',
   patternStyleFlow: 'Live flow',

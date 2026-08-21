@@ -693,6 +693,7 @@ intro-restore-walletexists-text = Šiame įrenginyje jau yra paskyra. Norėdami 
 notification-new-message = Nauja žinutė
 notification-new-messages = {0} naujų žinučių
 notification-incoming-call = Įeinantis skambutis
+notification-missed-call = Praleistas skambutis
 notification-payment-received = Mokėjimas gautas
 notification-payment-request = Mokėjimo užklausa
 notification-app-invite = Programėlės kvietimas

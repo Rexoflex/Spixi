@@ -59,10 +59,12 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                // Debug, not error: with no assets shipped yet the miss is the EXPECTED
-                // state, and logging it at error level on every message would bury the
-                // real errors in the log Damir reads.
-                Logging.trace("SSounds.play(" + assetPath + ") failed: " + e);
+                /* ⚠ 2026-08-22: was `Logging.trace`, which the shipped app DROPS —
+                 * Config.logVerbosity is info|warn|error = 14 and trace = 1, so `14 & 1 == 0`
+                 * (Ixian-Core Logging.cs:191). A failure here was therefore invisible. The
+                 * platform layer memoises a missing asset and reports it once; anything that
+                 * reaches THIS catch is a real fault and is worth a warn every time. */
+                Logging.warn("SSounds.play(" + assetPath + ") failed: " + e);
             }
         }
 

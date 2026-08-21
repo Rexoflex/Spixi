@@ -4072,7 +4072,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // W5: the STYLE default is line art (the pre-W5 look — an absent pref must
     // change nothing). 'flow' is desktop-only, so a stored 'flow' on mobile
     // reads back as line art, exactly what chat.html's pre-paint script applies.
-    let patternStyle = 'lineart';
+    let patternStyle = 'triangles';   // ★ 2026-08-22: the new default style
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));

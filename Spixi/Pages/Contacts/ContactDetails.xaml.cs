@@ -321,6 +321,11 @@ namespace SPIXI
                     // the capability is enabled. Local only: nothing is sent to the peer.
                     SNotificationPrefs.setContactMuted(friend.walletAddress.ToString(), false);
                 }
+                /* ⚠ AUDIT MINOR: tell the CHAT LIST. Muting from here agreed with the row menu
+                 * about STORAGE but never told the list, so on a wide layout the row kept
+                 * showing un-muted (and its full badge) until some unrelated event happened to
+                 * refresh contacts. Two surfaces, one truth. */
+                UIHelpers.shouldRefreshContacts = true;
             }
             else if (current_url.StartsWith("ixian:disableNotifications"))
             {
@@ -335,6 +340,11 @@ namespace SPIXI
                     // ★ NOTIF-2: the 1:1 case — see the enable branch above.
                     SNotificationPrefs.setContactMuted(friend.walletAddress.ToString(), true);
                 }
+                /* ⚠ AUDIT MINOR: tell the CHAT LIST. Muting from here agreed with the row menu
+                 * about STORAGE but never told the list, so on a wide layout the row kept
+                 * showing un-muted (and its full badge) until some unrelated event happened to
+                 * refresh contacts. Two surfaces, one truth. */
+                UIHelpers.shouldRefreshContacts = true;
             }
             else if (current_url.StartsWith("ixian:sendContactRequest:"))
             {

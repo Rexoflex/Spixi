@@ -23,6 +23,14 @@ namespace Spixi
 
         }
 
+
+        // ★ 3.14: signature parity — see the Android implementation. Not wired on this
+        // platform (no per-id local notification surface here), but present so the shared
+        // call site compiles and behaves identically everywhere.
+        public static void cancelNotification(int messageId)
+        {
+        }
+
         public static void clearNotifications(int unreadCount)
         {
 

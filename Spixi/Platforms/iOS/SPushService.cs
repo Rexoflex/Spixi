@@ -150,6 +150,14 @@ namespace Spixi
             }
         }
 
+
+        // ★ 3.14: signature parity — see the Android implementation. Not wired on this
+        // platform (no per-id local notification surface here), but present so the shared
+        // call site compiles and behaves identically everywhere.
+        public static void cancelNotification(int messageId)
+        {
+        }
+
         public static void clearNotifications(int unreadCount)
         {
             if (!isInitialized)
@@ -292,6 +300,34 @@ namespace Spixi
             {
                 Logging.error("Exception occured in handleNotificationReceived: {0}", ex);
             }
+
+            /* ★ NOTIF-5 — the same second door as Android. Reaching this line means the
+             * Ixian fetch did not handle the push, so the RAW OneSignal notification is about
+             * to post with no mute applied. ⚠ Scope: the global master and 1:1 chats; a GROUP
+             * push carries the SENDER'S address in `fa`, so the group's own mute cannot be
+             * resolved here (BE — the payload needs the group address).
+             * ⚠ iOS has not been on a device for eight batches; this mirrors the Android
+             * change exactly so the two cannot drift, and it fails OPEN. */
+            string? faPush = null;
+            try
+            {
+                var extra = e.Notification.AdditionalData;
+                if (extra != null && extra.ContainsKey("fa"))
+                {
+                    faPush = Convert.ToString(extra["fa"]);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("handleNotificationReceived: could not read 'fa': " + ex.Message);
+            }
+
+            if (!SPIXI.Meta.SNotificationPrefs.shouldDisplayRawPush(faPush))
+            {
+                Logging.info("[NOTIFDIAG] raw push suppressed by mute/global master");
+                return;
+            }
+
             e.Notification.display();
         }
 

@@ -97,11 +97,16 @@ function walletEmpty(state, strings, opts = {}) {
       /* ★ #453 (Damir on device): NO illustration on the wallet zero state. The hero
          already owns ~300px above this block, so the art pushed the one action that
          matters — "Show my address" — toward the bottom nav, and it said nothing the
-         headline did not. The `glyph` below is what renders instead: a small token tile,
-         which is also the path this state already took whenever the art failed to load.
-         A host that WANTS art can still pass `emptyArt` explicitly. */
+         headline did not. A host that WANTS art can still pass `emptyArt` explicitly.
+
+         ★ F5 (Damir on device 2026-08-21): and NO glyph tile either — "THE ICON MUST BE
+         REMOVED, there's no glyph or illustration on wallet activity empty state."
+         #453 dropped the art and left the tile standing in as its fallback. Passing no
+         glyph is only safe because createEmptyState now drops the whole slot when it has
+         neither: the bare `[data-placeholder]` is a 96×96 --surface-neutral-02 square,
+         so removing this line alone would have swapped an icon for an empty grey box. */
       illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
-      glyph: 'wallet',                              // the tile — now the default, not the fallback
+      glyph: null,
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
       // sentence ("share your address…") only restated the CTA. In de-de it wrapped
@@ -430,7 +435,7 @@ function sheetRow(label, value) {
 
 let txSheetSeq = 0;   // unique ids for the N25 disclosure's aria-controls
 
-export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true } = {}) {
+export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true, showClose = true } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -618,11 +623,23 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every
      other sheet in the app offers a text action; this one lost it when the explorer CTA
-     was added below it. `type: 'text'` so it never competes with the explorer button. */
-  content.append(createButton({
-    label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
-    onClick: () => closeSheet(sheet),
-  }));
+     was added below it. `type: 'text'` so it never competes with the explorer button.
+
+     ★ F4 (#453 ④ regression, Damir on device 2026-08-21): this button belongs to the
+     SHEET, and only to the sheet. `wallet_sent.html` LIFTS the built `.c-txsheet` out of
+     a ghost sheet and reparents it into a full-screen page (its §2.2 ghost-lift recipe);
+     the Close button rode along and called `closeSheet` on a sheet that was closed and
+     discarded lines earlier — so it rendered on a surface it could not act on and did
+     nothing. `showClose` is its OWN option and is NOT keyed off `disclose`: they answer
+     different questions ("does this host own the sheet?" vs "should the fields hide
+     behind a disclosure?"), and coupling them is how the next surface inherits the wrong
+     one. Damir's steer: it belongs only in the sheet. */
+  if (showClose) {
+    content.append(createButton({
+      label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
+      onClick: () => closeSheet(sheet),
+    }));
+  }
 
   const sheet = createSheet({ content, host, strings, title: '' });   // head carries the identity
   sheet.setAttribute('aria-label', strings.txDetails || 'Transaction details');

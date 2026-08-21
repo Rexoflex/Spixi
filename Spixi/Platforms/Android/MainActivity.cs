@@ -260,12 +260,22 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnNewIntent(intent);
 
-        MainThread.BeginInvokeOnMainThread(async () =>
-        {
-            await Task.Delay(500);
-            handleNotificationIntent(intent);
-        });
+        /* ★ NOTIF-3 (Damir: tapping a notification is slow and shows the chat list first).
+         * The old body was `await Task.Delay(500)` and then the handler — a blind, fixed
+         * wait chosen for the worst case, paid on EVERY tap. It is replaced by a bounded
+         * retry that fires as soon as the app can actually take the navigation, so the
+         * common case (the app is warm and HomePage exists) costs one UI tick instead of
+         * half a second. */
+        MainThread.BeginInvokeOnMainThread(() => handleNotificationIntent(intent));
     }
+
+    /* ★ NOTIF-3: how long to keep trying, and how often. The retry exists for the cold
+     * case only — HomePage is not constructed yet because the user is still on the lock or
+     * the launch flow. `App.startingScreen` remains the backstop for anything longer than
+     * this window, exactly as before, so the ceiling is a giving-up point for the FAST
+     * path and never a deadline for the navigation itself. */
+    private const int NOTIF_NAV_RETRY_MS = 100;
+    private const int NOTIF_NAV_MAX_MS = 5000;
 
     void handleNotificationIntent(Intent? intent)
     {
@@ -274,11 +284,87 @@ public class MainActivity : MauiAppCompatActivity
             string? chatId = intent.Extras.GetString("fa");
             if (!string.IsNullOrEmpty(chatId))
             {
+                /* ★ NOTIF-3 — the real finding, and it is not a routing bug.
+                 *
+                 * `App.startingScreen` is a POLLED GLOBAL: it was read by
+                 * `HomePage.updateScreen()`, which runs on a 1 Hz timer. So a tap could
+                 * sit for up to a full second after the 500 ms delay above with the chat
+                 * list on screen, doing nothing, before the tick noticed. That is the
+                 * "slow, and it shows the chat list first" Damir reported.
+                 *
+                 * The global STAYS — it is the pre-login backstop (AND-1 #329: a tap
+                 * before the user has unlocked must not construct HomePage, and the
+                 * post-login construction consumes it) and iOS sets it too. What changes
+                 * is that the app no longer WAITS for a poll to notice: it drives the
+                 * navigation the moment a HomePage exists. Setting the global first keeps
+                 * the two paths idempotent — whichever gets there first clears it, and
+                 * `updateScreen` re-reads "" and does nothing. */
                 App.startingScreen = chatId;
-                // AND-1 (#329): a push-tap intent pre-login must NOT construct HomePage
-                // (App.startingScreen stays set; the post-login construction consumes it).
-                HomePage.InstanceOrNull()?.updateScreen();
+                tryNavigateToChat(0);
             }
+        }
+    }
+
+    private void tryNavigateToChat(int elapsedMs)
+    {
+        try
+        {
+            // Nothing left to do: the poll, a previous retry, or the post-login
+            // construction already consumed it.
+            if (App.startingScreen == "")
+            {
+                return;
+            }
+
+            /* ⚠ AUDIT MINOR: do NOT drive the navigation while a lock is on screen.
+             * `updateScreen()` CONSUMES App.startingScreen before it navigates
+             * (HomePage:2490), and `pushPageLoaded` fails closed while a modal overlay is up
+             * — so firing here would clear the deep link and drop the chat, leaving the user
+             * on the chat list after unlocking. Returning without consuming keeps the
+             * address for the next tick, which is the behaviour the user expects. This is
+             * cheaper than it looks: the retry below re-checks every 100 ms.
+             * ⚠ Presentation-only, and it does NOT touch the lock: it reads two existing
+             * predicates and decides whether to navigate. The lock is log-only this batch. */
+            if (SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging())
+            {
+                if (elapsedMs < NOTIF_NAV_MAX_MS)
+                {
+                    MainThread.BeginInvokeOnMainThread(async () =>
+                    {
+                        await Task.Delay(NOTIF_NAV_RETRY_MS);
+                        tryNavigateToChat(elapsedMs + NOTIF_NAV_RETRY_MS);
+                    });
+                }
+                return;
+            }
+
+            HomePage? home = HomePage.InstanceOrNull();
+            if (home != null)
+            {
+                // updateScreen() consumes App.startingScreen and performs the navigation.
+                // Called directly rather than waited for: same code path, no 1 Hz wait.
+                home.updateScreen();
+                return;
+            }
+
+            if (elapsedMs >= NOTIF_NAV_MAX_MS)
+            {
+                // Give up on the fast path only. App.startingScreen is still set, so the
+                // page consumes it whenever it is finally built — the pre-#NOTIF-3
+                // behaviour, unchanged.
+                return;
+            }
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await Task.Delay(NOTIF_NAV_RETRY_MS);
+                tryNavigateToChat(elapsedMs + NOTIF_NAV_RETRY_MS);
+            });
+        }
+        catch (Exception e)
+        {
+            // A failure here must never take down the activity: the backstop still holds.
+            Logging.error("tryNavigateToChat failed: " + e);
         }
     }
 

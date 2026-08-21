@@ -694,6 +694,7 @@ global-share-sharefile = Deli datoteko
 
 ; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
 notification-new-message = Novo sporočilo
+notification-new-messages = {0} novih sporočil
 notification-incoming-call = Dohodni klic
 notification-payment-received = Plačilo prejeto
 notification-payment-request = Zahteva za plačilo

@@ -239,6 +239,38 @@ namespace SPIXI
             {
                 _webView.BackgroundColor = pageSurfaceColor;
             }
+
+            /* ★ F1 INSTRUMENTATION (log only), gated to the LOCK so the log is not flooded
+             * — this runs on every page load and every theme sweep.
+             *
+             * ★ SOURCE FINDING worth recording, because it CORRECTS the verdict's
+             * candidate order for the white flash. The verdict's first candidate was "the
+             * Android window background (MainTheme) is light and shows between the modal
+             * push and the lock's first paint". It is not light: styles.xml:37 sets
+             * android:windowBackground to @layout/splash_screen, whose base layer is
+             * #144576 — splash BLUE. And the page itself is not light either: this method
+             * runs from loadPage inside the LockPage CONSTRUCTOR, before the modal push,
+             * and paints page, content AND WebView #13171b (surfaceColorStringFor's
+             * "lock.html" case).
+             *
+             * So neither native layer can produce a WHITE frame, which leaves the Android
+             * WebView's own renderer painting white before lock.html's instant-bg (#203)
+             * commits. This line prints the three colours actually applied; the phase
+             * timeline (pause/push-requested → lock/webview-onload) measures the window it
+             * happens in. Together they decide it — measurement, not a third guess. */
+            if ((loadedHtmlFileName ?? "") == "lock.html")
+            {
+                /* ⚠ AUDIT MINOR: READ BACK the properties, do not echo the value we just
+                 * assigned. The single surviving F1 suspect is "the WebView renderer paints
+                 * white before lock.html's instant-bg commits" — precisely the case where
+                 * what we set is not what is on screen — and a probe that reprints its own
+                 * input cannot tell "set and stuck" from "set and overridden". */
+                SPIXI.Meta.SLockDiag.mark("lock/surface-applied",
+                    "asked=" + pageSurfaceColorString
+                    + " page=" + (BackgroundColor != null ? BackgroundColor.ToHex() : "null")
+                    + " webViewBg=" + (_webView != null && _webView.BackgroundColor != null ? _webView.BackgroundColor.ToHex() : "null")
+                    + " windowBg=#144576(styles.xml:37→splash_screen)");
+            }
         }
 
         protected void webViewNavigating(object? sender, WebNavigatingEventArgs e)
@@ -402,6 +434,17 @@ namespace SPIXI
             /* ★ AND-7d (#409): the BOTTOM keeps the page surface — the root-view background is
              * still visible behind the OS navigation controls — and only the TOP takes the
              * per-tab answer. One colour for both painted the nav bar blue on Wallet. */
+            /* ★ F2 INSTRUMENTATION (log only) — AUDIT MAJOR. `repaintSystemBars` is NOT the
+             * only way the system-bar strip gets painted, and it is not even the one that
+             * runs for the pause lock: applyPlatformPageChrome reaches setEdgeToEdge from
+             * webViewNavigated→checkIfPageLoaded AND from OnAppearing, both of which the
+             * lock takes. Instrumenting only the other path would have printed `bars/skip`
+             * with no `bars/repaint` while setEdgeToEdge had in fact already run twice —
+             * a FALSE "never repainted" verdict, pointing the next round at a fix that
+             * cannot work. That is exactly how F3 got two wrong fixes; this batch exists
+             * so F2 does not repeat it. Source-tagged so the two paths are told apart. */
+            SPIXI.Meta.SLockDiag.barsRepainted("pageChrome:" + GetType().Name,
+                liveSurfaceColorString(), systemBarSurfaceColorString());
             SPlatformUtils.setEdgeToEdge(liveSurfaceColorString(), systemBarSurfaceColorString());
 
             /* ★ AND-7 (#396/#401) FULL BLEED — the Android half of the iOS-#282 rule.
@@ -1444,7 +1487,21 @@ namespace SPIXI
             {
                 if (page != null)
                 {
-                    SPlatformUtils.setEdgeToEdge(page.liveSurfaceColorString(), page.systemBarSurfaceColorString());   // ★ AND-7d/e: bottom, top — BOTH live
+                    string bottom = page.liveSurfaceColorString();
+                    string top = page.systemBarSurfaceColorString();
+                    /* ★ F2 INSTRUMENTATION (log only): every repaint that DOES happen, with
+                     * the page that asked and the two colours it resolved. Paired with the
+                     * `bars/skip` line in App.lockOnPause this says, for one background,
+                     * whether the pause-presented lock ever repaints the bars — and if it
+                     * does, whether it asks for the wrong colour instead of not asking. */
+                    SPIXI.Meta.SLockDiag.barsRepainted(page.GetType().Name, bottom, top);
+                    SPlatformUtils.setEdgeToEdge(bottom, top);   // ★ AND-7d/e: bottom, top — BOTH live
+                }
+                else
+                {
+                    // ★ F2: resolved to nothing — nothing was repainted, and the bars keep
+                    // whatever the previous screen asked for.
+                    SPIXI.Meta.SLockDiag.barsNotRepainted("repaintSystemBars: visibleSurfacePage resolved null");
                 }
             }
             catch (Exception ex)

@@ -2135,6 +2135,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
     isGroup: false,
     group: { count: 0, blind: false, admin: false, notifications: true, owner: '' },
+    /* ★ NOTIF-2 (Damir's 2026-08-21 block): the per-1:1 mute. Pushed by ContactDetails
+       as setContactNotifications("1"|"0") for the 1:1 case only — the group surface
+       carries its own value in setGroupInfo, and that one is SYNCED to the other side
+       while this one is local to the device. Defaults ON so the row cannot paint as
+       muted before the push lands. */
+    notifications: true,
     members: [],         // committed roster [{ name, address, avatar, owner }]
     membersBuf: null,    // accumulator between clearMembers and the settle
   };
@@ -2294,7 +2300,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // A4: `capabilities` is a FEATURE-GATE bag ("this surface supports presence"),
       // not a live-value channel — it was carrying state.online since #142 and
       // nothing ever read it. The live value now rides the top-level `online` opt.
-      capabilities: { presence: true },   // notifications/media/selfDestruct OFF: no bridge verb (§9)
+      /* ★ NOTIF-2: notifications is LIVE for 1:1 now (media/selfDestruct still have no
+         bridge verb — §9). ContactDetails' existing ixian:en/disableNotifications
+         handlers gained a 1:1 branch that writes a LOCAL device preference, because a
+         1:1 friend has no botInfo to hold the flag and Core may not be changed here.
+         Muting is therefore device-side and the peer is never told — which is also the
+         correct privacy behaviour for muting somebody. */
+      capabilities: { presence: true, notifications: true },
+      notifications: state.notifications,
       host: document.body,             // confirm modals / QR-adjacent sheets attach to the page body
       strings,
 
@@ -2303,6 +2316,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // Message → open the conversation with this contact (ixian:chat: pushes
       // SingleChatPage from the contacts list, pops back from a chat header).
       onMessage: () => bridge.send('ixian:chat'),
+
+      /* ★ NOTIF-2: the 1:1 mute. Same verbs as the group surface — ContactDetails
+         routes on whether botInfo exists, so the shell asks one question and does not
+         need to know where the answer is stored. Resolved optimistically like the group
+         toggle: the write is a local preference that cannot fail in a way the user could
+         act on, and C# re-pushes the stored value on the next open. */
+      onNotifications: (next, ctrl) => {
+        state.notifications = next;
+        bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
+        ctrl.done();
+      },
 
       // nickname → local user-defined override (ixian:userdefinednick). Empty clears it.
       // C# re-pushes friend.nickname on the next tick, so the display self-heals.
@@ -2349,6 +2373,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // signature sorted by address so a re-pushed roster in a different order
       // never forces a needless rebuild (would drop an open search/sheet).
       context: state.context,
+      // ★ NOTIF-2 (audit MINOR): the 1:1 mute must be IN the signature, or the
+      // scheduleCommit() in setContactNotifications is decorative — buildIfChanged sees an
+      // unchanged signature and does nothing. Benign only because C# pushes it once inside
+      // the onLoad burst today; any later re-push (or an echo added tomorrow) would
+      // silently fail to render.
+      notifications: state.notifications,
       // A4 (#302): in the signature so a rebuild from ANY cause re-seeds the dot
       // with the current value. Live flips still go through setChatInfoPresence —
       // showIndicator never calls scheduleCommit, so this never drives a rebuild
@@ -2413,6 +2443,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
     // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
     // list so a partial roster never commits.
+    /* ★ NOTIF-2: the per-1:1 mute state. MUST be defined even though it is only ever
+       pushed for a 1:1 — C# emits a push as a BARE GLOBAL, and an undefined one throws
+       while the arguments are evaluated, before the dispatcher can catch it (#258). */
+    setContactNotifications(on) {
+      state.notifications = (on === '1' || on === 'true' || on === 'True' || on === true);
+      scheduleCommit();
+    },
+
     setGroupInfo(count, blind, admin, notifications, owner, kind, amOwner) {
       state.isGroup = true;
       state.group = {

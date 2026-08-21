@@ -125,6 +125,31 @@ namespace SPIXI
 
             Utils.sendUiCommand(this, "setAddress", friend.walletAddress.ToString());
 
+            /* ★ NOTIF-2 (Damir's 2026-08-21 block) — the per-1:1 mute, the one surface in
+             * his notifications ask that had no bridge verb at all (the shell carried
+             * `notifications: OFF — no bridge verb (§9)` since #142).
+             *
+             * A 1:1 contact has NO botInfo — that object exists only for groups and bots
+             * (GroupChat.cs:56/:103, CoreStreamProcessor.cs:2680) — so there is nowhere in
+             * Ixian-Core to put the flag, and adding one would be a Core change this
+             * session may not make. It is therefore a LOCAL, device-side preference:
+             * muting someone changes what THIS device does and tells the sender nothing,
+             * which is also the right privacy answer.
+             *
+             * Pushed for the 1:1 case only; the group surface already carries its own
+             * value as setGroupInfo's fourth argument, and that one IS synced. */
+            /* ⚠ AUDIT MINOR: the READ gate must match the WRITE gate. The writes below branch
+             * on `friend.metaData.botInfo != null`, not on `isGroup` — so a group or bot whose
+             * BotInfo has not arrived yet takes the LOCAL-mute write branch while this push
+             * was skipped, and the shell then showed the default-ON group value over a mute
+             * that was really in force. The toggle appeared to reset itself on reopen. Both
+             * sides now ask the same question. */
+            if (friend.metaData == null || friend.metaData.botInfo == null)
+            {
+                Utils.sendUiCommand(this, "setContactNotifications",
+                    SNotificationPrefs.isContactMuted(friend.walletAddress.ToString()) ? "0" : "1");
+            }
+
             updateScreen();
         }
 
@@ -288,6 +313,14 @@ namespace SPIXI
                     friend.saveMetaData();
                     StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 1 }, 0, true);
                 }
+                else
+                {
+                    // ★ NOTIF-2: the 1:1 case. The SAME verb rather than a new one — the
+                    // shell is asking the identical question and only the storage differs,
+                    // so an old shell that already sends this verb starts working the day
+                    // the capability is enabled. Local only: nothing is sent to the peer.
+                    SNotificationPrefs.setContactMuted(friend.walletAddress.ToString(), false);
+                }
             }
             else if (current_url.StartsWith("ixian:disableNotifications"))
             {
@@ -296,6 +329,11 @@ namespace SPIXI
                     friend.metaData.botInfo.sendNotification = false;
                     friend.saveMetaData();
                     StreamProcessor.sendBotAction(friend, SpixiBotActionCode.enableNotifications, new byte[1] { 0 }, 0, true);
+                }
+                else
+                {
+                    // ★ NOTIF-2: the 1:1 case — see the enable branch above.
+                    SNotificationPrefs.setContactMuted(friend.walletAddress.ToString(), true);
                 }
             }
             else if (current_url.StartsWith("ixian:sendContactRequest:"))

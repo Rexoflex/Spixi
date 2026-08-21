@@ -691,6 +691,7 @@ intro-new-walletexists-text = 此设备上已存在一个账户，因此无法�
 intro-restore-walletexists-title = 此设备上已有账户
 intro-restore-walletexists-text = 此设备上已存在一个账户。若要使用它，请重新启动 Spixi。若要恢复其他账户：请重新启动 Spixi，打开账户页面，点按删除钱包，然后再次打开恢复功能。
 notification-new-message = 新消息
+notification-new-messages = {0} 条新消息
 notification-incoming-call = 来电
 notification-payment-received = 收到付款
 notification-payment-request = 付款请求

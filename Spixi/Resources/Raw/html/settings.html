@@ -3818,6 +3818,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     createSettingsContributors, createSettingsBackup,
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
+    createNotificationsScreen,       // ★ NOTIF-2: built since #147, dark until now
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
@@ -3846,6 +3847,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   let avatarPickPending = false;
   // W2 (#348): last app-lock value C# confirmed. undefined until the boot push.
   let lockSaved;
+  /* ★ NOTIF-2: C# sends bools as bool.ToString(), i.e. the CAPITALISED "True"/"False"
+     (setLockEnabled has parsed them this way since #348). Accepts the lower-case and
+     real-boolean forms too so a future caller cannot silently read every value as false
+     — the failure mode that would look exactly like "the toggle does nothing". */
+  function boolPush(v) { return (v === 'True' || v === 'true' || v === true || v === '1'); }
   // Q1-② (#267): the mounted Downloads sublevel (pane-only; null otherwise).
   // clearFiles/addFile bursts land on whichever instance is current.
   let downloadsEl = null;
@@ -3942,6 +3948,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // exit routes through ixian:save (theme/language persist immediately C#-side,
     // which is why only lock was lost).
     dirtyLock: false,
+    /* ★ NOTIF-2 (Damir's 2026-08-21 block): the global notification switches. Pushed by
+       SettingsPage.onLoad (setNotifEnabled / setNotifSenderName / setNotifSounds) and
+       echoed back after every write, so these are display state only — C#'s Preferences
+       are authoritative and nothing here is persisted locally.
+       Defaults match the C# defaults exactly, so the first paint cannot flicker: sender
+       name OFF is today's shipped notification copy, byte for byte. */
+    notifEnabled: true,
+    notifSenderName: false,
+    notifSounds: true,
   };
 
   /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
@@ -4326,6 +4341,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       if (currentView === 'language') detailWrap.dataset.langBuilt = state.language;
       else delete detailWrap.dataset.langBuilt;
       delete root.dataset.langBuilt;               // #274 re-review R5: clear the other mode's key
+      if (currentView === 'notifications') detailWrap.dataset.notifSig = notifSig();
+      else delete detailWrap.dataset.notifSig;
+      delete root.dataset.notifSig;
       markSelected(currentView === 'hub' ? null : currentView);
     } else {
       // #336 (Damir F5 #15): a takeover sublevel DETACHES the hub node, and a
@@ -4360,6 +4378,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       if (currentView === 'language') root.dataset.langBuilt = state.language;
       else delete root.dataset.langBuilt;
       delete detailWrap.dataset.langBuilt;         // #274 re-review R5: clear the other mode's key
+      if (currentView === 'notifications') root.dataset.notifSig = notifSig();
+      else delete root.dataset.notifSig;
+      delete detailWrap.dataset.notifSig;
     }
   }
 
@@ -4387,7 +4408,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // SettingsPage pushes setCaps(...'encpass') + dispatches ixian:encpass →
       // EncryptionPassword (the redesigned lock shell). Old exe: cap absent →
       // row hidden, exactly as before.
-      capabilities: { contributors: true, downloads: true, changePassword: bridge.cap('encpass') },
+      /* ★ NOTIF-2 (Damir's 2026-08-21 block): globalNotifications is no longer a dark
+         gate — SettingsPage pushes the cap and dispatches the three verbs. Read from
+         the cap rather than hardcoded to true so an OLD exe (which pushes no such cap)
+         keeps the row hidden instead of showing switches whose verbs nothing handles. */
+      capabilities: {
+        contributors: true, downloads: true,
+        changePassword: bridge.cap('encpass'),
+        globalNotifications: bridge.cap('globalNotifications'),
+      },
+      onNotifications: showNotifications,
       // Q1-② (#267, S16 option a): in the PANE, Downloads is a true in-hub
       // SUBLEVEL — the list/open/delete verbs are routed through SettingsPage
       // (cap 'downloadsInline'), no second WebView, no pane-stacking (the #264
@@ -4636,12 +4666,21 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         detailWrap.replaceChildren(buildScreen('language'));
         detailWrap.dataset.langBuilt = state.language;
       }
+      // ★ AUDIT MAJOR (see notifSig): the same treatment for the notifications screen.
+      if (currentView === 'notifications' && detailWrap.dataset.notifSig !== notifSig()) {
+        detailWrap.replaceChildren(buildScreen('notifications'));
+        detailWrap.dataset.notifSig = notifSig();
+      }
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'hub') {
       root.replaceChildren(hubEl);
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
+    } else if (currentView === 'notifications' && root.dataset.notifSig !== notifSig()) {
+      // ★ AUDIT MAJOR (see notifSig) — the mobile/takeover mode of the same fix.
+      root.replaceChildren(buildScreen('notifications'));
+      root.dataset.notifSig = notifSig();
     } else if (currentView === 'language' && root.dataset.langBuilt !== state.language) {
       // #274 review MINOR-2: refresh a mounted NON-pane language picker when the
       // pushed current differs from the one it was built with (stale check).
@@ -4683,6 +4722,67 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   function showLanguage() { currentView = 'language'; renderLayout(); }
   function showBackup() { currentView = 'backup'; renderLayout(); }        // #243: pane + backupInline cap only
   function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267): pane + downloadsInline cap only
+  function showNotifications() { currentView = 'notifications'; renderLayout(); }  // ★ NOTIF-2
+
+  /* ★ NOTIF-2 — the optimistic-switch resolver.
+   *
+   * switchRow hands us a `ctrl` and waits: `done()` commits the new position, `fail()`
+   * rolls it back and shows the failure text. The authority is C#'s echo push, not this
+   * function, so the ctrl is parked here and fired by whichever of the two arrives.
+   *
+   * ⚠ The timeout is the part that matters. Without it, an exe that does not handle
+   * the verb (an OLDER build — the cap gate makes that unlikely but not impossible, and
+   * a dropped navigation is always possible) would leave the switch pending forever with
+   * no way back. Failing it back is honest: the preference genuinely did not change.
+   *
+   * A second tap on the same row before the first resolves supersedes it — the pending
+   * ctrl is failed rather than dropped, so no control is left waiting. */
+  /* ★ AUDIT MAJOR: the notifications SCREEN needed a rebuild path of its own.
+   * `applyNotifPush` called scheduleRebuild → rebuildHub, whose only branches are the hub
+   * and the language picker — so a mounted notifications screen was NEVER re-rendered from
+   * state. Two consequences, one latent and one reachable today: an unsolicited push could
+   * not correct a switch, and any renderLayout landing mid-flight (setPaneMode, setLocale,
+   * the #315 onRepresented) snapped the switch back to the stale value and then IGNORED the
+   * echo — leaving C# storing ON while the UI showed OFF, permanently, until the user left
+   * and re-entered the sublevel.
+   * Same shape as #274's langBuilt: a state-keyed signature, rebuilt only on a real change,
+   * so a rebuild cannot churn the screen under a user's finger. */
+  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds].join('|');
+
+  const NOTIF_ACK_MS = 4000;
+  const notifPending = Object.create(null);
+
+  /* The echo half. C# stores the value then pushes back what it stored, so a value that
+     disagrees with what the user asked for is a genuine failure and the switch must roll
+     back to the STORED position — which is what re-rendering from state does.
+     ⚠ Re-render unconditionally, including for the onLoad burst where nothing is
+     pending: the switches must show the stored values on first paint. */
+  function applyNotifPush(key, raw) {
+    const v = boolPush(raw);
+    state[key] = v;
+    const p = notifPending[key];
+    if (p) resolveNotif(key, p.want === v);
+    scheduleRebuild();
+  }
+
+  function resolveNotif(key, ok) {
+    const p = notifPending[key];
+    if (!p) return;
+    delete notifPending[key];
+    clearTimeout(p.timer);
+    try { if (ok) p.ctrl.done(); else p.ctrl.fail(); } catch (e) {}
+  }
+
+  function latchNotif(key, next, ctrl) {
+    // Supersede an in-flight tap on the same row rather than orphaning its ctrl.
+    resolveNotif(key, false);
+    const timer = setTimeout(() => { resolveNotif(key, false); }, NOTIF_ACK_MS);
+    notifPending[key] = { ctrl, timer, want: !!next };
+    const verb = (key === 'notifEnabled') ? 'ixian:notifEnabled:'
+      : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
+      : 'ixian:notifSounds:';
+    bridge.send(verb + (next ? 'on' : 'off'));
+  }
   function showEncpass() { currentView = 'encpass'; renderLayout(); }      // #341: pane + encpassInline cap only
 
   // #242: detail-screen chrome for the inline pickers — same view topbar + body
@@ -4742,6 +4842,27 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
            exists. Opt-in: the row does nothing until it is tapped. */
         onJoinCommunity: () => bridge.send('ixian:joinBot'),
         onBack: showHub,
+      });
+      /* ★ NOTIF-2 (Damir's 2026-08-21 block) — the global notification screen, live at
+       * last. Each switch is OPTIMISTIC with rollback: switchRow moves at once, then
+       * waits for ctrl.done()/ctrl.fail(). C# echoes the stored value back through
+       * setNotif* on every write, which both resolves the control and makes a failed
+       * write visible rather than silently reverting on the next open.
+       *
+       * `latchNotif` is the resolve half: the echo push can arrive before or after this
+       * callback returns, so the ctrl is held and fired by whichever happens — with a
+       * timeout so a verb that is never handled fails the switch back instead of
+       * leaving it spinning forever. */
+      case 'notifications': return createNotificationsScreen({
+        enabled: state.notifEnabled,
+        previews: state.notifSenderName,
+        sounds: state.notifSounds,
+        capabilities: { globalNotifications: bridge.cap('globalNotifications') },
+        strings,
+        onBack: showHub,
+        onEnabled: (next, ctrl) => { latchNotif('notifEnabled', next, ctrl); },
+        onPreviews: (next, ctrl) => { latchNotif('notifSenderName', next, ctrl); },
+        onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
       });
       case 'contributors': return createSettingsContributors({
         strings,
@@ -5072,6 +5193,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       else if (v !== lockSaved) { lockSaved = v; state.dirtyLock = true; autoSave(); }
       scheduleRebuild();
     },
+
+    /* ★ NOTIF-2: the three global switches. Each is pushed once at onLoad and again as
+       the ECHO of every write, which is what resolves the optimistic switchRow. A
+       re-render is scheduled rather than done inline so the onLoad burst still coalesces
+       into one paint (the :1018 rule). */
+    setNotifEnabled(s) { applyNotifPush('notifEnabled', s); },
+    setNotifSenderName(s) { applyNotifPush('notifSenderName', s); },
+    setNotifSounds(s) { applyNotifPush('notifSounds', s); },
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },

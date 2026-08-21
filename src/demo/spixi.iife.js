@@ -1409,7 +1409,9 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  *
  * createEmptyState({
  *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
- *   glyph,                 // icon name for the fallback tile (e.g. 'apps')
+ *   glyph,                 // icon name for the fallback tile (e.g. 'apps').
+ *                          // ★ F5: omit BOTH and the illustration slot is not rendered
+ *                          // at all — no empty placeholder tile (the wallet zero state)
  *   title, body,           // headline + supporting line (plain text — textContent)
  *   actionLabel, onAction, // the primary CTA (tonal by house grammar)
  *   actionIcon,            // optional leading glyph name for the CTA
@@ -1450,9 +1452,21 @@ function createEmptyState({
   const slot = document.createElement('div');
   slot.className = 'c-empty-state__illo';
   slot.setAttribute('aria-hidden', 'true');
+  /* ★ F5 (Damir on device 2026-08-21): appended HERE, before the branch below, so
+     drawGlyph() can drop it again. A `remove()` on a node that is not in the tree yet
+     is a silent no-op, and the old order appended the slot AFTER the branch ran. */
+  el.append(slot);
   const drawGlyph = () => {
+    /* ★ F5: with NEITHER art NOR a glyph there is nothing to draw, and the placeholder
+       is not free — `.c-empty-state__illo[data-placeholder]` paints a 96×96
+       `--surface-neutral-02` tile at radius-24. Left standing that is an empty grey
+       square, which is exactly what Damir asked to remove from the wallet zero state
+       ("there's no glyph or illustration on wallet activity empty state"). So the whole
+       slot goes, and the flex `gap` goes with it. Every other caller passes a glyph, so
+       this is inert for chats / contacts / apps — including their art-failed path. */
+    if (!glyph) { slot.remove(); return; }
     slot.dataset.placeholder = '';
-    if (glyph) slot.append(icon(glyph, { size: 48 }));
+    slot.append(icon(glyph, { size: 48 }));
   };
   if (illustration) {
     const img = document.createElement('img');
@@ -1472,7 +1486,6 @@ function createEmptyState({
   } else {
     drawGlyph();
   }
-  el.append(slot);
 
   /* —— copy —— */
   const h = document.createElement('h2');
@@ -9324,11 +9337,16 @@ function walletEmpty(state, strings, opts = {}) {
       /* ★ #453 (Damir on device): NO illustration on the wallet zero state. The hero
          already owns ~300px above this block, so the art pushed the one action that
          matters — "Show my address" — toward the bottom nav, and it said nothing the
-         headline did not. The `glyph` below is what renders instead: a small token tile,
-         which is also the path this state already took whenever the art failed to load.
-         A host that WANTS art can still pass `emptyArt` explicitly. */
+         headline did not. A host that WANTS art can still pass `emptyArt` explicitly.
+
+         ★ F5 (Damir on device 2026-08-21): and NO glyph tile either — "THE ICON MUST BE
+         REMOVED, there's no glyph or illustration on wallet activity empty state."
+         #453 dropped the art and left the tile standing in as its fallback. Passing no
+         glyph is only safe because createEmptyState now drops the whole slot when it has
+         neither: the bare `[data-placeholder]` is a 96×96 --surface-neutral-02 square,
+         so removing this line alone would have swapped an icon for an empty grey box. */
       illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
-      glyph: 'wallet',                              // the tile — now the default, not the fallback
+      glyph: null,
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
       // sentence ("share your address…") only restated the CTA. In de-de it wrapped
@@ -9657,7 +9675,7 @@ function sheetRow(label, value) {
 
 let txSheetSeq = 0;   // unique ids for the N25 disclosure's aria-controls
 
-function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true } = {}) {
+function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclose = true, showClose = true } = {}) {
   const status = STATUS_META[tx.status] ? tx.status : 'unknown';
   const meta = STATUS_META[status];
   const type = status !== 'confirmed' ? status : (tx.direction === 'in' ? 'received' : 'sent');
@@ -9845,11 +9863,23 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every
      other sheet in the app offers a text action; this one lost it when the explorer CTA
-     was added below it. `type: 'text'` so it never competes with the explorer button. */
-  content.append(createButton({
-    label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
-    onClick: () => closeSheet(sheet),
-  }));
+     was added below it. `type: 'text'` so it never competes with the explorer button.
+
+     ★ F4 (#453 ④ regression, Damir on device 2026-08-21): this button belongs to the
+     SHEET, and only to the sheet. `wallet_sent.html` LIFTS the built `.c-txsheet` out of
+     a ghost sheet and reparents it into a full-screen page (its §2.2 ghost-lift recipe);
+     the Close button rode along and called `closeSheet` on a sheet that was closed and
+     discarded lines earlier — so it rendered on a surface it could not act on and did
+     nothing. `showClose` is its OWN option and is NOT keyed off `disclose`: they answer
+     different questions ("does this host own the sheet?" vs "should the fields hide
+     behind a disclosure?"), and coupling them is how the next surface inherits the wrong
+     one. Damir's steer: it belongs only in the sheet. */
+  if (showClose) {
+    content.append(createButton({
+      label: strings.close || 'Close', type: 'text', size: 44, width: 'full',
+      onClick: () => closeSheet(sheet),
+    }));
+  }
 
   const sheet = createSheet({ content, host, strings, title: '' });   // head carries the identity
   sheet.setAttribute('aria-label', strings.txDetails || 'Transaction details');
@@ -18913,10 +18943,19 @@ function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
+    /* ★ NOTIF-2 (2026-08-21) — the copy is CORRECTED to describe what this switch can
+       actually do, which is the whole reason it is safe to ship.
+       The old label/sub promised control over "sender and text". There is no text to
+       control: AND-15 (#334) deliberately builds a per-TYPE line ("New Message",
+       "Payment received", …) that carries no sender name and no message content at all.
+       Wired as written, this would have been a switch that changes nothing — the dead
+       control class this project keeps shipping. It is wired to the one thing the
+       notification can carry, the sender's name (Damir's own dial, noted in the AND-15
+       comment), and now says so. Message text is never included, on any setting. */
     if (onPreviews) body.append(switchRow({
       glyph: 'eye', hue: 'info',
-      label: strings.notifPreviews || 'Show message previews',
-      sub: strings.notifPreviewsSub || 'Off = sender and text hidden on the lock screen',
+      label: strings.notifSender || 'Show sender name',
+      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
       checked: previews, live, failText, onToggle: onPreviews,
     }));
     if (onSounds) body.append(switchRow({

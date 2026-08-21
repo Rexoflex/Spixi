@@ -673,6 +673,7 @@ global-share-sharefile = Compartir archivo
 
 ; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
 notification-new-message = Nuevo mensaje
+notification-new-messages = {0} mensajes nuevos
 notification-incoming-call = Llamada entrante
 notification-payment-received = Pago recibido
 notification-payment-request = Solicitud de pago

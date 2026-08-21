@@ -565,10 +565,19 @@ export function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
+    /* ★ NOTIF-2 (2026-08-21) — the copy is CORRECTED to describe what this switch can
+       actually do, which is the whole reason it is safe to ship.
+       The old label/sub promised control over "sender and text". There is no text to
+       control: AND-15 (#334) deliberately builds a per-TYPE line ("New Message",
+       "Payment received", …) that carries no sender name and no message content at all.
+       Wired as written, this would have been a switch that changes nothing — the dead
+       control class this project keeps shipping. It is wired to the one thing the
+       notification can carry, the sender's name (Damir's own dial, noted in the AND-15
+       comment), and now says so. Message text is never included, on any setting. */
     if (onPreviews) body.append(switchRow({
       glyph: 'eye', hue: 'info',
-      label: strings.notifPreviews || 'Show message previews',
-      sub: strings.notifPreviewsSub || 'Off = sender and text hidden on the lock screen',
+      label: strings.notifSender || 'Show sender name',
+      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
       checked: previews, live, failText, onToggle: onPreviews,
     }));
     if (onSounds) body.append(switchRow({

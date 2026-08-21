@@ -835,16 +835,86 @@ namespace SPIXI.Meta
                             // don't fire notification for nickname and avatar
                             if (!friend_message.id.SequenceEqual(new byte[] { 4 }) && !friend_message.id.SequenceEqual(new byte[] { 5 }))
                             {
-                                if (friend.bot == false
-                                    || (friend.metaData.botInfo != null && friend.metaData.botInfo.sendNotification))
+                                // ★ NOTIF-1 (Damir on device: "notifications work on the bot
+                                // group but not private groups"). The old predicate here was
+                                // `friend.bot == false || (botInfo != null && sendNotification)`.
+                                // `Friend.bot` has a PRIVATE setter and is turned on only by
+                                // setBotMode() (Ixian-Core Friend.cs:250-253); a private group is
+                                // built by setGroupMode() and never sets it. So for every private
+                                // group the first clause short-circuited TRUE and the mute toggle
+                                // was ignored, while bots fell to the second clause and were
+                                // honored — exactly the split reported.
+                                //
+                                // The predicate now lives in ONE place (SNotificationPrefs), which
+                                // also folds in the NOTIF-2 global master and the local per-1:1
+                                // mute. A 1:1 contact has no botInfo, so it is unaffected unless
+                                // the user muted that specific chat.
+                                //
+                                // ⚠ This does NOT introduce the muted-badge behaviour: Ixian-Core
+                                // Friend.getUnreadMessageCount() (:513-520) already returns 0 on
+                                // the same botInfo predicate WITHOUT consulting friend.bot, so a
+                                // muted private group has had a zeroed badge all along while still
+                                // firing notifications. This makes the two agree. Whether muting
+                                // SHOULD also zero the badge is a product question — raised in the
+                                // DECISIONS row, not silently inherited.
+                                if (SNotificationPrefs.shouldNotify(friend))
                                 {
                                     int unreadCount = FriendList.getUnreadMessageCount();
                                     // AND-15 (#334): per-type copy — payments, app invites and
                                     // INCOMING CALLS all read "New Message" before (calls were
-                                    // lost entirely). No sender names, no message content
-                                    // (name-inclusion = Damir dial). kind routes calls to the
-                                    // Android Incoming-calls channel; other platforms ignore it.
-                                    SPushService.showLocalNotification((int)Crc32Algorithm.Compute(friend_message.id), "Spixi", notificationTextForType(type), friend.walletAddress.ToString(), alert, unreadCount, type == FriendMessageType.voiceCall ? "call" : "message");
+                                    // lost entirely). kind routes calls to the Android
+                                    // Incoming-calls channel; other platforms ignore it.
+                                    //
+                                    // ★ NOTIF-2: the sender's name is prefixed ONLY when the user
+                                    // opted in (default off = today's copy, byte-identical).
+                                    // Message TEXT is never included, on any setting.
+                                    string notifText = notificationTextForType(type);
+                                    if (SNotificationPrefs.showSenderName)
+                                    {
+                                        /* ⚠ AUDIT MINOR: friend.nickname falls back to _nick, and
+                                         * two call sites seed _nick with the RAW ADDRESS
+                                         * (SpixiContentPage:2858, SingleChatPage:1510) — so a
+                                         * contact who never sent a nick would put 60+ characters
+                                         * of base58 in the notification. IsNullOrEmpty does not
+                                         * catch that. The #211/#212 truncation canon is FE-only,
+                                         * so the same rule is applied here. */
+                                        string senderName = SNotificationPrefs.displayNameFor(friend);
+                                        if (!string.IsNullOrEmpty(senderName))
+                                        {
+                                            notifText = senderName + ": " + notifText;
+                                        }
+                                    }
+
+                                    // ★ NOTIF-4 (Damir: "five notifications for one chat"). The id
+                                    // was CRC32 of the MESSAGE id, so every message posted a NEW
+                                    // notification and ten messages made ten rows. It is now CRC32
+                                    // of the CHAT address, so the next message from the same chat
+                                    // REPLACES the previous row instead of stacking beside it —
+                                    // one row per conversation, which is what SetGroup(data) was
+                                    // already reaching for without a summary to group into.
+                                    // chatUnread lets the platform say "N new messages"; it was
+                                    // already computed per friend and thrown away.
+                                    int chatUnread = friend.getUnreadMessageCount();
+                                    // addressNoChecksum, NOT getInputBytes(): the latter
+                                    // returns the PUBLIC KEY whenever one is populated
+                                    // (Ixian-Core Address.cs:426-437), so the same chat
+                                    // would hash two different ways depending on what was
+                                    // known at the time — and the one-row-per-chat property
+                                    // would flap. The canonical address bytes are always
+                                    // present and never change for a given chat.
+                                    int notifId = (int)Crc32Algorithm.Compute(friend.walletAddress.addressNoChecksum);
+                                    /* ⚠ AUDIT MAJOR: a CALL must not share the chat's id.
+                                     * Calls and messages route to DIFFERENT channels, so with one
+                                     * id a text arriving after a missed call silently replaced the
+                                     * missed-call row (and an incoming call wiped the "3 new
+                                     * messages" row). One bit of separation keeps replace-per-chat
+                                     * for messages while leaving the call its own row. */
+                                    bool isCallNotif = type == FriendMessageType.voiceCall;
+                                    if (isCallNotif)
+                                    {
+                                        notifId = notifId ^ 0x5A5A5A5A;
+                                    }
+                                    SPushService.showLocalNotification(notifId, "Spixi", notifText, friend.walletAddress.ToString(), alert, unreadCount, isCallNotif ? "call" : "message", chatUnread);
                                     SPushService.clearRemoteNotifications(unreadCount);
                                 }
                             }
@@ -852,6 +922,64 @@ namespace SPIXI.Meta
                     }
 
                     SSystemAlert.flash();
+
+                    // ★ SND-1 (2026-08-21): the app made no sound for a chat message —
+                    // SSystemAlert.flash() above is an empty method body on every
+                    // platform. Fail-soft and gated on the in-app-sounds preference, and
+                    // silent until Damir's assets land (SSounds documents the contract).
+                    //
+                    // Placed inside `oldMessage == false` so a history re-flush cannot
+                    // replay a burst of sounds, and split by direction because the two
+                    // are different events to a user.
+                    //
+                    // ⚠ A RECEIVED message only sounds when the chat is MUTABLE-audible:
+                    // an in-app sound for a chat the user muted would walk straight
+                    // around the mute they just set.
+                    //
+                    // ⚠ AUDIT MAJOR — THE GUARDS. The first cut of this block sat OUTSIDE
+                    // every gate the notification above respects, which would have made the
+                    // app chime for things that deliberately show nothing:
+                    //   · `fire_local_notification == false` callers — VoIPManager starting
+                    //     and ending a call, app-session bookkeeping in SingleChatPage and
+                    //     HomePage — all silent by design, all would have chimed.
+                    //   · the id {4}/{5} carriers, which are a peer's NICKNAME and AVATAR
+                    //     updates. A contact editing their nickname would ring your phone
+                    //     with nothing on screen to explain it, and a peer can set that id
+                    //     on an ordinary chat message.
+                    //   · voiceCall, which would have chirped UNDER its own ringtone.
+                    //   · kicked/banned system messages, which arrive as local_sender and
+                    //     would have sounded like something you sent.
+                    // So the sound answers the same questions the notification does.
+                    //
+                    // The FUNDS types are excluded separately: SND-2 plays when the
+                    // transaction is actually VERIFIED, so a payment chimes once, when it
+                    // settles, rather than twice with the first chime before the money moved.
+                    bool soundable = fire_local_notification
+                        && type != FriendMessageType.sentFunds
+                        && type != FriendMessageType.requestFunds
+                        && type != FriendMessageType.voiceCall
+                        && !friend_message.id.SequenceEqual(new byte[] { 4 })
+                        && !friend_message.id.SequenceEqual(new byte[] { 5 });
+                    if (!soundable)
+                    {
+                        // nothing — this event is silent by design, or SND-2 owns it
+                    }
+                    else if (local_sender)
+                    {
+                        // ⚠ AUDIT MINOR: gated on the PER-CHAT mute and the sound switch, NOT
+                        // on the notification master. isChatMuted was built to exclude the
+                        // master for exactly this reason — otherwise turning notifications off
+                        // would leave sending audible while receiving went silent, which
+                        // neither switch describes.
+                        if (!SNotificationPrefs.isChatMuted(friend))
+                        {
+                            SSounds.messageSent();
+                        }
+                    }
+                    else if (!SNotificationPrefs.isChatMuted(friend))
+                    {
+                        SSounds.messageReceived();
+                    }
                 }
             }
             return friend_message;

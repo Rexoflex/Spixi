@@ -1336,6 +1336,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
       // N25 (#443) audit MINOR-8: this PAGE exists to show the address, fee and id —
       // do not hide them behind the sheet's "See details" disclosure here.
       disclose: false,
+      // ★ F4 (Damir on device 2026-08-21): the sheet's Close button acts on the SHEET,
+      // and this page discards that sheet immediately below (the ghost-lift). Carried
+      // along it rendered a dead control. Its own option — deliberately NOT keyed off
+      // `disclose`, which answers a different question. This page's way out is the
+      // topbar back arrow.
+      showClose: false,
       // TX-SCOPED explorer (the page's own verb — C# opens ?p=transaction&id=<txid>).
       onExplorer: () => bridge.send('ixian:viewexplorer'),
     });
@@ -1432,6 +1438,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
       // early-return and leave the card masked forever.
       const firstKnown = !hideKnown;
       hideKnown = true;
+      /* ★ F7 INSTRUMENTATION (log only): the SHELL half of the split. C# logs the value
+         it pushed; this logs that the push ARRIVED and what both flags then read, so the
+         two lines together say which of `hideKnown`/`walletHidden` is false when the eye
+         does not render. Console-only — visible over `adb logcat` and in the WebView
+         inspector; nothing is written to storage and nothing renders on screen. */
+      try { console.log('[WALLETDIAG] setHideBalance arrived · raw=' + hide + ' → hideKnown=true walletHidden=' + h + ' revealed=' + revealed); } catch (e) {}
       if (h === walletHidden && !firstKnown) return;
       walletHidden = h;
       revealed = false;

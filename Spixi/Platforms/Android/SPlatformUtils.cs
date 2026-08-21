@@ -163,6 +163,83 @@ namespace Spixi
             }
         }
 
+        /* ★ SND (2026-08-21): a one-shot EFFECT, as opposed to the four call tones above,
+         * which are long-lived players the caller starts and stops. An effect is fire and
+         * forget: it must release its own MediaPlayer on completion or every message
+         * played would leak one.
+         *
+         * A MISSING ASSET IS THE EXPECTED STATE TODAY — no effect files ship yet (Damir
+         * picks them). OpenFd throws for a file that is not in the APK, playSoundFromAssets
+         * swallows that and hands back an UNPREPARED player, so Start() would throw in
+         * turn. Hence the probe first: it keeps a silent miss silent and cheap.
+         *
+         * NOT synchronized with the ringtone/dialtone players on purpose. An effect is
+         * short and independent; taking ringtoneLock here would let a chat message block
+         * on a ringing call. */
+        /* ⚠ AUDIT MINOR-5: NO sound assets ship yet (Damir picks them), and `inAppSounds`
+         * defaults ON — so without this every received message threw a Java
+         * FileNotFoundException across JNI and wrote a log line. Ixian's default severity is
+         * `trace`, so those lines really are written, and they would bury the [LOCKDIAG] and
+         * [SCANDIAG] evidence this same batch exists to collect. First miss is remembered;
+         * every later call for that asset is a dictionary lookup. */
+        private static readonly System.Collections.Generic.HashSet<string> missingEffects = new();
+
+        private static bool isMissing(string filePath)
+        {
+            lock (missingEffects) { return missingEffects.Contains(filePath); }
+        }
+
+        private static void markMissing(string filePath)
+        {
+            lock (missingEffects) { missingEffects.Add(filePath); }
+        }
+
+        public static void playEffect(string filePath)
+        {
+            if (isMissing(filePath))
+            {
+                return;   // ⚠ AUDIT MINOR-5: memoised — see isMissing
+            }
+            MediaPlayer? player = null;
+            Android.Content.Res.AssetFileDescriptor? fd = null;
+            try
+            {
+                // Probe before building anything: absent asset = silent no-op.
+                fd = MainActivity.Instance?.Assets?.OpenFd(filePath);
+                if (fd == null)
+                {
+                    markMissing(filePath);
+                    return;
+                }
+                player = new MediaPlayer();
+                player.SetDataSource(fd.FileDescriptor, fd.StartOffset, fd.Length);
+                player.Prepare();
+                // Release on completion — an effect has no stop() caller.
+                // ⚠ AUDIT NIT: capture the local rather than casting the event sender; a
+                // failed cast would be swallowed by the catch and leak the player silently.
+                MediaPlayer captured = player;
+                captured.Completion += (s, e) =>
+                {
+                    try { captured.Release(); } catch (Exception) { }
+                };
+                captured.Start();
+            }
+            catch (Exception e)
+            {
+                /* ⚠ AUDIT MINOR: a THROW from SetDataSource or Prepare used to skip the
+                 * fd.Close() below it — there was no finally — so a malformed asset leaked
+                 * one file descriptor per received message, and FD exhaustion takes down
+                 * sockets and file opens across the whole process, not just audio. */
+                markMissing(filePath);
+                Logging.trace("playEffect(" + filePath + ") skipped: " + e.Message);
+                try { player?.Release(); } catch (Exception) { }
+            }
+            finally
+            {
+                try { fd?.Close(); } catch (Exception) { }
+            }
+        }
+
         private static MediaPlayer playSoundFromAssets(string filePath)
         {
             MediaPlayer player = new MediaPlayer();

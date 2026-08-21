@@ -691,6 +691,7 @@ intro-new-walletexists-text = Sudah ada akun di perangkat ini, jadi akun baru ti
 intro-restore-walletexists-title = Akun sudah ada di perangkat ini
 intro-restore-walletexists-text = Sudah ada akun di perangkat ini. Untuk menggunakannya, mulai ulang Spixi. Untuk memulihkan akun lain: mulai ulang Spixi, buka Akun, ketuk Hapus dompet, lalu buka Pulihkan lagi.
 notification-new-message = Pesan Baru
+notification-new-messages = {0} pesan baru
 notification-incoming-call = Panggilan masuk
 notification-payment-received = Pembayaran diterima
 notification-payment-request = Permintaan pembayaran

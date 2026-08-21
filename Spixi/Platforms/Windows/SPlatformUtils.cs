@@ -128,6 +128,80 @@ namespace Spixi
             }
         }
 
+        /* ★ SND-3 (2026-08-21) — the DESKTOP sound. Unlike the call tones above, an
+         * effect has no stop() caller, so it disposes itself: NAudio raises
+         * PlaybackStopped at the end of the stream, and both the player and its
+         * Mp3FileReader are released there. Without that every effect would leak a
+         * WaveOutEvent and its file handle.
+         *
+         * A MISSING ASSET IS THE EXPECTED STATE TODAY (no effect files ship yet).
+         * playSoundFromAssets above does NOT guard — `new Mp3FileReader(fullPath)` on an
+         * absent file throws straight out — so this probes first and stays silent.
+         *
+         * SND-3's "desktop-specific off switch" is the shared `inAppSounds` preference,
+         * which is already per-device: MAUI Preferences are per-install, so turning
+         * sounds off on the desktop does not touch the phone. */
+        /* ⚠ AUDIT MINOR-5: no effect assets ship yet, so the miss is the EXPECTED state and
+         * must stay cheap and silent — see the Android note. */
+        private static readonly System.Collections.Generic.HashSet<string> missingEffects = new();
+        private static bool isMissing(string filePath)
+        {
+            lock (missingEffects) { return missingEffects.Contains(filePath); }
+        }
+        private static void markMissing(string filePath)
+        {
+            lock (missingEffects) { missingEffects.Add(filePath); }
+        }
+
+        public static void playEffect(string filePath)
+        {
+            try
+            {
+                if (isMissing(filePath))
+                {
+                    return;   // ⚠ AUDIT MINOR-5: memoised, so a missing asset costs one stat, once
+                }
+                string fullPath = Path.Combine(getAssetsPath(), filePath);
+                if (!File.Exists(fullPath))
+                {
+                    markMissing(filePath);
+                    return;
+                }
+                /* ⚠ AUDIT MINOR: PlaybackStopped only fires if Play() actually STARTED. If
+                 * Init or Play throws — an unsupported mp3, or waveOut device exhaustion
+                 * under a burst — the old catch disposed neither, so the file handle stayed
+                 * open and the file stayed locked, once per received message. */
+                Mp3FileReader? reader = null;
+                WaveOutEvent? player = null;
+                try
+                {
+                    reader = new Mp3FileReader(fullPath);
+                    player = new WaveOutEvent();
+                    var capturedReader = reader;
+                    var capturedPlayer = player;
+                    capturedPlayer.PlaybackStopped += (s, e) =>
+                    {
+                        try { capturedPlayer.Dispose(); } catch (Exception) { }
+                        try { capturedReader.Dispose(); } catch (Exception) { }
+                    };
+                    capturedPlayer.Init(capturedReader);
+                    capturedPlayer.Play();
+                }
+                catch (Exception)
+                {
+                    try { player?.Dispose(); } catch (Exception) { }
+                    try { reader?.Dispose(); } catch (Exception) { }
+                    throw;
+                }
+            }
+            catch (Exception e)
+            {
+                // trace, not error: with no assets shipped this fires on every message.
+                markMissing(filePath);
+                Logging.trace("playEffect(" + filePath + ") skipped: " + e.Message);
+            }
+        }
+
 
         private static IWavePlayer playSoundFromAssets(string filePath, bool loop = false)
         {

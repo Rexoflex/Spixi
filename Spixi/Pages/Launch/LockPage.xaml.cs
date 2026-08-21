@@ -120,6 +120,10 @@ namespace SPIXI
                 revealPasswordForm();
 
             uiReady = true;
+            // ★ F1 INSTRUMENTATION (log only): the WebView has parsed and signalled. The
+            // gap between the push and THIS line is the window showing through — the
+            // leading candidate for the white flash.
+            SPIXI.Meta.SLockDiag.mark("lock/webview-onload", "appLockMode=" + appLockMode);
             maybeAuthenticate();
         }
 
@@ -127,6 +131,7 @@ namespace SPIXI
         {
             base.OnAppearing();
             pageVisible = true;
+            SPIXI.Meta.SLockDiag.mark("lock/OnAppearing");
             maybeAuthenticate();
         }
 
@@ -134,16 +139,29 @@ namespace SPIXI
         public override void onPresentedInPlace()
         {
             pageVisible = true;
+            SPIXI.Meta.SLockDiag.mark("lock/onPresentedInPlace");
             maybeAuthenticate();
         }
 
         private async void maybeAuthenticate()
         {
+            /* ★ F3 INSTRUMENTATION (log only — NO behaviour change here, deliberately).
+             * Two failed fixes have already been made on this method. Every entry now
+             * prints all four gates and the branch taken, so the next F5 says which one
+             * is closing rather than leaving it to be guessed a third time. */
             if (!uiReady || !pageVisible || authAttempted)
+            {
+                SPIXI.Meta.SLockDiag.authGates("maybeAuthenticate", uiReady, pageVisible,
+                    authAttempted, authDeferred, "SKIP: gate not ready");
                 return;
+            }
 
             if (Device.RuntimePlatform == Device.WinUI)
+            {
+                SPIXI.Meta.SLockDiag.authGates("maybeAuthenticate", uiReady, pageVisible,
+                    authAttempted, authDeferred, "SKIP: WinUI");
                 return;
+            }
 
             /* ★ #454 AUDIT MAJOR-2, corrected by #460: never prompt into a BACKGROUNDED
              * app. The pause lock is pushed while the activity is pausing, so OnAppearing
@@ -153,13 +171,24 @@ namespace SPIXI
              * fingerprint at all. Deferred, and deliberately NOT latched — App sets this
              * when it creates a pause lock and clears it from OnResume. */
             if (authDeferred)
+            {
+                SPIXI.Meta.SLockDiag.authGates("maybeAuthenticate", uiReady, pageVisible,
+                    authAttempted, authDeferred, "SKIP: deferred (waiting for OnResume)");
                 return;
+            }
 
+            SPIXI.Meta.SLockDiag.authGates("maybeAuthenticate", uiReady, pageVisible,
+                authAttempted, authDeferred, "PROMPT");
             authAttempted = true;
             // Show biometric and alternative authentication methods
             try
             {
                 await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));
+                // ★ F3: the prompt RESOLVED. If this line appears but no prompt was seen,
+                // the plugin returned without showing anything — which moves the fault out
+                // of our gating and into Plugin.Fingerprint's device-credential path
+                // (Damir uses a PATTERN, i.e. AllowAlternativeAuthentication).
+                SPIXI.Meta.SLockDiag.mark("lock/auth-returned");
             }
             catch (Exception e)
             {
@@ -286,6 +315,7 @@ namespace SPIXI
          * prompt until it says the app is really back. */
         public void deferAuthentication()
         {
+            SPIXI.Meta.SLockDiag.mark("lock/deferAuthentication");
             authDeferred = true;
         }
 
@@ -296,6 +326,12 @@ namespace SPIXI
          * must find the latch already down. */
         public void onForegroundReturned()
         {
+            /* ★ F3 INSTRUMENTATION (log only): the verdict asks explicitly whether
+             * App.OnResume reached this method at all. If this line is ABSENT from a
+             * resume cycle, the fault is upstream in App.OnResume's branching; if it is
+             * PRESENT and the following maybeAuthenticate still says SKIP, the gate that
+             * closed is named on that line. Either way the next F5 answers it. */
+            SPIXI.Meta.SLockDiag.mark("lock/onForegroundReturned", "clearing authDeferred");
             authDeferred = false;
             maybeAuthenticate();
         }

@@ -138,6 +138,70 @@ namespace Spixi
             }
         }
 
+
+        /* ★ SND (2026-08-21): a one-shot effect. Held in a list rather than a single
+         * field because two effects can overlap (a message arriving while a payment
+         * sound plays) and a single field would cut the first one off mid-play — and,
+         * worse, drop the only managed reference to a player that is still sounding.
+         * Entries are reaped on the next call.
+         *
+         * A MISSING ASSET IS THE EXPECTED STATE TODAY (no effect files ship yet), so the
+         * File.Exists probe keeps the miss silent and cheap: AVAudioPlayer.FromUrl
+         * returns null for a file that is not there, and the `!` on the existing call
+         * sites above would turn that into a NullReferenceException. */
+        private static readonly System.Collections.Generic.List<AVAudioPlayer> effectPlayers = new();
+        private static readonly System.Collections.Generic.HashSet<string> missingEffects = new();
+        private static bool isMissingEffect(string filePath)
+        {
+            lock (missingEffects) { return missingEffects.Contains(filePath); }
+        }
+        private static void markMissingEffect(string filePath)
+        {
+            lock (missingEffects) { missingEffects.Add(filePath); }
+        }
+
+        public static void playEffect(string filePath)
+        {
+            try
+            {
+                if (isMissingEffect(filePath))
+                {
+                    return;   // ⚠ AUDIT MINOR-5: memoised — the miss is the expected state today
+                }
+                string full = Path.Combine(getAssetsPath(), filePath);
+                if (!File.Exists(full))
+                {
+                    markMissingEffect(filePath);
+                    return;
+                }
+                lock (effectPlayers)
+                {
+                    // Reap finished players before adding another.
+                    for (int i = effectPlayers.Count - 1; i >= 0; i--)
+                    {
+                        if (!effectPlayers[i].Playing)
+                        {
+                            try { effectPlayers[i].Dispose(); } catch (Exception) { }
+                            effectPlayers.RemoveAt(i);
+                        }
+                    }
+                    var player = AVAudioPlayer.FromUrl(NSUrl.FromFilename(full));
+                    if (player == null)
+                    {
+                        return;
+                    }
+                    player.NumberOfLoops = 0;
+                    player.PrepareToPlay();
+                    player.Play();
+                    effectPlayers.Add(player);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("playEffect(" + filePath + ") skipped: " + e.Message);
+            }
+        }
+
         // ★ N73 (#391): the parameter exists for signature parity with Android, which is
         // the only platform that paints a system-bar strip of its own. No-op here.
         public static void setEdgeToEdge(string surfaceColor = null, string topColor = null)   // ★ AND-7d (#409): signature parity; still a no-op here

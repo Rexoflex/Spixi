@@ -4911,9 +4911,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * navigator.share and DOES reject when it cannot present a system sheet. The button
    * therefore did exactly nothing on desktop, silently.
    * The correct ladder already existed in the sibling shell (home.html
-   * shareReceivePayload, the A10 fix). This mirrors it, with one difference: home has
-   * `ixian:share` as its third rung, and SettingsPage dispatches no such verb, so the
-   * clipboard IS the terminal fallback here.
+   * shareReceivePayload, the A10 fix).
+   * ★ #455 (G5, Damir on device: "the share icon copies instead of sharing"). The
+   * sentence that used to be here — "SettingsPage dispatches no such verb, so the
+   * clipboard IS the terminal fallback" — was true, and it was the bug. Android's
+   * WebView implements no Web Share API at all, so rung 1 is ABSENT on the platform
+   * this button exists for, and the clipboard was not a fallback there but the only
+   * behaviour. SettingsPage now dispatches `ixian:share` (the HomePage:748 branch,
+   * lifted verbatim, sharing the same getPrimaryAddress() this shell was pushed), so
+   * the ladder reaches a native sheet like its sibling does. The clipboard stays as
+   * the last rung, for a host that has neither.
    *  1. navigator.share first, inside the click's activation window.
    *  2. On rejection: a WebKit AbortError means the sheet appeared and the user
    *     dismissed it — that is not a failure, so stay silent. WebView2 is detected
@@ -4932,17 +4939,24 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   function shareAddress({ address }) {
     const addr = address || state.address;
     if (!addr) return;
+    /* #455: the native rung is only correct for the address C# itself holds. A caller
+       that somehow passes a different string must not silently share the wallet's
+       primary address instead — it falls to the clipboard, which cannot lie. */
+    const native = () => {
+      if (addr === state.address) { bridge.send('ixian:share'); return true; }
+      return false;
+    };
     if (navigator.share) {
       try {
         navigator.share({ text: addr }).catch((e) => {
           const isWebView2 = !!(window.chrome && window.chrome.webview);
           if (e && e.name === 'AbortError' && !isWebView2) return;   // user cancelled — not a failure
-          copyAddressFallback(addr);
+          if (!native()) copyAddressFallback(addr);
         });
         return;
       } catch (e) { /* threw synchronously → fall through */ }
     }
-    copyAddressFallback(addr);
+    if (!native()) copyAddressFallback(addr);          // Android WebView: no Web Share API
   }
 
   // #274 review MAJOR-1: renderLayout, NOT showHub — showHub() re-set currentView to

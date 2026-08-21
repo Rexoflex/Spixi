@@ -1,4 +1,5 @@
 ﻿using IXICore;
+using IXICore.Meta;   // #457: Logging
 using Microsoft.Maui.ApplicationModel;   // ★ F-4: MainThread
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
@@ -19,23 +20,62 @@ namespace SPIXI
     {
         private CancellationTokenSource _cancel;
         private bool justConfirmAction = false;
+        /* ★ #234 (closed 2026-08-20, Damir): App's OWN locks — the cold-start one is not
+         * one of these, see below. They are justConfirm pages so that they pop a modal
+         * instead of rewriting the navigation stack, and confirm mode renders Cancel,
+         * which fires authSucceeded(false) → App.onUnlock → UNLOCKED, with no password.
+         * appLockMode suppresses both exits. The COLD-START lock deliberately keeps its
+         * "use a different wallet" hatch: that route leads to setup, never into the app,
+         * and it is the only way back for someone who has forgotten the password. */
+        private bool appLockMode = false;
         public event EventHandler<SPIXI.EventArgs<bool>> authSucceeded;
         public event EventHandler<SPIXI.EventArgs<bool>> authWithPassword;
+
+        /* ★ C4.1 (#457, Damir on device): "cold start flashes the password screen before
+         * the OS prompt takes over". maybeAuthenticate fires Plugin.Fingerprint as soon
+         * as the page is loaded AND visible, so the form painted and the system sheet
+         * landed on top of it — two screens for one action.
+         *
+         * A push would arrive a navigation round-trip after the first paint, i.e. it
+         * would BE the flash. So the shell is told in the FIRST FRAME, through the same
+         * generatePage carrier grammar as *SL{LaunchBootView} (#213: every C# datum
+         * reaches a redesigned shell as a push OR a carrier — never addCustomString for
+         * a live value, but this one is read once at parse time, which is what carriers
+         * are for). While it is pending lock.html holds its boot spinner.
+         *
+         * ⚠ The carrier is a PLATFORM CONSTANT; maybeAuthenticate's gate is stateful
+         * (uiReady, pageVisible, authAttempted, foreground). They are allowed to
+         * disagree — a WebView reload of a live lock re-arms the hold for an attempt
+         * that already happened — and onLoad releases the hold explicitly in that case.
+         * The 3 s belt in the shell is what makes any residual disagreement harmless.
+         * Set on EVERY construction, so the value can never go stale for a later load. */
+        private static void markAuthPending()
+        {
+            SpixiLocalization.addCustomString("LockAuthPending",
+                Device.RuntimePlatform == Device.WinUI ? "0" : "1");
+        }
 
         public LockPage()
         {
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
 
+            markAuthPending();
             loadPage(webView, "lock.html");
         }
 
-        public LockPage(bool justConfirm)
+        public LockPage(bool justConfirm) : this(justConfirm, false)
+        {
+        }
+
+        public LockPage(bool justConfirm, bool appLock)
         {
             justConfirmAction = justConfirm;
+            appLockMode = appLock;
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
 
+            markAuthPending();
             loadPage(webView, "lock.html");
         }
 
@@ -52,11 +92,32 @@ namespace SPIXI
         private bool uiReady = false;        // ixian:onload received
         private bool pageVisible = false;    // OnAppearing fired (really presented)
         private bool authAttempted = false;
+        /* ★ #460 (Damir on device, first leg): the #454 audit fix for MAJOR-2 DID NOT
+         * WORK, and the reason is a lifecycle detail worth writing down. It guarded on
+         * `App.isInForeground` — but that flag is cleared in `App.OnSleep`, which MAUI
+         * raises from Android's **OnStop**. The pause lock is created at **OnPause**,
+         * one step earlier, so the flag was still TRUE when this ran: the prompt fired
+         * into the pausing activity exactly as before, androidx.biometric cancelled it,
+         * `authAttempted` latched, and the user came back to a password field with no
+         * fingerprint offered. A lifecycle flag that turns over at the wrong moment is
+         * worse than none — this is an EXPLICIT latch that App sets and clears itself. */
+        private bool authDeferred = false;
 
         private void onLoad()
         {
             if(justConfirmAction)
                 Utils.sendUiCommand(this, "setJustConfirm", "True");
+            // #234: AFTER setJustConfirm — this mode supersedes it, and last push wins.
+            if (appLockMode)
+                Utils.sendUiCommand(this, "setAppLock", "True");
+
+            /* #457 (audit MINOR-7): a WebView reload of a LIVE lock re-arms the shell's
+             * hold from the carrier, but the attempt has already happened and no further
+             * push is coming — so say so at once instead of making the user wait out the
+             * 3 s belt. The carrier is a platform constant; this gate is stateful, and
+             * they are allowed to disagree exactly here. */
+            if (authAttempted)
+                revealPasswordForm();
 
             uiReady = true;
             maybeAuthenticate();
@@ -84,9 +145,30 @@ namespace SPIXI
             if (Device.RuntimePlatform == Device.WinUI)
                 return;
 
+            /* ★ #454 AUDIT MAJOR-2, corrected by #460: never prompt into a BACKGROUNDED
+             * app. The pause lock is pushed while the activity is pausing, so OnAppearing
+             * fires there and the WebView keeps running — this reached Plugin.Fingerprint
+             * against a paused activity. androidx.biometric cancels on pause, which meant
+             * `authAttempted` latched and the real lock the user then looked at offered NO
+             * fingerprint at all. Deferred, and deliberately NOT latched — App sets this
+             * when it creates a pause lock and clears it from OnResume. */
+            if (authDeferred)
+                return;
+
             authAttempted = true;
             // Show biometric and alternative authentication methods
-            await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));
+            try
+            {
+                await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));
+            }
+            catch (Exception e)
+            {
+                /* #457: the prompt never happened. The shell is holding its spinner for
+                 * us, so a throw here would strand the user behind it until the 3 s
+                 * belt. Say so at once and let the password field take over. */
+                Logging.error("LockPage: biometric authentication threw: " + e);
+                revealPasswordForm();
+            }
         }
 
         private void onNavigating(object sender, WebNavigatingEventArgs e)
@@ -200,9 +282,42 @@ namespace SPIXI
             });
         }
 
+        /* #460: App creates this lock while the activity is PAUSING. Hold the biometric
+         * prompt until it says the app is really back. */
+        public void deferAuthentication()
+        {
+            authDeferred = true;
+        }
+
+        /* #454: the app is in the foreground again — run the prompt that was deferred
+         * above. No-op when one already ran, when the page is not ready, or on WinUI.
+         * ⚠ Clears the latch FIRST: maybeAuthenticate reads it, and the WebView may not
+         * be loaded yet, in which case onLoad calls maybeAuthenticate again later and
+         * must find the latch already down. */
+        public void onForegroundReturned()
+        {
+            authDeferred = false;
+            maybeAuthenticate();
+        }
+
         protected override bool OnBackButtonPressed()
         {
             return true;
+        }
+
+        /* #457: release the shell's C4.1 hold. Harmless when nothing is held — a shell
+         * built before this change ignores an unknown push, and one built after defines
+         * setAuthPending unconditionally (the #258 bare-global rule). */
+        private void revealPasswordForm()
+        {
+            try
+            {
+                Utils.sendUiCommand(this, "setAuthPending", "False");
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage: setAuthPending push failed: " + e);
+            }
         }
 
         private async Task AuthenticateAsync(string reason, string cancel = null, string fallback = null, string tooFast = null)
@@ -232,6 +347,9 @@ namespace SPIXI
             }
             else
             {
+                // #457: the prompt is done and it did not let the user in — the password
+                // field is the way forward, so stop holding it behind the boot spinner.
+                revealPasswordForm();
                 _ = displaySpixiAlert(SpixiLocalization._SL("global-lock-invalidpassword-title"), SpixiLocalization._SL("global-lock-invalidpassword-text"), "Cancel");
             }
 

@@ -118,10 +118,56 @@
    * bridge.ready() — so mount on the window LOAD event (#177 load-timing
    * invariant), never during parse (a premature onload races C#'s
    * setJustConfirm push → confirm mode would arrive before the handler exists). */
+  /* ★ C4.1 (#457, Damir on device): "cold start flashes the password screen before
+   * the OS prompt takes over". LockPage fires native biometrics as soon as the page
+   * is BOTH loaded and visible — so the form painted first and the system sheet
+   * dropped over it a moment later. Two screens for one action.
+   *
+   * The fix has to land in the FIRST FRAME or it is just a second flash, so it rides
+   * a generatePage carrier (*SL{LockAuthPending}) like *SL{LaunchBootView} and
+   * *SL{SpixiThemeName} do — not a push, which arrives a navigation round-trip late.
+   * "1" means C# is about to call Plugin.Fingerprint. While that is pending the boot
+   * spinner STAYS and the form is not shown; C# pushes setAuthPending("False") when
+   * the attempt resolves without authenticating, and the form takes over.
+   *
+   * ⚠ Belt, and it is the important half: a plugin that never returns must not leave
+   * the user staring at a spinner with no way in. Reveal unconditionally after 3 s.
+   * The password field is the fallback for every biometric failure, so revealing it
+   * early is safe — it is never the thing being protected. */
+  const AUTH_PENDING = '*SL{LockAuthPending}' === '1';
+  let lockRevealed = false;
+  function revealLock() {
+    if (lockRevealed) return;
+    const lockHost = document.getElementById('lock-root');
+    // ★ AUDIT NIT-1: the flag is set only once there is something to reveal. Setting it
+    // first meant a push that somehow arrived before window load latched "revealed" over
+    // an empty host — and boot() would then hide the form with every later reveal, and
+    // the 3 s belt, already returning early. On a page whose back button is swallowed.
+    if (!lockHost) return;
+    lockRevealed = true;
+    lockHost.querySelector('.boot')?.remove();   // mountLockPage appends — drop the boot spinner
+    const screen = lockHost.querySelector('.c-lock');
+    if (screen) screen.hidden = false;
+  }
+  // The push is a bare global (#258): DEFINE it whatever the carrier says, or an exe
+  // that sends it into a shell built before this change throws before the dispatcher
+  // can catch it.
+  window.setAuthPending = function (pending) {
+    if (pending === 'True' || pending === 'true' || pending === true || pending === '1') return;
+    revealLock();
+  };
+
   function boot() {
     const lockHost = document.getElementById('lock-root');
     mountLockPage({ host: lockHost, bridge, strings });   // biometrics ← SPIXI_ENV (default false)
-    lockHost.querySelector('.boot')?.remove();   // mountLockPage appends — drop the boot spinner
+    if (AUTH_PENDING) {
+      const screen = lockHost.querySelector('.c-lock');
+      if (screen) screen.hidden = true;         // hold behind the spinner
+      setTimeout(revealLock, 3000);             // belt — never strand the user
+      if (!screen) revealLock();                // nothing to hold: fail open
+    } else {
+      revealLock();
+    }
   }
   if (document.readyState === 'complete') boot();
   else window.addEventListener('load', boot, { once: true });

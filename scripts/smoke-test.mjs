@@ -4038,7 +4038,9 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
     '★ lockUp ALSO sees a lock that is STAGING (pushModalLoaded, ~1.3s) — a ring admitted there would land UNDER the lock as an unpoppable modal');
   ok(/if \(lockUp\(rootNav\)\)\s*\{\s*UIHelpers\.refreshAppRequests = true;\s*return null;/.test(callPage),
     '★ ensureSurface refuses to present over a lock, and re-arms the refresh flag so the ring returns after the unlock');
-  ok(/CallPage\.hideSurface\(\);\s*\n\s*var lockPage = new LockPage\(true\);/.test(app),
+  // #234 rebased the constructor call here to the app-lock overload. The ORDER is what
+  // this pin is about, and it is unchanged.
+  ok(/CallPage\.hideSurface\(\);\s*\n\s*var lockPage = new LockPage\(true, true\);/.test(app),
     '★ App.OnResume tears the call surface down BEFORE staging the resume lock (no modal can sit above a lock)');
   ok(/UIHelpers\.refreshAppRequests = true;/.test(app.slice(app.indexOf('public void onUnlock'), app.indexOf('public void onLockPresentFailed'))),
     '★ onUnlock re-asserts the call state (a call that survived the lock gets its ring/bar back)');
@@ -6800,8 +6802,29 @@ console.log('#341 — Change password renders inside the Account pane');
     '★ C7 (#342): a rejection now falls through to the clipboard, and WebView2 is detected so its rejection is never mistaken for a user cancel');
   ok(/AbortError' && !isWebView2\) return;/.test(shEnc),
     'C7 (#342): a WebKit AbortError on a non-WebView2 engine means the sheet appeared and the user dismissed it — staying silent there is correct, and it is why the engine test is needed');
-  ok(/copyAddressFallback\(addr\);\s*\r?\n\s*\}\s*$/m.test(shEnc) || /\}\s*\r?\n\s*copyAddressFallback\(addr\);\s*\r?\n\s*\}/.test(shEnc),
-    'C7 (#342): the no-navigator.share engine (Android WebView) still reaches the same fallback');
+  /* ★ #455 (G5) REBASES the pin that used to live here. It asserted that the
+     no-navigator.share engine "still reaches the same fallback" — the clipboard — and
+     it was green for the whole life of the bug. That IS the bug: Android's WebView
+     implements no Web Share API, so rung 1 is absent on the only platform this button
+     ships to, and the clipboard was not a fallback there but the entire behaviour.
+     Damir: "the share icon copies instead of sharing." The ladder reaches the native
+     sheet now, like its home.html sibling, and the clipboard is the LAST rung. */
+  ok(/if \(!native\(\)\) copyAddressFallback\(addr\);\s*\/\/ Android WebView/.test(shEnc),
+    '★ #455 (G5): the no-navigator.share engine (Android WebView) tries the NATIVE sheet first and only then the clipboard');
+  ok(/const native = \(\) => \{[\s\S]{0,300}?bridge\.send\('ixian:share'\)/.test(shEnc),
+    "★ #455 (G5): the native rung emits ixian:share — the verb HomePage:748 has always dispatched and SettingsPage now does too");
+  ok(/if \(addr === state\.address\) \{ bridge\.send\('ixian:share'\); return true; \}/.test(shEnc),
+    '★ #455: the native rung is gated on the address being the one C# itself pushed. C# shares getPrimaryAddress() and ignores any argument, so a caller passing something else must fall to the clipboard rather than silently share a different string');
+  ok(/if \(!native\(\)\) copyAddressFallback\(addr\);\s*\r?\n\s*\}\);/.test(shEnc),
+    '#455: a REJECTION takes the same two rungs — native sheet, then clipboard. WebView2 rejects when it cannot present a sheet, so this leg is the desktop one');
+  {
+    const spSettings = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+    ok(/current_url\.Equals\("ixian:share", StringComparison\.Ordinal\)/.test(spSettings)
+      && /Share\.RequestAsync\(new ShareTextRequest/.test(spSettings),
+      '★ #455 (G5): SettingsPage DISPATCHES ixian:share. Without the C# branch the shell verb is swallowed by the navigation dispatcher and the button does nothing at all — worse than copying');
+    ok(/Text = IxianHandler\.getWalletStorage\(\)\.getPrimaryAddress\(\)\.ToString\(\),/.test(spSettings),
+      '#455: it shares the SAME expression SettingsPage pushed as setAddress (:143), so the sheet can never carry a different address from the one on screen');
+  }
 
   /* #342 review MINOR-1: the behavioural avatar pins run wholly inside the components,
    * so reverting the SHELL call site left them all green. This reads the shell. */
@@ -10305,11 +10328,235 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/if \(scanCurrent != lastScanCurrent \|\| scanTarget != lastScanTarget\)/.test(hp440),
     '#440: the 1 Hz tick pushes only on CHANGE — the scan steps 250 headers at a time, so an unconditional push would be mostly noise');
   const homeBuilt440 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
-  ok(/setScanProgress\(current, target, origin\) \{/.test(homeBuilt440)
+  ok(/setScanProgress\(current, target, origin, createdHere\) \{/.test(homeBuilt440)
     && /applyScanProgress\(scanProgress, \{/.test(homeBuilt440),
     '★ #440: the BUILT shell defines setScanProgress. C# emits it as a BARE GLOBAL, and an undefined one throws before native.js can catch it (#258) — at 1 Hz, on the home shell');
   ok(/scan: \(\) => scanState,/.test(homeBuilt440),
     '#440: the "Missing a transaction?" sheet reads the LIVE scan state through a getter — a value captured at build time would be stale by the time the sheet opens');
+}
+
+/* ═══ #454 / #455 / #449 / #456 / #457 — the 2026-08-20 device round ═══════════
+ * Five device-reported defects, four of them root-caused somewhere other than where
+ * they were reported. The pins below are written to fail if the ROOT CAUSE comes
+ * back, not if the symptom does. */
+{
+  const appCs = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+  const actCs = readFileSync(join(root, 'Spixi/Platforms/Android/MainActivity.cs'), 'utf8');
+  const stripCs = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const appNC = stripCs(appCs);
+  const actNC = stripCs(actCs);
+
+  /* —— #454: the lock is presented at PAUSE ————————————————————————————————— */
+  ok(/protected override void OnPause\(\)/.test(actNC)
+    && /lockOnPause\(\)/.test(actNC),
+    '★ #454: MainActivity overrides OnPause and calls App.lockOnPause. #442 covered the RESUME and failed on device every single time, because the cover is added while Android is already backgrounding the app — it lands in the view tree and is never DRAWN, so the last real frame is what the OS restores');
+  {
+    // The call must precede base.OnPause(), or the swap is queued behind the
+    // platform's own pause work. Order, not mere presence.
+    // The multi-window bail (AUDIT MINOR-4) has its own base.OnPause() + return above
+    // the call, so the meaningful test is the LAST one — the normal path's.
+    const i = actNC.indexOf('lockOnPause()');
+    const j = actNC.lastIndexOf('base.OnPause()');
+    ok(i > 0 && j > i,
+      '★ #454: lockOnPause runs BEFORE base.OnPause() — the window is still live and drawing at that point, which is the whole reason this hook is OnPause and not OnStop (MAUI raises Application.OnSleep from OnStop, too late by construction)');
+  }
+  ok(/public void lockOnPause\(\)/.test(appNC),
+    '#454: App exposes lockOnPause — platform-neutral logic, one platform hook. iOS and Windows still take the resume path, deliberately: neither has been on a device for six batches');
+  ok(/nav\.Navigation\.PushModalAsync\(lockPage, false\)/.test(appNC),
+    '★ #454: presented WITHOUT animation and without the #229 stage-then-present. The staged shape is wrong here for the opposite reason to #423 — it holds the lock INVISIBLE for up to 1.2 s, and a resume inside that window shows the old content again, which is the exact defect being fixed');
+  ok(/if \(ownIntentFresh\(\)\)/.test(appNC)
+    && /private static bool ownIntentFresh\(\)/.test(appNC)
+    && !/ownIntentStamp = DateTime\.MinValue;[\s\S]{0,80}?return age\.TotalSeconds >= 0 && age\.TotalMinutes < 5;\s*\}\s*\}\s*private static bool ownIntentFresh/.test(appNC),
+    '★ #454 + AND-21: the pause path PEEKS the own-intent stamp, it does not consume it. OnResume owns the consume — spending it here would let the picker round-trip lock one resume later, which is the bug AND-21 was written to remove');
+  ok(/foreach \(Page m in nav\.Navigation\.ModalStack\)[\s\S]{0,200}?if \(m is LockPage\)[\s\S]{0,120}?return;/.test(appNC),
+    '★ #454: never stack a pause lock over an AUTHORISE lock. SettingsPage puts one up to turn the app lock off, to delete the wallet and to delete the account — a second lock on top would make the user authenticate twice into a flow they already started');
+  ok(/if \(nav\.CurrentPage is LockPage \|\| nav\.CurrentPage is LaunchPage\)[\s\S]{0,120}?return;/.test(appNC),
+    '#454: and never over the COLD-START lock, which owns the navigation stack rather than the modal stack');
+  ok(/if \(!isLockEnabled\(\)\)[\s\S]{0,120}?return;/.test(appNC),
+    '★ #454 / C3.1: with the app lock OFF the pause path does nothing at all. Damir reported a flash on that path too, and this is the guarantee that this change cannot be the cause of it');
+  ok(/pauseLock = null;\s*\r?\n\s*isLockScreenActive = false;/.test(appNC),
+    '★ #454: a lock that FAILED to present clears both latches. Failing closed here would fail dead — #229 ruled that an unpresentable lock must leave the app usable, not latched as locked forever');
+  {
+    // onUnlock must retire the handle, or the feature disables itself after one use.
+    const iU = appNC.indexOf('public void onUnlock');
+    const iEnd = appNC.indexOf('public void onLockPresentFailed');
+    const body = appNC.slice(iU, iEnd > iU ? iEnd : iU + 2000);
+    ok(iU > 0 && /pauseLock = null;/.test(body),
+      '★ #454: AUTH retires the pause-lock handle. The handle is what stops the next pause from presenting a second lock, so a stale one would silently disable the whole feature for the rest of the session — green everywhere, dead in the hand');
+  }
+  ok(/TimeSpan sinceUnlock = DateTime\.Now - unlockedDate;/.test(appNC)
+    && /!\(ownIntentReturn \|\| sinceUnlock\.TotalSeconds <= 5\)/.test(appNC)
+    && /TimeSpan ts = sinceUnlock;/.test(appNC),
+    "★ #454 COOLDOWN (Damir's call): the 5-second no-auth window is unchanged, and it is still measured from the last real UNLOCK — not from the background. Only WHEN the lock is drawn moved; never WHETHER it is required");
+  {
+    const iD = appNC.indexOf('private bool dismissPauseLock');
+    const body = appNC.slice(iD, iD + 1400);
+    ok(iD > 0 && !/unlockedDate = /.test(body),
+      '★ #454: the grace dismissal is NOT an unlock — it must not touch unlockedDate, or backgrounding the app repeatedly would keep extending the no-auth window indefinitely');
+    ok(iD > 0 && /repaintSystemBarsFor\(null\)/.test(body),
+      '#454: popping a modal is not a navigation, so nothing else gives the Android system-bar strip back after the lock painted it its own fixed dark (the LockPage F-4 sites, same reason)');
+    ok(iD > 0 && /UIHelpers\.refreshAppRequests = true;/.test(body),
+      '#454: a call that survived the lock gets its ring or bar back on the next UI tick — the pause path hid the call surface (#272: the lock outranks it), so something has to re-assert it');
+  }
+
+  /* —— #454 audit round: the fixes, pinned so a repair cannot regress quietly ——— */
+  ok(/SpixiContentPage\.hasModalOverlay\(\) \|\| SpixiContentPage\.isLockStaging\(\)/.test(appNC),
+    '★ #454 AUDIT MAJOR-1: the pause path uses the CANONICAL lock test. The ModalStack and the NavigationStack are blind to a STAGING lock (~1.3 s for every SettingsPage authorise flow) and to an IN-PLACE one (#230) — CallPage.lockUp() tests these two FIRST for exactly this reason. Without it, a pause during a delete-wallet confirm stacked a second lock, let the delete complete underneath it, and left a lock whose password can never verify again because the wallet file is gone');
+  ok(/nav\.CurrentPage is LockPage \|\| nav\.CurrentPage is LaunchPage/.test(appNC),
+    '#454 AUDIT MINOR-6: no lock over the RETRY screen — LaunchPage("retry") already asks for the same password, so unlocking would land on another password prompt');
+  ok(/if \(!t\.IsFaulted && !t\.IsCanceled\)/.test(appNC)
+    && /MainThread\.BeginInvokeOnMainThread\(\(\) =>[\s\S]{0,400}?pauseLock = null;[\s\S]{0,120}?isLockScreenActive = false;/.test(appNC),
+    '★ #454 AUDIT MINOR-1: the present continuation is MARSHALLED and treats CANCELLED like faulted. Off-thread it wrote two latches the UI thread reads with no barrier; and an unhandled cancel left pauseLock non-null forever, so every later resume returned early with NO lock on screen — the app lock silently dead until restart');
+  ok(/private bool dismissPauseLock\(LockPage lp\)/.test(appNC)
+    && /!dismissPauseLock\(held\)/.test(appNC),
+    '★ #454 AUDIT MINOR-3: dismissal REPORTS whether it happened. When the push has not committed the lock stays up and the resume returns — the alternative was the app believing it was unlocked while a lock it had forgotten about sat on screen');
+  /* ★ #461: the residual flash was the TASK SNAPSHOT — Damir's task switcher showed the
+     chat list, which is the same picture the app-open animation draws. */
+  ok(/private void applyRecentsPrivacy\(\)/.test(actNC)
+    && /SetRecentsScreenshotEnabled\(!locked\);/.test(actNC),
+    '★ #461: the system is told not to CAPTURE the task snapshot while the app lock is on. #454 fixed what the live view tree contains, and that is not what Android draws during the app-open animation — no managed code runs early enough to get in front of that capture');
+  ok(/OperatingSystem\.IsAndroidVersionAtLeast\(33\)/.test(actNC),
+    "★ #461: API 33+ ONLY, and setRecentsScreenshotEnabled — NOT FLAG_SECURE. It blanks the snapshot without blocking the user's own screenshots, which is the trade Damir declined. Below 33 nothing is applied rather than silently taking screenshots away");
+  ok(/SetRecentsScreenshotEnabled\(!locked\)/.test(actNC) && !/SetRecentsScreenshotEnabled\(false\)/.test(actNC),
+    '#461: SYMMETRIC — turning the app lock off gives the thumbnail back. A one-way call would leave a blank task switcher forever after a single session with the lock on');
+  {
+    const iR = actNC.indexOf('protected override void OnResume');
+    const iP = actNC.indexOf('protected override void OnPause');
+    ok(iR > 0 && iP > 0
+      && /protected override void OnResume\(\)\s*\{\s*base\.OnResume\(\);\s*applyRecentsPrivacy\(\);/.test(actNC)
+      && /protected override void OnPause\(\)\s*\{\s*applyRecentsPrivacy\(\);/.test(actNC),
+      '★ #461: applied at BOTH lifecycle edges. OnResume alone misses the case that matters most — the user turns the lock ON in Settings and backgrounds the app with no resume in between, so the very first snapshot after enabling it would still be their content');
+  }
+  {
+    const actMW = /IsInMultiWindowMode \|\| IsInPictureInPictureMode/.test(actNC);
+    ok(actMW && /Build\.VERSION\.SdkInt >= BuildVersionCodes\.N/.test(actNC),
+      '★ #454 AUDIT MINOR-4: split screen and picture-in-picture pause the activity while Spixi is STILL VISIBLE. Presenting there would drop a lock on screen while the user watches, on every tap in the other pane. API-guarded — minSdk is 23');
+  }
+  {
+    const lpCs2 = readFileSync(join(root, 'Spixi/Pages/Launch/LockPage.xaml.cs'), 'utf8');
+    const lpNC2 = stripCs(lpCs2);
+    ok(/if \(authDeferred\)\s*\r?\n\s*return;\s*\r?\n\s*authAttempted = true;/.test(lpNC2)
+      && /lockPage\.deferAuthentication\(\);/.test(appNC)
+      && !/isInForeground/.test(lpNC2),
+      '★ #460 (Damir on device): no biometric prompt into a PAUSING app, held by an EXPLICIT latch. The first cut guarded on App.isInForeground and did nothing at all — that flag is cleared in App.OnSleep, which MAUI raises from Android\'s OnStop, one step AFTER the OnPause where the lock is created. So it was still true, the prompt fired into the pausing activity, androidx.biometric cancelled it, authAttempted latched, and Damir came back to a password field with no fingerprint offered');
+    ok(/public void deferAuthentication\(\)/.test(lpNC2)
+      && /authDeferred = false;\s*\r?\n\s*maybeAuthenticate\(\);/.test(lpNC2),
+      '★ #460: the latch is cleared BEFORE maybeAuthenticate runs. The WebView may still be loading when the app returns, in which case onLoad calls maybeAuthenticate again later and must find the latch already down — or the prompt is lost a second way');
+    ok(/public void onForegroundReturned\(\)/.test(lpNC2) && /held\.onForegroundReturned\(\);/.test(appNC),
+      '★ #454 AUDIT MAJOR-2: the deferred prompt is run when the app is really back. Deferring without a wake-up would have removed fingerprint unlock instead of fixing it');
+    ok(/if \(authAttempted\)\s*\r?\n\s*revealPasswordForm\(\);/.test(lpNC2),
+      '#457 AUDIT MINOR-7: a WebView reload of a LIVE lock re-arms the carrier hold for an attempt that already happened. onLoad releases it at once rather than making the user wait out the 3 s belt');
+
+    /* ★ #234 — the Cancel bypass, closed (Damir, 2026-08-20) */
+    ok(/private bool appLockMode = false;/.test(lpNC2)
+      && /public LockPage\(bool justConfirm, bool appLock\)/.test(lpNC2)
+      && /if \(appLockMode\)\s*\r?\n\s*Utils\.sendUiCommand\(this, "setAppLock", "True"\);/.test(lpNC2),
+      '★ #234: App-owned locks declare themselves. They are justConfirm pages so they pop a modal instead of rewriting the navigation stack — and confirm mode renders Cancel, which fires authSucceeded(false) → App.onUnlock → UNLOCKED with no password');
+    ok((appNC.match(/new LockPage\(true, true\)/g) || []).length === 2
+      && !/new LockPage\(true\);/.test(appNC),
+      '★ #234: BOTH App locks — the pause one and the older resume one — take the app-lock mode. Closing one and leaving the other is how a bypass survives its own fix');
+    {
+      // SettingsPage's authorise locks KEEP Cancel: cancelling "turn the app lock off"
+      // must be possible, and none of them can unlock the app.
+      const spCs = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+      ok(/new LockPage\(true\);/.test(spCs) && !/new LockPage\(true, true\)/.test(spCs),
+        '#234: the SETTINGS authorise locks are untouched — their Cancel abandons the flow the user started, it does not open the app');
+    }
+    const lockShell = readFileSync(join(root, 'src/components/lock-shell.js'), 'utf8');
+    ok(/const appLock = st\.mode === 'locked';/.test(lockShell)
+      && /hatch\.hidden = confirm \|\| appLock;/.test(lockShell)
+      && /mode !== 'unlock' && mode !== 'confirm' && mode !== 'locked'/.test(lockShell),
+      "★ #234: 'locked' mode offers NEITHER exit — no Cancel and no hatch");
+    {
+      /* ⚠ lock.html does NOT inline the bundle — build-shells co-locates it as
+         spixi.bundle.js and the shell <script src>es it. The first cut of this pin read
+         lock.html and was RED with the handler present and correct: read the artifact
+         that actually carries the code. */
+      const bundleBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
+      ok(/setAppLock\(v\) \{ if \(String\(v\)\.toLowerCase\(\) === 'true'\) setLockMode\(el, 'locked'\); \}/.test(bundleBuilt),
+        '★ #234: the BUILT bundle handles setAppLock. A bare global C# emits into a page holding a password field must exist there, or it throws before the dispatcher can catch it (#258)');
+      ok(/const appLock = st\.mode === 'locked';/.test(bundleBuilt)
+        && /hatch\.hidden = confirm \|\| appLock;/.test(bundleBuilt),
+        "★ #234: and the BUILT bundle carries 'locked' mode itself — a component edit that never reached the bundle is the #258 skew that shipped a blank home screen");
+    }
+    // The escape that must SURVIVE: the cold-start lock keeps its hatch, which leads to
+    // setup — out of the app, never into it. That is the forgotten-password route.
+    ok(/public LockPage\(\)\s*\r?\n\s*\{/.test(lpNC2) && !/public LockPage\(\)[\s\S]{0,200}?appLockMode = true/.test(lpNC2),
+      '★ #234: the COLD-START lock keeps its "use a different wallet" hatch. It leads to setup, never into the app — and it is the only way back for someone who has forgotten their password, so closing the bypass must not close that');
+  }
+
+  /* —— #449: the tx header showed a full address ————————————————————————————— */
+  {
+    const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+    const homeBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
+    const stripJs = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
+    for (const [label, txt] of [['source', stripJs(homeSrc)], ['BUILT shell', stripJs(homeBuilt)]]) {
+      ok(/const realNick = hit\.name && hit\.name !== hit\.address \? hit\.name : '';/.test(txt)
+        && /name: realNick \|\| tx\.name,/.test(txt),
+        `★ #449 (${label}): enrichTx takes the roster name only when it is a REAL nickname. C# sends friend.nickname, and a contact created without one has its own ADDRESS as its nick — so this join was putting the full 65-character base58 back into the sheet header after both ingest paths had correctly truncated it`);
+      ok(!/name: hit\.name \|\| tx\.name,/.test(txt),
+        `★ #449 (${label}): the unguarded join is GONE. It is why the bug could never be reproduced from the row — the ROW was right and the HEADER was wrong, on the same screen`);
+    }
+  }
+
+  /* —— #456: a fresh wallet has nothing to scan for —————————————————————————— */
+  {
+    const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+    const homeBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
+    const lp = readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8');
+    const sp = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+    const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+    ok(/Preferences\.Default\.Set\("walletCreatedHere", "1"\);/.test(lp)
+      && /Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(lp),
+      '★ #456: the CREATE site records that this wallet was generated here and the RESTORE site clears it. Nothing else in the app can tell the two apart — both start with empty block storage at CoreConfig.bakedBlockHeight, and LocalStorage.accountRestored is consumed inside Node.preStart, before HomePage exists');
+    ok(/Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(sp),
+      '#456: delete-account clears the marker too — it belongs to the wallet, not to the device');
+    ok(/walletCreatedHere \? "1" : "0"/.test(hp),
+      '#456: the marker rides setScanProgress as a fourth argument. Additive: an older shell ignores it, which is the right way for this to degrade');
+    for (const [label, txt] of [['source', homeSrc], ['BUILT shell', homeBuilt]]) {
+      ok(/function scanIsMoot\(\) \{[\s\S]{0,400}?scanCreatedHere[\s\S]{0,200}?Number\(walletRawBalance\) > 0[\s\S]{0,200}?txs \|\| \[\]\)\.length === 0/.test(txt),
+        `★ #456 (${label}): all THREE parts, or the row stays. "The scan is at 0%" is not the condition — a restored wallet also starts at 0% and may have years of history waiting. Created here AND no balance AND no rows is the honest one`);
+      ok(/applyScanRow\(\);/.test(txt) && (txt.match(/applyScanRow\(\);/g) || []).length >= 3,
+        `★ #456 (${label}): the gate is re-evaluated on the BALANCE and the tx model, not only on the scan push. Balance comes from a master node independently of the header scan, so a positive one PROVES this address has history the scan has not reached — exactly when the row must come back`);
+    }
+  }
+
+  /* —— #457 / C4.1: the password form flashed before the OS prompt ——————————— */
+  {
+    const lockSrc = readFileSync(join(root, 'src/shells/lock.html'), 'utf8');
+    const lockBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/lock.html'), 'utf8');
+    const lpCs = readFileSync(join(root, 'Spixi/Pages/Launch/LockPage.xaml.cs'), 'utf8');
+    ok(/SpixiLocalization\.addCustomString\("LockAuthPending",/.test(lpCs)
+      && /Device\.RuntimePlatform == Device\.WinUI \? "0" : "1"/.test(lpCs),
+      '★ #457 (C4.1): the shell is told in the FIRST FRAME, through a generatePage carrier. A push arrives a navigation round-trip after the first paint — it would BE the flash rather than remove it');
+    ok((lpCs.match(/markAuthPending\(\);\s*\r?\n\s*loadPage\(webView, "lock\.html"\);/g) || []).length === 2,
+      '#457: set in BOTH constructors, immediately before loadPage — addCustomString is global state, so a value left over from an earlier page would hold the form on a host that never prompts. Two call sites, and each one paired with its own load');
+    ok(/revealPasswordForm\(\);\s*\r?\n\s*_ = displaySpixiAlert/.test(lpCs),
+      '★ #457: when the prompt resolves WITHOUT authenticating, the hold is released before the alert — the password field is the way forward from there');
+    // Comment-STRIPPED: the docblock inside this catch explains what it does, so an
+    // unstripped window either has to be widened until it proves nothing, or it matches
+    // the prose instead of the call. The #453 lesson, applied on the way in.
+    {
+      const lpNC = stripCs(lpCs);
+      ok(/await AuthenticateAsync\([\s\S]{0,120}?\}\s*catch \(Exception e\)\s*\{[\s\S]{0,200}?revealPasswordForm\(\);/.test(lpNC),
+        '★ #457: a THROW from the fingerprint plugin releases the hold too. Otherwise the user waits behind a spinner for the 3 s belt with no explanation');
+    }
+    for (const [label, txt] of [['source', lockSrc], ['BUILT shell', lockBuilt]]) {
+      ok(/window\.setAuthPending = function/.test(txt),
+        `#457 (${label}): setAuthPending is DEFINED unconditionally. C# emits it as a bare global and an undefined one throws while the arguments are evaluated, before the dispatcher can catch it (#258) — into a page holding a password field`);
+      ok(/setTimeout\(revealLock, 3000\)/.test(txt),
+        `★ #457 (${label}) BELT: a plugin that never returns must not strand the user behind a spinner. The password field is the fallback for every biometric failure, so revealing it early is safe — it is never the thing being protected`);
+      ok(/const AUTH_PENDING = '\*SL\{LockAuthPending\}' === '1';/.test(txt),
+        `#457 (${label}): the carrier is read at parse time, which is what carriers are for`);
+    }
+    {
+      // Comment-stripped, so the docblock that NAMES the carrier is not counted as a
+      // second reader of it. Exactly one live site, or two places decide the hold.
+      const builtNC = lockBuilt.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+      ok((builtNC.match(/\*SL\{LockAuthPending\}/g) || []).length === 1,
+        '#457: exactly ONE live reader of the carrier in the built shell — nowhere else can hold the form by accident');
+    }
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

@@ -1895,8 +1895,24 @@
       const byName = !byAddr && raw.name ? contactsRoster.find((c) => c && !isGroupContact(c) && c.name === raw.name) : null;
       const hit = byAddr || byName;
       if (!hit) return tx;
+      /* ★ #449 (Damir on device, twice: the tx header showed a FULL 65-character
+         address). Reported as a truncation bug and it is not one — BOTH ingest paths
+         truncate correctly, which is why it could never be reproduced from the row.
+         The full address is put BACK here, at sheet-open time. C# sends
+         `friend.nickname` for a contact, and a contact created without a nickname has
+         its own address as its nick (FriendList.addFriend is called with
+         `address.ToString()` as the nick) — so `hit.name` IS the raw address for
+         exactly those counterparties, and this join overwrote the already-truncated
+         display value with it. The row above and the header below disagreed on the
+         same screen, which is what Damir photographed.
+         The contacts directory has always guarded this — `hasNick` in
+         contacts-shell.js — because it is the same data. Take the roster name only
+         when it is a real nickname; otherwise keep the display value the ingest path
+         already canonicalised. `address` is untouched: the full value belongs in the
+         copyable field inside the drawer (#211). */
+      const realNick = hit.name && hit.name !== hit.address ? hit.name : '';
       return Object.assign({}, tx, {
-        name: hit.name || tx.name,
+        name: realNick || tx.name,
         address: raw.address || hit.address || '',
         avatar: hit.avatar || null,
         contact: true,               // sheet header: avatar + "Sent to/Received from {name}"
@@ -2172,7 +2188,53 @@
      the #278 overflow measurement, and rebuilding it would re-run that on every push. */
   function syncMissTxPill() {
     const pill = walletFilters.querySelector('.c-wallet-misstx');
-    if (pill) pill.hidden = !scanProgress.hidden;
+    // #456: on a wallet with provably nothing to find, neither entry point applies —
+    // see scanIsMoot. Otherwise the two alternate, one at a time (#452).
+    if (pill) pill.hidden = scanIsMoot() ? true : !scanProgress.hidden;
+  }
+
+  /* ★ #456 (Damir): "a fresh wallet should show the EMPTY STATE, not 'Checking for
+     your transactions'". The honest condition is not "the scan is at 0%" — a restored
+     wallet also starts at 0% and may have years of history waiting. It is: this wallet
+     was GENERATED on this device (so nothing can exist before it), it holds no money,
+     and no transaction has ever been listed. All three, or the row stays.
+
+     Each part earns its place:
+       · createdHere — the only thing that separates a new wallet from a restored one.
+         C# sends it; nothing in the shell could know it. Absent (an older exe, or an
+         install that predates the preference) = false = today's behaviour.
+       · balance 0 — the balance comes from a master node and is INDEPENDENT of the
+         header scan, so a positive balance proves this address has on-chain history
+         the scan has not reached yet. That is precisely when the row must be visible.
+       · no rows — anything already listed means the scan is finding things.
+
+     Any of the three turning true re-shows the row, which is why this is re-evaluated
+     on the balance and activity pushes and not only on the scan push. */
+  let scanCreatedHere = false;
+  let lastScanArgs = null;
+  function scanIsMoot() {
+    return scanCreatedHere
+      && !(Number(walletRawBalance) > 0)
+      && (walletState.txs || []).length === 0;
+  }
+  function applyScanRow() {
+    if (!lastScanArgs) { syncMissTxPill(); return; }
+    if (scanIsMoot()) {
+      scanProgress.hidden = true;
+      delete scanProgress.dataset.state;
+      delete scanProgress.dataset.percent;
+    } else {
+      applyScanProgress(scanProgress, {
+        current: lastScanArgs.current,
+        target: lastScanArgs.target,
+        origin: lastScanArgs.origin,
+        strings: walletStrings,
+      });
+    }
+    // Ask the component for its own reading rather than re-deriving it — a second
+    // percent calculation here is how two surfaces start disagreeing.
+    scanState = scanProgressState(scanProgress);
+    syncMissTxPill();
   }
   syncMissTxPill();
 
@@ -2193,6 +2255,9 @@
       walletRenderQueued = false;
       renderWalletTxList(walletList, walletState, walletOpts);
       if (selectedTxid) applyTxSelection();
+      // #456: the row count is one of the three parts of scanIsMoot, and this is the
+      // single funnel every tx-model change goes through (clear + add).
+      applyScanRow();
     });
   }
 
@@ -2922,6 +2987,10 @@
     // the app language (★ I-6 #360, money.js groupAmountDisplay), "$" on fiat.
     setBalance(balance, fiatBalance, _nick) {
       walletRawBalance = balance || '';   // RAW (un-grouped) — the Send compose does money math on it
+      // #456: a positive balance PROVES this address has on-chain history, whatever the
+      // wallet's origin — so it re-shows a suppressed scan row. Balance arrives from a
+      // master node, independently of the header scan, which is what makes it evidence.
+      applyScanRow();
       // N32 (Damir): an absolute-zero balance reads "0.00" (IXI + fiat), locale
       // separators via groupAmountDisplay. Nonzero keeps the verbatim-decimals
       // display; empty stays empty (no push yet).
@@ -2940,14 +3009,13 @@
        Zero on current or target means UNKNOWN, not 0% — the component owns that
        distinction. An exe that does not send this leaves the strip hidden forever,
        which is the correct degrade. */
-    setScanProgress(current, target, origin) {
-      applyScanProgress(scanProgress, {
-        current, target, origin, strings: walletStrings,
-      });
-      // Ask the component for its own reading rather than re-deriving it — a second
-      // percent calculation here is how two surfaces start disagreeing.
-      scanState = scanProgressState(scanProgress);
-      syncMissTxPill();
+    setScanProgress(current, target, origin, createdHere) {
+      // #456 fourth argument, additive: "1" when this wallet was generated on this
+      // device. An exe that does not send it leaves this false, which is the old
+      // behaviour — the row is never suppressed on a guess.
+      scanCreatedHere = createdHere === '1' || createdHere === 1 || createdHere === true;
+      lastScanArgs = { current, target, origin };
+      applyScanRow();
     },
 
     // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).

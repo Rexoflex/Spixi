@@ -178,6 +178,13 @@ namespace SPIXI
         private ulong scanOriginBlock = 0;
         private ulong lastScanCurrent = ulong.MaxValue;
         private ulong lastScanTarget = ulong.MaxValue;
+        /* #456: read once per process. A wallet GENERATED on this device has no history
+         * behind it, so the shell may suppress the scan row while that wallet is also
+         * empty and unfunded — "checking for your transactions" is noise when there is
+         * provably nothing to check for. See the LaunchPage create/restore sites for why
+         * this preference has to exist: nothing else in the app can tell a new wallet
+         * from a restored one. */
+        private bool walletCreatedHere = Preferences.Default.Get("walletCreatedHere", "") == "1";
 
         // Interal cache object to store contact status items
         private struct contactStatusCacheItem
@@ -2674,8 +2681,13 @@ namespace SPIXI
                     {
                         lastScanCurrent = scanCurrent;
                         lastScanTarget = scanTarget;
+                        /* #456: FOURTH ARGUMENT, additive. The shell decides visibility —
+                         * it is the side that knows the balance and the row count — so
+                         * this only reports whether the wallet was generated here. An
+                         * older shell ignores the extra argument. */
                         Utils.sendUiCommand(this, "setScanProgress",
-                            scanCurrent.ToString(), scanTarget.ToString(), scanOriginBlock.ToString());
+                            scanCurrent.ToString(), scanTarget.ToString(), scanOriginBlock.ToString(),
+                            walletCreatedHere ? "1" : "0");
                     }
                 }
                 catch (Exception e)

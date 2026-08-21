@@ -110,6 +110,16 @@ function lockSync(st) {
   const { title, copy, hatch, cancel } = st.els;
   const { strings } = st.opts;
   const confirm = st.mode === 'confirm';
+  /* ★ #234 (closed 2026-08-20, Damir): 'locked' is the APP LOCK — the resume/pause
+     lock App puts up. It reads like the unlock screen, and it offers NEITHER exit.
+     Why it has to exist: App creates that lock in justConfirm mode (so it pops the
+     modal instead of rewriting the navigation stack), and confirm mode renders
+     Cancel → ixian:change → authSucceeded(false) → App.onUnlock, which ignores the
+     bool. One tap opened the app WITHOUT the password. That shipped, and presenting
+     at pause (#454) put it on every single background, so it stopped being a corner.
+     A forgotten password still has its escape: kill the app and the COLD-START lock
+     keeps the hatch, which leads to setup — out of the app, never into it. */
+  const appLock = st.mode === 'locked';
   st.els.root.dataset.mode = st.mode;
   // #160 (Damir): the whole APP is locked, not just the wallet — never
   // "Wallet locked"; the body copy keeps "wallet password" (that IS the secret)
@@ -119,7 +129,7 @@ function lockSync(st) {
   copy.textContent = confirm
     ? (strings.confirmCopy || 'Enter your wallet password to continue.')
     : (strings.lockCopy || 'Enter your wallet password to unlock.');
-  hatch.hidden = confirm;                        // escape hatch = unlock mode only
+  hatch.hidden = confirm || appLock;             // escape hatch = unlock mode only
   cancel.hidden = !confirm;                      // Cancel = confirm mode only
 }
 
@@ -306,10 +316,10 @@ export function createLockScreen({
   return el;
 }
 
-/** setJustConfirm("True") mirror — flips title/copy/hatch/cancel. */
+/** setJustConfirm("True") / setAppLock("True") mirror — flips title/copy/hatch/cancel. */
 export function setLockMode(el, mode) {
   const st = lockState.get(el);
-  if (!st || (mode !== 'unlock' && mode !== 'confirm') || st.mode === mode) return;
+  if (!st || (mode !== 'unlock' && mode !== 'confirm' && mode !== 'locked') || st.mode === mode) return;
   st.mode = mode;
   lockSync(st);
 }

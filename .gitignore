@@ -460,3 +460,13 @@ _*.patch
 _gitlock_trash/
 _to_delete/
 _to_delete_*
+
+# ★ #513 — DELIVERY TARBALLS MUST NOT ENTER GIT.
+# Every cloud session lands its work as a tarball at the repo root. 39 of them
+# were tracked before anyone noticed — 60 MB of binaries in the history, and the
+# figure grew every session, because GitHub Desktop shows them as ordinary
+# untracked files and "commit all" sweeps them in.
+# Future sessions land into _deliveries/ instead; the root pattern is the belt.
+/_deliveries/
+/spixi-*.tar.gz
+/twin*.tar.gz

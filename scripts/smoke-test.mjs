@@ -10102,7 +10102,12 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
   const scp438 = read4('Spixi/Utils/SpixiContentPage.cs');
   ok(/SpixiContentPage\.showPrivacyShield\(true\);[^\n]*\n\s*\/\/ Show the lock screen\s*\n\s*isLockScreenActive = true;/.test(app438),
     '★ #438: the shield goes down BEFORE anything else in the lock branch. #229 stages the lock hidden on the CURRENT page and presents only once lock.html signals ready — for that whole window the user\'s chat list is what is on screen, unauthenticated. Damir measured about a second on Android');
-  ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)\s*\n\s*\{\s*\n\s*SpixiContentPage\.showPrivacyShield\(\);\s*\n\s*\}\s*\n\s*isInForeground = false;/.test(app438),
+  /* #496 rider: markBackgrounded() now sits between the shield and `isInForeground`,
+   * so the adjacency this pin asserted moved by one line. The SUBJECT is unchanged —
+   * the shield is still guarded and still on the OnSleep path — so the regex is widened
+   * to the guard plus the call rather than the two being neighbours. */
+  ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)\s*\n\s*\{\s*\n\s*SpixiContentPage\.showPrivacyShield\(\);\s*\n\s*\}/.test(app438)
+    && /markBackgrounded\(\);\s*\n\s*isInForeground = false;/.test(app438),
     '★ #438, the OTHER half: OnSleep covers the window too, and ONLY while the lock is enabled. Android snapshots the visible window for the task switcher and draws it during the app-open animation — BEFORE OnResume runs — so no resume-time cover can reach it. With no lock there is nothing to protect and a dark flash on every app switch would be a regression');
   ok(/if \(!isLockScreenActive\)\s*\n\s*\{\s*\n\s*SpixiContentPage\.hidePrivacyShield\(\);\s*\n\s*\}/.test(app438),
     '★ #438 (+ audit MINOR-9): a resume that does NOT lock uncovers — but never while a lock is UP or STAGING. isLockScreenActive is already true through the #229 staging window, and the lock branch skips those resumes, so an unguarded uncover here exposed exactly the content the shield was raised over');
@@ -10418,10 +10423,21 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     ok(iU > 0 && /pauseLock = null;/.test(body),
       '★ #454: AUTH retires the pause-lock handle. The handle is what stops the next pause from presenting a second lock, so a stale one would silently disable the whole feature for the rest of the session — green everywhere, dead in the hand');
   }
+  /* ★★ THIS PIN WENT RED ON PURPOSE, and it is the most important line in this file to
+   * read slowly. It was a break-my-verdict pin from #454: it asserted that the grace was
+   * measured from the last UNLOCK and NOT from the background, precisely so that nobody
+   * could quietly move it. #496 moves it — because Damir, shown the trade-off, asked for
+   * it: "sometimes yes sometimes no" was that dial seen from outside.
+   *
+   * So the pin is REWRITTEN to guard the new ruling, not deleted. The window is still
+   * five seconds, it is still a no-auth window, and it is still the only thing standing
+   * between a background and a prompt. What changed is which clock it reads, and the pin
+   * now says so — including the length, so a future edit cannot widen the window while
+   * keeping the shape. */
   ok(/TimeSpan sinceUnlock = DateTime\.Now - unlockedDate;/.test(appNC)
-    && /!\(ownIntentReturn \|\| sinceUnlock\.TotalSeconds <= 5\)/.test(appNC)
-    && /TimeSpan ts = sinceUnlock;/.test(appNC),
-    "★ #454 COOLDOWN (Damir's call): the 5-second no-auth window is unchanged, and it is still measured from the last real UNLOCK — not from the background. Only WHEN the lock is drawn moved; never WHETHER it is required");
+    && /!\(ownIntentReturn \|\| withinGrace\)/.test(appNC)
+    && /private const double LOCK_GRACE_SECONDS = 5;/.test(appNC),
+    "★ #454 COOLDOWN → #496 (Damir's call 2026-08-21): the no-auth window is still FIVE seconds and still the only gate between a background and a prompt — but it is now measured from the BACKGROUND, not from the last unlock. The old assertion is deliberately retired here rather than deleted, because a break-my-verdict pin that is simply removed is a ruling that changed with nobody noticing");
   {
     const iD = appNC.indexOf('private bool dismissPauseLock');
     const body = appNC.slice(iD, iD + 1400);
@@ -10766,12 +10782,23 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       `SND: ${plat} implements playEffect — IPlatformUtils is DEAD CODE (nothing implements or consumes it), so the real binding is the per-platform static class`);
   }
   {
-    // ★ No assets are invented — Damir picks them. The app must therefore be SILENT
-    // today and become audible the moment the files land, with no code change.
+    /* ★★ THE SECOND PIN THIS BATCH RETIRED ON PURPOSE. It asserted that the four effect
+     * files DO NOT exist — "no assets are invented, Damir picks them" — and it was right
+     * to exist: it is what kept three earlier batches from quietly inventing them.
+     *
+     * On 2026-08-22 Damir asked for placeholders in so many words ("pick some for me to
+     * try"), which is the pick, so the assertion is inverted rather than deleted. What it
+     * guards now is the property that actually matters and always did: **the app is still
+     * silent-safe without them.** A missing file must remain a fail-soft no-op, because
+     * that is what was verified on iOS hardware in the 2026-08-21 pass and it is what
+     * makes replacing these files free.
+     *
+     * The existence half now lives with #497 above, read out of SSounds rather than from
+     * a second copy of the list. */
     const soundsDir = readdirSync(join(root, 'Spixi/Resources/Raw/sounds'));
     const effects = ['message_sent.mp3', 'message_received.mp3', 'tx_sent.mp3', 'tx_received.mp3'];
-    ok(effects.every((e) => !soundsDir.includes(e)),
-      '★ SND: NO sound assets are invented — the brief says they are Damir\'s pick. The plumbing and the switch ship; every effect is a fail-soft no-op until the four files land');
+    ok(effects.every((e) => soundsDir.includes(e)),
+      '★ SND → #497: the four effects are on disk at last — UI SFX `zen`, CC0. The old assertion, that they must NOT exist, guarded three batches against inventing them; Damir\'s "pick some for me to try" IS the pick, so it is inverted here in place rather than deleted, and the ruling changing stays visible');
     ok(effects.every((e) => sounds.includes(e)),
       'SND: the file contract is written down in SSounds so landing the assets is a drop-in');
   }
@@ -10813,7 +10840,9 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '★ F3: EVERY exit from maybeAuthenticate reports — the three skips (gate, WinUI, deferred) and the PROMPT. A branch that logged nothing would be the one place the answer could hide');
   ok(/SLockDiag\.mark\("lock\/onForegroundReturned"/.test(lockPage),
     '★ F3: the verdict asks explicitly whether App.OnResume reached onForegroundReturned() at all — so it says so itself');
-  ok(/SLockDiag\.mark\("resume\/lock-stays-up", "releasing deferred auth"\);/.test(appCs),
+  /* #500 rider: the message gained "· stamp restored (#500)" so the log states the
+   * security-relevant half of this branch too. The MARK is the subject, not its wording. */
+  ok(/SLockDiag\.mark\("resume\/lock-stays-up", "releasing deferred auth/.test(appCs),
     '★ F3: and the caller reports reaching it, so an absent pair localises the fault to App.OnResume\'s branching rather than to the lock');
   {
     /* ★ THE LOG-ONLY GUARANTEE, mechanically. The two failed fixes both CHANGED this
@@ -10994,6 +11023,351 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/return true;\s*\n\s*\}\s*\n\s*catch \(Exception e\)\s*\n\s*\{[\s\S]{0,200}?return true;   \/\/ fail OPEN/.test(notifPrefs2)
     || /fail OPEN: a lost message is worse than an unwanted buzz/.test(notifPrefs2),
     '★ NOTIF-5: fails OPEN. A push we cannot attribute is not a push we can prove was muted, and silently dropping mail is the worse error');
+}
+
+{
+  /* —— #493/#494/#495: closed-app notifications ————————————————————————————
+   * The batch's biggest lane. Every pin here was made to fail on purpose before it
+   * was kept — the registration moved back into initialize(), the latch reset
+   * deleted, the cold-push poster swapped for e.Notification.display(). */
+  const andPushA = readFileSync(join(root, 'Spixi/Platforms/Android/SPushService.cs'), 'utf8');
+  const iosPushA = readFileSync(join(root, 'Spixi/Platforms/iOS/SPushService.cs'), 'utf8');
+  const mainAppA = readFileSync(join(root, 'Spixi/Platforms/Android/MainApplication.cs'), 'utf8');
+  const nodeCsA  = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
+  /* ★ Comments stripped for every NEGATIVE test. This file's own lesson: a pin that
+   * reads its subject's explanatory prose passes vacuously, and two did last batch. */
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  /* ★ Sliced to the FUNCTION, not to a byte budget — the standing rule. */
+  const fnOf = (src, sig) => {
+    const i = src.indexOf(sig);
+    if (i < 0) return '';
+    const rest = src.slice(i + sig.length);
+    const j = rest.search(/\n        (?:public|private|internal|protected|static|\/\/\/)/);
+    return src.slice(i, i + sig.length + (j < 0 ? rest.length : j));
+  };
+
+  /* — #493: the registration is in the APPLICATION, and it is what a cold push meets — */
+  ok(/public static void registerEarly\(\)/.test(andPushA),
+    '★ #493 (#483): registerEarly() exists — the split that lets a push to a KILLED app meet a live handler. Its absence is the whole defect Damir reported ("if I close the app the notifications keep coming and they are not grouped")');
+  {
+    const reg = fnOf(andPushA, 'public static void registerEarly()');
+    ok(/OneSignal\.Notifications\.Clicked \+= handleNotificationOpened;/.test(reg)
+      && /OneSignal\.Notifications\.WillDisplay \+= handleNotificationReceived;/.test(reg)
+      && /OneSignal\.Initialize\(SPIXI\.Meta\.Config\.oneSignalAppId\);/.test(reg),
+      '★ #493: BOTH handlers and Initialize live in registerEarly. WillDisplay is the one the whole NOTIF-5 mute gate hangs off; leaving either behind in initialize() would re-open the ~4 s window the closed-app log measured');
+    /* ★ AUDIT MINOR on #493: the handlers are attached BEFORE Initialize (a push must not
+     * arrive between the two) while `oneSignalReady` is set AFTER it — so an Initialize
+     * that throws left them attached, and the retry in initialize() subscribed BOTH a
+     * second time: two PreventDefault calls and two posts per push, two StartActivity
+     * calls on a tap. Attachment latches separately from readiness. */
+    ok(/if \(!handlersAttached\)\s*\n\s*\{\s*\n\s*handlersAttached = true;\s*\n\s*OneSignal\.Notifications\.Clicked \+=/.test(reg),
+      '★ #493 (audit MINOR): the handler subscription is latched by its OWN flag, set BEFORE the `+=` pair. registerEarly is retried whenever Initialize throws, and re-subscribing would double every push and every tap');
+    ok(/oneSignalReady = false;[\s\S]{0,200}?Logging\.error\("registerEarly failed/.test(reg),
+      '★ #493 vs #489: registerEarly leaves its flag FALSE when it throws, so the node-start belt retries. A flag that survives its own failure is the exact bug #494 fixes three lines down — this one must not repeat it');
+  }
+  ok(/base\.OnCreate\(\);[\s\S]{0,2000}?SPushService\.registerEarly\(\);/.test(mainAppA),
+    '★ #493: MainApplication.OnCreate registers the handlers, AFTER base.OnCreate(). Android runs Application.OnCreate before ANY component in the process — receiver, service or activity — which is precisely why the Activity was the wrong home: a push that wakes a dead process may never start one');
+  ok(/try\s*\n\s*\{\s*\n\s*SPushService\.registerEarly\(\);\s*\n\s*\}\s*\n\s*catch/.test(mainAppA),
+    '#493: fenced. A throw escaping Application.OnCreate takes the app down before it starts, and lifecycle ordering is the class that produced #442, #454 and #460');
+  {
+    const init = code(fnOf(andPushA, 'public static void initialize()'));
+    ok(!/OneSignal\.Initialize\(/.test(init) && !/Notifications\.WillDisplay \+=/.test(init),
+      '★ #493 (NEGATIVE, comments stripped): initialize() no longer registers anything — it is the PERMISSION half only. If Initialize crept back here it would run at node start again and the cold-push window would silently reopen with every pin still green');
+    ok(/registerEarly\(\);/.test(init),
+      '#493: initialize() still calls registerEarly() as a belt, for any path that reaches node start without the Application hook having run');
+    ok(/RequestPermissionAsync/.test(init),
+      '★ #493: the OS permission prompt deliberately did NOT move. It puts a dialog on screen and must fire at a chosen moment, never from a background push');
+  }
+  ok(/SPushService\.setTag\(tag\);/.test(nodeCsA),
+    '★ #493: setTag stays in Node.start(). It reads getWalletStorage().getPrimaryAddress() and has no wallet to read from the Application — the half of initialize() that genuinely cannot move');
+
+  /* — #494 (#489): the latch that swallowed its own retry, BOTH platforms — */
+  for (const [name, src] of [['Android', andPushA], ['iOS', iosPushA]]) {
+    ok(/ContinueWith\(task =>\s*\n\s*\{\s*\n\s*isInitializing = false;/.test(src),
+      `★ #494 (#489, ${name}): isInitializing is reset as the FIRST statement of the continuation. The faulted and cancelled branches both return early and were the exact paths that stuck — reset anywhere below them fixes nothing`);
+    ok(/catch \(Exception e\)\s*\n\s*\{[\s\S]{0,400}?isInitializing = false;/.test(src),
+      `★ #494 (${name}): the SYNCHRONOUS path too. RequestPermissionAsync can throw before it ever hands back a task, and that path stuck the latch as well`);
+  }
+  /* ★ CAUGHT BY MUTATION: the first version of this pin counted `isInitializing = false;`
+   * with a plain split, which also matches the FIELD DECLARATION — so it stayed green with
+   * one of the two resets deleted. The declaration is excluded now. A pin that counts its
+   * own subject's declaration is the vacuous-pass class, twice in two batches. */
+  const latchResets = (t) => (code(t).match(/(?<!bool )isInitializing = false;/g) || []).length;
+  ok(latchResets(andPushA) >= 2 && latchResets(iosPushA) >= 2,
+    '#494: BOTH reset sites — the continuation and the synchronous catch — are real code on both platforms, not prose about them and not the declaration counted twice');
+
+  /* — #493: the SDK-ready question is not the permission question — */
+  {
+    const clr = code(fnOf(andPushA, 'public static void clearRemoteNotifications(int unreadCount)'));
+    ok(/if \(oneSignalReady\)/.test(clr) && !/if \(isInitialized\)/.test(clr),
+      '★ #493: clearRemoteNotifications gates on the SDK being up, not on the permission answer. Damir\'s 2026-08-22 log carries "Cannot clear notifications, OneSignal is not initialized yet" TWICE on an ordinary launch, purely because the two questions were one flag');
+  }
+
+  /* — #495: the cold push is posted as OURS, which is the "not grouped" half — */
+  {
+    /* ★★ CAUGHT BY MUTATION, and it is the whole reason this pass exists. Every #495 pin
+     * below reads the BODY of displayColdPush. Swapping the CALL SITE back to
+     * `e.Notification.display()` left the method present, unreachable, and all four pins
+     * green — a textbook vacuous pass. The reachability is pinned here, at the call site. */
+    const handler = code(fnOf(andPushA, 'static void handleNotificationReceived('));
+    ok(/displayColdPush\(fa, e\);/.test(handler),
+      '★ #495 REACHABILITY: the gated fall-through calls displayColdPush, not OneSignal\'s own display. Without this the poster is dead code and every pin below it passes vacuously');
+    ok(!/e\.Notification\.display\(\);/.test(handler),
+      '★ #495 (NEGATIVE, comments stripped): the handler itself no longer posts the raw row. The only surviving display() calls are INSIDE displayColdPush, on its two named fallbacks — no addressee, and our own formatting throwing');
+  }
+  ok(/static void displayColdPush\(string\? fa, OneSignalSDK\.DotNet\.Core\.Notifications\.NotificationWillDisplayEventArgs e\)/.test(andPushA),
+    '★ #495: the cold push is re-posted through our own builder rather than OneSignal\'s. A unique id per push is what makes five messages five rows — NOTIF-4 fixed that for LOCAL notifications and the push path never inherited it');
+  {
+    const cold = fnOf(andPushA, 'static void displayColdPush(');
+    ok(/SPIXI\.Meta\.SNotificationPrefs\.notificationIdFor\(new IXICore\.Address\(fa\), false\)/.test(cold),
+      '★ #495: the id is keyed on the SENDER address through the SAME helper the local poster and the canceller use (SNotificationPrefs.notificationIdFor), so a second push REPLACES the first row instead of stacking. Three call sites, one id source, and they cannot drift apart');
+    ok(/showLocalNotification\(notifId, "Spixi", notifText, fa, true, 0, "message", 0\);/.test(cold),
+      '#495: posted through showLocalNotification, so the cold row inherits our channel, ic_stat_spixi and the brand accent — 3.12\'s "legacy type notification beside ours" was that mismatch');
+    ok(/SPIXI\.Lang\.SpixiLocalization\._SL\("notification-new-message"\) \?\? "New Message"/.test(cold),
+      '★ #495: the body is the app\'s OWN per-type string, NOT the push payload. That is AND-15\'s design (never message text), it is strictly more private than the raw row it replaces, and it means this fix reads no new OneSignal API at all');
+    ok(/if \(string\.IsNullOrEmpty\(fa\)\)[\s\S]{0,400}?e\.Notification\.display\(\);/.test(cold),
+      '★ #495: no addressee → the raw row still posts. There is no id to key on and no chat to open, and the fail-open rule holds everywhere in this family: a push we cannot attribute is not one we may drop');
+    ok(/catch \(Exception ex\)[\s\S]{0,500}?falling back to the raw push[\s\S]{0,300}?e\.Notification\.display\(\);/.test(cold),
+      '★ #495: our formatting must never lose a push. Any throw falls back to exactly the row that would have posted before this change');
+  }
+  ok(/if \(SPIXI\.Meta\.Node\.isRunning && OfflinePushMessages\.fetchPushMessages\(true, true\)\)/.test(andPushA),
+    '★ #493: the Ixian fetch is attempted only when a node exists to serve it. fetchPushMessages needs the push URL, the stream processor and a wallet — on a cold push it can only throw or burn an HTTP round-trip inside a push callback. Strictly narrowing: where it works today the node IS running');
+  ok(/public static bool isRunning\s*\n\s*\{\s*\n\s*get \{ return running; \}/.test(nodeCsA),
+    '#493: Node.isRunning is a read-only view of a private field. Nothing outside Node.cs may set it');
+}
+
+{
+  /* —— Lane B: the four device findings from the iOS pass, all XPLAT ————————— */
+  const mmJs   = readFileSync(join(root, 'src/components/message-menu.js'), 'utf8');
+  const mmCss  = readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8');
+  const esJs   = readFileSync(join(root, 'src/components/empty-state.js'), 'utf8');
+  const wsJs   = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
+  const setCs  = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const setSh  = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const lockBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/lock.html'), 'utf8');
+  const codeB = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  /* ⚠ AUDIT NIT: CSS has no `//` comments, but it does have `url(https://…)`. Running the
+   * JS stripper over a stylesheet would silently eat the rest of any line containing one.
+   * Block comments only, for CSS. */
+  const cssCode = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  /* — iOS-62 / #492: the long-pressed message stays visible — */
+  ok(/export function messageMenuTarget\(row\)/.test(mmJs),
+    '★ iOS-62 (#492): ONE resolver for the pressed element. The opener tints it and attachMessageMenu binds its listeners to it — two copies of that selector list would eventually tint a different node than the one under the finger');
+  {
+    const opener = codeB(mmJs.slice(mmJs.indexOf('export function openMessageMenu'), mmJs.indexOf('export function attachMessageMenu')));
+    /* ⚠ AUDIT NIT: matching the assignment alone stayed green with the guard rewritten to
+     * `if (false && tinted.dataset)`. The GUARD is pinned, not just the statement. */
+    ok(/const tinted = messageMenuTarget\(row\);\s*\n\s*if \(tinted && tinted\.dataset\) tinted\.dataset\.menuTarget = '';/.test(opener),
+      '★ iOS-62: the tint goes on when the menu opens, behind a guard that can actually be true. Damir: "you cannot see what you are acting on"');
+    ok(/createSheet\(\{ content, host, strings, onDismiss: untint \}\)/.test(opener),
+      '★ iOS-62: the tint is cleared through onDismiss, which overlay.js raises on EVERY route out — an action, the scrim, Esc and the Android back button. Clearing it inside act() alone would strand a permanently ringed bubble behind the other three');
+    ok(/const target = messageMenuTarget\(row\);/.test(codeB(mmJs.slice(mmJs.indexOf('export function attachMessageMenu')))),
+      'iOS-62: the gesture wiring uses the shared resolver too, so the tinted node and the pressed node are the same by construction');
+  }
+  ok(/\[data-menu-target\] \{/.test(mmCss) && /box-shadow: 0 0 0 2px var\(--brand-400\)/.test(mmCss),
+    '★ iOS-62: a saturated RING, not a background wash. --surface-scrim is rgba(17,18,19,.6), so only 40% of the bubble\'s own colour survives it — a wash disappears at that transmission and a brand-400 ring does not');
+  ok(!/border-radius: inherit;/.test(cssCode(mmCss)),
+    '★ iOS-62 (NEGATIVE, comments stripped): no `border-radius: inherit` on the tint. It would take the PARENT\'s radius and square off every bubble the moment it was pressed — the box-shadow already follows the bubble\'s own radius');
+  ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,120}?\[data-menu-target\] \{ transition: none; \}/.test(mmCss),
+    'iOS-62: the ring respects prefers-reduced-motion, like every other transition in this system');
+
+  /* — iOS-61: the empty-state art is warmed, and the lazy trade-off is NOT traded away — */
+  ok(/const warmedIllustrations = new Set\(\);/.test(esJs) && /function warmIllustration\(src\)/.test(esJs),
+    '★ iOS-61: the art is warmed at idle through a detached Image() that shares the same cache, so the lazy <img> hits a warm cache on reveal and paints in the same frame');
+  ok(/warmedIllustrations\.has\(src\)/.test(esJs) && /warmedIllustrations\.add\(src\)/.test(esJs),
+    'iOS-61: deduped per document — the same art backs several surfaces and there is no reason to fetch it twice');
+  ok(/typeof requestIdleCallback === 'function'\) requestIdleCallback\(warm\);/.test(esJs)
+    && /setTimeout\(warm, 1500\)/.test(esJs)
+    && !/requestIdleCallback\(warm, \{ timeout/.test(esJs),
+    '★ iOS-61 (AUDIT MINOR): NO idle TIMEOUT and no zero-delay fallback. A rIC timeout fires whether the engine idles or not, and setTimeout(…,0) runs on the next task — i.e. inside boot, the exact cost `loading="lazy"` exists to avoid. WKWebView had no requestIdleCallback before Safari 17.4, so on the iOS build this row was filed against, the fallback IS the live path');
+  {
+    /* ★★ AUDIT MINOR, and the same lesson as #495 one lane over: five pins read the
+     * function's SHAPE and every one stayed green with `return;` inserted as its first
+     * statement. The body has to be able to REACH the fetch. */
+    const iWarm = esJs.indexOf('function warmIllustration(src)');
+    const warmFn = esJs.slice(iWarm, esJs.indexOf('export function createEmptyState', iWarm));
+    ok(/const warm = \(\) => \{[\s\S]{0,400}?const pre = new Image\(\);[\s\S]{0,200}?pre\.src = src;/.test(warmFn),
+      '★ iOS-61 REACHABILITY: the warm really constructs an Image and sets its src. Without this the whole lane is a dead function that every other pin still passes');
+    const beforeWarm = codeB(warmFn.slice(0, warmFn.indexOf('const warm = () =>')));
+    ok((beforeWarm.match(/return;/g) || []).length === 1,
+      'iOS-61: exactly ONE early return before the warm body — the dedupe guard. A second one inserted above it is how this function becomes dead while all five of its pins stay green');
+  }
+  {
+    const esCode = codeB(esJs);
+    ok(/img\.loading = 'lazy';/.test(esCode),
+      "★ iOS-61 (NEGATIVE): `loading='lazy'` SURVIVES. The verdict's other lever was to make the image eager, which trades a one-second reveal for a slower boot on every shell that builds a hidden empty state. The warm gets the same result without paying that");
+    ok(/img\.src = illustration;\s*\n\s*slot\.append\(img\);\s*\n\s*warmIllustration\(illustration\);/.test(esCode),
+      '★ iOS-61: the warm uses the SAME url as the <img>. A warm of a different path would populate the cache with something the lazy load never asks for — a pin that passes while the defect stands');
+  }
+  ok(/aspect-ratio: 1 \/ 1;/.test(readFileSync(join(root, 'src/styles/components/empty-state.css'), 'utf8')),
+    '★ iOS-61 VERIFY-FIRST: the box was ALREADY reserved (width clamp + aspect-ratio), so the verdict\'s "reserve the box" half was done and the copy never moved. Half a fix for a defect that is already half fixed is how a round gets spent on nothing');
+
+  /* — iOS-59: MEASURED, not built. The fix was written and REVERTED — see #501 — */
+  {
+    const homeSh = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+    const homeBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
+    ok(!/ensureSlack/.test(wsJs) && !/c-wallet-scroll-slack/.test(wsJs),
+      "★ iOS-59 (#501, AUDIT MAJOR): the slack-spacer fix is GONE. It assumed the hero lives INSIDE the scroller, so that collapsing it shrinks scrollHeight — but #wallet-hero and #wallet-scroll are SIBLINGS and the scroller is flex:1, so collapsing ENLARGES the viewport by the same amount. Opposite sign: the reserve was paid twice and could drive the very oscillation the row is about");
+    ok(/function walletGeomText\(\)/.test(homeSh),
+      '★ iOS-59: the MEASUREMENT ships instead — the #304/#401 on-screen-probe precedent. #294 is law: never build past a missing repro, and a fix built on the wrong DOM is worse than none');
+    ok(/range=' \+ \(S - V\)/.test(homeSh) && /hero=' \+ \(he\.offsetHeight \| 0\)/.test(homeSh)
+      && /rows=' \+ rows/.test(homeSh) && /cmp=' \+ \(he\.querySelector\('\.c-wallet-hero\[data-compact\]'\) \? 1 : 0\)/.test(homeSh),
+      '★ iOS-59: the probe prints the four numbers a fix actually needs — how many rows, the scroll RANGE (which must exceed collapseAt=120 or the hero can never collapse at all), the hero height, and whether it is currently compact. Nobody has ever read any of them');
+    ok(/\+ ' \| ' \+ walletGeomText\(\);/.test(homeSh),
+      '★ iOS-59 REACHABILITY: the probe is spliced into probeText(), which the dev HUD renders. A measurement nothing calls is the vacuous-pin lesson wearing a different hat');
+    ok(/function walletGeomText\(\)/.test(homeBuilt),
+      'iOS-59: and it is in the BUILT shell — the file the device runs');
+    ok(/catch \(e\) \{\s*\n\s*return 'WALLET err';/.test(homeSh),
+      'iOS-59: the probe can never throw into the HUD render. It is a diagnostic, and a diagnostic that breaks the screen it measures is worthless');
+  }
+
+  /* — iOS-56: the lock switch stops lying after a cancelled confirm — */
+  {
+    const h = setCs.slice(setCs.indexOf('private void HandleAuthSucceeded'));
+    const hCode = codeB(h.slice(0, h.indexOf('\n        }') + 10));
+    ok(/if \(succeeded\)\s*\n\s*\{\s*\n\s*lockEnabled = false;\s*\n\s*\}/.test(hCode),
+      'iOS-56: only the VALUE is conditional — a cancelled confirm still leaves the lock on');
+    ok(/\}\s*\n\s*Utils\.sendUiCommand\(this, "setLockEnabled", lockEnabled\.ToString\(\)\);/.test(hCode),
+      '★ iOS-56: the push is UNCONDITIONAL. The shell flips the switch optimistically on `ixian:lock:off`, so pushing only on success left the switch reading OFF while the lock was still ON — a control lying about a security setting. settings.html filed the missing signal as "BE gap S6"; it was this method');
+  }
+  ok(/else \{ state\.dirtyLock = false; syncSave\(\); \}/.test(setSh),
+    '★ iOS-56: the cancel echo clears the dirty flag it set. Without it Save keeps offering to write a change the user just backed out of');
+  /* ⚠ AUDIT MINOR: N83's own pin reads the BUILT artifact "because that is the file C#
+   * actually substitutes", and this one read only the source — so a skipped build-shells
+   * would leave it green while the device ran stale JS. Both, now. */
+  ok(/else \{ state\.dirtyLock = false; syncSave\(\); \}/.test(readFileSync(join(root, 'Spixi/Resources/Raw/html/settings.html'), 'utf8')),
+    '★ iOS-56: and the same arm is in the BUILT settings shell — the file the device runs');
+  /* ⚠ AUDIT MINOR: this asserted "Cancel stays" while testing the event subscription,
+   * which is not what keeps Cancel. `new LockPage(true)` is the one-arg overload that
+   * forwards appLock:false; `new LockPage(true, true)` would render the APP-LOCK face and
+   * silently remove the only way back to Settings — the precise trap #499 is about. */
+  ok(/var lockPage = new LockPage\(true\);\s*\n\s*lockPage\.authSucceeded \+= HandleAuthSucceeded;/.test(setCs),
+    '★ iOS-56: the confirm screen is presented in CONFIRM mode — `new LockPage(true)`, not the app-lock face — so Cancel stays. It is safe here precisely because HandleAuthSucceeded reads e.Value: a cancel changes nothing, while removing the button would trap the user on a confirm screen with no way back to Settings');
+
+  /* — N83: a live *SL carrier inside a COMMENT is still a carrier — */
+  {
+    const carriers = [...new Set((lockBuilt.match(/\*SL\{[\w-]+\}/g) || []))].sort();
+    ok(!/\*SL\{LaunchBootView\}/.test(lockBuilt),
+      '★ N83 (Damir\'s 2026-08-22 log): the lock page no longer carries LaunchBootView. generatePage substitutes text-based and does NOT skip comments, so a carrier named in prose was really resolved on a page that never registers it — `Unknown localization key; LaunchBootView` on EVERY lock presentation, cold start and pause, in a log this project keeps trying to read');
+    ok(carriers.length === 3
+      && carriers.join(',') === '*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{language-code}',
+      '★ N83: the BUILT lock shell carries exactly the three keys the lock page registers. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+  }
+}
+
+{
+  /* —— #496 (#484): the app-lock grace window. SECURITY DIAL — pinned hard ————— */
+  const appCsG = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+  const codeG = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  const appG = codeG(appCsG);
+
+  ok(/private DateTime\? backgroundedDate = null;/.test(appG),
+    '★ #496 (#484, Damir\'s call 2026-08-21): the grace is measured from when the app went AWAY, not from the last unlock. "Sometimes yes sometimes no" was #454\'s design seen from outside — a quick switch after a minute of use still asked, while the same switch ten seconds after unlocking did not, and the user can see neither clock');
+  ok(/private void markBackgrounded\(\)\s*\n\s*\{\s*\n\s*if \(backgroundedDate == null\)/.test(appG),
+    '★ #496 SECURITY: the FIRST edge of a background cycle wins. Re-stamping on a later hook would push the clock forward and make an old absence look fresh — which is the whole guarantee this dial rests on');
+  {
+    const pause = appG.slice(appG.indexOf('public void lockOnPause()'));
+    ok(/public void lockOnPause\(\)\s*\n\s*\{\s*\n\s*markBackgrounded\(\);/.test(pause),
+      '★ #496: stamped at lockOnPause, BEFORE its own isLockEnabled bail. On Android that is the true leaving edge — OnSleep is raised from OnStop, one step later, the fact that has now cost #442, #460 and #472');
+  }
+  ok(/markBackgrounded\(\);\s*\n\s*isInForeground = false;/.test(appG),
+    '#496: OnSleep stamps too, for every platform with no pause hook. Idempotent, so on Android it is a no-op');
+  ok(/DateTime\? wentAway = backgroundedDate;\s*\n\s*backgroundedDate = null;/.test(appG),
+    '★ #496: read ONCE and cleared immediately. OnResume returns from three places, and a stamp surviving one of them would measure the NEXT absence from the previous one');
+  ok(/sinceBackground\.TotalSeconds >= 0\s*\n\s*&& sinceBackground\.TotalSeconds <= LOCK_GRACE_SECONDS;/.test(appG),
+    '★ #496 SECURITY: the negative guard is load-bearing. A clock moved backwards makes any absence look like it happened in the future and satisfies the window — the same guard already protects ownIntentFresh() in this file');
+  ok(/wentAway\.HasValue \? \(DateTime\.Now - wentAway\.Value\) : sinceUnlock;/.test(appG),
+    '★ #496: no stamp → the OLD measure. A cold start, or a resume with no pause before it, keeps exactly today\'s behaviour rather than inventing a zero — which would have granted the grace to a resume the app knows nothing about');
+  ok(/private const double LOCK_GRACE_SECONDS = 5;/.test(appG),
+    '#496: ONE constant. These were two separately written 5-second tests, and the second had already been wrong once (#229: `ts.Seconds` is the 0-59 component, so 63 s away read as 3 and never locked)');
+  /* ★ CAUGHT BY MUTATION: counting `withinGrace` and forbidding the literal `<= 5` both
+   * survived putting the OLD measure back in the second branch — the count still cleared
+   * its threshold, and `> 5` is not `<= 5`. Both are pinned by their actual call sites
+   * now, and the negative forbids ANY comparison on the unlock clock. */
+  ok(/if \(!\(ownIntentReturn \|\| withinGrace\) \|\| !dismissPauseLock\(held\)\)/.test(appG),
+    '★ #496: the PAUSE-LOCK branch reads withinGrace — the Android path Damir walks');
+  ok(/if \(isLockEnabled\(\) && !withinGrace && !ownIntentReturn/.test(appG),
+    '★ #496: the PRESENT-THE-LOCK branch reads the same answer. This is the branch iOS, Windows and MacCatalyst take, and a dial changed in one of two places is exactly how the platforms start disagreeing about when the app asks');
+  ok(!/sinceUnlock\.TotalSeconds\s*[<>]/.test(appG) && !/\bts\.TotalSeconds/.test(appG),
+    '★ #496 (NEGATIVE, comments stripped): the unlock clock is never COMPARED anywhere — it survives only as the no-stamp fallback and as a log line. Forbidding just the old `<= 5` literal let `> 5` walk straight back in');
+  /* ⚠ AUDIT MINOR: this ran against the RAW file, and the comment two lines above the log
+   * statement contains the words "stamped=False" — so deleting the term from the log left
+   * the pin green. Comment-stripped, like every other negative in this batch. */
+  ok(/sinceBackground=/.test(appG) && /stamped=/.test(appG) && /withinGrace=/.test(appG),
+    '★ #496: the resume log prints BOTH clocks plus `stamped=`, so the next F5 shows which one decided instead of leaving the fallback invisible');
+  /* ★★ #500 — THE AUDIT MAJOR ON #496, AND IT WAS AN APP-LOCK BYPASS. Pinned hardest of
+   * anything in this batch. Without the restore, two sequences opened the app with no
+   * password after an arbitrarily long absence: press Home while the lock is up and come
+   * back inside 5 s, or — needing no deliberation at all — let the pattern prompt appear
+   * (ConfirmDeviceCredential is a SEPARATE ACTIVITY, so presenting it pauses MainActivity
+   * and lays a fresh stamp) and press Back. `dismissPauseLock` authenticates nothing; the
+   * grace test IS the gate. */
+  ok(/backgroundedDate = wentAway;\s*\n\s*SLockDiag\.mark\("resume\/lock-stays-up"/.test(appG),
+    '★★ #500 SECURITY (audit MAJOR on #496): when the lock STAYS UP the stamp is put back, so the absence keeps accumulating until the lock is actually resolved. Clearing it there let a 2-second background flick — or simply cancelling the pattern prompt — dismiss an unauthenticated lock after hours away. That would have shipped the dial WEAKER than the design it replaced, which is not what Damir was offered');
+  ok(/#496 \(#484\) CORRECTS WHAT THIS COMMENT USED TO PROMISE/.test(appCsG),
+    '★ #496: dismissPauseLock\'s docblock promised the window "cannot be extended by backgrounding the app over and over" — TRUE under the old measure and FALSE under this one. A stale comment on a security dial is worse than none, so it is corrected in place rather than left to be believed');
+}
+
+{
+  /* —— #497: the four sound assets finally exist ————————————————————————————— */
+  const soundsDir = join(root, 'Spixi/Resources/Raw/sounds');
+  const sndCs = readFileSync(join(root, 'Spixi/Meta/SSounds.cs'), 'utf8');
+  /* ★ Read the filenames OUT OF THE CODE rather than repeating them here. A pin with its
+   * own copy of the list would stay green after a rename on either side — the "one id
+   * source" rule from #495, applied to assets. */
+  const declared = [...sndCs.matchAll(/public const string \w+ = "sounds\/([\w.]+)";/g)].map((m) => m[1]);
+  ok(declared.length === 4,
+    '#497: SSounds still declares exactly the four effects the block specified — sent/received for a message, sent/received for a payment');
+  for (const f of declared) {
+    let size = 0;
+    try { size = readFileSyncRaw(join(soundsDir, f)).length; } catch { size = 0; }
+    ok(size > 1024,
+      `★ #497: sounds/${f} exists and is a real file. Chosen from the UI SFX \`zen\` pack (CC0) after Damir's "pick some for me to try" — the app had been silent since the plumbing landed, and a switch nobody can hear is a switch nobody can judge`);
+  }
+  /* ⚠ AUDIT MINOR: the first conjunct was `/SSounds\.play\(/`, which occurs in this file
+   * exactly ONCE — inside `Logging.warn("SSounds.play(" + …)`. It was testing a warning
+   * message. The gate itself is what matters, and it must sit before the platform call. */
+  ok(/if \(!SNotificationPrefs\.inAppSounds\)\s*\n\s*\{\s*\n\s*return;\s*\n\s*\}\s*\n\s*Spixi\.SPlatformUtils\.playEffect\(assetPath\);/.test(sndCs),
+    '★ #497: the In-app sounds switch gates every effect, and the gate is BEFORE the platform call. Landing audible assets must not make the switch decorative');
+  {
+    const doc = readFileSync(join(root, 'docs/sound-placeholders.md'), 'utf8');
+    ok(/CC0 1\.0/.test(doc) && /keeping the same four names/.test(doc) && /uisfx/i.test(doc),
+      '★ #497: the sounds are documented with their SOURCE, their LICENCE and the replace-in-place contract. Shipped audio whose provenance is not written down is audio nobody can defend later — and CC0 is the fact that makes it shippable');
+    ok(/not a dependency of this app|is not a dependency/.test(doc),
+      '★ #497: the doc states outright that `uisfx` is NOT a dependency — four files were copied out, nothing is imported or bundled, and no new licence obligation follows the package');
+  }
+  {
+    /* —— #502: the attribution Damir asked for —— */
+    const appJs = readFileSync(join(root, 'src/components/settings-app.js'), 'utf8');
+    /* ⚠ The BUNDLE, not settings.html. The shell loads `spixi.bundle.js` as a sibling
+     * (`<script src="spixi.bundle.js">`), so a pin that read the shell for a bundle
+     * symbol would be red with the code present and correct — the standing lesson from
+     * lock.html, applied before it cost a round this time. */
+    const builtSettings = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
+    ok(/export const ASSET_CREDITS = \[/.test(appJs),
+      '★ #502 (Damir 2026-08-25): the asset credits are their OWN list, not appended to CONTRIBUTORS. Those are people who worked on Spixi; a licence credit is a different kind of fact, and folding one into the other misrepresents both');
+    ok(/case 'creditSounds': return strings\.creditSounds \|\| 'Interface sounds';/.test(appJs),
+      "★★ #502: the label is resolved by a SWITCH, not by `strings[c.key]`. extract-strings is a STATIC sweep and cannot see a computed property — the dynamic version compiled, linted clean, and would have shipped an English-only label in all thirteen locales because the fallback wins every time");
+  /* ★ CAUGHT BY MUTATION: the first version forbade the exact spelling `strings[c.key]`,
+   * so renaming the variable to `credit` walked the defect straight back in. ANY computed
+   * lookup is the defect — a bracket followed by something that is not a quote. */
+    ok(!/strings\[[^'"]/.test(appJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')),
+      '★ #502 (NEGATIVE): NO computed lookup on `strings` survives, under any variable name. That is the shape extract-strings cannot see, and it produces a string that is English in all thirteen locales while every gate stays green');
+    ok(/'UI SFX — uisfx\.com'/.test(appJs) && /'CC0 1\.0'/.test(appJs),
+      '#502: the source and the licence are curated in-code and rendered as textContent — never a link, because no bridge verb opens one and a dead link is worse than selectable text');
+    ok(/UI SFX/.test(builtSettings) && /CC0 1\.0/.test(builtSettings),
+      '★ #502: and the credit is in the BUILT settings shell — the file the device runs');
+    ok(/creditsTitle/.test(readFileSync(join(root, 'docs/i18n-strings.md'), 'utf8')),
+      '#502: the new keys are in the string dictionary, so all thirteen locales get them rather than falling back to English');
+  }
+
+  {
+    let strayAsset = false;
+    try { strayAsset = readdirSync(soundsDir).some((f) => !f.endsWith('.mp3')); } catch { strayAsset = false; }
+    ok(!strayAsset,
+      '★ #497: nothing but audio in the sounds folder. The csproj glob is `MauiAsset Include="Resources\\Raw\\**"`, so a README dropped in beside the files SHIPS INSIDE THE APP — it lives in docs/ instead');
+  }
 }
 
 {

@@ -2407,6 +2407,34 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 }
 .c-delete-chat__opt input:disabled { cursor: default; }
 
+/* —— iOS-62 / #492: the long-pressed message stays visible ————————————————
+   Damir on device: "you cannot see what you are acting on." The scrim is
+   --surface-scrim = rgba(17,18,19,.6), so 40% of whatever is underneath still
+   reaches the eye. A saturated ring survives that; a subtle background wash does
+   not, which is why the ring carries the work and the wash is only support.
+
+   ⚠ The bubble is NOT promoted above the scrim. That is the §5b anchored-panel
+   presentation (scrim + bubble at z-50) which message-menu.js deliberately does not
+   build — and lifting a node out of the chat log's stacking context is how a
+   transform-based scroller starts clipping it. Damir chose the cheap half knowing
+   this: "the tint is the cheap half and answers the actual complaint" (#492).
+
+   ⚠ Attribute, not a class: the four bubble kinds (.c-bubble / .c-tcard /
+   .c-fbubble / .c-mbubble) each own their own class list and background, and a
+   shared attribute selector adds the ring without any of them having to know about
+   the menu. Same reason the tint sets `box-shadow` rather than `border` — a border
+   would change the box and reflow the bubble under the user's finger. */
+[data-menu-target] {
+  /* ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
+     every bubble the moment it is pressed; the box-shadow already follows whatever
+     radius the bubble itself carries. */
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  transition: box-shadow 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-menu-target] { transition: none; }
+}
+
 </style>
 <style data-src="../styles/components/chat-select.css">
 /* chat-select — selection mode + selection TOPBAR + split-paste offer (#139). */

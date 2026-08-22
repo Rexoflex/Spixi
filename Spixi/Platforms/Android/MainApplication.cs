@@ -53,6 +53,35 @@ public class MainApplication : MauiApplication
 		}
 
 		base.OnCreate();
+
+		/* ★★ #493 (#483) — THE POINT OF THIS WHOLE LANE, and it is three lines.
+		 *
+		 * Register the OneSignal handlers HERE, in the Application, rather than inside
+		 * `Node.start()` where they used to live. Android runs Application.OnCreate before
+		 * ANY component in the process — receiver, service or activity — so a push that
+		 * wakes a killed Spixi now meets a live `WillDisplay` handler instead of arriving
+		 * ~4 seconds before one exists. The closed-app log dates that gap exactly:
+		 * `19:14:23.73 Starting Spixi` → `19:14:27.66 Node started`.
+		 *
+		 * ⚠ AFTER base.OnCreate(), not before. Two reasons, both deliberate: MAUI Essentials
+		 * `Preferences` (which the mute gate reads) wants the MAUI app built, and a OneSignal
+		 * fault must not be able to stop the app from being built at all. It is still far
+		 * earlier than any push can be delivered, because the whole of OnCreate precedes
+		 * every component in the process.
+		 *
+		 * ⚠ Fenced like the inset estimate above: registerEarly() already swallows its own
+		 * exceptions and leaves its flag false so the node-start path retries, but a throw
+		 * escaping OnCreate would take the app down before it started, and lifecycle
+		 * ordering is the class that produced #442, #454 and #460.
+		 */
+		try
+		{
+			SPushService.registerEarly();
+		}
+		catch (Exception)
+		{
+			// The belt in SPushService.initialize() re-tries at node start.
+		}
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

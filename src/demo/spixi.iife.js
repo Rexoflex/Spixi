@@ -1429,6 +1429,63 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
 
 
 
+/* ★ iOS-61 (Damir on device 2026-08-21): "the empty-state illustration and text are not
+ * preloaded — they pop in about a second late."
+ *
+ * ⚠ VERIFY-FIRST CORRECTION, and it changes which half of the verdict's fix applies.
+ * The verdict offered two levers — "preload OR reserve the box". **The box is already
+ * reserved**: `.c-empty-state__illo` carries `width: clamp(140px,46vw,220px)` and
+ * `aspect-ratio: 1/1` (empty-state.css:39-47), so the slot occupies its full space
+ * before the image exists and the copy below it never moves. There is no layout jump to
+ * remove, which leaves the other lever.
+ *
+ * The delay is the DEFERRAL. The <img> is `loading="lazy"` on purpose, so the fetch and
+ * decode are kept out of boot; the picture only starts loading when the surface is
+ * finally revealed — about a second before it paints.
+ *
+ * ⚠ AUDIT CORRECTION to the scope this claims. The lazy attribute's own comment says an
+ * empty state is "built EAGERLY", and for the CHATS tab that is no longer true —
+ * `chats-shell.js` returns null while `opts.zeroReady === false`, a gate added to stop
+ * exactly that. Where the state is built at reveal, in the visible viewport, the lazy
+ * <img> starts loading immediately and no warm can beat it. So the honest benefit is the
+ * surfaces built while HIDDEN — a tab the user has not opened yet — which is where the
+ * one-second pop-in actually lives.
+ *
+ * So: warm the file at IDLE, through a detached Image() that shares the same cache. The
+ * lazy <img> then hits a warm cache on reveal and paints in the same frame, and boot is
+ * still not blocked because nothing runs until the document is idle. The lazy attribute
+ * and its documented trade-off are untouched.
+ *
+ * Deduped per document: the same art backs several surfaces and there is no reason to
+ * ask for it twice. Fenced end to end — a warm that throws must never cost a caller its
+ * empty state, and requestIdleCallback does not exist in every engine we ship to. */
+const warmedIllustrations = new Set();
+function warmIllustration(src) {
+  if (!src || warmedIllustrations.has(src)) return;
+  warmedIllustrations.add(src);
+  const warm = () => {
+    try {
+      const pre = new Image();
+      pre.decoding = 'async';
+      pre.src = src;
+    } catch { /* no cache warm is exactly today's behaviour */ }
+  };
+  /* ⚠ AUDIT MINOR, and it made the paragraph above false as first written. A
+   * `requestIdleCallback` TIMEOUT fires the callback whether the engine ever idles or
+   * not, and a `setTimeout(…, 0)` fallback runs on the NEXT TASK — i.e. squarely inside
+   * boot, which is the cost this whole approach exists to avoid. WKWebView had no
+   * requestIdleCallback before Safari 17.4, so on the iOS build iOS-61 was actually filed
+   * against, that fallback is the LIVE path. No timeout, and the fallback waits: a warm
+   * that lands late is still a warm, and a warm that lands during boot is the thing we
+   * refused to ship. */
+  try {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(warm);
+    else setTimeout(warm, 1500);
+  } catch {
+    try { setTimeout(warm, 1500); } catch { /* nothing to do */ }
+  }
+}
+
 function createEmptyState({
   illustration = null,
   glyph = null,
@@ -1483,6 +1540,8 @@ function createEmptyState({
     img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
     img.src = illustration;
     slot.append(img);
+    // ★ iOS-61: warm the SAME url at idle so the lazy load above finds it in cache.
+    warmIllustration(illustration);
   } else {
     drawGlyph();
   }
@@ -5052,6 +5111,22 @@ function syncChatFlow(host) {
 
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+/* ★ iOS-62 / #492 (Damir on device 2026-08-21, DECIDED: the cheap TINT).
+ *
+ * "Long-press should highlight the pressed message so it stays visible behind the
+ * scrim — you cannot see what you are acting on." iMessage lifts the bubble above the
+ * blur; WhatsApp tints it. Damir picked the tint, explicitly NOT auto-select: selection
+ * would re-open the WKWebView native selection gesture #290 suppressed, and it puts the
+ * user in a mode they then have to escape.
+ *
+ * ⚠ ONE resolver, used by BOTH the opener and the gesture wiring. attachMessageMenu
+ * already computes this element to bind its listeners to; if the two ever disagreed the
+ * tint would land on a different node than the one the user pressed. */
+function messageMenuTarget(row) {
+  if (!row) return null;
+  return (row.querySelector && row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble')) || row;
+}
 const LONG_PRESS_MS = 500;   // §5b
 const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
@@ -5125,14 +5200,27 @@ function openMessageMenu({
 
   content.append(list);
 
-  const sheet = createSheet({ content, host, strings });
+  /* ★ iOS-62: tint the pressed bubble IN PLACE for as long as the menu is up. The
+   * scrim is rgba(17,18,19,.6) (tokens.css --surface-scrim), so 40% of the bubble's own
+   * colour still reaches the eye — enough for a saturated ring to stay legible without
+   * promoting the node above the scrim. Promoting it is the §5b anchored-panel
+   * presentation, which this component deliberately does not build.
+   *
+   * ⚠ Cleared through onDismiss, which overlay.js raises on EVERY route out — an action,
+   * the scrim, Esc, and the Android back button. Clearing it only in act() would leave a
+   * permanently tinted bubble behind any of the other three. */
+  const tinted = messageMenuTarget(row);
+  if (tinted && tinted.dataset) tinted.dataset.menuTarget = '';
+  const untint = () => { if (tinted && tinted.dataset) delete tinted.dataset.menuTarget; };
+
+  const sheet = createSheet({ content, host, strings, onDismiss: untint });
   openSheet(sheet);
   return sheet;
 }
 
 /** Long-press (touch) + right-click (desktop) wiring for one message row. */
 function attachMessageMenu(row, opts = {}) {
-  const target = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || row;
+  const target = messageMenuTarget(row);   // ★ iOS-62: ONE resolver — see the note above
   let timer = null;
   let startX = 0;
   let startY = 0;
@@ -19167,6 +19255,46 @@ function appCtrl(onDone, onFail) {
   };
 }
 
+/**
+ * ★ #502 (Damir, 2026-08-25) — THIRD-PARTY ASSET CREDITS, kept SEPARATE from the names.
+ *
+ * The four in-app effect sounds are CC0, which requires no attribution at all. This is
+ * here because it is the decent answer and because someone who wonders where a sound in
+ * the app came from should be able to find out — not because anything is owed.
+ *
+ * ⚠ NOT merged into CONTRIBUTORS. Those are people who worked on Spixi; a licence credit
+ * is a different kind of fact, and folding one into the other makes both harder to read
+ * and quietly implies the wrong thing about both.
+ *
+ * ⚠ The LABEL is localized and the rest is not: a product name, a domain and an SPDX
+ * identifier are proper nouns and must read identically in every language. `source` and
+ * `licence` are curated in-code and rendered as textContent — never a link, because no
+ * bridge verb opens one and a dead link is worse than selectable text (the About-screen
+ * ruling, `linkRow` below).
+ *
+ * ⚠ AND THE LABEL IS RESOLVED BY A SWITCH, NOT BY `strings[c.key]`. `extract-strings` is a
+ * STATIC sweep — it reads `strings.someKey || 'fallback'` out of the source and cannot see
+ * a computed property. A dynamic lookup here compiled and linted clean and would have
+ * shipped an English-only label in all thirteen locales, silently, because the fallback
+ * would win every time. Adding a credit is therefore two lines: the entry below and its
+ * case in `creditLabel`.
+ */
+function creditLabel(credit, strings) {
+  switch (credit.key) {
+    case 'creditSounds': return strings.creditSounds || 'Interface sounds';
+    default: return credit.fallback;   // a credit added without its case still renders
+  }
+}
+
+const ASSET_CREDITS = [
+  {
+    key: 'creditSounds',
+    fallback: 'Interface sounds',
+    source: 'UI SFX — uisfx.com',
+    licence: 'CC0 1.0',
+  },
+];
+
 // legacy contributors.html list (static; localizable via opts)
 const CONTRIBUTORS = [
   'Lex Scalp', 'w4r3z4s', '#Zinsi', '¥0_brkz', 'YT', 'Serg',
@@ -19499,6 +19627,7 @@ function setDevLog(el, text) {
  */
 function createSettingsContributors({
   contributors = CONTRIBUTORS,
+  credits = ASSET_CREDITS,        // ★ #502 — overridable, same shape as contributors
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -19538,6 +19667,37 @@ function createSettingsContributors({
   card.append(list);
   groupWrap.append(card);
   body.append(groupWrap);
+
+  /* ★ #502: the asset credits, under their own heading and their own card. */
+  if (credits.length) {
+    const h = document.createElement('h3');
+    h.className = 'c-settings__note c-settings-contrib__credits-title';
+    h.textContent = strings.creditsTitle || 'Credits';
+    body.append(h);
+
+    const creditsWrap = document.createElement('div');
+    creditsWrap.className = 'c-settings__groupwrap';
+    const creditsCard = document.createElement('div');
+    creditsCard.className = 'c-settings__group c-settings-contrib__card';
+    const creditsList = document.createElement('ul');
+    creditsList.className = 'c-settings-contrib__credits';
+    for (const c of credits) {
+      const li = document.createElement('li');
+      li.className = 'c-settings-contrib__credit';
+      const what = document.createElement('span');
+      what.className = 'c-settings-contrib__credit-what';
+      what.textContent = creditLabel(c, strings);
+      const who = document.createElement('span');
+      who.className = 'c-settings-contrib__credit-who';
+      // Proper nouns — deliberately NOT localized. i18n-lint-ok:proper-noun
+      who.textContent = c.source + ' · ' + c.licence;
+      li.append(what, who);
+      creditsList.append(li);
+    }
+    creditsCard.append(creditsList);
+    creditsWrap.append(creditsCard);
+    body.append(creditsWrap);
+  }
 
   return el;
 }
@@ -21919,5 +22079,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

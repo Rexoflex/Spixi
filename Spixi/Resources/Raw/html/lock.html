@@ -706,8 +706,16 @@
    * dropped over it a moment later. Two screens for one action.
    *
    * The fix has to land in the FIRST FRAME or it is just a second flash, so it rides
-   * a generatePage carrier (*SL{LockAuthPending}) like *SL{LaunchBootView} and
-   * *SL{SpixiThemeName} do — not a push, which arrives a navigation round-trip late.
+   * a generatePage carrier (the LockAuthPending key) like the launch-boot-view and
+   * theme-name carriers do — not a push, which arrives a navigation round-trip late.
+   *
+   * ⚠ N83 (found in Damir's 2026-08-22 device log): those two are NAMED here rather than
+   * written as live `*SL{…}` tokens on purpose. generatePage's substitution is text-based
+   * and does not skip comments, so a carrier spelled out in this prose is really resolved
+   * on the LOCK page — which registers LockAuthPending and SpixiThemeName but never
+   * LaunchBootView (LaunchPage.xaml.cs:104 does, and the lock is not the launch page).
+   * The result was `Unknown localization key; LaunchBootView` logged on EVERY lock
+   * presentation, cold start and pause alike, in a log this project keeps trying to read.
    * "1" means C# is about to call Plugin.Fingerprint. While that is pending the boot
    * spinner STAYS and the form is not shown; C# pushes setAuthPending("False") when
    * the attempt resolves without authenticating, and the form takes over.

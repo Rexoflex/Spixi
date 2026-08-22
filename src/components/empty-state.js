@@ -32,6 +32,63 @@
 import { createButton } from './button.js';
 import { icon } from './icons.js';
 
+/* ★ iOS-61 (Damir on device 2026-08-21): "the empty-state illustration and text are not
+ * preloaded — they pop in about a second late."
+ *
+ * ⚠ VERIFY-FIRST CORRECTION, and it changes which half of the verdict's fix applies.
+ * The verdict offered two levers — "preload OR reserve the box". **The box is already
+ * reserved**: `.c-empty-state__illo` carries `width: clamp(140px,46vw,220px)` and
+ * `aspect-ratio: 1/1` (empty-state.css:39-47), so the slot occupies its full space
+ * before the image exists and the copy below it never moves. There is no layout jump to
+ * remove, which leaves the other lever.
+ *
+ * The delay is the DEFERRAL. The <img> is `loading="lazy"` on purpose, so the fetch and
+ * decode are kept out of boot; the picture only starts loading when the surface is
+ * finally revealed — about a second before it paints.
+ *
+ * ⚠ AUDIT CORRECTION to the scope this claims. The lazy attribute's own comment says an
+ * empty state is "built EAGERLY", and for the CHATS tab that is no longer true —
+ * `chats-shell.js` returns null while `opts.zeroReady === false`, a gate added to stop
+ * exactly that. Where the state is built at reveal, in the visible viewport, the lazy
+ * <img> starts loading immediately and no warm can beat it. So the honest benefit is the
+ * surfaces built while HIDDEN — a tab the user has not opened yet — which is where the
+ * one-second pop-in actually lives.
+ *
+ * So: warm the file at IDLE, through a detached Image() that shares the same cache. The
+ * lazy <img> then hits a warm cache on reveal and paints in the same frame, and boot is
+ * still not blocked because nothing runs until the document is idle. The lazy attribute
+ * and its documented trade-off are untouched.
+ *
+ * Deduped per document: the same art backs several surfaces and there is no reason to
+ * ask for it twice. Fenced end to end — a warm that throws must never cost a caller its
+ * empty state, and requestIdleCallback does not exist in every engine we ship to. */
+const warmedIllustrations = new Set();
+function warmIllustration(src) {
+  if (!src || warmedIllustrations.has(src)) return;
+  warmedIllustrations.add(src);
+  const warm = () => {
+    try {
+      const pre = new Image();
+      pre.decoding = 'async';
+      pre.src = src;
+    } catch { /* no cache warm is exactly today's behaviour */ }
+  };
+  /* ⚠ AUDIT MINOR, and it made the paragraph above false as first written. A
+   * `requestIdleCallback` TIMEOUT fires the callback whether the engine ever idles or
+   * not, and a `setTimeout(…, 0)` fallback runs on the NEXT TASK — i.e. squarely inside
+   * boot, which is the cost this whole approach exists to avoid. WKWebView had no
+   * requestIdleCallback before Safari 17.4, so on the iOS build iOS-61 was actually filed
+   * against, that fallback is the LIVE path. No timeout, and the fallback waits: a warm
+   * that lands late is still a warm, and a warm that lands during boot is the thing we
+   * refused to ship. */
+  try {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(warm);
+    else setTimeout(warm, 1500);
+  } catch {
+    try { setTimeout(warm, 1500); } catch { /* nothing to do */ }
+  }
+}
+
 export function createEmptyState({
   illustration = null,
   glyph = null,
@@ -86,6 +143,8 @@ export function createEmptyState({
     img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
     img.src = illustration;
     slot.append(img);
+    // ★ iOS-61: warm the SAME url at idle so the lazy load above finds it in cache.
+    warmIllustration(illustration);
   } else {
     drawGlyph();
   }

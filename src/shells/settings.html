@@ -1556,6 +1556,13 @@
       state.lockEnabled = v;
       if (lockSaved === undefined) { lockSaved = v; state.dirtyLock = false; }
       else if (v !== lockSaved) { lockSaved = v; state.dirtyLock = true; autoSave(); }
+      /* ★ iOS-56: the CANCEL echo. HandleAuthSucceeded now pushes on both outcomes, so
+         this arm is reached when the user backed out of turning the lock off: the
+         authoritative value equals the saved one, the optimistic switch snaps back — and
+         the dirty flag set by onLock must go with it, or Save keeps offering to write a
+         change that no longer exists. The comment at :927 called this a missing C# signal
+         and filed it as a BE gap; it was ours. */
+      else { state.dirtyLock = false; syncSave(); }
       scheduleRebuild();
     },
 

@@ -23,7 +23,17 @@ READ THIS BEFORE WRITING CODE
   as closed on a tick.
 
 THE WORK, in priority order
-  1. THE MENU BATCH - all four calls are Damir's, taken 2026-08-22.
+  0. THE #46 LOOP IS OWED AND COMES FIRST. #507-#511 shipped on self-review
+     plus mutation only - the standard #46 calls insufficient - on a batch
+     with TWO security-gate rows. Work order:
+     docs/opus-review-brief-507-511.md (scopes, accepted dials, and the
+     five places the builder is least confident). Run it BEFORE the menu
+     batch: that batch layers an anchored dropdown straight onto the
+     z-order and lift work under review. The break-my-verdict reviewer
+     must be FRESH - that step is where every past loop found its MAJORs.
+
+  1. THE MENU BATCH, only after the loop is CLEAN - all four calls are
+     Damir's, taken 2026-08-22.
      (a) MOBILE: the §5b ANCHORED DROPDOWN for the message menu AND the
          chats row menu (Telegram/WhatsApp). This fixes 4.1 STRUCTURALLY -
          a menu that flips above the pressed message can never cover it,
@@ -61,6 +71,7 @@ STILL OPEN
 
 DO-NOTs
   1. Do not touch Ixian-Core. Five smoke pins enforce 097341a.
+  1b. Do not start the menu batch before the #46 loop is CLEAN.
   2. Do not add a backdrop wash to desktop contextual menus (#268, re-affirmed).
   3. Do not close #503 without the (service-extension) log line.
   4. Do not build a SECOND address-explainer surface - fold the existing one in.

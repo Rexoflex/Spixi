@@ -62,6 +62,51 @@ public partial class App : Application
     private bool isLockScreenActive = false;
     private DateTime unlockedDate = DateTime.Now; // Store the last time when the app was unlocked via lockscreen
 
+    /* ★★ #496 (#484) — DAMIR'S CALL, 2026-08-21: THE APP-LOCK GRACE WINDOW MEASURES FROM
+     * BACKGROUNDING, NOT FROM THE LAST UNLOCK. This is the security dial, so it is written
+     * out in full.
+     *
+     * WHAT HE SAW: "sketchy, sometimes yes sometimes no". That is #454's design seen from
+     * outside — the window ran from the last real authentication, so a quick app-switch
+     * after a minute of ordinary use still asked for the pattern, while the same switch ten
+     * seconds after unlocking did not. The user cannot see either clock, so the behaviour
+     * reads as random.
+     *
+     * WHAT CHANGES: the question becomes "how long was the app away?", which is what every
+     * mainstream messenger asks and the only version a user can predict.
+     *
+     * ⚠ WHAT IS GIVEN UP, stated plainly because dismissPauseLock's own comment used to
+     * promise the opposite: the window can no longer be "used up". Under the old measure,
+     * five seconds after authenticating you were asked on every background, forever. Under
+     * this one, an app kept in constant use — never away for more than the window — is
+     * never re-asked. That is the intended behaviour and not a weakening of the threat
+     * model: the guard exists for a phone that LEAVES the user's hands, and an app that was
+     * away for two seconds did not leave them. What it is NOT is a substitute for the lock
+     * itself, which still fires on every cold start and on every background longer than the
+     * window.
+     *
+     * ⚠ The stamp is taken at the FIRST edge of a background cycle and cleared on resume,
+     * so re-entrant pause hooks cannot push it forward and make an old absence look fresh.
+     * When there is no stamp at all — a cold start, or a resume with no pause before it —
+     * the OLD measure is used, which is exactly today's behaviour and the conservative
+     * direction. */
+    private DateTime? backgroundedDate = null;
+
+    /* ONE constant for both grace tests below. They were two separately-written `5`s, and
+     * the second one had already been wrong once (#229: `ts.Seconds` is the 0-59 component,
+     * so 63 seconds away read as 3 and never locked). Two dials that must agree should not
+     * be two literals. */
+    private const double LOCK_GRACE_SECONDS = 5;
+
+    /** ★ #496: stamp the moment the app went away — first edge of the cycle wins. */
+    private void markBackgrounded()
+    {
+        if (backgroundedDate == null)
+        {
+            backgroundedDate = DateTime.Now;
+        }
+    }
+
 
     public App()
     {        
@@ -421,6 +466,10 @@ public partial class App : Application
     /** Called from the platform pause hook. Safe to call when nothing should happen. */
     public void lockOnPause()
     {
+        // ★ #496: the TRUE leaving edge on Android. OnSleep is raised from OnStop, one step
+        // later (#442) — the fact that has now cost three defects on this surface — so the
+        // stamp is taken here and OnSleep only fills in for platforms with no pause hook.
+        markBackgrounded();
         try
         {
             if (!isLockEnabled())
@@ -559,9 +608,14 @@ public partial class App : Application
     /** Take the pause lock down WITHOUT auth — the cooldown / own-intent grace. */
     private bool dismissPauseLock(LockPage lp)
     {
-        /* Not an unlock: `unlockedDate` is deliberately left alone, so the 5-second
-         * window keeps running from the real authentication and cannot be extended by
-         * backgrounding the app over and over.
+        /* Not an unlock: `unlockedDate` is deliberately left alone.
+         * ⚠ #496 (#484) CORRECTS WHAT THIS COMMENT USED TO PROMISE. It said the window
+         * "keeps running from the real authentication and cannot be extended by
+         * backgrounding the app over and over" — true while the grace was measured from
+         * the unlock, and false now that Damir's call moved it to the moment the app went
+         * away. Leaving `unlockedDate` alone is still right (this is not an authentication
+         * and must not be recorded as one), but the anti-extension property is gone by
+         * design and is written up in full on the `backgroundedDate` field.
          * ★ AUDIT MINOR-3: the latches are cleared only once the page is confirmed to be
          * on the stack we are about to pop it from. Clearing first meant that a push
          * which had not committed yet left a lock on screen that the app believed was
@@ -633,6 +687,17 @@ public partial class App : Application
         // AUDIT NIT-2: ONE reading of the clock, shared with the older branch below —
         // evaluated twice against a moving clock, the 5 s boundary can satisfy both.
         TimeSpan sinceUnlock = DateTime.Now - unlockedDate;
+        /* ★ #496 (#484): the grace is measured from the moment the app went AWAY. Read
+         * ONCE and cleared immediately, so every early return below leaves the next cycle
+         * with a clean stamp — this method returns from three places.
+         * ⚠ The negative guard is not decoration: a clock moved backwards would otherwise
+         * make any absence look like it happened in the future and satisfy the window. The
+         * same guard already protects ownIntentFresh() a few lines up. */
+        DateTime? wentAway = backgroundedDate;
+        backgroundedDate = null;
+        TimeSpan sinceBackground = wentAway.HasValue ? (DateTime.Now - wentAway.Value) : sinceUnlock;
+        bool withinGrace = sinceBackground.TotalSeconds >= 0
+            && sinceBackground.TotalSeconds <= LOCK_GRACE_SECONDS;
         /* ★ F3 (audit MINOR): log the resume UNCONDITIONALLY. Instrumented only inside the
          * branch, silence was ambiguous between "OnResume never ran" and "no pause lock was
          * held" — and that exact ambiguity, a lifecycle callback not firing where it was
@@ -647,8 +712,13 @@ public partial class App : Application
              * method answer it together. */
             SLockDiag.mark("resume/pauseLock-held",
                 "ownIntentReturn=" + ownIntentReturn
-                + " sinceUnlock=" + ((long)sinceUnlock.TotalSeconds) + "s");
-            if (!(ownIntentReturn || sinceUnlock.TotalSeconds <= 5) || !dismissPauseLock(held))
+                + " sinceUnlock=" + ((long)sinceUnlock.TotalSeconds) + "s"
+                // ★ #496: both clocks are printed so the next F5 can SEE which one decided,
+                // and "stamped=False" names the fallback rather than hiding it in a number.
+                + " sinceBackground=" + ((long)sinceBackground.TotalSeconds) + "s"
+                + " stamped=" + wentAway.HasValue
+                + " withinGrace=" + withinGrace);
+            if (!(ownIntentReturn || withinGrace) || !dismissPauseLock(held))
             {
                 /* Stays up — either it is still required, or the push has not committed
                  * and dismissing it would leave a lock on screen the app has forgotten
@@ -656,7 +726,34 @@ public partial class App : Application
                  * is not resumed behind a lock; onUnlock is what wakes it.
                  * ★ AUDIT MAJOR-2: the biometric prompt was DEFERRED while the app was
                  * backgrounded. Now it is really in the foreground, so run it. */
-                SLockDiag.mark("resume/lock-stays-up", "releasing deferred auth");
+                /* ★★ #500 — AUDIT MAJOR ON #496, AND IT WAS AN APP-LOCK BYPASS.
+                 *
+                 * The stamp is read and cleared at the top of OnResume, unconditionally.
+                 * On THIS path the lock is still up and still unauthenticated — so
+                 * clearing it means the NEXT resume measures from the next leaving edge
+                 * and knows nothing about the absence that put the lock here. Two
+                 * sequences opened the app with no password, both on Damir's own hardware:
+                 *
+                 *   (a) away two hours → lock stays up → press Home → tap Spixi within
+                 *       5 s → sinceBackground≈2s → withinGrace → dismissPauseLock → in.
+                 *   (b) worse, because it needs no deliberation: away two hours → the
+                 *       pattern prompt appears → ConfirmDeviceCredential is a SEPARATE
+                 *       ACTIVITY, so presenting it PAUSES MainActivity and lays a fresh
+                 *       stamp → the user presses Back → resume inside 5 s → in.
+                 *
+                 * `dismissPauseLock` performs no authentication of its own; the grace test
+                 * IS the gate. So the absence must keep accumulating until the lock is
+                 * actually resolved: the stamp goes back exactly as it was found.
+                 * `markBackgrounded()` is a no-op while it is non-null, so every pause
+                 * during the prompt leaves the original leaving edge in place.
+                 *
+                 * ⚠ This is the difference between the dial Damir agreed to and a weaker
+                 * one. Under the old measure both sequences read `sinceUnlock` in hours and
+                 * the lock stayed up — so shipping #496 without this line would have made
+                 * the lock strictly weaker than the design it replaced, which is not what
+                 * was offered to him. */
+                backgroundedDate = wentAway;
+                SLockDiag.mark("resume/lock-stays-up", "releasing deferred auth · stamp restored (#500)");
 #if ANDROID
                 /* ★ F3 — THE FIX, and it is a TIMING fix, not a gating one. The 2026-08-21
                  * device log settled three rounds of guessing: all four gates read correctly
@@ -696,11 +793,14 @@ public partial class App : Application
         }
 
         // Popup the lockscreen if necessary
-        // Allow a 5 second cooldown after unlock
-        TimeSpan ts = sinceUnlock;   // AUDIT NIT-2: the same reading the block above used
-        // #229 (reviewer find): ts.Seconds is the SECONDS COMPONENT (0–59) — 63s in the
-        // background gave Seconds==3 → no lock. TotalSeconds is the real elapsed time.
-        if (isLockEnabled() && ts.TotalSeconds > 5 && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
+        /* ★ #496 (#484): the SAME grace as the pause-lock branch above — one reading, one
+         * constant, one answer. These were two independently written 5-second tests, and a
+         * platform whose lock comes up here (iOS, Windows, MacCatalyst) must not disagree
+         * with Android about when the app asks.
+         * #229 (reviewer find) is preserved inside `withinGrace`: it uses TotalSeconds, not
+         * `ts.Seconds`, which is the 0-59 COMPONENT — 63 s in the background read as 3 and
+         * never locked at all. */
+        if (isLockEnabled() && !withinGrace && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
             /* ★ #438 — COVER FIRST, SYNCHRONOUSLY, BEFORE ANYTHING ELSE.
              * #229 stages the lock's WebView hidden on the CURRENT page and presents it
@@ -792,6 +892,9 @@ public partial class App : Application
         {
             SpixiContentPage.showPrivacyShield();
         }
+        // ★ #496: no-op on Android when lockOnPause already stamped this cycle; the real
+        // stamp for every platform that has no pause hook.
+        markBackgrounded();
         isInForeground = false;
         IxianHandler.localStorage?.flush();
         Node.pause();

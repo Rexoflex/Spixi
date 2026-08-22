@@ -532,6 +532,40 @@ namespace SPIXI
                 string langForLog = safeForLog(lang);
                 Logging.info("Language pick: requested '" + langForLog + "', loaded=" + languageLoaded
                     + ", active now '" + SpixiLocalization.getCurrentLanguage() + "'");
+                /* ★★ N65 (#498) — THE CORRECTIVE ECHO, and it is the same defect shape as
+                 * iOS-56 two verbs above: a control flipped OPTIMISTICALLY and never
+                 * answered.
+                 *
+                 * `docs/n65-triage-language-pick.md` §3 lists FOUR surfaces that disagreed in
+                 * one of Damir's Windows frames — hub copy in French, the row VALUE reading
+                 * Deutsch, the CHECKMARK on Português, the app in German. Two of those four
+                 * are explained by this one missing push:
+                 *   ② the "Language" row value is pushed at `onLoad` ONLY (:166) — a pick
+                 *      never re-pushed it, so it kept whatever was true at page load;
+                 *   ③ the picker checkmark is moved by the SHELL on the tap, before C#
+                 *      answers — and C# can refuse the same pick a moment later.
+                 * `setLanguage` writes `state.language` and re-renders, which is exactly the
+                 * one value both surfaces read (settings.html:1636).
+                 *
+                 * ⚠ UNCONDITIONAL, outside the `if`. On success it makes the row agree with
+                 * the active code; on REFUSAL it drags the optimistic checkmark back to the
+                 * language that is really loaded, which is the case that produced the
+                 * screenshot. Pushing only on success is what left the two disagreeing.
+                 *
+                 * ⚠ `getCurrentLanguage()`, never the requested `lang` — the whole point is
+                 * to echo what C# actually holds. Echoing the request would make a refused
+                 * pick look accepted, which is the bug wearing a different hat.
+                 *
+                 * ⚠ Safe beside the `setLocale` push below: sendUiCommand goes out through
+                 * `SpixiContentPage.sendMessage` → evaluateJavascript, which queues. The
+                 * last-wins coalescing the W2 note warns about is the SHELL→C# direction
+                 * (`location.href`), and the onLoad burst already sends five of these in one
+                 * task.
+                 *
+                 * This does NOT close N65: the §2 log line above (shipped in #385) has still
+                 * never been read on a Windows device, and surfaces ① and ④ have their own
+                 * sources. It removes the two the triage could name from source. */
+                Utils.sendUiCommand(this, "setLanguage", SpixiLocalization.getCurrentLanguage());
                 if (languageLoaded)
                 {
                     selectedLanguage = lang;
@@ -822,16 +856,39 @@ namespace SPIXI
             SpixiLocalization.loadLanguage(lang);
         }
 
+        /* ★ iOS-56 (Damir on device 2026-08-21) — and the finding is NOT the one the row
+         * predicted. He reported that the "confirm it's you" screen shown when turning the
+         * LOCK OFF still carries a Cancel button, though Cancel was removed from the lock's
+         * own password prompt (#234), and asked for the second presentation site.
+         *
+         * ★ VERIFIED AT SOURCE, and Cancel is CORRECT here. #234 removed the exit from the
+         * APP LOCK ('locked' mode) because there `authSucceeded(false)` reached App.onUnlock,
+         * which ignores the bool — one tap opened the app without the password. This site is
+         * different in exactly the way that matters: the handler below reads `e.Value`, so a
+         * cancel changes nothing and the lock stays ON. Removing Cancel would instead trap the
+         * user on a confirm screen with no way back to Settings, which is a worse answer to a
+         * strictly less dangerous question — backing out of DISABLING a lock is safe.
+         *
+         * ★ THE REAL DEFECT, which the report found by its symptom: the shell flips the
+         * switch OPTIMISTICALLY when it sends `ixian:lock:off`, and this handler only pushed
+         * `setLockEnabled` on SUCCESS. So a cancelled auth left the switch reading OFF while
+         * the lock was still ON — a control that lies about a security setting, until the
+         * next load quietly corrected it. settings.html:927-930 documents the missing signal
+         * and files it as "BE gap S6"; it is not BE, it is this method.
+         *
+         * The push is now unconditional, and it carries the value C# actually holds. The
+         * shell's setLockEnabled is idempotent on the saved baseline, so a cancel snaps the
+         * switch back and writes nothing. */
         private void HandleAuthSucceeded(object sender, EventArgs<bool> e)
         {
             bool succeeded = e.Value;
 
-            if(succeeded)
+            if (succeeded)
             {
                 lockEnabled = false;
-                Utils.sendUiCommand(this, "setLockEnabled", lockEnabled.ToString());
             }
 
+            Utils.sendUiCommand(this, "setLockEnabled", lockEnabled.ToString());
         }
 
         /* ★ W14 (#348) — THE FREEZE, and the routing.

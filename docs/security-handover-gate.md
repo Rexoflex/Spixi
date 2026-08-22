@@ -280,3 +280,96 @@ before.
 **Two new `spixi.*` keys** (#443, N80): `spixi.rating.opens` (a small integer) and
 `spixi.rating.lastopen` (a timestamp). Neither is personal, so neither widens MAJOR #4 —
 which is the standing question for anything written to that partition.
+
+---
+
+## ★ 2026-08-25 — the app-lock GRACE WINDOW moved. Damir's call (#496 / #484).
+
+**This is a deliberate change to an authentication gate, so it is written up here rather
+than left in a DECISIONS row.** The introduced-vs-inherited question does not apply — the
+pause lock is entirely ours (#442/#454) — so the honest framing is the second one this
+gate uses: *is the exposure smaller, the same, or larger than the design it replaces, and
+did the person who owns the product make the call with the cost in front of him?*
+
+### What changed
+
+The five-second no-auth window used to be measured from the last successful
+**authentication** (`unlockedDate`). It is now measured from the moment the app went
+**away** (`backgroundedDate`).
+
+### Why
+
+Damir, on device: the lock felt *"sketchy, sometimes yes sometimes no"*. That is the old
+design seen from outside — a quick app-switch after a minute of ordinary use still asked
+for the pattern, while the same switch ten seconds after unlocking did not. Neither clock
+is visible to the user, so the behaviour reads as random. Offered as a dial with the
+trade-off attached; he chose measure-from-backgrounding.
+
+### What is unchanged
+
+* The window is still **five seconds** and it is still the only thing between a background
+  and a prompt. One constant now feeds both branches.
+* **Cold start always prompts.** Process death clears the stamp, and the no-stamp path
+  falls back to the old measure.
+* Any absence **longer than the window** prompts, on every platform.
+* `dismissPauseLock` still does **not** touch `unlockedDate` — a grace dismissal is not an
+  authentication and must never be recorded as one.
+
+### ⚠ What is given up, stated plainly
+
+**The window can no longer be used up.** Under the old measure, five seconds after
+authenticating the user was asked on every background, indefinitely. Under this one, an
+app that is never away for longer than the window is never re-asked.
+
+The reason this is acceptable, and it is the whole argument: the app lock guards a phone
+that **leaves the user's hands**. An app that was away for two seconds did not leave them,
+and an attacker who has the unlocked device in the foreground is already past this gate —
+they can read the screen without backgrounding anything. What the window does NOT do is
+substitute for the lock: cold start, and every absence past five seconds, still prompt.
+
+This is the same threat model Signal and WhatsApp ship.
+
+### ★★ The audit found a BYPASS in the first cut of this. Read this part.
+
+The paragraph below used to promise that a re-entrant pause hook could not push the clock
+forward. **It could — across a resume, not within one.** The stamp was read and cleared at
+the top of `OnResume` unconditionally, *including* on the branch where the lock stays up
+and is still unauthenticated. Two sequences then opened the app with no password:
+
+* away for hours → the lock stays up → press **Home** → tap Spixi within 5 s → the grace
+  test sees a 2-second absence and `dismissPauseLock` pops the lock. `dismissPauseLock`
+  performs no authentication of its own; **the grace test IS the gate.**
+* worse, because it needs no deliberation: away for hours → the pattern prompt appears →
+  **`ConfirmDeviceCredential` is a separate Android Activity**, so presenting it pauses
+  Spixi and lays a fresh stamp → the user presses **Back** → resume inside 5 s → in.
+
+Fixed (#500) by restoring the stamp on that branch, so the absence keeps accumulating
+until the lock is actually resolved. `markBackgrounded()` is a no-op while the stamp is
+non-null, so every pause during the prompt leaves the original leaving edge in place.
+
+⚠ Both halves are pinned now — the within-cycle property AND the across-resume one — and
+`docs/f5-checklist-2026-08-25-android.md` §3.6/§3.7 walk the two sequences on hardware.
+The lesson is the one this project keeps paying for: a lifecycle callback firing at an edge
+nobody was reasoning about. Fifth time (#442, #454, #460, #472, #500).
+
+### The hardening that rides with it
+
+* The stamp is taken at the **first** edge of a background cycle, and it is **restored**
+  rather than cleared whenever the lock stays up, so neither a re-entrant pause hook nor a
+  second resume can push the clock forward and make an old absence look fresh. **Both**
+  properties are pinned.
+* A **negative elapsed time is rejected** — a clock moved backwards would otherwise make
+  any absence look like it happened in the future and satisfy the window. The same guard
+  already protected `ownIntentFresh()`; it now protects both grace tests.
+* The two grace tests — the Android pause-lock branch and the older present-the-lock branch
+  that iOS, Windows and MacCatalyst take — read **one** answer from **one** constant. They
+  were two independently written `5`s, and the second had already been wrong once (#229:
+  `ts.Seconds` is the 0-59 component, so 63 seconds away read as 3 and never locked).
+
+### Verification owed
+
+`docs/f5-checklist-2026-08-25-android.md` §3. **Four** rows must never fail: **3.2** (away
+10 s → prompt), **3.4** (cold start → prompt), and the two the audit added — **3.6** (cancel
+the prompt, then try to get back in) and **3.7** (Home and straight back while the lock is
+up). If any fails, this reverts in one line: the fallback expression already contains the
+old measure.

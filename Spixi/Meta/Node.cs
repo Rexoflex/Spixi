@@ -61,6 +61,21 @@ namespace SPIXI.Meta
 
         private static bool running = false;
 
+        /// <summary>
+        /// ★ #493 (#483) — a read-only view of `running`, for the push handler.
+        ///
+        /// `SPushService.handleNotificationReceived` is now registered from the Application
+        /// (Android), so it fires on pushes delivered to a process that has no node in it.
+        /// `OfflinePushMessages.fetchPushMessages` cannot work there — it needs the push URL
+        /// and stream processor wired by `init()` above and a wallet to address — so the
+        /// handler asks this before attempting the fetch. Read-only on purpose: nothing
+        /// outside this file may set it.
+        /// </summary>
+        public static bool isRunning
+        {
+            get { return running; }
+        }
+
         private static long lastPriceUpdate = 0;
 
         private static GenericAPIServer? apiServer = null;

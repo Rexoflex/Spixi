@@ -39,10 +39,95 @@ namespace Spixi
         private static bool isInitializing = false;
         private static bool isInitialized = false;
 
+        /* ★ #493 (#483) — THE SDK IS READY LONG BEFORE THE PERMISSION ANSWER IS.
+         *
+         * `isInitialized` has always meant "RequestPermissionAsync came back successfully",
+         * which is a DIFFERENT question from "is the OneSignal SDK up". Everything that
+         * actually needs the SDK — the WillDisplay gate, ClearAllNotifications — needs only
+         * the latter, and gating them on the former is why Damir's 2026-08-22 log carries
+         * `Cannot clear notifications, OneSignal is not initialized yet` twice on a normal
+         * launch. Two flags, two questions, and they must not be conflated again. */
+        private static bool oneSignalReady = false;
+
+        /* ⚠ AUDIT MINOR on #493: a SECOND flag, and it is not redundant. The handlers are
+         * attached BEFORE `OneSignal.Initialize` on purpose — a push must never arrive
+         * between the two — but `oneSignalReady` is set AFTER it. So if Initialize threw,
+         * the retry in `initialize()` would re-enter registerEarly with the handlers
+         * already attached and subscribe BOTH a second time: two `PreventDefault` calls
+         * and two posts per push, and two `StartActivity` calls on a tap. Attachment is
+         * latched separately from readiness. */
+        private static bool handlersAttached = false;
+
         private static bool clearRemoteNotificationsAfterInit = false;
+
+        /// <summary>
+        /// ★★ #493 (#483, root-caused in `docs/f5-verdict-2026-08-22b.md` §3) — EVERYTHING A
+        /// PUSH NEEDS IN ORDER TO BE OURS, AND NOTHING ELSE.
+        ///
+        /// Damir, on device: *"if I close the app the notifications keep coming and they are
+        /// not grouped, so like legacy"*, and the global master failed the same way. The cause
+        /// was never the gate — it was that the gate did not exist yet. `initialize()` used to
+        /// run inside `Node.start()`, which the closed-app log dates at **~4 seconds** after
+        /// launch (`19:14:23.73 Starting Spixi` → `19:14:27.66 Node started`). A push delivered
+        /// to a KILLED app is displayed by OneSignal's NATIVE SDK long before any .NET handler
+        /// exists, so the mute, the global master and NOTIF-4's collapsing all belonged to code
+        /// that had not run.
+        ///
+        /// So the registration half moves to `MainApplication.OnCreate`, which Android runs
+        /// before ANY component in the process — receiver, service or activity. A push that
+        /// wakes a dead process may never start an activity at all, which is exactly why the
+        /// Activity was the wrong home.
+        ///
+        /// ⚠ WHAT THIS SPLIT DELIBERATELY DOES **NOT** MOVE: the permission prompt and
+        /// `setTag`. `RequestPermissionAsync` puts an OS dialog on screen and must stay at a
+        /// chosen moment, not fire from a background push; `setTag` reads
+        /// `getWalletStorage().getPrimaryAddress()` and has no wallet to read this early.
+        /// Both stay in `initialize()`, still called from `Node.start()`.
+        ///
+        /// ⚠ Fenced, and the flag is set only on success: a throw here would run before the
+        /// MAUI app is built, and lifecycle ordering is the class that produced #442, #454
+        /// and #460. Idempotent, because `initialize()` also calls it as a belt for any path
+        /// that reaches the node without the Application hook having run.
+        /// </summary>
+        public static void registerEarly()
+        {
+            if (oneSignalReady)
+            {
+                return;
+            }
+
+            try
+            {
+                OneSignal.Debug.LogLevel = LogLevel.WARN;
+                OneSignal.Debug.AlertLevel = LogLevel.NONE;
+
+                if (!handlersAttached)
+                {
+                    handlersAttached = true;
+                    OneSignal.Notifications.Clicked += handleNotificationOpened;
+                    OneSignal.Notifications.WillDisplay += handleNotificationReceived;
+                }
+
+                OneSignal.Initialize(SPIXI.Meta.Config.oneSignalAppId);
+
+                oneSignalReady = true;
+                Logging.info("[NOTIFDIAG] OneSignal handlers registered in the Application (#493)");
+            }
+            catch (Exception e)
+            {
+                // Left FALSE on purpose so the next caller retries. The old latch's whole
+                // defect (#489, below) was a flag that survived its own failure.
+                oneSignalReady = false;
+                Logging.error("registerEarly failed: {0}", e);
+            }
+        }
 
         public static void initialize()
         {
+            // Belt: normally MainApplication.OnCreate has already done this. A path that
+            // reaches node start without it must still end up with handlers.
+            registerEarly();
+
             if (isInitializing
                 || isInitialized)
             {
@@ -51,32 +136,42 @@ namespace Spixi
 
             isInitializing = true;
 
-            OneSignal.Debug.LogLevel = LogLevel.WARN;
-            OneSignal.Debug.AlertLevel = LogLevel.NONE;
-
-            OneSignal.Notifications.Clicked += handleNotificationOpened;
-            OneSignal.Notifications.WillDisplay += handleNotificationReceived;
-
-            OneSignal.Initialize(SPIXI.Meta.Config.oneSignalAppId);
-
-            // RequestPermissionAsync will show the notification permission prompt.
-            OneSignal.Notifications.RequestPermissionAsync(true).ContinueWith(task =>
+            /* ★ #494 (#489) — THE LATCH THAT SWALLOWED ITS OWN RETRY.
+             *
+             * `isInitializing` was set here and NEVER reset; `isInitialized` was set only in
+             * the success branch. So one fault or cancellation — the user tapping "Don't
+             * allow", a cancelled task, anything — left both flags in a state where every
+             * later call returned at the guard above, permanently disabling push
+             * initialization for the whole process. It is reset on EVERY completion path,
+             * and synchronously too: RequestPermissionAsync can throw before it ever returns
+             * a task, and that path used to leave the latch stuck as well. */
+            try
             {
-                if (task.IsCompletedSuccessfully)
+                OneSignal.Notifications.RequestPermissionAsync(true).ContinueWith(task =>
                 {
-                    isInitialized = true;
+                    isInitializing = false;
 
-                    if (clearRemoteNotificationsAfterInit)
+                    if (task.IsCompletedSuccessfully)
                     {
-                        clearRemoteNotificationsAfterInit = false;
-                        clearRemoteNotifications(0);
+                        isInitialized = true;
+
+                        if (clearRemoteNotificationsAfterInit)
+                        {
+                            clearRemoteNotificationsAfterInit = false;
+                            clearRemoteNotifications(0);
+                        }
                     }
-                }
-                else
-                {
-                    Logging.warn("Notification permission request failed or was cancelled.");
-                }
-            });
+                    else
+                    {
+                        Logging.warn("Notification permission request failed or was cancelled.");
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                isInitializing = false;
+                Logging.error("RequestPermissionAsync threw: {0}", e);
+            }
         }
 
         public static void setTag(string tag)
@@ -88,7 +183,12 @@ namespace Spixi
         {
             try
             {
-                if (isInitialized)
+                /* ★ #493: gated on the SDK being up, NOT on the permission answer. Clearing
+                 * the shade needs neither a granted permission nor a subscription — it is a
+                 * local call on the native SDK. Damir's 2026-08-22 log shows this warning
+                 * firing twice on an ordinary launch, purely because `isInitialized` meant
+                 * "the permission task came back" and the clear ran before it did. */
+                if (oneSignalReady)
                 {
                     OneSignalNative.Notifications.ClearAllNotifications();
                 }
@@ -272,7 +372,18 @@ namespace Spixi
             {
                 e.PreventDefault();
 
-                if (OfflinePushMessages.fetchPushMessages(true, true))
+                /* ★ #493 — ASK WHETHER THE FETCH CAN EVEN BE ATTEMPTED BEFORE ATTEMPTING IT.
+                 *
+                 * Now that this handler is registered from the Application (#493), it runs on
+                 * pushes that reach a process with NO node in it. `fetchPushMessages` needs
+                 * three things the node owns — `OfflinePushMessages.init` having supplied the
+                 * push URL and the stream processor (`Node.cs:112`), and
+                 * `IxianHandler.getWalletStorage().getPrimaryAddress()` — so on that path it
+                 * cannot succeed; it can only throw, or burn an HTTP registration round-trip
+                 * inside a push callback. `Node.isRunning` is the honest predicate and it is
+                 * strictly narrowing: where the fetch works today (the app is merely
+                 * backgrounded) the node IS running and nothing changes. */
+                if (SPIXI.Meta.Node.isRunning && OfflinePushMessages.fetchPushMessages(true, true))
                 {
                     return;
                 }
@@ -315,7 +426,82 @@ namespace Spixi
                 return;
             }
 
-            e.Notification.display();
+            displayColdPush(fa, e);
+        }
+
+        /// <summary>
+        /// ★★ #495 (#483, the second half of Damir's complaint) — POST **OUR** ROW, NOT THE
+        /// RAW ONE.
+        ///
+        /// *"the notifications keep coming and they are not grouped, so like legacy"*. Both
+        /// halves of that sentence are one fact: `e.Notification.display()` posts OneSignal's
+        /// own row, with OneSignal's own id. A unique id per push is what makes five messages
+        /// five rows — the exact defect NOTIF-4 fixed for LOCAL notifications by keying the id
+        /// on the CHAT ADDRESS, and which the push path never inherited. It is also why the
+        /// rows looked unlike ours (3.12's *"legacy type notification"*): different channel,
+        /// different icon, no accent, no per-type line.
+        ///
+        /// So this posts through `showLocalNotification` — the same builder, the same channel,
+        /// the same `ic_stat_spixi`, the same brand accent, and above all
+        /// `SNotificationPrefs.notificationIdFor(fa)`, so a second push from the same sender
+        /// REPLACES the first instead of stacking beside it.
+        ///
+        /// ★ NO NEW OneSignal API IS READ, deliberately. The body is the app's own
+        /// `notification-new-message` string, not the push payload's title/body — which is
+        /// both the AND-15 (#334) design (a per-type line, never message text) and strictly
+        /// more private than the raw row it replaces. There is nothing to lose by not reading
+        /// the payload: the app does not display message text in a notification on any
+        /// setting.
+        ///
+        /// ⚠ HONEST SCOPE, and it is the same BE gap as everywhere else in this family: a
+        /// GROUP push carries the SENDER'S address in `fa`, not the group's. So a group
+        /// message collapses per SENDER rather than per group, and when the node later starts
+        /// and fetches the real message, the group's own row posts under a different id — one
+        /// extra row, which is exactly what happens today with the raw push, so no worse. For
+        /// a 1:1 the two ids are identical and the real row REPLACES this one. The payload
+        /// needs the group address; that is `be-cutover` work.
+        ///
+        /// ⚠ NOT cancelled when the node comes up. #481's lesson: a row the user has not seen
+        /// is the only record the event happened, and cancelling it to tidy up is how the
+        /// missed-call row was lost.
+        /// </summary>
+        static void displayColdPush(string? fa, OneSignalSDK.DotNet.Core.Notifications.NotificationWillDisplayEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(fa))
+                {
+                    /* No addressee: there is no id to key on and no chat to open, so the raw
+                     * row is still the best available answer. Same fail-open direction as
+                     * shouldDisplayRawPush — a push we cannot attribute is not one we may
+                     * drop. */
+                    e.Notification.display();
+                    return;
+                }
+
+                int notifId = SPIXI.Meta.SNotificationPrefs.notificationIdFor(new IXICore.Address(fa), false);
+                string notifText = SPIXI.Lang.SpixiLocalization._SL("notification-new-message") ?? "New Message";
+
+                // chatUnread 0: with no node there is no unread count to state, and
+                // showLocalNotification only adds the "N new messages" sub-text above 1.
+                showLocalNotification(notifId, "Spixi", notifText, fa, true, 0, "message", 0);
+                Logging.info("[NOTIFDIAG] cold push posted as a Spixi row, id keyed on the sender (#495)");
+            }
+            catch (Exception ex)
+            {
+                /* A malformed address, a missing resource, anything — fall back to the row we
+                 * would have posted before this change. A push must never be lost to our own
+                 * formatting. */
+                Logging.error("displayColdPush failed, falling back to the raw push: {0}", ex);
+                try
+                {
+                    e.Notification.display();
+                }
+                catch (Exception ex2)
+                {
+                    Logging.error("raw push display also failed: {0}", ex2);
+                }
+            }
         }
 
         static void handleNotificationOpened(object? sender, OneSignalSDK.DotNet.Core.Notifications.NotificationClickedEventArgs e)

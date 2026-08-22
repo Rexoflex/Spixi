@@ -42,6 +42,46 @@ function appCtrl(onDone, onFail) {
   };
 }
 
+/**
+ * ★ #502 (Damir, 2026-08-25) — THIRD-PARTY ASSET CREDITS, kept SEPARATE from the names.
+ *
+ * The four in-app effect sounds are CC0, which requires no attribution at all. This is
+ * here because it is the decent answer and because someone who wonders where a sound in
+ * the app came from should be able to find out — not because anything is owed.
+ *
+ * ⚠ NOT merged into CONTRIBUTORS. Those are people who worked on Spixi; a licence credit
+ * is a different kind of fact, and folding one into the other makes both harder to read
+ * and quietly implies the wrong thing about both.
+ *
+ * ⚠ The LABEL is localized and the rest is not: a product name, a domain and an SPDX
+ * identifier are proper nouns and must read identically in every language. `source` and
+ * `licence` are curated in-code and rendered as textContent — never a link, because no
+ * bridge verb opens one and a dead link is worse than selectable text (the About-screen
+ * ruling, `linkRow` below).
+ *
+ * ⚠ AND THE LABEL IS RESOLVED BY A SWITCH, NOT BY `strings[c.key]`. `extract-strings` is a
+ * STATIC sweep — it reads `strings.someKey || 'fallback'` out of the source and cannot see
+ * a computed property. A dynamic lookup here compiled and linted clean and would have
+ * shipped an English-only label in all thirteen locales, silently, because the fallback
+ * would win every time. Adding a credit is therefore two lines: the entry below and its
+ * case in `creditLabel`.
+ */
+function creditLabel(credit, strings) {
+  switch (credit.key) {
+    case 'creditSounds': return strings.creditSounds || 'Interface sounds';
+    default: return credit.fallback;   // a credit added without its case still renders
+  }
+}
+
+export const ASSET_CREDITS = [
+  {
+    key: 'creditSounds',
+    fallback: 'Interface sounds',
+    source: 'UI SFX — uisfx.com',
+    licence: 'CC0 1.0',
+  },
+];
+
 // legacy contributors.html list (static; localizable via opts)
 export const CONTRIBUTORS = [
   'Lex Scalp', 'w4r3z4s', '#Zinsi', '¥0_brkz', 'YT', 'Serg',
@@ -374,6 +414,7 @@ export function setDevLog(el, text) {
  */
 export function createSettingsContributors({
   contributors = CONTRIBUTORS,
+  credits = ASSET_CREDITS,        // ★ #502 — overridable, same shape as contributors
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -413,6 +454,37 @@ export function createSettingsContributors({
   card.append(list);
   groupWrap.append(card);
   body.append(groupWrap);
+
+  /* ★ #502: the asset credits, under their own heading and their own card. */
+  if (credits.length) {
+    const h = document.createElement('h3');
+    h.className = 'c-settings__note c-settings-contrib__credits-title';
+    h.textContent = strings.creditsTitle || 'Credits';
+    body.append(h);
+
+    const creditsWrap = document.createElement('div');
+    creditsWrap.className = 'c-settings__groupwrap';
+    const creditsCard = document.createElement('div');
+    creditsCard.className = 'c-settings__group c-settings-contrib__card';
+    const creditsList = document.createElement('ul');
+    creditsList.className = 'c-settings-contrib__credits';
+    for (const c of credits) {
+      const li = document.createElement('li');
+      li.className = 'c-settings-contrib__credit';
+      const what = document.createElement('span');
+      what.className = 'c-settings-contrib__credit-what';
+      what.textContent = creditLabel(c, strings);
+      const who = document.createElement('span');
+      who.className = 'c-settings-contrib__credit-who';
+      // Proper nouns — deliberately NOT localized. i18n-lint-ok:proper-noun
+      who.textContent = c.source + ' · ' + c.licence;
+      li.append(what, who);
+      creditsList.append(li);
+    }
+    creditsCard.append(creditsList);
+    creditsWrap.append(creditsCard);
+    body.append(creditsWrap);
+  }
 
   return el;
 }

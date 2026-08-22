@@ -22,6 +22,22 @@ import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+/* ★ iOS-62 / #492 (Damir on device 2026-08-21, DECIDED: the cheap TINT).
+ *
+ * "Long-press should highlight the pressed message so it stays visible behind the
+ * scrim — you cannot see what you are acting on." iMessage lifts the bubble above the
+ * blur; WhatsApp tints it. Damir picked the tint, explicitly NOT auto-select: selection
+ * would re-open the WKWebView native selection gesture #290 suppressed, and it puts the
+ * user in a mode they then have to escape.
+ *
+ * ⚠ ONE resolver, used by BOTH the opener and the gesture wiring. attachMessageMenu
+ * already computes this element to bind its listeners to; if the two ever disagreed the
+ * tint would land on a different node than the one the user pressed. */
+export function messageMenuTarget(row) {
+  if (!row) return null;
+  return (row.querySelector && row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble')) || row;
+}
 const LONG_PRESS_MS = 500;   // §5b
 const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
@@ -95,14 +111,27 @@ export function openMessageMenu({
 
   content.append(list);
 
-  const sheet = createSheet({ content, host, strings });
+  /* ★ iOS-62: tint the pressed bubble IN PLACE for as long as the menu is up. The
+   * scrim is rgba(17,18,19,.6) (tokens.css --surface-scrim), so 40% of the bubble's own
+   * colour still reaches the eye — enough for a saturated ring to stay legible without
+   * promoting the node above the scrim. Promoting it is the §5b anchored-panel
+   * presentation, which this component deliberately does not build.
+   *
+   * ⚠ Cleared through onDismiss, which overlay.js raises on EVERY route out — an action,
+   * the scrim, Esc, and the Android back button. Clearing it only in act() would leave a
+   * permanently tinted bubble behind any of the other three. */
+  const tinted = messageMenuTarget(row);
+  if (tinted && tinted.dataset) tinted.dataset.menuTarget = '';
+  const untint = () => { if (tinted && tinted.dataset) delete tinted.dataset.menuTarget; };
+
+  const sheet = createSheet({ content, host, strings, onDismiss: untint });
   openSheet(sheet);
   return sheet;
 }
 
 /** Long-press (touch) + right-click (desktop) wiring for one message row. */
 export function attachMessageMenu(row, opts = {}) {
-  const target = row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble') || row;
+  const target = messageMenuTarget(row);   // ★ iOS-62: ONE resolver — see the note above
   let timer = null;
   let startX = 0;
   let startY = 0;

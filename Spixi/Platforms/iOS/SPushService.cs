@@ -101,37 +101,61 @@ namespace Spixi
                 Logging.warn("[APNSDIAG] probe could not attach: " + ex.Message);
             }
 
-            OneSignal.Notifications.RequestPermissionAsync(true).ContinueWith(task =>
+            /* ★ #494 (#489) — THE LATCH THAT SWALLOWED ITS OWN RETRY. Mirrored from Android,
+             * byte-for-byte in intent, so the two platforms cannot drift.
+             *
+             * `isInitializing` was set above and NEVER reset, while `isInitialized` is set
+             * only on the success path. One fault or cancellation therefore disabled push
+             * initialization for the entire process: every later call returned at the guard.
+             * On iOS this is the more likely of the two to bite, because the permission
+             * dialog has a "Don't Allow" button and the whole path has never once run on a
+             * device (#486 — the app carried no entitlement until yesterday).
+             *
+             * ⚠ Reset FIRST in the continuation, before any branch returns — the faulted and
+             * cancelled branches both return early and were the exact paths that stuck. */
+            try
             {
-                if (task.IsFaulted)
+                OneSignal.Notifications.RequestPermissionAsync(true).ContinueWith(task =>
                 {
-                    Logging.error("RequestPermissionAsync failed: {0}", task.Exception?.Flatten().InnerException?.Message);
-                    return Task.CompletedTask;
-                }
-                else if (task.IsCanceled)
-                {
-                    Logging.warn("RequestPermissionAsync was canceled.");
-                    return Task.CompletedTask;
-                }
-                else
-                {
-                    Logging.info("RequestPermissionAsync succeeded.");
-                }
+                    isInitializing = false;
 
-                isInitialized = true;
+                    if (task.IsFaulted)
+                    {
+                        Logging.error("RequestPermissionAsync failed: {0}", task.Exception?.Flatten().InnerException?.Message);
+                        return Task.CompletedTask;
+                    }
+                    else if (task.IsCanceled)
+                    {
+                        Logging.warn("RequestPermissionAsync was canceled.");
+                        return Task.CompletedTask;
+                    }
+                    else
+                    {
+                        Logging.info("RequestPermissionAsync succeeded.");
+                    }
 
-                if (clearNotificationsAfterInit)
-                {
-                    clearNotificationsAfterInit = false;
-                    clearNotifications(0);
-                }
-                else if (clearRemoteNotificationsAfterInit)
-                {
-                    clearRemoteNotificationsAfterInit = false;
-                    clearRemoteNotifications(0);
-                }
-                return Task.CompletedTask;
-            });
+                    isInitialized = true;
+
+                    if (clearNotificationsAfterInit)
+                    {
+                        clearNotificationsAfterInit = false;
+                        clearNotifications(0);
+                    }
+                    else if (clearRemoteNotificationsAfterInit)
+                    {
+                        clearRemoteNotificationsAfterInit = false;
+                        clearRemoteNotifications(0);
+                    }
+                    return Task.CompletedTask;
+                });
+            }
+            catch (Exception e)
+            {
+                // Same synchronous guard as Android: RequestPermissionAsync can throw before
+                // it ever hands back a task, and that path stuck the latch too.
+                isInitializing = false;
+                Logging.error("RequestPermissionAsync threw: {0}", e);
+            }
         }
 
         /* * APNS-1 probe. LOG ONLY - see initialize(). Never throws into a caller. */

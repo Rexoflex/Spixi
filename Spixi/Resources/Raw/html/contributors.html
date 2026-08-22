@@ -1511,6 +1511,41 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-weight: var(--font-weight-semibold);
 }
 
+/* ★ #502 — asset credits. A LIST, not chips: a chip is a name and these are
+   facts, so they read as stacked rows with the label above its source. */
+.c-settings-contrib__credits-title {
+  text-align: center;
+  margin-block: var(--spacing-16) var(--spacing-8);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-settings-contrib__credits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+.c-settings-contrib__credit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  text-align: center;
+}
+.c-settings-contrib__credit-what {
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-contrib__credit-who {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;      /* a domain must never widen the card */
+}
+
 /* —— about —— */
 .c-settings-about__hero {
   display: flex;

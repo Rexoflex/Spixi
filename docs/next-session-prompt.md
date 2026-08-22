@@ -114,6 +114,9 @@ DELIVERY
   -t:Run as a SEPARATE command (#320). Windows:
   -f net10.0-windows10.0.19041.0 -c Debug, then run the exe separately.
 
+  Land delivery tarballs into _deliveries/ (gitignored), NEVER the repo root -
+  39 got tracked before anyone noticed, 60 MB of binaries in the history.
+
   BRIDGE GOTCHAS (learned the hard way):
   tar needs --overwrite. device_bash is capped at 45s - stage git adds in
   chunks of ~20 and verify `diff --cached | wc -l` after each. Git strands

@@ -373,3 +373,31 @@ nobody was reasoning about. Fifth time (#442, #454, #460, #472, #500).
 the prompt, then try to get back in) and **3.7** (Home and straight back while the lock is
 up). If any fails, this reverts in one line: the fallback expression already contains the
 old measure.
+
+### #507–#511 — the lock model, the notification extension, QR (2026-08-22)
+
+⚠ **This row was written LATE — after the batch was built and committed, not while building.**
+The gate says the lens is applied WHILE building so the sweep finds nothing. It found two
+things worth arguing, which is the argument for not skipping it again.
+
+| Item | file:line | Verdict | Evidence at `0e85a4b8` | Action |
+|---|---|---|---|---|
+| **`SpixiNotificationServiceExtension` — a NEW ENTRY POINT into our process, named from the manifest** | `Spixi/Platforms/Android/SNotificationServiceExtension.cs` · `AndroidManifest.xml` | ★ **REACH INTRODUCED, MECHANISM INHERITED** | The push payload already reached `handleNotificationReceived` and already fed `fa` into `showLocalNotification` (#495). What is new is WHEN: a BACKGROUND or killed-app push now reaches OUR parsing code, where previously the SDK rendered it natively | **SHIPPED, and the reach is the point of the row.** `fa` comes from the push payload, i.e. off the network. It flows to exactly two places, both pre-existing: `new IXICore.Address(fa)` (throws on malformed → caught, `postOurPushRow` returns false → the caller falls back) and `showLocalNotification`, which puts it in an Intent `Action` + extra that `MainActivity` already reads. A crafted `fa` can therefore aim the notification's tap at an arbitrary address — **the same exposure the local path has carried since NOTIF-4**, now reachable from a cold push. ⚠ Worth one line to the BE engineer: the payload's `fa` is trusted, and the group case already needs a payload change |
+| **`Preferences` key `lockIdleMinutes`** | `Spixi/Platforms/Windows/SDesktopIdle.cs` | **INTRODUCED**, no exposure | — | ★ **NOT a `spixi.*` key.** MAUI Essentials `Preferences` is native app storage, not the `file://` localStorage partition mini-app code may share, so **MAJOR #4 does not apply**. Value is an int, read-only to the watcher, clamped 1 min – 24 h so an edited preference cannot make the app lock on every poll |
+| **`GetLastInputInfo` — a NEW P/Invoke (`user32.dll`)** | `SDesktopIdle.cs` | **INTRODUCED**, no exposure | — | Reads a tick count for the last input event in this Windows session. **No content, no window titles, no keystrokes** — a single integer. Nothing leaves the device; it is compared against a threshold and discarded. Same `[DllImport("user32.dll")]` shape `SSystemAlert.cs` already ships |
+| **A 30-second background poll for the life of the process** | `SDesktopIdle.loop()` | **INTRODUCED**, no exposure | — | Windows only. Two integer reads per tick; the try sits INSIDE the loop so one bad poll cannot end the watcher |
+| **`clearPaymentActivityDone` / `clearAppsDone` — two NEW C# → WebView pushes** | `HomePage.xaml.cs` | **INTRODUCED**, no exposure | The push channel is legacy; these two verbs are ours | **They carry NO ARGUMENTS.** Each is a bare signal that a synchronous flush finished. Nothing peer-controlled, nothing persisted, no sink. Recorded in the ARCHITECTURE §4 push contract beside `clearChatsDone`, which they mirror |
+| **New log lines: the idle lock, the sweep, the push decision** | `SDesktopIdle.cs` · `App.xaml.cs` (`sweep/uncover`, `sweep/relock`, `idle/locking`) · `SPushService.decidePush` | **INTRODUCED** | The baseline had none of these paths | **Reviewed and kept.** `ixian.log` is DevPage-rendered and shareable, so this matters. The idle line carries **durations only**. The sweep lines are fixed strings. ⚠ **One carries an identifier**: `push <notificationId> already decided` logs OneSignal's own notification id — an opaque SDK id, not an address, not message content, not a key. Kept because it is the only evidence that both lanes fired for one notification. No line carries a password, key, seed, address or message text |
+| **`Config.maxLogCount` 1 → 5** | `Spixi/Meta/Config.cs` | ★ **INTRODUCED — an exposure INCREASE, deliberately** | Baseline kept one previous session | **Damir's call, taken with the reason stated.** Five times the retained history in a log that DevPage can share. Nothing new is *written*; what changes is how much survives. Carries a `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker and a smoke pin that fails if the marker is deleted. ⚠ **This is the row to re-check before handover** |
+| The z-band (scrim 40 / message 42 / sheet 44), the lift, `pointer-events:none` | `overlay.css`, `message-menu.css/js`, `tokens.css` | No exposure | Presentation only | None. The lifted row is dead to hit-testing, so it cannot capture input intended for the scrim |
+| QR: 12 px card padding dropped; hub reveal | `settings-shell.js/css`, `chat-info.css` | No exposure | Presentation only | ★ The **4-module ISO quiet zone is untouched and pinned**. This is a wallet address; a misread is the worst class of defect in the app, and the pin exists so a later "trim the white a bit more" cannot reach it |
+| Credit strings in 12 locale drafts | `src/strings/draft/*.json` | No exposure | Two short UI labels | None |
+
+**#507–#511 adds no `ixian:` verb, no `spixi.*` localStorage key, no WebView setting, no
+`innerHTML`/`eval` sink and no network fetch.** It adds **one Android entry point**, **one
+native `Preferences` key**, **one `user32` P/Invoke**, **two argument-free C# → WebView
+pushes**, and **several log lines**, all argued above.
+
+🟡 **Two carried to the BE engineer:** the push payload's `fa` is trusted end-to-end (and the
+group case needs a payload change anyway — the same row this family has carried since #493);
+and `maxLogCount` must return to 1 before launch.

@@ -2453,6 +2453,22 @@ namespace SPIXI
                 var activityWithTx = Node.activityStorage.getActivityById(activity.id, null, true);
                 addPaymentActivity(activityWithTx);
             }
+
+            /* ★ #506③ — the END of the burst, which this flush never announced.
+             *
+             * Damir on device: the empty state arrives about a second late on wallet and
+             * mini-apps but not on chats. The row read that as "the other two lack the
+             * zeroReady gate chats has"; they do NOT — all three are gated. The gate IS
+             * the delay: chats opens it on the real clearChatsDone verb, while wallet and
+             * apps had none and could only guess with a 400 ms quiet window after the last
+             * push.
+             *
+             * This method is synchronous and every push is already out, so the end of the
+             * burst is exactly here — no guessing left. Mirrors clearChatsDone (:2299),
+             * which has carried the same job for the chats flush since #189.
+             * ⚠ The shell keeps its quiet-window timer as a BELT, so an older exe that
+             * never sends this still opens the gate on the old schedule. */
+            Utils.sendUiCommand(this, "clearPaymentActivityDone");
         }
 
         /* ★ N76 (#391, Damir's dial): does this account hold anything worth losing yet?
@@ -3517,6 +3533,11 @@ namespace SPIXI
                 // Dispose() drops that queue — latching on a push that was queued and then
                 // discarded is what makes an empty apps tab permanent.
                 appsPushedToShell = pageLoaded;
+
+                // ★ #506③: the end of the apps burst — see the note in loadTransactions.
+                // AFTER appsPushedToShell for the same reason that latch is set here: this
+                // is the point at which every row really has been handed over.
+                Utils.sendUiCommand(this, "clearAppsDone");
 
                 foreach (var p in Utils.getChatPages())
                 {

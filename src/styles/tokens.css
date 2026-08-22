@@ -805,7 +805,15 @@
   --z-10: 10;  /* sticky (date headers) */
   --z-20: 20;  /* bars: top/bottom/composer */
   --z-30: 30;  /* dropdown, context menu */
-  --z-40: 40;  /* bottom sheet + scrim */
+  --z-40: 40;  /* scrim */
+  /* ★ #506② — the band between the scrim and the sheet exists so a long-pressed
+     message can be PROMOTED above its own scrim (iMessage's lift). Measured on
+     device: the ring reads 2.01:1 under the 60% scrim and 5.98:1 above it, so the
+     tint #492 shipped could not answer "I cannot see what I am acting on" at any
+     colour. The sheet had to move with it — a lifted message must never paint over
+     the menu that is acting on it. */
+  --z-42: 42;  /* a message promoted above the scrim (long-press) */
+  --z-44: 44;  /* bottom sheet — above the scrim AND above a promoted message */
   --z-50: 50;  /* modal */
   --z-60: 60;  /* call bar — must stay above modals */
   --z-70: 70;  /* toast / alert */

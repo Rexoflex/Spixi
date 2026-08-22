@@ -187,6 +187,11 @@ public static class MauiProgram
                         App.isInForeground = true;
                         Node.resume();
                         App.EnsureNodeRunning();
+                        /* ★ #505: the desktop app lock is driven by INPUT IDLE, not by
+                         * window deactivation — MAUI raises OnSleep when the window merely
+                         * loses focus, and a deactivated window is still on screen. See
+                         * SDesktopIdle for the whole model. Idempotent. */
+                        Spixi.SDesktopIdle.start();
                     });
                 });
 #endif

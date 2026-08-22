@@ -223,12 +223,31 @@
 .c-chat-info__qr-toggle[aria-expanded='true'] > .c-chat-info__qr-chevron {
   transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
 }
+/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
+   this way on dark mode it's quite overpowering."
+
+   Measured before touching it, because HALF of that white is a standard, not a choice.
+   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
+   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
+   worst class of defect in the app. At 185px across a ~45-module grid that is ≈16px per
+   side, and it is untouchable.
+
+   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
+   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
+   on scanning at all.
+
+   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
+   padding the 16px curve lived entirely in the padding and could not reach the code.
+   With none, it eats the quiet zone's own corner — so: the module is 185/45 ≈ 4.1px, the
+   quiet zone ≈16.4px, and a 16px radius removes at most 16 − 16/√2 ≈ 4.7px of DIAGONAL
+   depth, leaving ≈18.5px on the diagonal and the full 16.4px along every edge, where the
+   standard actually measures. Clears four modules on all four sides.
+   ⚠ Raise this radius and that stops being true. */
 .c-chat-info__qr {
   display: flex;
   justify-content: center;
   align-self: center;               /* #149③: hug the code — the white card spanned the
                                        full section width; account-hub parity */
-  padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
   box-shadow: var(--elevation-1);

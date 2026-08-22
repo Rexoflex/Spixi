@@ -614,15 +614,61 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   text-align: center;
 }
 
-/* QR — immediately visible, the receive-card pair (never theme-flips, #137) */
+/* QR — behind a "Show QR" reveal since N86 ②; the receive-card pair (never
+   theme-flips, #137). align-self:center so the white card HUGS the code instead of
+   spanning the hero — chat-info parity, which is the disagreement #149③ recorded. */
+/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
+   this way on dark mode it's quite overpowering."
+
+   Measured before touching it, because HALF of that white is a standard, not a choice.
+   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
+   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
+   worst class of defect in the app. At 185px across a ~45-module grid that is ≈16px per
+   side, and it is untouchable.
+
+   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
+   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
+   on scanning at all.
+
+   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
+   padding the 16px curve lived entirely in the padding and could not reach the code.
+   With none, it eats the quiet zone's own corner — so: the module is 185/45 ≈ 4.1px, the
+   quiet zone ≈16.4px, and a 16px radius removes at most 16 − 16/√2 ≈ 4.7px of DIAGONAL
+   depth, leaving ≈18.5px on the diagonal and the full 16.4px along every edge, where the
+   standard actually measures. Clears four modules on all four sides.
+   ⚠ Raise this radius and that stops being true. */
 .c-settings__qr {
   display: flex;
   justify-content: center;
-  padding: var(--spacing-12);
+  align-self: center;
   margin-top: var(--spacing-4);
   border-radius: var(--radius-16);
   background: var(--surface-qr);
   box-shadow: var(--elevation-1);
+}
+
+/* N86 ②: the reveal row. Deliberately the SAME construction as
+   .c-chat-info__qr-toggle — the two surfaces disagreeing is what #149③ was. */
+.c-settings__qr-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+}
+.c-settings__qr-chevron {
+  margin-inline-start: auto;
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-settings__qr-toggle[aria-expanded='true'] > .c-settings__qr-chevron {
+  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
 }
 .c-settings__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (receive-card family) — +25% with chat-info (Damir F5 2026-07-29) */
 
@@ -1102,11 +1148,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-scrim[data-open] { opacity: 1; }
 
-/* —— bottom sheet (z-40, above its scrim by source order) —— */
+/* —— bottom sheet (z-44) ————————————————————————————————————————————————
+   ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
+   That stopped being enough once a long-pressed message is promoted to z-42: an
+   explicit number is the only thing that keeps the menu above the message it is
+   acting on when the two overlap at the bottom of the log. Still below the modal
+   (z-50), the call bar (z-60) and toasts (z-70). */
 .c-sheet {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  z-index: var(--z-40);
+  z-index: var(--z-44);
   max-width: var(--layout-content-max);
   margin-inline: auto;
   background: var(--surface-menu);

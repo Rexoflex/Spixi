@@ -194,6 +194,34 @@ namespace Spixi
             lock (missingEffects) { missingEffects.Add(filePath); }
         }
 
+        /* ★★ #506① — THE EFFECT PLAYER MUST BE ROOTED, and this is the fix I expect to
+         * do the work. Damir on device: the effects "don't play full length, abrupt".
+         *
+         * ⚠ THE ROW'S OWN DIAGNOSIS DOES NOT SURVIVE CHECKING, and it is recorded here
+         * rather than quietly dropped. It said the `finally` closes the AssetFileDescriptor
+         * "while MediaPlayer is still reading it". Android documents the opposite for
+         * `setDataSource(FileDescriptor, long, long)`: *"It is the caller's responsibility to
+         * close the file descriptor. It is safe to do so as soon as this call returns."* The
+         * SIBLING method four lines down — `playSoundFromAssets`, which every call tone uses
+         * — closes it EARLIER still, immediately after setDataSource and before Prepare, and
+         * the ringtone has never been reported as truncated. So a close AFTER Start cannot be
+         * what clips a 0.4 s effect.
+         *
+         * ★ What separates the two methods is the REFERENCE. A tone is stored in a static
+         * field (`ringtone`, `dialtonePlayer`) and stays reachable for its whole life; an
+         * effect was fire-and-forget, and after this method returned the ONLY thing pointing
+         * at the MediaPlayer was its own Completion handler — a self-reference, which roots
+         * nothing. A .NET-Android peer that becomes unreachable can be collected, its JNI
+         * global ref dropped and the native player finalized MID-PLAYBACK. That is exactly
+         * "truncated and abrupt", exactly intermittent, and exactly why the tones are fine.
+         * iOS already does this deliberately (`effectPlayers`); Android was the one platform
+         * that did not.
+         *
+         * ⚠ The fd handoff below is ALSO applied. It is harmless either way, the row asked
+         * for it, and if the sound is still clipped after this batch then BOTH hypotheses are
+         * dead — which is worth more than being right about which one to try first. */
+        private static readonly System.Collections.Generic.List<MediaPlayer> liveEffects = new();
+
         public static void playEffect(string filePath)
         {
             if (isMissing(filePath))
@@ -202,6 +230,9 @@ namespace Spixi
             }
             MediaPlayer? player = null;
             Android.Content.Res.AssetFileDescriptor? fd = null;
+            // #506①: true once Completion owns the descriptor, so the finally stops
+            // closing it on the SUCCESS path while keeping the throw-path close intact.
+            bool fdHandedOff = false;
             try
             {
                 // Probe before building anything: absent asset = silent no-op.
@@ -218,11 +249,52 @@ namespace Spixi
                 // ⚠ AUDIT NIT: capture the local rather than casting the event sender; a
                 // failed cast would be swallowed by the catch and leak the player silently.
                 MediaPlayer captured = player;
+                Android.Content.Res.AssetFileDescriptor capturedFd = fd;
+                /* #506①, the row's half: hand the descriptor to Completion instead of the
+                 * finally. Single-shot, because the belt below can also reach it and
+                 * AssetFileDescriptor.Close() must not be raced. */
+                object fdLock = new object();
+                bool fdClosed = false;
+                Action closeFd = () =>
+                {
+                    lock (fdLock)
+                    {
+                        if (fdClosed)
+                        {
+                            return;
+                        }
+                        fdClosed = true;
+                    }
+                    try { capturedFd.Close(); } catch (Exception) { }
+                };
                 captured.Completion += (s, e) =>
                 {
+                    lock (liveEffects) { liveEffects.Remove(captured); }
                     try { captured.Release(); } catch (Exception) { }
+                    closeFd();
                 };
+                // ★ #506①: root it BEFORE Start, so there is no window in which a
+                // collection can reach a player that is already producing sound.
+                lock (liveEffects) { liveEffects.Add(captured); }
                 captured.Start();
+                fdHandedOff = true;
+                /* Belt. Completion does not fire if the player errors mid-playback, and an
+                 * fd leak on a path that runs once per received message is how a process
+                 * runs out of descriptors — which takes down sockets and file opens, not
+                 * just audio (the same reasoning that put the original finally here). Every
+                 * effect is under 0.6 s, so 15 s can never cut one short, and both calls
+                 * are single-shot. */
+                Task.Delay(15000).ContinueWith(_ =>
+                {
+                    bool wasLive;
+                    lock (liveEffects) { wasLive = liveEffects.Remove(captured); }
+                    if (wasLive)
+                    {
+                        // Completion never came — it would have removed it itself.
+                        try { captured.Release(); } catch (Exception) { }
+                    }
+                    closeFd();
+                });
             }
             catch (Exception e)
             {
@@ -243,10 +315,21 @@ namespace Spixi
                     Logging.warn("playEffect(" + filePath + ") skipped: " + e.Message);
                 }
                 try { player?.Release(); } catch (Exception) { }
+                if (player != null)
+                {
+                    lock (liveEffects) { liveEffects.Remove(player); }
+                }
             }
             finally
             {
-                try { fd?.Close(); } catch (Exception) { }
+                /* ⚠ AUDIT MINOR (kept): a THROW from SetDataSource or Prepare skips every
+                 * close above it, so the descriptor must still be closed here — that was
+                 * the original, correct intent. #506① narrows it to the THROW path only:
+                 * on success Completion owns it now. */
+                if (!fdHandedOff)
+                {
+                    try { fd?.Close(); } catch (Exception) { }
+                }
             }
         }
 

@@ -17,6 +17,15 @@
 		     The small icon for that path is ic_stat_onesignal_default (now supplied
 		     at all 5 densities). -->
 		<meta-data android:name="com.onesignal.NotificationAccentColor.DEFAULT" android:value="FF3050BD" />
+		<!-- ★★ #503: the ONLY hook OneSignal gives us for a BACKGROUND or killed-app push.
+		     `WillDisplay` (#493) is a foreground lifecycle listener and never fired for the
+		     case it was written for — the mute, the global master and the one-row-per-chat id
+		     all belonged to code that never ran. The SDK looks this class up BY NAME and
+		     instantiates it itself.
+		     ⚠ The value must match `[Register]` on SpixiNotificationServiceExtension.cs
+		     exactly. If they drift the SDK simply never finds the class — no error, no log,
+		     the lane silently dead again. A smoke pin asserts the two agree. -->
+		<meta-data android:name="com.onesignal.NotificationServiceExtension" android:value="com.ixilabs.spixi.SpixiNotificationServiceExtension" />
 	</application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />

@@ -9,18 +9,34 @@ SETUP
   git clone https://github.com/ixian-platform/Ixian-Core.git   # SIBLING, REQUIRED
   npm install --no-save jsdom tree-sitter tree-sitter-c-sharp  # ONE call
 Verify before touching anything: Ixian-Core clean at 097341a, HEAD carries
-#507-#511, and the pipeline green - generate-chat-pattern (triangles
+#507-#513, and the pipeline green - generate-chat-pattern (triangles
 224x193.988 default), build-demo-bundle 275 exports, build-shells 18 shells,
 smoke-test BASELINE OK 2580 pass / the 3 KNOWN (#136 . M5 . B3),
 cs-syntax-check 142 clean + 1 known gap, verify-locales all clean.
 If any number differs, say so and stop.
 
-READ THIS BEFORE WRITING CODE
-  #503 PASSED EVERY SYMPTOM AND IS STILL 🟡. A1.1-A1.4 pass on a killed app,
-  but A1.5 - the [NOTIFDIAG] (service-extension) line - was never read, and
-  2.1 was a FALSE PASS last round for exactly this reason (a Samsung bundler
-  badge wearing our result). ASK DAMIR FOR THE NOTIFLOG. Do not record #503
-  as closed on a tick.
+THE NOTIFLOG IS ATTACHED TO THIS MESSAGE - READ IT FIRST
+  It settles #503, which passed every device symptom (A1.1-A1.4 on a KILLED
+  app) but has never had its proof read. 2.1 was a FALSE PASS last round for
+  exactly this reason - a Samsung bundler badge wearing our result - so a
+  tick may not close this row. Search the log for:
+
+    (service-extension)  The background lane RAN. With A1.1-A1.4 already
+        passing on device, that CLOSES #503. Update
+        docs/f5-verdict-2026-08-22-lock-qr.md and write the DECISIONS row.
+    (foreground) only     Only the foreground listener fired. If A1.1-A1.4
+        passed with NO (service-extension) line anywhere, then the extension
+        is NOT what made them pass. Say so loudly and stop: that is a false
+        pass for the second time and #503 needs re-diagnosing, not closing.
+    already decided       BOTH lanes fired for one notification and the
+        second was a no-op. NOT a bug - it answers a question the bytecode
+        could not settle. Record it either way.
+    Cannot clear notifications   Should be GONE since #493. If it is back,
+        that is a regression.
+
+  ⚠ The notiflog CANNOT diagnose the idle-sound bug. The sound path has no
+    log lines yet - adding them is item 2. Do not try to read it out of this
+    log, and do not touch a sound trigger before the probe exists.
 
 THE WORK, in priority order
   0. THE #46 LOOP IS OWED AND COMES FIRST. #507-#511 shipped on self-review
@@ -69,6 +85,15 @@ STILL OPEN
     decision Damir owes BEFORE any code.
   maxLogCount is 5 with a RELEASE BLOCKER marker. Reduce before launch.
 
+TWO DECISIONS DAMIR OWES - ask early, they are one-liners
+  * The 39 tracked delivery tarballs at the repo root, 60 MB in the history
+    (#513). git rm --cached them (cheap, history keeps the weight) or leave
+    them. A filter-repo rewrite + force-push is the only real cleanup and is
+    NOT worth doing mid-review.
+  * Does the ASD-STE100 language rule still stand? CLAUDE.md applies it to
+    chat replies and code comments. The last session did not follow it, and
+    neither do the project's recent DECISIONS rows and handoffs.
+
 DO-NOTs
   1. Do not touch Ixian-Core. Five smoke pins enforce 097341a.
   1b. Do not start the menu batch before the #46 loop is CLEAN.
@@ -113,6 +138,9 @@ DELIVERY
   dotnet build Spixi\Spixi.csproj -f net10.0-android -c Release, then
   -t:Run as a SEPARATE command (#320). Windows:
   -f net10.0-windows10.0.19041.0 -c Debug, then run the exe separately.
+
+  Land delivery tarballs into _deliveries/ (gitignored), NEVER the repo root -
+  39 got tracked before anyone noticed, 60 MB of binaries in the history.
 
   BRIDGE GOTCHAS (learned the hard way):
   tar needs --overwrite. device_bash is capped at 45s - stage git adds in

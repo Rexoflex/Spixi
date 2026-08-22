@@ -5091,8 +5091,9 @@ function syncChatFlow(host) {
  * c-msgmenu — message context menu (batch 3). Spec: DESIGN_SYSTEM.md §5b,
  * wired SHEET-BASED per CLAUDE.md batch-3 note: quick-react row + action list
  * inside c-sheet (reuses overlay stack/scrim/focus/Esc — #56). The §5b
- * anchored-panel presentation (scrim + promoted bubble at z-50) is NOT built
- * here — 🟡 decide sheet vs anchored panel after Damir feels this version.
+ * anchored-panel presentation is now PARTLY built: #506② promotes the pressed
+ * message above the scrim (z-42, sheet moved to z-44), the menu itself stays a
+ * sheet.
  *
  * Actions ↔ bridge reality (§5b table): react/tip/delete via
  * ixian:contextAction:*; copy is JS-side; REPLY/EDIT render ONLY behind
@@ -5200,18 +5201,30 @@ function openMessageMenu({
 
   content.append(list);
 
-  /* ★ iOS-62: tint the pressed bubble IN PLACE for as long as the menu is up. The
-   * scrim is rgba(17,18,19,.6) (tokens.css --surface-scrim), so 40% of the bubble's own
-   * colour still reaches the eye — enough for a saturated ring to stay legible without
-   * promoting the node above the scrim. Promoting it is the §5b anchored-panel
-   * presentation, which this component deliberately does not build.
+  /* ★ #506② (iOS-62, Damir on device): the pressed message is PROMOTED ABOVE the
+   * scrim for as long as the menu is up, and RINGED. #492 shipped only the ring and
+   * left the node under the scrim; the device measured it at 2.01:1 against the
+   * bubble versus 5.98:1 above, so no ring colour could ever have answered "you
+   * cannot see what you are acting on". The layer was the defect, not the colour.
    *
-   * ⚠ Cleared through onDismiss, which overlay.js raises on EVERY route out — an action,
-   * the scrim, Esc, and the Android back button. Clearing it only in act() would leave a
-   * permanently tinted bubble behind any of the other three. */
+   * ⚠ TWO nodes, deliberately. The RING goes on the bubble, which is the thing the
+   * user pressed and the thing that carries the radius. The LIFT goes on the ROW,
+   * because reactions overlap the bubble corner by design (#65) and the avatar and
+   * sender label belong to the same message — lifting the bubble alone would strand
+   * its own reactions behind the scrim.
+   *
+   * ⚠ Both cleared through onDismiss, which overlay.js raises on EVERY route out —
+   * an action, the scrim, Esc, and the Android back button. Clearing them only in
+   * act() would leave a permanently lifted, permanently ringed message behind any of
+   * the other three, and a lifted row is pointer-events:none — i.e. a message the
+   * user can no longer tap. */
   const tinted = messageMenuTarget(row);
   if (tinted && tinted.dataset) tinted.dataset.menuTarget = '';
-  const untint = () => { if (tinted && tinted.dataset) delete tinted.dataset.menuTarget; };
+  if (row && row.dataset) row.dataset.menuLift = '';
+  const untint = () => {
+    if (tinted && tinted.dataset) delete tinted.dataset.menuTarget;
+    if (row && row.dataset) delete row.dataset.menuLift;
+  };
 
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
   openSheet(sheet);
@@ -17658,13 +17671,7 @@ function createSettingsHub({
     }
   }
 
-  /* QR — immediately visible (#147: no reveal; scanning IS the add-me action) */
   if (address) {
-    const qrBox = document.createElement('div');
-    qrBox.className = 'c-settings__qr';
-    qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
-    hero.append(qrBox);
-
     /* full address chip + honest copy morph (#137 m1) */
     const row = document.createElement('div');
     row.className = 'c-settings__address-row';
@@ -17720,6 +17727,53 @@ function createSettingsHub({
       info.classList.add('c-settings__addrinfo');
       hero.append(info);
     }
+
+    /* ★ N86 ② — the QR is REVEALED, not resting on screen. It used to paint above
+     * the address on every visit to Account, and Damir's report was that it is
+     * "quite overpowering" in dark mode. The hub is not a surface people open to be
+     * scanned; they open it for a dozen unrelated reasons and paid the glare each
+     * time. #147 ruled "no reveal; scanning IS the add-me action" — that ruling
+     * holds where it was made (the wallet receive card, which exists to be held up),
+     * and this is a different surface.
+     *
+     * ★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE, which is what I proposed
+     * first: Damir objected that people may not realise a small code is tappable AND
+     * may simply try to scan it. The second objection decides it. At 185px a
+     * ~41-module code runs ≈3.8px per module and a phone camera reading another
+     * phone's screen needs roughly 2px per module, so a "compact" QR lands near
+     * 100px — right at the edge. A QR that is visible but too small to scan is worse
+     * than no QR: it looks functional and is not. So the code opens at FULL size.
+     *
+     * ⚠ The affordance keeps the weight and the position the code had — directly
+     * under the address, and the address chip with copy and share stay visible
+     * always. A reveal that buries the action would re-break #147.
+     * ⚠ Placed LAST in the hero so opening it pushes nothing else around.
+     * ⚠ Same construction as chat-info's toggle, deliberately: the two surfaces
+     * disagreeing about the same code is exactly what #149③ recorded. */
+    const qrRow = document.createElement('button');
+    qrRow.type = 'button';
+    qrRow.className = 'c-settings__qr-toggle';
+    qrRow.setAttribute('aria-expanded', 'false');
+    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
+    const qrChev = icon('chevron-down', { size: 18 });
+    qrChev.classList.add('c-settings__qr-chevron');
+    qrRow.append(qrChev);
+    const qrBox = document.createElement('div');
+    qrBox.className = 'c-settings__qr';
+    qrBox.hidden = true;
+    qrBox.id = overlayId('c-settings-qr');    // house id mint
+    qrRow.setAttribute('aria-controls', qrBox.id);
+    let qrBuilt = false;
+    qrRow.addEventListener('click', () => {
+      const open = qrBox.hidden;
+      if (open && !qrBuilt) {                 // lazy: most visits never open it
+        qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
+        qrBuilt = true;
+      }
+      qrBox.hidden = !open;
+      qrRow.setAttribute('aria-expanded', String(open));
+    });
+    hero.append(qrRow, qrBox);
   }
   body.append(hero);
 

@@ -534,13 +534,7 @@ export function createSettingsHub({
     }
   }
 
-  /* QR — immediately visible (#147: no reveal; scanning IS the add-me action) */
   if (address) {
-    const qrBox = document.createElement('div');
-    qrBox.className = 'c-settings__qr';
-    qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
-    hero.append(qrBox);
-
     /* full address chip + honest copy morph (#137 m1) */
     const row = document.createElement('div');
     row.className = 'c-settings__address-row';
@@ -596,6 +590,53 @@ export function createSettingsHub({
       info.classList.add('c-settings__addrinfo');
       hero.append(info);
     }
+
+    /* ★ N86 ② — the QR is REVEALED, not resting on screen. It used to paint above
+     * the address on every visit to Account, and Damir's report was that it is
+     * "quite overpowering" in dark mode. The hub is not a surface people open to be
+     * scanned; they open it for a dozen unrelated reasons and paid the glare each
+     * time. #147 ruled "no reveal; scanning IS the add-me action" — that ruling
+     * holds where it was made (the wallet receive card, which exists to be held up),
+     * and this is a different surface.
+     *
+     * ★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE, which is what I proposed
+     * first: Damir objected that people may not realise a small code is tappable AND
+     * may simply try to scan it. The second objection decides it. At 185px a
+     * ~41-module code runs ≈3.8px per module and a phone camera reading another
+     * phone's screen needs roughly 2px per module, so a "compact" QR lands near
+     * 100px — right at the edge. A QR that is visible but too small to scan is worse
+     * than no QR: it looks functional and is not. So the code opens at FULL size.
+     *
+     * ⚠ The affordance keeps the weight and the position the code had — directly
+     * under the address, and the address chip with copy and share stay visible
+     * always. A reveal that buries the action would re-break #147.
+     * ⚠ Placed LAST in the hero so opening it pushes nothing else around.
+     * ⚠ Same construction as chat-info's toggle, deliberately: the two surfaces
+     * disagreeing about the same code is exactly what #149③ recorded. */
+    const qrRow = document.createElement('button');
+    qrRow.type = 'button';
+    qrRow.className = 'c-settings__qr-toggle';
+    qrRow.setAttribute('aria-expanded', 'false');
+    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
+    const qrChev = icon('chevron-down', { size: 18 });
+    qrChev.classList.add('c-settings__qr-chevron');
+    qrRow.append(qrChev);
+    const qrBox = document.createElement('div');
+    qrBox.className = 'c-settings__qr';
+    qrBox.hidden = true;
+    qrBox.id = overlayId('c-settings-qr');    // house id mint
+    qrRow.setAttribute('aria-controls', qrBox.id);
+    let qrBuilt = false;
+    qrRow.addEventListener('click', () => {
+      const open = qrBox.hidden;
+      if (open && !qrBuilt) {                 // lazy: most visits never open it
+        qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
+        qrBuilt = true;
+      }
+      qrBox.hidden = !open;
+      qrRow.setAttribute('aria-expanded', String(open));
+    });
+    hero.append(qrRow, qrBox);
   }
   body.append(hero);
 

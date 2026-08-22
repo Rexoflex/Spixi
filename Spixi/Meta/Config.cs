@@ -79,7 +79,19 @@ namespace SPIXI.Meta
 
 
         public static int maxLogSize = 5;
-        public static int maxLogCount = 1;
+        /* ★ RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH (Damir, 2026-08-22: "yes raise it
+         * for now. but remember to reduce before we launch").
+         *
+         * Logging.start calls roll(true) on EVERY launch (Ixian-Core Logging.cs:116), so at
+         * a count of 1 the app keeps exactly ONE previous session. That destroyed the
+         * evidence for #505 — the Windows black-window session was overwritten by the very
+         * restart the user performed to recover from it, which is the ONE action the defect
+         * guarantees. 5 keeps roughly a working day of sessions and costs at most 25 MB at
+         * maxLogSize = 5.
+         *
+         * ⚠ A smoke pin asserts this value and names this row, so the reduction cannot be
+         * forgotten silently — change both together. */
+        public static int maxLogCount = 5;
 
         public static int logVerbosity = (int)LogSeverity.info + (int)LogSeverity.warn + (int)LogSeverity.error;
 

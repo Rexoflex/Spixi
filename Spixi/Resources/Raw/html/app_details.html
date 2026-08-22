@@ -765,11 +765,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-scrim[data-open] { opacity: 1; }
 
-/* —— bottom sheet (z-40, above its scrim by source order) —— */
+/* —— bottom sheet (z-44) ————————————————————————————————————————————————
+   ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
+   That stopped being enough once a long-pressed message is promoted to z-42: an
+   explicit number is the only thing that keeps the menu above the message it is
+   acting on when the two overlap at the bottom of the log. Still below the modal
+   (z-50), the call bar (z-60) and toasts (z-70). */
 .c-sheet {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  z-index: var(--z-40);
+  z-index: var(--z-44);
   max-width: var(--layout-content-max);
   margin-inline: auto;
   background: var(--surface-menu);

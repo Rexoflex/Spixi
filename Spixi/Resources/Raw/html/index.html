@@ -1335,11 +1335,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-scrim[data-open] { opacity: 1; }
 
-/* —— bottom sheet (z-40, above its scrim by source order) —— */
+/* —— bottom sheet (z-44) ————————————————————————————————————————————————
+   ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
+   That stopped being enough once a long-pressed message is promoted to z-42: an
+   explicit number is the only thing that keeps the menu above the message it is
+   acting on when the two overlap at the bottom of the log. Still below the modal
+   (z-50), the call bar (z-60) and toasts (z-70). */
 .c-sheet {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  z-index: var(--z-40);
+  z-index: var(--z-44);
   max-width: var(--layout-content-max);
   margin-inline: auto;
   background: var(--surface-menu);
@@ -1676,27 +1681,46 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-delete-chat__opt input:disabled { cursor: default; }
 
-/* —— iOS-62 / #492: the long-pressed message stays visible ————————————————
-   Damir on device: "you cannot see what you are acting on." The scrim is
-   --surface-scrim = rgba(17,18,19,.6), so 40% of whatever is underneath still
-   reaches the eye. A saturated ring survives that; a subtle background wash does
-   not, which is why the ring carries the work and the wash is only support.
+/* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
+   Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
+   half — a ring on a bubble left UNDER the scrim — and the device killed it:
+   measured 2.01:1 against the bubble beneath --surface-scrim (rgba(17,18,19,.6))
+   versus 5.98:1 above it. No colour survives a 60% wash, so this is not a tint that
+   needs tuning; the node has to come out from under the scrim. That is the §5b
+   anchored presentation, and it is what iMessage does.
 
-   ⚠ The bubble is NOT promoted above the scrim. That is the §5b anchored-panel
-   presentation (scrim + bubble at z-50) which message-menu.js deliberately does not
-   build — and lifting a node out of the chat log's stacking context is how a
-   transform-based scroller starts clipping it. Damir chose the cheap half knowing
-   this: "the tint is the cheap half and answers the actual complaint" (#492).
+   ⚠ The ROW lifts, not the bubble. Reactions overlap the bubble corner by design
+   (#65) and the avatar and sender label belong to the same message — lifting the
+   bubble alone would leave its own reactions stranded behind the scrim, which is a
+   worse version of the bug being fixed.
 
-   ⚠ Attribute, not a class: the four bubble kinds (.c-bubble / .c-tcard /
-   .c-fbubble / .c-mbubble) each own their own class list and background, and a
-   shared attribute selector adds the ring without any of them having to know about
-   the menu. Same reason the tint sets `box-shadow` rather than `border` — a border
-   would change the box and reflow the bubble under the user's finger. */
+   ⚠ THE LIFT WORKS ONLY BECAUSE NOTHING BETWEEN THE ROW AND THE HOST CREATES A
+   STACKING CONTEXT. Verified: .c-chat-canvas is position:relative with z-index
+   auto, and `.c-chat-canvas > *` (the scroller) likewise — overflow alone does not
+   create one. Both still CLIP the lifted row to their own box, which is correct:
+   the message stays inside the log. If either ever gains a z-index, a transform, a
+   filter or `isolation`, the lift silently caps at that ancestor and the ring goes
+   back under the scrim — the symptom to recognise.
+
+   ⚠ pointer-events: none is NOT decoration. With the row above the scrim, a tap on
+   the highlighted message would hit the MESSAGE instead of the scrim, and light
+   dismiss — every other overlay's way out — would stop working on the one element
+   the user is looking at. Dead to hit-testing, the tap falls through to the scrim
+   exactly as it did before the lift. The lifted message is a picture, like
+   iMessage's snapshot; the menu is what is interactive. */
+[data-menu-lift] {
+  position: relative;
+  z-index: var(--z-42);
+  pointer-events: none;
+}
+
+/* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
+   layer. Above the scrim it reads at its measured 5.98:1.
+   ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
+   every bubble the moment it is pressed; the box-shadow already follows whatever
+   radius the bubble itself carries. box-shadow rather than `border` because a
+   border would change the box and reflow the bubble under the user's finger. */
 [data-menu-target] {
-  /* ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
-     every bubble the moment it is pressed; the box-shadow already follows whatever
-     radius the bubble itself carries. */
   box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
   transition: box-shadow 120ms ease-out;
 }
@@ -4492,11 +4516,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    * genuinely has zero apps/txs/chats still reaches the illustrated state promptly:
    *   · CHATS  has a real end-of-burst verb (clearChatsDone) + the stall watchdog —
    *            they open the gate directly, no timer, no guessing.
-   *   · APPS/WALLET have NO done verb (see the comments at clearApps /
-   *            clearPaymentActivity), and inventing one is a bridge change. They
-   *            open it on a QUIET WINDOW: every push re-arms a short timer, so the
-   *            gate opens ZERO_SETTLE_MS after the LAST push of a burst — bounded
-   *            by the gap between pushes, not by the burst length.
+   *   · APPS/WALLET gained one in #506③ (clearAppsDone / clearPaymentActivityDone,
+   *            both pushed at the end of the synchronous C# flush) — Damir measured
+   *            the quiet window as a visible ~1 s wait on an empty account. The
+   *            QUIET WINDOW remains as the BELT for an older exe that never sends
+   *            them: every push re-arms a short timer, so the gate still opens
+   *            ZERO_SETTLE_MS after the LAST push of a burst.
    * A clear() that lands while the surface is genuinely empty does NOT shut the
    * gate again: the zero state a truly-empty user is looking at must not blink off
    * and back on every time C# re-flushes the tab.
@@ -4625,7 +4650,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   }
   function probeText() {
     const m = probeMarks;
-    const boot = ['rdy', 'flush', 'done', 'zero']
+    /* ★ #506③: wallet and apps joined the boot line. The row blamed a MISSING zero
+     * gate; all three surfaces are gated, and the gate was the delay — chats opened
+     * on a real done verb, the other two guessed with a 400 ms quiet window. Both now
+     * have their own done verb, and these marks say what the RESIDUAL is: if wdone /
+     * adone land close to rdy the surface is prompt, and any remaining wait is C#
+     * getting to the flush at all — a different defect from the one this fixed. */
+    const boot = ['rdy', 'flush', 'done', 'zero', 'wflush', 'wdone', 'aflush', 'adone']
       .map((k) => k + '=' + (m[k] === undefined ? '-' : m[k])).join(' ');
     return 'INSET var=' + probeMeasure('var(--android-inset-top, 0px)')
       + ' env=' + probeMeasure('env(safe-area-inset-top, 0px)')
@@ -6380,7 +6411,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     chips.forEach((c, i) => setChipSelected(c, i === idx));
   }
 
-  // Batched render — legacy has no clearPaymentActivityDone signal; C# clears then
+  // Batched render — #506③ added clearPaymentActivityDone, but the batching still earns
+  // its place for the rows themselves; C# clears then
   // appends rows one-by-one. Coalesce the burst into a single render next frame.
   let walletRenderQueued = false;
   function scheduleWalletRender() {
@@ -7164,11 +7196,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
     // Batch start: reset tx model + sync the active filter chip. Render (empty) next frame.
     clearPaymentActivity(filter) {
+      probeMark('wflush');
       walletZero.push((walletState.txs || []).length > 0);   // refill → no "No activity yet" mid-burst
       walletState.txs = [];
       const f = (filter === 'sent' || filter === 'received') ? filter : 'all';
       walletState.filter = f;
       syncWalletFilterChips(f);
+      scheduleWalletRender();
+    },
+
+    /* ★ #506③ — the real end of the payment-activity burst (HomePage.loadTransactions).
+     * Damir on device: the empty state lands about a second late here and on apps, but
+     * not on chats. It was never a missing gate — all three are gated — it was that only
+     * chats had a DONE verb; wallet guessed with a 400 ms quiet window after the last
+     * push, so an account with no activity stared at a blank list for the whole window.
+     * Now the gate opens the moment C# says the flush is finished, exactly like
+     * clearChatsDone.
+     * ⚠ MUST be defined even against an older exe that never sends it: C# emits pushes as
+     * bare globals and an undefined one throws while the arguments are evaluated, before
+     * the dispatcher can catch it (#258).
+     * ⚠ The quiet-window timer STAYS as the belt — walletZero.open() cancels it, and if
+     * this push never arrives the old schedule still opens the gate. */
+    clearPaymentActivityDone() {
+      probeMark('wdone');
+      walletZero.open();
       scheduleWalletRender();
     },
 
@@ -7239,8 +7290,18 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
     // The refill's own addApp renders instead; a genuinely EMPTY flush (last app uninstalled)
     // still renders when the zero gate's quiet window opens.
     clearApps() {
+      probeMark('aflush');
       appsZero.push((appsState.apps || []).length > 0);   // refill → no illustrated state mid-burst
       appsState.apps = [];
+    },
+
+    /* ★ #506③ — the real end of the apps burst (HomePage.loadApps). Same finding and
+     * same contract as clearPaymentActivityDone above: defined unconditionally (#258),
+     * the quiet window stays as the belt. */
+    clearAppsDone() {
+      probeMark('adone');
+      appsZero.open();
+      scheduleAppsRender();
     },
 
     // One installed app (HomePage.xaml.cs:1567):

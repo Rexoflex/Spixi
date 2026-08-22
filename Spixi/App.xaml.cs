@@ -98,9 +98,59 @@ public partial class App : Application
      * be two literals. */
     private const double LOCK_GRACE_SECONDS = 5;
 
-    /** ★ #496: stamp the moment the app went away — first edge of the cycle wins. */
+    /* ★★ #505 — THE DESKTOP LOCK MODEL. Damir, W-4.6/W-4.7: the app locked him out
+     * mid-sentence while he was typing in another window, and an unlock could leave a
+     * black window with no way back in.
+     *
+     * He asked whether desktop needs a longer grace — "5 minutes?". THE GRACE PERIOD IS
+     * THE WRONG DIAL, because the SIGNAL is wrong. On a phone "backgrounded" means the
+     * phone left the user's hand. On a desktop MAUI raises OnSleep on window
+     * DEACTIVATION — clicking a browser — and the window stays fully visible while it
+     * happens. No length of grace makes "you clicked something else" mean "you walked
+     * away", so the desktop stops locking on that edge entirely and locks on the one
+     * signal that does mean it: the machine has been untouched.
+     *
+     * ⚠ WHY IDLE COVERS THE SYSTEM LOCK TOO, which was the other half of the ask. While
+     * Windows is locked there is no input to the session, so the idle clock runs — and
+     * Spixi is unreachable during that time anyway, because the Windows lock screen IS
+     * the protection. The only moment a Spixi lock adds anything is after the unlock, and
+     * "idle >= the threshold" is exactly that test. Sleep and hibernate are caught by the
+     * wall-clock check in SDesktopIdle, because a tick counter does not advance while a
+     * machine is asleep.
+     *
+     * ⚠ MOBILE IS UNTOUCHED (Damir: "only on desktops"). Every branch below is gated on
+     * this one predicate rather than sprinkling #if WINDOWS through the lock logic.
+     *
+     * ⚠ `static readonly`, NOT `const`. A compile-time constant would make
+     * `if (locksOnBackground && …)` a constant-false condition on Windows and
+     * `if (!locksOnBackground) return;` a constant-false one everywhere else — both
+     * raise CS0162 "unreachable code detected", and a warning is one project setting
+     * away from being the build error that lands on Damir instead of on me. A readonly
+     * field reads identically at every call site and is not folded. */
+#if WINDOWS
+    private static readonly bool locksOnBackground = false;
+#else
+    private static readonly bool locksOnBackground = true;
+#endif
+
+    /** ★ #505: is an app lock up, staging or being presented right now? Read by the
+     *  desktop idle watcher, which must never stack a second one. */
+    public bool isAppLockActive => isLockScreenActive;
+
+    /** ★ #505: when presentAppLock last STARTED a present. See its docblock — the sweep
+     *  must not mistake an in-flight present for a lost lock. */
+    private DateTime lastLockPresentAt = DateTime.MinValue;
+    private const double LOCK_PRESENT_GRACE_SECONDS = 5;
+
+    /** ★ #496: stamp the moment the app went away — first edge of the cycle wins.
+     *  ⚠ #505: NOT on desktop. Window deactivation is not a leaving edge there, and a
+     *  stamp is what makes the resume path treat it as one. */
     private void markBackgrounded()
     {
+        if (!locksOnBackground)
+        {
+            return;
+        }
         if (backgroundedDate == null)
         {
             backgroundedDate = DateTime.Now;
@@ -667,6 +717,191 @@ public partial class App : Application
         return true;
     }
 
+    /* ★ #505 — the lock PRESENTATION, lifted out of OnResume UNCHANGED so the desktop
+     * idle watcher and the resume path cannot drift. Every line below was inside the
+     * OnResume branch; nothing was added, removed or reordered. The CALLER owns the
+     * decision of whether a lock is due — this method only puts one on screen. */
+    private void presentAppLock(string cycleName)
+    {
+        /* ⚠ #505 SELF-AUDIT: every ORIGINAL caller of this code guaranteed
+         * `MainPage != null` in its own condition, and the body hard-casts it. The sweep
+         * does not — it can reach the relock clause with no NavigationPage at all — so the
+         * guarantee moves inside, BEFORE any state is touched. Setting isLockScreenActive
+         * and then throwing would latch the app as locked with no lock on screen: exactly
+         * the state this method is being called to repair. */
+        if (MainPage is not NavigationPage)
+        {
+            Logging.error("presentAppLock(" + cycleName + "): no NavigationPage — nothing to present on.");
+            return;
+        }
+        /* ⚠ #505 SELF-AUDIT: a present is IN FLIGHT from here until pushModalLoaded's
+         * marshalled callback sets activePreload, and inside that window isLockStaging()
+         * is false while isLockScreenActive is true — which is precisely the shape the
+         * sweep's relock clause looks for. Without this stamp a window activation landing
+         * in that gap would clear the latch and stage a SECOND lock. Bounded well past
+         * pushModalLoaded's own 1.2s timeout + 120ms present delay. */
+        lastLockPresentAt = DateTime.Now;
+
+        /* ★ #438 — COVER FIRST, SYNCHRONOUSLY, BEFORE ANYTHING ELSE.
+         * #229 stages the lock's WebView hidden on the CURRENT page and presents it
+         * only once lock.html signals ready, so without this line the user's chat
+         * list stays on screen for that whole window — Damir measured about a
+         * second on Android, unauthenticated. The shield is dropped the moment the
+         * lock is actually visible (SpixiContentPage.presentPreload /
+         * presentPlainModal), and has an 8s safety release so a failed present can
+         * never strand the app behind it. */
+        SpixiContentPage.showPrivacyShield(true);   // true = a lock IS expected to present
+        // Show the lock screen
+        isLockScreenActive = true;
+        OfflinePushMessages.resetCooldown();
+        // ★ Q4-③ review (MAJOR-1/2): the lock ALWAYS wins over the call surface.
+        // A RING presented via CallPage's modal fallback (a legacy page was on top)
+        // sits on the ModalStack — the lock would then be pushed ABOVE it, and the
+        // call's own teardown (PopModalAsync pops the TOP modal) would have popped
+        // the LOCK on the next remote hang-up / 45s timeout, un-authing the app.
+        // Drop the surface first: nothing can ever be modal-above a lock. The call
+        // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
+        // ring/bar re-presents on the first UI tick after the unlock.
+        CallPage.hideSurface();
+        SLockDiag.startCycle(cycleName);   // ★ F1: the third lock creation site
+        var lockPage = new LockPage(true, true);   // #234: the app lock offers no way past it
+        lockPage.authSucceeded += onUnlock;
+        // #229: load-then-present — stage the lock's WebView hidden on the current
+        // page and push the modal only once lock.html signals ready (no boot
+        // flicker). Fallbacks inside pushModalLoaded guarantee the lock ALWAYS
+        // presents (worst case = today's plain modal push).
+        if (((NavigationPage)MainPage).CurrentPage is SpixiContentPage cur)
+        {
+            cur.pushModalLoaded(lockPage);
+        }
+        else
+        {
+            MainPage.Navigation.PushModalAsync(lockPage, Config.defaultXamarinAnimations);
+        }
+    }
+
+    /** ★ #505 — the DESKTOP lock trigger: the machine has been untouched for the
+     *  configured window (default 10 minutes, Damir), or it slept for that long.
+     *  Called from SDesktopIdle on the UI thread. Safe to call repeatedly.
+     *
+     *  ⚠ The guards are lockOnPause's, deliberately duplicated rather than shared: that
+     *  method is Android's and is on a time-critical path, and a refactor of it to serve
+     *  desktop would put an untested change on the platform that works. Each one is here
+     *  for the reason its comment gives in lockOnPause. */
+    public void lockOnIdle()
+    {
+        try
+        {
+            if (!isLockEnabled() || isLockScreenActive || pauseLock != null)
+            {
+                return;
+            }
+            // A lock is STAGING (on no stack for up to ~1.3s) or shown IN PLACE — both
+            // invisible to the ModalStack and the NavigationStack (lockOnPause MAJOR-1).
+            if (SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging())
+            {
+                return;
+            }
+            if (MainPage is not NavigationPage nav)
+            {
+                return;
+            }
+            if (nav.CurrentPage is LockPage || nav.CurrentPage is LaunchPage)
+            {
+                // The cold-start lock owns the stack; LaunchPage's retry view asks for the
+                // SAME password, so a lock over it would unlock into another prompt.
+                return;
+            }
+            foreach (Page m in nav.Navigation.ModalStack)
+            {
+                if (m is LockPage)
+                {
+                    return;   // an AUTHORISE lock is up — do not make the user authenticate twice
+                }
+            }
+            if (ownIntentFresh())
+            {
+                return;   // the app's own picker / save-as round trip
+            }
+            SLockDiag.mark("idle/locking", "the desktop idle window elapsed (#505)");
+            presentAppLock("idle-lock");
+        }
+        catch (Exception e)
+        {
+            Logging.error("lockOnIdle failed: " + e);
+        }
+    }
+
+    /** ★★ #505 — THE ESCAPE HATCH. Damir, W-4.6: after an unlock the app could be left
+     *  "staring at a black app window, must restart app", intermittently.
+     *
+     *  ⚠ THIS DOES NOT ASSUME A CAUSE, and that is the point. The privacy shield is an
+     *  opaque #13171b ContentView with InputTransparent = false — a black window that
+     *  swallows input is literally what that object is — and the lock's in-place stage is
+     *  a second candidate. Rather than guess between them (#294), this asks the only
+     *  question that matters at the surface: is the app covered by something that has no
+     *  business being there any more? Clicking the window is the first thing anyone does
+     *  when staring at a black one, so the recovery lands on the reflex.
+     *
+     *  ⚠ It is also the DIAGNOSTIC. Every sweep that finds something logs what it found,
+     *  so a recurrence names its own mechanism in one screenshot instead of another round
+     *  of hypotheses. Cheap: two integer reads on window activation. */
+    private void sweepStrandedCover()
+    {
+        try
+        {
+            bool covered = SpixiContentPage.hasPrivacyShield();
+            bool lockUp = isLockScreenActive;
+            bool lockReachable = SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging();
+            if (!lockReachable && MainPage is NavigationPage nav)
+            {
+                if (nav.CurrentPage is LockPage)
+                {
+                    lockReachable = true;
+                }
+                else
+                {
+                    foreach (Page m in nav.Navigation.ModalStack)
+                    {
+                        if (m is LockPage) { lockReachable = true; break; }
+                    }
+                }
+            }
+
+            if (covered && !lockUp)
+            {
+                // The app is UNLOCKED and still covered. Nothing legitimate leaves this
+                // state behind; it is the W-4.6 signature.
+                SLockDiag.mark("sweep/uncover", "shield stranded over an unlocked app (#505 W-4.6)");
+                SpixiContentPage.hidePrivacyShield();
+                return;
+            }
+            /* ⚠ The in-flight window — see presentAppLock. A negative age (a clock moved
+             * backwards) must not be read as "long ago", the same guard ownIntentFresh()
+             * carries. */
+            double sincePresent = (DateTime.Now - lastLockPresentAt).TotalSeconds;
+            bool presentInFlight = sincePresent >= 0 && sincePresent <= LOCK_PRESENT_GRACE_SECONDS;
+            if (lockUp && !lockReachable && !presentInFlight)
+            {
+                /* Latched as locked with no lock anywhere. Fail CLOSED but RECOVERABLE:
+                 * clear the latch and re-present, rather than leaving an app that thinks
+                 * it is locked, shows nothing, and will never lock again this session
+                 * (the #229 fail-open ruling, applied to a state nobody can escape). */
+                SLockDiag.mark("sweep/relock", "latched locked with no lock on screen — re-presenting (#505)");
+                isLockScreenActive = false;
+                SpixiContentPage.hidePrivacyShield();
+                if (isLockEnabled())
+                {
+                    presentAppLock("sweep-relock");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Logging.error("sweepStrandedCover failed: " + e);
+        }
+    }
+
     protected override void OnResume()
     {
         base.OnResume();
@@ -800,44 +1035,13 @@ public partial class App : Application
          * #229 (reviewer find) is preserved inside `withinGrace`: it uses TotalSeconds, not
          * `ts.Seconds`, which is the 0-59 COMPONENT — 63 s in the background read as 3 and
          * never locked at all. */
-        if (isLockEnabled() && !withinGrace && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
+        /* ⚠ #505: `locksOnBackground` is the ONLY change to this condition. On desktop a
+         * resume is a window ACTIVATION — the user clicking back into a window that never
+         * left the screen — so it must not lock. The desktop locks from SDesktopIdle
+         * instead, which calls presentAppLock() below through lockOnIdle(). */
+        if (locksOnBackground && isLockEnabled() && !withinGrace && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
-            /* ★ #438 — COVER FIRST, SYNCHRONOUSLY, BEFORE ANYTHING ELSE.
-             * #229 stages the lock's WebView hidden on the CURRENT page and presents it
-             * only once lock.html signals ready, so without this line the user's chat
-             * list stays on screen for that whole window — Damir measured about a
-             * second on Android, unauthenticated. The shield is dropped the moment the
-             * lock is actually visible (SpixiContentPage.presentPreload /
-             * presentPlainModal), and has an 8s safety release so a failed present can
-             * never strand the app behind it. */
-            SpixiContentPage.showPrivacyShield(true);   // true = a lock IS expected to present
-            // Show the lock screen
-            isLockScreenActive = true;
-            OfflinePushMessages.resetCooldown();
-            // ★ Q4-③ review (MAJOR-1/2): the lock ALWAYS wins over the call surface.
-            // A RING presented via CallPage's modal fallback (a legacy page was on top)
-            // sits on the ModalStack — the lock would then be pushed ABOVE it, and the
-            // call's own teardown (PopModalAsync pops the TOP modal) would have popped
-            // the LOCK on the next remote hang-up / 45s timeout, un-authing the app.
-            // Drop the surface first: nothing can ever be modal-above a lock. The call
-            // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
-            // ring/bar re-presents on the first UI tick after the unlock.
-            CallPage.hideSurface();
-            SLockDiag.startCycle("resume-lock");   // ★ F1: the third lock creation site
-            var lockPage = new LockPage(true, true);   // #234: the app lock offers no way past it
-            lockPage.authSucceeded += onUnlock;
-            // #229: load-then-present — stage the lock's WebView hidden on the current
-            // page and push the modal only once lock.html signals ready (no boot
-            // flicker). Fallbacks inside pushModalLoaded guarantee the lock ALWAYS
-            // presents (worst case = today's plain modal push).
-            if (((NavigationPage)MainPage).CurrentPage is SpixiContentPage cur)
-            {
-                cur.pushModalLoaded(lockPage);
-            }
-            else
-            {
-                MainPage.Navigation.PushModalAsync(lockPage, Config.defaultXamarinAnimations);
-            }
+            presentAppLock("resume-lock");
             return;
         }
 
@@ -866,6 +1070,25 @@ public partial class App : Application
             }
         }
         OfflinePushMessages.resetCooldown();
+
+        /* ★ #505 escape hatch. On desktop OnResume IS window activation, so this runs on
+         * the click a user staring at a black window makes anyway.
+         *
+         * ⚠ LAST, NOT FIRST, and my own first cut had it at the top — where it would have
+         * been WRONG on every single focus change. OnSleep raises the privacy shield on
+         * deactivation, so at the top of OnResume "covered and unlocked" is the NORMAL
+         * state, and the sweep would have hidden the shield the ordinary path was about to
+         * hide anyway while logging a stranded-cover diagnosis that was not true. A log
+         * line that lies is worse than no log line — the same finding
+         * armPrivacyShieldSafety carries at MINOR-7. Placed here, AFTER the guarded
+         * uncover has had its chance, "still covered" means the normal path really did
+         * miss it.
+         * ⚠ Windows-only. The sweep is corrective and would be safe everywhere, but W-4.6
+         * is a desktop report and mobile is not in this batch (Damir: "only on desktops");
+         * widening it needs its own device pass. */
+#if WINDOWS
+        sweepStrandedCover();
+#endif
     }
 
     protected override void OnSleep()

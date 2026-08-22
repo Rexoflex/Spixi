@@ -109,27 +109,46 @@
 }
 .c-delete-chat__opt input:disabled { cursor: default; }
 
-/* —— iOS-62 / #492: the long-pressed message stays visible ————————————————
-   Damir on device: "you cannot see what you are acting on." The scrim is
-   --surface-scrim = rgba(17,18,19,.6), so 40% of whatever is underneath still
-   reaches the eye. A saturated ring survives that; a subtle background wash does
-   not, which is why the ring carries the work and the wash is only support.
+/* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
+   Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
+   half — a ring on a bubble left UNDER the scrim — and the device killed it:
+   measured 2.01:1 against the bubble beneath --surface-scrim (rgba(17,18,19,.6))
+   versus 5.98:1 above it. No colour survives a 60% wash, so this is not a tint that
+   needs tuning; the node has to come out from under the scrim. That is the §5b
+   anchored presentation, and it is what iMessage does.
 
-   ⚠ The bubble is NOT promoted above the scrim. That is the §5b anchored-panel
-   presentation (scrim + bubble at z-50) which message-menu.js deliberately does not
-   build — and lifting a node out of the chat log's stacking context is how a
-   transform-based scroller starts clipping it. Damir chose the cheap half knowing
-   this: "the tint is the cheap half and answers the actual complaint" (#492).
+   ⚠ The ROW lifts, not the bubble. Reactions overlap the bubble corner by design
+   (#65) and the avatar and sender label belong to the same message — lifting the
+   bubble alone would leave its own reactions stranded behind the scrim, which is a
+   worse version of the bug being fixed.
 
-   ⚠ Attribute, not a class: the four bubble kinds (.c-bubble / .c-tcard /
-   .c-fbubble / .c-mbubble) each own their own class list and background, and a
-   shared attribute selector adds the ring without any of them having to know about
-   the menu. Same reason the tint sets `box-shadow` rather than `border` — a border
-   would change the box and reflow the bubble under the user's finger. */
+   ⚠ THE LIFT WORKS ONLY BECAUSE NOTHING BETWEEN THE ROW AND THE HOST CREATES A
+   STACKING CONTEXT. Verified: .c-chat-canvas is position:relative with z-index
+   auto, and `.c-chat-canvas > *` (the scroller) likewise — overflow alone does not
+   create one. Both still CLIP the lifted row to their own box, which is correct:
+   the message stays inside the log. If either ever gains a z-index, a transform, a
+   filter or `isolation`, the lift silently caps at that ancestor and the ring goes
+   back under the scrim — the symptom to recognise.
+
+   ⚠ pointer-events: none is NOT decoration. With the row above the scrim, a tap on
+   the highlighted message would hit the MESSAGE instead of the scrim, and light
+   dismiss — every other overlay's way out — would stop working on the one element
+   the user is looking at. Dead to hit-testing, the tap falls through to the scrim
+   exactly as it did before the lift. The lifted message is a picture, like
+   iMessage's snapshot; the menu is what is interactive. */
+[data-menu-lift] {
+  position: relative;
+  z-index: var(--z-42);
+  pointer-events: none;
+}
+
+/* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
+   layer. Above the scrim it reads at its measured 5.98:1.
+   ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
+   every bubble the moment it is pressed; the box-shadow already follows whatever
+   radius the bubble itself carries. box-shadow rather than `border` because a
+   border would change the box and reflow the bubble under the user's finger. */
 [data-menu-target] {
-  /* ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
-     every bubble the moment it is pressed; the box-shadow already follows whatever
-     radius the bubble itself carries. */
   box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
   transition: box-shadow 120ms ease-out;
 }

@@ -153,6 +153,8 @@
   "createWarnBody": "パスワードとバックアップファイルがなければ、アカウントとウォレットは復元できません。私たちにも復元できません。",
   "createWarnTitle": "Spixi はパスワードを保存しません。",
   "created": "アカウントを作成しました",
+  "creditSounds": "インターフェースサウンド",
+  "creditsTitle": "クレジット",
   "currentEmpty": "現在のパスワードを入力してください。",
   "dangerZone": "危険な操作",
   "date": "日付",

@@ -366,49 +366,162 @@ namespace Spixi
             channelInitialized = true;
         }
 
-        static void handleNotificationReceived(object? sender, OneSignalSDK.DotNet.Core.Notifications.NotificationWillDisplayEventArgs e)
+        /// <summary>
+        /// ★★ #503 — WHAT TO DO WITH ONE INCOMING PUSH, decided in ONE place.
+        ///
+        /// #493 hung this decision off `WillDisplay`, which is a FOREGROUND lifecycle
+        /// listener: it registers correctly, logs correctly, and never fires for a killed
+        /// app. Every gate was green and the lane did nothing. The gate itself was always
+        /// right — it just needed an entry point that background delivery actually reaches,
+        /// which is the NotificationServiceExtension (SNotificationServiceExtension.cs).
+        ///
+        /// Both entry points call THIS, so the mute, the global master and the
+        /// one-row-per-chat id can never disagree between foreground and background.
+        /// </summary>
+        internal enum PushAction
+        {
+            /// Nothing is posted — the Ixian fetch handled it, or the user muted it.
+            Suppress,
+            /// Post OUR row, keyed on the chat address (#495).
+            PostOurs,
+            /// Let OneSignal post its own row: no addressee, so we cannot key or attribute it.
+            ShowRaw,
+        }
+
+        /* ★ #503: ONE notification must be decided ONCE. The foreground listener and the
+         * service extension are different SDK surfaces and the bytecode does not settle
+         * whether both can fire for a single notification — so rather than depend on being
+         * right about that ordering (the #503 lesson itself), the decision is made
+         * idempotent by OneSignal's own notification id. A second entry for the same id
+         * returns the same answer without re-running the fetch or re-posting.
+         * Bounded: notification ids are short-lived and the cap keeps a long-running
+         * process from accumulating them. */
+        private static readonly System.Collections.Generic.Dictionary<string, PushAction> decidedPushes = new();
+        private static readonly System.Collections.Generic.Queue<string> decidedOrder = new();
+        private const int DECIDED_CAP = 64;
+
+        internal static PushAction decidePush(string? notificationId, string? fa, string where)
+        {
+            lock (decidedPushes)
+            {
+                if (!string.IsNullOrEmpty(notificationId)
+                    && decidedPushes.TryGetValue(notificationId!, out PushAction seen))
+                {
+                    Logging.info("[NOTIFDIAG] push " + notificationId + " already decided (" + seen + ") — " + where + " is a repeat");
+                    return seen;
+                }
+            }
+
+            PushAction action = decidePushUncached(fa, where);
+
+            if (!string.IsNullOrEmpty(notificationId))
+            {
+                lock (decidedPushes)
+                {
+                    if (decidedPushes.ContainsKey(notificationId!))
+                    {
+                        return decidedPushes[notificationId!];   // raced; first answer wins
+                    }
+                    decidedPushes[notificationId!] = action;
+                    decidedOrder.Enqueue(notificationId!);
+                    while (decidedOrder.Count > DECIDED_CAP)
+                    {
+                        decidedPushes.Remove(decidedOrder.Dequeue());
+                    }
+                }
+            }
+            return action;
+        }
+
+        private static PushAction decidePushUncached(string? fa, string where)
         {
             try
             {
-                e.PreventDefault();
-
                 /* ★ #493 — ASK WHETHER THE FETCH CAN EVEN BE ATTEMPTED BEFORE ATTEMPTING IT.
                  *
-                 * Now that this handler is registered from the Application (#493), it runs on
-                 * pushes that reach a process with NO node in it. `fetchPushMessages` needs
+                 * On a cold push the process has NO node in it. `fetchPushMessages` needs
                  * three things the node owns — `OfflinePushMessages.init` having supplied the
                  * push URL and the stream processor (`Node.cs:112`), and
-                 * `IxianHandler.getWalletStorage().getPrimaryAddress()` — so on that path it
-                 * cannot succeed; it can only throw, or burn an HTTP registration round-trip
-                 * inside a push callback. `Node.isRunning` is the honest predicate and it is
-                 * strictly narrowing: where the fetch works today (the app is merely
-                 * backgrounded) the node IS running and nothing changes. */
+                 * `IxianHandler.getWalletStorage().getPrimaryAddress()` — so there it cannot
+                 * succeed; it can only throw, or burn an HTTP round-trip inside a push
+                 * callback. `Node.isRunning` is the honest predicate and it is strictly
+                 * narrowing: where the fetch works today the node IS running. */
                 if (SPIXI.Meta.Node.isRunning && OfflinePushMessages.fetchPushMessages(true, true))
                 {
-                    return;
+                    return PushAction.Suppress;
                 }
             }
             catch (Exception ex)
             {
-                Logging.error("Exception occured in handleNotificationReceived: {0}", ex);
+                Logging.error("Exception occured in decidePush (" + where + "): {0}", ex);
             }
 
             /* ★ NOTIF-5 (Damir device round 2026-08-21) — THE SECOND DOOR.
              *
-             * Reaching this line means the Ixian fetch above did not handle the push, so the
-             * RAW OneSignal notification is about to be posted. That path has never consulted
-             * a mute, which is why 3.7 (a muted group still notified), 3.4 ("sometimes works,
+             * Reaching this line means the Ixian fetch did not handle the push, so a raw
+             * OneSignal notification is about to be posted. That path never consulted a mute,
+             * which is why 3.7 (a muted group still notified), 3.4 ("sometimes works,
              * sometimes doesn't") and 3.12 (a second, unformatted notification beside ours)
-             * were all the same defect wearing three faces. NOTIF-1's fix was in the right
-             * place; there was simply another way in.
+             * were all the same defect wearing three faces.
              *
              * ⚠ Scope, stated honestly: a GROUP push carries the SENDER'S address in `fa`,
              * not the group's — which is why tapping one opened a 1:1. So this gate covers
              * the global master and 1:1 chats; the group case needs the payload to carry the
              * group address and is BE. See SNotificationPrefs.shouldDisplayRawPush. */
+            if (!SPIXI.Meta.SNotificationPrefs.shouldDisplayRawPush(fa))
+            {
+                Logging.info("[NOTIFDIAG] raw push suppressed by mute/global master (" + where + ")");
+                return PushAction.Suppress;
+            }
+
+            if (string.IsNullOrEmpty(fa))
+            {
+                /* No addressee: there is no id to key on and no chat to open, so the raw row
+                 * is still the best available answer. Same fail-open direction as
+                 * shouldDisplayRawPush — a push we cannot attribute is not one we may drop. */
+                return PushAction.ShowRaw;
+            }
+            return PushAction.PostOurs;
+        }
+
+        /// <summary>★ #495: post OUR row for a push, keyed on the chat address so a second
+        /// message from the same sender REPLACES the first instead of stacking beside it.
+        /// Returns false when it could not, so the caller can fall back to the raw row —
+        /// a push must never be lost to our own formatting.</summary>
+        internal static bool postOurPushRow(string fa)
+        {
+            try
+            {
+                int notifId = SPIXI.Meta.SNotificationPrefs.notificationIdFor(new IXICore.Address(fa), false);
+                string notifText = SPIXI.Lang.SpixiLocalization._SL("notification-new-message") ?? "New Message";
+
+                // chatUnread 0: with no node there is no unread count to state, and
+                // showLocalNotification only adds the "N new messages" sub-text above 1.
+                showLocalNotification(notifId, "Spixi", notifText, fa, true, 0, "message", 0);
+                Logging.info("[NOTIFDIAG] push posted as a Spixi row, id keyed on the sender (#495)");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logging.error("postOurPushRow failed, falling back to the raw push: {0}", ex);
+                return false;
+            }
+        }
+
+        /// <summary>The FOREGROUND lane. #503: this is a lifecycle listener and only fires
+        /// while the app is alive — background and killed-app delivery goes through
+        /// SNotificationServiceExtension. Both call decidePush, which is keyed on the
+        /// notification id, so if the two ever fire for the SAME notification the second one
+        /// is a no-op instead of a second fetch and a second row.</summary>
+        static void handleNotificationReceived(object? sender, OneSignalSDK.DotNet.Core.Notifications.NotificationWillDisplayEventArgs e)
+        {
+            string? notificationId = null;
             string? fa = null;
             try
             {
+                e.PreventDefault();
+                try { notificationId = e.Notification.NotificationId; }
+                catch (Exception) { /* id is only used to de-duplicate — never fatal */ }
                 var extra = e.Notification.AdditionalData;
                 if (extra != null && extra.ContainsKey("fa"))
                 {
@@ -417,90 +530,25 @@ namespace Spixi
             }
             catch (Exception ex)
             {
-                Logging.warn("handleNotificationReceived: could not read 'fa': " + ex.Message);
+                Logging.warn("handleNotificationReceived: could not read the push: " + ex.Message);
             }
 
-            if (!SPIXI.Meta.SNotificationPrefs.shouldDisplayRawPush(fa))
+            PushAction action = decidePush(notificationId, fa, "foreground");
+            if (action == PushAction.Suppress)
             {
-                Logging.info("[NOTIFDIAG] raw push suppressed by mute/global master");
                 return;
             }
-
-            displayColdPush(fa, e);
-        }
-
-        /// <summary>
-        /// ★★ #495 (#483, the second half of Damir's complaint) — POST **OUR** ROW, NOT THE
-        /// RAW ONE.
-        ///
-        /// *"the notifications keep coming and they are not grouped, so like legacy"*. Both
-        /// halves of that sentence are one fact: `e.Notification.display()` posts OneSignal's
-        /// own row, with OneSignal's own id. A unique id per push is what makes five messages
-        /// five rows — the exact defect NOTIF-4 fixed for LOCAL notifications by keying the id
-        /// on the CHAT ADDRESS, and which the push path never inherited. It is also why the
-        /// rows looked unlike ours (3.12's *"legacy type notification"*): different channel,
-        /// different icon, no accent, no per-type line.
-        ///
-        /// So this posts through `showLocalNotification` — the same builder, the same channel,
-        /// the same `ic_stat_spixi`, the same brand accent, and above all
-        /// `SNotificationPrefs.notificationIdFor(fa)`, so a second push from the same sender
-        /// REPLACES the first instead of stacking beside it.
-        ///
-        /// ★ NO NEW OneSignal API IS READ, deliberately. The body is the app's own
-        /// `notification-new-message` string, not the push payload's title/body — which is
-        /// both the AND-15 (#334) design (a per-type line, never message text) and strictly
-        /// more private than the raw row it replaces. There is nothing to lose by not reading
-        /// the payload: the app does not display message text in a notification on any
-        /// setting.
-        ///
-        /// ⚠ HONEST SCOPE, and it is the same BE gap as everywhere else in this family: a
-        /// GROUP push carries the SENDER'S address in `fa`, not the group's. So a group
-        /// message collapses per SENDER rather than per group, and when the node later starts
-        /// and fetches the real message, the group's own row posts under a different id — one
-        /// extra row, which is exactly what happens today with the raw push, so no worse. For
-        /// a 1:1 the two ids are identical and the real row REPLACES this one. The payload
-        /// needs the group address; that is `be-cutover` work.
-        ///
-        /// ⚠ NOT cancelled when the node comes up. #481's lesson: a row the user has not seen
-        /// is the only record the event happened, and cancelling it to tidy up is how the
-        /// missed-call row was lost.
-        /// </summary>
-        static void displayColdPush(string? fa, OneSignalSDK.DotNet.Core.Notifications.NotificationWillDisplayEventArgs e)
-        {
+            if (action == PushAction.PostOurs && postOurPushRow(fa!))
+            {
+                return;
+            }
             try
             {
-                if (string.IsNullOrEmpty(fa))
-                {
-                    /* No addressee: there is no id to key on and no chat to open, so the raw
-                     * row is still the best available answer. Same fail-open direction as
-                     * shouldDisplayRawPush — a push we cannot attribute is not one we may
-                     * drop. */
-                    e.Notification.display();
-                    return;
-                }
-
-                int notifId = SPIXI.Meta.SNotificationPrefs.notificationIdFor(new IXICore.Address(fa), false);
-                string notifText = SPIXI.Lang.SpixiLocalization._SL("notification-new-message") ?? "New Message";
-
-                // chatUnread 0: with no node there is no unread count to state, and
-                // showLocalNotification only adds the "N new messages" sub-text above 1.
-                showLocalNotification(notifId, "Spixi", notifText, fa, true, 0, "message", 0);
-                Logging.info("[NOTIFDIAG] cold push posted as a Spixi row, id keyed on the sender (#495)");
+                e.Notification.display();
             }
             catch (Exception ex)
             {
-                /* A malformed address, a missing resource, anything — fall back to the row we
-                 * would have posted before this change. A push must never be lost to our own
-                 * formatting. */
-                Logging.error("displayColdPush failed, falling back to the raw push: {0}", ex);
-                try
-                {
-                    e.Notification.display();
-                }
-                catch (Exception ex2)
-                {
-                    Logging.error("raw push display also failed: {0}", ex2);
-                }
+                Logging.error("raw push display failed: {0}", ex);
             }
         }
 

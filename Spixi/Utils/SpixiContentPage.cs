@@ -816,6 +816,15 @@ namespace SPIXI
             });
         }
 
+        /** ★ #505: is anything covered right now? Read by App.sweepStrandedCover, the
+         *  escape hatch for W-4.6 — an opaque, input-swallowing cover left over an
+         *  UNLOCKED app is a black window with no way in, and it is exactly what this
+         *  object looks like from the outside. */
+        public static bool hasPrivacyShield()
+        {
+            return privacyShields.Count > 0;
+        }
+
         /** Uncover. Safe to call when nothing is covered. */
         public static void hidePrivacyShield()
         {

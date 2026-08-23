@@ -244,7 +244,7 @@ visible on the dark surface without reading as a different row state.
 
 | | |
 |---|---|
-| **A‑6** | `(foreground)` in the Android log. Owed **three** rounds now. Ten seconds: app open on one chat, receive a message in another, export the log |
+| **A‑6** | ★★ **THE ROW'S PREMISE WAS DEFECTIVE — corrected 2026-08-23.** It asked for `(foreground)` with the app open and connected. **That line cannot exist under those conditions.** `Ixian-Core/Streaming/PendingMessageProcessor.cs:481` sends a push only when `friend.forcePush \|\| !friend.online \|\| !sent` — so a connected app receives over the Ixian stream and OneSignal is never involved. Three empty rounds were the test being wrong, not the tester. ★ **THE REPRO THAT WORKS:** app open and FOREGROUNDED → turn on airplane mode → have someone send (they see you offline, a push goes out) → restore networking **with the app still on screen** → the push lands while foregrounded → `WillDisplay` fires. The same window is the only realistic way to observe `already decided`, i.e. both lanes firing for one notification |
 | **The sound picks** | Damir has better UI SFX candidates and asked to be **interviewed**. Conversation, not build time |
 | **The Android decrypt loop** | 6,567 errors in 17.5 min — 2,358 `no AES and CHACHA keys`, 2,096 `receiveData` failures, the same few payloads re-processed **262 times each**. Runs continuously. ⚠ Observation with a discriminator (one peer or many?), **nothing built on it** |
 | **BE-owned** | `Ixian-Core/Streaming/OfflinePushMessages.cs:118` — `HttpClient` with **no `Timeout`**, blocking `.Result` at `:121` and `:186`, inside a callback OneSignal gives 30 s. One line closes the last of NOTIF‑4's two-rows path. **Frozen — raise it, do not touch it** |

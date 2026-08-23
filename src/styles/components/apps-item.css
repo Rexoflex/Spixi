@@ -9,7 +9,8 @@
      boxes and made it worse: __open is in no transition rule, so it SNAPPED to an opaque
      flat tint over the wrapper's correctly-animated sweep. Two fills would also grow
      from two different centres, because __menu offsets __open's centre to the left.
-     base.css flips the size on `[data-pressed="row"] .c-app-item__open`. */
+     5c-ii: base.css now drives __open's ::before LAYER from the wrapper's attribute
+     (`.c-app-item[data-pressed="row"] .c-app-item__open::before`). */
 }
 
 /* —— the tap target (icon + text) —— */
@@ -25,16 +26,9 @@
   padding: var(--spacing-8) var(--spacing-12);
   border-radius: var(--radius-12);
   color: var(--text-neutral-01);
-  /* ★ A5 (#348): the centre-out press fill. __open is the box that paints this row, so
-     it owns the fill — and it needs its OWN transition, because `transition` does not
-     inherit and base.css names the wrapper, not this child. Without it the fill snaps
-     to an opaque flat tint, which is the exact effect A5 exists to remove. */
-  transition: background-color var(--duration-100) var(--easing-standard),
-              background-size 220ms var(--easing-accelerate, ease-in);
-  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 0% 100%;
+  /* 5c-ii (2026-08-24): the fill rides the compositor ::before layer in base.css
+     (on __open — the box that paints, same split as before). */
+  transition: background-color var(--duration-100) var(--easing-standard);
 }
 /* N24 — the row/tile whose details pane is open (aria-current on __OPEN, stamped
    by renderAppsList from state.selectedId; C# drives it via the selectApp push —
@@ -48,10 +42,10 @@
    #353 dial: no hover wash on a selected row. */
 .c-app-item__open[aria-current] {
   background-color: var(--surface-action-tonal-default);
-  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
 }
 @media (hover: hover) and (pointer: fine) { .c-app-item__open:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); } }
-.c-app-item__open:active { background-size: 100% 100%; }
+/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 
 .c-app-item__text { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
 .c-app-item__name {

@@ -297,17 +297,91 @@ export function createWalletTools(state, opts = {}) {
 }
 
 /** Scroll choreography (Damir #134, the #113/#114 family — binary triggered CSS
- *  transitions, no scroll-linked per-frame writes):
- *  · scroll DOWN past `collapseAt` → hero minimizes (compact title+balance) and,
- *    past a small accumulated delta, the tools row tucks away → single-page tx list
- *  · a brief scroll UP (≥ `reveal` px accumulated) → tools return (search + filters)
- *  · at the absolute top → hero expands again
+ *  transitions, no scroll-linked per-frame writes). Reworked for the wallet scroll
+ *  oscillator (iOS-59 → the 2026-08-24 handoff §1; mechanism CONFIRMED with Damir;
+ *  #46 loop round 1 reshaped the reserve — see below).
+ *
+ *  ★ THE MECHANISM THIS MUST DEFEAT: the hero is a SIBLING of the scroller, not a
+ *  child. A collapse GROWS the scroller's viewport, so the maximum scroll offset
+ *  (`scrollHeight − clientHeight`) DROPS by the hero delta. With a short list the
+ *  content then fits entirely, `scrollTop` clamps to 0, and the old
+ *  `top <= 1 → expand` read that clamp as "the user is at the top". Expand → the
+ *  viewport shrinks → the content overflows → the user scrolls → collapse: a
+ *  perfect oscillator. A long list overflows in both states, which is why nobody
+ *  caught it.
+ *
+ *  Two parts, and BOTH are needed:
+ *  · RESERVE THE HEIGHT — when the hero collapses, a spacer at the bottom of the
+ *    scroller absorbs the drop so the maximum offset can never fall below the
+ *    user's position. ★ #46 r1 (auditor A) reshaped this twice:
+ *    (1) DEFICIT-SIZED, not full-delta. The reserve target is
+ *        `clamp(0, top − maxPre + delta, delta)` — exactly what the clamp would
+ *        have consumed, nothing more. A full-delta reserve kept the maximum
+ *        INVARIANT, which sounds right and is not: it meant the compact state
+ *        could never end closer to the content bottom than the expanded state,
+ *        so EVERY list ended in ~a hero of blank when compact (r1 MAJOR-4). With
+ *        the deficit the maximum never drops below `top`, a long list reserves
+ *        ZERO, and a short list reserves only its own clamp depth — where the
+ *        content already fits the grown viewport, so space under the last row is
+ *        the ordinary short-list ground, not a defect. The collapse behaviour
+ *        itself stays identical on every account (the dial); only the invisible
+ *        pad size adapts.
+ *    (2) TRACKED, not instant. The viewport grows over the 300 ms transition;
+ *        landing the whole reserve at t=0 opened a reserve-wide scroll BULGE a
+ *        fling walked into — blank space, then a clamp-back stall (r1 MAJOR-1,
+ *        measured). A ResizeObserver on the HERO now feeds the reserve
+ *        `min(target, expandedRest − heroHeight)` frame by frame — RO callbacks
+ *        run after layout and before paint, so the maximum is right in every
+ *        painted frame. No-RO engines fall back to the instant target: the
+ *        bulge is bounded by the deficit there, and jsdom (which has no RO) is
+ *        that fallback.
+ *    The delta and rest heights are MEASURED from the element, never constants,
+ *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
+ *    probe cut a running transition (r1 MINOR-6).
+ *  · LATCH THE COLLAPSE — a scroll event in which the geometry
+ *    (scrollHeight/clientHeight) changed is a LAYOUT consequence, never a finger.
+ *    Such an event can neither collapse nor expand. Expansion needs a deliberate
+ *    upward scroll that reaches the top. ★ r1 MINOR-5: a layout event re-syncs
+ *    the geometry but KEEPS the gesture accumulators — they only ever grow from
+ *    stable deltas, and a scanning wallet re-renders continuously, so resetting
+ *    them made the hero uncollapsible for the whole scan.
+ *
+ *  · the collapse trigger is an accumulated DOWNWARD GESTURE (`collapseAfter` px),
+ *    not an absolute offset. Damir's dial: "it should minimise the hero any time
+ *    you scroll down, so it's always the same effect." An absolute threshold is
+ *    account-size-dependent — a short list can never reach 120 px.
+ *  ⚠ REJECTED, and the record is kept on purpose: "collapse only when there is
+ *    enough content to absorb it". Same reason — different behaviour on different
+ *    accounts. (The deficit reserve is NOT that alternative: the collapse always
+ *    fires the same way; only the pad, which the user never sees, adapts.)
+ *  · safety valve: when a re-render leaves NO scroll range at all, a gesture can
+ *    never release the latch (no scroll events fire) → auto-expand. It cannot
+ *    oscillate: with the reserve holding the maximum at ≥ the collapse position,
+ *    a list that fits compact also fits expanded. Valve runs only AT REST (a
+ *    flip < 400 ms ago means a transition is running and the transient numbers
+ *    would lie).
+ *  · ★ r1 MAJOR-2: attach and every at-top event can EXPAND a compact hero.
+ *    A compact hero at scrollTop 0 has no gesture that can ever free it (no
+ *    scroll events fire at the top of a fitting list), and its balance/actions
+ *    are inert — so attach expands it when the scroller is at the top, and a
+ *    zero-delta event at the top (the demo's programmatic top-restore) does too.
+ *
+ *  ⚠ ACCEPTED RESIDUAL (r1 MINOR-7, recorded): the reserve target is computed at
+ *  collapse time. If the hero's EXPANDED rest height changes while it is compact
+ *  (a balance wrapping to two lines, a font-scale change), the reserve is stale;
+ *  the worst case is a spontaneous but benign expand via the valve on a tiny
+ *  list, never a stuck state and never an oscillation.
+ *
+ *  · a brief scroll UP (≥ `reveal` px accumulated) → tools return (search+filters)
  *  Guards: tools never hide while they hold focus or a non-empty query (the user is
  *  mid-search). Returns detach().
  */
-export function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 24 } = {}) {
-  let last = scrollEl.scrollTop || 0;
+export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal = 24 } = {}) {
+  let lastTop = scrollEl.scrollTop || 0;
+  let lastS = scrollEl.scrollHeight;
+  let lastV = scrollEl.clientHeight;
   let up = 0;
+  let down = 0;
 
   const toolsBusy = () => {
     if (!tools) return false;
@@ -349,29 +423,248 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, re
 
   setTools(false);   // N43: start (and stay) revealed, whatever a previous attach left
 
-  const onScroll = () => {
-    const top = scrollEl.scrollTop;
-    const d = top - last;
-    last = top;
-    if (top <= 1) {                                      // absolute top → everything back
-      if (hero) setWalletHeroCompact(hero, false);
-      setTools(false);
-      up = 0;
+  /* — part (a): the reserve spacer. Idempotent across re-attach (demo re-wires). — */
+  let reserveEl = null;
+  for (const c of scrollEl.children) {
+    if (c.classList && c.classList.contains('c-wallet-reserve')) { reserveEl = c; break; }
+  }
+  if (!reserveEl) {
+    reserveEl = document.createElement('div');
+    reserveEl.className = 'c-wallet-reserve';
+    reserveEl.setAttribute('aria-hidden', 'true');
+    scrollEl.append(reserveEl);
+  }
+  const reservePx = () => { const v = parseInt(reserveEl.style.height, 10); return v > 0 ? v : 0; };
+  const applyReserve = (px) => { reserveEl.style.height = (px > 0 ? px : 0) + 'px'; };
+
+  /* MEASURED, never guessed: toggle the attribute with transitions suppressed
+   * ([data-measuring], wallet-hero.css), read both rest heights, restore. All
+   * synchronous — no paint happens between the toggles. ★ r1 MINOR-6: cached for
+   * 400 ms around a flip — a collapse ≤ 300 ms after an expand (the fast up-down
+   * flick) would otherwise measure MID-TRANSITION, and [data-measuring] cancels
+   * whatever is animating: a visible snap. ★ r1 MINOR-8: the attribute restore
+   * lives in `finally`, so a future throw between the toggles cannot strand a
+   * hero/latch desync. Returns { expanded, compact, delta }; zeros while not
+   * laid out. */
+  let lastFlipAt = -1e9;
+  let cachedMeasure = null;
+  const measureHero = (force) => {
+    if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
+    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
+    const wasCompact = 'compact' in hero.dataset;
+    hero.dataset.measuring = '';
+    let expanded = 0, compact = 0;
+    try {
+      delete hero.dataset.compact;
+      expanded = hero.offsetHeight;
+      hero.dataset.compact = '';
+      compact = hero.offsetHeight;
+    } finally {
+      if (wasCompact) hero.dataset.compact = ''; else delete hero.dataset.compact;
+      void hero.offsetHeight;             // settle layout BEFORE transitions come back
+      delete hero.dataset.measuring;
+    }
+    cachedMeasure = { expanded, compact, delta: Math.max(0, expanded - compact) };
+    return cachedMeasure;
+  };
+
+  /* — part (b): the latch. Initialized from the hero so a re-attach onto a compact
+   *   hero does not desync (the shell detaches on tab switch, never expands). — */
+  let collapsed = !!(hero && ('compact' in hero.dataset));
+  let heroExpandedRest = 0;
+  let reserveTarget = 0;
+
+  const trackedReserve = () => {
+    if (!hero) return reserveTarget;
+    return Math.min(reserveTarget, Math.max(0, heroExpandedRest - hero.offsetHeight));
+  };
+
+  const collapse = () => {
+    if (collapsed) return;
+    collapsed = true;
+    /* ★ r2 W-MAJOR-1: maxPre and top are read BEFORE the measurement probe runs —
+     * the probe's attribute toggle + offsetHeight read force a REAL compact-hero
+     * layout, and with no reserve under it that layout is exactly the clamp
+     * geometry this fix exists to prevent (Blink clamps scrollTop at the end of
+     * the probe's layout run, and the deficit was then computed from a destroyed
+     * position: on a maxPre < delta account the very first collapse snapped the
+     * list to the top and stranded a compact hero with zero range). */
+    const maxPre = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const top = Math.max(0, scrollEl.scrollTop);
+    /* …and the probe gets a reserve FLOOR to stand on for its synchronous
+     * microseconds: the cached delta when one exists, else the viewport height (a
+     * safe over-approximation of any hero). Nothing paints mid-probe, so the
+     * floor is unobservable; it is replaced by the tracked/deficit value below. */
+    applyReserve((cachedMeasure && cachedMeasure.delta) || scrollEl.clientHeight || 300);
+    const m = measureHero();
+    if (m.expanded > 0) heroExpandedRest = m.expanded;
+    /* ★ DEFICIT-SIZED (r1): only what the clamp would consume. */
+    reserveTarget = Math.max(0, Math.min(m.delta, top - maxPre + m.delta));
+    /* ★ TRACKED (r1): with a hero RO the reserve starts at 0 and follows the
+     * shrinking hero frame by frame; without one it lands instantly (bounded by
+     * the deficit). Reserve set BEFORE the flip either way, so the maximum never
+     * dips below `top` in any painted frame. */
+    applyReserve(heroRO ? trackedReserve() : reserveTarget);
+    lastFlipAt = performance.now();
+    /* r2 W-MINOR-3: a fresh compact state owes the NEXT collapse a fresh gesture —
+     * see expand() for the 1px-re-collapse trace. */
+    down = 0; up = 0;
+    if (hero) setWalletHeroCompact(hero, true);
+  };
+  const expand = () => {
+    if (!collapsed) return;
+    collapsed = false;
+    lastFlipAt = performance.now();
+    /* ★ r2 W-MINOR-3: the gesture accumulators reset with the state. Four of the
+     * five expand paths are not gestures (attach, the valve, the belt, the
+     * zero-delta branch), and `down` still held ≥ collapseAfter from the collapse
+     * — so ONE pixel of downward scroll after a valve expand re-collapsed the
+     * hero, bypassing the dial entirely. */
+    down = 0; up = 0;
+    if (hero) setWalletHeroCompact(hero, false);
+    /* removing the reserve while the viewport is still large can clamp — but expand
+     * only ever runs at top ≤ 1 or with no scroll range, where a clamp is a no-op. */
+    applyReserve(0);
+    reserveTarget = 0;
+  };
+
+  /* Safety valve — see the docblock. `<= 1` not `<= 0`: sub-pixel rounding.
+   * Rest-guarded (r1): transient mid-flip numbers must not trigger it.
+   * ★ r2 W-MINOR-5: a refusal RE-CHECKS ITSELF at guard expiry — a no-range state
+   * may never produce another event (type in the search box right after a
+   * collapse: the belt fires once, is refused, and a zero-row list never resizes
+   * again), and a valve that only listens is a valve that can be starved. */
+  let valveRetry = 0;
+  const releaseIfMoot = () => {
+    if (!collapsed) return;
+    if (scrollEl.scrollHeight - scrollEl.clientHeight > 1) return;
+    const wait = 400 - (performance.now() - lastFlipAt);
+    if (wait > 0) {
+      clearTimeout(valveRetry);
+      valveRetry = setTimeout(releaseIfMoot, wait + 16);
       return;
     }
-    if (d > 0) {                                         // downward
-      up = 0;
-      if (top > collapseAt) {
-        if (hero) setWalletHeroCompact(hero, true);
-        setTools(true);
+    expand();
+  };
+
+  /* ★ r1 MAJOR-1: the hero RO — the reserve's frame-by-frame feed. Declared before
+   * collapse() closes over it. Guarded: only while collapsed, and it never
+   * re-measures (trackedReserve reads live offsetHeight against the cached rest). */
+  let heroRO = null;
+  if (hero && typeof ResizeObserver === 'function') {
+    heroRO = new ResizeObserver(() => {
+      /* r2 W-MINOR-4: heroExpandedRest 0 means "measured while hidden" — tracking
+       * against it computes 0 and the observer's INITIAL observation would wipe a
+       * reserve the attach path deliberately kept. */
+      if (!collapsed || heroExpandedRest <= 0) return;
+      applyReserve(trackedReserve());
+    });
+    heroRO.observe(hero);
+  }
+
+  /* ★ r1 MAJOR-2: attach onto a compact hero. Mid-list, keep the latch and make
+   * sure the reserve exists (it may have been measured while hidden). At the top,
+   * EXPAND — no gesture can ever free a compact hero at scrollTop 0 (a fitting
+   * list fires no scroll events), and its balance/actions are inert. */
+  if (collapsed) {
+    if ((scrollEl.scrollTop || 0) <= 1) {
+      expand();
+    } else {
+      const m = measureHero();
+      if (m.expanded > 0) {
+        heroExpandedRest = m.expanded;
+        /* r2 W-MINOR-4: a reserve that survived the detach IS the deficit from its
+         * own collapse — adopt it as the target, or the hero RO's initial
+         * observation resets the layer to zero and re-opens the clamp. A zero
+         * reserve here means the measurement ran while hidden last time:
+         * conservative full delta. */
+        reserveTarget = reservePx() > 0 ? reservePx() : m.delta;
+        applyReserve(trackedReserve());
       }
-    } else if (d < 0) {                                  // upward — brief pull reveals tools
-      up += -d;
+      /* hidden (m.expanded 0): leave any kept reserve untouched; the belt
+       * completes the state once the hero is laid out (heroExpandedRest stays 0,
+       * which is the belt's sentinel — r2 W-MAJOR-2). */
+    }
+  }
+
+  const onScroll = () => {
+    const top = scrollEl.scrollTop;
+    const S = scrollEl.scrollHeight;
+    const V = scrollEl.clientHeight;
+    const stable = (S === lastS && V === lastV);
+    const d = top - lastTop;
+    lastTop = top; lastS = S; lastV = V;
+    if (!stable) {
+      /* geometry moved in the same event → a clamp or a re-render, NOT a finger.
+       * The old code read exactly this as "the user is at the top" and expanded —
+       * that is the oscillator. Re-sync and check the no-range valve. The gesture
+       * accumulators are KEPT (r1 MINOR-5): they only ever grow from stable
+       * deltas, and a scanning wallet re-renders on every push. */
+      releaseIfMoot();
+      return;
+    }
+    if (d > 0) {                                         // downward gesture
+      up = 0;
+      /* top <= 0 means this delta is an overscroll rubber-band settling back to the
+       * top (iOS reports negative scrollTop there) — a spring, not a finger. Counting
+       * it would re-collapse the hero the instant an at-top expand let go. */
+      if (top > 0) down += d; else down = 0;
+      if (down >= collapseAfter) {
+        collapse();
+        setTools(true);                                  // N43 keeps this a no-op today
+      }
+    } else if (d < 0) {                                  // upward gesture
+      down = 0; up += -d;
       if (up >= reveal) setTools(false);
+      if (top <= 1) {                                    // a REAL arrival at the top
+        expand();
+        setTools(false);
+      }
+    } else if (top <= 1) {
+      /* d === 0 at the top: a programmatic top-restore (the demo's showHome) or a
+       * redundant event while parked there. A compact hero here is the stuck state
+       * r1 MAJOR-2 names — release it. A stable zero-delta event is never a clamp
+       * (a clamp changes geometry in the same event). */
+      expand();
     }
   };
   scrollEl.addEventListener('scroll', onScroll, { passive: true });
-  return () => scrollEl.removeEventListener('scroll', onScroll);
+
+  /* Belt for the latch: content can shrink UNDER a compact hero with scrollTop
+   * already 0 (filter/search re-render) — no scroll event fires, the valve above
+   * never runs, and the hero would be stuck compact with nothing to scroll.
+   * ResizeObserver sees the re-render. Geometry re-sync only — the accumulators
+   * are kept here too (r1 MINOR-5). */
+  let ro = null;
+  if (typeof ResizeObserver === 'function') {
+    ro = new ResizeObserver(() => {
+      lastTop = scrollEl.scrollTop; lastS = scrollEl.scrollHeight; lastV = scrollEl.clientHeight;
+      /* ★ r2 W-MAJOR-2: the re-apply keys on heroExpandedRest === 0 — the "measured
+       * while hidden" SENTINEL — never on reservePx() === 0. The r1 deficit made a
+       * zero reserve a LEGITIMATE resting value (a long list's deficit is 0), and a
+       * belt that read zero as "never applied" slammed the full delta onto every
+       * long list on the first re-render after a collapse: r1 MAJOR-4, restored by
+       * the fix for it. */
+      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= 400) {
+        const m = measureHero();                       // attach-while-hidden completion
+        if (m.expanded > 0) {
+          heroExpandedRest = m.expanded;
+          reserveTarget = m.delta;    // position at that collapse is unknowable — conservative
+          applyReserve(trackedReserve());
+        }
+      }
+      releaseIfMoot();
+    });
+    ro.observe(scrollEl);
+    for (const c of scrollEl.children) { if (c !== reserveEl) ro.observe(c); }
+  }
+
+  return () => {
+    scrollEl.removeEventListener('scroll', onScroll);
+    clearTimeout(valveRetry); valveRetry = 0;
+    if (ro) ro.disconnect();
+    if (heroRO) heroRO.disconnect();
+  };
 }
 
 /* ————————————————————————— shared bits ————————————————————————— */

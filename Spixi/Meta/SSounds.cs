@@ -28,8 +28,12 @@ namespace SPIXI.Meta
     /// THE FILE CONTRACT (drop these in, nothing else to do):
     ///   sounds/message_sent.mp3      — SND-1, an outgoing chat message
     ///   sounds/message_received.mp3  — SND-1, an incoming chat message
-    ///   sounds/tx_sent.mp3           — SND-2, an outgoing payment
-    ///   sounds/tx_received.mp3       — SND-2, an incoming payment
+    ///
+    /// ⚠ SND-2 (tx_sent/tx_received) IS REMOVED — Damir's design reversal of #506
+    /// (2026-08-23). Transactions make NO sound: transactionVerified fires for every
+    /// historical transaction on a restored account (a 60,000-block walk chimed for
+    /// each one), and "sent" fired on settlement, not on send. See
+    /// SpixiTransactionInclusionCallbacks.transactionVerified for the full record.
     ///
     /// SND-3 (a desktop-specific off switch) is the same `inAppSounds` preference: it is
     /// per-device by construction, because MAUI Preferences are per-install. The switch
@@ -39,8 +43,6 @@ namespace SPIXI.Meta
     {
         public const string MessageSent = "sounds/message_sent.mp3";
         public const string MessageReceived = "sounds/message_received.mp3";
-        public const string TxSent = "sounds/tx_sent.mp3";
-        public const string TxReceived = "sounds/tx_received.mp3";
 
         /// <summary>
         /// Play a one-shot effect, if in-app sounds are on and the asset exists.
@@ -55,6 +57,21 @@ namespace SPIXI.Meta
                 {
                     return;
                 }
+                /* ★ THE SOUND BELT (owed since 2026-08-22, handoff §3): every effect that
+                 * is actually about to play NAMES ITSELF in the log. ⚠ #46 r1 (auditor D
+                 * MAJOR-1): this line alone was NOT the whole belt — the app has six
+                 * audio sources plus the notification channel. The full set now:
+                 *   · this line (message effects, "SND play: <asset>")
+                 *   · four "SND call-tone: …" lines at the VoIPManager triggers
+                 *   · one "SND notif attempt: …" line at Node.cs's local-notification site
+                 *   · the BACKGROUND push lanes (a killed/idle app) log under [NOTIFDIAG]
+                 *     (SPushService.decidePush / postOurPushRow — #510/#514), not SND
+                 * With those, a "random sound" report resolves in one round — grep SND
+                 * for the in-app sources AND [NOTIFDIAG] for the push lanes. Sits AFTER the preference gate so a muted app logs nothing.
+                 * Info level: trace is dropped by the shipped logVerbosity (Ixian-Core
+                 * Logging.cs:191). Logs ATTEMPTS only, never suppressions — an absent
+                 * line means "we played nothing", not "nothing happened". */
+                Logging.info("SND play: " + assetPath);
                 Spixi.SPlatformUtils.playEffect(assetPath);
             }
             catch (Exception e)
@@ -70,7 +87,8 @@ namespace SPIXI.Meta
 
         public static void messageSent() { play(MessageSent); }
         public static void messageReceived() { play(MessageReceived); }
-        public static void transactionSent() { play(TxSent); }
-        public static void transactionReceived() { play(TxReceived); }
+        /* transactionSent()/transactionReceived() DELETED with SND-2 — see the class
+         * docblock. Dead methods kept "for later" read as live surface; the reversal
+         * row is the record, and re-adding them needs a row of its own. */
     }
 }

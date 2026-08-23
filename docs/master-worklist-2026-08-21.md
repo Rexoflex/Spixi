@@ -92,7 +92,7 @@ plus the assets.
 | ID | Item |
 |---|---|
 | **SND-1** | Message sent / received sound (mobile) |
-| **SND-2** | Transaction sent / received sound |
+| **SND-2** | ~~Transaction sent / received sound~~ **REVERSED #518 (2026-08-23): transactions make NO sound** |
 | **SND-3** | Desktop sound for incoming chat / payment, with a desktop-specific off switch |
 
 ★ The "In-app sounds" switch already exists in the settings component

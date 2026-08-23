@@ -68,6 +68,10 @@ namespace SPIXI.VoIP
             SpixiContentPage.broadcastCallBar(currentCallSessionId, SpixiLocalization._SL("global-call-dialing") + " " + friend.nickname + "...", 0);
             
             aquirePowerLocks();
+            // ★ the sound BELT (#518, extended by #46 r1 auditor D): every audio
+            // trigger names itself at info level — the platform helpers log only
+            // exceptions, so a stale tone was undiagnosable from the log.
+            Logging.info("SND call-tone: dialing");
             SPlatformUtils.startDialtone(DialtoneType.dialing);
             startRingTimeout();   // #265: an unanswered call must not ring forever
         }
@@ -121,6 +125,7 @@ namespace SPIXI.VoIP
                     SSpixiPermissions.requestAudioRecordingPermissions();
                 });
             }
+            Logging.info("SND call-tone: ringing");   // sound belt (#518)
             SPlatformUtils.startRinging();
             startRingTimeout();   // #265: the incoming overlay auto-clears on the SAME budget
             return true;
@@ -432,6 +437,7 @@ namespace SPIXI.VoIP
             {
                 return;
             }
+            Logging.info("SND call-tone: busy");   // sound belt (#518)
             SPlatformUtils.startDialtone(DialtoneType.busy);
             SpixiContentPage.broadcastHideCallBar();   // C18
             endVoIPSession();
@@ -454,6 +460,7 @@ namespace SPIXI.VoIP
             }
             if (error)
             {
+                Logging.info("SND call-tone: error");   // sound belt (#518)
                 SPlatformUtils.startDialtone(DialtoneType.error);
             }
             else

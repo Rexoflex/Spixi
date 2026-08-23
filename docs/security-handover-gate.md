@@ -401,3 +401,17 @@ pushes**, and **several log lines**, all argued above.
 🟡 **Two carried to the BE engineer:** the push payload's `fa` is trusted end-to-end (and the
 group case needs a payload change anyway — the same row this family has carried since #493);
 and `maxLogCount` must return to 1 before launch.
+
+---
+
+## Batch #517–#519 (2026-08-23, the scroll/sounds/press round) — the sweep, applied WHILE building
+
+| Item | file:line | Verdict | Evidence at `0e85a4b8` | Action |
+|---|---|---|---|---|
+| **New log lines: the sound belt** | `SSounds.cs` (`SND play: <asset>`) · `Node.cs` (`SND-1 … type=<enum>`, `SND notif posted: call\|message alert=<bool>`) · `VoIP/VoIPManager.cs` (`SND call-tone: dialing/ringing/busy/error`) | **INTRODUCED** | The baseline logged no audio triggers | **Reviewed and kept.** Every value is a compile-time constant, an enum name or a bool — **no address, no nickname, no message text, no id**. The message-effect lines sit AFTER the mute/preference gates, so a muted app logs nothing about the chat that stayed silent. `SSounds.play` is `public static` and logs its argument, so the no-PII property holds by caller discipline — its only callers are the two message effects, and a pin holds the caller count |
+| **Deleted: the SND-2 chime + two assets** | `SpixiTransactionInclusionCallbacks.cs` · `Resources/Raw/sounds/tx_*.mp3` | Removal — exposure DECREASE | The chime itself post-dates the fork | None. Code and assets removed; nothing new reachable |
+| The press-layer CSS, the paint delay, the wallet reserve | `base.css` · `pressable.js` · `wallet-shell.js` | No exposure | Presentation only | No verb, no storage key, no sink, no fetch. The press delay changes WHEN a row paints, never what a tap does |
+
+**#517–#519 adds no `ixian:` verb, no `spixi.*` localStorage key, no WebView setting, no
+HTML sink and no network fetch.** It adds **seven log lines** (argued above) and removes an
+audio path.

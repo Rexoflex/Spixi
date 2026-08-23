@@ -18,36 +18,31 @@ namespace SPIXI.Meta
 
             refreshTransactionPages(tx, true);
 
-            /* ★ SND-2 (Damir's 2026-08-21 block): the transaction sound.
+            /* ★ SND-2 IS REMOVED — a DESIGN REVERSAL by Damir (2026-08-23), not a bug fix.
              *
-             * Placed on VERIFIED only, and deliberately NOT inside refreshTransactionPages
-             * — that helper is also called for rejected, expired, cannot-verify and block
-             * reorg, and a "payment received" chime on a REJECTED transaction would be a
-             * lie the user acts on.
+             * Precision on what is reversed (#46 r1 D NIT-2): #506 did not RULE that
+             * money chimes on settlement — it dismissed the F5 item as the checklist's
+             * error and left "confirm on send instead?" an open product call. What is
+             * reversed is the 2026-08-21 SND-2 design itself, and this ANSWERS #506's
+             * open call: neither. The device
+             * disproved the design: this callback fires for EVERY verified transaction,
+             * with no edge guard, and a restored account walks the whole chain and
+             * discovers every historical transaction for the first time. Damir's Android
+             * log shows 60,000 blocks walked in 17.5 minutes — each old transaction a
+             * fresh chime. The scan itself is expected behaviour ("once it's done it's
+             * ok" — Damir); the sound on it is the defect.
              *
-             * ⚠ MONEY PATH, so the boundary is worth stating: this reads `tx.pubKey` to
-             * pick which of two sounds to play and does nothing else. It signs nothing,
-             * broadcasts nothing, mutates no transaction, moves no balance, and cannot
-             * throw into this callback (SSounds.play swallows everything). With no sound
-             * assets shipped yet it is a no-op on every platform.
+             * BOTH sounds went, sent and received, because they were the same defect:
+             * transactionSent() also fired on VERIFICATION, not on the user's send —
+             * that is the "serious delay" #506 recorded on Windows. It was never a
+             * delay; it was the chime waiting for settlement.
              *
-             * Chat message sounds are suppressed for the funds message types in Node.cs,
-             * so a payment makes ONE sound, here, at the moment it is actually confirmed. */
-            try
-            {
-                if (IxianHandler.isMyAddress(tx.pubKey))
-                {
-                    SSounds.transactionSent();
-                }
-                else
-                {
-                    SSounds.transactionReceived();
-                }
-            }
-            catch (System.Exception e)
-            {
-                Logging.trace("SND-2 transaction sound skipped: " + e.Message);
-            }
+             * An edge guard ("chime once per txid") was considered and REJECTED in
+             * favour of removal: removal cannot regress, and it cannot come back on a
+             * fresh install. The funds-type exclusions in Node.cs stay — funds events
+             * play no in-app effect (the backgrounded notification lane is separate
+             * and unchanged). Do NOT re-add a chime here without a new DECISIONS row
+             * reversing this one. */
         }
 
         private void requestBalanceUpdate(Transaction tx)

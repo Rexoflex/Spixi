@@ -1,4 +1,4 @@
-# The four in-app effect sounds
+# The in-app effect sounds (four at the #497 drop → TWO since the 2026-08-23 SND-2 reversal, #518)
 
 ★ **Chosen 2026-08-25 from [UI SFX](https://uisfx.com/) — the `mechanical` pack.** These REPLACED
 the synthesized PLACEHOLDER tones generated earlier the same day; the placeholders are kept
@@ -14,7 +14,8 @@ wanted.
 | Source | `npm view uisfx` · `github.com/romainsimon/uisfx` · v0.4.0, 936 sounds across 12 packs |
 
 ⚠ Nothing from the package is imported or bundled. Four files were copied out, gain-adjusted
-and committed. There is no new dependency and no new licence obligation.
+and committed (two remain shipped — see the 2026-08-23 section at the end). There is no new
+dependency and no new licence obligation.
 
 🟡 **Open question for Damir:** attribution is not required, but the app HAS a Contributors
 screen (`createSettingsContributors`). A one-line credit to UI SFX would be the decent
@@ -26,8 +27,8 @@ answer. Not added unilaterally.
 |---|---|---|---|
 | `message_sent.mp3` | `mechanical/send` | *"A message or object leaves the user"* | 0.37 s |
 | `message_received.mp3` | `mechanical/receive` | *"A response or object arrives"* | 0.39 s |
-| `tx_sent.mp3` | `mechanical/purchase` | *"A paid transaction or value exchange completes"* | 0.50 s |
-| `tx_received.mp3` | `mechanical/reward` | *"The user receives a small unit of value"* | 0.47 s |
+| ~~`tx_sent.mp3`~~ | `mechanical/purchase` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.50 s |
+| ~~`tx_received.mp3`~~ | `mechanical/reward` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.47 s |
 
 ★ The mapping is semantic, not guessed — the library ships 78 named UI cues and four of them
 describe exactly these four events.
@@ -76,7 +77,9 @@ the attenuation has to be baked in.
 
 ## Replacing them
 
-Drop new files over these, **keeping the same four names**, and nothing else changes:
+Drop new files over these, **keeping the same two names** (`message_sent.mp3`,
+`message_received.mp3` — the historical phrase was "keeping the same four names" before the
+#518 reversal), and nothing else changes:
 `SSounds` addresses them by path (`Spixi/Meta/SSounds.cs`), the csproj glob
 (`MauiAsset Include="Resources\Raw\**"`) picks them up by folder, and no code moves.
 
@@ -89,3 +92,14 @@ asset, which was verified on iOS hardware in the 2026-08-21 pass.
 
 ⚠ Keep this folder **audio only**. The csproj glob is `Resources\Raw\**`, so a README dropped
 in beside the files would ship inside the app — which is why this document lives in `docs/`.
+
+## 2026-08-23 — the transaction pair is RETIRED
+
+Damir reversed #506: transactions make **no sound**, sent or received. The reason is in
+`SpixiTransactionInclusionCallbacks.cs` — `transactionVerified` fires for every historical
+transaction on a restored account (a 60,000-block chain walk chimed for each one), and the
+"sent" chime fired on settlement, not on send. `tx_sent.mp3` and `tx_received.mp3` are
+deleted from `Resources/Raw/sounds/`, their `SSounds` constants and methods are gone, and
+the set is now **two files**: `message_sent.mp3` and `message_received.mp3`. The
+"four names" text above is kept as the historical record of the #497 drop; only the two
+message names still apply. Re-adding a transaction sound needs a new DECISIONS row.

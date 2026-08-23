@@ -831,19 +831,9 @@ html:root .c-sheet:not([data-open]) * {
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
   /* 100ms intentional: micro-interaction, matches chatlist row hover */
-  /* A5 (#348): background-size carries the centre-out press fill's CLOSE (base.css).
-     background-color stays at its intentional 100ms micro duration. */
-  transition: background-color var(--duration-100) var(--easing-standard),
-              background-size 220ms var(--easing-accelerate, ease-in);
-  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
-     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
-     row's own `background`, so no state rule's `background` shorthand can wipe them
-     out from under the sweep. Every state rule below sets background-COLOR for the
-     same reason: a colour is all any of them ever meant to set. */
-  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 0% 100%;
+  transition: background-color var(--duration-100) var(--easing-standard);
+  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
+     base.css — see chatlist-item.css for the note. State rules set colour only. */
 }
 /* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
    The wallet row was left on --surface-interactive-selected while the chats list
@@ -855,10 +845,7 @@ html:root .c-sheet:not([data-open]) * {
    two lists cannot drift apart again. */
 .c-txlist-item[aria-current] {
   background-color: var(--surface-action-tonal-default);
-  /* A5 (#348): a SELECTED row closes in its OWN tonal family. Without this the image
-     would revert to the neutral gradient the instant the press ends, flashing grey
-     over the action colour for the length of the close. */
-  background-image: linear-gradient(var(--surface-action-tonal-pressed), var(--surface-action-tonal-pressed));
+  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
 }
 @media (hover: hover) and (pointer: fine) {
   /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
@@ -866,13 +853,7 @@ html:root .c-sheet:not([data-open]) * {
      ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
   .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
 }
-/* :active AFTER the hover block so pressed wins (source order at equal specificity) */
-  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
-     the identical colour flat across the whole row, and :active lands together with
-     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
-     press still read exactly as the flicker Damir asked us to remove. */
-.c-txlist-item:active { background-size: 100% 100%; }
-.c-txlist-item[aria-current]:active { background-size: 100% 100%; }
+/* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
 
 /* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
    + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */

@@ -42,17 +42,19 @@ write('message_received.wav', seq([
     (0.07, tone(1318.51, 0.16, 1.0, decay=20)),
 ], 0.26))
 
-# SND-2 tx sent — warmer and lower than a message; a payment is a heavier event.
-write('tx_sent.wav', seq([
-    (0.00, tone(587.33, 0.13, 0.9, decay=20)),
-    (0.09, tone(880.00, 0.20, 0.95, decay=15)),
-], 0.32))
-
-# SND-2 tx received — the only three-note figure, ascending. Money arriving is the one
-# event in the app worth a small reward.
-write('tx_received.wav', seq([
-    (0.00, tone(523.25, 0.14, 0.85, decay=18)),
-    (0.10, tone(659.25, 0.14, 0.9,  decay=17)),
-    (0.20, tone(987.77, 0.26, 1.0,  decay=12)),
-], 0.48))
+# RETIRED (#518, 2026-08-23): transactions make no sound — the pair below is kept
+# commented, as the historical record of what the placeholders were.
+# # SND-2 tx sent — warmer and lower than a message; a payment is a heavier event.
+# write('tx_sent.wav', seq([
+#     (0.00, tone(587.33, 0.13, 0.9, decay=20)),
+#     (0.09, tone(880.00, 0.20, 0.95, decay=15)),
+# ], 0.32))
+#
+# # SND-2 tx received — the only three-note figure, ascending. Money arriving is the one
+# # event in the app worth a small reward.
+# write('tx_received.wav', seq([
+#     (0.00, tone(523.25, 0.14, 0.85, decay=18)),
+#     (0.10, tone(659.25, 0.14, 0.9,  decay=17)),
+#     (0.20, tone(987.77, 0.26, 1.0,  decay=12)),
+# ], 0.48))
 print("wav written")

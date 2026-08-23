@@ -80,7 +80,7 @@ Damir has already parked until the account/peer screen exists — **record it an
 
 ## STILL OPEN
 
-**A-6** (`(foreground)` in the Android log — owed three rounds, ten seconds to get) · the **sound
+**A-6** (`(foreground)` in the Android log — ⚠ the row's premise was DEFECTIVE and is corrected in the handoff: a connected app never receives a push at all. Repro = foreground the app, airplane mode ON, have someone send, airplane mode OFF while still on screen) · the **sound
 picks interview** Damir asked for · the **Android decrypt loop** (6,567 errors in 17.5 min —
 observation, nothing built on it) · **BE-owned:** `OfflinePushMessages.cs:118` `HttpClient` with no
 `Timeout` · **iOS #503** (`docs/ios-nse-spec.md` §2 is Damir's decision) · **`maxLogCount` = 5**

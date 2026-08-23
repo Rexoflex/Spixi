@@ -598,22 +598,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
-  /* A5 (#348): the centre-out press fill. base.css only flips background-size while
-     pressed — the IMAGE and its centred origin live HERE, in the same rule as the
-     row's own `background`, so no state rule's `background` shorthand can wipe them
-     out from under the sweep. Every state rule below sets background-COLOR for the
-     same reason: a colour is all any of them ever meant to set. */
-  background-image: linear-gradient(var(--surface-action-tonal-default), var(--surface-action-tonal-default));
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 0% 100%;
+  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
+     base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 @media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
-  /* ★ A5 (#348) review r2: :active drives the SAME centre-out fill. It used to paint
-     the identical colour flat across the whole row, and :active lands together with
-     data-pressed on every Chromium engine — so the flat tint covered the sweep and the
-     press still read exactly as the flicker Damir asked us to remove. */
-.c-contacts__row:not(:disabled):active { background-size: 100% 100%; }
+/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of
    a disabled row (explaining WHY it's blocked). */

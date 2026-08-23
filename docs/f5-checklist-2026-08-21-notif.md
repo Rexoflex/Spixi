@@ -1,5 +1,9 @@
 # F5 checklist — 2026-08-21. The four one-liners · notifications + sounds · LOCK LOG-ONLY.
 
+> ⚠ **2026-08-23 correction (#518):** the transaction sounds this checklist describes are
+> REMOVED by design reversal — `tx_sent.mp3`/`tx_received.mp3` no longer exist and a payment
+> makes NO sound. The message-sound rows still stand.
+
 Batch: DECISIONS **#464–#471**. Everything is UNCOMMITTED on your disk.
 
 **LANGUAGE RULE: ASD-STE100.** See `CLAUDE.md`.

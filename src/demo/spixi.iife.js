@@ -620,15 +620,23 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
  * abrupt with delay"). On Android WebView, pointer events are SYNTHESISED from touch
  * events, and the synthesis waits on gesture disambiguation — so `pointerdown` can
  * arrive tens of milliseconds after the finger lands. `touchstart` fires on contact.
- * Both are bound. The second one to arrive re-runs onDown on the same element, which
- * is harmless — but if the gesture has ALREADY been cancelled by then it must not
- * re-arm it. The `cancelled` latch below is what makes that true (#346); the original
- * comment here claimed it was a no-op, and it was not.
+ * Both are bound. Two mechanisms keep the second arrival honest: the `cancelled`
+ * latch (#346) stops it re-arming a gesture that already became a scroll, and the
+ * 5c-i same-element guard stops a synthesised POINTER second-stream restarting the
+ * paint window (a touch second-stream falls through and re-arms, which also keeps
+ * the gesture's touch identity true on a pointer-first engine — #46 r1).
  *
  * ★ THE PART THAT MAKES IT FEEL NATIVE, NOT BROKEN: a press is CANCELLED as soon as
  * the finger moves past PRESS_MOVE_CANCEL_PX, or the pointer leaves, or a scroll starts.
  * Without that rule a flick down a chat list leaves a trail of highlighted rows —
  * which is worse than no feedback at all. Native list rows behave exactly this way.
+ *
+ * ★ 5c-i (2026-08-24): ROWS additionally wait PRESS_PAINT_DELAY_MS before PAINTING.
+ * The cancel rule alone was not enough — the tint painted at contact, and the 10px
+ * of travel that triggers the cancel takes long enough that the user saw the tint
+ * first (Damir: "rows highlight on tap to scroll"). A scroll now cancels an
+ * UNPAINTED press; a committed tap quicker than the delay paints at release and
+ * plays its full fill in the afterlife. See the constant's comment for the dial.
  *
  * ★ D-16 (#351, Damir on the A52 + the Windows recording): a committed ROW press
  * COMPLETES its fill, then FADES — release timing must never truncate the sweep.
@@ -647,13 +655,19 @@ function createAvatar({ src = null, name = '', address = '', size = 48, online =
  * fade to today's instant flat tint with no extra branch.
  * CONTROLS ARE UNTOUCHED: instant tint + scale, instant release — button grammar.
  * KNOWN EXCEPTION (audit A-4, pre-existing): PRESS_SAFETY_MS clears a hold at
- * 1.2 s, so a longer hold loses its tint mid-hold and earns no fade. The timer
- * exists for end events that never arrive; accepted, logged in DECISIONS #351.
+ * 1.2 s from ARM (so ~1.13 s of visible tint under the 5c-i delay) — a longer
+ * hold loses its tint mid-hold and earns no fade. The timer exists for end
+ * events that never arrive; accepted, logged in DECISIONS #351.
  *
  * attachPressFeedback({ root, rows, controls }) → detach()
  *   Call ONCE per shell. Idempotent per root. Order does not matter — the listeners
  *   are delegated on the document, so calling before the first render is correct and
  *   is what all four shells do.
+ *   ⚠ ONE instance per event path: two attaches on NESTED roots both receive the
+ *   same bubbled events and the outer instance's un-painted pressStart then hands
+ *   off a collapsed floor (found by the r2 smoke fixtures, which stopPropagation
+ *   around their private roots for exactly this reason). Production attaches at
+ *   document level only.
  *   New shell? One line: attachPressFeedback().
  */
 
@@ -691,6 +705,25 @@ const PRESSABLE_CONTROL = [
 ].join(',');
 
 const PRESS_MOVE_CANCEL_PX = 10;      // finger travel that turns a press into a scroll
+/* ★ 5c-i (Damir on the Galaxy: "rows highlight on tap to scroll, should highlight
+ * only when tapped to open"). The threshold above was never the problem — 10px is
+ * tight — the problem was ORDERING: the tint painted at contact, and 10px of finger
+ * travel takes long enough that the user SAW the tint before the cancel fired. On a
+ * flick that leaves a trail. ROWS therefore wait this long before PAINTING; a
+ * cancel inside the window means the row never lights at all. A tap that ENDS
+ * inside the window paints at release and plays its full fill in the afterlife
+ * (D-16 already guarantees the sweep completes), so no committed tap loses its
+ * feedback. CONTROLS still paint at contact — button grammar, untouched.
+ * ⚠ The value is a DIAL and trades directly against this module's reason to exist
+ * ("a row that stays inert for 300ms reads as broken") — it must stay well under
+ * ~100ms perception. 70ms is the shipped start (Android's own delayed-pressed is
+ * ~100ms; iOS delaysContentTouches ~150ms — both read as native, and we sit
+ * under both); Damir's device round is the measurement that settles it.
+ * ⚠ r2 P-NIT-6: on a pointer-FIRST engine the same gesture's touchstart re-arms
+ * once (by design — it restores the touch identity), restarting the window: the
+ * real ceiling is the delay plus one inter-event gap (~0–1ms on Chromium, both
+ * events dispatch in one task). Bounded to ONE re-arm per gesture. */
+const PRESS_PAINT_DELAY_MS = 70;
 const PRESS_SAFETY_MS = 1200;         // a pointerup we never saw must not strand a highlight
 const FILL_FALLBACK_MS = 300;         // = --duration-300, when the token is unreadable
 const FADE_FALLBACK_MS = 200;         // = --duration-200, when the token is unreadable
@@ -729,6 +762,11 @@ function attachPressFeedback({
 
   const selector = rows + ',' + controls;
   let el = null, startX = 0, startY = 0, safety = 0;
+  /* 5c-i: the pending row paint. `pendingKind` is decided at arm; `paintTimer`
+     holds the delayed row paint; a cancel clears it and the row never lights. */
+  let paintTimer = 0;
+  let pendingKind = '';
+  let armAt = 0;                        // when the current gesture armed (5c-i re-arm guard)
   /* D-16: when the press was armed, so the release knows how much fill is owed.
      performance.now() — monotonic (audit A-2: a wall-clock step backwards between
      press and release would hold the tint for the size of the step). */
@@ -776,9 +814,36 @@ function attachPressFeedback({
 
   const clear = () => {
     clearTimeout(safety); safety = 0;
+    clearTimeout(paintTimer); paintTimer = 0;   // 5c-i: an unpainted press dies unpainted
     if (!el) return;
     delete el.dataset.pressed;
     el = null;
+  };
+
+  /* 5c-i: commit the visual. For rows this runs PRESS_PAINT_DELAY_MS after arm (or
+     at release, for a tap quicker than the delay); for controls, immediately.
+     pressStart is stamped HERE — the D-16 completion floor counts from the moment
+     the sweep is visible, not from contact, or a delayed paint would owe less fill
+     than it shows.
+     ★ #46 r1 (auditor B NIT-7): the paint RE-CHECKS the arm-time gates that can
+     change inside the window — select mode entering, the row detaching, a control
+     becoming disabled. An armed press whose world changed paints nothing.
+     ★ #46 r1 (auditor C MINOR-4): pressStart is re-stamped one frame later, when
+     the transition has actually had a style recalc to start from — under a
+     main-thread stall the sync stamp made the completion floor expire early and
+     the hold snapped an unfinished sweep to 100%. Monotonic: the bump only ever
+     GROWS the floor, so no path gets less fill than before. */
+  const paintPress = () => {
+    clearTimeout(paintTimer); paintTimer = 0;
+    if (!el || ('pressed' in el.dataset)) return;
+    if (!el.isConnected || el.closest('[data-selecting]')
+      || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    el.dataset.pressed = pendingKind;
+    pressStart = performance.now();
+    const elAtPaint = el;
+    raf(() => {
+      if (el === elAtPaint && ('pressed' in elAtPaint.dataset)) pressStart = performance.now();
+    });
   };
 
   /* ★ D-16: THE AFTERLIFE — a committed row press after the finger lifted.
@@ -871,10 +936,16 @@ function attachPressFeedback({
     pointerDown = false;
     cancelled = false;
     clearTimeout(cancelExpiry); cancelExpiry = 0;
+    /* 5c-i: a tap quicker than the paint delay is a COMMITTED tap — paint now so
+       the afterlife plays the full fill+fade. A cancelled gesture never reaches
+       here with `el` set (cancelGesture cleared it), so this cannot resurrect a
+       scroll's suppressed paint. */
+    if (el && !('pressed' in el.dataset) && pendingKind === 'row') paintPress();
     if (el && el.dataset.pressed === 'row') {
       const elm = el;
       el = null;
       clearTimeout(safety); safety = 0;
+      clearTimeout(paintTimer); paintTimer = 0;
       handoff(elm, pressStart, gestureViaTouch || !!(e && (e.touches || e.changedTouches)));
       return;
     }
@@ -937,6 +1008,28 @@ function attachPressFeedback({
     const gh = t && afterlives.get(t);
     if (gh && !e.touches && e.pointerType !== 'mouse' && e.pointerType !== 'pen'
       && gh.viaTouch && (performance.now() - gh.at) < 800) return;
+    /* 5c-i: the SECOND event stream of the same gesture (touchstart → synthesised
+       pointerdown, tens of ms later on Android). Before the paint delay this re-arm
+       was harmless — the attribute was just re-set. Now it would RESTART the delay
+       (pushing the paint later than the dial says) or un-paint a row the first
+       stream already painted. Same element inside the synthesis window = same
+       gesture: keep the running timer and the original travel origin.
+       ★ #46 r1 (auditor B MAJOR-1 + MINOR-2): the guard takes ONLY the pointer
+       stream (`!e.touches`). Two reasons, both proven by trace:
+       · a guard that also swallowed touchstart handed the gesture's touch
+         identity to whichever stream arrived FIRST — on a pointer-first engine
+         `gestureViaTouch` latched false, which disarmed the D-16 r2 ghost guard
+         for the whole gesture (the r4 "per-gesture truth" fix, silently undone);
+       · a REAL second tap begins with a touchstart. Letting it fall through to
+         the ordinary clear+re-arm path means a tap on a row whose previous
+         gesture never got an end event cannot be absorbed into the stale arm.
+       The synthesised pointerdown the guard exists for never carries `touches`.
+       And because the pointer stream can still be the FIRST to arrive, the guard
+       branch corrects the touch identity the same way the arm site does. */
+    if (t && t === el && !e.touches && (performance.now() - armAt) < 300) {
+      gestureViaTouch = gestureViaTouch || (performance.now() - lastTouchTs) < 300;
+      return;
+    }
     clear();
     if (!t) return;
     // Disabled controls must look disabled, not pressable. aria-disabled covers the
@@ -950,17 +1043,36 @@ function attachPressFeedback({
        every surface outside the selecting container keeps its feedback. */
     if (t.closest('[data-selecting]')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
-    // sweep re-arms from its current paint). Other rows' fades keep playing.
+    // press re-lights from the layer's current paint — the transform is already at
+    // scaleX(1), so no re-sweep plays). Other rows' fades keep playing.
+    // ★ #46 r1 B MINOR-3 → r2 P-MINOR-2: the instant re-paint applies ONLY while
+    // the afterlife is still in its FILL phase (data-pressed still present — the
+    // completion floor). r1 keyed on the whole afterlife, and the FADE phase runs
+    // ~600ms — a scroll STARTED on the just-tapped row inside that window painted
+    // at contact again, which is the exact trail 5c-i removes ("rows highlight on
+    // tap to scroll"). A fade-phase re-press now waits the ordinary 70ms window:
+    // the row is already dim, and a ≤70ms gap on a fading row beats a scroll
+    // trail on a lit one.
+    const hadLiveFill = afterlives.has(t) && ('pressed' in t.dataset);
     killAfterlife(t);
     el = t;
-    el.dataset.pressed = t.matches(controls) ? 'control' : 'row';
-    pressStart = performance.now();
-    /* D-16 r4: decided at ARM time. The 300ms window admits the late second-stream
-       re-arm (its pointerdown carries no touches, but the touchstart just stamped). */
+    armAt = performance.now();
+    pendingKind = t.matches(controls) ? 'control' : 'row';
+    /* D-16 r4: decided at ARM time — per-gesture truth. The late second-stream
+       pointerdown no longer reaches this line (the 5c-i guard above returns for it
+       and corrects the identity there); a second-stream TOUCHSTART does fall
+       through and re-computes it here, which is what keeps the identity honest on
+       a pointer-first engine (#46 r1 auditor B MAJOR-1). */
     gestureViaTouch = !!e.touches || (performance.now() - lastTouchTs) < 300;
     const p0 = pos(e);
     startX = p0.clientX; startY = p0.clientY;
     safety = setTimeout(clear, PRESS_SAFETY_MS);
+    /* 5c-i: controls paint at contact (button grammar); rows wait out the delay so
+       a press that becomes a scroll never lights — except a re-press on an
+       afterlife still in its FILL phase (see above). pressStart lands in
+       paintPress. */
+    if (pendingKind === 'control' || hadLiveFill) paintPress();
+    else { clearTimeout(paintTimer); paintTimer = setTimeout(paintPress, PRESS_PAINT_DELAY_MS); }
   };
 
   const onMove = (e) => {
@@ -9693,17 +9805,91 @@ function createWalletTools(state, opts = {}) {
 }
 
 /** Scroll choreography (Damir #134, the #113/#114 family — binary triggered CSS
- *  transitions, no scroll-linked per-frame writes):
- *  · scroll DOWN past `collapseAt` → hero minimizes (compact title+balance) and,
- *    past a small accumulated delta, the tools row tucks away → single-page tx list
- *  · a brief scroll UP (≥ `reveal` px accumulated) → tools return (search + filters)
- *  · at the absolute top → hero expands again
+ *  transitions, no scroll-linked per-frame writes). Reworked for the wallet scroll
+ *  oscillator (iOS-59 → the 2026-08-24 handoff §1; mechanism CONFIRMED with Damir;
+ *  #46 loop round 1 reshaped the reserve — see below).
+ *
+ *  ★ THE MECHANISM THIS MUST DEFEAT: the hero is a SIBLING of the scroller, not a
+ *  child. A collapse GROWS the scroller's viewport, so the maximum scroll offset
+ *  (`scrollHeight − clientHeight`) DROPS by the hero delta. With a short list the
+ *  content then fits entirely, `scrollTop` clamps to 0, and the old
+ *  `top <= 1 → expand` read that clamp as "the user is at the top". Expand → the
+ *  viewport shrinks → the content overflows → the user scrolls → collapse: a
+ *  perfect oscillator. A long list overflows in both states, which is why nobody
+ *  caught it.
+ *
+ *  Two parts, and BOTH are needed:
+ *  · RESERVE THE HEIGHT — when the hero collapses, a spacer at the bottom of the
+ *    scroller absorbs the drop so the maximum offset can never fall below the
+ *    user's position. ★ #46 r1 (auditor A) reshaped this twice:
+ *    (1) DEFICIT-SIZED, not full-delta. The reserve target is
+ *        `clamp(0, top − maxPre + delta, delta)` — exactly what the clamp would
+ *        have consumed, nothing more. A full-delta reserve kept the maximum
+ *        INVARIANT, which sounds right and is not: it meant the compact state
+ *        could never end closer to the content bottom than the expanded state,
+ *        so EVERY list ended in ~a hero of blank when compact (r1 MAJOR-4). With
+ *        the deficit the maximum never drops below `top`, a long list reserves
+ *        ZERO, and a short list reserves only its own clamp depth — where the
+ *        content already fits the grown viewport, so space under the last row is
+ *        the ordinary short-list ground, not a defect. The collapse behaviour
+ *        itself stays identical on every account (the dial); only the invisible
+ *        pad size adapts.
+ *    (2) TRACKED, not instant. The viewport grows over the 300 ms transition;
+ *        landing the whole reserve at t=0 opened a reserve-wide scroll BULGE a
+ *        fling walked into — blank space, then a clamp-back stall (r1 MAJOR-1,
+ *        measured). A ResizeObserver on the HERO now feeds the reserve
+ *        `min(target, expandedRest − heroHeight)` frame by frame — RO callbacks
+ *        run after layout and before paint, so the maximum is right in every
+ *        painted frame. No-RO engines fall back to the instant target: the
+ *        bulge is bounded by the deficit there, and jsdom (which has no RO) is
+ *        that fallback.
+ *    The delta and rest heights are MEASURED from the element, never constants,
+ *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
+ *    probe cut a running transition (r1 MINOR-6).
+ *  · LATCH THE COLLAPSE — a scroll event in which the geometry
+ *    (scrollHeight/clientHeight) changed is a LAYOUT consequence, never a finger.
+ *    Such an event can neither collapse nor expand. Expansion needs a deliberate
+ *    upward scroll that reaches the top. ★ r1 MINOR-5: a layout event re-syncs
+ *    the geometry but KEEPS the gesture accumulators — they only ever grow from
+ *    stable deltas, and a scanning wallet re-renders continuously, so resetting
+ *    them made the hero uncollapsible for the whole scan.
+ *
+ *  · the collapse trigger is an accumulated DOWNWARD GESTURE (`collapseAfter` px),
+ *    not an absolute offset. Damir's dial: "it should minimise the hero any time
+ *    you scroll down, so it's always the same effect." An absolute threshold is
+ *    account-size-dependent — a short list can never reach 120 px.
+ *  ⚠ REJECTED, and the record is kept on purpose: "collapse only when there is
+ *    enough content to absorb it". Same reason — different behaviour on different
+ *    accounts. (The deficit reserve is NOT that alternative: the collapse always
+ *    fires the same way; only the pad, which the user never sees, adapts.)
+ *  · safety valve: when a re-render leaves NO scroll range at all, a gesture can
+ *    never release the latch (no scroll events fire) → auto-expand. It cannot
+ *    oscillate: with the reserve holding the maximum at ≥ the collapse position,
+ *    a list that fits compact also fits expanded. Valve runs only AT REST (a
+ *    flip < 400 ms ago means a transition is running and the transient numbers
+ *    would lie).
+ *  · ★ r1 MAJOR-2: attach and every at-top event can EXPAND a compact hero.
+ *    A compact hero at scrollTop 0 has no gesture that can ever free it (no
+ *    scroll events fire at the top of a fitting list), and its balance/actions
+ *    are inert — so attach expands it when the scroller is at the top, and a
+ *    zero-delta event at the top (the demo's programmatic top-restore) does too.
+ *
+ *  ⚠ ACCEPTED RESIDUAL (r1 MINOR-7, recorded): the reserve target is computed at
+ *  collapse time. If the hero's EXPANDED rest height changes while it is compact
+ *  (a balance wrapping to two lines, a font-scale change), the reserve is stale;
+ *  the worst case is a spontaneous but benign expand via the valve on a tiny
+ *  list, never a stuck state and never an oscillation.
+ *
+ *  · a brief scroll UP (≥ `reveal` px accumulated) → tools return (search+filters)
  *  Guards: tools never hide while they hold focus or a non-empty query (the user is
  *  mid-search). Returns detach().
  */
-function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 24 } = {}) {
-  let last = scrollEl.scrollTop || 0;
+function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal = 24 } = {}) {
+  let lastTop = scrollEl.scrollTop || 0;
+  let lastS = scrollEl.scrollHeight;
+  let lastV = scrollEl.clientHeight;
   let up = 0;
+  let down = 0;
 
   const toolsBusy = () => {
     if (!tools) return false;
@@ -9745,29 +9931,248 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAt = 120, reveal = 
 
   setTools(false);   // N43: start (and stay) revealed, whatever a previous attach left
 
-  const onScroll = () => {
-    const top = scrollEl.scrollTop;
-    const d = top - last;
-    last = top;
-    if (top <= 1) {                                      // absolute top → everything back
-      if (hero) setWalletHeroCompact(hero, false);
-      setTools(false);
-      up = 0;
+  /* — part (a): the reserve spacer. Idempotent across re-attach (demo re-wires). — */
+  let reserveEl = null;
+  for (const c of scrollEl.children) {
+    if (c.classList && c.classList.contains('c-wallet-reserve')) { reserveEl = c; break; }
+  }
+  if (!reserveEl) {
+    reserveEl = document.createElement('div');
+    reserveEl.className = 'c-wallet-reserve';
+    reserveEl.setAttribute('aria-hidden', 'true');
+    scrollEl.append(reserveEl);
+  }
+  const reservePx = () => { const v = parseInt(reserveEl.style.height, 10); return v > 0 ? v : 0; };
+  const applyReserve = (px) => { reserveEl.style.height = (px > 0 ? px : 0) + 'px'; };
+
+  /* MEASURED, never guessed: toggle the attribute with transitions suppressed
+   * ([data-measuring], wallet-hero.css), read both rest heights, restore. All
+   * synchronous — no paint happens between the toggles. ★ r1 MINOR-6: cached for
+   * 400 ms around a flip — a collapse ≤ 300 ms after an expand (the fast up-down
+   * flick) would otherwise measure MID-TRANSITION, and [data-measuring] cancels
+   * whatever is animating: a visible snap. ★ r1 MINOR-8: the attribute restore
+   * lives in `finally`, so a future throw between the toggles cannot strand a
+   * hero/latch desync. Returns { expanded, compact, delta }; zeros while not
+   * laid out. */
+  let lastFlipAt = -1e9;
+  let cachedMeasure = null;
+  const measureHero = (force) => {
+    if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
+    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
+    const wasCompact = 'compact' in hero.dataset;
+    hero.dataset.measuring = '';
+    let expanded = 0, compact = 0;
+    try {
+      delete hero.dataset.compact;
+      expanded = hero.offsetHeight;
+      hero.dataset.compact = '';
+      compact = hero.offsetHeight;
+    } finally {
+      if (wasCompact) hero.dataset.compact = ''; else delete hero.dataset.compact;
+      void hero.offsetHeight;             // settle layout BEFORE transitions come back
+      delete hero.dataset.measuring;
+    }
+    cachedMeasure = { expanded, compact, delta: Math.max(0, expanded - compact) };
+    return cachedMeasure;
+  };
+
+  /* — part (b): the latch. Initialized from the hero so a re-attach onto a compact
+   *   hero does not desync (the shell detaches on tab switch, never expands). — */
+  let collapsed = !!(hero && ('compact' in hero.dataset));
+  let heroExpandedRest = 0;
+  let reserveTarget = 0;
+
+  const trackedReserve = () => {
+    if (!hero) return reserveTarget;
+    return Math.min(reserveTarget, Math.max(0, heroExpandedRest - hero.offsetHeight));
+  };
+
+  const collapse = () => {
+    if (collapsed) return;
+    collapsed = true;
+    /* ★ r2 W-MAJOR-1: maxPre and top are read BEFORE the measurement probe runs —
+     * the probe's attribute toggle + offsetHeight read force a REAL compact-hero
+     * layout, and with no reserve under it that layout is exactly the clamp
+     * geometry this fix exists to prevent (Blink clamps scrollTop at the end of
+     * the probe's layout run, and the deficit was then computed from a destroyed
+     * position: on a maxPre < delta account the very first collapse snapped the
+     * list to the top and stranded a compact hero with zero range). */
+    const maxPre = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const top = Math.max(0, scrollEl.scrollTop);
+    /* …and the probe gets a reserve FLOOR to stand on for its synchronous
+     * microseconds: the cached delta when one exists, else the viewport height (a
+     * safe over-approximation of any hero). Nothing paints mid-probe, so the
+     * floor is unobservable; it is replaced by the tracked/deficit value below. */
+    applyReserve((cachedMeasure && cachedMeasure.delta) || scrollEl.clientHeight || 300);
+    const m = measureHero();
+    if (m.expanded > 0) heroExpandedRest = m.expanded;
+    /* ★ DEFICIT-SIZED (r1): only what the clamp would consume. */
+    reserveTarget = Math.max(0, Math.min(m.delta, top - maxPre + m.delta));
+    /* ★ TRACKED (r1): with a hero RO the reserve starts at 0 and follows the
+     * shrinking hero frame by frame; without one it lands instantly (bounded by
+     * the deficit). Reserve set BEFORE the flip either way, so the maximum never
+     * dips below `top` in any painted frame. */
+    applyReserve(heroRO ? trackedReserve() : reserveTarget);
+    lastFlipAt = performance.now();
+    /* r2 W-MINOR-3: a fresh compact state owes the NEXT collapse a fresh gesture —
+     * see expand() for the 1px-re-collapse trace. */
+    down = 0; up = 0;
+    if (hero) setWalletHeroCompact(hero, true);
+  };
+  const expand = () => {
+    if (!collapsed) return;
+    collapsed = false;
+    lastFlipAt = performance.now();
+    /* ★ r2 W-MINOR-3: the gesture accumulators reset with the state. Four of the
+     * five expand paths are not gestures (attach, the valve, the belt, the
+     * zero-delta branch), and `down` still held ≥ collapseAfter from the collapse
+     * — so ONE pixel of downward scroll after a valve expand re-collapsed the
+     * hero, bypassing the dial entirely. */
+    down = 0; up = 0;
+    if (hero) setWalletHeroCompact(hero, false);
+    /* removing the reserve while the viewport is still large can clamp — but expand
+     * only ever runs at top ≤ 1 or with no scroll range, where a clamp is a no-op. */
+    applyReserve(0);
+    reserveTarget = 0;
+  };
+
+  /* Safety valve — see the docblock. `<= 1` not `<= 0`: sub-pixel rounding.
+   * Rest-guarded (r1): transient mid-flip numbers must not trigger it.
+   * ★ r2 W-MINOR-5: a refusal RE-CHECKS ITSELF at guard expiry — a no-range state
+   * may never produce another event (type in the search box right after a
+   * collapse: the belt fires once, is refused, and a zero-row list never resizes
+   * again), and a valve that only listens is a valve that can be starved. */
+  let valveRetry = 0;
+  const releaseIfMoot = () => {
+    if (!collapsed) return;
+    if (scrollEl.scrollHeight - scrollEl.clientHeight > 1) return;
+    const wait = 400 - (performance.now() - lastFlipAt);
+    if (wait > 0) {
+      clearTimeout(valveRetry);
+      valveRetry = setTimeout(releaseIfMoot, wait + 16);
       return;
     }
-    if (d > 0) {                                         // downward
-      up = 0;
-      if (top > collapseAt) {
-        if (hero) setWalletHeroCompact(hero, true);
-        setTools(true);
+    expand();
+  };
+
+  /* ★ r1 MAJOR-1: the hero RO — the reserve's frame-by-frame feed. Declared before
+   * collapse() closes over it. Guarded: only while collapsed, and it never
+   * re-measures (trackedReserve reads live offsetHeight against the cached rest). */
+  let heroRO = null;
+  if (hero && typeof ResizeObserver === 'function') {
+    heroRO = new ResizeObserver(() => {
+      /* r2 W-MINOR-4: heroExpandedRest 0 means "measured while hidden" — tracking
+       * against it computes 0 and the observer's INITIAL observation would wipe a
+       * reserve the attach path deliberately kept. */
+      if (!collapsed || heroExpandedRest <= 0) return;
+      applyReserve(trackedReserve());
+    });
+    heroRO.observe(hero);
+  }
+
+  /* ★ r1 MAJOR-2: attach onto a compact hero. Mid-list, keep the latch and make
+   * sure the reserve exists (it may have been measured while hidden). At the top,
+   * EXPAND — no gesture can ever free a compact hero at scrollTop 0 (a fitting
+   * list fires no scroll events), and its balance/actions are inert. */
+  if (collapsed) {
+    if ((scrollEl.scrollTop || 0) <= 1) {
+      expand();
+    } else {
+      const m = measureHero();
+      if (m.expanded > 0) {
+        heroExpandedRest = m.expanded;
+        /* r2 W-MINOR-4: a reserve that survived the detach IS the deficit from its
+         * own collapse — adopt it as the target, or the hero RO's initial
+         * observation resets the layer to zero and re-opens the clamp. A zero
+         * reserve here means the measurement ran while hidden last time:
+         * conservative full delta. */
+        reserveTarget = reservePx() > 0 ? reservePx() : m.delta;
+        applyReserve(trackedReserve());
       }
-    } else if (d < 0) {                                  // upward — brief pull reveals tools
-      up += -d;
+      /* hidden (m.expanded 0): leave any kept reserve untouched; the belt
+       * completes the state once the hero is laid out (heroExpandedRest stays 0,
+       * which is the belt's sentinel — r2 W-MAJOR-2). */
+    }
+  }
+
+  const onScroll = () => {
+    const top = scrollEl.scrollTop;
+    const S = scrollEl.scrollHeight;
+    const V = scrollEl.clientHeight;
+    const stable = (S === lastS && V === lastV);
+    const d = top - lastTop;
+    lastTop = top; lastS = S; lastV = V;
+    if (!stable) {
+      /* geometry moved in the same event → a clamp or a re-render, NOT a finger.
+       * The old code read exactly this as "the user is at the top" and expanded —
+       * that is the oscillator. Re-sync and check the no-range valve. The gesture
+       * accumulators are KEPT (r1 MINOR-5): they only ever grow from stable
+       * deltas, and a scanning wallet re-renders on every push. */
+      releaseIfMoot();
+      return;
+    }
+    if (d > 0) {                                         // downward gesture
+      up = 0;
+      /* top <= 0 means this delta is an overscroll rubber-band settling back to the
+       * top (iOS reports negative scrollTop there) — a spring, not a finger. Counting
+       * it would re-collapse the hero the instant an at-top expand let go. */
+      if (top > 0) down += d; else down = 0;
+      if (down >= collapseAfter) {
+        collapse();
+        setTools(true);                                  // N43 keeps this a no-op today
+      }
+    } else if (d < 0) {                                  // upward gesture
+      down = 0; up += -d;
       if (up >= reveal) setTools(false);
+      if (top <= 1) {                                    // a REAL arrival at the top
+        expand();
+        setTools(false);
+      }
+    } else if (top <= 1) {
+      /* d === 0 at the top: a programmatic top-restore (the demo's showHome) or a
+       * redundant event while parked there. A compact hero here is the stuck state
+       * r1 MAJOR-2 names — release it. A stable zero-delta event is never a clamp
+       * (a clamp changes geometry in the same event). */
+      expand();
     }
   };
   scrollEl.addEventListener('scroll', onScroll, { passive: true });
-  return () => scrollEl.removeEventListener('scroll', onScroll);
+
+  /* Belt for the latch: content can shrink UNDER a compact hero with scrollTop
+   * already 0 (filter/search re-render) — no scroll event fires, the valve above
+   * never runs, and the hero would be stuck compact with nothing to scroll.
+   * ResizeObserver sees the re-render. Geometry re-sync only — the accumulators
+   * are kept here too (r1 MINOR-5). */
+  let ro = null;
+  if (typeof ResizeObserver === 'function') {
+    ro = new ResizeObserver(() => {
+      lastTop = scrollEl.scrollTop; lastS = scrollEl.scrollHeight; lastV = scrollEl.clientHeight;
+      /* ★ r2 W-MAJOR-2: the re-apply keys on heroExpandedRest === 0 — the "measured
+       * while hidden" SENTINEL — never on reservePx() === 0. The r1 deficit made a
+       * zero reserve a LEGITIMATE resting value (a long list's deficit is 0), and a
+       * belt that read zero as "never applied" slammed the full delta onto every
+       * long list on the first re-render after a collapse: r1 MAJOR-4, restored by
+       * the fix for it. */
+      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= 400) {
+        const m = measureHero();                       // attach-while-hidden completion
+        if (m.expanded > 0) {
+          heroExpandedRest = m.expanded;
+          reserveTarget = m.delta;    // position at that collapse is unknowable — conservative
+          applyReserve(trackedReserve());
+        }
+      }
+      releaseIfMoot();
+    });
+    ro.observe(scrollEl);
+    for (const c of scrollEl.children) { if (c !== reserveEl) ro.observe(c); }
+  }
+
+  return () => {
+    scrollEl.removeEventListener('scroll', onScroll);
+    clearTimeout(valveRetry); valveRetry = 0;
+    if (ro) ro.disconnect();
+    if (heroRO) heroRO.disconnect();
+  };
 }
 
 /* ————————————————————————— shared bits ————————————————————————— */

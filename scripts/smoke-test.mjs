@@ -135,12 +135,38 @@ const cssCompoundHas = (compound, token) => {
   }
   return false;
 };
-/* Every rule, in every stylesheet, one entry per matching selector in the list. */
+/* ★ #46 r1 (auditor C MINOR-3): the SHELLS carry live CSS in <style> blocks
+ * (home.html styles #wallet-scroll and chat rows; settings.html styles
+ * .c-settings__row[aria-current]) — a corpus that reads only src/styles cannot
+ * pin a cascade those blocks participate in. Each block joins as a virtual file. */
+let shellCssCache = null;
+const shellCssBlocks = () => {
+  if (shellCssCache) return shellCssCache;
+  shellCssCache = [];
+  const dir = join(root, 'src/shells');
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.html')).sort()) {
+    const txt = readFileSync(join(dir, f), 'utf8');
+    for (const m of txt.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+      shellCssCache.push(['src/shells/' + f + ' <style>', m[1]]);
+    }
+  }
+  return shellCssCache;
+};
+
+/* Every rule, in every stylesheet AND every shell <style> block, one entry per
+ * matching selector in the list. */
 const cssRulesWhere = (match) => {
   const out = [];
   for (const f of cssFiles()) {
     const rel = f.slice(root.length + 1).replace(/\\/g, '/');
     for (const r of cssRulesOf(readFileSync(f, 'utf8'), rel)) {
+      for (const sel of cssSelectors(r.prelude)) {
+        if (match(sel, r)) out.push({ file: rel, selector: sel, prelude: r.prelude, body: r.body });
+      }
+    }
+  }
+  for (const [rel, css] of shellCssBlocks()) {
+    for (const r of cssRulesOf(css, rel)) {
       for (const sel of cssSelectors(r.prelude)) {
         if (match(sel, r)) out.push({ file: rel, selector: sel, prelude: r.prelude, body: r.body });
       }
@@ -3072,13 +3098,26 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     pressRoot.innerHTML = '<div class="c-chatlist-item"></div><button class="c-button"></button>';
     d.body.append(pressRoot);
     const detach = W.Spixi.attachPressFeedback({ root: pressRoot });
+    /* ★ the demos now attach pressable at DOCUMENT level (5c-i r1 C MINOR-2), so a
+       fixture attach on pressRoot would DOUBLE-HANDLE every bubbled event — the
+       document instance's un-painted pressStart then hands off a stale floor and
+       collapses the fade instantly (found when these pins went red). The fixture
+       is about ONE instance: stop propagation past pressRoot. */
+    for (const tp of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+      'touchstart', 'touchmove', 'touchend', 'touchcancel']) {
+      pressRoot.addEventListener(tp, (e) => e.stopPropagation());
+    }
+
     const row = pressRoot.querySelector('.c-chatlist-item');
     const btn = pressRoot.querySelector('.c-button');
     const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
 
     row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === undefined,
+      '★ 5c-i (2026-08-24): a ROW does NOT light at contact — the paint waits PRESS_PAINT_DELAY_MS, so a press that becomes a scroll can die unpainted (Damir: "rows highlight on tap to scroll, should highlight only when tapped to open")');
+    await sleep(110);
     ok(row.dataset.pressed === 'row',
-      '★ #343: a press lands on pointerdown, not click. `click` fires on RELEASE, so using it would add the very delay this exists to hide');
+      '★ #343 (rebased by 5c-i): the press still lands from pointerdown, never click — after the short paint window, not at contact. `click` fires on RELEASE, so using it would add the very delay this exists to hide');
     row.dispatchEvent(pe('pointerup', 100, 100));
     /* ★ D-16 (#351) — THE CONTRACT FLIPPED HERE, deliberately. Until #351 this pin
        asserted the press clears on release, and that instant clear was the defect:
@@ -3104,8 +3143,9 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     // …and the gesture ending releases the latch, so the NEXT real tap still works.
     row.dispatchEvent(pe('pointerup', 100, 140));
     row.dispatchEvent(pe('pointerdown', 100, 100));
+    await sleep(110);
     ok(row.dataset.pressed === 'row',
-      '★ #346: the cancel latch clears on pointerup/touchend, so a genuine next tap is unaffected. A latch that stranded would kill press feedback for the rest of the session');
+      '★ #346: the cancel latch clears on pointerup/touchend, so a genuine next tap is unaffected (asserted after the 5c-i paint window). A latch that stranded would kill press feedback for the rest of the session');
     row.dispatchEvent(pe('pointerup', 100, 100));
 
     /* ★ #346 review MAJOR-1: a scroll with NO finger down must not latch. The capture
@@ -3124,8 +3164,9 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     pressRoot.dispatchEvent(new W.Event('scroll', { bubbles: true }));
     d.dispatchEvent(new W.Event('scroll'));
     row2.dispatchEvent(pe('pointerdown', 100, 100));
+    await sleep(110);
     ok(row2.dataset.pressed === 'row',
-      '★ #346 review MAJOR-1: the tap straight after a settled fling still lights up. Measured in Chromium before the fix: no feedback at 100/500/900/1150 ms after the last momentum scroll event, feedback at 1400 ms — the PRESS_SAFETY_MS backstop, not the gesture');
+      '★ #346 review MAJOR-1: the tap straight after a settled fling still lights up (read after the 5c-i paint window). Measured in Chromium before the fix: no feedback at 100/500/900/1150 ms after the last momentum scroll event, feedback at 1400 ms — the PRESS_SAFETY_MS backstop, not the gesture');
     row2.dispatchEvent(pe('pointerup', 100, 100));
 
     /* ★ #346 review r2 MINOR-4: a gesture that ends with NO end event (the WebView
@@ -3143,8 +3184,9 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     // until that was corrected.
     pressRoot.dispatchEvent(new W.Event('scroll', { bubbles: true }));
     row.dispatchEvent(te('touchstart', 100, 100));
+    await sleep(110);
     ok(row.dataset.pressed === 'row',
-      '★ #346 review r2 MINOR-4: a touchstart releases a latch stranded by a gesture that produced no end event. Without it the next tap after ANY later scroll silently lost its feedback');
+      '★ #346 review r2 MINOR-4: a touchstart releases a latch stranded by a gesture that produced no end event (read after the 5c-i paint window). Without it the next tap after ANY later scroll silently lost its feedback');
     row.dispatchEvent(te('touchend', 100, 100));
 
     btn.dispatchEvent(pe('pointerdown', 10, 10));
@@ -3158,7 +3200,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
 
     detach();
     row.dispatchEvent(pe('pointerdown', 100, 100));
-    ok(row.dataset.pressed === undefined, '#343: detach() really detaches (no listener leak across shells)');
+    await sleep(110);
+    ok(row.dataset.pressed === undefined, '#343: detach() really detaches (no listener leak across shells) — read after the 5c-i window, or a delayed paint would make this pin pass while the listener leaked');
     pressRoot.remove();
   }
 
@@ -3170,6 +3213,16 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     pressRoot.innerHTML = '<div class="c-chatlist-item"></div><button class="c-button"></button>';
     d.body.append(pressRoot);
     const detach = W.Spixi.attachPressFeedback({ root: pressRoot });
+    /* ★ the demos now attach pressable at DOCUMENT level (5c-i r1 C MINOR-2), so a
+       fixture attach on pressRoot would DOUBLE-HANDLE every bubbled event — the
+       document instance's un-painted pressStart then hands off a stale floor and
+       collapses the fade instantly (found when these pins went red). The fixture
+       is about ONE instance: stop propagation past pressRoot. */
+    for (const tp of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+      'touchstart', 'touchmove', 'touchend', 'touchcancel']) {
+      pressRoot.addEventListener(tp, (e) => e.stopPropagation());
+    }
+
     const row = pressRoot.querySelector('.c-chatlist-item');
     const btn = pressRoot.querySelector('.c-button');
     const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
@@ -3177,6 +3230,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     // 1. A fast tap: the floor holds, then the fade runs, then everything is clean.
     row.dispatchEvent(pe('pointerdown', 100, 100));
     row.dispatchEvent(pe('pointerup', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ 5c-i: a tap QUICKER than the paint delay paints AT RELEASE — the committed tap keeps its full fill and fade (the native quick-tap flash); only a scroll loses the paint');
     await sleep(120);
     ok(row.dataset.pressed === 'row' && row.dataset.pressfade === undefined,
       '★ D-16 (#351): 120 ms after a fast tap the sweep is STILL RUNNING (data-pressed held by the floor, no fade yet) — the release did not truncate the fill');
@@ -3194,6 +3249,28 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     await sleep(360);
     ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
       '★ D-16 (#351): a scroll-cancelled press gets NO afterlife — Damir: "if someone wants to scroll, nothing fills"');
+
+    // 2b. ★ 5c-i THE GUARANTEE: a cancel inside the paint window kills the DELAYED
+    // paint too — the timer must die with the cancel, or the flick trail returns
+    // PRESS_PAINT_DELAY_MS later with no finger on the screen.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointermove', 100, 140));
+    row.dispatchEvent(pe('pointerup', 100, 140));
+    await sleep(150);
+    ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
+      '★ 5c-i: a press cancelled INSIDE the paint window never paints, read well after the window closed. (r1 B MINOR-4 honesty: this assertion cannot DISTINGUISH which mechanism killed the timer — paintPress\'s !el bail, the re-arm re-clear, or clear() itself; the property it proves is the user-visible one, no late light)');
+
+    // r1 B NIT-7: the world can change INSIDE the window — select mode entering
+    // must void the pending paint (N36: the selected tint is the only sanctioned
+    // visual in select mode).
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    pressRoot.setAttribute('data-selecting', '');
+    await sleep(120);
+    ok(row.dataset.pressed === undefined,
+      '★ 5c-i (r1 B NIT-7): select mode entering DURING the paint window voids the pending paint — paintPress re-checks the arm-time gates instead of trusting a 70ms-old world');
+    pressRoot.removeAttribute('data-selecting');
+    row.dispatchEvent(pe('pointerup', 100, 100));
+    await sleep(50);
 
     // 3. pointercancel (the system took the gesture) aborts, never completes.
     row.dispatchEvent(pe('pointerdown', 100, 100));
@@ -3213,12 +3290,202 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     row.dispatchEvent(pe('pointerup', 100, 100));
     await sleep(360);
     row.dispatchEvent(pe('pointerdown', 100, 100));
-    ok(row.dataset.pressed === 'row' && row.dataset.pressfade === undefined,
-      '★ D-16 (#351): pressing a row mid-fade cancels its afterlife and re-arms the press — the fade and a new sweep never fight over one element');
+    ok(row.dataset.pressed === undefined && row.dataset.pressfade === undefined,
+      '★ D-16 + r2 P-MINOR-2: a re-press MID-FADE kills the afterlife at contact but waits the ordinary 5c-i window — r1 painted it instantly, and the ~600ms fade window re-opened the scroll trail on the just-tapped row (start a scroll on it and it lit at contact again, execution-proven by the fresh reviewer)');
+    await sleep(110);
+    ok(row.dataset.pressed === 'row',
+      '★ r2 P-MINOR-2: …and the delayed paint lands like any fresh press — a ≤70ms gap on an already-dim fading row beats a scroll trail on a lit one');
     row.dispatchEvent(pe('pointercancel', 100, 100));
+
+    // 5b. mid-FILL (the completion floor) the re-light IS instant — the row is
+    // still lit, so continuity is the correct grammar and no trail can open.
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    row.dispatchEvent(pe('pointerup', 100, 100));     // committed tap → floor running
+    await sleep(150);                                  // inside the 300ms floor
+    row.dispatchEvent(pe('pointerdown', 100, 100));
+    ok(row.dataset.pressed === 'row',
+      '★ r2 P-MINOR-2: a re-press while the FILL is still completing paints at contact — hadLiveFill keys on data-pressed surviving into the afterlife, so visual continuity holds without re-opening the fade-phase trail');
+    row.dispatchEvent(pe('pointercancel', 100, 100));
+    await sleep(700);                                  // drain before the next block
 
     detach();
     pressRoot.remove();
+  }
+
+  /* —— ★ THE WALLET SCROLL OSCILLATOR (2026-08-24 handoff §1 → #46 r1 fixes) —
+   * behavioral, on the real module. jsdom has no layout, so the geometry is DRIVEN:
+   * scrollHeight / clientHeight / offsetHeight are instance-defined getters and every
+   * scroll event is dispatched by hand — and ResizeObserver is STUBBED (r1 MAJOR-3:
+   * jsdom has none, so the RO belt and the hero tracking were unexecuted and
+   * unpinned; deleting them kept the suite green). The stub records observers and
+   * fires only when the fixture says so, which is exactly what a belt test needs. */
+  {
+    const roInstances = [];
+    const HadRO = W.ResizeObserver;
+    W.ResizeObserver = class {
+      constructor(cb) { this.cb = cb; this.targets = []; this.disconnected = false; roInstances.push(this); }
+      observe(t) { this.targets.push(t); }
+      disconnect() { this.disconnected = true; }
+      fire() { if (!this.disconnected) this.cb([], this); }
+    };
+    const scrollEl = d.createElement('div');
+    const heroEl = d.createElement('div');
+    heroEl.className = 'c-wallet-hero';
+    scrollEl.append(d.createElement('div'));
+    d.body.append(heroEl, scrollEl);
+    let S = 660, V = 600, TOP = 0;
+    Object.defineProperty(scrollEl, 'scrollHeight', { get: () => S, configurable: true });
+    Object.defineProperty(scrollEl, 'clientHeight', { get: () => V, configurable: true });
+    Object.defineProperty(scrollEl, 'scrollTop', { get: () => TOP, set: (v) => { TOP = v; }, configurable: true });
+    let heroHidden = false;   // r2: display:none reports 0 — the hidden-attach sentinel path
+    Object.defineProperty(heroEl, 'offsetHeight', { get: () => (heroHidden ? 0 : ('compact' in heroEl.dataset ? 64 : 260)), configurable: true });
+
+    // r1 MAJOR-2: attach onto a compact hero AT THE TOP expands it — no gesture can
+    // ever free it there (a fitting list fires no scroll events) and its actions are inert.
+    heroEl.dataset.compact = '';
+    let detachWs = W.Spixi.attachWalletScroll(scrollEl, { hero: heroEl });
+    ok(!('compact' in heroEl.dataset),
+      '★ oscillator r1 MAJOR-2: attach onto a compact hero at scrollTop 0 EXPANDS it — the stuck state (tab round-trip resets scroll, hero left compact, Send/Receive/Scan inert) has a structural exit');
+    detachWs();
+
+    // fresh attach for the main walk — and the attach must REUSE the spacer (r1 MAJOR-3)
+    detachWs = W.Spixi.attachWalletScroll(scrollEl, { hero: heroEl });
+    const reserves = [...scrollEl.children].filter((c) => c.classList && c.classList.contains('c-wallet-reserve'));
+    ok(reserves.length === 1,
+      '★ oscillator r1: TWO attaches, ONE reserve spacer — the reuse loop is real, not decorative');
+    const reserve = reserves[0];
+    const heroRO = roInstances.filter((r) => r.targets.includes(heroEl)).pop();
+    const beltRO = roInstances.filter((r) => r.targets.includes(scrollEl)).pop();
+    ok(!!heroRO && !!beltRO,
+      '★ oscillator r1 MAJOR-1/-3: BOTH observers exist — one on the hero (the reserve\'s frame-by-frame feed) and one on the scroller (the no-scroll-event belt)');
+    const scroll = (top, ns, nv) => {
+      TOP = top; if (ns !== undefined) S = ns; if (nv !== undefined) V = nv;
+      scrollEl.dispatchEvent(new W.Event('scroll', { bubbles: true }));
+    };
+
+    scroll(20);
+    ok('compact' in heroEl.dataset,
+      '★ oscillator (Damir\'s dial): ~20px of downward GESTURE collapses the hero — no absolute 120px offset a 5-transaction account can never reach. "It should minimise the hero any time you scroll down, so it\'s always the same effect"');   // r3: settled range == max(top, maxPre − delta)
+    ok(reserve.style.height === '0px' || reserve.style.height === '',
+      '★ oscillator r1 MAJOR-1 (the BULGE): at the collapse INSTANT the reserve is 0 — the hero has not shrunk yet, and landing the full reserve at t=0 opened a reserve-wide scroll bulge a fling walked into (blank space, then a clamp-back stall)');
+    heroRO.fire();   // the hero finished shrinking (fixture geometry flips instantly)
+    ok(reserve.style.height === '156px',
+      '★ oscillator r1 MAJOR-4 (DEFICIT-SIZED): the reserve tracks to clamp(0, top − maxPre + delta) = 20 − 60 + 196 = 156px, NOT the full 196 — only what the clamp would consume, so a long list reserves ZERO and no list ends in a hero of blank');
+    scroll(20, 660 + 156, 600 + 196);   // the collapsed geometry lands (content+reserve, viewport+delta)
+
+    /* ★ THE PIN THAT OWNS THE DEFECT. A layout event lands scrollTop at 0 while the
+       content still scrolls. The OLD code read top <= 1 as "the user is at the top"
+       and expanded — expand → viewport shrinks → content overflows → the next drag
+       collapses → clamp → expand… that loop is what Damir felt as flicker. */
+    scroll(0, 816, 700);
+    ok('compact' in heroEl.dataset,
+      '★ oscillator (b) THE LATCH: an event in which the GEOMETRY moved is a layout consequence, never a finger — it cannot expand the hero, whatever scrollTop says');
+
+    scroll(30, 816, 700);   // downward while compact — collapse() no-ops, geometry held
+    scroll(10);             // stable, upward, not at top → stays compact
+    ok('compact' in heroEl.dataset,
+      '★ oscillator: an upward scroll that has NOT reached the top keeps the hero compact — expansion is an at-top event, not a direction event');
+    scroll(0);              // stable, upward, arrives at the top → expands
+    ok(!('compact' in heroEl.dataset) && reserve.style.height === '0px',
+      '★ oscillator: a REAL upward arrival at the top expands the hero and releases the reserve — geometry stability is how a finger is told apart from a clamp');
+
+    // iOS rubber-band: the settle-back from negative scrollTop is a spring, not a finger
+    scroll(-24, 660, 600);  // overscroll reports negative top (layout re-sync first)
+    scroll(-12);            // stable, d>0 but top<=0 — the spring returning
+    scroll(0);              // …lands at rest
+    ok(!('compact' in heroEl.dataset),
+      '★ oscillator r1: the rubber-band settle (d>0 at top<=0) accumulates NOTHING — without the guard the spring re-collapsed the hero the instant an at-top expand let go. Driven with real negative scrollTop, not just pinned as source shape');
+
+    // the collapse threshold is BRACKETED, not hard-coded: 6px of gesture must not
+    // collapse; 13px must (the dial lives in wallet-shell.js, these are its bounds)
+    scroll(6);
+    ok(!('compact' in heroEl.dataset),
+      '★ oscillator: 6px of downward gesture does NOT collapse — the trigger has a real threshold, not zero');
+    scroll(13);
+    ok('compact' in heroEl.dataset,
+      '★ oscillator: 13px accumulated does collapse — brackets the dial from both sides so a silent 10× change fails');
+    heroRO.fire();
+
+    /* r1 MINOR-5: a scanning wallet re-renders on every push — layout events must
+       KEEP the gesture accumulators or the hero never collapses during a scan. */
+    scroll(0);             // back to top → expands (stable, d<0? d = 0-13 <0, top<=1 → expand)
+    ok(!('compact' in heroEl.dataset), 'oscillator fixture: expanded again for the scan-walk');
+    scroll(5, 661, 600);   // content grew mid-gesture (layout) — accumulator KEPT
+    scroll(10);            // stable +5 → down accumulates across the re-render
+    scroll(18);            // stable +8 → 13 total ≥ threshold
+    ok('compact' in heroEl.dataset,
+      '★ oscillator r1 MINOR-5: downward gesture ACCUMULATES ACROSS list re-renders — resetting it on every layout event made the hero uncollapsible for the whole header scan (a re-render per push)');
+    heroRO.fire();
+
+    /* the safety valve is REST-GUARDED (r1 MINOR-6/-7): it must not act on transient
+       mid-flip numbers, so the fixture waits out the 400ms window first. */
+    await sleep(420);
+    scroll(0, 700, 700);    // a filter/search re-render leaves NOTHING to scroll
+    ok(!('compact' in heroEl.dataset),
+      '★ oscillator, the safety valve: when a re-render leaves NO scroll range, the hero auto-expands — no gesture could ever release the latch (no events fire with nothing to scroll); rest-guarded so mid-flip transients cannot trigger it');
+
+    /* r1 MAJOR-3: the BELT — content shrinks under a compact hero with NO scroll
+       event at all (scrollTop already 0). Only the scroller RO sees it. */
+    scroll(20, 900, 700);   // long list again (layout re-sync)
+    scroll(28);             // gesture (down accumulates 8+…) — wait: after re-sync d=8
+    scroll(41);             // +13 → collapse
+    ok('compact' in heroEl.dataset, 'oscillator fixture: collapsed for the belt test');
+    heroRO.fire();
+    await sleep(420);       // rest-guard again
+    TOP = 0; S = 690; V = 700;   // re-render: fits entirely, scrollTop reset, NO scroll event
+    beltRO.fire();
+    ok(!('compact' in heroEl.dataset),
+      '★ oscillator r1 MAJOR-3 THE BELT: a re-render that leaves nothing to scroll and fires NO scroll event still releases the hero — the scroller ResizeObserver is the only thing that can see it, and before this pin it was unexecuted, unpinned code');
+
+    /* —— r2 W-MAJOR-2 regression: a LONG list's deficit is legitimately ZERO —
+       the belt must not read that as "never applied" and slam the delta back. */
+    scroll(30, 1500, 700);   // long list (layout re-sync)
+    scroll(43);              // +13 stable → collapse; maxPre = 800 → deficit = 0
+    ok('compact' in heroEl.dataset && reserve.style.height === '0px',
+      '★ r2 W-MAJOR-2 fixture: a long list collapses with a ZERO reserve — the deficit is genuinely nothing');
+    heroRO.fire();
+    beltRO.fire();           // a tx push / scan row re-render
+    ok(reserve.style.height === '0px' && ('compact' in heroEl.dataset),
+      '★ r2 W-MAJOR-2 THE PIN: a re-render does NOT slam the full delta onto a legitimately-zero reserve — the belt keys on the measured-while-hidden SENTINEL (heroExpandedRest 0), so r1 MAJOR-4 (a hero of blank under every compact long list) stays dead');
+
+    /* —— r2 W-MINOR-3: the valve expand resets the accumulators. */
+    scroll(56);              // +13 more while compact — down accumulates past the dial
+    await sleep(420);
+    scroll(0, 700, 700);     // re-render leaves nothing → valve expands
+    ok(!('compact' in heroEl.dataset), 'r2 fixture: valve expanded with a surplus accumulator pending');
+    scroll(1);               // ONE pixel of drift
+    ok(!('compact' in heroEl.dataset),
+      '★ r2 W-MINOR-3: one pixel after a valve expand does NOT re-collapse — the accumulators reset with the state, so the 12px dial holds on every expand path, not only the gesture one');
+
+    /* —— r2 W-MAJOR-2(b): attach while HIDDEN cannot measure — the belt COMPLETES
+       the state once the hero is laid out, keyed on the sentinel. */
+    detachWs();
+    heroHidden = true;
+    heroEl.dataset.compact = '';
+    TOP = 40; S = 660; V = 600;
+    detachWs = W.Spixi.attachWalletScroll(scrollEl, { hero: heroEl });
+    ok('compact' in heroEl.dataset && reserve.style.height === '0px',
+      'r2 fixture: attached mid-list onto a HIDDEN compact hero — nothing measurable, reserve untouched');
+    heroHidden = false;
+    roInstances.filter((r) => r.targets.includes(scrollEl)).pop().fire();
+    ok(reserve.style.height === '196px',
+      '★ r2 W-MAJOR-2(b): the belt completes an attach-while-hidden state once the hero is laid out — full delta, because the position at that collapse is unknowable');
+
+    /* —— r2 W-MINOR-4: a reserve that survived a detach IS its collapse's deficit —
+       re-attach adopts it and the hero RO's initial observation must not wipe it. */
+    detachWs();
+    detachWs = W.Spixi.attachWalletScroll(scrollEl, { hero: heroEl });
+    ok(reserve.style.height === '196px',
+      'r2 fixture: re-attach onto a compact hero mid-list keeps the reserve');
+    roInstances.filter((r) => r.targets.includes(heroEl)).pop().fire();
+    ok(reserve.style.height === '196px',
+      '★ r2 W-MINOR-4: the hero RO\'s initial observation PRESERVES the adopted reserve — before the fix it computed min(0, …) and reset the layer to zero, re-opening the clamp the reserve exists to prevent');
+
+    detachWs();
+    ok(roInstances.every((r) => r.disconnected),
+      '★ oscillator r1: detach() disconnects EVERY observer — hero feed and belt both; a leaked observer per tab round-trip is the quiet kind of rot');
+    if (HadRO === undefined) delete W.ResizeObserver; else W.ResizeObserver = HadRO;
+    heroEl.remove(); scrollEl.remove();
   }
 
   /* #341: release() — the scrub handle the Account pane needs. The standalone
@@ -6259,6 +6526,24 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     '★ #343 device fix: BOTH touchstart and pointerdown are bound, never click. On Android WebView pointer events are synthesised from touch events and wait on gesture disambiguation, so pointerdown alone arrived late — Damir read it as "abrupt with delay". touchstart fires on contact');
   ok(/PRESS_MOVE_CANCEL_PX/.test(pressJs) && /> PRESS_MOVE_CANCEL_PX\) cancelGesture\(\)/.test(pressJs),
     '★ #343: the move-cancel rule is in the source, not just in the behavioural test above');
+  ok(/const PRESS_PAINT_DELAY_MS = \d+;/.test(pressJs)
+    && parseInt((pressJs.match(/const PRESS_PAINT_DELAY_MS = (\d+);/) || [0, '999'])[1], 10) < 100
+    && /paintTimer = setTimeout\(paintPress, PRESS_PAINT_DELAY_MS\)/.test(pressJs)
+    && /if \(pendingKind === 'control' \|\| hadLiveFill\) paintPress\(\);/.test(pressJs)
+    && /const hadLiveFill = afterlives\.has\(t\) && \('pressed' in t\.dataset\);/.test(pressJs),
+    '★ 5c-i: rows wait PRESS_PAINT_DELAY_MS before painting; controls, and a re-press on an afterlife still in its FILL phase (r1 B MINOR-3 → r2 P-MINOR-2), paint at contact. Pinned by NAME with a < 100ms perception BOUND — the exact value is the device dial #519 reserves for Damir\'s Galaxy round');
+  ok(/const clear = \(\) => \{\s*\n\s*clearTimeout\(safety\); safety = 0;\s*\n\s*clearTimeout\(paintTimer\); paintTimer = 0;/.test(pressJs),
+    '★ 5c-i (message rebased by r1 B MINOR-4, honestly): clear() kills the pending paint as DEFENCE IN DEPTH. The proven-observable gate is paintPress\'s own `!el` bail plus the re-arm path\'s second clearTimeout — this line is the belt under them, and a SOURCE pin is what a belt gets');
+  ok(/const elAtPaint = el;\s*\n\s*raf\(\(\) => \{\s*\n\s*if \(el === elAtPaint && \('pressed' in elAtPaint\.dataset\)\) pressStart = performance\.now\(\);/.test(pressJs),
+    '★ 5c-ii (r1 C MINOR-4): pressStart is re-stamped one frame after the attribute lands — the transition starts at the next style recalc, and under a main-thread stall the sync stamp made the completion floor expire early, snapping an unfinished sweep to 100% at the hold. Monotonic: the bump only ever GROWS the floor');
+  ok(/if \(!el\.isConnected \|\| el\.closest\('\[data-selecting\]'\)\s*\n?\s*\|\| el\.disabled \|\| el\.getAttribute\('aria-disabled'\) === 'true'\) return;/.test(pressJs),
+    '★ 5c-i (r1 B NIT-7): paintPress re-checks the arm-time gates that can change inside the window — select mode, detachment, disabled — instead of painting a 70ms-old world');
+  ok(/if \(el && !\('pressed' in el\.dataset\) && pendingKind === 'row'\) paintPress\(\);/.test(pressJs),
+    '★ 5c-i: a committed tap quicker than the delay paints AT RELEASE and plays its full fill+fade in the afterlife — only the scroll loses the paint');
+  ok(/el\.dataset\.pressed = pendingKind;\s*\n\s*pressStart = performance\.now\(\);/.test(pressJs),
+    '★ 5c-i: pressStart is stamped AT PAINT, not at contact — the D-16 completion floor counts from the moment the sweep is visible, or a delayed paint would owe less fill than it shows');
+  ok(/if \(t && t === el && !e\.touches && \(performance\.now\(\) - armAt\) < \d+\) \{\s*\n\s*gestureViaTouch = gestureViaTouch \|\| \(performance\.now\(\) - lastTouchTs\) < 300;\s*\n\s*return;\s*\n\s*\}/.test(pressJs),
+    '★ 5c-i (reworked by r1 B MAJOR-1/MINOR-2): the same-gesture guard takes ONLY the pointer stream (`!e.touches`) and corrects the touch identity before returning. The first cut swallowed touchstart too — which handed viaTouch to whichever stream arrived FIRST (disarming the D-16 ghost guard on pointer-first engines, a prior loop\'s fix silently undone) and could absorb a REAL second tap into a stale arm. A touch second-stream now falls through to the ordinary re-arm');
   ok(/if \(cancelled\) return;/.test(pressJs)
     && /cancelExpiry = setTimeout\(\(\) => \{ cancelled = false; \}, PRESS_SAFETY_MS\)/.test(pressJs)
     && !/'scroll', clear/.test(pressJs) && !/'dragstart', clear/.test(pressJs),
@@ -6269,16 +6554,16 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   ok(!/'\.c-topbar__dots'/.test(pressJs),
     '★ #346: .c-topbar__dots is NOT a control. It is the iOS-48/#314 animated "Connecting…" ellipsis, built aria-hidden — a decorative inline node. The real topbar actions already match .c-button because topbar.js builds them with createButton');
   ok(/html:root \[data-pressed\] \{ transition: none; \}/.test(baseCss)
-    && /html:root \[data-pressed="row"\] \{[\s\S]{0,120}?background-size: 100% 100%/.test(baseCss)
+    && /html:root \[data-pressed="row"\]::before,[\s\S]{0,160}?transform: scaleX\(1\)/.test(baseCss)
     && /html:root \[data-pressed="control"\] \{[\s\S]{0,80}?transform: scale\(0\.97\)/.test(baseCss)
     && !/\n\[data-pressed/.test(baseCss),
-    '★ #343 DEVICE FIX: the press rules carry the html:root prefix. base.css loads BEFORE every component stylesheet, and .c-chatlist-item sets `background: transparent` at the same specificity — so an unprefixed rule lost on source order and the tint never painted at all on device. html:root is (0,2,1) and beats the component\'s (0,2,0) [aria-current] and :active rules from anywhere in the cascade');
-  ok(/html:root \[data-pressed="row"\]\[aria-current\] \{[\s\S]{0,120}?surface-action-tonal-pressed/.test(baseCss),
-    '#343: a SELECTED row presses in its own tonal family — the neutral tint must not flash over the action colour on the desktop split view');
+    '★ #343 DEVICE FIX (rebased by 5c-ii): the press rules carry the html:root prefix — the specificity story is unchanged; the ROW press now rides the ::before layer (scaleX), not the row background');
+  ok(/html:root \[data-pressed="row"\]\[aria-current\]::before,[\s\S]{0,240}?surface-action-tonal-pressed/.test(baseCss),
+    '#343/I-8 (rebased by 5c-ii): a SELECTED row presses in its own tonal family ON THE LAYER — tonal-pressed over the row\'s own tonal-default, one step deeper in the family it already paints');
   /* ★ #346: the old pin said "drops the scale and every transition" and only ever
      verified the scale — deleting the whole `transition: none` half left it passing. */
   ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}?\[data-pressed="control"\] \{ transform: none; \}/.test(baseCss)
-    && /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,900}?html:root \.fab \{\s*\n?\s*transition: none;/.test(baseCss),
+    && /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,1800}?html:root \.fab \{\s*\n?\s*transition: none;/.test(baseCss),
     '#343/#346: reduced motion drops the scale AND every press transition — both halves verified, not just the scale');
 
   /* ★ #346 (review of #343) — THE PRESS RELEASE RULE MUST NOT CLOBBER COMPONENTS.
@@ -6353,7 +6638,7 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     /* Scope the check to the RELEASE rule. The reduced-motion block below it legitimately
        names every pressable selector, because `transition: none` there is the point. */
     const releaseRule = baseCss.slice(
-      baseCss.indexOf('/* The release transition lives on'),
+      baseCss.indexOf('/* The release transition for the three families'),
       baseCss.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
     ok(releaseRule.length > 100
       && !/html:root \.c-button|html:root \.c-chip|html:root \.c-bottomnav__item|html:root \.c-chatlist-item|html:root \.c-txlist-item|html:root \.c-settings__row/.test(releaseRule),
@@ -6446,131 +6731,96 @@ console.log('#343 — instant chrome, first-commit fade, message window');
       ok(/^(none|)$/.test(tr(id).trim()) || tr(id).trim() === 'none',
         '★ #346: ' + what + ' has NO transition while pressed — the tint appears instantly. A 200 ms ramp in is what Damir read as "abrupt with delay", which is why the in-state is no transition at all. CONTROLS keep this; A5 (#348) changed ROWS only');
     }
-    /* ★ A5 / W4b (#348, Damir): a ROW fills from the CENTRE OUTWARD instead of flashing
-       a flat tint, which he read as a flicker. The fill IS motion, so rows are the one
-       exception to instant-on — and that exception only works because the row rule is
-       declared AFTER `html:root [data-pressed] { transition: none; }`. Both are (0,2,1),
-       so source order is the entire mechanism: move it back above and every row snaps to
-       full width with no sweep, silently restoring the flat tint. */
-    for (const [id, what] of [['pr', '.c-chatlist-item'], ['pcr', '.c-contacts__row'],
-      ['pai', '.c-app-item'], ['par', '.c-apps-recents__item'],
-      ['pwr', '.c-wallet-receive__contact'], ['pdl', '.c-settings-dl__open']]) {
-      ok(/background-size/.test(tr(id)),
-        '★ A5 (#348): ' + what + ' animates background-size WHILE PRESSED — that transition is the centre-out sweep, and it must out-order the instant-on rule to exist at all');
-    }
-    /* ★ A5 (#348) review — MUTATION-HONEST, and the first cut was NOT.
-       `/100%/` was matched by the REST value `0% 100%`, so the pin that claimed to prove
-       the sweep completes passed with base.css's size flip deleted outright — the one
-       line that makes the fill happen. `/0%/` was satisfied inside `100%` the same way.
-       Both now compare the size EXACTLY, and every row family is probed rather than one.
-       The review also found the fill on the wrong element for .c-app-item, which stayed
-       green because the only other pin checked that a transition STRING mentioned
-       background-size. So the probe reads the element that actually carries
-       data-pressed. */
-    const fillOf = (id) => {
-      const st = pw.getComputedStyle(pw.document.getElementById(id));
-      return { img: st.backgroundImage, pos: st.backgroundPosition, size: st.backgroundSize };
-    };
-    for (const [rest, pressed, what] of [['r', 'pr', '.c-chatlist-item'],
-      ['cr', 'pcr', '.c-contacts__row'], ['aio', 'paio', '.c-app-item__open'],
-      ['ar', 'par', '.c-apps-recents__item'], ['wr', 'pwr', '.c-wallet-receive__contact'],
-      ['sr', 'psr', '.c-settings__row'], ['tx', 'ptx', '.c-txlist-item'],
-      ['dl', 'pdl', '.c-settings-dl__open']]) {
-      const a = fillOf(rest), b = fillOf(pressed);
-      ok(/linear-gradient/.test(a.img),
-        '★ A5 (#348): ' + what + ' carries the fill image AT REST. Declaring it only under [data-pressed] leaves the release nothing to shrink, and putting it on a CHILD of the pressed element (the .c-app-item mistake this pin now catches) means the size flip can never reach it');
-      ok(a.size === '0% 100%',
-        '★ A5 (#348): ' + what + ' rests at EXACTLY `0% 100%` — zero wide, full height. A substring test here passed with the whole pressed rule deleted');
-      ok(/center/.test(a.pos),
-        '★ A5 (#348): ' + what + ' grows from the CENTRE. Without background-position the fill wipes in from the leading edge — a different effect, and not the one that was asked for');
-      ok(b.size === '100% 100%',
-        '★ A5 (#348): ' + what + ' reaches EXACTLY `100% 100%` while pressed — the sweep completes and covers the row');
-      ok(/linear-gradient/.test(b.img),
-        '★ A5 (#348): ' + what + ' still HAS an image while pressed — the [aria-current] and [data-pressed] rules do not reset it. NOTE the honest scope: jsdom never matches :hover or :active on these probe nodes, so the shorthand sweep for THOSE states is the source-level pin below, not this one');
-    }
-    /* ★ A5 (#348) review r2 — THE SWEEP jsdom CANNOT DO. The probe nodes carry only
-       data-pressed / aria-current, so no :hover or :active rule is ever exercised. A
-       `background` SHORTHAND in one of those states resets background-image and kills the
-       fill on a real device while every computed-style pin above stays green. Read the
-       source instead: no state rule for a row family may use the shorthand.
-       This is exactly how the .c-app-item break survived the first round. */
+    /* ★ A5 / W4b (#348) → 5c-ii COMPOSITOR REWRITE (2026-08-24, Damir on the Galaxy):
+       the centre-out fill STAYS; the animated property moved. background-size repaints
+       on the MAIN THREAD every frame, so a main-thread stall (the decrypt retry loop,
+       a chain scan) froze the sweep mid-way — "fills halfway, stops for a brief
+       moment, fills to the end", his words exactly. The fill is now a ::before LAYER
+       animated with transform: scaleX() and opacity — compositor properties, immune
+       to the stall. jsdom cannot compute pseudo-element styles, so this suite reads
+       the CASCADE through the #515 helpers (every stylesheet, comment-stripped,
+       subject-matched) — never one rule in one file. */
     {
-      /* ★ review r4: `c-app-item__open` is listed EXPLICITLY. The `(?![\w-])` boundary
-         below exists so `.c-app-item__info` (a different element) is not flagged — but `_`
-         matches `[\w-]`, so it silently excluded `__open` too, which is exactly the box
-         the fill now lives on. A `background` shorthand in its :hover or :active would
-         have killed the apps sweep with the whole suite green. */
-      const ROWCLS = ['c-chatlist-item', 'c-txlist-item', 'c-settings__row', 'c-contacts__row',
-        'c-app-item', 'c-app-item__open', 'c-apps-recents__item', 'c-wallet-receive__contact',
-        'c-settings-dl__open'];   // D-16 r3: the Downloads file row joined the family
-      /* ★ review r3 — THREE FALSE NEGATIVES fixed. The first version read only the
-         component folder plus two shells, examined only the FIRST `background:` in each
-         rule (so a rule opening with `background: transparent` — and two shipped row
-         rules do — hid every later shorthand), and missed a legal `background : red`. */
-      const shellDir = join(root, 'src/shells');
-      const cssFiles = readdirSync(compDir).filter((f) => f.endsWith('.css'))
-        .map((f) => ['src/styles/components/' + f, readFileSync(join(compDir, f), 'utf8')])
-        .concat([['src/styles/base.css', baseCss]])
-        .concat(readdirSync(shellDir).filter((f) => f.endsWith('.html'))
-          .map((f) => ['src/shells/' + f, readFileSync(join(shellDir, f), 'utf8')]));
-      const offenders = [];
-      for (const [name, txt] of cssFiles) {
-        for (const m of txt.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-          const sel = m[1];
-          const body = m[2];
-          // EVERY shorthand in the rule, not just the first, and `background : x` too
-          const decls = [...body.matchAll(/(?:^|;)\s*background\s*:\s*([^;]+)/g)].map((d) => d[1].trim());
-          if (decls.length === 0) continue;
-          /* ★ review r5: `background: transparent` is exempt ONLY in a rule that
-             re-declares the image — that is the BASE rule, where the reset is followed by
-             the fill. In a STATE rule it resets background-image to none and kills the
-             sweep just as surely as a colour would, so it must still be flagged. */
-          if (decls.every((v) => /^transparent\b/.test(v)) && /background-image\s*:/.test(body)) continue;
-          /* Only a rule that applies TO the row matters. A descendant rule
-             (`.c-contacts__row[aria-checked] .c-contacts__check`) paints a CHILD and
-             cannot reset the row's own background — and a substring test would also
-             flag `.c-app-item__info`, which is a different element entirely. So test
-             the LAST compound of each comma-separated selector, on a class boundary. */
-          for (const one of sel.split(',')) {
-            const last = one.trim().split(/[\s>+~]+/).pop() || '';
-            for (const c of ROWCLS) {
-              if (new RegExp('\\.' + c + '(?![\\w-])').test(last)) {
-                offenders.push(name + ' :: ' + one.trim());
-              }
+      const FAMILIES = ['.c-chatlist-item', '.c-txlist-item', '.c-contacts__row',
+        '.c-settings__row', '.c-app-item__open', '.c-apps-recents__item',
+        '.c-wallet-receive__contact', '.c-settings-dl__open'];
+      const declMap = (rules) => {
+        const m = {};
+        for (const r of rules) for (const d of cssDecls(r.body)) m[d.prop] = d.value;
+        return m;
+      };
+      for (const fam of FAMILIES) {
+        const dm = declMap(rulesFor(fam).filter((r) => /::before$/.test(cssSubject(r.selector))
+          && !/\[data-press/.test(r.selector)));
+        ok(dm['content'] !== undefined && dm['position'] === 'absolute' && dm['inset'] === '0',
+          '★ 5c-ii: ' + fam + ' carries the press LAYER at rest (::before, absolute, inset 0) — a layer created on demand by [data-pressed] would have no start value and the sweep would snap');
+        ok(dm['z-index'] === '-1',
+          '★ 5c-ii: ' + fam + "'s layer sits at z-index:-1 INSIDE the row's own stacking context — above the row's background (idle, hover, pinned, selected), below every child. An opaque overlay covering content was the reason #348 rejected a pseudo-element; this is why the objection no longer holds");
+        ok(dm['transform'] === 'scaleX(0)' && /50% 50%|center/.test(dm['transform-origin'] || ''),
+          '★ 5c-ii: ' + fam + "'s layer rests at scaleX(0) from the CENTRE — the same centre-out geometry the background-size sweep drew (A5), now off the main thread");
+        ok(dm['opacity'] === '0' && !/transform/.test(dm['transition'] || ''),
+          '★ 5c-ii: ' + fam + ' rests at opacity 0 with NO transform transition — a cancel snaps the sweep away invisibly (D-16: "an instant-ish disappearance is correct" for cancels), and the post-fade attribute removal cannot play a reverse sweep');
+        ok(/var\(--surface-press-row\)/.test(dm['background'] || ''),
+          '★ 5c-iii: ' + fam + "'s fill is --surface-press-row — Damir's neutral dial, resolved in tokens.css against the ramp with the contrast arithmetic recorded at the definition");
+        const hm = declMap(rulesFor(fam).filter((r) => !CSS_PSEUDO_EL.test(cssSubject(r.selector))));
+        ok(hm['isolation'] === 'isolate' && hm['position'] === 'relative',
+          '★ 5c-ii: ' + fam + ' is its OWN stacking context (isolation: isolate + position: relative) — without it z-index:-1 drops the layer BEHIND the row background and the press paints nothing');
+      }
+      ok(/html:root \[data-pressed="row"\]::before,\s*\n\s*html:root \.c-app-item\[data-pressed="row"\] \.c-app-item__open::before \{\s*\n\s*opacity: 1;\s*\n\s*transform: scaleX\(1\);\s*\n\s*transition: transform var\(--duration-300\) var\(--easing-decelerate, ease-out\);/.test(baseCss),
+        '★ 5c-ii: PRESSED = opacity snaps to 1 (instant-on grammar — only transform is in the transition list) and scaleX sweeps 0→1 at --duration-300 (I-8: "a press that ARRIVES rather than snaps"). The .c-app-item child selector rides the SAME rule — pressable flags the wrapper, __open paints (#348 r3)');
+      /* ★ THE COMPOSITOR GUARANTEE — the inverse pin that owns the defect. Put the
+         sweep back on a main-thread property, under any selector in any file, and
+         this fails. */
+      {
+        const offenders = [];
+        for (const fam of FAMILIES.concat(['.c-app-item'])) {
+          for (const r of rulesFor(fam)) {
+            for (const d of cssDecls(r.body)) {
+              if (d.prop === 'transition' && /background-size/.test(d.value)) offenders.push(r.file + ' :: ' + r.selector);
+              if (d.prop === 'background-size') offenders.push(r.file + ' :: ' + r.selector);
+              if (d.prop === 'background-image' && /linear-gradient/.test(d.value)) offenders.push(r.file + ' :: ' + r.selector);
             }
           }
         }
+        ok(offenders.length === 0,
+          '★ 5c-ii THE COMPOSITOR GUARANTEE: no press-family rule transitions background-size or carries a press fill image, anywhere in the cascade' + (offenders.length ? ' — found: ' + offenders.join(' | ') : ''));
+        const layerTransitions = [];
+        for (const r of cssRulesWhere((sel) => /::before$/.test(cssSubject(sel)) && /\[data-press/.test(sel))) {
+          for (const d of cssDecls(r.body)) if (d.prop === 'transition' && d.value !== 'none') layerTransitions.push(d.value);
+        }
+        ok(layerTransitions.length > 0 && layerTransitions.every((v) => v.replace(/\([^)]*\)/g, '()').split(',').every((leg) => /^\s*(transform|opacity)\b/.test(leg))),
+          '★ 5c-ii: every transition on the press layer names ONLY transform or opacity — the two compositor properties. One background-* leg here and the Galaxy stall is back');
       }
-      ok(offenders.length === 0,
-        '★ A5 (#348): NO `background` shorthand targets a pressable row family in any state. A shorthand resets background-image, so one of these silently deletes the centre-out fill on device while every jsdom pin stays green' + (offenders.length ? ' — found: ' + offenders.join(' | ') : ''));
-      ok(/\.c-chatlist-item:active \{ background-size: 100% 100%; \}/.test(readFileSync(join(compDir, 'chatlist-item.css'), 'utf8')),
-        '★ A5 (#348) review r2: :active DRIVES the fill instead of covering it. It used to paint the identical colour flat across the row, and :active lands together with data-pressed on every Chromium engine — so the flat tint hid the sweep and the press still read as the flicker this change exists to remove');
-      ok(/html:root \[data-pressed="row"\] \.c-app-item__open \{[\s\S]{0,80}?background-size: 100% 100%/.test(baseCss),
-        '★ A5 (#348): .c-app-item is the one family whose PRESSED element is not the PAINTED one — pressable.js flags the wrapper, the child __open draws the row, so the size flip has to reach the child');
-      /* ★ review r3: and the CHILD must carry its own transition. `transition` does not
-         inherit, and base.css names the wrapper — so without this the fill SNAPS to an
-         opaque flat tint, which is the exact effect A5 exists to remove. r2 shipped that
-         and every pin stayed green, because the probe DOM had no __open child at all. */
-      /* ★ review r4: assert a NON-ZERO duration. A substring test passed on
-         `background-size 0ms`, which snaps — the exact effect this pin guards against. */
-      ok(/background-size\s+(?!0m?s\b)[^,]+/.test(pw.getComputedStyle(pw.document.getElementById('aio')).transition),
-        '★ A5 (#348) review r3: .c-app-item__open declares its OWN background-size transition. It is the box that paints the apps row, it paints ABOVE the wrapper, and transition does not inherit — without this the apps family is the one family the centre-out fill never reaches');
-      /* ★ review r5: jsdom does not evaluate @media (prefers-reduced-motion), so this is
-         a SOURCE pin or it is nothing. __open's transition hard-codes 140ms rather than a
-         --duration-* token, so the token-zeroing under reduce never reaches it — being
-         named in this list is the only thing that stops the apps row animating for a user
-         who asked it not to. */
-      ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,700}?html:root \.c-app-item__open,/.test(baseCss),
-        '★ A5 (#348) review r5: .c-app-item__open is named in the reduced-motion list. It is the ONE row family whose transition is not token-driven, so nothing else can zero it');
+      /* :active fill mirrors — REMOVED and pinned absent. On iOS :active applies on
+         touchstart and never cancels on scroll, so a CSS mirror would bypass the 5c-i
+         paint delay and re-open the scroll-trail on exactly one platform. Every shell
+         that renders these rows attaches pressable.js (pinned below). */
+      {
+        const activeFills = [];
+        for (const fam of FAMILIES) {
+          for (const r of rulesFor(fam)) {
+            if (/:active/.test(r.selector) && /background-size|background-image|scaleX/.test(r.body)) activeFills.push(r.file + ' :: ' + r.selector);
+          }
+        }
+        ok(activeFills.length === 0,
+          '★ 5c-i (reverses the #348 r2 :active mirrors, recorded): NO :active rule drives a row fill any more' + (activeFills.length ? ' — found: ' + activeFills.join(' | ') : ''));
+      }
+      ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,900}?html:root \[data-pressed="row"\]::before, html:root \[data-pressfade\]::before,/.test(baseCss),
+        '★ 5c-ii: the press layer states are in the reduced-motion transition:none list — the token-zeroing already collapses them; this is the belt');
       ok(!/\.c-app-item \{[^}]*background-image/.test(readFileSync(join(compDir, 'apps-item.css'), 'utf8')),
-        '★ A5 (#348) review r3: the fill is on __open ALONE. Declaring it on the wrapper TOO put an untransitioned opaque tint directly over the wrapper\'s own animated sweep, and grew two fills from two different centres');
-    }
-
-    /* The selected row closes in its own tonal family; without its own image it would
-       revert to the neutral gradient the instant the press ended. */
-    for (const [id, what] of [['rsel', '.c-chatlist-item[aria-current]'], ['txsel', '.c-txlist-item[aria-current]']]) {
-      ok(/tonal-pressed|linear-gradient\(var\(--surface-action-tonal-pressed\)/.test(fillOf(id).img) && fillOf(id).size === '0% 100%',
-        '★ A5 (#348): ' + what + ' carries its OWN tonal fill at rest, so the close does not flash the neutral grey over the action colour');
+        '★ A5 (#348) r3 (still true under 5c-ii): the apps WRAPPER carries no fill — __open is the box that paints, and the layer lives on it alone');
+      ok(/\.c-chatlist-item\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);/.test(readFileSync(join(compDir, 'chatlist-item.css'), 'utf8'))
+        && /\.c-txlist-item\[aria-current\] \{[\s\S]{0,240}?background-color: var\(--surface-action-tonal-default\);/.test(readFileSync(join(compDir, 'txlist-item.css'), 'utf8')),
+        '★ 5c-ii: a SELECTED row keeps its tonal-default paint on the ELEMENT — the layer presses tonal-pressed over it and the fade reveals it; the at-rest image swap is gone with the image');
+      const tok5c = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+      ok(/--surface-press-row: rgba\(13, 17, 24, 0\.05\);/.test(tok5c) && /--surface-press-row: rgba\(237, 240, 242, 0\.05\);/.test(tok5c),
+        '★ 5c-iii (reshaped by #46 r1 C MAJOR-1): --surface-press-row is an ALPHA WASH (ink at 5%, light darkens / dark lifts — the --surface-pinned precedent), because the literal ramp step (neutral-50/-800) was BYTE-IDENTICAL to --surface-card: a 1.000:1 press on every card-hosted family (Settings hub, Downloads, contacts picker, apps grid), invisible on touch on the exact surfaces Damir tests. The wash composites to one perceptual level on EVERY ground — measured 1.108 screen / 1.107 card light, 1.119 screen / 1.135 card dark');
+      ok(/--surface-press-row-hover: rgba\(13, 17, 24, 0\.10\);/.test(tok5c) && /--surface-press-row-hover: rgba\(237, 240, 242, 0\.10\);/.test(tok5c),
+        '★ 5c-iii: the hover-step twin is the same wash at 10% — a fine-pointer press must step past the hover wash it would otherwise vanish into (measured 1.23–1.31 on every ground)');
+      ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]{0,900}?\[data-pressed="row"\]::before,\s*\n\s*html:root \.c-app-item\[data-pressed="row"\] \.c-app-item__open::before \{\s*\n\s*background: var\(--surface-press-row-hover\);/.test(baseCss),
+        '★ r2 P-MINOR-3: under reduced motion the press is ONLY the colour (every duration token is 0ms — no sweep to carry perceptibility), so the flat tint steps to the 10% wash. The pre-5c fill was an opaque tonal on this path; 5% alone was a downgrade for exactly the users who asked for less motion');
+      ok(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\n\s*html:root \[data-pressed="row"\]:hover:not\(\[aria-current\]\)::before,[\s\S]{0,240}?--surface-press-row-hover/.test(baseCss),
+        '★ 5c-iii: …and the pressed layer actually steps to it under a fine pointer — without this rule a mouse press is invisible over the hover wash it exactly matches');
     }
     pw.close();
   }
@@ -6581,10 +6831,35 @@ console.log('#343 — instant chrome, first-commit fade, message window');
   /* D-16 r2 (audit C-4): downloads.html joined — it renders .c-settings__row rows
      and was the one rows-bearing shell without the mechanism (two press grammars
      for the same row family across Account sublevel vs standalone takeover). */
-  for (const sh of ['chat', 'home', 'settings', 'contact_details', 'downloads']) {
-    const src = readFileSync(join(root, 'src/shells/' + sh + '.html'), 'utf8');
-    ok(/attachPressFeedback\(\);/.test(src) && /attachPressFeedback,/.test(src),
-      '#343: ' + sh + '.html attaches press feedback (one line per shell — the delegated listener covers rows created by later re-renders)');
+  {
+    /* ★ #46 r1 (auditor C MINOR-3): membership is DERIVED, not hand-listed. Since
+       5c-i removed the :active fill mirrors, pressable.js is the ONLY press
+       mechanism rows have — a shell that renders a PRESSABLE_ROW family without
+       attaching it ships dead rows, silently. The row FACTORIES are the derivation
+       key: a shell that references one renders that family. */
+    const ROW_FACTORIES = ['createChatsList', 'renderChatsList', 'createChatItem',
+      'createWalletTxList', 'renderWalletTxList', 'createTxItem',
+      'mountContacts', 'createContactsPicker', 'createPendingContact',
+      'createSettingsHub', 'createSettingsDownloads', 'setDownloads',
+      'createAppsList', 'renderAppsList', 'createAppsRecents', 'createWalletReceive'];
+    const shellDir343 = join(root, 'src/shells');
+    for (const f of readdirSync(shellDir343).filter((x) => x.endsWith('.html')).sort()) {
+      const src = readFileSync(join(shellDir343, f), 'utf8');
+      /* r2 P-MINOR-5: match a CALL on comment-stripped source — the raw includes()
+         matched a factory name inside a COMMENT (contact_details.html), forcing an
+         attach on a shell that renders no rows and losing coverage the moment the
+         comment is reworded. */
+      const srcNC = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      if (!ROW_FACTORIES.some((fn) => srcNC.includes(fn + '('))) continue;
+      ok(/attachPressFeedback\(\);/.test(src) && /attachPressFeedback,/.test(src),
+        '#343/5c-i (r1-derived): ' + f + ' renders a pressable row family, so it MUST attach press feedback — with the :active mirrors gone there is no CSS fallback, and a missing attach is a shell of dead rows');
+    }
+    /* …and the six row-bearing DEMOS attach too (r1 C MINOR-2: the demos are the
+       review surface, and their rows went dead with the mirrors). */
+    for (const f of ['app-frame', 'apps', 'chats', 'desktop', 'settings', 'wallet']) {
+      ok(/window\.Spixi\.attachPressFeedback\(\);/.test(readFileSync(join(root, 'src/demo/' + f + '.html'), 'utf8')),
+        '5c-i (r1 C MINOR-2): demo ' + f + '.html attaches press feedback — demo rows responded through :active before the mirrors were removed');
+    }
   }
 
   ok(/messagesToLoad = 50;/.test(cfgCs) && !/messagesToLoad = 100;/.test(cfgCs),
@@ -6713,11 +6988,11 @@ console.log('#348b — F5 follow-up fixes');
     'settings-app'];   // D-16 r3: the Downloads file row joined the family
   for (const f of ROWFILES) {
     const css = readFileSync(join(root, 'src/styles/components/' + f + '.css'), 'utf8');
-    ok(/background-image: linear-gradient\(var\(--surface-action-tonal-default\), var\(--surface-action-tonal-default\)\)/.test(css),
-      '★ I-8 (#348b): ' + f + ' fills with --surface-action-tonal-DEFAULT — what a SELECTED row actually paints. ★ The audit caught the first cut matching the token NAME (--surface-interactive-selected) instead of the LOOK: that token was abandoned on this very surface in 2026-07 because it is "barely visible on the near-black canvas", measured at 1.027:1 in dark and DARKER than the surface it sits on. Re-adopting it would have shipped a defect Damir had already rejected');
+    ok(!/background-image: linear-gradient/.test(css),
+      '★ I-8 (#348b) → 5c-iii (Damir, 2026-08-23): ' + f + ' carries NO press fill image any more — the fill moved to the base.css ::before layer, and its colour moved from the action tonal to --surface-press-row (his neutral dial). A leftover gradient here would paint at FULL SIZE with the background-size machinery gone — a permanently tinted row');
   }
-  ok(/html:root \[data-pressed="row"\],\s*\r?\n\s*html:root \[data-pressed="row"\] \.c-app-item__open \{[\s\S]{0,900}?transition: background-size var\(--duration-300\)/.test(baseB),
-    '★ I-8 (#348b): the press OPEN runs at --duration-300, and the .c-app-item__open CHILD is in the same rule. pressable.js flags the wrapper but the child is the box that paints, and it carries its own 220 ms ACCELERATE declaration — without the child selector the apps row opens on the opposite easing family from the other six');
+  ok(/html:root \[data-pressed="row"\]::before,\s*\r?\n\s*html:root \.c-app-item\[data-pressed="row"\] \.c-app-item__open::before \{[\s\S]{0,200}?transition: transform var\(--duration-300\)/.test(baseB),
+    '★ I-8 (#348b, rebased by 5c-ii): the press OPEN still runs at --duration-300 — now as transform on the layer — and the .c-app-item__open CHILD is in the same rule, so the apps family opens on the same easing as the other seven');
 
   /* —— ★ D-16 (#351): the fill COMPLETES, then FADES — the afterlife, at source —— */
   {
@@ -6742,8 +7017,18 @@ console.log('#348b — F5 follow-up fixes');
       '★ D-16 r2 (audit A-5): every afterlife carries an UNCONDITIONAL timer backstop and killAfterlife clears it — a rAF stall on a covered-but-not-hidden WebView must not strand a flat-tinted row until vsync resumes');
     ok(/if \(gh && !e\.touches && e\.pointerType !== 'mouse' && e\.pointerType !== 'pen'\s*\r?\n?\s*&& gh\.viaTouch && \(performance\.now\(\) - gh\.at\) < 800\) return;/.test(pjs),
       '★ D-16 r2/r3 (audit A-1 + Opus 4c): the GHOST guard — a late synthesised pointerdown after a committed TOUCH tap must not kill the earned afterlife and re-arm a spurious press. pointerType exempts a REAL mouse/pen (a hybrid laptop finger-tap-then-click must keep its feedback); a real second touch tap begins with touchstart and passes');
-    ok(/const gh = t && afterlives\.get\(t\);[\s\S]{0,700}?return;\s*\r?\n\s*clear\(\);\s*\r?\n\s*if \(!t\) return;/.test(pjs),
-      '★ D-16 r3 (Opus finding 5): the ghost guard runs BEFORE clear() — a ghost for row A must not kill a live press already armed on row B; the old order wiped B mid-sweep and B’s release then found nothing to complete');
+    ok((() => {
+      /* r2 P-MAJOR-1: the windowed regex form of this pin went VACUOUS when the
+         5c-i guard landed between the ghost guard and clear() — the lazy span
+         swallowed the ghost RETURN and the pin passed with the guard body moved
+         BELOW clear() (mutation-proven). Index arithmetic on the onDown body:
+         the ghost guard's own return must precede the FIRST clear() call. */
+      const body = pjs.slice(pjs.indexOf('const onDown ='), pjs.indexOf('const onMove ='));
+      const ghostReturn = body.indexOf("gh.viaTouch && (performance.now() - gh.at) < 800) return;");
+      const firstClear = body.indexOf('clear();');
+      return ghostReturn >= 0 && firstClear > ghostReturn;
+    })(),
+      '★ D-16 r3 (Opus finding 5, re-anchored by r2 P-MAJOR-1): the ghost guard\'s RETURN precedes the first clear() in onDown — a ghost for row A must not kill a live press already armed on row B');
     ok(/const stampTouch = \(e\) => \{\s*\r?\n?\s*if \(e && \(e\.touches \|\| e\.changedTouches\)\) lastTouchTs = performance\.now\(\);/.test(pjs)
       && (pjs.match(/stampTouch\(e\);/g) || []).length >= 4,
       '★ D-16 r3 (Opus finding 4a): lastTouchTs is stamped on EVERY touch-stream event (down/move/end/cancel) — stamping only touchstart left any press held over a second unprotected, because the release evaluates the window and the start was too old by then');
@@ -6776,27 +7061,26 @@ console.log('#348b — F5 follow-up fixes');
       '★ D-16 r2 (audit B-6): STATIC settings rows are excluded from the press mechanism — the CSS already gates :hover/:active behind :not(--static), and a committed fill+fade on the version row reads as a broken action');
     ok(/'\.c-settings-dl__open',/.test(pjs),
       '★ D-16 r3 (Opus finding 2): the Downloads FILE row is in PRESSABLE_ROW — without it the screen has two press grammars the wrong way round: the destructive "Delete all" row responsive, every file row dead on iOS where bare :active is unreliable');
-    ok(/html:root \[data-pressfade="hold"\]\[data-pressfade\]:not\(\.c-app-item\) \{\s*transition: none;\s*background-color: var\(--surface-action-tonal-default\)/.test(bcss),
-      '★ D-16 (#351): HOLD = the fill colour as a FLAT background-color with transition: none. The DOUBLED attribute is load-bearing (audit B-1): three row families gate :hover behind :not() at (0,3,0), and at (0,2,1) the hover colour beat the fade on every mouse device — a hard pop and no fade at all');
-    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:not\(\.c-app-item\) \{\s*transition: background-color var\(--duration-200\) var\(--easing-standard, ease-out\);\s*background-color: transparent/.test(bcss),
-      '★ D-16 (#351): OUT fades ONLY background-color at --duration-200 — listing background-size here re-animates the collapsed image and resurrects the reverse sweep');
-    ok(/html:root \[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\[data-pinned\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-interactive-hover\)/.test(bcss),
-      '★ D-16 r2 (audit B-5, rebased by N56 loop C-1): under a stationary mouse the fade LANDS on the hover wash — and keeps its hands off PINNED rows, which land on their own wash (the #353 grammar, third state)');
-    ok(/html:root \[data-pressfade="hold"\]\[data-pressfade\]\[aria-current\] \{\s*background-color: var\(--surface-action-tonal-pressed\)/.test(bcss)
-      && /html:root \[data-pressfade="out"\]\[data-pressfade\]\[aria-current\] \{[\s\S]{0,180}?background-color: var\(--surface-action-tonal-default\)/.test(bcss),
-      '★ D-16 (#351): a SELECTED row holds tonal-PRESSED and fades to tonal-DEFAULT — its own selected paint — so the fade lands seamlessly. Mid-fade re-target happens where aria-current is patched IN PLACE (wallet tx rows); a chat row is replaced by the re-render, the accepted A-3 cut');
+    ok(/html:root \[data-pressfade="hold"\]::before,\s*\n\s*html:root \.c-app-item\[data-pressfade="hold"\] \.c-app-item__open::before \{\s*\n\s*transition: none;\s*\n\s*transform: scaleX\(1\);\s*\n\s*opacity: 1;/.test(bcss),
+      '★ D-16 (#351, rebased by 5c-ii): HOLD pins the LAYER at scaleX(1)/opacity 1 with transitions off — the committed frame between sweep and fade. The old flat-background-color hold (and its B-1 specificity dance against the hover rules) is gone with the mechanism: the layer never fights the row\'s own background');
+    ok(/html:root \[data-pressfade="out"\]::before,[\s\S]{0,120}?transform: scaleX\(1\);\s*\n\s*opacity: 0;\s*\n\s*transition: opacity var\(--duration-200\) var\(--easing-standard, ease-out\);/.test(bcss),
+      '★ D-16 (#351, rebased by 5c-ii): OUT fades the layer\'s OPACITY at --duration-200 with transform PINNED at scaleX(1) — an unpinned transform would retract-sweep under the fade, which is the reverse sweep Damir ruled out, back under a new property');
     ok((() => {
-      const gh1 = bcss.indexOf('html:root [data-pressfade="hold"][data-pressfade]:not(.c-app-item)');
-      const ga1 = bcss.indexOf('html:root [data-pressfade="hold"][data-pressfade][aria-current]');
-      const gh2 = bcss.indexOf('html:root [data-pressfade="out"][data-pressfade]:not(.c-app-item)');
-      const ga2 = bcss.indexOf('html:root [data-pressfade="out"][data-pressfade][aria-current]');
-      return gh1 >= 0 && ga1 >= 0 && gh2 >= 0 && ga2 >= 0 && gh1 < ga1 && gh2 < ga2;
+      const bare = bcss.replace(/\/\*[\s\S]*?\*\//g, '');
+      const fadeElementRules = [...bare.matchAll(/([^{}]*\[data-pressfade[^{}]*)\{([^{}]*)\}/g)]
+        .filter((m) => !/::before/.test(m[1]));
+      return fadeElementRules.every((m) => !/background/.test(m[2]));
     })(),
-      '★ D-16 r3 (Opus finding 3): the [aria-current] fade variants are EQUAL specificity to the generic pair — :not(.c-app-item) contributes a class, so both sit at (0,4,1) — and they win on SOURCE ORDER alone. This pin freezes that order: move the variants above the pair and a selected row fades to TRANSPARENT, blanking the open conversation’s row for 200ms');
-    ok(/html:root \.c-app-item\[data-pressfade="hold"\] \.c-app-item__open \{\s*transition: none/.test(bcss)
-      && /html:root \.c-app-item\[data-pressfade="out"\] \.c-app-item__open \{\s*transition: background-color var\(--duration-200\)/.test(bcss)
-      && !/\.c-app-item\[data-pressfade="hold"\],[\s\S]{0,80}?background-color: transparent/.test(bcss),
-      '★ D-16 r2 (audit B-2): .c-app-item — the attribute rides the wrapper, ONLY the __open child paints the fade, and NO rule forces the wrapper transparent — the first cut deleted the GRID card’s own neutral-02 surface for the length of the fade (a card blink on every press)');
+      '★ D-16 r2 (audit B-5) + N56 C-1, RETIRED STRUCTURALLY by 5c-ii: no [data-pressfade] rule touches the ELEMENT\'s background at all. The fade is an overlay dissolving — hover wash, pinned wash and selected tonal show through as the landing, definitionally, so the per-family landing rules (each one forgettable) cannot regress because they cannot exist');
+    ok(/html:root \[data-pressfade\]\[aria-current\]::before,[\s\S]{0,220}?surface-action-tonal-pressed/.test(bcss),
+      '★ D-16 (#351, rebased by 5c-ii): a SELECTED row\'s layer stays tonal-PRESSED through hold AND out — colour-stable while it dissolves onto the row\'s own tonal-default underneath. The seam-free landing is now structural, not a matched pair of colour rules');
+    ok(/html:root \[data-pressfade\]\[aria-current\]::before/.test(bcss)
+      && !/\[data-pressfade="out"\][^{]*\{[^}]*background-color: transparent/.test(bcss.replace(/\/\*[\s\S]*?\*\//g, '')),
+      '★ D-16 r3 (Opus finding 3), RETIRED by 5c-ii: the selected variant now wins on SPECIFICITY ((0,3,1) vs (0,2,1) on the same pseudo), not on source order — and no fade rule sets background-color:transparent anywhere, so the fade-to-transparent blank the order pin froze cannot be expressed');
+    ok(/html:root \.c-app-item\[data-pressfade="hold"\] \.c-app-item__open::before/.test(bcss)
+      && /html:root \.c-app-item\[data-pressfade="out"\] \.c-app-item__open::before/.test(bcss)
+      && !/\.c-app-item\[data-pressfade[^{]*\{[^}]*background-color: transparent/.test(bcss.replace(/\/\*[\s\S]*?\*\//g, '')),
+      '★ D-16 r2 (audit B-2, rebased by 5c-ii): .c-app-item — the attribute rides the wrapper, the __open child\'s LAYER plays the fade, and no rule touches the wrapper\'s surface — the grid card cannot blink because nothing repaints it');
     ok(/\[data-pressed\], html:root \[data-pressfade\],/.test(bcss),
       '★ D-16 (#351): the reduced-motion block covers [data-pressfade] too — the CSS belt under the JS skip');
     const tok351 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
@@ -8933,14 +9217,14 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   ok(/selectApp\(id\) \{\s*\n\s*appsState\.selectedId = id \|\| '';/.test(read('src/shells/home.html')),
     'N24: the shell handler drives selection through the MODEL (state.selectedId), like selectChat');
   const aiCss = read('src/styles/components/apps-item.css');
-  ok(/\.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);\s*\n\s*background-image: linear-gradient\(var\(--surface-action-tonal-pressed\)/.test(aiCss)
+  ok(/\.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);/.test(aiCss)
+    && !/\.c-app-item__open\[aria-current\] \{[^}]*background-image/.test(aiCss)
     && /\.c-app-item__open:hover:not\(\[aria-current\]\)/.test(aiCss),
-    'N24 ★ (loop B-MAJOR-1): aria-current lives on __OPEN with the A5 selected-family IMAGE SWAP — a wrapper stamp painted a sweep of tonal-default over tonal-default (invisible) and dragged the wrapper into base.css press variants (the grid card blink)');
+    'N24 ★ (loop B-MAJOR-1, rebased by 5c-ii): aria-current lives on __OPEN with its tonal-default paint — the selected press now rides the base.css layer variant, so the image swap is gone and a wrapper stamp still cannot reach the press variants');
   const baseCssN = read('src/styles/base.css');
-  ok(/\.c-app-item\[data-pressfade="hold"\] \.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-pressed\);/.test(baseCssN)
-    && /\.c-app-item\[data-pressfade="out"\] \.c-app-item__open\[aria-current\] \{\s*\n\s*background-color: var\(--surface-action-tonal-default\);/.test(baseCssN)
-    && /\.c-app-item\[data-pressfade="out"\] \.c-app-item__open:hover:not\(\[aria-current\]\)/.test(baseCssN),
-    'N24 (loop B-MAJOR-1): the selected app row HOLDS in tonal-pressed and LANDS on tonal-default — the chatlist/txlist fade pair, mirrored for the wrapper/child split; the hover landing excludes selected');
+  ok(/html:root \.c-app-item\[data-pressfade\] \.c-app-item__open\[aria-current\]::before/.test(baseCssN)
+    && /html:root \.c-app-item\[data-pressed="row"\] \.c-app-item__open\[aria-current\]::before/.test(baseCssN),
+    'N24 (loop B-MAJOR-1, rebased by 5c-ii): the selected app row presses AND fades in tonal-pressed on the __open LAYER — the wrapper/child split survives the rewrite, and the landing is the child\'s own tonal-default underneath');
 
   // —— N36: select mode opts out of press feedback ——
   ok(/if \(t\.closest\('\[data-selecting\]'\)\) return;/.test(read('src/components/pressable.js')),
@@ -9138,6 +9422,16 @@ console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press 
     pressRoot.innerHTML = '<div data-selecting><div class="c-bubble-row"><button class="c-button" id="np-in"></button></div></div><div class="c-chatlist-item" id="np-out"></div>';
     d.body.append(pressRoot);
     S.attachPressFeedback({ root: pressRoot });
+    /* ★ the demos now attach pressable at DOCUMENT level (5c-i r1 C MINOR-2), so a
+       fixture attach on pressRoot would DOUBLE-HANDLE every bubbled event — the
+       document instance's un-painted pressStart then hands off a stale floor and
+       collapses the fade instantly (found when these pins went red). The fixture
+       is about ONE instance: stop propagation past pressRoot. */
+    for (const tp of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+      'touchstart', 'touchmove', 'touchend', 'touchcancel']) {
+      pressRoot.addEventListener(tp, (e) => e.stopPropagation());
+    }
+
     const pe = (type, x, y) => new W.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
     const rowIn = pressRoot.querySelector('#np-in'), rowOut = pressRoot.querySelector('#np-out');
     rowIn.dispatchEvent(pe('pointerdown', 50, 50));
@@ -9145,8 +9439,9 @@ console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press 
       'N36 ★: a pointerdown on a card button inside [data-selecting] arms NO press — the selected tint is the only sanctioned visual in select mode');
     rowIn.dispatchEvent(pe('pointerup', 50, 50));
     rowOut.dispatchEvent(pe('pointerdown', 50, 50));
+    await sleep(110);
     ok(rowOut.dataset.pressed === 'row',
-      'N36: the SAME listener still presses normally outside the selecting container (the bail is scoped, not a kill-switch)');
+      'N36: the SAME listener still presses normally outside the selecting container (the bail is scoped, not a kill-switch) — read after the 5c-i paint window');
     rowOut.dispatchEvent(pe('pointerup', 50, 50));
     pressRoot.remove();
   }
@@ -9754,9 +10049,8 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     ok(/\.c-chatlist-item\[data-pinned\]:not\(\[aria-current\]\) \{ background-color: var\(--surface-pinned\); \}/.test(css),
       'N56: the pinned wash paints on the row, selected still wins (the :not() keeps the ladder: selected > pinned > hover)');
     const b = nc(read('src/styles/base.css'));
-    ok(/html:root \[data-pressfade="out"\]\[data-pinned\]:not\(\[aria-current\]\):not\(\.c-app-item\) \{\s*background-color: var\(--surface-pinned\);\s*\}/.test(b)
-      && /\[data-pressfade="out"\]\[data-pressfade\]:hover:not\(\[aria-current\]\):not\(\[data-pinned\]\):not\(\.c-app-item\)/.test(b),
-      '★ N56 (#376 loop C-1): the press-release FADE lands a pinned row on its OWN wash — the generic out rule dropped it to transparent (a ~400ms pin blink on every tap), and the hover-landing rule now keeps its hands off pinned rows (the [aria-current] pair grammar, third state)');
+    ok(!/data-pinned/.test(b),
+      '★ N56 (#376 loop C-1), RETIRED STRUCTURALLY by 5c-ii: base.css no longer mentions data-pinned at all. The press fill is an overlay ABOVE the row\'s background, so a pinned row keeps its wash under the whole press and the fade reveals it — the landing rule class (one per state-tinted family, each one forgettable) is gone with the mechanism');
     ok(/if \(pinned\) el\.dataset\.pinned = '';/.test(read('src/components/chatlist-item.js')),
       'N56 (loop C-4): the wash hook rides createChatItem itself — desktop.html (the surface the wash dial is judged on) builds rows directly and rendered NO wash without it');
     /* loop C-3: built-artifact legs for the whole CSS/cache half (the #288 partial-rebuild class) */
@@ -11016,11 +11310,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      * The existence half now lives with #497 above, read out of SSounds rather than from
      * a second copy of the list. */
     const soundsDir = readdirSync(join(root, 'Spixi/Resources/Raw/sounds'));
-    const effects = ['message_sent.mp3', 'message_received.mp3', 'tx_sent.mp3', 'tx_received.mp3'];
+    const effects = ['message_sent.mp3', 'message_received.mp3'];
     ok(effects.every((e) => soundsDir.includes(e)),
-      '★ SND → #497: the four effects are on disk at last — UI SFX `zen`, CC0. The old assertion, that they must NOT exist, guarded three batches against inventing them; Damir\'s "pick some for me to try" IS the pick, so it is inverted here in place rather than deleted, and the ruling changing stays visible');
-    ok(effects.every((e) => sounds.includes(e)),
-      'SND: the file contract is written down in SSounds so landing the assets is a drop-in');
+      '★ SND → #497 → SND-2 REVERSAL (Damir, 2026-08-23): the TWO message effects are on disk — UI SFX `zen`, CC0. This pin has now flipped twice, both times on his word: "must not exist" guarded against inventing assets, #497 inverted it on his pick, and the reversal shrank the set to two. The history stays visible in this message');
+    ok(!soundsDir.includes('tx_sent.mp3') && !soundsDir.includes('tx_received.mp3'),
+      '★ SND-2 REVERSAL: the transaction pair is GONE from disk — the csproj glob ships everything in this folder, and a dead asset that ships is a dead asset someone re-wires');
+    ok(effects.every((e) => sounds.includes(e)) && !/TxSent|TxReceived/.test(sounds),
+      'SND: the file contract in SSounds now names exactly the two message effects — the Tx constants are deleted, not orphaned beside their removal record');
   }
   {
     const nodeCs2 = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8');
@@ -11039,8 +11335,8 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/else if \(!SNotificationPrefs\.isChatMuted\(friend\)\)/.test(nodeCs2),
       '★ SND (audit MINOR): both directions are gated on the PER-CHAT mute, not the notification master — otherwise turning notifications off would leave SENDING audible while receiving went silent, which neither switch describes');
     const tic = readFileSync(join(root, 'Spixi/Meta/SpixiTransactionInclusionCallbacks.cs'), 'utf8');
-    ok(/SSounds\.transactionSent\(\)/.test(tic) && /SSounds\.transactionReceived\(\)/.test(tic),
-      'SND-2: the transaction sound is split by direction');
+    ok(!/SSounds\./.test(tic.replace(/\/\*[\s\S]*?\*\//g, '')),
+      '★ SND-2 REVERSED (Damir, 2026-08-23 — a DESIGN REVERSAL of #506, not a bug fix): SpixiTransactionInclusionCallbacks plays NO sound at all. transactionVerified fires for every historical transaction on a restored account (60,000 blocks walked = a chime each), and "sent" fired on settlement, not on send. Comment-stripped, so the removal record in the file cannot satisfy a call-site pin');
     const ticNC = tic.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     const refreshBody = ticNC.split('private void refreshTransactionPages')[1] || '';
     ok(!/SSounds\./.test(refreshBody.slice(0, 1400)),
@@ -11541,17 +11837,68 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/aspect-ratio: 1 \/ 1;/.test(readFileSync(join(root, 'src/styles/components/empty-state.css'), 'utf8')),
     '★ iOS-61 VERIFY-FIRST: the box was ALREADY reserved (width clamp + aspect-ratio), so the verdict\'s "reserve the box" half was done and the copy never moved. Half a fix for a defect that is already half fixed is how a round gets spent on nothing');
 
-  /* — iOS-59: MEASURED, not built. The fix was written and REVERTED — see #501 — */
+  /* — iOS-59 → THE WALLET SCROLL OSCILLATOR, FIXED (2026-08-24 handoff §1) — */
   {
     const homeSh = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
     const homeBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
-    ok(!/ensureSlack/.test(wsJs) && !/c-wallet-scroll-slack/.test(wsJs),
-      "★ iOS-59 (#501, AUDIT MAJOR): the slack-spacer fix is GONE. It assumed the hero lives INSIDE the scroller, so that collapsing it shrinks scrollHeight — but #wallet-hero and #wallet-scroll are SIBLINGS and the scroller is flex:1, so collapsing ENLARGES the viewport by the same amount. Opposite sign: the reserve was paid twice and could drive the very oscillation the row is about");
+    ok(/measureHero/.test(wsJs) && /c-wallet-reserve/.test(wsJs) && !/ensureSlack/.test(wsJs),
+      "★ iOS-59 → #501 → FIXED (reshaped by #46 r1): the reserve is BACK with the sign understood — the hero is a SIBLING, a collapse GROWS the viewport and DROPS the max scroll offset — and the reserve is MEASURED from the element, never a constant");
+    ok(/reserveTarget = Math\.max\(0, Math\.min\(m\.delta, top - maxPre \+ m\.delta\)\);/.test(wsJs),
+      '★ oscillator r1 MAJOR-4 (DEFICIT-SIZED): the reserve target is clamp(0, top − maxPre + delta, delta) — exactly what the clamp would consume. A full-delta reserve held the maximum INVARIANT, which meant every compact list ended in ~a hero of blank; the deficit reserves ZERO on a long list and only the clamp depth on a short one');
+    ok(/const maxPre = Math\.max\(0, scrollEl\.scrollHeight - scrollEl\.clientHeight\);[\s\S]{0,2400}?applyReserve\(heroRO \? trackedReserve\(\) : reserveTarget\);[\s\S]{0,900}?setWalletHeroCompact\(hero, true\)/.test(wsJs),
+      '★ oscillator: maxPre and top are read BEFORE the flip, the reserve is applied BEFORE the flip, and with a hero RO it starts at ZERO and tracks the shrink (r1 MAJOR-1: landing the full reserve at t=0 opened a 300ms scroll BULGE a fling walked into)');
+    ok(/heroRO = new ResizeObserver\(\(\) => \{[\s\S]{0,500}?if \(!collapsed \|\| heroExpandedRest <= 0\) return;\s*\n\s*applyReserve\(trackedReserve\(\)\);/.test(wsJs)
+      && /Math\.min\(reserveTarget, Math\.max\(0, heroExpandedRest - hero\.offsetHeight\)\)/.test(wsJs),
+      '★ oscillator r1 MAJOR-1 (TRACKED): the hero RO feeds the reserve min(target, expandedRest − liveHeight) frame by frame — RO callbacks run after layout and before paint, so the maximum is right in every painted frame; no-RO engines fall back to the instant deficit');
+    ok(/const stable = \(S === lastS && V === lastV\);/.test(wsJs)
+      && /if \(!stable\) \{[\s\S]{0,700}?releaseIfMoot\(\);\s*\n\s*return;/.test(wsJs),
+      '★ oscillator fix (b) THE LATCH: a scroll event in which the geometry moved is a LAYOUT consequence, never a finger — it can neither collapse nor expand. The old `top <= 1 → expand` read the clamp as "the user is at the top", and that is the whole loop');
+    ok(/if \(top > 0\) down \+= d; else down = 0;/.test(wsJs),
+      '★ oscillator fix: an overscroll rubber-band settling back to the top (iOS reports negative scrollTop) is a spring, not a finger — counting it would re-collapse the hero the instant an at-top expand let go (driven with real negative scrollTop in the behavioural block)');
+    ok(/collapseAfter = \d+/.test(wsJs) && !/collapseAt = 120/.test(wsJs),
+      '★ Damir\'s dial ("it should minimise the hero ANY TIME you scroll down, so it\'s always the same effect"): the collapse trigger is an accumulated DOWNWARD GESTURE, not an absolute 120px offset a 5-transaction account can never reach. Pinned by NAME (the value is bracketed behaviourally at 6-no/13-yes), and the rejected alternative is recorded in the docblock');
+    ok(/const releaseIfMoot = \(\) => \{[\s\S]{0,240}?clientHeight > 1\) return;\s*\n\s*const wait = 400 - \(performance\.now\(\) - lastFlipAt\);\s*\n\s*if \(wait > 0\) \{\s*\n\s*clearTimeout\(valveRetry\);\s*\n\s*valveRetry = setTimeout\(releaseIfMoot, wait \+ 16\);\s*\n\s*return;\s*\n\s*\}\s*\n\s*expand\(\);/.test(wsJs.replace(/\/\*[\s\S]*?\*\//g, '')),
+      '★ the safety valve, REST-GUARDED (r1) + SELF-RE-CHECKING (r2 W-MINOR-5): a refusal schedules its own retry at guard expiry — a zero-range state may never fire another event (search keystroke right after a collapse), and a valve that only listens can be starved. detach clears the retry');
+    ok(/if \(collapsed\) \{\s*\n\s*if \(\(scrollEl\.scrollTop \|\| 0\) <= 1\) \{\s*\n\s*expand\(\);/.test(wsJs),
+      '★ oscillator r1 MAJOR-2: attach onto a compact hero AT THE TOP expands it — a compact hero at scrollTop 0 has no gesture that can ever free it (a fitting list fires no scroll events) and its balance/actions are inert; the tab round-trip is the production path');
+    ok(/\} else if \(top <= 1\) \{[\s\S]{0,400}?expand\(\);/.test(wsJs),
+      '★ oscillator r1 MAJOR-2(b): a stable ZERO-delta event at the top also releases — the demo\'s programmatic top-restore dispatches exactly that, and a stable d===0 event is never a clamp (a clamp changes geometry in the same event)');
+    ok(/const collapse = \(\) => \{\s*\n\s*if \(collapsed\) return;/.test(wsJs)
+      && /const expand = \(\) => \{\s*\n\s*if \(!collapsed\) return;/.test(wsJs),
+      '★ oscillator r1: the re-entrancy guards are pinned — without them every stable downward event past threshold re-runs the measurement (a forced double reflow + attribute thrash per scroll event)');
+    ok(/if \(!force && cachedMeasure && \(performance\.now\(\) - lastFlipAt\) < 400\) return cachedMeasure;/.test(wsJs)
+      && /\} finally \{\s*\n\s*if \(wasCompact\) hero\.dataset\.compact = ''; else delete hero\.dataset\.compact;/.test(wsJs),
+      '★ oscillator r1 MINOR-6/-8: the measurement is CACHED for 400ms around a flip (a fast up-down flick would otherwise measure mid-transition, and [data-measuring] cancels whatever is animating — a visible snap), and the attribute restore lives in `finally` so a throw cannot strand a hero/latch desync');
+    ok(/lastFlipAt = performance\.now\(\);\s*\n\s*down = 0; up = 0;\s*\n\s*if \(hero\) setWalletHeroCompact\(hero, false\);[\s\S]{0,300}?applyReserve\(0\);\s*\n\s*reserveTarget = 0;/.test(wsJs.replace(/\/\*[\s\S]*?\*\//g, '')),
+      '★ oscillator: expand RELEASES the reserve, zeroes the target AND resets the gesture accumulators (r2 W-MINOR-3: four of the five expand paths are not gestures, and a surviving `down` let ONE pixel of scroll re-collapse the hero past the dial)');
+    {
+      const wsNC = wsJs.replace(/\/\*[\s\S]*?\*\//g, '');
+      const iMax = wsNC.indexOf('const maxPre = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);');
+      const iTop = wsNC.indexOf('const top = Math.max(0, scrollEl.scrollTop);');
+      const iFloor = wsNC.indexOf('applyReserve((cachedMeasure && cachedMeasure.delta) || scrollEl.clientHeight || 300);');
+      const iMeasure = wsNC.indexOf('const m = measureHero();', iMax);
+      /* r3: iTop is anchored BETWEEN iMax and iFloor — moving the top read below the
+         probe reintroduces W-MAJOR-1 exactly (position read after the probe destroyed
+         it), and the mutation stayed green against the r2 pin, which anchored maxPre
+         only while its message claimed both. */
+      ok(iMax >= 0 && iTop > iMax && iFloor > iTop && iMeasure > iFloor,
+        '★ r2 W-MAJOR-1: inside collapse(), maxPre/top are read FIRST, the probe FLOOR lands SECOND, and only then does the measurement run — the probe forces one real compact-hero layout, and with no reserve under it Blink clamps scrollTop during the probe itself: the fix re-created the defect and read the user\'s position after destroying it. Order is the whole fix, so order is what this pins');
+      ok(/if \(collapsed && heroExpandedRest === 0 && \(performance\.now\(\) - lastFlipAt\) >= 400\)/.test(wsNC),
+        '★ r2 W-MAJOR-2: the belt re-apply keys on heroExpandedRest === 0 (the measured-while-hidden SENTINEL), never on reservePx() === 0 — the deficit made a zero reserve a LEGITIMATE resting value on every long list, and a belt reading zero as "never applied" slammed the full delta back on the first re-render after a collapse: r1 MAJOR-4 restored by its own fix');
+      ok(/if \(!collapsed \|\| heroExpandedRest <= 0\) return;/.test(wsNC),
+        '★ r2 W-MINOR-4: the hero RO refuses to track against a hidden measurement — its INITIAL observation otherwise computed min(target, 0) and wiped a reserve the attach path deliberately kept');
+    }
+    ok(/\[data-measuring\],\s*\n\.c-wallet-hero\[data-measuring\] \* \{ transition: none !important; \}/.test(readFileSync(join(root, 'src/styles/components/wallet-hero.css'), 'utf8')),
+      '★ the measurement is honest: [data-measuring] suppresses transitions on the hero AND its children (the collapse transition lives on the __balance/__actions children) while both rest heights are read in one synchronous pass — measured mid-animation, the delta would be the smear');
+    ok(/\.c-wallet-reserve \{\s*\n\s*flex: none;\s*\n\s*height: 0;/.test(readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8')),
+      '★ the reserve has NO transition, ever — it must land in the same frame as the collapse or the invariant breaks (the CSS comment says so beside the rule)');
     ok(/function walletGeomText\(\)/.test(homeSh),
-      '★ iOS-59: the MEASUREMENT ships instead — the #304/#401 on-screen-probe precedent. #294 is law: never build past a missing repro, and a fix built on the wrong DOM is worse than none');
+      '★ iOS-59: the MEASUREMENT probe STAYS — the #304/#401 on-screen-probe precedent, now printing `pad` too, so a device round can check the invariant directly (after a collapse, range must NOT have dropped)');
+    ok(/pad=' \+ \(pad \? \(pad\.offsetHeight \| 0\) : '-'\)/.test(homeSh),
+      '★ iOS-59: the probe prints the LIVE reserve height beside range/top/hero — the invariant is checkable on device, not assumed');
     ok(/range=' \+ \(S - V\)/.test(homeSh) && /hero=' \+ \(he\.offsetHeight \| 0\)/.test(homeSh)
       && /rows=' \+ rows/.test(homeSh) && /cmp=' \+ \(he\.querySelector\('\.c-wallet-hero\[data-compact\]'\) \? 1 : 0\)/.test(homeSh),
-      '★ iOS-59: the probe prints the four numbers a fix actually needs — how many rows, the scroll RANGE (which must exceed collapseAt=120 or the hero can never collapse at all), the hero height, and whether it is currently compact. Nobody has ever read any of them');
+      '★ iOS-59 (message rebased r2, corrected r3): the probe prints the numbers the fix is judged by — rows, V, S, RANGE (settles at max(top, maxPre − delta) under the deficit reserve; the invariant is range ≥ top), top, hero height, pad and compact. The dev HUD samples once a second, so it reads REST states; the mid-transition frames are pinned by the RO-driven behavioural suite, not by eye');
     ok(/\+ ' \| ' \+ walletGeomText\(\);/.test(homeSh),
       '★ iOS-59 REACHABILITY: the probe is spliced into probeText(), which the dev HUD renders. A measurement nothing calls is the vacuous-pin lesson wearing a different hat');
     ok(/function walletGeomText\(\)/.test(homeBuilt),
@@ -11674,8 +12021,8 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
    * own copy of the list would stay green after a rename on either side — the "one id
    * source" rule from #495, applied to assets. */
   const declared = [...sndCs.matchAll(/public const string \w+ = "sounds\/([\w.]+)";/g)].map((m) => m[1]);
-  ok(declared.length === 4,
-    '#497: SSounds still declares exactly the four effects the block specified — sent/received for a message, sent/received for a payment');
+  ok(declared.length === 2,
+    '#497 (rebased by the SND-2 reversal): SSounds declares exactly the TWO message effects — the payment pair left with Damir\'s 2026-08-23 call, and this count is what stops it drifting back in unrecorded');
   for (const f of declared) {
     let size = 0;
     try { size = readFileSyncRaw(join(soundsDir, f)).length; } catch { size = 0; }
@@ -11685,11 +12032,73 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   /* ⚠ AUDIT MINOR: the first conjunct was `/SSounds\.play\(/`, which occurs in this file
    * exactly ONCE — inside `Logging.warn("SSounds.play(" + …)`. It was testing a warning
    * message. The gate itself is what matters, and it must sit before the platform call. */
-  ok(/if \(!SNotificationPrefs\.inAppSounds\)\s*\n\s*\{\s*\n\s*return;\s*\n\s*\}\s*\n\s*Spixi\.SPlatformUtils\.playEffect\(assetPath\);/.test(sndCs),
-    '★ #497: the In-app sounds switch gates every effect, and the gate is BEFORE the platform call. Landing audible assets must not make the switch decorative');
+  ok((() => {
+    const nc497 = sndCs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const gate = nc497.indexOf('if (!SNotificationPrefs.inAppSounds)');
+    const log = nc497.indexOf('Logging.info("SND play: " + assetPath);');
+    const play = nc497.indexOf('Spixi.SPlatformUtils.playEffect(assetPath);');
+    return gate >= 0 && log > gate && play > log;
+  })(),
+    '★ #497 + the sound BELT (handoff §3, owed since 2026-08-22): gate → log → play, in that order. The switch still gates every effect (a muted app logs nothing), and every effect that will actually play NAMES ITSELF in the log first — if anything still chimes after the SND-2 removal, the log identifies it in one round');
+  {
+    const nodeBelt = readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(/Logging\.info\("SND-1 message-sent sound: type=" \+ type\);\s*\n\s*SSounds\.messageSent\(\);/.test(nodeBelt)
+      && /Logging\.info\("SND-1 message-received sound: type=" \+ type\);\s*\n\s*SSounds\.messageReceived\(\);/.test(nodeBelt),
+      '★ the sound BELT at the trigger: both Node.cs call sites log WHY they fired (the message type — an enum, no address, no PII) immediately before the effect, at info level (the shipped logVerbosity DROPS trace, Ixian-Core Logging.cs:191)');
+    ok(!/SND-2 plays when/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+      'SND-2 reversal: the Node.cs comment no longer claims a transaction chime owns the funds types — the exclusions stay, meaning "funds events play no in-app effect" (the notification lane is separate and says so, r1 D MINOR-4)');
+  }
+  {
+    /* ★ #46 r1 (auditor D MAJOR-2): the removal pins defended a token and two
+       filenames — three of five re-introduction mutations stayed green. These are
+       the property pins: ONE audio verb with ONE caller, and no transaction asset
+       anywhere the csproj glob can see. */
+    const walkCs = (dir, out = []) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const q = join(dir, e.name);
+        if (e.isDirectory()) walkCs(q, out);
+        else if (e.name.endsWith('.cs')) out.push(q);
+      }
+      return out;
+    };
+    const csAll = walkCs(join(root, 'Spixi'));
+    const stripCsAll = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    let playEffectCallers = [];
+    let ssoundsCallers = [];
+    for (const f of csAll) {
+      const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+      const txt = stripCsAll(readFileSync(f, 'utf8'));
+      if (!/\/SPlatformUtils\.cs$/.test(rel) && /SPlatformUtils\.playEffect\(/.test(txt)) playEffectCallers.push(rel);
+      if (!/SSounds\.cs$/.test(rel) && /SSounds\./.test(txt)) ssoundsCallers.push(rel);
+    }
+    ok(playEffectCallers.length === 1 && playEffectCallers[0] === 'Spixi/Meta/SSounds.cs',
+      '★ r1 D MAJOR-2: SPlatformUtils.playEffect has EXACTLY ONE caller — SSounds.play. A chime re-added anywhere via a direct playEffect (the most natural regression, and it stayed green before this pin) now fails here, whatever the asset is called' + (playEffectCallers.length !== 1 ? ' — found: ' + playEffectCallers.join(', ') : ''));
+    ok(ssoundsCallers.length === 1 && ssoundsCallers[0] === 'Spixi/Meta/Node.cs',
+      '★ r1 D MAJOR-2: SSounds is called from EXACTLY ONE file — Node.cs (the two message effects). A new SSounds helper wired from anywhere else fails here' + (ssoundsCallers.length !== 1 ? ' — found: ' + ssoundsCallers.join(', ') : ''));
+    const walkRaw = (dir, out = []) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const q = join(dir, e.name);
+        if (e.isDirectory()) walkRaw(q, out);
+        else out.push(q);
+      }
+      return out;
+    };
+    const rawAll = walkRaw(join(root, 'Spixi/Resources/Raw')).map((f) => f.slice(root.length + 1).replace(/\\/g, '/'));
+    ok(!rawAll.some((f) => /tx_(sent|received)\.(mp3|wav|ogg)$/i.test(f)),
+      '★ r1 D MAJOR-2: no transaction sound asset ANYWHERE under Resources/Raw — the csproj glob is `Resources\\Raw\\**`, so a file restored one directory up still ships, and the old pin read only the sounds/ folder');
+    /* the belt EXTENSION (r1 D MAJOR-1): the promise "the log names any chime in
+       one round" needs every audio source covered — not two of six. */
+    const voip = stripCsAll(readFileSync(join(root, 'Spixi/VoIP/VoIPManager.cs'), 'utf8'));
+    for (const tone of ['dialing', 'ringing', 'busy', 'error']) {
+      ok(new RegExp('Logging\\.info\\("SND call-tone: ' + tone + '"\\);').test(voip),
+        '★ r1 D MAJOR-1: the ' + tone + ' call-tone trigger logs itself — the platform helpers log only exceptions, so a stale tone (the remaining candidate class for "random sounds on an idle app") was undiagnosable');
+    }
+    ok(/Logging\.info\("SND notif attempt: " \+ \(isCallNotif \? "call" : "message"\) \+ " alert=" \+ alert\);/.test(stripCsAll(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8'))),
+      '★ r1 D MAJOR-1 → r2 P-MINOR-4: the in-app notification lane logs its ATTEMPTS (the line precedes the call and consults no outcome — the word matters). The BACKGROUND push lanes log under [NOTIFDIAG]; the SSounds docblock tells a triager to grep both prefixes. Kind + alert flag only; no address');
+  }
   {
     const doc = readFileSync(join(root, 'docs/sound-placeholders.md'), 'utf8');
-    ok(/CC0 1\.0/.test(doc) && /keeping the same four names/.test(doc) && /uisfx/i.test(doc),
+    ok(/CC0 1\.0/.test(doc) && /keeping the same two names/.test(doc) && /keeping the same four names/.test(doc) && /uisfx/i.test(doc),
       '★ #497: the sounds are documented with their SOURCE, their LICENCE and the replace-in-place contract. Shipped audio whose provenance is not written down is audio nobody can defend later — and CC0 is the fact that makes it shippable');
     ok(/not a dependency of this app|is not a dependency/.test(doc),
       '★ #497: the doc states outright that `uisfx` is NOT a dependency — four files were copied out, nothing is imported or bundled, and no new licence obligation follows the package');

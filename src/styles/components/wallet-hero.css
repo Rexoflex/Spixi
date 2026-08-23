@@ -52,6 +52,14 @@
 .c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
 .c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
 
+/* Measurement probe (wallet scroll reserve, handoff 2026-08-24 §1): attachWalletScroll
+   toggles [data-compact] under this attribute to read BOTH rest heights in one
+   synchronous pass. Transitions must not smear the toggle or the numbers are the
+   mid-animation ones. The `*` leg matters: the collapse transition lives on the
+   __balance/__actions children, not on the hero itself. */
+.c-wallet-hero[data-measuring],
+.c-wallet-hero[data-measuring] * { transition: none !important; }
+
 .c-wallet-hero__balance { padding-inline: var(--spacing-16); }
 .c-wallet-hero__label {
   color: var(--text-on-hero-muted);

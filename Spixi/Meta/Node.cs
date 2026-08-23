@@ -1010,6 +1010,17 @@ namespace SPIXI.Meta
                                      * poster and 3.14's canceller cannot drift apart. */
                                     bool isCallNotif = type == FriendMessageType.voiceCall;
                                     int notifId = SNotificationPrefs.notificationIdFor(friend.walletAddress, isCallNotif);
+                                    // ★ the sound BELT (#518, extended by #46 r1 auditor D): the
+                                    // notification lane is an audio source too (the channel carries
+                                    // the system sound), and it logged nothing on success — so a
+                                    // "random sound on an idle app" report could not tell a channel
+                                    // sound from an in-app effect. Kind + alert only; no address.
+                                    // r2 P-MINOR-4: "attempt", not "posted" — this line precedes the
+                                    // call and consults neither its outcome nor the channel state.
+                                    // ⚠ The BACKGROUND push lanes (SPushService.postOurPushRow and
+                                    // the SDK's own row) log under [NOTIFDIAG], not SND — a triage
+                                    // of an idle-app sound greps BOTH prefixes.
+                                    Logging.info("SND notif attempt: " + (isCallNotif ? "call" : "message") + " alert=" + alert);
                                     SPushService.showLocalNotification(notifId, "Spixi", notifText, friend.walletAddress.ToString(), alert, unreadCount, isCallNotif ? "call" : "message", chatUnread);
                                     SPushService.clearRemoteNotifications(unreadCount);
                                 }
@@ -1047,9 +1058,16 @@ namespace SPIXI.Meta
                     //     would have sounded like something you sent.
                     // So the sound answers the same questions the notification does.
                     //
-                    // The FUNDS types are excluded separately: SND-2 plays when the
-                    // transaction is actually VERIFIED, so a payment chimes once, when it
-                    // settles, rather than twice with the first chime before the money moved.
+                    // The FUNDS types are excluded separately. ⚠ 2026-08-23: SND-2 is
+                    // REMOVED (Damir's design reversal — a restored account's chain
+                    // walk chimed for every historical transaction), so these
+                    // exclusions now mean "funds events play NO IN-APP EFFECT" — not
+                    // "another chime owns them". They stay: a funds message must not
+                    // start making message sounds because the transaction sound died.
+                    // ⚠ Scope honesty (#46 r1 D MINOR-4): the NOTIFICATION lane above
+                    // has no funds exclusion — a funds message arriving backgrounded
+                    // still posts a notification whose channel carries the system
+                    // sound. Inherited, unchanged, and not what #518 removed.
                     /* ⚠ AUDIT MINOR: also gate on `alert` and on the SAME visibility test the
                      * notification uses. Without them, once the assets land a backgrounded
                      * message would fire the notification (channel sound + vibrate) AND an
@@ -1072,7 +1090,8 @@ namespace SPIXI.Meta
                         && !friend_message.id.SequenceEqual(new byte[] { 5 });
                     if (!soundable)
                     {
-                        // nothing — this event is silent by design, or SND-2 owns it
+                        // nothing — this event plays no in-app effect by design
+                        // (SND-2 is removed; the notification lane is separate)
                     }
                     else if (local_sender)
                     {
@@ -1083,11 +1102,16 @@ namespace SPIXI.Meta
                         // neither switch describes.
                         if (!SNotificationPrefs.isChatMuted(friend))
                         {
+                            // ★ sound belt (handoff §3): the trigger names its context.
+                            // SSounds.play logs the asset; this line logs WHY it fired.
+                            Logging.info("SND-1 message-sent sound: type=" + type);
                             SSounds.messageSent();
                         }
                     }
                     else if (!SNotificationPrefs.isChatMuted(friend))
                     {
+                        // ★ sound belt (handoff §3): the receive leg names its context too.
+                        Logging.info("SND-1 message-received sound: type=" + type);
                         SSounds.messageReceived();
                     }
                 }

@@ -246,5 +246,12 @@
   /* —— live balance tick demo —— */
   setTimeout(() => setWalletBalance(hero, { balance: '923,877.00', fiat: '$1,845.67' }), 4000);
 </script>
+<script>
+/* 5c-i/ii (#46 r1, auditor C MINOR-2): the :active fill mirrors are GONE from the
+   row components, so demo rows need the same one-line attach the production
+   shells use — without it every demo row is press-dead, and the demos are the
+   review surface. */
+window.Spixi.attachPressFeedback();
+</script>
 </body>
 </html>

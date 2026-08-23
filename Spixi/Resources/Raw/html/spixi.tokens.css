@@ -498,6 +498,21 @@
   --surface-interactive-hover: var(--neutral-50);
   --surface-interactive-pressed: var(--neutral-100);
   --surface-interactive-selected: var(--primary-50);
+  /* ★ 5c-iii (Damir, 2026-08-23): the row PRESS FILL is neutral, "one level above
+     the idle row colour token". ★ #46 r1 (auditor C MAJOR-1) reshaped the
+     resolution: a RAMP-STEP token (neutral-50) is one level above the SCREEN only
+     — and it is byte-identical to --surface-card/--surface-neutral-02, so on every
+     card-hosted row family (Settings hub, Downloads, contacts picker, apps grid)
+     the press composited 1.000:1: literally invisible, on touch, on the exact
+     surfaces Damir tests. "One level above the IDLE ROW colour" must hold on
+     every ground, so the token is an ALPHA WASH (the --surface-pinned precedent):
+     ink = grey-1000 #0d1118 at 5%. MEASURED composites: 1.108:1 on the screen
+     (vs 1.095 for the literal ramp step — same perceptual level), 1.107:1 on the
+     card (was 1.000). The hover wash on the screen is still the same family;
+     under a fine pointer the press steps to -hover (10%) so it stays visible
+     over any hover wash. */
+  --surface-press-row: rgba(13, 17, 24, 0.05);
+  --surface-press-row-hover: rgba(13, 17, 24, 0.10);
   /* N56: pinned-row wash (the #236 marker dial, given 2026-08-17). An alpha wash
      like the wash-on-hero primitives — relative to whatever surface it sits on,
      brand-tinted so it never reads as a stuck hover. Precedence ladder:
@@ -697,6 +712,16 @@
   --surface-interactive-hover: var(--neutral-800);
   --surface-interactive-pressed: var(--neutral-700);
   --surface-interactive-selected: var(--primary-900);
+  /* ★ 5c-iii dark (#46 r1 C MAJOR-1 — see the light block for the reshaping):
+     an ALPHA WASH, ink = grey-50 #edf0f2 at 5%, a LIGHT lift (the N56 dark
+     lesson: a darken vanishes on a near-black ground). MEASURED composites:
+     1.119:1 on the ink-900 screen (vs 1.081 for the literal ink-800 step, which
+     sat in the I-8 near-invisible class), 1.135:1 on the ink-800 card (was
+     1.000), 1.109:1 on the desktop grey-1000 chat ground. One perceptual level
+     on EVERY dark ground; the 10% -hover twin is the fine-pointer step. If the
+     Galaxy still reads it as invisible, the dial is the alpha — one number. */
+  --surface-press-row: rgba(237, 240, 242, 0.05);
+  --surface-press-row-hover: rgba(237, 240, 242, 0.10);
   /* N56 dark: a LIGHT lift, not a brand darken — brand-900 (#0d1324) sits darker
      than the neutral-900 screen, so an ink wash would vanish (the #194 lesson:
      primary-900 was "invisible" as a dark row tint). brand-50 ink at 6% clears

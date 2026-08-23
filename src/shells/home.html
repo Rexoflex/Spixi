@@ -581,25 +581,32 @@
       + ' | ' + walletGeomText();
   }
 
-  /* ★★ iOS-59 (#501) — MEASURE, DO NOT BUILD. The #304/#401 on-screen-probe precedent.
+  /* ★★ iOS-59 (#501 measured → FIXED in the 2026-08-24 batch) — the probe STAYS.
    *
    * Damir on device: "the wallet activity list must ALWAYS be allowed to minimize the
    * hero. With few transactions a hard swipe juggles the whole screen and snaps back."
    *
-   * ⚠ A fix WAS written for this and was REVERTED before it shipped, because the audit
-   * found it was reasoning about the wrong DOM. It assumed the hero lives INSIDE the
-   * scroller, so that collapsing it shrinks `scrollHeight`. It does not: `#wallet-hero`
-   * (:305) and `#wallet-scroll` (:311) are SIBLINGS, both flex children of
-   * `#wallet-view`, and the scroller is `flex: 1` (:104). Collapsing the hero therefore
-   * ENLARGES the scroller's viewport by the same amount — the opposite sign — so a
-   * spacer sized from that model pays the reserve twice and can drive the very
-   * oscillation the row is about. That is #294 exactly: never build past a missing repro.
+   * History, kept on purpose: a first fix was REVERTED for reasoning about the wrong
+   * DOM (#501). `#wallet-hero` (:305) and `#wallet-scroll` (:311) are SIBLINGS, both
+   * flex children of `#wallet-view`, and the scroller is `flex: 1` (:104) — so a
+   * collapse ENLARGES the scroller's viewport, DROPS the maximum scroll offset,
+   * clamps `scrollTop` to 0, and the old `top <= 1 → expand` read that clamp as
+   * "the user is at the top". That loop is the oscillator Damir felt as flicker.
    *
-   * So this batch ships the measurement instead. With few rows the numbers below say
-   * outright whether the hero CAN collapse (`range` must exceed the 120 px `collapseAt`)
-   * and by how much the viewport moves when it does — which is the one thing a fix needs
-   * and nobody has ever read.
+   * The shipped fix lives in wallet-shell.js `attachWalletScroll`: a MEASURED,
+   * DEFICIT-SIZED reserve spacer (#46 r1/r2 — clamp(0, top − maxPre + delta): only
+   * what the clamp would consume, tracked to the hero's shrink frame by frame) and
+   * a geometry-change LATCH (an event in which scrollHeight/clientHeight moved is
+   * a layout consequence, never a finger — it can no longer expand the hero).
    *
+   * The probe stays, and now also prints `pad` (the live reserve height). The
+   * acceptance arithmetic for a device round (r2 W-MINOR-6, corrected r3 — each
+   * earlier form would fail a correct build): after a collapse settles,
+   *   range == max(top_at_collapse, maxPre − delta)
+   *     (== top only when the list is short or the user was near the bottom;
+   *      a long list settles at maxPre − delta, still above top)
+   *   pad   == 0 on a long list · == top − maxPre + delta on a short one
+   * and the INVARIANT is: `range` never dips below `top` in any sample.
    * Read-only, dev-mode only, and it allocates nothing: it measures elements that are
    * already laid out, on the HUD's existing once-a-second render. */
   function walletGeomText() {
@@ -610,12 +617,14 @@
       const V = sc.clientHeight | 0;
       const S = sc.scrollHeight | 0;
       const rows = sc.querySelectorAll('.c-txlist-item').length;
+      const pad = sc.querySelector('.c-wallet-reserve');
       return 'WALLET rows=' + rows
         + ' V=' + V
         + ' S=' + S
-        + ' range=' + (S - V)          // must exceed collapseAt (120) or it cannot collapse
+        + ' range=' + (S - V)          // settles at max(top, maxPre − delta) — see the r3 arithmetic above
         + ' top=' + (sc.scrollTop | 0)
         + ' hero=' + (he.offsetHeight | 0)
+        + ' pad=' + (pad ? (pad.offsetHeight | 0) : '-')
         + ' cmp=' + (he.querySelector('.c-wallet-hero[data-compact]') ? 1 : 0);
     } catch (e) {
       return 'WALLET err';

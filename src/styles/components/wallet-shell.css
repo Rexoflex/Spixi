@@ -31,6 +31,19 @@
   pointer-events: none;                       /* fallback for pre-inert WebViews (#4/#113) */
 }
 
+/* —— the collapse reserve (wallet scroll oscillator, handoff 2026-08-24 §1 →
+   #46 r1/r2) —— Sits LAST in the scroller. attachWalletScroll drives its inline
+   height: DEFICIT-SIZED (clamp(0, top − maxPre + delta) — only what the clamp
+   would consume; a long list reserves ZERO) and TRACKED to the hero's shrink via
+   a ResizeObserver, so the maximum scroll offset never drops below the user's
+   position in any painted frame (the drop is what clamped scrollTop and drove
+   the oscillation). ⚠ NO CSS transition here, ever: the tracking IS the timing,
+   and a competing transition would desynchronise it from the hero. */
+.c-wallet-reserve {
+  flex: none;
+  height: 0;
+}
+
 /* —— filters row: chips + the #98 "Missing a transaction?" pill at the row end —— */
 .c-wallet-filters {
   display: flex;

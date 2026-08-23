@@ -23,15 +23,23 @@
  * abrupt with delay"). On Android WebView, pointer events are SYNTHESISED from touch
  * events, and the synthesis waits on gesture disambiguation — so `pointerdown` can
  * arrive tens of milliseconds after the finger lands. `touchstart` fires on contact.
- * Both are bound. The second one to arrive re-runs onDown on the same element, which
- * is harmless — but if the gesture has ALREADY been cancelled by then it must not
- * re-arm it. The `cancelled` latch below is what makes that true (#346); the original
- * comment here claimed it was a no-op, and it was not.
+ * Both are bound. Two mechanisms keep the second arrival honest: the `cancelled`
+ * latch (#346) stops it re-arming a gesture that already became a scroll, and the
+ * 5c-i same-element guard stops a synthesised POINTER second-stream restarting the
+ * paint window (a touch second-stream falls through and re-arms, which also keeps
+ * the gesture's touch identity true on a pointer-first engine — #46 r1).
  *
  * ★ THE PART THAT MAKES IT FEEL NATIVE, NOT BROKEN: a press is CANCELLED as soon as
  * the finger moves past PRESS_MOVE_CANCEL_PX, or the pointer leaves, or a scroll starts.
  * Without that rule a flick down a chat list leaves a trail of highlighted rows —
  * which is worse than no feedback at all. Native list rows behave exactly this way.
+ *
+ * ★ 5c-i (2026-08-24): ROWS additionally wait PRESS_PAINT_DELAY_MS before PAINTING.
+ * The cancel rule alone was not enough — the tint painted at contact, and the 10px
+ * of travel that triggers the cancel takes long enough that the user saw the tint
+ * first (Damir: "rows highlight on tap to scroll"). A scroll now cancels an
+ * UNPAINTED press; a committed tap quicker than the delay paints at release and
+ * plays its full fill in the afterlife. See the constant's comment for the dial.
  *
  * ★ D-16 (#351, Damir on the A52 + the Windows recording): a committed ROW press
  * COMPLETES its fill, then FADES — release timing must never truncate the sweep.
@@ -50,13 +58,19 @@
  * fade to today's instant flat tint with no extra branch.
  * CONTROLS ARE UNTOUCHED: instant tint + scale, instant release — button grammar.
  * KNOWN EXCEPTION (audit A-4, pre-existing): PRESS_SAFETY_MS clears a hold at
- * 1.2 s, so a longer hold loses its tint mid-hold and earns no fade. The timer
- * exists for end events that never arrive; accepted, logged in DECISIONS #351.
+ * 1.2 s from ARM (so ~1.13 s of visible tint under the 5c-i delay) — a longer
+ * hold loses its tint mid-hold and earns no fade. The timer exists for end
+ * events that never arrive; accepted, logged in DECISIONS #351.
  *
  * attachPressFeedback({ root, rows, controls }) → detach()
  *   Call ONCE per shell. Idempotent per root. Order does not matter — the listeners
  *   are delegated on the document, so calling before the first render is correct and
  *   is what all four shells do.
+ *   ⚠ ONE instance per event path: two attaches on NESTED roots both receive the
+ *   same bubbled events and the outer instance's un-painted pressStart then hands
+ *   off a collapsed floor (found by the r2 smoke fixtures, which stopPropagation
+ *   around their private roots for exactly this reason). Production attaches at
+ *   document level only.
  *   New shell? One line: attachPressFeedback().
  */
 
@@ -94,6 +108,25 @@ export const PRESSABLE_CONTROL = [
 ].join(',');
 
 const PRESS_MOVE_CANCEL_PX = 10;      // finger travel that turns a press into a scroll
+/* ★ 5c-i (Damir on the Galaxy: "rows highlight on tap to scroll, should highlight
+ * only when tapped to open"). The threshold above was never the problem — 10px is
+ * tight — the problem was ORDERING: the tint painted at contact, and 10px of finger
+ * travel takes long enough that the user SAW the tint before the cancel fired. On a
+ * flick that leaves a trail. ROWS therefore wait this long before PAINTING; a
+ * cancel inside the window means the row never lights at all. A tap that ENDS
+ * inside the window paints at release and plays its full fill in the afterlife
+ * (D-16 already guarantees the sweep completes), so no committed tap loses its
+ * feedback. CONTROLS still paint at contact — button grammar, untouched.
+ * ⚠ The value is a DIAL and trades directly against this module's reason to exist
+ * ("a row that stays inert for 300ms reads as broken") — it must stay well under
+ * ~100ms perception. 70ms is the shipped start (Android's own delayed-pressed is
+ * ~100ms; iOS delaysContentTouches ~150ms — both read as native, and we sit
+ * under both); Damir's device round is the measurement that settles it.
+ * ⚠ r2 P-NIT-6: on a pointer-FIRST engine the same gesture's touchstart re-arms
+ * once (by design — it restores the touch identity), restarting the window: the
+ * real ceiling is the delay plus one inter-event gap (~0–1ms on Chromium, both
+ * events dispatch in one task). Bounded to ONE re-arm per gesture. */
+const PRESS_PAINT_DELAY_MS = 70;
 const PRESS_SAFETY_MS = 1200;         // a pointerup we never saw must not strand a highlight
 const FILL_FALLBACK_MS = 300;         // = --duration-300, when the token is unreadable
 const FADE_FALLBACK_MS = 200;         // = --duration-200, when the token is unreadable
@@ -132,6 +165,11 @@ export function attachPressFeedback({
 
   const selector = rows + ',' + controls;
   let el = null, startX = 0, startY = 0, safety = 0;
+  /* 5c-i: the pending row paint. `pendingKind` is decided at arm; `paintTimer`
+     holds the delayed row paint; a cancel clears it and the row never lights. */
+  let paintTimer = 0;
+  let pendingKind = '';
+  let armAt = 0;                        // when the current gesture armed (5c-i re-arm guard)
   /* D-16: when the press was armed, so the release knows how much fill is owed.
      performance.now() — monotonic (audit A-2: a wall-clock step backwards between
      press and release would hold the tint for the size of the step). */
@@ -179,9 +217,36 @@ export function attachPressFeedback({
 
   const clear = () => {
     clearTimeout(safety); safety = 0;
+    clearTimeout(paintTimer); paintTimer = 0;   // 5c-i: an unpainted press dies unpainted
     if (!el) return;
     delete el.dataset.pressed;
     el = null;
+  };
+
+  /* 5c-i: commit the visual. For rows this runs PRESS_PAINT_DELAY_MS after arm (or
+     at release, for a tap quicker than the delay); for controls, immediately.
+     pressStart is stamped HERE — the D-16 completion floor counts from the moment
+     the sweep is visible, not from contact, or a delayed paint would owe less fill
+     than it shows.
+     ★ #46 r1 (auditor B NIT-7): the paint RE-CHECKS the arm-time gates that can
+     change inside the window — select mode entering, the row detaching, a control
+     becoming disabled. An armed press whose world changed paints nothing.
+     ★ #46 r1 (auditor C MINOR-4): pressStart is re-stamped one frame later, when
+     the transition has actually had a style recalc to start from — under a
+     main-thread stall the sync stamp made the completion floor expire early and
+     the hold snapped an unfinished sweep to 100%. Monotonic: the bump only ever
+     GROWS the floor, so no path gets less fill than before. */
+  const paintPress = () => {
+    clearTimeout(paintTimer); paintTimer = 0;
+    if (!el || ('pressed' in el.dataset)) return;
+    if (!el.isConnected || el.closest('[data-selecting]')
+      || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    el.dataset.pressed = pendingKind;
+    pressStart = performance.now();
+    const elAtPaint = el;
+    raf(() => {
+      if (el === elAtPaint && ('pressed' in elAtPaint.dataset)) pressStart = performance.now();
+    });
   };
 
   /* ★ D-16: THE AFTERLIFE — a committed row press after the finger lifted.
@@ -274,10 +339,16 @@ export function attachPressFeedback({
     pointerDown = false;
     cancelled = false;
     clearTimeout(cancelExpiry); cancelExpiry = 0;
+    /* 5c-i: a tap quicker than the paint delay is a COMMITTED tap — paint now so
+       the afterlife plays the full fill+fade. A cancelled gesture never reaches
+       here with `el` set (cancelGesture cleared it), so this cannot resurrect a
+       scroll's suppressed paint. */
+    if (el && !('pressed' in el.dataset) && pendingKind === 'row') paintPress();
     if (el && el.dataset.pressed === 'row') {
       const elm = el;
       el = null;
       clearTimeout(safety); safety = 0;
+      clearTimeout(paintTimer); paintTimer = 0;
       handoff(elm, pressStart, gestureViaTouch || !!(e && (e.touches || e.changedTouches)));
       return;
     }
@@ -340,6 +411,28 @@ export function attachPressFeedback({
     const gh = t && afterlives.get(t);
     if (gh && !e.touches && e.pointerType !== 'mouse' && e.pointerType !== 'pen'
       && gh.viaTouch && (performance.now() - gh.at) < 800) return;
+    /* 5c-i: the SECOND event stream of the same gesture (touchstart → synthesised
+       pointerdown, tens of ms later on Android). Before the paint delay this re-arm
+       was harmless — the attribute was just re-set. Now it would RESTART the delay
+       (pushing the paint later than the dial says) or un-paint a row the first
+       stream already painted. Same element inside the synthesis window = same
+       gesture: keep the running timer and the original travel origin.
+       ★ #46 r1 (auditor B MAJOR-1 + MINOR-2): the guard takes ONLY the pointer
+       stream (`!e.touches`). Two reasons, both proven by trace:
+       · a guard that also swallowed touchstart handed the gesture's touch
+         identity to whichever stream arrived FIRST — on a pointer-first engine
+         `gestureViaTouch` latched false, which disarmed the D-16 r2 ghost guard
+         for the whole gesture (the r4 "per-gesture truth" fix, silently undone);
+       · a REAL second tap begins with a touchstart. Letting it fall through to
+         the ordinary clear+re-arm path means a tap on a row whose previous
+         gesture never got an end event cannot be absorbed into the stale arm.
+       The synthesised pointerdown the guard exists for never carries `touches`.
+       And because the pointer stream can still be the FIRST to arrive, the guard
+       branch corrects the touch identity the same way the arm site does. */
+    if (t && t === el && !e.touches && (performance.now() - armAt) < 300) {
+      gestureViaTouch = gestureViaTouch || (performance.now() - lastTouchTs) < 300;
+      return;
+    }
     clear();
     if (!t) return;
     // Disabled controls must look disabled, not pressable. aria-disabled covers the
@@ -353,17 +446,36 @@ export function attachPressFeedback({
        every surface outside the selecting container keeps its feedback. */
     if (t.closest('[data-selecting]')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
-    // sweep re-arms from its current paint). Other rows' fades keep playing.
+    // press re-lights from the layer's current paint — the transform is already at
+    // scaleX(1), so no re-sweep plays). Other rows' fades keep playing.
+    // ★ #46 r1 B MINOR-3 → r2 P-MINOR-2: the instant re-paint applies ONLY while
+    // the afterlife is still in its FILL phase (data-pressed still present — the
+    // completion floor). r1 keyed on the whole afterlife, and the FADE phase runs
+    // ~600ms — a scroll STARTED on the just-tapped row inside that window painted
+    // at contact again, which is the exact trail 5c-i removes ("rows highlight on
+    // tap to scroll"). A fade-phase re-press now waits the ordinary 70ms window:
+    // the row is already dim, and a ≤70ms gap on a fading row beats a scroll
+    // trail on a lit one.
+    const hadLiveFill = afterlives.has(t) && ('pressed' in t.dataset);
     killAfterlife(t);
     el = t;
-    el.dataset.pressed = t.matches(controls) ? 'control' : 'row';
-    pressStart = performance.now();
-    /* D-16 r4: decided at ARM time. The 300ms window admits the late second-stream
-       re-arm (its pointerdown carries no touches, but the touchstart just stamped). */
+    armAt = performance.now();
+    pendingKind = t.matches(controls) ? 'control' : 'row';
+    /* D-16 r4: decided at ARM time — per-gesture truth. The late second-stream
+       pointerdown no longer reaches this line (the 5c-i guard above returns for it
+       and corrects the identity there); a second-stream TOUCHSTART does fall
+       through and re-computes it here, which is what keeps the identity honest on
+       a pointer-first engine (#46 r1 auditor B MAJOR-1). */
     gestureViaTouch = !!e.touches || (performance.now() - lastTouchTs) < 300;
     const p0 = pos(e);
     startX = p0.clientX; startY = p0.clientY;
     safety = setTimeout(clear, PRESS_SAFETY_MS);
+    /* 5c-i: controls paint at contact (button grammar); rows wait out the delay so
+       a press that becomes a scroll never lights — except a re-press on an
+       afterlife still in its FILL phase (see above). pressStart lands in
+       paintPress. */
+    if (pendingKind === 'control' || hadLiveFill) paintPress();
+    else { clearTimeout(paintTimer); paintTimer = setTimeout(paintPress, PRESS_PAINT_DELAY_MS); }
   };
 
   const onMove = (e) => {

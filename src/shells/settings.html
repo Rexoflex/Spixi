@@ -322,6 +322,10 @@
     notifEnabled: true,
     notifSenderName: false,
     notifSounds: true,
+    /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
+       IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
+       so this never rides the dirty/save path (no #288 clobber class). */
+    paymentAuth: false,
   };
 
   /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
@@ -781,6 +785,16 @@
         contributors: true, downloads: true,
         changePassword: bridge.cap('encpass'),
         globalNotifications: bridge.cap('globalNotifications'),
+        paymentAuth: bridge.cap('paymentAuth'),   // PA1 (#525): SettingsPage pushes the cap + the verb
+      },
+      paymentAuth: state.paymentAuth,
+      // PA1: ON = optimistic instant-persist + echo. OFF = WEAKENING — C# round-trips
+      // a LockPage auth (loop MAJOR fix) and the echo lands on BOTH outcomes, so a
+      // canceled auth snaps the switch back (the ixian:lock:off grammar exactly).
+      onPaymentAuth: (next, ctrl) => {
+        bridge.send('ixian:paymentAuth:' + (next ? 'on' : 'off'));
+        ctrl.done();
+        if (next) state.paymentAuth = true;   // OFF waits for the post-auth echo
       },
       onNotifications: showNotifications,
       // Q1-② (#267, S16 option a): in the PANE, Downloads is a true in-hub
@@ -1563,6 +1577,13 @@
          change that no longer exists. The comment at :927 called this a missing C# signal
          and filed it as a BE gap; it was ours. */
       else { state.dirtyLock = false; syncSave(); }
+      scheduleRebuild();
+    },
+
+    // PA1 (#525): the authoritative "Confirm payments" value — pushed at onLoad
+    // and echoed after every ixian:paymentAuth write. Display state only.
+    setPaymentAuth(s) {
+      state.paymentAuth = (s === 'True' || s === 'true' || s === true);
       scheduleRebuild();
     },
 

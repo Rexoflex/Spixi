@@ -1,3 +1,8 @@
+> ★ SUPERSEDED IN PART (2026-08-23, #530): the wallet pass EXECUTED W5+W6+#255 and
+> flipped the compose live (caps-pushed). Receive was INVERTED per #527 (request-first,
+> QR in the address sheet). This doc stays as the historical map; current state =
+> `docs/wallet-pass-spec.md` + DECISIONS #522–#530.
+
 # Send / Receive IXI — demo-parity analysis (#264, Damir quirk ②)
 
 > Analysis ONLY (Q3 gate: wallet-send builds LAST, #232, human BE review).

@@ -201,6 +201,9 @@ export function createPaymentBubble({
         ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
         : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
     el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
+    // loop fix (#523): with the in-place Pay, the NATIVE payment view is only
+    // reachable through Details — render it when the host wires one.
+    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
@@ -212,6 +215,7 @@ export function createPaymentBubble({
     }
   } else if (role === 'request-out' && status === 'pending') {
     el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
+    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));   // loop fix (#523)
   } else if (role === 'sent' && status === 'failed') {
     el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
   } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {

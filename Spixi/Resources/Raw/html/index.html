@@ -3383,44 +3383,10 @@ html:root .c-sheet:not([data-open]) * {
   padding: var(--spacing-16);
 }
 
-/* —— QR section (card + caption) ——
-   W6 (Damir 2026-08-12): "Request an amount" collapses this away UPWARD instead of
-   snapping it out. Binary triggered CSS transition — the wallet-hero #114 pattern
-   (max-height + opacity + padding, here plus a small translateY for the upward
-   drift, all on ONE transition list). Reduced motion is handled globally by
-   zeroing the duration tokens (tokens.css) — no media query, no JS branch.
-   The 4px padding/-4px margin pair is shadow clearance: overflow:hidden is what
-   makes the collapse possible and would otherwise clip the card's --elevation-1. */
-.c-wallet-receive__qr {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-8);
-  overflow: hidden;
-  max-height: 520px;                 /* sanctioned: > natural height, enables the collapse */
-  opacity: 1;
-  padding-inline: var(--spacing-4);
-  margin-inline: calc(-1 * var(--spacing-4));
-  padding-block-end: var(--spacing-4);
-  margin-block-end: calc(-1 * var(--spacing-4));
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              transform var(--duration-300) var(--easing-standard),
-              padding-block-end var(--duration-300) var(--easing-standard),
-              margin-block-end var(--duration-300) var(--easing-standard);
-}
-.c-wallet-receive[data-request-open] .c-wallet-receive__qr {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(calc(-1 * var(--spacing-16)));
-  padding-block-end: 0;
-  margin-block-end: calc(-1 * var(--spacing-16));   /* eats the parent's gap — collapsed leaves no hole */
-  pointer-events: none;
-}
-
 /* —— QR card —— */
 .c-wallet-receive__qrcard {
   align-self: center;
-  width: min(325px, 86vw);   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
+  width: min(325px, 86vw, 100%);   /* loop NIT: inside the desktop dialog 86vw can beat the sheet's content box */   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
   padding: var(--spacing-16);
   box-sizing: border-box;
   border-radius: var(--radius-24);
@@ -3446,12 +3412,6 @@ html:root .c-sheet:not([data-open]) * {
 }
 
 /* —— address chip (member-sheet pattern, #99 — mirrors c-txsheet__addr) —— */
-.c-wallet-receive__addrlabel {
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  margin-block-end: calc(-1 * var(--spacing-8));   /* hugs its chip (parent gap is 16) */
-}
 .c-wallet-receive__addr {
   display: flex; align-items: center; gap: var(--spacing-8);
   padding-block: var(--spacing-8);
@@ -3480,66 +3440,6 @@ html:root .c-sheet:not([data-open]) * {
 .c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
 @media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
-
-/* —— "Request an amount" reveal row (send-screen row grammar) —— */
-.c-wallet-receive__reqrow {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: var(--size-target-min);
-  padding: var(--spacing-8) var(--spacing-12);
-  border: 0; border-radius: var(--radius-12);
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  color: var(--icon-neutral-02);                   /* chevron ink */
-  -webkit-tap-highlight-color: transparent;
-}
-@media (hover: hover) and (pointer: fine) { .c-wallet-receive__reqrow:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-receive__reqrow:active { background: var(--surface-interactive-pressed); }
-.c-wallet-receive__reqrow[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }   /* CHILD combinator — the glyph circle's svg must not flip (audit M4) */
-.c-wallet-receive__reqglyph {
-  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
-  border-radius: var(--radius-full);
-  display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-action-default);
-}
-.c-wallet-receive__reqlabel {
-  flex: 1; min-width: 0;
-  font-size: var(--font-size-body-lg);
-  color: var(--text-neutral-01);
-}
-/* W6: the reveal animates (it used to be a binary [hidden] snap) — house data-open
-   pattern, settings-backup precedent. `visibility` (0s, delayed to the end of the
-   close) keeps the collapsed box out of the TAB ORDER: pointer-events alone would
-   leave the amount field and the contact search keyboard-reachable behind an
-   aria-hidden box. Closed margin eats the parent gap so the collapsed state
-   occupies exactly what `display:none` used to. */
-.c-wallet-receive__reqbox {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  margin-block-start: calc(-1 * var(--spacing-16));
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              margin-block-start var(--duration-300) var(--easing-standard),
-              visibility 0s linear var(--duration-300);
-}
-.c-wallet-receive__reqbox[data-open] {
-  max-height: 680px;                 /* sanctioned: reveal clearance (amount + label + rule line + search + 264 list + result + CTA) */
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  margin-block-start: 0;
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              margin-block-start var(--duration-300) var(--easing-standard),
-              visibility 0s linear 0s;
-}
 
 /* —— amount (mirrors the send entry: money is the hero) —— */
 .c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
@@ -3663,6 +3563,25 @@ html:root .c-sheet:not([data-open]) * {
   color: var(--text-neutral-02);
 }
 
+/* —— #527: header row (request heading + the small "Show my address" button) —— */
+.c-wallet-receive__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
+.c-wallet-receive__addrbtn { flex: none; }
+
+/* —— #527: the address sheet (QR + address + copy + Share + explainer) —— */
+.c-addr-sheet {
+  display: flex; flex-direction: column; gap: var(--spacing-16);
+}
+.c-addr-sheet__info {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
 </style><!-- Receive/Request takeover (zero-C#) -->
 <style data-src="../styles/components/wallet-send.css">
 /* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
@@ -3715,9 +3634,20 @@ html:root .c-sheet:not([data-open]) * {
 @media (hover: hover) and (pointer: fine) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
 .c-wallet-send__contactname {
+  flex: 1; min-width: 0;   /* loop fix: without a shrinkable basis the nowrap name can NEVER ellipsize (receive parity) */
   font-size: var(--font-size-body-lg);
   color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* #255: "Request pending" tag on a contact whose request is not accepted yet */
+.c-wallet-send__pendingtag {
+  flex: none;
+  padding: 2px var(--spacing-8);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  color: var(--text-neutral-02);
+  background: var(--surface-neutral-02);
 }
 .c-wallet-send__none {
   margin: 0;
@@ -4488,7 +4418,9 @@ html:root .c-sheet:not([data-open]) * {
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
-    createWalletSend,                    // Send compose/review takeover (BE-gated)
+    createWalletSend,                    // Send compose/review takeover (cap-gated; W5/W6 live it)
+    setSendQuote: applySendQuote,        // W6 (#523) — aliased: the bridge handler below shares
+    setSendAddress,                      //   the name (the setScanProgress precedent above)
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     setAppsHeaderEmpty,                  // nothing installed → hide the dead search/layout row
@@ -5966,11 +5898,10 @@ html:root .c-sheet:not([data-open]) * {
    * shows the grouped string; the Send compose needs the raw numeric for money math. */
   let walletOwnAddress = '';
   let walletRawBalance = '';
-  /* No fee push reaches the home wallet tab (fee lives on the native WalletSendPage
-   * via setFees). The BE-gated compose review can't show a real fee zero-C# → this
-   * placeholder stands in until the fee-push BE ask lands. composeSend is OFF in
-   * production, so this never faces a user in v1. */
-  const WALLET_FEE_ESTIMATE = 0;
+  /* W6 (#523): the fee is QUERIED per (recipient, amount) — `ixian:feeQuery` →
+   * the `setSendQuote` push. The old WALLET_FEE_ESTIMATE placeholder is GONE:
+   * the compose mounts with fee:null and the review stays gated until a real
+   * quote lands. No invented fee, ever. */
 
   /* setAddress delivers `new ExtendedAddress(primary, OfflineTag, null).ToString()`
    * (HomePage.xaml.cs:673). Empirically the legacy pages (address.html,
@@ -6264,21 +6195,31 @@ html:root .c-sheet:not([data-open]) * {
     bridge.send('ixian:share');                  // Android WebView / no Web Share API
   }
 
-  /* ——— Send compose/review takeover (BE-GATED — built + wired, OFF in v1) ————————
-   * SECURITY.md: no keys/signing in the WebView — C# signs. So the redesigned compose
-   * only goes live once BE lands a signed handoff verb (proposed `ixian:signSend:<addr>:
-   * <amount>`, §8) + a fee push to this tab. Until then `bridge.cap('composeSend')` is
-   * false and onSend keeps the LIVE native signed flow (ixian:sendixi → WalletSendPage),
-   * so v1 is unchanged/working. The compose NEVER emits ixian:sendixi at the end (that
-   * would just reopen the native compose blank) — it emits the gated sign verb only. */
+  /* ——— Send compose/review takeover (W5/W6 LIVE, #523/#524) ————————————————————
+   * SECURITY.md: no keys/signing in the WebView — the compose only PROPOSES.
+   * `ixian:signSend:<addr>:<amount>` → C# re-parses, shows the NATIVE confirm from
+   * ITS OWN parse (+ payment auth, PA1), signs, broadcasts, then pushes
+   * `signSendResult`. The review sheet resolves ONLY on that push — never
+   * optimistically. Fee: `ixian:feeQuery` → `setSendQuote`; no quote → the review
+   * cannot open (no invented fee). On an old exe (no caps push) the gate below
+   * keeps the LIVE native flow (ixian:sendixi → WalletSendPage) — unchanged. */
+  let walletSendView = null;             // the open compose (quote + scan routing target)
+  let walletSendCtrl = null;             // the review sheet's pending done/fail
+  let walletSendWait = 0;                // loop fix: the no-answer backstop (tipWait grammar)
+  function clearWalletSendWait() { if (walletSendWait) { clearTimeout(walletSendWait); walletSendWait = 0; } }
   function mountWalletSend() {
-    if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // v1: native signed send
+    if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // old exe: native signed send
     if (walletTakeover) return;                               // double-open guard
     leaveSurfaceSearch();   // BUG-3: the takeover covers the tab — its query ends with the visit
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29
+    const close = () => {
+      over.remove(); walletTakeover = null; walletTakeoverClose = null;
+      walletSendView = null; walletSendCtrl = null;           // stale pushes must find nobody
+      clearWalletSendWait();
+      syncHomeOverlay();
+    };  // AND-29
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // See mountWalletReceive: walletStrings is the live dict (slWith); `sendTitle`
@@ -6289,22 +6230,35 @@ html:root .c-sheet:not([data-open]) * {
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
-    body.append(createWalletSend({
-      contacts: peopleRoster(),          // iOS-26/#255: groups are never payment recipients
+    walletSendView = createWalletSend({
+      contacts: peopleRoster(),          // iOS-26/#255: groups are never payment recipients (pending rows tagged)
       balance: walletRawBalance || 0,    // RAW numeric from setBalance (money math needs un-grouped)
-      fee: WALLET_FEE_ESTIMATE,          // placeholder — no home-tab fee push (BE ask)
+      fee: null,                         // W6: unknown until a quote lands — Review stays gated
       strings: walletStrings, host: document.body,
-      onQuickScan: () => bridge.send('ixian:quickscan'),   // scan-result routing wired with the composeSend BE work
-      // review Confirm → the NEW §8 signed handoff verb (does NOT exist yet). C# signs
-      // the pre-composed tx and takes over the native confirm/broadcast → fire-and-forget,
-      // resolve optimistically (real done/fail on sign result lands with the verb).
+      onQuickScan: () => bridge.send('ixian:sendScan'),    // compose-scoped scan: ANY decoded payload
+                                                           // returns via quickScanResult (a bare address
+                                                           // must not fall into the add-contact route)
+      onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      // review Confirm → the W5 signed hand-off. C# owns confirm/auth/sign/broadcast;
+      // the sheet stays latched until `signSendResult` lands (ok / cancel / fail).
       onSend: (payload, ctrl) => {
         const r = (payload.recipients && payload.recipients[0]) || {};
+        walletSendCtrl = ctrl;
+        // loop MAJOR fix: a dropped push must not strand a locked sheet forever —
+        // the tipWait grammar. The copy must NOT claim failure: the tx may be out.
+        clearWalletSendWait();
+        walletSendWait = setTimeout(() => {
+          walletSendWait = 0;
+          const c = walletSendCtrl;
+          if (!c) return;
+          walletSendCtrl = null;
+          c.fail((window.SL && window.SL.sendNoAnswer) || 'No response from the app. Check your wallet activity before you try again.');
+        }, 30000);
         bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
-        ctrl.done();
       },
       onDone: () => close(),             // success morph finished → close the takeover
-    }));
+    });
+    body.append(walletSendView);
     over.append(body);
     document.body.append(over);
   }
@@ -7386,6 +7340,47 @@ html:root .c-sheet:not([data-open]) * {
     // Own primary receiving address (ExtendedAddress+OfflineTag .ToString(), HomePage:673).
     // Stored for the Receive/Send takeovers; cleaned at use (cleanReceiveAddress).
     setAddress(extendedAddress) { walletOwnAddress = String(extendedAddress || '').trim(); },
+
+    /* ——— W5/W6 money-compose plumbing (#523) ——— */
+    // Capability push (this shell's FIRST — chat.html:setCaps shape). C# pushes
+    // "composeSend,…" from onLoaded; an old exe pushes nothing → gates stay closed.
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => { c = c.trim(); if (c) bridge.capabilities[c] = true; });
+    },
+    // W6 answer to ixian:feeQuery — RAW decimal strings from C# (fee incl. relay
+    // payouts; balance = available). Routed to the OPEN compose only; a push that
+    // finds no compose is stale by definition and drops.
+    setSendQuote(addr, amount, fee, balance, max, error) {
+      if (!walletSendView) { dbg('setSendQuote (no compose)'); return; }
+      // the echo pair rides along — the component drops a stale answer (loop MAJOR)
+      applySendQuote(walletSendView, { fee, balance, max, address: addr, amount, error });
+    },
+    // W5 outcome. status: 'ok' (signed + broadcast) · 'cancel' (user backed out of
+    // the native confirm/auth — silent re-enable) · 'fail' (C#-localized message).
+    signSendResult(status, message) {
+      clearWalletSendWait();
+      const ctrl = walletSendCtrl;
+      if (!ctrl) { dbg('signSendResult (no pending review)'); return; }
+      walletSendCtrl = null;
+      const s = String(status || '');
+      if (s === 'ok') { ctrl.done(); return; }
+      if (s === 'cancel') { ctrl.fail(''); return; }
+      // loop MAJOR fix: an empty fail is NOT a cancel — null routes to the
+      // component's default error copy instead of the silent branch.
+      const m = String(message || '');
+      ctrl.fail(m === '' ? null : m);
+    },
+    // Scan → compose (C# pushes the decoded payload instead of the legacy
+    // WalletSendPage route once caps are live). Opens the compose if needed;
+    // setSendAddress parses addr / addr:ixi / addr:send:amount.
+    quickScanResult(data) {
+      if (!bridge.cap('composeSend')) { dbg('quickScanResult (no cap)'); return; }
+      // loop NIT fix: the RECEIVE takeover shares the walletTakeover slot — a scan
+      // is send intent, so the receive view yields instead of silently eating it.
+      if (!walletSendView && walletTakeover && walletTakeoverClose) walletTakeoverClose();
+      if (!walletSendView) mountWalletSend();
+      if (walletSendView) setSendAddress(walletSendView, String(data || ''));
+    },
     setVersion() { dbg('setVersion'); },
     // clearContacts/addContact/noContacts feed the contacts DIRECTORY roster
     // (loadContacts, bridge-audit-A.md:294) — a SEPARATE surface from the chats

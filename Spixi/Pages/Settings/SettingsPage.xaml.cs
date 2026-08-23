@@ -129,7 +129,9 @@ namespace SPIXI
             // settings-screens.js:551-582; the hub row, settings-shell.js:793-797). The
             // same gate hides the "In-app sounds" switch, which is why the notifications
             // block and the sound-effects block are one wiring job.
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications");
+            // ★ PA1 (#525): + paymentAuth — the "Confirm payments" toggle. The verb
+            // persists immediately; setPaymentAuth below seeds the switch position.
+            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,paymentAuth");
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
             // rather than at the component defaults. Three bools, one push each — the
@@ -137,6 +139,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
             Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
+            Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());   // PA1 (#525)
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -675,6 +678,28 @@ namespace SPIXI
                     pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
                 }
             }
+            else if (current_url.StartsWith("ixian:paymentAuth:", StringComparison.Ordinal))
+            {
+                // ★ PA1 (#525): "Confirm payments". INSTANT-PERSIST (like theme/language)
+                // — never the dirty/save path (#288 clobber class). The echo RE-READS the
+                // stored value, so a failed write cannot lie (loop fix).
+                string status = current_url.Substring("ixian:paymentAuth:".Length);
+                if (status.Equals("on", StringComparison.Ordinal))
+                {
+                    // ON = strengthening — optimistic
+                    Preferences.Default.Set(SPayments.PAYMENT_AUTH_PREF, true);
+                    Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());
+                }
+                else
+                {
+                    // ★ Loop MAJOR fix: OFF = WEAKENING a security setting — it costs an
+                    // auth, exactly like ixian:lock:off. The echo lands on BOTH outcomes,
+                    // so a canceled auth snaps the switch back.
+                    var authPage = new LockPage(true);
+                    authPage.authSucceeded += HandlePaymentAuthOffAuth;
+                    pushModalLoaded(authPage);
+                }
+            }
             else if (current_url.StartsWith("ixian:appearance:", StringComparison.Ordinal))
             {
                 string appearanceString = current_url.Substring("ixian:appearance:".Length);
@@ -889,6 +914,18 @@ namespace SPIXI
             }
 
             Utils.sendUiCommand(this, "setLockEnabled", lockEnabled.ToString());
+        }
+
+        // ★ PA1 (#525, loop fix): turning "Confirm payments" OFF resolves HERE, after
+        // the LockPage auth. Both outcomes push the RE-READ value — a canceled auth
+        // snaps the optimistic switch back (the iOS-56 lock grammar).
+        private void HandlePaymentAuthOffAuth(object sender, EventArgs<bool> e)
+        {
+            if (e.Value)
+            {
+                Preferences.Default.Set(SPayments.PAYMENT_AUTH_PREF, false);
+            }
+            Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());
         }
 
         /* ★ W14 (#348) — THE FREEZE, and the routing.

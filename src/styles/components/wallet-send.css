@@ -48,9 +48,20 @@
 @media (hover: hover) and (pointer: fine) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
 .c-wallet-send__contactname {
+  flex: 1; min-width: 0;   /* loop fix: without a shrinkable basis the nowrap name can NEVER ellipsize (receive parity) */
   font-size: var(--font-size-body-lg);
   color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* #255: "Request pending" tag on a contact whose request is not accepted yet */
+.c-wallet-send__pendingtag {
+  flex: none;
+  padding: 2px var(--spacing-8);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  color: var(--text-neutral-02);
+  background: var(--surface-neutral-02);
 }
 .c-wallet-send__none {
   margin: 0;

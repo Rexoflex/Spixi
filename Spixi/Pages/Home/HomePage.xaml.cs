@@ -511,6 +511,24 @@ namespace SPIXI
                 e.Cancel = true;
                 return;
             }
+            // ★ W5/W6 (#523) — money-compose verbs. StartsWith + trailing colon (the
+            // #216 house rule) — placed ABOVE the legacy Contains() branches so a
+            // crafted payload embedding their literals cannot hijack a money verb (#393).
+            // SPayments owns confirm/auth/sign; nothing money-shaped is parsed here.
+            else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
+            {
+                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length));
+            }
+            else if (current_url.StartsWith("ixian:feeQuery:", StringComparison.Ordinal))
+            {
+                SPayments.handleFeeQuery(this, current_url.Substring("ixian:feeQuery:".Length));
+            }
+            else if (current_url.Equals("ixian:sendScan", StringComparison.Ordinal))
+            {
+                // #523: scan FROM the send compose — the result must land back in the
+                // compose (quickScanResult), never in the legacy WalletSendPage route.
+                quickScanForSend();
+            }
             else if (current_url.Contains("ixian:qrresult:"))
             {
                 string[] split = current_url.Split(new string[] { "ixian:qrresult:" }, StringSplitOptions.None);
@@ -1364,6 +1382,20 @@ namespace SPIXI
             processQRResult(e.Value);
         }
 
+        // ★ #523: scan started FROM the send compose. The decoded payload goes back
+        // to the shell verbatim (`quickScanResult` → setSendAddress parses addr /
+        // addr:ixi / addr:send:amount). No page navigation, nothing signed.
+        public async void quickScanForSend()
+        {
+            var scanPage = new ScanPage();
+            scanPage.scanSucceeded += (sender, e) =>
+            {
+                popPageAsync();
+                Utils.sendUiCommand(this, "quickScanResult", e.Value);
+            };
+            await Navigation.PushAsync(scanPage, Config.defaultXamarinAnimations);
+        }
+
         public void processQRResult(string result)
         {
             popPageAsync();
@@ -1372,11 +1404,17 @@ namespace SPIXI
             string[] split = result.Split(new string[] { ":send" }, StringSplitOptions.None);
             if (split.Count() > 1)
             {
-
+                // ★ #523/#524: a payment QR now lands in the SHELL compose — the shell
+                // opens it and setSendAddress parses the payload. The legacy
+                // WalletSendPage route is retired with the other native money pages
+                // at the §5 repoint; this exe always ships the compose-capable shell.
                 try
                 {
-                    ExtendedAddress wallet_to_send = new ExtendedAddress(split[0]);
-                    Navigation.PushAsync(new WalletSendPage(wallet_to_send), Config.defaultXamarinAnimations);
+                    if (!ExtendedAddress.Validate(split[0]))
+                    {
+                        throw new Exception("address validation failed");
+                    }
+                    Utils.sendUiCommand(this, "quickScanResult", result);
                 }
                 catch (Exception ex)
                 {
@@ -1666,6 +1704,11 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setAddress", address_string);
 
             Utils.sendUiCommand(this, "setHideBalance", hideBalance.ToString());
+
+            // ★ W5 (#523): declare the money-compose capability for this build. The
+            // shell's Send button then opens the compose instead of ixian:sendixi.
+            // An old exe pushes nothing → the shell keeps the legacy native flow.
+            Utils.sendUiCommand(this, "setCaps", "composeSend");
 
             // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed
             // is a C# field, so it survives every shell reload (language re-bake, theme, WebView

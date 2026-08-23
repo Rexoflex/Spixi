@@ -415,3 +415,38 @@ and `maxLogCount` must return to 1 before launch.
 **#517–#519 adds no `ixian:` verb, no `spixi.*` localStorage key, no WebView setting, no
 HTML sink and no network fetch.** It adds **seven log lines** (argued above) and removes an
 audio path.
+
+---
+
+## Batch #522–#529 (2026-08-23, THE WALLET PASS) — the sweep, applied WHILE building
+
+★ This batch touches MONEY. Every row below was asked at design time; the delta also gets
+its own section in `docs/security-review-for-be-engineer.md` for the human BE review
+(#232/#523: the delta ships to users only after he sees it).
+
+| Item | file:line | Verdict | Evidence at `0e85a4b8` | Action |
+|---|---|---|---|---|
+| **NEW verb `ixian:signSend:<addr>:<amount>`** (HomePage + SingleChatPage) | `SPayments.handleSignSend` | **INTRODUCED — the W5 hand-off** | Baseline money entry = the native pages; the WebView never proposed a payment | **The wall holds by construction.** The verb is a PROPOSAL. C# re-validates the address (`ExtendedAddress.Validate`), re-parses the amount (`IxiNumber`), computes its OWN fee, re-checks the balance, then shows a NATIVE `DisplayAlert` built ONLY from those values — never from WebView text — and signs through the SAME sanctioned path the legacy pages use (`Node.sendTransactionFrom`). A confirm-before-sign ORDER pin + a mutation run hold it. Re-entry is latched (one confirm app-wide). A malicious WebView can at worst put a proposal in front of the user's eyes |
+| **NEW verb `ixian:payRequest:<msgIdHex>`** (SingleChatPage) | `SPayments.handlePayRequest` | **INTRODUCED** | Baseline paid a request through WalletContactRequestPage — same sign site, NO native confirm, NO null guard | The extracted legacy body PLUS: the native confirm, the PA1 auth step, the `transaction == null` guard (the legacy page NREs there — inherited row for BE), a settled-state re-check after the await, and the same re-entry latch. The message id resolves against the friend's OWN message list; an unknown id answers `cancel` and touches nothing |
+| **NEW verb `ixian:feeQuery:<addr>:<amount>`** (both pages) | `SPayments.handleFeeQuery` | **INTRODUCED** | Legacy computed fees native-side only | Read-only: validate → estimate → push. Nothing broadcast, nothing stored. The estimate signs a DISCARDED throwaway tx — the identical mechanism `Node.calculateTransactionFee` has always used (baseline `WalletSend2Page:52`) |
+| **NEW verb `ixian:sendrequest:` on SingleChatPage** | `onSendRequestFromChat` | **INTRODUCED (the W8 grammar, second host)** | The verb exists on HomePage since #268 | PEER-SCOPED: the address must equal the open conversation's peer (Ordinal string compare, fail closed + log) + the approved/Normal/!bot guard mirrored from HomePage. A request is a chat message; nothing signed |
+| **NEW verb `ixian:sendScan`** (HomePage) | `quickScanForSend` | **INTRODUCED** | Baseline scan → WalletSendPage | Opens the SAME native ScanPage; the decoded string goes back to the shell verbatim as a push. The shell only fills an input with it — no sink, no eval, textContent/value only |
+| **NEW verb `ixian:paymentAuth:on\|off`** (SettingsPage) | SettingsPage `onNavigating` | **INTRODUCED (PA1)** | No payment auth at baseline | Sets ONE bool preference. Turning it ON tightens security; turning it OFF needs the app in hand. No data crosses |
+| **NEW pushes: `setSendQuote` · `signSendResult` · `payRequestResult` · `quickScanResult` · `setPaymentAuth` · `setCaps`(home)** | shells `home/chat/settings` | **INTRODUCED** | Push channel is legacy | Arguments: numbers as strings, status enums, a scanned string, a bool, a caps list. `signSendResult`/`payRequestResult` MAY carry a C#-LOCALIZED error sentence (the legacy alert bodies) — rendered `textContent`-only in the sheet's error line. No address book data, no keys, no message text. All handlers defined in every shell their page reaches (#258) |
+| **NEW preference `paymentauth`** | `SPayments.PAYMENT_AUTH_PREF` | **INTRODUCED** | — | Native `Preferences`, never localStorage, never the WebView. A bool |
+| **Biometric use on the money path** | `SPayments.confirmAndAuth` | **INTRODUCED (PA1)** | Baseline used Plugin.Fingerprint for the app lock only | Same plugin, same config shape as LockPage:630. FAIL-CLOSED on auth errors while the setting is on; WinUI skip mirrors the lock. No fingerprint data is readable by the app (OS API) |
+| **New log lines** | `SPayments.cs` (4× `Logging.error/warn`) · `SingleChatPage` (2× warn) | **INTRODUCED** | — | Reviewed: exception messages + fixed strings. **No amount, no address, no key reaches the log.** The peer-scope warning logs a fixed sentence, not the mismatched address |
+| **Receive inversion + address sheet** | `wallet-receive.js` | No exposure | Presentation only | The QR still encodes ONLY `address:ixi` (#303 pinned); Share carries the bare address structurally |
+| **Cancel request = the existing msgDelete path** | `chat.html confirmCancelRequest` | No NEW exposure | `msgDelete` is a baseline protocol verb, receiver-honored | No new verb. The confirm modal states the both-ends removal honestly. The blanked-request ghost guard renders nothing from a blanked row |
+| **Ghost guard input** | `chat.html addPaymentRequest` | No exposure | — | A skip, not a sink — nothing rendered, nothing stored |
+
+**#522–#529 adds six `ixian:` verbs, six pushes, one native preference and six log lines —
+argued above. It adds NO `spixi.*` localStorage key, NO WebView setting, NO HTML sink and
+NO network fetch.** The money wall (compose in the WebView, C# re-parses + native confirm +
+signs) is stronger than the baseline's: the legacy confirm never showed the destination
+address (`wallet_send_2.html:133` unwritten), the new one always does.
+
+🟡 **Carried to the BE engineer (inherited, untouched):** `WalletContactRequestPage:148`
+NRE class (no null guard on a failed broadcast) · `requestFundsResponse` state mutation
+gated on an open chat page (`StreamProcessor.cs:234`) · the legacy pages themselves until
+the §5 repoint retires them.

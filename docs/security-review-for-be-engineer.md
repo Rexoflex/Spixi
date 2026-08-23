@@ -208,11 +208,41 @@ did not widen it, but the pattern now has a second host page. The navigation is
 cancelled by C#, so no history entry keeps the URL, and the shell scrubs its fields on
 every leave path. A non-URL transport for secrets is still the correct long-term ask.
 
+## 1c. ★ THE MONEY-PATH DELTA (#522–#529, 2026-08-23) — REVIEW THIS BEFORE RELEASE
+
+**W5/W6/PA1 are BUILT. Per the #232/#523 gate, this delta must not ship to users before
+your review.** One new file carries all of it: `Spixi/Utils/SPayments.cs` (~330 lines).
+Page edits: HomePage + SingleChatPage dispatch four `StartsWith(…, Ordinal)` verbs into
+it; SettingsPage adds the `paymentauth` preference.
+
+The contract, in one paragraph: the WebView COMPOSES and emits
+`ixian:signSend:<addr>:<amount>` (or `ixian:payRequest:<msgIdHex>`). `SPayments`
+re-validates the address (`ExtendedAddress.Validate`), re-parses the amount
+(`IxiNumber`), computes its own fee, re-checks the balance, then shows a NATIVE
+`DisplayAlert` built ONLY from those values — recipient (nickname + FULL address),
+amount, fee — then optionally the Plugin.Fingerprint auth (PA1, fail-closed on error,
+WinUI-skipped like the app lock), and only then calls `Node.sendTransactionFrom` —
+the SAME sign+broadcast site the legacy pages use. Every outcome answers with a push;
+the shell never resolves a money action alone. Re-entry is latched app-wide.
+
+What to check hardest:
+1. `handleSignSend` / `handlePayRequest` — confirm-before-sign order (smoke-pinned +
+   mutation-proven), the null guard after `sendTransactionFrom`, the settled-state
+   re-check after the await in payRequest.
+2. `handleFeeQuery` — read-only by design; confirm nothing in the estimate path can
+   broadcast (it uses `Node.calculateTransactionFee`, the legacy estimator).
+3. `onSendRequestFromChat` (SingleChatPage) — the peer-scope Ordinal compare + the
+   approved/Normal/!bot guard. A request is a chat message; nothing signs.
+4. The improvements over legacy you should keep: the legacy confirm never showed the
+   destination (`wallet_send_2.html:133` unwritten); WalletContactRequestPage:148 has
+   no null guard (NRE on failed broadcast) — the new path guards it, the legacy page is
+   yours untouched until the §5 repoint.
+
 ## 2. Planned C# — risk ranking
 | Item | Risk | Insist on |
 |---|---|---|
-| **W5** `ixian:signSend` (in-page Send; C# signs+broadcasts a WebView-composed tx without reopening the native WalletSendPage) | **HIGH — the one to get right** | Challenges SECURITY.md §2/§3 (final send is native). Do NOT ship a no-native-prompt version. C# must re-validate addr+amount+fee+balance and show a native OK/Cancel BEFORE signing. Currently gated OFF (`composeSend`) and delegating to the native flow — keep it there until the native-confirm contract exists. |
-| **C3** inline Pay on a request card | Medium | Take the zero-C# option: inline Pay opens the existing native confirm via `ixian:viewPayment`. No signed inline path. |
+| **W5** `ixian:signSend` | ~~HIGH~~ **BUILT (#523) — see §1c above.** The native-confirm contract it insisted on is exactly what shipped: re-validate + native OK/Cancel BEFORE signing, review-before-release. | §1c |
+| **C3** inline Pay on a request card | ~~Medium~~ **BUILT (#523) as `ixian:payRequest`** — the inline Pay now IS a native-confirm path (SPayments), not a signed inline path. Old exe keeps `ixian:viewPayment`. | §1c |
 | **C12** `attachData`/`attachClipboard` (WebView base64 → C# temp file → send) | Medium | C# names the temp file itself (never a WebView name → overwrite/traversal); cap payload size (DoS); validate MIME. New "WebView writes a file" ingress — no money, but new surface. |
 | **CH3** delete + history/media wipe verbs | Medium | Auth-gate consistently (§9.1: `deleteh` is not LockPage-gated like account/wallet deletion). |
 | **S13** promote `openLink` to global | Low | Keep the URL validated; minor phishing vector from chat. |
@@ -238,3 +268,19 @@ Any C#/bridge change we make must NOT:
 6. Auto-fetch a remote resource that **leaks the user's IP** without the media-autoload gate.
 
 If a planned task appears to need any of the above → **STOP, do not code it, add it to this file, and it becomes a BE-engineer discussion**, not a silent change.
+
+## 1d. 🟡 The money-confirm dialog over a lock (#530 loop, NIT-2 — verify on device)
+
+The W5/W6 native confirm root-routes via `displaySpixiAlert` → `Application.Current.
+MainPage.DisplayAlert` (a PLATFORM dialog, above the MAUI page tree). This is
+LEGACY-PARITY (every `displaySpixiAlert` in the app shares the class; the legacy
+WalletSend2Page used `DisplayAlert` too), and the #272 pop-the-lock mechanism is
+ABSENT here — a platform DisplayAlert is not on MAUI's ModalStack, so `PopModalAsync`
+cannot pop it and dismissing it cannot pop the lock. But in a narrow race — Send
+tapped, then a resume-lock fires before the queued `MainThread` alert runs — the
+confirm could paint over an in-place lock. Confirming there only signs a payment the
+user already composed (no wallet-data leak). **Ask: reproduce the race on device
+first (#215/#294). If real, the belt is to gate `SPayments.handleSignSend` /
+`handlePayRequest` on the lock-active field (same field #272 added), so a money
+confirm never opens while a lock is up.** Not fixed pre-emptively — no mechanism was
+reproduced, only surfaced by reading.

@@ -438,6 +438,14 @@ public partial class App : Application
     public void onLockPresentFailed()
     {
         isLockScreenActive = false;
+        /* ★ #46 loop MINOR m3 on #507: presentAppLock drops the call surface with
+         * CallPage.hideSurface() before it presents. Nothing else re-asserts a live
+         * call's ring or bar. A lock that fails to present therefore left the user
+         * unlocked AND with no ring and no call bar. lockOnPause sets this flag on
+         * both of its failure paths for the same reason (AUDIT MINOR-2). #505 adds
+         * two new callers on Windows — the idle watcher and the escape hatch — so
+         * this path is reachable from three places now. No live call = no-op. */
+        UIHelpers.refreshAppRequests = true;
     }
 
     // #334 AND-21: the app's OWN outbound intents (file/image picker, save-as)
@@ -720,8 +728,37 @@ public partial class App : Application
     /* ★ #505 — the lock PRESENTATION, lifted out of OnResume UNCHANGED so the desktop
      * idle watcher and the resume path cannot drift. Every line below was inside the
      * OnResume branch; nothing was added, removed or reordered. The CALLER owns the
-     * decision of whether a lock is due — this method only puts one on screen. */
-    private void presentAppLock(string cycleName)
+     * decision of whether a lock is due — this method only puts one on screen.
+     *
+     * ★ #46 loop MINOR m1 on #507: it returns TRUE when the present has started, and
+     * FALSE when NO LOCK IS COMING. A caller that clears the lock latch must clear it
+     * only on TRUE. On FALSE the app is still latched as locked, which is the fail-CLOSED
+     * direction, and the next sweep tries again.
+     *
+     * ★ #46 loop MINOR m6 on #507, ROUND 2 — THE BODY IS GUARDED NOW, AND THE CATCH FAILS
+     * CLOSED. Between the state mutation and the push it runs `new LockPage(true, true)`,
+     * which is InitializeComponent plus a WebView load. A throw there used to leave
+     * `isLockScreenActive` latched true, the call surface dropped, and no lock: the app
+     * visible and usable while the code believed it was locked, with SDesktopIdle dead for
+     * the session — the exact state the escape hatch exists to repair, created by the
+     * repair itself.
+     * ⚠ THE CATCH DOES NOT CALL onLockPresentFailed(). That method CLEARS the latch, which
+     * is the fail-OPEN direction, and this docblock promises fail closed. The latch stays
+     * up, the cover stays up with its own 8 s belt behind it, and FALSE tells the caller no
+     * lock is coming. On Windows the next window activation sweeps and tries again. The one
+     * thing the catch does re-assert is the call UI (MINOR m3), which unlocks nothing.
+     * ⚠ THE GUARDED BODY KEEPS ITS ORIGINAL INDENTATION on purpose. #505's claim that this
+     * block is the OnResume branch lifted out VERBATIM was verified line for line by the
+     * audit. Re-indenting for the try would rewrite every one of those lines and destroy
+     * the only cheap way to check that claim again.
+     *
+     * ★ #46 loop MINOR m5 on #507: this method no longer STARTS the diagnostic cycle.
+     * It marks a phase in the cycle the CALLER started. The old order stamped every
+     * line the caller wrote before this point with the cycle that ran last, and with an
+     * elapsed time in hours. Each caller starts its own cycle now: "resume-lock",
+     * "idle-lock" or "sweep-relock". ⚠ SLockDiag.isLockRelated() gates on the name
+     * "pause", so none of these three names changes what a bar repaint reports. */
+    private bool presentAppLock(string cycleName)
     {
         /* ⚠ #505 SELF-AUDIT: every ORIGINAL caller of this code guaranteed
          * `MainPage != null` in its own condition, and the body hard-casts it. The sweep
@@ -732,7 +769,7 @@ public partial class App : Application
         if (MainPage is not NavigationPage)
         {
             Logging.error("presentAppLock(" + cycleName + "): no NavigationPage — nothing to present on.");
-            return;
+            return false;
         }
         /* ⚠ #505 SELF-AUDIT: a present is IN FLIGHT from here until pushModalLoaded's
          * marshalled callback sets activePreload, and inside that window isLockStaging()
@@ -742,6 +779,8 @@ public partial class App : Application
          * pushModalLoaded's own 1.2s timeout + 120ms present delay. */
         lastLockPresentAt = DateTime.Now;
 
+        try
+        {
         /* ★ #438 — COVER FIRST, SYNCHRONOUSLY, BEFORE ANYTHING ELSE.
          * #229 stages the lock's WebView hidden on the CURRENT page and presents it
          * only once lock.html signals ready, so without this line the user's chat
@@ -763,7 +802,7 @@ public partial class App : Application
         // keeps running + ringing; ensureSurface re-arms refreshAppRequests, so the
         // ring/bar re-presents on the first UI tick after the unlock.
         CallPage.hideSurface();
-        SLockDiag.startCycle(cycleName);   // ★ F1: the third lock creation site
+        SLockDiag.mark("present/creating-lock", cycleName);   // ★ F1: the third lock creation site
         var lockPage = new LockPage(true, true);   // #234: the app lock offers no way past it
         lockPage.authSucceeded += onUnlock;
         // #229: load-then-present — stage the lock's WebView hidden on the current
@@ -778,6 +817,18 @@ public partial class App : Application
         {
             MainPage.Navigation.PushModalAsync(lockPage, Config.defaultXamarinAnimations);
         }
+        }
+        catch (Exception e)
+        {
+            /* ★ #46 loop MINOR m6 on #507 — FAIL CLOSED. See the docblock. */
+            Logging.error("presentAppLock(" + cycleName + ") threw — NO LOCK IS ON SCREEN: " + e);
+            SLockDiag.mark("present/failed", cycleName + " — the latch STAYS UP, the app stays covered");
+            // MINOR m3: a live call lost its ring/bar to CallPage.hideSurface() above.
+            // Re-asserting the call UI unlocks nothing.
+            UIHelpers.refreshAppRequests = true;
+            return false;
+        }
+        return true;
     }
 
     /** ★ #505 — the DESKTOP lock trigger: the machine has been untouched for the
@@ -787,7 +838,12 @@ public partial class App : Application
      *  ⚠ The guards are lockOnPause's, deliberately duplicated rather than shared: that
      *  method is Android's and is on a time-critical path, and a refactor of it to serve
      *  desktop would put an untested change on the platform that works. Each one is here
-     *  for the reason its comment gives in lockOnPause. */
+     *  for the reason its comment gives in lockOnPause.
+     *
+     *  ⚠ ONE GUARD NOW DIVERGES, and it is a security fix. This path no longer refuses to
+     *  lock over an AUTHORISE lock. lockOnPause keeps that guard, because a pause happens
+     *  while the user is at the machine; an idle lock happens only after the machine was
+     *  untouched for the whole window. See #46 loop MAJOR-1 on #507 inside the body. */
     public void lockOnIdle()
     {
         try
@@ -796,9 +852,42 @@ public partial class App : Application
             {
                 return;
             }
-            // A lock is STAGING (on no stack for up to ~1.3s) or shown IN PLACE — both
-            // invisible to the ModalStack and the NavigationStack (lockOnPause MAJOR-1).
-            if (SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging())
+            /* ★★ #46 loop MAJOR-1 on #507 — AN AUTHORISE LOCK IS NOT AN APP LOCK.
+             *
+             * This method used to return for `hasModalOverlay()`, and again below for any
+             * LockPage on the ModalStack. The stated reason was "do not make the user
+             * authenticate twice". That reason applies to a lock the user is ACTIVELY
+             * using. This method runs only after the machine was untouched for the whole
+             * idle window. Nobody is using it.
+             *
+             * THE DEFECT. The settings delete flows create `new LockPage(true)`. That is a
+             * justConfirm lock. It renders a Cancel, and the Cancel closes it with NO
+             * password. On Android the resume branch is the backstop. On Windows #505
+             * gates that branch on `locksOnBackground`, which is false. So the idle
+             * watcher was the only trigger left, and it refused to fire. A user parks the
+             * app on an authorise lock and walks away. Any other person then presses
+             * Cancel and is inside the account.
+             *
+             * THE SHAPE. Present the app lock ON TOP of the authorise lock. It is
+             * fail-closed and it cancels no page from the outside. Traced through the
+             * overlay machinery: `presentPreload` shows a lock IN PLACE only while
+             * `modalOverlayOp == null` AND `ModalStack.Count == 0`. A second lock
+             * therefore always takes the plain-modal path, and the ModalStack sits above
+             * the page tree — so it covers a modal authorise lock and an in-place one.
+             * The app lock has no Cancel (#234). The lock below it stays unreachable
+             * until the password is entered.
+             *
+             * ⚠ A STAGING LOCK STILL RETURNS. A staging lock is on no stack. Our push
+             * would take pushModalLoaded's immediate plain-modal fallback, and the staging
+             * lock would then present ABOVE ours — the Cancel back on top. Staging ends in
+             * about 1.3 s and the next poll is 30 s away, so the delay costs nothing.
+             *
+             * ⚠ WHICH LOCK IS UP IS DECIDED BY THE GUARDS ABOVE, not by a field on the
+             * page. Every app lock this class presents sets `isLockScreenActive`, and the
+             * pause lock also sets `pauseLock`. Both are tested first and both return. The
+             * cold-start lock is tested below as `nav.CurrentPage is LockPage`. A lock that
+             * is still visible at this line is a settings authorise lock. */
+            if (SpixiContentPage.isLockStaging())
             {
                 return;
             }
@@ -812,18 +901,21 @@ public partial class App : Application
                 // SAME password, so a lock over it would unlock into another prompt.
                 return;
             }
-            foreach (Page m in nav.Navigation.ModalStack)
-            {
-                if (m is LockPage)
-                {
-                    return;   // an AUTHORISE lock is up — do not make the user authenticate twice
-                }
-            }
+            /* ★★ #46 loop MAJOR-1 on #507: the ModalStack walk that returned here is
+             * GONE. See the block above. An authorise lock on the stack no longer stops
+             * the app lock — the app lock goes on top of it. */
             if (ownIntentFresh())
             {
                 return;   // the app's own picker / save-as round trip
             }
-            SLockDiag.mark("idle/locking", "the desktop idle window elapsed (#505)");
+            /* ★ #46 loop MINOR m5 on #507: the cycle starts HERE. presentAppLock used to
+             * start it, so this mark printed under the cycle that ran last, with an
+             * elapsed time in hours. The name says which path presented the lock. */
+            SLockDiag.startCycle("idle-lock");
+            /* `overlayLock` records the MAJOR-1 state: an authorise lock was shown in
+             * place and the idle lock went over it. */
+            SLockDiag.mark("idle/locking", "the desktop idle window elapsed (#505) · overlayLock="
+                + SpixiContentPage.hasModalOverlay());
             presentAppLock("idle-lock");
         }
         catch (Exception e)
@@ -852,26 +944,47 @@ public partial class App : Application
         {
             bool covered = SpixiContentPage.hasPrivacyShield();
             bool lockUp = isLockScreenActive;
-            bool lockReachable = SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging();
-            if (!lockReachable && MainPage is NavigationPage nav)
+            /* ★★★ #46 loop, W-4.6 ON #507 — CAPTURE THE PAGE, NOT ONLY THE FACT.
+             *
+             * `lockReachable` asked "is a LockPage on screen?". In Damir's failing session
+             * one WAS. It had no UI: `lock/webview-onload` never arrived, `uiReady` stayed
+             * false, and `maybeAuthenticate` refused every attempt for two hours. Between
+             * 22:46 and 22:49 the log holds EIGHT `resume/entered` lines — him clicking the
+             * window — and ZERO sweep lines. The hatch could not see the one failure it was
+             * built for, because it never asked whether the lock was USABLE.
+             *
+             * ⚠ TOPMOST FIRST. Round 1's MAJOR-1 fix lets an app lock present ABOVE a
+             * settings authorise lock, so "the lock on screen" is now ambiguous.
+             * `liveLockPage()` returns the in-place op first, which is right for a system-bar
+             * repaint and wrong here: the page the user is looking at is the top modal. Ask
+             * the ModalStack from the top, and fall back to `liveLockPage()` for the IN-PLACE
+             * case — which is the case Damir actually hit. */
+            LockPage? screenLock = SpixiContentPage.liveLockPage() as LockPage;
+            if (MainPage is NavigationPage nav)
             {
-                if (nav.CurrentPage is LockPage)
+                var modals = nav.Navigation.ModalStack;
+                for (int i = modals.Count - 1; i >= 0; i--)
                 {
-                    lockReachable = true;
+                    if (modals[i] is LockPage topLock) { screenLock = topLock; break; }
                 }
-                else
+                if (screenLock == null && nav.CurrentPage is LockPage curLock)
                 {
-                    foreach (Page m in nav.Navigation.ModalStack)
-                    {
-                        if (m is LockPage) { lockReachable = true; break; }
-                    }
+                    screenLock = curLock;
                 }
             }
+            bool lockReachable = screenLock != null
+                || SpixiContentPage.hasModalOverlay()
+                || SpixiContentPage.isLockStaging();
 
             if (covered && !lockUp)
             {
                 // The app is UNLOCKED and still covered. Nothing legitimate leaves this
                 // state behind; it is the W-4.6 signature.
+                /* ★ #46 loop MINOR m5 on #507: start a cycle before the mark. Without one
+                 * this line printed under the cycle that ran last — often the pause cycle
+                 * from hours earlier — with an elapsed time in hours. The hatch's stated
+                 * value is that a recurrence names its own mechanism in one screenshot. */
+                SLockDiag.startCycle("sweep-uncover");
                 SLockDiag.mark("sweep/uncover", "shield stranded over an unlocked app (#505 W-4.6)");
                 SpixiContentPage.hidePrivacyShield();
                 return;
@@ -884,15 +997,60 @@ public partial class App : Application
             if (lockUp && !lockReachable && !presentInFlight)
             {
                 /* Latched as locked with no lock anywhere. Fail CLOSED but RECOVERABLE:
-                 * clear the latch and re-present, rather than leaving an app that thinks
-                 * it is locked, shows nothing, and will never lock again this session
-                 * (the #229 fail-open ruling, applied to a state nobody can escape). */
+                 * re-present, rather than leaving an app that thinks it is locked, shows
+                 * nothing, and will never lock again this session (the #229 fail-open
+                 * ruling, applied to a state nobody can escape). */
+                SLockDiag.startCycle("sweep-relock");   // ★ #46 loop MINOR m5 on #507
                 SLockDiag.mark("sweep/relock", "latched locked with no lock on screen — re-presenting (#505)");
-                isLockScreenActive = false;
-                SpixiContentPage.hidePrivacyShield();
-                if (isLockEnabled())
+                if (!isLockEnabled())
                 {
-                    presentAppLock("sweep-relock");
+                    /* The lock is OFF. Nothing can re-present it, so the latch and the
+                     * cover must both go. Otherwise the app stays covered and latched for
+                     * the rest of the session. */
+                    isLockScreenActive = false;
+                    SpixiContentPage.hidePrivacyShield();
+                }
+                else if (!presentAppLock("sweep-relock"))
+                {
+                    /* ★ #46 loop MINOR m1 on #507: the latch is NOT cleared before the
+                     * present any more. presentAppLock returns early, and changes no
+                     * state, when MainPage is not a NavigationPage. The old order cleared
+                     * the latch and dropped the shield first, so that early return left
+                     * the app UNLOCKED with nothing on screen to say so — fail OPEN, and
+                     * this docblock promises fail closed. A present that STARTS owns the
+                     * latch and sets it itself. A present that does not start leaves the
+                     * latch up, and the next window activation sweeps again. */
+                    SLockDiag.mark("sweep/relock-deferred", "the present did not start — the latch stays up (#507)");
+                }
+                return;
+            }
+            /* ★★★ #46 loop, W-4.6 ON #507 — THE THIRD CLAUSE: A LOCK IS UP AND IT IS BLANK.
+             *
+             * Latched locked · a LockPage really on screen · presented longer than one
+             * watchdog wait · still no `ixian:onload`. That is Damir's black window, and it
+             * is the state the two clauses above are both blind to: the app is not unlocked
+             * (so the uncover clause skips) and a lock IS reachable (so the relock clause
+             * skips).
+             *
+             * ⚠ THE REPAIR IS THE SAME ONE THE WATCHDOG USES, and it is the only thing that
+             * happens here: reload the lock's own WebView. Nothing pops, nothing clears the
+             * latch, nothing calls authSucceeded. If the reload budget is spent the lock
+             * STAYS UP and the log says so. A window activation is the reflex of anyone
+             * staring at a black window, and Damir produced eight of them in three minutes —
+             * so this is the trigger that was already there, finally able to see the fault.
+             *
+             * ⚠ The blank test is the PAGE's, not the hatch's: `isBlankLock()` carries the
+             * bounded age so a lock caught mid-load is never called broken. */
+            if (lockUp && screenLock != null && screenLock.isBlankLock())
+            {
+                SLockDiag.startCycle("sweep-blank-lock");
+                SLockDiag.mark("sweep/blank-lock",
+                    "a LockPage is on screen with NO UI — repairing under it (#507 W-4.6) · uiReady="
+                    + screenLock.hasWebUi() + " covered=" + covered);
+                if (!screenLock.repairBlankUi("sweep"))
+                {
+                    SLockDiag.mark("sweep/blank-lock-spent",
+                        "the reload budget is spent — the lock STAYS UP and the app stays LOCKED (#507)");
                 }
             }
         }
@@ -1041,6 +1199,9 @@ public partial class App : Application
          * instead, which calls presentAppLock() below through lockOnIdle(). */
         if (locksOnBackground && isLockEnabled() && !withinGrace && !ownIntentReturn && MainPage != null && ((NavigationPage)MainPage).CurrentPage.GetType() != typeof(LockPage) && !isLockScreenActive)
         {
+            /* ★ #46 loop MINOR m5 on #507: the cycle starts at the DECISION. See
+             * presentAppLock, which no longer starts one of its own. */
+            SLockDiag.startCycle("resume-lock");
             presentAppLock("resume-lock");
             return;
         }
@@ -1111,10 +1272,25 @@ public partial class App : Application
          * cover, and shielding over it is how a shield gets stranded (nothing on the
          * resume path would take it down) or, on the modal lock path, painted straight
          * over the password field. */
+        /* ★★ DAMIR'S DIAL, TAKEN 2026-08-22 — NO SHIELD ON WINDOWS DEACTIVATE. #507
+         * left this open. His words: a deactivated window is still fully visible, so the
+         * shield blacks out a window the user is looking at. MAUI raises OnSleep on
+         * window DEACTIVATION on WinUI (#507), so on Windows this line fired every time
+         * the user clicked a browser. It is also the leading W-4.6 suspect: the shield is
+         * an opaque, input-swallowing ContentView, which is exactly what "a black app
+         * window, must restart app" looks like.
+         * ⚠ MOBILE KEEPS ITS SHIELD, byte for byte. There the cover protects the recents
+         * thumbnail and the app-open animation (#438), and the app really does leave the
+         * screen. The guard below is compile-time and adds nothing to any other target.
+         * ⚠ The lock's OWN cover is untouched: presentAppLock still calls
+         * showPrivacyShield(true) on every platform, so the idle lock on Windows still
+         * covers the app while it stages. */
+#if !WINDOWS
         if (isLockEnabled() && !isLockScreenActive)
         {
             SpixiContentPage.showPrivacyShield();
         }
+#endif
         // ★ #496: no-op on Android when lockOnPause already stamped this cycle; the real
         // stamp for every platform that has no pause hook.
         markBackgrounded();

@@ -52,6 +52,155 @@ const load = (file) => new Promise((resolve) => {
   setTimeout(() => resolve(dom), 3000);
 });
 
+/* ══ ★★ #46 loop §0 — THE CASCADE-AWARE CSS RULE HELPER ═══════════════════════════
+ * The old helper was four lines and three defects:
+ *     const rule = (css, sel) => {
+ *       const i = css.indexOf(sel + ' {');
+ *       return i < 0 ? '' : css.slice(i, css.indexOf('}', i));
+ *     };
+ *   ① indexOf finds the FIRST rule only. A second rule for the same selector, later in
+ *      the same file, was invisible.
+ *   ② It read ONE nominated file. A rule for the same subject in a different file was
+ *      unreachable. .c-chat-canvas is styled in message-bubble.css, in chat-pattern.css
+ *      and, until this batch, in chat-flow.css.
+ *   ③ It stripped no comments, so declaration text inside a docblock satisfied a pin.
+ * Those three defects made four pins vacuous. They are also why MAJOR-2 was invisible for
+ * a whole batch: the z-index:0 rule on .c-chat-canvas[data-flow] sat in chat-flow.css, and
+ * the pin read message-bubble.css. THE VACUOUS PIN AND THE MAJOR WERE ONE BUG. A CSS pin
+ * that reads one rule in one file cannot pin a cascade.
+ *
+ * The replacement reads EVERY *.css under src/styles by directory walk, strips comments
+ * first, parses @media / @supports / @layer nesting, and returns EVERY rule whose selector
+ * SUBJECT (the last compound in the selector) carries the wanted simple selector.
+ * A "must not" pin uses .every(). A "must exist" pin uses .some(). */
+const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+let cssFileCache = null;
+/* Every stylesheet the app ships, not a nominated one. Sorted, so a pin message that
+ * names the offending file is stable between runs. */
+const cssFiles = () => {
+  if (cssFileCache) return cssFileCache;
+  const out = [];
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.css')) out.push(p);
+    }
+  };
+  walk(join(root, 'src/styles'));
+  cssFileCache = out;
+  return out;
+};
+
+/* At-rules that CONTAIN rules. Their children are real rules and must be read; every
+ * other at-rule (@import, @font-face, @keyframes) is not a selector match and is skipped. */
+const CSS_NESTING_AT = /^@(media|supports|layer|container|scope|document|-moz-document)\b/i;
+const cssRulesOf = (css, file) => {
+  const src = stripCssComments(css);
+  const out = [];
+  const walk = (from, to) => {
+    let start = from, k = from;
+    while (k < to) {
+      const ch = src[k];
+      if (ch === '{') {
+        const prelude = src.slice(start, k).trim();
+        let depth = 1, j = k + 1;
+        while (j < to && depth > 0) { if (src[j] === '{') depth++; else if (src[j] === '}') depth--; j++; }
+        const bodyEnd = depth === 0 ? j - 1 : to;
+        if (prelude.startsWith('@')) { if (CSS_NESTING_AT.test(prelude)) walk(k + 1, bodyEnd); }
+        else if (prelude) out.push({ file, prelude, body: src.slice(k + 1, bodyEnd) });
+        k = j; start = k;
+      } else if (ch === '}' || ch === ';') { k++; start = k; }
+      else k++;
+    }
+  };
+  walk(0, src.length);
+  return out;
+};
+
+const cssSelectors = (prelude) => prelude.split(',').map((s) => s.trim().replace(/\s+/g, ' ')).filter(Boolean);
+/* The SUBJECT is the element the rule styles — the last compound selector. In
+ * ":root[data-desktop] .c-chat-canvas" the subject is ".c-chat-canvas"; in
+ * ".c-chat-canvas > *" it is "*". Only the subject can put a declaration on the element
+ * a pin is about. */
+const cssSubject = (sel) => { const p = sel.split(/\s*[>+~]\s*|\s+/).filter(Boolean); return p[p.length - 1] || ''; };
+/* Token match, not substring: ".c-settings__qr" must not match ".c-settings__qr-toggle". */
+const cssCompoundHas = (compound, token) => {
+  let i = compound.indexOf(token);
+  while (i >= 0) {
+    const after = compound[i + token.length];
+    if (after === undefined || /[^A-Za-z0-9_-]/.test(after)) return true;
+    i = compound.indexOf(token, i + 1);
+  }
+  return false;
+};
+/* Every rule, in every stylesheet, one entry per matching selector in the list. */
+const cssRulesWhere = (match) => {
+  const out = [];
+  for (const f of cssFiles()) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    for (const r of cssRulesOf(readFileSync(f, 'utf8'), rel)) {
+      for (const sel of cssSelectors(r.prelude)) {
+        if (match(sel, r)) out.push({ file: rel, selector: sel, prelude: r.prelude, body: r.body });
+      }
+    }
+  }
+  return out;
+};
+/* THE STANDING CASE: every rule whose subject carries `sel` — bare, or with any extra
+ * class, attribute or pseudo-class. ".c-chat-canvas[data-flow]" and
+ * ":root[data-desktop] .c-chat-canvas" are both found; a different file cannot hide. */
+const rulesFor = (sel) => cssRulesWhere((s) => cssCompoundHas(cssSubject(s), sel));
+/* Declarations of one rule body, as { prop, value }. */
+const cssDecls = (body) => body.split(';').map((d) => {
+  const i = d.indexOf(':');
+  if (i < 0) return null;
+  return { prop: d.slice(0, i).trim().toLowerCase(), value: d.slice(i + 1).trim() };
+}).filter((d) => d && d.prop && !/[{}]/.test(d.prop));
+/* A pseudo-ELEMENT subject is a different box from the element the pin is about.
+ * `.c-chat-canvas::before` is the pattern tile: a CHILD box, a sibling of the lifted
+ * row, so a z-index or a mask on it cannot cap the lift. Round 1 filtered the WHOLE
+ * selector string, so `.c-x::before + .c-chat-canvas { z-index: 0 }` — where the
+ * SUBJECT is the host — slipped through. Test the subject, and accept the legacy
+ * one-colon spelling too. */
+const CSS_PSEUDO_EL = /::[a-z-]|:(?:before|after|first-line|first-letter)\b/i;
+const cssSubjectIsPseudoElement = (sel) => CSS_PSEUDO_EL.test(cssSubject(sel));
+/* Does this rule body make its subject a STACKING CONTEXT? Returns the offending
+ * declaration, or null.
+ * ★★ #46 loop ROUND 2 §0a — TEN PROPERTIES WERE MISSING, AND A REVIEWER PROVED IT.
+ * `.c-chat-canvas { rotate: 0.5deg }` passed the WHOLE round-1 suite. So did `scale`,
+ * `translate`, `position: sticky`, `position: fixed`, `clip-path`, `mask-image`,
+ * `content-visibility`, `view-transition-name` and `-webkit-filter`.
+ * ⚠ `translate`, `rotate` and `scale` are the INDIVIDUAL TRANSFORM PROPERTIES. They
+ * read like plain geometry and they are what a designer reaches for today instead of
+ * the `transform` shorthand. `position: sticky` is an ordinary edit on a scroll host.
+ * The list is CSS 2.1 appendix E plus the compositing and containment properties —
+ * the same list message-menu.css now states as a rule for every stylesheet. */
+const cssStackingContextDecl = (body) => {
+  for (const { prop, value } of cssDecls(body)) {
+    const v = value.trim().toLowerCase();
+    if (prop === 'z-index' && v !== 'auto') return prop + ': ' + value;
+    if (prop === 'position' && (v === 'fixed' || v === 'sticky' || v === '-webkit-sticky')) return prop + ': ' + value;
+    if (prop === 'transform' && v !== 'none') return prop + ': ' + value;
+    /* the individual transform properties — the ten-property hole */
+    if ((prop === 'translate' || prop === 'rotate' || prop === 'scale') && v !== 'none') return prop + ': ' + value;
+    if ((prop === 'filter' || prop === '-webkit-filter') && v !== 'none') return prop + ': ' + value;
+    if (prop === 'backdrop-filter' || prop === '-webkit-backdrop-filter') return prop + ': ' + value;
+    if (prop === 'isolation' && v !== 'auto') return prop + ': ' + value;
+    if (prop === 'contain' && /\b(paint|layout|strict|content)\b/.test(v)) return prop + ': ' + value;
+    if (prop === 'content-visibility' && (v === 'auto' || v === 'hidden')) return prop + ': ' + value;
+    if (prop === 'perspective' && v !== 'none') return prop + ': ' + value;
+    if (prop === 'mix-blend-mode' && v !== 'normal') return prop + ': ' + value;
+    if (prop === 'will-change') return prop + ': ' + value;
+    if ((prop === 'clip-path' || prop === '-webkit-clip-path') && v !== 'none') return prop + ': ' + value;
+    if ((prop === 'mask-image' || prop === '-webkit-mask-image' || prop === 'mask' || prop === '-webkit-mask') && v !== 'none') return prop + ': ' + value;
+    if (prop === 'view-transition-name' && v !== 'none') return prop + ': ' + value;
+    if (prop === 'opacity' && v !== '1' && v !== '100%') return prop + ': ' + value;
+  }
+  return null;
+};
+
 console.log('app-frame.html');
 {
   const dom = await load('app-frame.html');
@@ -4481,16 +4630,46 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       /* ★ break-my-verdict MINOR-1: ONE broad pin over performUnlock passed with EITHER of
        * its two calls deleted, and the third leg — the ixian:change confirm path, which
        * lives in onNavigating — had no pin at all. That is the #395 lesson one level down.
-       * Three legs, three assertions, each mutation-proven by deleting its own call. */
-      const lock = rd('Spixi/Pages/Launch/LockPage.xaml.cs');
-      const unlock = lock.slice(lock.indexOf('private async void performUnlock()'),
-        lock.indexOf('protected override bool OnBackButtonPressed()'));
-      const chg = lock.slice(lock.indexOf('current_url.Equals("ixian:change"'),
-        lock.indexOf('private async void performUnlock()'));
+       * Three legs, three assertions, each mutation-proven by deleting its own call.
+       *
+       * ★★ ROUND 2 — THE REPAINT MOVED, AND SO DID THE HAZARD. Both legs used to read
+       * `ModalStack.Contains(this)` and then call `Navigation.PopModalAsync()`, each with
+       * its own inline repaint. Round 1's MAJOR-1 fix is what first puts TWO LockPages on
+       * the modal stack at once — the idle app lock now presents ABOVE a settings authorise
+       * lock — and `PopModalAsync` pops the TOP, not `this`. Both legs now go through
+       * `popOwnModal`, which owns the guard and the repaint together.
+       * ⚠ EVERY SLICE BELOW IS SCOPED AT BOTH ENDS, and comments are stripped first. The
+       * docblock over `popOwnModal` QUOTES `Navigation.ModalStack.Contains(this)` and
+       * `Navigation.PopModalAsync()`, so a text pin on the raw file counts the comment. */
+      const lockF4 = rd('Spixi/Pages/Launch/LockPage.xaml.cs')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      const unlock = lockF4.slice(lockF4.indexOf('private async void performUnlock()'),
+        lockF4.indexOf('private void popOwnModal(string leg)'));
+      const chg = lockF4.slice(lockF4.indexOf('current_url.Equals("ixian:change"'),
+        lockF4.indexOf('private async void performUnlock()'));
+      const pom = lockF4.slice(lockF4.indexOf('private void popOwnModal(string leg)'),
+        lockF4.indexOf('public void deferAuthentication()'));
       const cut = unlock.indexOf('Navigation.InsertPageBefore(');
-      ok(chg.length > 50 && /repaintSystemBarsFor\(null\)/.test(chg),
-        '★ F-4 leg 1: the ixian:change CONFIRM path repaints — it takes the same modal-fallback pop, and it had no pin at all');
-      ok(cut > 0 && /repaintSystemBarsFor\(null\)/.test(unlock.slice(0, cut)),
+      ok(chg.length > 50 && unlock.length > 50 && pom.length > 50,
+        '★ F-4 / PIN-D: the three slices resolve. performUnlock, the ixian:change branch and popOwnModal are each read between two named boundaries — an open-ended slice is how a pin goes vacuous');
+
+      /* ══ ★★ PIN-D (#46 loop ROUND 2) — POP THIS PAGE, NEVER "THE TOP ONE" ═══════════ */
+      const popCount = (pom.match(/PopModalAsync\(/g) || []).length;
+      const fileCount = (lockF4.match(/PopModalAsync\(/g) || []).length;
+      const guardAt = pom.indexOf('Navigation.ModalStack.LastOrDefault() == this');
+      const popAt = pom.indexOf('Navigation.PopModalAsync(');
+      ok(fileCount === 1 && popCount === 1 && guardAt >= 0 && popAt > guardAt,
+        '★★ PIN-D (#46 loop ROUND 2, comments stripped): the WHOLE FILE calls PopModalAsync exactly ONCE, inside popOwnModal, and `ModalStack.LastOrDefault() == this` is tested BEFORE it. `Contains(this)` proves only that this page is somewhere on the stack; PopModalAsync pops the TOP. Round 1\'s MAJOR-1 fix is what first stacks two LockPages — the idle app lock above a settings authorise lock — so a Cancel on the covered lock would pop the APP LOCK, dismissed with NO password, with isLockScreenActive still latched true so the idle watcher never locks again this session. A second inline PopModalAsync anywhere in this file re-opens that (found ' + fileCount + ' in the file, ' + popCount + ' in popOwnModal)');
+      ok(/popOwnModal\("cancel"\)/.test(chg) && /popOwnModal\("unlock"\)/.test(unlock.slice(0, cut > 0 ? cut : unlock.length)),
+        '★★ PIN-D (#46 loop ROUND 2): BOTH legs go through popOwnModal — the ixian:change confirm leg as "cancel", the modal-fallback unlock leg as "unlock". A leg that pops inline again owns none of the guard');
+
+      /* ══ ★★ PIN-E — the repaint moved INTO popOwnModal. Pin it where it lives now ═══ */
+      const repaintAt = pom.indexOf('repaintSystemBarsFor(null)');
+      ok(repaintAt > guardAt && repaintAt > 0,
+        '★ F-4 leg 1+2 (ROUND 2): the repaint lives INSIDE popOwnModal, after the "this page is on top" guard and on the path that really pops. Both lock-close legs take it. Outside that guard the strip would be repainted for a pop that did not happen');
+      ok(chg.length > 50 && /popOwnModal\("cancel"\)/.test(chg) && repaintAt > 0,
+        '★ F-4 leg 1: the ixian:change CONFIRM path repaints — it takes the same modal-fallback pop through popOwnModal, and it had no pin at all before #46. Popping a modal is not a navigation, so nothing else gives the strip back');
+      ok(cut > 0 && /popOwnModal\("unlock"\)/.test(unlock.slice(0, cut)) && repaintAt > 0,
         '★ F-4 leg 2: the MODAL-FALLBACK unlock repaints. That leg is ALWAYS taken by the SettingsPage delete flows — the lock is staged on SettingsPage while the overlay host is HomePage, so closeModalOverlay returns false and PopModalAsync is not a navigation');
       ok(cut > 0 && /repaintSystemBarsFor\(home\)/.test(unlock.slice(cut)),
         '★ F-4 leg 3: the COLD-START lock unlocks by REWRITING the navigation stack (InsertPageBefore + removePage) — no navigation, no overlay teardown, so nothing else repaints the strip it painted its own fixed dark');
@@ -5714,11 +5893,19 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/export function setChatFlowPaused/.test(flow),
     'W5: a park/unpause entry point exists for the covered-chat / backgrounded-app story');
 
+  /* ★★ REWRITTEN BY #46 loop MAJOR-2 (was: "negative-z canvas inside a [data-flow]-scoped
+     stacking context"). That recipe WAS the defect. `.c-chat-canvas[data-flow]{z-index:0}`
+     made the host a stacking context, which capped the z-42 long-press lift at the host and
+     put the pressed row back under the z-40 scrim — silently, on the Live flow style only.
+     Both halves are gone. The canvas is the FIRST child at z-index AUTO and paints by TREE
+     ORDER: above the host gradient, below every later sibling. The whole-cascade guarantee
+     is PIN-B in the #506② block; these two pins hold the chat-flow.css half. */
   const flowCss = readFileSync(join(root, 'src/styles/components/chat-flow.css'), 'utf8');
-  ok(/\.c-chat-canvas\[data-flow\] \{ z-index: 0; \}/.test(flowCss)
-    && /\.c-chat-canvas > \.c-chat-flow \{/.test(flowCss) && /z-index: -1/.test(flowCss),
-    'W5 stacking: negative-z canvas inside a [data-flow]-scoped stacking context (the corrected recipe)');
-  ok(!/\.c-chat-canvas > \*\s*\{[^}]*position: relative/.test(flowCss),
+  const flowCssNC = stripCssComments(flowCss);
+  ok(!/\.c-chat-canvas\[data-flow\]/.test(flowCssNC) && !/z-index/.test(flowCssNC)
+    && /\.c-chat-canvas > \.c-chat-flow \{/.test(flowCssNC) && /position: absolute;/.test(flowCssNC),
+    '★★ W5 stacking (#46 loop MAJOR-2): chat-flow.css declares NO z-index anywhere and NO [data-flow] host rule. The canvas is position:absolute at z-index auto, so it paints by tree order and needs no host stacking context. The old pair — z-index:-1 on the canvas plus [data-flow]{z-index:0} on the host — killed the long-press lift under Live flow. Comments stripped: the docblock that explains this quotes the retired rule');
+  ok(!/\.c-chat-canvas > \*\s*\{[^}]*position: relative/.test(flowCssNC),
     'W5 stacking: NO blanket sibling position:relative — that is what left-aligned the jump-to-latest FAB on the Windows F5');
 
   const chatW5 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
@@ -9894,8 +10081,18 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
 
     /* ★ N71 1.5 (Damir F5 2026-08-19): the bars must find a LOCK shown in place. */
     const scp421 = read('Spixi/Utils/SpixiContentPage.cs');
-    ok(/private static SpixiContentPage\? liveLockPage\(\)/.test(scp421)
+    /* ⚠ ROUND 2: the accessibility keyword LOOSENED on purpose. `liveLockPage()` went
+       PUBLIC because App.sweepStrandedCover has to ask the lock "did your WebView load?",
+       and no navigation collection can answer that. `private` was never the guarantee —
+       the ORDERING in the same assertion is: the lock is resolved BEFORE the overlay
+       stack is read. Pinning the keyword would make this red for a correct tree and would
+       teach the next reader that the visibility is what matters. The keyword is dropped
+       ALTOGETHER rather than widened to `private|public`: `internal` is an equally
+       correct spelling for a caller in this assembly, and a pin that goes red for it
+       pins a preference, not a guarantee. */
+    ok(/static SpixiContentPage\? liveLockPage\(\)/.test(scp421)
       && /modalOverlayOp\.target is LockPage inPlace/.test(scp421)
+      && scp421.indexOf('SpixiContentPage? lockPage = liveLockPage();') > 0
       && scp421.indexOf('SpixiContentPage? lockPage = liveLockPage();') < scp421.indexOf('if (overlayStack.Count > 0)'),
       '★ N71 1.5 (Damir F5): a live LOCK outranks every other surface when the system bars are painted, and it is checked FIRST. A lock shown in place (#230) is in no navigation collection, so the bars were painted from whatever sits under it — flipping the OS theme with the lock up recoloured them against a screen that is fixed dark in both themes');
     ok(/foreach \(Page p in nav\.ModalStack\)/.test(scp421) && /nav\.NavigationStack\.LastOrDefault\(\) is LockPage top/.test(scp421),
@@ -11172,19 +11369,107 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       '#495: posted through showLocalNotification, so the row inherits our channel, ic_stat_spixi and the brand accent — 3.12\'s "legacy type notification beside ours" was that mismatch');
     ok(/SPIXI\.Lang\.SpixiLocalization\._SL\("notification-new-message"\) \?\? "New Message"/.test(cold),
       '★ #495: the body is the app\'s OWN per-type string, NOT the push payload. That is AND-15\'s design (never message text), it is strictly more private than the raw row it replaces, and it means this fix reads no new OneSignal API at all');
-    ok(/catch \(Exception ex\)[\s\S]{0,400}?falling back to the raw push[\s\S]{0,200}?return false;/.test(cold),
-      '★ #495: our formatting must never lose a push. Any throw returns FALSE, and both callers fall back to a row that does reach the user');
+    /* ★★ REWRITTEN BY #46 loop MAJOR-4/MAJOR-5. The old message was
+       "both callers fall back to a row that does reach the user". That was FALSE, and the
+       fallback it described is deleted. It re-entered showLocalNotification — the same
+       method that had just thrown — after PreventDefault(true) had already discarded the
+       SDK's row, so the user got nothing. The guarantee is stronger now: the poster returns
+       FALSE, and the CALLER has not discarded anything yet. See PIN-N1. */
+    const coldNC = code(cold);
+    ok(/catch \(Exception ex\)[\s\S]{0,600}?the raw push is kept[\s\S]{0,200}?return false;/.test(coldNC),
+      '★ #495 + #46 loop MAJOR-4: any throw in our formatter returns FALSE and the RAW push is kept. The caller has not discarded the SDK row at that point, so a formatting failure can no longer lose the message');
+    /* ★★ PIN-N5 / N-10 — #46 loop m8: NO RAW EXCEPTION OBJECT WHERE `fa` CAN REACH IT.
+       ⚠ ROUND 2 moved the flattening into a shared sanitiser, `logSafe`, because the
+       notification id and two JSON read failures need the same treatment. The pin follows
+       it: the CATCH must log the exception TYPE plus logSafe(ex.Message), and logSafe
+       itself must really flatten and really truncate. Pinning only the call site would
+       leave a logSafe that returns its argument unchanged, which is the guarantee gone
+       with the shape intact. */
+    ok(/Logging\.error\("postOurPushRow failed[^"]*" \+ ex\.GetType\(\)\.Name \+ ": " \+ logSafe\(ex\.Message\)\);/.test(coldNC)
+       && !/Logging\.error\([^;]*,\s*ex\)/.test(coldNC),
+      '★★ PIN-N5 (#46 loop m8): the catch logs the exception TYPE and logSafe(ex.Message) — never the exception object. `fa` comes off the wire and IXICore.Address formats the offending string INTO its exception message. Logging writes that message verbatim and adds the line prefix itself, so an `fa` that carries a newline forges whole log LINES in ixian.log — the artifact this project uses as evidence, shareable from DevPage, and now kept for five runs. security-handover-gate.md also states that no log line carries an address');
+    {
+      const safeFn = code(fnOf(andPushA, 'internal static string logSafe(string? value)'));
+      const maxM = code(andPushA).match(/private const int LOG_SAFE_MAX = (\d+);/);
+      ok(safeFn.length > 60
+         && /\.Replace\('\\r', ' '\)/.test(safeFn) && /\.Replace\('\\n', ' '\)/.test(safeFn)
+         && /safe = safe\.Substring\(0, LOG_SAFE_MAX\);/.test(safeFn)
+         && !!maxM && Number(maxM[1]) > 0 && Number(maxM[1]) <= 1024,
+        '★★ PIN-N5 (#46 loop m8), THE SANITISER ITSELF: logSafe replaces BOTH CR and LF and truncates at LOG_SAFE_MAX (' + (maxM ? maxM[1] : 'ABSENT') + ' — bounded, and above zero so it is not a blanking function). Strip either replace and a wire value writes forged LINES; drop the Substring and one push writes a log entry of any length the sender chooses');
+    }
   }
   {
-    /* The no-addressee leg moved into the shared decision, where both lanes read it. */
-    const decide = fnOf(andPushA, 'private static PushAction decidePushUncached(');
-    ok(/if \(string\.IsNullOrEmpty\(fa\)\)[\s\S]{0,400}?return PushAction\.ShowRaw;/.test(decide),
+    /* ★★ N-9 (#46 loop ROUND 2): THE NO-ADDRESSEE LEG AND THE MUTE GATE MOVED.
+       `decidePushUncached` is the NETWORK half now; `decideFromAddress` is the ADDRESS
+       half, and the memo's ShowRaw upgrade re-enters it. Both pins follow the code to its
+       new home rather than being loosened to the whole file. */
+    const decide = code(fnOf(andPushA, 'private static PushAction decideFromAddress(string? fa, string where)'));
+    ok(decide.length > 200 && /if \(string\.IsNullOrEmpty\(fa\)\)[\s\S]{0,400}?return PushAction\.ShowRaw;/.test(decide),
       '★ #495: no addressee → the raw row still posts. There is no id to key on and no chat to open, and the fail-open rule holds everywhere in this family: a push we cannot attribute is not one we may drop');
     ok(/if \(!SPIXI\.Meta\.SNotificationPrefs\.shouldDisplayRawPush\(fa\)\)[\s\S]{0,200}?return PushAction\.Suppress;/.test(decide),
       '★ NOTIF-5: the mute and the global master are consulted BEFORE anything is posted — and now on the background lane too, which is where 2.4, 2.5 and 2.6 failed');
+    /* ⚠ ONE COPY OF THE MUTE TEST, IN THE WHOLE FILE. m12 in this very file family is
+       "two copies of a gate, one of them fixed". The split into decidePushUncached +
+       decideFromAddress is exactly the shape that invites a second copy. */
+    const rawCalls = (code(andPushA).match(/shouldDisplayRawPush\(/g) || []).length;
+    ok(rawCalls === 1,
+      '★★ N-9 (#46 loop ROUND 2, comments stripped): shouldDisplayRawPush is called EXACTLY ONCE in SPushService.cs (found ' + rawCalls + '). Two copies of a mute test is how one of them gets fixed and the other does not — that is m12, recorded in this same file family. The upgrade path on a memo hit re-enters decideFromAddress precisely so a second copy is never needed');
   }
-  ok(/if \(SPIXI\.Meta\.Node\.isRunning && OfflinePushMessages\.fetchPushMessages\(true, true\)\)/.test(andPushA),
-    '★ #493: the Ixian fetch is attempted only when a node exists to serve it. fetchPushMessages needs the push URL, the stream processor and a wallet — on a cold push it can only throw or burn an HTTP round-trip inside a push callback. Strictly narrowing: where it works today the node IS running');
+  /* ★★ PIN-N4 / N-1…N-4 — the offline fetch is serialised, and it WAITS FOR NOTHING.
+     ⚠ ROUND 2 MOVED THE LOCK. Round 1 put it inside decidePushUncached, which guarded the
+     push lane against itself and left the pair that actually collides — the node loop tick
+     and a push callback — unserialised. The lock now lives in SPIXI.Meta.Node, beside the
+     other caller, and BOTH callers are pinned. */
+  {
+    const dpu = code(fnOf(andPushA, 'private static PushAction decidePushUncached('));
+    ok(dpu.length > 200 && /if \(SPIXI\.Meta\.Node\.isRunning\)/.test(dpu)
+       && (dpu.match(/fetchPushMessages/g) || []).length === 1
+       && dpu.indexOf('SPIXI.Meta.Node.isRunning') < dpu.indexOf('fetchPushMessages'),
+      '★ PIN-N4 (#493 KEPT): the Ixian fetch is still attempted ONLY when a node exists to serve it. fetchPushMessages needs the push URL, the stream processor and a wallet — on a cold push it can only throw, or burn an HTTP round-trip inside a push callback. The guard is strictly narrowing: where the fetch works today the node IS running');
+    ok(/System\.Threading\.Monitor\.TryEnter\(SPIXI\.Meta\.Node\.pushFetchLock, SPIXI\.Meta\.Node\.PUSH_FETCH_TRY_MS, ref fetchTaken\);/.test(dpu)
+       && /else if \(OfflinePushMessages\.fetchPushMessages\(true, true\)\)/.test(dpu)
+       && !/(^|[^.\w])lock \(SPIXI\.Meta\.Node\.pushFetchLock\)/.test(dpu),
+      '★★ PIN-N4 / N-1 (#46 loop m10, ROUND 2): the push lane takes the SHARED lock with the THREE-ARGUMENT TryEnter. The two-argument form takes the lock inside the call and assigns the flag after it returns; an asynchronous exception in that window holds the lock for the life of the process. A plain `lock` would make a push callback WAIT on an HTTP round trip it does not own — fetchPushMessages builds an HttpClient with NO Timeout and blocks on .Result, once per HTTP call');
+    ok(/finally\s*\{\s*if \(fetchTaken\)\s*\{\s*System\.Threading\.Monitor\.Exit\(SPIXI\.Meta\.Node\.pushFetchLock\);\s*\}\s*\}/.test(dpu),
+      '★★ PIN-N4 / N-2 (#46 loop m10): Monitor.Exit sits in a FINALLY, guarded by the taken flag. A throw from fetchPushMessages would otherwise hold the shared lock for the life of the process, and every later fetch — the node loop\'s included — would skip for ever');
+    /* ★★ N-3 — THE NUMBER IS THE GUARANTEE, SO IT IS PARSED AS A NUMBER.
+       The whole 30-second-budget argument rests on this one value being ZERO. */
+    const nodeNC = code(nodeCsA);
+    const tryM = nodeNC.match(/internal const int PUSH_FETCH_TRY_MS = (-?\d+);/);
+    ok(!!tryM && Number(tryM[1]) === 0 && !/Timeout\.Infinite/.test(nodeNC),
+      '★★ PIN-N4 / N-3 (#46 loop m10, ROUND 2) — PARSED AS A NUMBER: PUSH_FETCH_TRY_MS is ' + (tryM ? tryM[1] : 'ABSENT') + ' and it must be 0. Take the lock only when it is free; both callers skip rather than queue. A push callback has a 30 s budget inside the OneSignal SDK (EXTERNAL_CALLBACKS_TIMEOUT), and the SDK sets wantsToDisplay = true BEFORE it calls us — so an overrun means the SDK posts its OWN row while we go on to post ours. Two rows for one push is NOTIF-4 and symptom 3.12. Any bound short enough to be safe is far too short to outlast an HTTP round trip, so a bound would only pretend to help. Round 1 waited 5000 ms here and THAT was the defect');
+    ok(/internal static readonly object pushFetchLock = new object\(\);/.test(nodeNC),
+      '★★ PIN-N4 (#46 loop m10, ROUND 2): the lock object is a STATIC READONLY FIELD in Node.cs — the file that owns BOTH callers. A lock only the push lane could take guarded the push lane against itself and left the collision it exists to stop');
+    {
+      /* ★★ N-4 — THE NODE-LOOP SIDE. Without it the serialisation is fiction: the pair
+         that collides is this tick and a push callback, not two push callbacks. */
+      const loopFetch = nodeNC.slice(nodeNC.indexOf('if (Config.enablePushNotifications)'),
+        nodeNC.indexOf('// Update the friendlist') > 0
+          ? nodeNC.indexOf('// Update the friendlist')
+          : nodeNC.indexOf('if (Config.enablePushNotifications)') + 2000);
+      /* ⚠ THE CLEAR IS TESTED BY BRACE SCOPE, NOT BY POSITION. An index comparison
+         ("after the guard, before the else") stays GREEN when the clear is moved one
+         line down, past the closing brace of the taken branch and still above the else —
+         which is exactly the mutation that loses the first pass. Mutation-caught. */
+      const blockAfter = (src, from) => {
+        const o = src.indexOf('{', from);
+        if (o < 0) return '';
+        let d = 1, i = o + 1;
+        while (i < src.length && d > 0) { if (src[i] === '{') d++; else if (src[i] === '}') d--; i++; }
+        return d === 0 ? src.slice(o + 1, i - 1) : '';
+      };
+      const guardAt = loopFetch.indexOf('if (fetchTaken)');
+      const takenBlock = guardAt < 0 ? '' : blockAfter(loopFetch, guardAt);
+      ok(loopFetch.length > 200
+         && /Monitor\.TryEnter\(pushFetchLock, PUSH_FETCH_TRY_MS, ref fetchTaken\);/.test(loopFetch)
+         && (loopFetch.match(/fireLocalNotification = false;/g) || []).length === 1
+         && takenBlock.length > 20
+         && /OfflinePushMessages\.fetchPushMessages\(false, fireLocalNotification, false\);/.test(takenBlock)
+         && /fireLocalNotification = false;/.test(takenBlock)
+         && /finally\s*\{\s*if \(fetchTaken\)\s*\{\s*Monitor\.Exit\(pushFetchLock\);\s*\}\s*\}/.test(loopFetch),
+        '★★ PIN-N4 / N-4 (#46 loop m10, ROUND 2) — THE OTHER CALLER, WHICH IS THE POINT. The node loop tick takes the SAME lock with the same three-argument TryEnter, releases it in a finally, and clears fireLocalNotification INSIDE the taken branch. Delete this half and the "serialised" claim is fiction — OfflinePushMessages mutates a static nonce in Ixian-Core with no lock of its own, and remove.php discards its answer, so a lost race there leaves the message on the server and it is delivered a SECOND time (the NOTIF-4 family). Move the clear outside the guard and a skipped tick eats the one pass that fires local notifications for messages received while the app was closed');
+    }
+  }
   ok(/public static bool isRunning\s*\n\s*\{\s*\n\s*get \{ return running; \}/.test(nodeCsA),
     '#493: Node.isRunning is a read-only view of a private field. Nothing outside Node.cs may set it');
 }
@@ -11559,11 +11844,74 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/fdHandedOff = true;/.test(peBody) && peBody.indexOf('fdHandedOff = true;') > peBody.indexOf('captured.Start();'),
     '#506①: the hand-off is latched only AFTER Start() succeeded — latching earlier would let a throw between the two skip both closes');
 
-  ok(/Task\.Delay\(15000\)[\s\S]{0,400}?closeFd\(\);/.test(peBody),
-    '#506①: a belt closes the descriptor if Completion never fires (a mid-playback error). Every effect is under 0.6 s, so 15 s can never clip one');
+  /* ★★ PIN-D — replaces "Every effect is under 0.6 s, so 15 s can never clip one".
+     That sentence was PROSE, and nothing enforced it (#46 loop Q5). Damir is choosing new
+     SFX. The belt is now the clip's OWN duration plus a 5 s margin, floored at the old
+     15 s for a container that reports no length, and CEILED so a mis-reported duration
+     cannot push the belt past the process. */
+  ok(/scheduleEffectBelt\(beltMs, beltHandoff\);/.test(peBody)
+     && /Task\.Delay\(delayMs\)\.ContinueWith\(_ => expire\(\)\);/.test(peBody)
+     && !/Task\.Delay\(15000\)/.test(peBody),
+    '★ PIN-D① (#46 loop Q5, ROUND 2): the belt waits the COMPUTED delay — scheduleEffectBelt(beltMs, …) and Task.Delay(delayMs) — never a literal 15000. Completion does not fire when the player errors mid-playback, and one leaked fd per received message exhausts the process: that takes down sockets and file opens, not only audio');
+  {
+    const eb = peBody.indexOf('Action expireBelt = () =>');
+    const ebBody = eb < 0 ? '' : peBody.slice(eb, peBody.indexOf('};', eb));
+    ok(ebBody.length > 60 && /liveEffects\.Remove\(captured\)/.test(ebBody)
+       && /captured\.Release\(\);/.test(ebBody) && /closeFd\(\);/.test(ebBody),
+      '★ PIN-D①b (#46 loop Q5, ROUND 2), SCOPED TO THE CLOSURE: the belt\'s work still un-roots the player, releases it and closes the descriptor. Drop closeFd() and the belt stops being a belt — Completion is the only thing left that closes the fd, and Completion is exactly what does not fire when the player errors mid-playback');
+  }
+  {
+    /* ★★ D③ — THE CEILING, PARSED AS A NUMBER. A container that mis-reports Duration as
+       2,000,000,000 ms gives a belt of about 23 days. That belt never fires, and the belt
+       is the ONLY owner of the player and the descriptor when Completion does not run —
+       so a belt that never fires is the leak this code exists to stop. */
+    const clamp = peBody.match(/if \(durationMs > (\d+)\)\s*\{\s*durationMs = (\d+);\s*\}/);
+    const ceil = clamp ? Number(clamp[1]) : NaN;
+    const clampAt = clamp ? peBody.indexOf(clamp[0]) : -1;
+    const addAt = peBody.indexOf('durationMs + 5000 > beltMs');
+    ok(!!clamp && clamp[1] === clamp[2] && ceil > 0 && ceil <= 120000
+       && clampAt >= 0 && addAt > clampAt,
+      '★★ PIN-D③ (#46 loop item 2, ROUND 2) — PARSED AS A NUMBER: the duration is CEILED at ' + (clamp ? clamp[1] : 'ABSENT') + ' ms, the two halves of the clamp agree, and the clamp is applied BEFORE the "+ 5000" comparison. Clamp after the addition and an int overflow makes the sum negative, and a negative Task.Delay throws — do not lean on the sign flip. Raise the ceiling to int.MaxValue and the belt is scheduled for about 23 days, which is the same as no belt at all');
+    ok(/int beltMs = 15000;/.test(peBody)
+       && /int durationMs = captured\.Duration;/.test(peBody)
+       && /if \(durationMs > 0 && durationMs \+ 5000 > beltMs\)/.test(peBody)
+       && /beltMs = durationMs \+ 5000;/.test(peBody),
+      '★ PIN-D (#46 loop Q5): the belt is MEASURED, not assumed — MediaPlayer.Duration is valid after Prepare, so the wait is the clip length plus 5 s, with 15000 as a FLOOR. Duration is negative when the container reports no length, and the floor covers that. A future effect longer than 15 s would otherwise have been cut by its own safety belt');
+  }
 
   ok(/if \(fdClosed\)/.test(peBody) && /fdClosed = true;/.test(peBody),
     '#506①: closeFd is single-shot — Completion and the belt can both reach it, and AssetFileDescriptor.Close() must not be raced');
+
+  /* ══ ★★ PIN-E — #46 loop m13: THE OUTER CATCH IS UNREACHABLE ONCE THE SOUND HAS STARTED.
+     ★★ ROUND 1'S PIN WAS DEFEATED TWICE BY MUTATIONS THAT KEPT THE SHAPE. It required an
+     inner try/catch (Exception beltEx) after Start(). A reviewer wrote
+     `catch (Exception beltEx) { throw; }` and the outer catch ran on a playing player with
+     the pin GREEN; then moved the damaging statements INTO the inner catch, same result.
+     A SHAPE IS NOT A GUARANTEE. The guarantee now rests on SCOPE, and it is pinned as four
+     separate facts, each of which can be broken on its own. */
+  {
+    const startAt = peBody.indexOf('captured.Start();');
+    const catchAt = peBody.indexOf('catch (Exception e)', startAt);
+    const after = (startAt < 0 || catchAt < 0) ? '' : peBody.slice(startAt + 'captured.Start();'.length, catchAt);
+    const stmts = after.replace(/[{}]/g, ' ').split(';').map((x) => x.trim()).filter(Boolean);
+    ok(startAt > 0 && catchAt > startAt
+       && stmts.length === 2 && stmts[0] === 'fdHandedOff = true' && stmts[1] === 'beltHandoff = expireBelt',
+      '★★ PIN-E① (#46 loop m13, ROUND 2) — COUNTED, NOT PATTERN-MATCHED: between captured.Start() and the outer catch there are EXACTLY TWO statements, and they are the two assignments of values that already exist. An assignment allocates nothing and calls nothing, so it cannot throw, so the outer catch is unreachable from the instant the sound starts. Put ANY statement there — including an inner try, which is what round 1 did — and m13 re-opens: a throw cuts the sound, leaks the descriptor (fdHandedOff is already true, so the finally skips the close) and marks the asset missing for the whole process (found ' + stmts.length + ': ' + stmts.join(' · ') + ')');
+    const guardAt = peBody.indexOf('if (beltHandoff != null)');
+    let depth = 0;
+    for (let k = 0; k < guardAt; k++) { if (peBody[k] === '{') depth++; else if (peBody[k] === '}') depth--; }
+    ok(guardAt > 0 && depth === 1 && guardAt > peBody.indexOf('finally'),
+      '★★ PIN-E② (#46 loop m13, ROUND 2) — PLACEMENT IS THE GUARANTEE: `if (beltHandoff != null)` sits at brace depth 1 of playEffect, which means OUTSIDE every try in the method, and it sits AFTER the finally. Wrap this guard in a try and the belt\'s own failure reaches a catch that owns the player again. beltHandoff stays null until Start() returns, so null means the sound never started and only then may the catch and the finally clean up (depth found: ' + depth + ')');
+    const sbAt = peBody.indexOf('private static void scheduleEffectBelt(');
+    const sb = sbAt < 0 ? '' : peBody.slice(sbAt);
+    ok(sbAt > 0 && sb.startsWith('private static void scheduleEffectBelt(int delayMs, Action expire)')
+       && !/filePath|markMissing|liveEffects|captured|player|\bfd\b/.test(sb),
+      '★★ PIN-E③ (#46 loop m13, ROUND 2) — THE SCHEDULER IS BLIND, AND THAT IS WHY IT IS SAFE: its signature is exactly (int delayMs, Action expire), and its body cannot NAME filePath, fd, player, captured, liveEffects or markMissing. markMissing(filePath), captured.Release() and liveEffects.Remove(captured) therefore do not COMPILE here. The damage is OUT OF SCOPE, not merely absent. Widen the signature — `, string filePath` — and you hand the damage straight back');
+    const beAt = sb.indexOf('catch (Exception beltEx)');
+    const beBody = beAt < 0 ? '' : sb.slice(beAt);
+    ok(beAt > 0 && !/\bthrow\b/.test(beBody) && !/expire\(\)/.test(beBody),
+      '★★ PIN-E④ (#46 loop m13, ROUND 2) — THE TWO DEFEATS, PINNED BY NAME: the scheduler\'s catch contains no `throw` and no `expire()`. `catch (Exception beltEx) { throw; }` sends a scheduling failure back up the stack; `catch (Exception beltEx) { expire(); }` releases a player that is still producing sound. Both keep the shape and remove the guarantee, and both defeated round 1\'s pin. The catch logs and does nothing else');
+  }
 
   // iOS and Windows keep their source alive for the whole sound already. Pinned so a
   // future "tidy-up" cannot introduce the Android defect on a platform that never had it.
@@ -11619,35 +11967,177 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       '#503: the discard happens only AFTER the ShowRaw escape');
   }
 
-  /* one decision, two entry points */
-  ok(/internal static PushAction decidePush\(string\? notificationId, string\? fa, string where\)/.test(pushNC),
-    '#503: the decision is one shared method');
-  ok(/decidePush\(notificationId, fa, "foreground"\)/.test(pushNC)
-     && /decidePush\(notificationId, fa, "service-extension"\)/.test(nseNC),
-    '★ #503: BOTH lanes go through it, so the mute, the global master and the one-row-per-chat id can never disagree between foreground and background — which is how this family produced three different symptoms from one cause');
-  {
-    const fg = pushNC.slice(pushNC.indexOf('static void handleNotificationReceived'));
-    ok(!/fetchPushMessages/.test(fg) && !/shouldDisplayRawPush/.test(fg),
-      '★ #503: the foreground handler no longer carries its own COPY of the gate. Two copies of a mute test is how one of them gets fixed and the other does not');
-  }
+  /* one decision, two entry points.
+     ⚠ THE SIGNATURE CHANGED IN THIS BATCH: `fa` is now an in/out parameter (#46 loop
+     MAJOR-7). The decision and the address that produced it must travel together. */
+  ok(/internal static PushAction decidePush\(string\? notificationId, ref string\? fa, string where\)/.test(pushNC),
+    '★ #503 + #46 loop MAJOR-7: the decision is one shared method, and `fa` is passed by REF. PostOurs has a meaning only together with the address that produced it, so the memo must be able to hand the caller the address its own read missed');
+  ok(/decidePush\(notificationId, ref fa, "foreground"\)/.test(pushNC)
+     && /decidePush\(notificationId, ref fa, "service-extension"\)/.test(nseNC),
+    '★ #503: BOTH lanes go through it — and both pass `ref fa`, so a memo hit fills in the address for the lane whose own read came back empty. The mute, the global master and the one-row-per-chat id can never disagree between foreground and background, which is how this family produced three different symptoms from one cause');
+  /* ⚠ The "no copy of the gate" pin moved into the N-12 block below, where the handler
+     is sliced at BOTH ends. The version here sliced to EOF, so it also read
+     handleNotificationOpened and every member added after it. */
 
-  /* idempotence, because the ordering is inferred and not observed */
-  /* ⚠ Tied to the EARLY RETURN, not to the lookup line. The first version matched only
-     the TryGetValue text, so disabling the guard around it left the pin green — the
-     "asserted a thing while testing another" class, caught by mutation. */
-  ok(/if \(!string\.IsNullOrEmpty\(notificationId\)[\s\S]{0,120}?TryGetValue\(notificationId!, out PushAction seen\)\)[\s\S]{0,300}?return seen;/.test(pushNC),
-    '★ #503: one notification is decided ONCE, keyed on OneSignal\'s id. The bytecode does not settle whether the foreground listener can also fire for a notification the extension already handled — so rather than depend on being right about that ordering, which is the exact error #503 records, a repeat is a no-op instead of a second fetch and a second row');
+  /* ★★ PIN-N2 — #46 loop MAJOR-7: THE MEMO STORES THE ADDRESS BESIDE THE ACTION.
+     It stored the action alone. The two lanes read `fa` through two different SDK
+     accessors — JSONObject.OptString in the extension, Convert.ToString on a managed
+     dictionary in the foreground listener — so a memo hit could hand an action to a lane
+     whose own read came back empty. */
+  ok(/private readonly struct PushDecision\s*\{[\s\S]{0,400}?internal readonly PushAction action;[\s\S]{0,200}?internal readonly string\? fa;/.test(pushNC),
+    '★★ PIN-N2 (#46 loop MAJOR-7): PushDecision carries BOTH the action and the address it was decided from. An action alone is not a decision on this path');
+  ok(/Dictionary<string, PushDecision> decidedPushes/.test(pushNC)
+     && !/Dictionary<string, PushAction>/.test(pushNC),
+    '★★ PIN-N2 (#46 loop MAJOR-7): the memo is keyed to PushDecision, not to PushAction. With the action alone the second lane applies a decision made from an address it never saw');
+  ok(/decidedPushes\[notificationId!\] = new PushDecision\(action, fa\);/.test(pushNC),
+    '★ PIN-N2 (#46 loop MAJOR-7): and the WRITE stores the address the decision was made from. A memo that stores an empty address can fill nothing in, and the ShowRaw upgrade below cannot tell "no address" from "not recorded"');
+
+  /* ══ ★★ THE MEMO — #503, MAJOR-7, and the ROUND-2 upgrade (N-5 … N-8) ═══════════════
+     ⚠ SLICED TO decidePush AT BOTH ENDS. Everything below reads that one method. */
+  {
+    const dp = pushNC.slice(pushNC.indexOf('internal static PushAction decidePush(string? notificationId, ref string? fa, string where)'),
+      pushNC.indexOf('private static PushAction decidePushUncached(string? fa, string where)'));
+    const readAt = dp.indexOf('decidedPushes.TryGetValue(notificationId!, out seen)');
+    const lockAt = dp.indexOf('lock (decidedPushes)');
+    const lockEnd = dp.indexOf('}', dp.indexOf('&& decidedPushes.TryGetValue(notificationId!, out seen);'));
+    const hitAt = dp.indexOf('if (hit)');
+    ok(dp.length > 400 && lockAt >= 0 && readAt > lockAt && readAt < lockEnd,
+      '★ #503: locked. The memo READ sits inside `lock (decidedPushes)`. Push callbacks arrive on SDK threads and the foreground listener on another — an unsynchronised dictionary here is a torn read inside a notification callback. ⚠ Tied to the READ specifically: `lock (decidedPushes)` also wraps the WRITE, so a bare presence test stays green with the read\'s lock deleted');
+    ok((dp.match(/lock \(decidedPushes\)/g) || []).length === 2,
+      '★ #503: exactly TWO critical sections in decidePush — the read and the write. A third is a lock taken around the fetch, which is what round 1 did and what m10 had to undo; none at all is the torn read');
+    ok(hitAt > lockEnd && /if \(hit\)\s*\{/.test(dp) && dp.indexOf('return seen.action;') > hitAt,
+      '★ #503 / N-5 (#46 loop ROUND 2): one notification is decided ONCE, keyed on OneSignal\'s id — the `if (hit)` branch returns the stored answer and never re-enters decidePushUncached. Delete that early return and a repeat runs the offline fetch a second time and posts a second row, which is the NOTIF-4 family. ⚠ The read is taken under the lock and the BRANCH is outside it, on purpose: the upgrade path below calls decideFromAddress, and no lock may be held across it');
+    /* ★★ N-7 / MAJOR-7 — the hit path hands the caller the address its own read missed. */
+    ok(/if \(string\.IsNullOrEmpty\(fa\)\)\s*\{\s*fa = seen\.fa;\s*\}\s*return seen\.action;/.test(dp),
+      '★★ PIN-N2 / N-7 (#46 loop MAJOR-7), THE HIT PATH: a memo hit fills an EMPTY `fa` in from the stored value before it returns. It is INSURANCE, not a live guard — a discard ends processNotificationData, so a stored Suppress or PostOurs cannot be read by the other lane with the SDK as it ships. It costs four lines and it fails safe if the SDK ever stops ending the call on a discard; without it that change would make the extension discard the SDK row and post nothing, with nothing logged');
+    ok(/TryGetValue\(notificationId!, out PushDecision raced\)\)\s*\{\s*if \(string\.IsNullOrEmpty\(fa\)\)\s*\{\s*fa = raced\.fa;\s*\}\s*return raced\.action;/.test(dp),
+      '★★ PIN-N2 (#46 loop MAJOR-7), THE RACED PATH: the same fill-in on the "first answer wins" branch. Two lanes can reach decidePushUncached together, and the loser takes this branch — it needs the winner\'s address for exactly the same reason');
+    /* ★★ N-8 — THE ONE ASYMMETRY THE SDK CAN REALLY PRODUCE.
+       `ShowRaw` is the only action that leaves both lanes alive, and it is chosen for
+       exactly one reason: decideFromAddress returns it when `fa` is empty. A stored
+       (ShowRaw, null) therefore means "the first lane could not read the address". If THIS
+       lane read one, the memo must not freeze the poorer answer. */
+    const upAt = dp.indexOf('seen.action == PushAction.ShowRaw');
+    ok(upAt > hitAt && upAt > 0
+       && /seen\.action == PushAction\.ShowRaw\s*&&\s*string\.IsNullOrEmpty\(seen\.fa\)\s*&&\s*!string\.IsNullOrEmpty\(fa\)/.test(dp)
+       && /PushAction upgraded = decideFromAddress\(fa, where\);/.test(dp)
+       && dp.indexOf('PushAction upgraded = decideFromAddress(fa, where);') > upAt,
+      '★★ N-8 (#46 loop MAJOR-7, ROUND 2) — THE ShowRaw UPGRADE. The extension reads `fa` with JSONObject.OptString and the foreground lane with Convert.ToString on a managed dictionary. When the extension\'s read comes back empty it decides ShowRaw, stores (ShowRaw, null) and does NOT prevent — so the foreground lane runs, reads the address correctly, hits the memo, and would show the raw unformatted OneSignal row for a chat we could have keyed, formatted and muted. This block re-decides that ONE case');
+    ok(!/fetchPushMessages/.test(dp),
+      '★★ N-8 (#46 loop ROUND 2): and the upgrade re-enters decideFromAddress, which is the ADDRESS half and touches no network. decidePush contains NO fetch of its own. Point it at decidePushUncached instead and one push runs the offline fetch TWICE — the exact thing this memo exists to prevent, re-introduced by the code that repairs the memo');
+    /* ★★ N-11 (#46 loop item 6) — the notification id comes off the wire too. */
+    ok(/Logging\.info\("\[NOTIFDIAG\] push " \+ logSafe\(notificationId\) \+ " already decided/.test(dp),
+      '★★ N-11 (#46 loop item 6): the "already decided" line runs the notification id through logSafe. The id is wire data like `fa`, Logging writes the message verbatim and adds the line prefix itself, so an id carrying a newline forges whole LINES in ixian.log — the artifact this project uses as evidence');
+  }
+  {
+    /* ★★ N-11, the other two: BOTH read-failure warns are sanitised, one per lane. */
+    ok(/Logging\.warn\("handleNotificationReceived: could not read the push: " \+ logSafe\(ex\.Message\)\);/.test(pushNC),
+      '★★ N-11 (#46 loop item 6, foreground lane): the payload-read failure logs logSafe(ex.Message). The message comes out of a read of wire data — same shape as m8, lower value, closed the same way');
+    ok(/Logging\.warn\("SpixiNotificationServiceExtension: could not read the push: " \+ SPushService\.logSafe\(ex\.Message\)\);/.test(nseNC),
+      '★★ N-11 (#46 loop item 6, background lane): and the SERVICE EXTENSION does the same, through the one shared sanitiser. Two lanes with two spellings of the same rule is m12 — the class where one copy gets fixed and the other does not');
+  }
   ok(/decidedOrder\.Count > DECIDED_CAP/.test(pushNC) && /decidedPushes\.Remove\(decidedOrder\.Dequeue\(\)\)/.test(pushNC),
     '#503: and the memo is BOUNDED — an unbounded map on a push path grows for the life of the process');
-  /* ⚠ Tied to the READ specifically. `lock (decidedPushes)` also appears around the
-     WRITE, so a bare presence test stayed green with the read's lock deleted. */
-  ok(/lock \(decidedPushes\)\s*\{\s*if \(!string\.IsNullOrEmpty\(notificationId\)[\s\S]{0,160}?TryGetValue/.test(pushNC)
-     && (pushNC.match(/lock \(decidedPushes\)/g) || []).length >= 2,
-    '★ #503: locked. Push callbacks arrive on SDK threads and the foreground listener on another — an unsynchronised dictionary here is a torn read inside a notification callback');
 
   /* the manifest keeps the #334 accent meta-data beside it */
   ok(/com\.onesignal\.NotificationAccentColor\.DEFAULT/.test(manifest),
     '#503: the #334 accent meta-data stays — it styles the SDK-rendered row on the ShowRaw path, which is the one row we deliberately still let through');
+
+  /* ══ ★★ PIN-N1 — #46 loop MAJOR-4 + MAJOR-5: POST BEFORE DISCARD, AND ONE ID SCHEME ══
+     PreventDefault(true) cannot be undone — that is #510's own bytecode reading. The old
+     order discarded the SDK's row FIRST and posted ours second, so a throw inside
+     showLocalNotification (the channel create, the Intent, the PendingIntent, Notify — all
+     of which run for the first time on a cold push process) left the user with NO row. The
+     fallback could not rescue it: it called the same method that had just thrown. It also
+     keyed its row on fa.GetHashCode(), a SECOND id scheme — String.GetHashCode is
+     randomised for each process in .NET 5 and later, so the same sender gave a different id
+     in each process life. That stacks rows (NOTIF-4, the defect #495 exists to prevent) and
+     cancelNotification(notificationIdFor(...)) can never reach such a row. */
+  {
+    const oi1 = nseNC.indexOf('OnNotificationReceived');
+    const b1 = nseNC.slice(oi1);
+    ok(oi1 > 0 && b1.indexOf('postOurPushRow') > 0
+       && b1.indexOf('postOurPushRow') < b1.indexOf('PreventDefault(true)'),
+      '★★ PIN-N1 (#46 loop MAJOR-4): our row is posted BEFORE the SDK\'s row is discarded. PreventDefault(true) cannot be undone, so the order is the whole guarantee — a formatting failure now keeps the SDK row instead of leaving the user with nothing');
+    ok(/if \(action == SPushService\.PushAction\.PostOurs && !SPushService\.postOurPushRow\(fa!\)\)\s*\{\s*return;/.test(b1),
+      '★★ PIN-N1 (#46 loop MAJOR-4): a FAILED post returns at once and never reaches PreventDefault. No fallback poster is needed, and none may come back: the old one re-entered the method that had just thrown');
+    ok(!/GetHashCode/.test(nseNC),
+      '★★ PIN-N1 (#46 loop MAJOR-5, comments stripped): the SECOND id scheme is gone from this file. String.GetHashCode is randomised for each process, so one sender gave one row per process life, the rows stacked, and cancelNotification could reach none of them. Every poster in the app keys on SNotificationPrefs.notificationIdFor, which is a CRC32 of the address');
+    ok(!/showLocalNotification/.test(nseNC),
+      '★★ PIN-N1 (#46 loop MAJOR-4, comments stripped): the extension no longer calls showLocalNotification directly. That call WAS the fallback, and it shared the throw with the poster it was meant to rescue');
+  }
+
+  /* ══ ★★ PIN-N3 — #46 loop MAJOR-7: A BELT IN EACH LANE ═══════════════════════════════ */
+  {
+    const oi3 = nseNC.indexOf('OnNotificationReceived');
+    const b3 = nseNC.slice(oi3);
+    const emptyFaGuard = b3.indexOf('PushAction.PostOurs && string.IsNullOrEmpty(fa)');
+    ok(emptyFaGuard > 0 && emptyFaGuard < b3.indexOf('PreventDefault(true)')
+       && /if \(action == SPushService\.PushAction\.PostOurs && string\.IsNullOrEmpty\(fa\)\)\s*\{[\s\S]{0,300}?return;\s*\}/.test(b3),
+      '★★ PIN-N3 (#46 loop MAJOR-7, background lane): PostOurs with an EMPTY address returns BEFORE any PreventDefault, so the SDK keeps its row. Without this belt a memo hit hands PostOurs to a lane whose own read of `fa` came back empty; the lane then discards the SDK row and posts nothing, and nothing is logged — the push disappears');
+    ok(/if \(action == PushAction\.PostOurs && !string\.IsNullOrEmpty\(fa\) && postOurPushRow\(fa!\)\)/.test(pushNC),
+      '★★ PIN-N3 (#46 loop MAJOR-7, foreground lane): the same belt on the other side — a non-empty address is required BEFORE our poster runs. Without it new Address(null) throws inside the poster, the poster returns false, and the lane falls through to display(): a raw row beside the row the other lane already posted, which is symptom 3.12 returning');
+  }
+
+  /* ══ ★ PIN-N6 — #46 loop m11: the tap guard reads the VALUE, not the literal ═════════ */
+  {
+    /* ⚠ SCOPED AT BOTH ENDS. handleNotificationOpened is the LAST member of this class
+       today, so an unbounded slice would reach EOF and would silently widen the moment a
+       member is added below it. The bound is the next member signature. */
+    const opened = pushNC.slice(pushNC.indexOf('static void handleNotificationOpened'));
+    const nextMember = opened.slice(1).search(/\n        (?:public|private|internal|protected|static)\b/);
+    const openedBody = nextMember < 0 ? opened : opened.slice(0, nextMember + 1);
+    ok(openedBody.length > 100 && !/string\.IsNullOrEmpty\("fa"\)/.test(openedBody)
+       && /string\? fa = Convert\.ToString\(e\.Notification\.AdditionalData\["fa"\]\);/.test(openedBody)
+       && /if \(!string\.IsNullOrEmpty\(fa\)\)/.test(openedBody),
+      '★ PIN-N6 (#46 loop m11): the tap handler tests the VALUE. It tested the literal string "fa", which is never empty, so the guard was always true and never read the address. It was benign only because MainActivity.handleNotificationIntent checks again — a guard that reads as if it works is how the NEXT change fails silently. iOS already had the correct form');
+  }
+
+  /* ══ ★★ PIN-N7 / N-12 — #46 loop MAJOR-6, ROUND 2: READ AT SOURCE, AND REWRITTEN ═════
+     ★ ROUND 1 PINNED A REASON THAT IS NOW DEAD. That pin required the docblock to say
+     "nuget.org answers 403, so the artifact could not be read". The artifact was reached
+     another way: the OneSignal SDKs are open source and raw.githubusercontent.com answers,
+     so `AndroidNotificationsManager.cs` and `NotificationGenerationProcessor.kt` were read
+     at the pinned version. Keeping the old pin would have preserved a warning that is no
+     longer true — the worst kind of comment, and exactly the shape #503 records.
+     ★ WHAT IS PINNED NOW IS THE FINDING: the managed surface has NO boolean overload, so
+     this line cannot be "fixed" here at all; the park it causes is BOUNDED at
+     EXTERNAL_CALLBACKS_TIMEOUT = 30_000L; and the real fix is upstream.
+     ⚠ READ THE RAW FILE — the subject IS a comment. */
+  {
+    const pdi = pushCs.indexOf('e.PreventDefault();');
+    const docStart = pdi > 0 ? pushCs.lastIndexOf('/*', pdi) : -1;
+    const doc = docStart >= 0 ? pushCs.slice(docStart, pdi) : '';
+    ok(doc.length > 400 && /MAJOR-6/.test(doc)
+       && (/EXTERNAL_CALLBACKS_TIMEOUT/.test(doc) || /30_000L/.test(doc))
+       && /bounded/i.test(doc)
+       && /AndroidNotificationsManager/.test(doc)
+       && /no boolean overload/i.test(doc),
+      '★★ PIN-N7 / N-12 (#46 loop MAJOR-6, ROUND 2): the docblock above the foreground e.PreventDefault() records what was READ AT SOURCE — that AndroidNotificationsManager.PreventDefault() IS the native no-argument form, that NotificationWillDisplayEventArgs declares no boolean overload at 6.1.9 so e.PreventDefault(true) would not compile, and that the resulting park is BOUNDED at EXTERNAL_CALLBACKS_TIMEOUT (30_000L) rather than unbounded. Delete this and the next reader either "fixes" the line from reasoning — the one mistake #510 avoided — or re-opens a finding that is already answered');
+    ok(!/DO NOT "FIX" THIS LINE FROM REASONING/.test(doc) || /read at source/i.test(doc),
+      '★ PIN-N7 / N-12: and the docblock no longer rests on "the artifact is unreachable". That reason is dead — the source was read. A warning that states a false premise is how the next reader concludes the whole note is stale and ignores the part that is still true');
+  }
+
+  /* ══ ★★ N-12 BEHAVIOUR — the foreground lane prevents ONLY on the two paths that mean it ══ */
+  {
+    const fgi = pushNC.indexOf('static void handleNotificationReceived');
+    const fge = pushNC.indexOf('static void handleNotificationOpened');
+    const fgb = (fgi < 0 || fge < 0 || fge <= fgi) ? '' : pushNC.slice(fgi, fge);
+    const decideAt = fgb.indexOf('decidePush(notificationId, ref fa, "foreground")');
+    const firstPrevent = fgb.indexOf('e.PreventDefault();');
+    ok(fgb.length > 400 && decideAt > 0 && firstPrevent > decideAt,
+      '★★ N-12 (#46 loop ROUND 2, BEHAVIOUR): e.PreventDefault() runs AFTER the decision, never before it. It used to run unconditionally at the top of the read block, BEFORE NotificationId and AdditionalData were touched — so a throw while reading the payload left the push prevented and never displayed, and the push simply vanished');
+    ok(/if \(action == PushAction\.Suppress\)\s*\{\s*e\.PreventDefault\(\);\s*return;\s*\}/.test(fgb),
+      '★★ N-12 (#46 loop ROUND 2, BEHAVIOUR): a SUPPRESSED push prevents and returns. That is the mute gate and the global master doing their job; without the prevent the SDK posts the row NOTIF-5 exists to stop');
+    ok(/if \(action == PushAction\.PostOurs && !string\.IsNullOrEmpty\(fa\) && postOurPushRow\(fa!\)\)\s*\{\s*e\.PreventDefault\(\);\s*return;\s*\}/.test(fgb),
+      '★★ N-12 (#46 loop ROUND 2, BEHAVIOUR): and a push we POSTED OURSELVES prevents — but only after postOurPushRow returned TRUE. Prevent before the post and a failed post leaves the user with nothing; prevent on ShowRaw and an unattributable push is discarded, which is the fail-CLOSED direction this whole family refuses');
+    ok((fgb.match(/e\.PreventDefault\(\);/g) || []).length === 2,
+      '★★ N-12 (#46 loop ROUND 2): exactly TWO prevents in this handler — Suppress, and PostOurs-after-a-successful-post. ShowRaw returns without preventing, which is what makes doing nothing equal to "the SDK posts its own row": the SDK set wantsToDisplay = true before it called us');
+    ok(!/e\.Notification\.display\(\)/.test(fgb),
+      '★★ N-12 (#46 loop ROUND 2): display() is GONE from this handler and must not come back. It does not "show the row we skipped" — it wakes the display waiter with TRUE and posts the SDK\'s RAW row. On the ShowRaw path nothing is waiting, so the call is at best a no-op; after a prevent it is a second row beside the one we already posted, which is symptom 3.12');
+    ok(!/fetchPushMessages/.test(fgb) && !/shouldDisplayRawPush/.test(fgb),
+      '★ #503: the foreground handler carries no COPY of the gate — the decision and the fetch both live behind decidePush. Two copies of a mute test is how one of them gets fixed and the other does not (m12)');
+  }
 }
 
 {
@@ -11673,14 +12163,25 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/if \(locksOnBackground && isLockEnabled\(\)/.test(appNC),
     '★ #505: and the resume-lock branch is gated on the same predicate — a window ACTIVATION must not lock');
 
-  /* ② one implementation, two callers */
-  ok(/private void presentAppLock\(string cycleName\)/.test(appNC),
-    '#505: the lock presentation is one method');
+  /* ② one implementation, two callers.
+     ⚠ THE SLICE BELOW IS SCOPED AT BOTH ENDS — presentAppLock's own body, and nothing
+     after it. See PIN-P8. */
+  const presentBody = appNC.slice(appNC.indexOf('presentAppLock(string cycleName)'),
+                                  appNC.indexOf('public void lockOnIdle()'));
+  ok(/private bool presentAppLock\(string cycleName\)/.test(appNC),
+    '★ #505 + #46 loop m1: the lock presentation is one method, and it returns BOOL. The caller must know whether the present STARTED: sweepStrandedCover clears the lock latch, and it may clear it only when the present is really under way. presentAppLock returns early and changes no state when MainPage is not a NavigationPage, so a void signature made that early return fail OPEN — the app unlocked, with nothing on screen to say so');
   ok((appNC.match(/presentAppLock\(/g) || []).length >= 4,
     '★ #505: the resume path, the idle path and the sweep all go through presentAppLock — a second hand-written copy is how two lock paths start disagreeing about the privacy shield or the call surface');
-  ok(/SpixiContentPage\.showPrivacyShield\(true\);/.test(appNC.slice(appNC.indexOf('presentAppLock(string cycleName)')))
-     && /CallPage\.hideSurface\(\);/.test(appNC.slice(appNC.indexOf('presentAppLock(string cycleName)'))),
-    '★ #505: the extracted method still covers FIRST (#438) and still drops the call surface (Q4-③ MAJOR-1/2) — the extraction moved these, it must not have lost them');
+  /* ★★ PIN-P8 — A VACUOUS PIN, FOUND BY MUTATION AND FIXED HERE.
+     This pin used to slice from `presentAppLock(string cycleName)` TO THE END OF THE FILE.
+     showPrivacyShield(true) and CallPage.hideSurface() are ordinary calls that appear later
+     in App.xaml.cs, so ANY statement anywhere below satisfied it. Proof mutation: move both
+     statements out of presentAppLock and into lockOnIdle — the pin stayed GREEN while the
+     whole guarantee of the extraction was gone. The slice now ends at lockOnIdle. */
+  ok(presentBody.length > 200
+     && /SpixiContentPage\.showPrivacyShield\(true\);/.test(presentBody)
+     && /CallPage\.hideSurface\(\);/.test(presentBody),
+    '★ #505 (PIN-P8, slice scoped at BOTH ends): the extracted method still covers FIRST (#438) and still drops the call surface (Q4-③ MAJOR-1/2) — the extraction moved these, it must not have lost them. An open-ended slice made this pin vacuous: it passed on statements that live in other methods');
 
   /* ③ the idle watcher */
   ok(/\[DllImport\("user32\.dll"\)\]\s*\n\s*private static extern bool GetLastInputInfo/.test(idleNC),
@@ -11708,18 +12209,35 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/Spixi\.SDesktopIdle\.start\(\);/.test(strip(progCs)),
     '#505: the watcher is actually started, from the Windows lifecycle hook');
 
-  /* ④ the idle path reuses lockOnPause's guards */
+  /* ④ the idle path — MOST of lockOnPause's guards, and ONE deliberate divergence.
+     ⚠ lockOnPause is NOT touched by this batch. It keeps the hasModalOverlay() guard and
+     the ModalStack walk, and its own pins stay green. A pause happens while the user is at
+     the machine; an idle lock happens only after the machine was untouched for the whole
+     window. The two paths answer different questions, so they may differ here. */
   {
     const li = appNC.indexOf('public void lockOnIdle()');
     const body = appNC.slice(li, appNC.indexOf('private void sweepStrandedCover'));
-    ok(li > 0 && /hasModalOverlay\(\) \|\| SpixiContentPage\.isLockStaging\(\)/.test(body),
-      '★ #505: the idle lock refuses to stack on a STAGING or IN-PLACE lock — both are invisible to the ModalStack and the NavigationStack (the lockOnPause MAJOR-1 finding)');
+    /* ★★ PIN-P1 — #46 loop MAJOR-1: THE IDLE LOCK OUTRANKS AN AUTHORISE LOCK.
+       ⚠ The GUARDS are read, not the whole slice. hasModalOverlay() legitimately survives
+       INSIDE the SLockDiag.mark diagnostic, which records whether an authorise lock was on
+       screen when the idle lock went over it. A bare "the string is absent" pin would be red
+       for a correct file, so the mark calls are removed before the guard test. */
+    const idleGuards = body.replace(/SLockDiag\.mark\([\s\S]*?\);/g, '');
+    ok(li > 0 && /if \(SpixiContentPage\.isLockStaging\(\)\)\s*\{\s*return;/.test(idleGuards),
+      '★ PIN-P1 (#46 loop MAJOR-1): a STAGING lock still stops the idle lock. A staging lock is on no stack, so our push would take pushModalLoaded\'s immediate plain-modal fallback and the staging lock would then present ABOVE ours — putting a Cancel back on top. Staging ends in about 1.3 s and the next poll is 30 s away, so the wait costs nothing');
+    ok(!/hasModalOverlay/.test(idleGuards),
+      '★★ PIN-P1 (#46 loop MAJOR-1 — A SECURITY GATE): hasModalOverlay() is no longer a GUARD in lockOnIdle. The settings delete flows create `new LockPage(true)` — a justConfirm lock with a Cancel that closes it with NO password. On Windows locksOnBackground is false, so #505 removed the resume backstop and the idle watcher is the only trigger left. With this guard back, a user parks the app on an authorise lock, walks away, and ANY other person presses Cancel and is inside the account with the backup, the address and the delete flow');
+    ok(!/ModalStack/.test(idleGuards),
+      '★★ PIN-P1 (#46 loop MAJOR-1 — A SECURITY GATE): the ModalStack walk that returned for any LockPage is GONE. That walk WAS the bypass. The app lock now goes ON TOP of an authorise lock: presentPreload shows a lock in place only while modalOverlayOp is null AND ModalStack.Count is 0, so a second lock always takes the plain-modal path, and the ModalStack sits above the page tree. The app lock has no Cancel (#234), so the lock below it stays unreachable until the password is entered');
     ok(/nav\.CurrentPage is LockPage \|\| nav\.CurrentPage is LaunchPage/.test(body),
       '#505: and never over the cold-start lock or the retry view, which asks for the same password');
     ok(/if \(ownIntentFresh\(\)\)/.test(body),
       '#505: and not on the app\'s own picker round trip (AND-21)');
-    ok(/if \(m is LockPage\)/.test(body),
-      '#505: and not over an AUTHORISE lock already on the modal stack');
+    /* ★★ PIN-P2 — #46 loop m6: lockOnIdle's FIRST guard, which had no pin at all.
+       Delete that one line and the app presents a new lock every 30 s, with every other
+       pin in this file green. */
+    ok(/if \(!isLockEnabled\(\) \|\| isLockScreenActive \|\| pauseLock != null\)[\s\S]{0,60}?return;/.test(body),
+      '★★ PIN-P2 (#46 loop m6): the canonical first guard of lockOnIdle. isLockEnabled() is the feature switch; isLockScreenActive says a lock of ours is already up; pauseLock says the pause lock holds the screen. Delete this one line and the idle watcher presents a NEW lock every 30 s on top of the last one — and every other pin stays green, because nothing else reads it');
   }
 
   /* ⑤ the escape hatch */
@@ -11749,14 +12267,311 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       '★ #505 SELF-AUDIT: the relock clause skips a present that is IN FLIGHT. Between presentAppLock and pushModalLoaded\'s marshalled callback, isLockStaging() is false while isLockScreenActive is true — the exact shape the clause hunts — so a window activation landing there would have cleared the latch and staged a SECOND lock');
   }
   {
-    const pi = appNC.indexOf('private void presentAppLock(string cycleName)');
-    const pbody = appNC.slice(pi, appNC.indexOf('public void lockOnIdle()'));
-    ok(/if \(MainPage is not NavigationPage\)/.test(pbody)
+    /* ⚠ THE NEEDLE CHANGED WITH THE SIGNATURE. It was
+       'private void presentAppLock(string cycleName)'. m1 made the method return bool, so
+       indexOf returned −1, the slice became one character, and BOTH asserts in this block
+       went red for a file that is correct. The needle is the name and its parameter list,
+       which no return-type change can move. `presentBody` is the shared slice, scoped at
+       both ends (see PIN-P8). */
+    const pbody = presentBody;
+    ok(pbody.length > 200 && /if \(MainPage is not NavigationPage\)/.test(pbody)
        && pbody.indexOf('MainPage is not NavigationPage') < pbody.indexOf('isLockScreenActive = true'),
       '★ #505 SELF-AUDIT: presentAppLock checks MainPage BEFORE touching any state. Every original caller guaranteed it in its own condition and the body hard-casts; the sweep does not — and latching isLockScreenActive then throwing would create exactly the lost-lock state the sweep exists to repair');
     ok(/lastLockPresentAt = DateTime\.Now;/.test(pbody)
        && pbody.indexOf('lastLockPresentAt = DateTime.Now') < pbody.indexOf('isLockScreenActive = true'),
       '#505: the in-flight stamp is taken before the present begins');
+    /* ★★ PIN-P3 (c) — #46 loop m1: the early return happens BEFORE any state is touched. */
+    ok(pbody.indexOf('return false;') > 0
+       && pbody.indexOf('return false;') < pbody.indexOf('isLockScreenActive = true'),
+      '★★ PIN-P3 (#46 loop m1): the early return is `return false;`, and it comes BEFORE isLockScreenActive is latched. FALSE means "the present did not start and no state changed", which is what lets the sweep keep the lock latch up. Change it to `return true;` and the sweep clears the latch on a present that never happened — the app is then unlocked with nothing on screen to say so, which is fail OPEN');
+  }
+
+  /* ══ ★★ PIN-P3 (a)(b) — #46 loop m1: THE LATCH IS CLEARED ONLY AFTER A PRESENT STARTS ══ */
+  {
+    const si3 = appNC.indexOf('private void sweepStrandedCover()');
+    const sweepBody = appNC.slice(si3, appNC.indexOf('protected override void OnResume()', si3));
+    const clauseStart = sweepBody.indexOf('if (lockUp && !lockReachable && !presentInFlight)');
+    const clause = clauseStart < 0 ? '' : sweepBody.slice(clauseStart);
+    ok(/else if \(!presentAppLock\("sweep-relock"\)\)/.test(clause),
+      '★★ PIN-P3 (#46 loop m1): the relock clause branches on the RESULT of presentAppLock. The old code cleared the latch and dropped the shield first and called the method second, so presentAppLock\'s "MainPage is not a NavigationPage" early return left the app UNLOCKED with nothing on screen — fail OPEN, and the clause\'s own docblock promises fail CLOSED');
+    ok(clause.length > 100 && (clause.match(/isLockScreenActive = false;/g) || []).length === 1
+       && /if \(!isLockEnabled\(\)\)\s*\{\s*isLockScreenActive = false;\s*SpixiContentPage\.hidePrivacyShield\(\);\s*\}/.test(clause),
+      '★★ PIN-P3 (#46 loop m1): the clause clears the latch in exactly ONE place — the lock-is-OFF arm, where nothing can re-present and the latch plus the cover must both go or the app stays covered for the rest of the session. On the lock-is-ON arm a present that STARTS owns the latch and sets it itself, and a present that does NOT start leaves the latch up for the next sweep');
+  }
+
+  /* ══ ★★ PIN-P4 — #46 loop m3: A FAILED PRESENT RE-ASSERTS THE CALL SURFACE ══════════
+     ⚠ THIS PIN MUST BE SLICE-SCOPED, and that is the whole point of it. A whole-file
+     regex for `UIHelpers.refreshAppRequests = true;` stays GREEN with the line deleted,
+     because onUnlock and dismissPauseLock both carry the same statement. That is exactly
+     the vacuous class this loop found four times. */
+  {
+    const oi4 = appNC.indexOf('public void onLockPresentFailed()');
+    const after = appNC.slice(oi4);
+    const nb = after.slice(1).search(/\n    (?:public|private|internal|protected|static|\[)/);
+    const failedBody = nb < 0 ? after : after.slice(0, nb + 1);
+    ok(oi4 > 0 && failedBody.length > 40 && failedBody.length < 400
+       && /isLockScreenActive = false;/.test(failedBody)
+       && /UIHelpers\.refreshAppRequests = true;/.test(failedBody),
+      '★★ PIN-P4 (#46 loop m3), SLICE-SCOPED to onLockPresentFailed: a lock that FAILED to present re-asserts the call surface. presentAppLock calls CallPage.hideSurface() before it presents, and nothing else puts a live call\'s ring or bar back — so a failed present left the user unlocked AND with no ring and no call bar. lockOnPause sets this flag on both of its failure paths for the same reason (AUDIT MINOR-2), and #505 adds two new callers on Windows. No live call means this is a no-op');
+  }
+
+  /* ══ ★★ PIN-P5 — #46 loop m5: EVERY LOCK PATH STARTS ITS OWN DIAGNOSTIC CYCLE ═══════
+     SLockDiag.mark used to run BEFORE startCycle, so every line the hatch and the idle lock
+     wrote was attributed to the cycle that ran LAST — often the pause cycle from hours
+     earlier — with an elapsed time in hours. The hatch's stated value is that a recurrence
+     names its own mechanism in ONE screenshot. It did not.
+     ⚠ Comments stripped first: the new docblocks quote the cycle names. */
+  {
+    const diag = [...appNC.matchAll(/SLockDiag\.(startCycle|mark)\(\s*"([^"]*)"/g)]
+      .map((m) => ({ kind: m[1], name: m[2], at: m.index }));
+    const nextAfter = (name) => {
+      const i = diag.findIndex((d) => d.kind === 'startCycle' && d.name === name);
+      return i < 0 ? null : diag[i + 1];
+    };
+    for (const [cycle, firstMark] of [['idle-lock', 'idle/locking'], ['sweep-uncover', 'sweep/uncover'], ['sweep-relock', 'sweep/relock']]) {
+      const nx = nextAfter(cycle);
+      ok(!!nx && nx.kind === 'mark' && nx.name === firstMark,
+        '★★ PIN-P5 (#46 loop m5): startCycle("' + cycle + '") immediately precedes its first mark ("' + firstMark + '"). Without it that line prints under whatever cycle ran last, with an elapsed time in hours — a diagnostic that names the wrong mechanism is worse than none');
+    }
+    ok(/SLockDiag\.startCycle\("resume-lock"\);\s*presentAppLock\("resume-lock"\);/.test(appNC),
+      '★★ PIN-P5 (#46 loop m5): the resume path starts "resume-lock" at the DECISION, immediately before it calls presentAppLock. ⚠ Written as an adjacency test and not as a mark-ordering test, because this path takes its first mark INSIDE presentAppLock, which sits earlier in the file');
+    ok(!/SLockDiag\.startCycle\(cycleName\)/.test(appNC) && !/SLockDiag\.startCycle\(/.test(presentBody),
+      '★★ PIN-P5 (#46 loop m5): presentAppLock starts NO cycle of its own. It marks a phase in the cycle the CALLER started. A second banner here would re-stamp the caller\'s clock and every line the caller already wrote would read against the wrong start');
+  }
+
+  /* ══ ★★ PIN-P6 — #46 loop m2: THE SHIELD QUESTION IS ASKED OF THE VIEW TREE ═════════ */
+  {
+    const pageNC = strip(pageCs);
+    const hi = pageNC.indexOf('public static bool hasPrivacyShield()');
+    const hasBody = pageNC.slice(hi, pageNC.indexOf('public static void hidePrivacyShield', hi));
+    ok(hi > 0 && /foreach \(\(Grid grid, ContentView view\) in privacyShields\)/.test(hasBody)
+       && /if \(grid\.Children\.Contains\(view\)\)/.test(hasBody)
+       && !/^\s*return privacyShields\.Count > 0;\s*$/m.test(hasBody.split('catch')[0]),
+      '★★ PIN-P6 (#46 loop m2): hasPrivacyShield asks the VIEW TREE, not the bookkeeping list. It returned privacyShields.Count > 0. The ONE failure the escape hatch exists to repair is a cover that is STILL IN THE TREE, and hidePrivacyShield clears the list before the removal runs — so in exactly that state the hatch answered "nothing is covering the app" and logged nothing. The reverse is a defect too: a list entry whose view already left the tree is not a cover, and reporting one made the hatch log a stranded-cover diagnosis that was false');
+    const di = pageNC.indexOf('public static void hidePrivacyShield');
+    /* ⚠ scoped at BOTH ends — `di + 2000` was a character budget, which is a slice
+       boundary that moves whenever a comment is added above the next member. */
+    const hideEnd = pageNC.indexOf('public static SpixiContentPage? getParkedOverlay()', di);
+    const hideBody = hideEnd < 0 ? '' : pageNC.slice(di, hideEnd);
+    ok(di > 0 && /catch \(Exception ex\)/.test(hideBody)
+       && /if \(!privacyShields\.Exists\(sh => sh\.view == view\)\)\s*\{\s*privacyShields\.Add\(\(grid, view\)\);\s*\}/.test(hideBody)
+       && !/try \{ grid\.Children\.Remove\(view\); \} catch \{ \}/.test(hideBody),
+      '★★ PIN-P6 (#46 loop m2): a FAILED removal puts the entry back, and the silent `catch { }` is gone. The removal failing means the cover is still in the tree — dropping the entry there leaves the app covered while the escape hatch is told that nothing covers it, which is the one state the hatch exists to repair, made invisible to it. A later hidePrivacyShield then retries the removal');
+  }
+
+  /* ══ ★★ PIN-P7 — DAMIR'S DIAL, 2026-08-22: NO PRIVACY SHIELD ON WINDOWS DEACTIVATE ══ */
+  {
+    const sl = appNC.indexOf('protected override void OnSleep()');
+    const sleepBody = appNC.slice(sl, appNC.indexOf('private void markBackgrounded', sl) > sl
+      ? appNC.indexOf('private void markBackgrounded', sl) : sl + 4000);
+    ok(sl > 0 && /#if !WINDOWS\s*\n\s*if \(isLockEnabled\(\) && !isLockScreenActive\)\s*\{\s*SpixiContentPage\.showPrivacyShield\(\);\s*\}\s*\n#endif/.test(sleepBody),
+      '★★ PIN-P7 (Damir 2026-08-22): the OnSleep privacy shield is compiled OUT on Windows and KEPT everywhere else. MAUI raises OnSleep on window DEACTIVATION on WinUI, and a deactivated window is still fully visible — so this blacked out a window the user was looking at every time they clicked a browser, and it is the leading W-4.6 suspect. ⚠ MOBILE KEEPS IT byte for byte: there the cover protects the recents thumbnail and the app-open animation (#438) and the app really does leave the screen. Remove the #if pair and Windows blacks out again; delete the guarded block and mobile loses its #438 cover');
+    ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)/.test(sleepBody),
+      '★ PIN-P7: the INNER guard survives inside the mobile block — no shield when the lock is off, and none over a lock that is already up (it would paint over the password field)');
+    ok(/SpixiContentPage\.showPrivacyShield\(true\);/.test(presentBody),
+      '★ PIN-P7: and the LOCK\'s own cover is untouched on every platform. presentAppLock still covers first, so the idle lock on Windows still hides the app while the lock stages');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════
+     ★★★ #46 loop ROUND 2 — W-4.6 ON #507: A LOCK THAT PRESENTS WITH NO UI.
+     Damir's Windows session of 2026-08-22: the third idle lock logged
+     `lock/onPresentedInPlace` and then nothing for two hours. `uiReady` stayed false, so
+     every `maybeAuthenticate` answered "SKIP: gate not ready". The dark surface painted.
+     The HTML never arrived. That is the black window nobody could unlock.
+     Three guarantees are pinned below, and each is pinned as a GUARANTEE, not a shape:
+       (a) the state is OBSERVABLE — it says so at the moment it happens;
+       (b) it REPAIRS ITSELF, on a bounded budget, and the lock never comes down;
+       (c) the escape hatch can tell "a lock is on screen" from "a lock is USABLE".
+     ⚠ Every slice is scoped at BOTH ends and comments are stripped first. The new
+     docblocks quote the code they describe, so a raw-text pin reads its own explanation. */
+  {
+    const lockCs = readFileSync(join(root, 'Spixi/Pages/Launch/LockPage.xaml.cs'), 'utf8');
+    const lockNC = strip(lockCs);
+    /* both ends named; an empty string when either boundary moves, which fails every
+       assertion below rather than passing on a one-character slice */
+    const cutTo = (src, from, to) => {
+      const a = src.indexOf(from);
+      if (a < 0) return '';
+      const b = src.indexOf(to, a + from.length);
+      return b < 0 ? '' : src.slice(a, b);
+    };
+    const appearing = cutTo(lockNC, 'protected override void OnAppearing()', 'public override void onPresentedInPlace()');
+    const inPlace = cutTo(lockNC, 'public override void onPresentedInPlace()', 'private async void maybeAuthenticate()');
+    const notePres = cutTo(lockNC, 'private void notePresented(string where)', 'private void onLoad()');
+    const watchRep = cutTo(lockNC, 'private bool watchdogRepair(string why)', 'private void issueReload(string detail)');
+    const sweepRep = cutTo(lockNC, 'public bool repairBlankUi(string why)', 'private bool watchdogRepair(string why)');
+    const issue = cutTo(lockNC, 'private void issueReload(string detail)', 'private void armBlankUiWatchdog(string why)');
+    const armWd = cutTo(lockNC, 'private void armBlankUiWatchdog(string why)', 'private void notePresented(string where)');
+    const blankTest = cutTo(lockNC, 'public bool isBlankLock()', 'public bool repairBlankUi(string why)');
+    ok([appearing, inPlace, notePres, watchRep, sweepRep, issue, armWd, blankTest].every((s) => s.length > 60),
+      '★★ W-4.6 (#507): all eight blank-lock slices resolve between two named boundaries. A slice that silently collapses is how a pin goes vacuous — every assertion below reads one of these');
+
+    /* ── (a) THE STATE IS OBSERVABLE ─────────────────────────────────────────────── */
+    ok(/notePresented\("OnAppearing"\)/.test(appearing) && /notePresented\("onPresentedInPlace"\)/.test(inPlace),
+      '★★ W-4.6 (a) (#507): BOTH present paths tell the page it is really on screen — OnAppearing for the modal push, onPresentedInPlace for the #230 in-place stage. Damir\'s failing lock took the IN-PLACE path, so a pin on OnAppearing alone would have watched the one path that worked');
+    ok(notePres.indexOf('if (uiReady)') > 0
+       && notePres.indexOf('return;') > notePres.indexOf('if (uiReady)')
+       && notePres.indexOf('return;') < notePres.indexOf('mark("lock/presented-blank"')
+       && /mark\("lock\/presented-blank"/.test(notePres),
+      '★★ W-4.6 (a) (#507): notePresented states the fault ONLY when there is one — `if (uiReady) return;` comes BEFORE the mark. Invert that guard and every healthy lock reports itself blank, which makes the one line that names the real fault worthless. Delete the mark and the evidence is once again the ABSENCE of a line, which is what hid this for two hours; #503 taught that twice');
+
+    /* ── (b) IT REPAIRS ITSELF, BOUNDED, AND THE LOCK NEVER COMES DOWN ───────────── */
+    ok(/armBlankUiWatchdog\(where\)/.test(notePres),
+      '★★ W-4.6 (b) (#507): a lock that presented blank ARMS the watchdog. Without this call the diagnosis is written and nothing acts on it — the user still stares at a black window');
+    ok(/armBlankUiWatchdog\(why\)/.test(watchRep),
+      '★★ W-4.6 (b) (#507): and the watchdog RE-ARMS itself after each reload, so the chain is one wait per attempt. Delete the re-arm and exactly one retry ever happens, whatever the budget says');
+    {
+      const budgetAt = watchRep.indexOf('blankRepairs >= BLANK_LOCK_MAX_REPAIRS');
+      const bumpAt = watchRep.indexOf('blankRepairs++');
+      ok(budgetAt > 0 && bumpAt > budgetAt,
+        '★★ W-4.6 (b) (#507): the budget is tested BEFORE it is spent. Increment first and the last permitted reload is never issued — or, with the comparison the other way, the budget never ends. This is the ordering, not the presence of the two lines');
+    }
+    {
+      /* ★ NUMBERS ARE PARSED AS NUMBERS. A regex on a literal rots the day someone tunes
+         the dial; a parsed comparison states the CONSTRAINT that makes the dial safe. */
+      const num = (name) => {
+        const m = lockNC.match(new RegExp('const\\s+(?:int|double)\\s+' + name + '\\s*=\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*;'));
+        return m ? Number(m[1]) : NaN;
+      };
+      const delay = num('BLANK_LOCK_REPAIR_DELAY_MS');
+      const maxRep = num('BLANK_LOCK_MAX_REPAIRS');
+      const maxSweep = num('BLANK_LOCK_MAX_SWEEP_REPAIRS');
+      const minAge = num('BLANK_LOCK_MIN_AGE_SECONDS');
+      ok(delay > 1200,
+        '★★ W-4.6 (b) (#507), PARSED AS A NUMBER: BLANK_LOCK_REPAIR_DELAY_MS is ' + delay + ' and it must stay above 1200. 1200 ms is pushModalLoaded\'s own staging timeout, so a shorter wait lets the first blank check race the timeout present and call a lock broken that is still loading. The slowest cold load ever measured here was 1036 ms');
+      ok(maxRep > 0 && maxRep <= 5,
+        '★★ W-4.6 (b) (#507), PARSED AS A NUMBER: 0 < BLANK_LOCK_MAX_REPAIRS <= 5 (it is ' + maxRep + '). Zero means the watchdog logs and never reloads — the repair is gone while every other pin stays green. Above five the automatic recovery runs for the rest of the session instead of finishing inside about ten seconds, and a WebView that ignores five fresh sources will not answer a sixth');
+      ok(maxSweep > 0 && maxSweep <= 5 && minAge >= 3 && minAge * 1000 >= delay,
+        '★★ W-4.6 (b)(c) (#507), PARSED AS NUMBERS: the sweep budget is separate and bounded (' + maxSweep + '), and BLANK_LOCK_MIN_AGE_SECONDS (' + minAge + ' s) is at least one whole watchdog wait (' + delay + ' ms). Shorter than one wait, a window activation during a NORMAL load reports a healthy lock as broken and reloads it — the repair becomes the fault');
+    }
+    ok(/reload\(\);/.test(issue) && !/loadPage\(/.test(issue),
+      '★★ W-4.6 (b) (#507): the repair calls reload(), never loadPage(). loadPage re-subscribes Navigating/Navigated, so a second call would deliver every `ixian:` verb TWICE — including `ixian:unlock`. reload() re-generates the source only, and it is a no-op once Dispose has nulled the WebView, which is what makes a late timer harmless');
+    {
+      /* ⚠ NOT "before onLoad()". issueReload sits EARLIER in the file than onLoad, so a
+         position window would have accepted a loadPage inside the repair itself — the one
+         place it must never be. The ENCLOSING MEMBER is what is tested: for each call, the
+         nearest member declaration above it must be a LockPage constructor. */
+      const memberAt = (i) => {
+        const decls = [...lockNC.slice(0, i).matchAll(/\n        (?:public|private|internal|protected)[^\n=;]*\(/g)];
+        return decls.length ? decls[decls.length - 1][0].trim() : '';
+      };
+      const loadPageCalls = [...lockNC.matchAll(/loadPage\(webView/g)].map((m) => m.index);
+      const owners = loadPageCalls.map(memberAt);
+      ok(loadPageCalls.length > 0 && owners.every((d) => d.startsWith('public LockPage(')),
+        '★★ W-4.6 (b) (#507): every loadPage(webView, …) in this file is inside a LockPage CONSTRUCTOR. One added anywhere else — the blank-UI repair above all — is a second subscription of the Navigating/Navigated handlers on a LIVE page, and every `ixian:` verb then arrives twice, `ixian:unlock` included (owners: ' + owners.join(' · ') + ')');
+    }
+    {
+      const repairAll = sweepRep + watchRep + issue + armWd;
+      ok(repairAll.length > 400 && !/PopModalAsync/.test(repairAll) && !/authSucceeded/.test(repairAll)
+         && !/isLockScreenActive/.test(repairAll),
+        '★★ W-4.6 (b) (#507) — THE LOCK NEVER COMES DOWN. The whole repair path — repairBlankUi, watchdogRepair, issueReload and armBlankUiWatchdog — pops no page, raises no authSucceeded and clears no latch. A repair that could dismiss the lock would be an app-lock bypass built by the code that repairs app locks, which is the #500 shape. When the budget is spent the lock STAYS UP and the log says so');
+    }
+
+    /* ── (c) THE HATCH SEPARATES "PRESENT" FROM "USABLE" ─────────────────────────── */
+    ok(/if \(uiReady \|\| lockClosing \|\| presentedAt == DateTime\.MinValue\)/.test(blankTest)
+       && /age >= BLANK_LOCK_MIN_AGE_SECONDS/.test(blankTest),
+      '★★ W-4.6 (c) (#507): isBlankLock carries the BOUNDED AGE itself, so a lock caught mid-load is never called broken, and a lock on its way out is never repaired. The test belongs to the PAGE — the hatch cannot ask "did your WebView load?" of a navigation collection');
+    {
+      const sweepBodyW = appNC.slice(appNC.indexOf('private void sweepStrandedCover()'),
+        appNC.indexOf('protected override void OnResume()', appNC.indexOf('private void sweepStrandedCover()')));
+      const relockAt = sweepBodyW.indexOf('if (lockUp && !lockReachable && !presentInFlight)');
+      const relockReturn = sweepBodyW.indexOf('return;', relockAt);
+      const blankAt = sweepBodyW.indexOf('screenLock.isBlankLock()');
+      const blankClause = blankAt < 0 ? '' : sweepBodyW.slice(sweepBodyW.lastIndexOf('if (', blankAt));
+      ok(/for \(int i = modals\.Count - 1; i >= 0; i--\)/.test(sweepBodyW),
+        '★★ W-4.6 (c) (#507): the ModalStack is read FROM THE TOP. Round 1\'s MAJOR-1 fix lets an app lock present ABOVE a settings authorise lock, so "the lock on screen" became ambiguous — and the page the user is looking at is the TOP modal. Iterate forward and the hatch asks the covered lock whether the VISIBLE one loaded');
+      ok(blankAt > 0 && relockAt > 0 && relockReturn > relockAt && blankAt > relockReturn,
+        '★★ W-4.6 (c) (#507): the blank-lock clause sits AFTER the relock clause\'s own `return;`, so it is REACHABLE. Above that return it is dead code: the relock clause returns on every path it takes, and the two clauses are blind to each other\'s state — the app is not unlocked (so the uncover clause skips) and a lock IS reachable (so the relock clause skips). This third clause is the only one that can see Damir\'s black window');
+      ok(/lockUp && screenLock != null && screenLock\.isBlankLock\(\)/.test(sweepBodyW),
+        '★★ W-4.6 (c) (#507): the clause fires only for a lock that is LATCHED, really on screen, and blank. Drop isBlankLock() and the hatch reloads a perfectly good lock on every window activation — the repair becomes a denial of service on the password field');
+      ok(blankClause.length > 60 && /repairBlankUi\(/.test(blankClause)
+         && !/PopModalAsync/.test(blankClause) && !/isLockScreenActive = false/.test(blankClause),
+        '★★ W-4.6 (c) (#507): the clause REPAIRS UNDER the lock and does nothing else — no pop, no latch clear. Add `isLockScreenActive = false` here and a window activation on a blank lock unlocks the app, which is the exact bypass class this batch exists to close');
+    }
+  }
+
+  /* ══ ★★ PIN-H (#46 loop m6, ROUND 2) — presentAppLock FAILS CLOSED ═══════════════ */
+  {
+    const catchAt = presentBody.indexOf('catch (Exception e)');
+    const catchBody = catchAt < 0 ? '' : presentBody.slice(catchAt);
+    ok(catchAt > 0 && /return false;/.test(catchBody)
+       && !/isLockScreenActive = false/.test(catchBody)
+       && !/onLockPresentFailed/.test(catchBody),
+      '★★ PIN-H (#46 loop m6): presentAppLock guards its body, and the catch FAILS CLOSED. Between the state mutation and the push it runs `new LockPage(true, true)` — InitializeComponent plus a WebView load. A throw there used to leave isLockScreenActive latched TRUE, the call surface dropped and NO lock: the app visible and usable while the code believed it was locked, with SDesktopIdle dead for the session. ⚠ The catch must NOT call onLockPresentFailed(): that method CLEARS the latch, which is fail OPEN. The latch stays up, the cover stays up, and FALSE tells the caller no lock is coming');
+    ok(/UIHelpers\.refreshAppRequests = true;/.test(catchBody),
+      '★ PIN-H (#46 loop m3): the one thing the catch DOES re-assert is the call UI. presentAppLock drops a live call\'s ring and bar with CallPage.hideSurface() before it presents, and re-asserting them unlocks nothing');
+  }
+
+  /* ══ ★★ PIN-I (#46 loop m2/m5, ROUND 2) — THE COVER DROP ASKS THE TREE ═══════════ */
+  {
+    const pageNC2 = strip(pageCs);
+    const hideAt = pageNC2.indexOf('public static void hidePrivacyShield');
+    /* ⚠ BOTH ENDS NAMED, AND THE END IS AFTER THE START. armPrivacyShieldSafety is
+       DECLARED earlier in the file than hidePrivacyShield, so `indexOf(decl, hideAt)`
+       answers −1 and slice(hideAt, −1) reads the rest of the file — an open-ended slice
+       wearing the shape of a bounded one. Mutation-caught. */
+    const hideEnd2 = pageNC2.indexOf('public static SpixiContentPage? getParkedOverlay()', hideAt);
+    const hideBody2 = (hideAt < 0 || hideEnd2 < 0) ? '' : pageNC2.slice(hideAt, hideEnd2);
+    ok(hideBody2.length > 400 && /stillThere = grid\.Children\.Contains\(view\);/.test(hideBody2)
+       && /if \(!stillThere\)/.test(hideBody2),
+      '★★ PIN-I (#46 loop m2, ROUND 2): the drop ASKS THE TREE whether the cover left, and does not trust the absence of a throw. Remove can return quietly and leave the child in place. Round 1 put the entry back only when Remove THREW, so the quiet failure left the app covered while the escape hatch was told nothing covers it — the one state the hatch exists to repair, made invisible to it');
+    ok(/if \(privacyShieldPutBacks < PRIVACY_SHIELD_MAX_PUT_BACKS\)/.test(hideBody2)
+       && hideBody2.indexOf('armPrivacyShieldSafety()') > hideBody2.indexOf('privacyShieldPutBacks < PRIVACY_SHIELD_MAX_PUT_BACKS'),
+      '★★ PIN-I (#46 loop m5, ROUND 2): a put-back ARMS A FRESH BELT, and the belt is BUDGETED. hidePrivacyShield bumped privacyShieldGeneration on entry, which killed the 8 s release watching this cover, so without a fresh arm the re-added entry sits in the list with nothing scheduled to try again. Without the budget a Remove that fails for ever logs and re-arms every 8 s for the life of the process');
+    ok(/privacyShieldPutBacks = 0;/.test(pageNC2.slice(pageNC2.indexOf('public static void showPrivacyShield'), hideAt)),
+      '★ PIN-I (#46 loop m5): the budget resets when a NEW cover is raised, so it is per cover cycle and not per process. A one-shot process budget would silently stop retrying for every later cover');
+  }
+
+  /* ══ ★★ PIN-J (#46 loop m5, ROUND 2) — EVERY PRESENT RUNS UNDER ITS OWN CYCLE ════
+     Written as "the nearest preceding startCycle names THIS call's cycle, with no other
+     startCycle and no other present between them" rather than as a character budget. A
+     budget rots the moment a diagnostic line grows; the NAME MATCH is the guarantee. */
+  {
+    const calls = [...appNC.matchAll(/presentAppLock\("([a-z-]+)"\)/g)];
+    ok(calls.length === 3,
+      '★★ PIN-J (#46 loop m5): presentAppLock is called from exactly THREE places — the resume path, the idle watcher and the escape hatch (found ' + calls.length + ': ' + calls.map((c) => c[1]).join(', ') + '). A fourth caller is a fourth lock path, and every one of them must start its own diagnostic cycle');
+    for (const c of calls) {
+      const before = appNC.slice(0, c.index);
+      const sc = before.lastIndexOf('SLockDiag.startCycle("');
+      const between = sc < 0 ? '' : before.slice(sc);
+      const named = sc >= 0 && before.slice(sc).startsWith('SLockDiag.startCycle("' + c[1] + '")');
+      const clean = sc >= 0
+        && (between.match(/SLockDiag\.startCycle\("/g) || []).length === 1
+        && !/presentAppLock\("[a-z-]+"\)/.test(between);
+      ok(named && clean,
+        '★★ PIN-J (#46 loop m5): the presentAppLock("' + c[1] + '") call runs under a startCycle("' + c[1] + '") of its own, with no other cycle and no other present in between. presentAppLock no longer starts a cycle, so a caller that forgets one writes every line of that lock attempt under the cycle that ran LAST — often the pause cycle from hours earlier, with an elapsed time in hours. The hatch\'s stated value is that a recurrence names its own mechanism in one screenshot');
+    }
+  }
+
+  /* ══ ★★ PIN-G (#46 loop MAJOR-3 on #507) — THE STAGING WINDOW OPENS EARLIER ══════
+     pushModalLoaded sets preloadPending and THEN marshals the staging block, which runs on
+     the NEXT dispatcher turn. For that whole turn isLockStaging() read activePreload only
+     and answered FALSE, modalOverlayOp was null and ModalStack.Count was 0 — so lockOnIdle
+     and CallPage.lockUp() both saw "no lock anywhere" and were free to present OVER a lock
+     already on its way up. On the idle path that puts a settings authorise lock, Cancel and
+     all, ABOVE the app lock. */
+  {
+    const pageNC3 = strip(pageCs);
+    const staging = pageNC3.slice(pageNC3.indexOf('public static bool isLockStaging()'),
+      pageNC3.indexOf('internal static bool isPreloadPending()') > 0
+        ? pageNC3.indexOf('internal static bool isPreloadPending()')
+        : pageNC3.indexOf('public static bool isLockStaging()') + 1200);
+    ok(/lockPreloadPending/.test(staging)
+       && /age >= 0 && age <= LOCK_PRELOAD_PENDING_MAX_SECONDS/.test(staging),
+      '★★ PIN-G (#46 loop MAJOR-3 on #507): isLockStaging answers TRUE for the RESERVED turn, before activePreload exists — and the answer is BOUNDED BY TIME. A marshalled block that never ran would otherwise latch isLockStaging() true for the rest of the session, which kills the idle lock and the call surface together. A negative age (the clock moved backwards) must not read as "just now", the same guard ownIntentFresh() carries');
+    {
+      const pmAt = pageNC3.indexOf('pushModalLoaded');
+      const pmEnd = pageNC3.indexOf('private void presentPlainModal(', pmAt);
+      const pm = pmAt < 0 || pmEnd < 0 ? '' : pageNC3.slice(pmAt, pmEnd);
+      const clears = (pm.match(/(?<![A-Za-z])preloadPending = false/g) || []).length;
+      const lockClears = (pm.match(/lockPreloadPending = false/g) || []).length;
+      ok(pm.length > 500 && clears === 3 && lockClears === clears,
+        '★★ PIN-G (#46 loop MAJOR-3): EVERY exit from pushModalLoaded that clears preloadPending clears lockPreloadPending too — ' + clears + ' and ' + lockClears + ', and they must be equal. One missed exit latches the staging answer TRUE for up to LOCK_PRELOAD_PENDING_MAX_SECONDS on a path where no lock is coming, and the idle lock silently skips its turn. Counted as a PAIR, so adding a new exit that clears only one is what turns this red');
+      const setAt = pm.indexOf('lockPreloadPending = target is LockPage;');
+      const trueAt = pm.search(/(?<![A-Za-z])preloadPending = true;/);
+      ok(setAt > trueAt && trueAt > 0 && pm.slice(trueAt, setAt).indexOf('}') < 0,
+        '★★ PIN-G (#46 loop MAJOR-3): the stamp is taken INSIDE the same lock (preloadLock) block as `preloadPending = true`, with no brace between them. Outside that block the reservation and the flag it belongs to can be read apart, which is the torn state this closes');
+    }
   }
 }
 
@@ -11766,27 +12581,94 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const setCssQ = readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8');
   const infoCssQ = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
   const qrJs = readFileSync(join(root, 'src/components/qr.js'), 'utf8');
-  const ruleOf = (css, sel) => {
-    const i = css.indexOf(sel + ' {');
-    return i < 0 ? '' : css.slice(i, css.indexOf('}', i));
-  };
+  /* ⚠ #46 loop §0: the local `ruleOf()` that used to live here is GONE — same four lines,
+     same three defects as `rule()`. It made the QR padding pin vacuous: re-adding the 12px
+     through a LATER override rule left the pin green, because it read the FIRST rule only.
+     Every QR geometry pin below runs cascade-wide through rulesFor(). */
 
   /* ★ ① The half that is NOT ours. The quiet zone is ISO/IEC 18004's four-module
      minimum and this is a wallet address — a misread is the worst defect in the app.
      Pinned so a later "let us trim the white a bit more" cannot reach it. */
-  ok(/quiet = 4|quiet: 4|quiet\s*=\s*4/.test(qrJs),
-    '★ N86 ①: the 4-module QUIET ZONE is untouched. It is the ISO/IEC 18004 minimum, not decoration — below four modules scanners begin to fail, and this code is a wallet address');
+  ok(/quiet = 4/.test(qrJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '')),
+    '★ N86 ①: the 4-module QUIET ZONE is untouched, in CODE and not in a comment. It is the ISO/IEC 18004 minimum, not decoration — below four modules scanners begin to fail, and this code is a wallet address');
 
-  const hubQr = ruleOf(setCssQ, '.c-settings__qr');
-  const infoQr = ruleOf(infoCssQ, '.c-chat-info__qr');
-  ok(hubQr.length > 20 && !/padding/.test(hubQr),
-    '★ N86 ①: the hub QR card no longer adds 12px of surplus white around the quiet zone — the white square goes ≈209px → 185px, a 22% cut, with no effect on scanning');
-  ok(infoQr.length > 20 && !/padding/.test(infoQr),
-    '★ N86 ①: chat-info likewise — one batch, both surfaces, or they drift again');
-  ok(/border-radius: var\(--radius-16\)/.test(hubQr) && /border-radius: var\(--radius-16\)/.test(infoQr),
-    '★ N86 ①: the radius stays 16px and no larger. With the padding gone the curve eats the quiet zone\'s own corner; at 185px/45 modules a 16px radius costs ≈4.7px of DIAGONAL depth and nothing along the edges, where the standard measures. A bigger radius breaks that');
-  ok(/align-self: center/.test(hubQr),
+  const hubQr = rulesFor('.c-settings__qr');
+  const infoQr = rulesFor('.c-chat-info__qr');
+  const noneDeclares = (rules, prop) => rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop && !d.prop.startsWith(prop + '-')));
+  const allDeclare = (rules, prop, value) =>
+    rules.some((r) => cssDecls(r.body).some((d) => d.prop === prop && d.value === value))
+    && rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop || d.value === value));
+  ok(hubQr.length > 0 && noneDeclares(hubQr, 'padding'),
+    '★ N86 ① (CASCADE-WIDE, every stylesheet): the hub QR card declares NO padding in ANY rule — the white square goes ≈209px → 185px, a 22% cut, with no effect on scanning. ⚠ The old pin read the FIRST rule in one file, so re-adding the padding through a later override rule left it green. That was one of the four vacuous pins this loop found');
+  ok(infoQr.length > 0 && noneDeclares(infoQr, 'padding'),
+    '★ N86 ① (CASCADE-WIDE): chat-info likewise — one batch, both surfaces, or they drift again');
+  ok(allDeclare(hubQr, 'border-radius', 'var(--radius-16)') && allDeclare(infoQr, 'border-radius', 'var(--radius-16)'),
+    '★ N86 ① (CASCADE-WIDE): the radius is var(--radius-16) on both surfaces and NO rule anywhere overrides it with another value. With the padding gone the curve eats the quiet zone\'s own corner. A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth, and the measured quiet zone is 16.44px in the worst case — so the curve stays inside the quiet zone and reaches no module. Raise the radius and that stops being true');
+  ok(/align-self: center/.test(hubQr.map((r) => r.body).join(';')),
     'N86 ③: the hub card HUGS the code instead of spanning the hero — the chat-info parity #149③ was about');
+
+  /* ══ ★★ PIN-G — #46 loop §5: THE QR NUMBERS ARE MEASURED, NOT RECALLED ══════════════
+     HALF 1 IS LIVE. It runs the SHIPPED encoder in jsdom and reads the viewBox back. It
+     matches no text at all, so `quiet = 2` cannot hide behind a comment that still says
+     `quiet = 4` — which is exactly how the old quiet-zone pin was vacuous. */
+  {
+    const qrDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    const hadW = 'window' in globalThis ? globalThis.window : undefined;
+    const hadD = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = qrDom.window; globalThis.document = qrDom.window.document;
+    try {
+      const { createQrSvg } = await import('file://' + join(root, 'src/components/qr.js'));
+      const box = (n) => {
+        const m = createQrSvg('X'.repeat(n) + '').getAttribute('viewBox').match(/^0 0 (\d+) \1$/);
+        return m ? Number(m[1]) : NaN;
+      };
+      const cells = box(59);
+      const perCell = 185 / cells;
+      const quietPx = 4 * perCell;
+      ok(cells === 41,
+        '★★ PIN-G HALF 1 (#46 loop §5), LIVE: the shipped encoder gives a 41-cell viewBox for a 59-character payload — a 33-module code plus the 4-module quiet zone on each side. NO TEXT IS MATCHED here, so `quiet = 2` in qr.js turns this red even while every comment still says four. The old quiet-zone pin read the comment and was vacuous');
+      ok(Math.abs(perCell - 4.51) < 0.005 && Math.abs(quietPx - 18.05) < 0.005,
+        '★★ PIN-G HALF 1 (#46 loop §5), DERIVED FROM THE LIVE BOX: at the shipped 185px the cell is ' + perCell.toFixed(2) + 'px and the quiet zone is ' + quietPx.toFixed(2) + 'px per side — the 4.51 and 18.05 the two comments now carry. The retired comment said 4.1px and ≈16.4px for this payload, which is the wrong row of the table');
+    } finally {
+      if (hadW === undefined) delete globalThis.window; else globalThis.window = hadW;
+      if (hadD === undefined) delete globalThis.document; else globalThis.document = hadD;
+    }
+  }
+
+  /* HALF 2 — the prose. Three comments describe this geometry: the two CSS docblocks and
+     the settings-shell.js note that justifies the full-size reveal. */
+  {
+    const grabDoc = (src, anchor) => {
+      const i = src.indexOf(anchor);
+      return i < 0 ? '' : src.slice(i, src.indexOf('*/', i));
+    };
+    const hubDoc = grabDoc(setCssQ, '/* ★ N86 ① (Damir 2026-08-25)');
+    const infoDoc = grabDoc(infoCssQ, '/* ★ N86 ① (Damir 2026-08-25)');
+    for (const [name, doc] of [['settings-shell.css', hubDoc], ['chat-info.css', infoDoc]]) {
+      ok(doc.length > 400 && /4\.51px per cell/.test(doc) && /18\.05px quiet zone/.test(doc)
+         && /16\.44px quiet zone/.test(doc) && /R\(√2−1\) = 6\.63px/.test(doc),
+        '★ PIN-G HALF 2 (#46 loop §5): ' + name + ' carries the MEASURED numbers — 4.51px per cell, 18.05px and 16.44px of quiet zone, and R(√2−1) = 6.63px of diagonal depth. The comment is what a future editor computes headroom from, on the surface that renders a wallet address');
+      ok(doc.length > 400 && !/185\/45/.test(doc) && !/≈3\.8px/.test(doc)
+         && !/≈4\.7px of DIAGONAL/.test(doc) && !/≈45-module grid/.test(doc),
+        '★ PIN-G HALF 2 (#46 loop §5): and ' + name + ' carries NONE of the three retired wrong numbers — "185/45 ≈ 4.1px" for a real address, "≈16.4px" as THE quiet zone, and "16 − 16/√2 ≈ 4.7px of DIAGONAL depth". The last one is the sagitta of the arc, a different measurement, and it understates the corner loss by 41%');
+    }
+    /* ⚠ #149③ IS THE RECORDED DEFECT: the two surfaces disagreeing about the same code. */
+    ok(hubDoc.length > 400 && hubDoc === infoDoc,
+      '★★ PIN-G HALF 2 (#149③): the two CSS docblocks are BYTE-IDENTICAL to each other. #149③ is the recorded defect of these two surfaces disagreeing about the same code, and a number corrected on one card and not the other is that defect returning in the place hardest to see');
+    const setDoc = setJs.slice(setJs.indexOf('★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE'), setJs.indexOf('★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE') + 1400);
+    ok(/4\.51px per cell/.test(setDoc) && /41 cells/.test(setDoc) && /4\.11px/.test(setDoc)
+       && !/≈3\.8px per module/.test(setDoc) && !/~41-module code/.test(setDoc),
+      '★ PIN-G HALF 2 (#46 loop §5): the settings-shell.js note that justifies the FULL-SIZE reveal is measured too — 41 cells at 4.51px, worst case 4.11px. It used to say "a ~41-module code runs ≈3.8px per module", which mixed the code count with the box count and gave a compact size of ≈100px instead of the real 82–90px');
+  }
+
+  /* GEOMETRY GUARD — the two numbers the arithmetic above rests on, read CASCADE-WIDE so a
+     later override rule in any stylesheet cannot move them out from under the comment. */
+  {
+    const svgRules = cssRulesWhere((s) => /(^|\s)\.c-(settings|chat-info)__qr svg$/.test(s));
+    const sizes = svgRules.flatMap((r) => cssDecls(r.body).filter((d) => d.prop === 'width' || d.prop === 'height'));
+    ok(svgRules.length === 2 && sizes.length === 4 && sizes.every((d) => d.value === '185px'),
+      '★★ PIN-G GEOMETRY (CASCADE-WIDE): the code renders at 185px on BOTH surfaces, and no rule in any stylesheet declares another width or height for it. Every number in the two comments is derived from this 185, so an override anywhere would make the whole safety argument false while the comment still reads correct');
+  }
 
   /* ② the reveal */
   const setNC = setJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
@@ -11899,32 +12781,77 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/probeMark\('wdone'\)/.test(homeNC) && /probeMark\('adone'\)/.test(homeNC)
      && /probeMark\('wflush'\)/.test(homeNC) && /probeMark\('aflush'\)/.test(homeNC),
     '#506③: all four marks are actually taken');
+
+  /* ══ ★★ PIN-F — #46 loop m14: THE WALLET FLUSH IS SERIALISED ════════════════════════
+     loadApps got this lock after #340 found the same race. loadTransactions runs on the UI
+     thread (a filter tap, tab entry) AND on Node.updateUILoop's thread-pool tick, with no
+     marshalling. Two interleaved runs let one run's clearPaymentActivity drop rows the
+     other had already delivered — and, new since #506③, let the FIRST run's
+     clearPaymentActivityDone open the zero gate in the MIDDLE of the second run's burst.
+     open() also cancels the shell's 400 ms quiet-window belt, which used to cover exactly
+     this case, so the empty state paints over a populated wallet. */
+  {
+    const lti = csNC.indexOf('public void loadTransactions(bool forceRefresh)');
+    const ltBody = lti < 0 ? '' : csNC.slice(lti, csNC.indexOf('private void loadApps'));
+    /* (a) THE LOCK OBJECT IS A FIELD. A lock object created inside the method locks
+       nothing — each call would take a lock nobody else can hold. */
+    const decl = csNC.indexOf('private readonly object txPushLock = new object();');
+    ok(decl > 0 && decl < lti && !ltBody.includes('object txPushLock = new object()'),
+      '★★ PIN-F (a) (#46 loop m14): txPushLock is a CLASS FIELD, declared outside loadTransactions. A lock object constructed inside the method locks nothing at all — every caller would take its own private object and the two flushes would still interleave, with the pin below still green');
+    /* (b) ROUND 2 — THE UI-THREAD GUARD COMES FIRST, AND THE LOCK IS FIRST IN THE
+       WORKING BODY. The lock alone traded a race for a FREEZE, and the freeze is worse:
+       loadApps holds its lock over a bounded body (the installed-app count), while
+       loadTransactions holds it over getActivitiesBySeedHashAndType with count 0 — the
+       WHOLE activity history, plus one getActivityById per row under Ixian-Core's storage
+       lock. The tick runs that scan every 2 s on the pool. A Wallet tab or filter tap used
+       to run the same scan ON the UI thread, and with the lock added it also waited for the
+       tick's scan first. The fix is not a smaller lock: the flush must never run on the UI
+       thread at all. The lock then costs the UI thread nothing. */
+    ok(/public void loadTransactions\(bool forceRefresh\)\s*\{\s*if \(MainThread\.IsMainThread\)\s*\{\s*Task\.Run\(\(\) =>/.test(csNC),
+      '★★ PIN-F (b)① (#46 loop m14, ROUND 2): loadTransactions OPENS with the UI-thread guard — `if (MainThread.IsMainThread) { Task.Run(...` — and returns at once. Every row leaves through Utils.sendUiCommand, which marshals to the main thread itself, so this method never needed the UI thread. Delete the guard and a Wallet tab tap runs the whole activity history on the UI thread AND waits behind the 2 s tick that is already running it: a visible freeze under the finger, added by the lock that was meant to fix a race. ⚠ The recursion terminates because Task.Run always lands on a pool thread, where IsMainThread is false');
+    ok(/Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*loadTransactions\(forceRefresh\);\s*\}\s*catch \(Exception e\)/.test(csNC),
+      '★ PIN-F (b)① (#46 loop m14, ROUND 2): the hand-off is FENCED. On the UI thread a throw used to reach the caller\'s handler; on the pool it would be an unobserved task exception, which is a silent flush failure and, in some runtime configurations, a process kill');
+    ok(/if \(MainThread\.IsMainThread\)\s*\{\s*Task\.Run\(\(\) =>[\s\S]{0,400}?\}\);\s*return;\s*\}\s*lock \(txPushLock\)\s*\{\s*if \(!forceRefresh && !UIHelpers\.shouldRefreshTransactions\)/.test(csNC),
+      '★★ PIN-F (b)② (#46 loop m14, ROUND 2): `lock (txPushLock)` is still the FIRST statement of the WORKING body — directly after the dispatch guard\'s `return;` — so the !forceRefresh early return sits INSIDE the lock. Placed below that return the lock protects nothing that matters: the second flush passes the return, enters the body, and interleaves with the first exactly as before');
+    /* (c) THE DONE PUSH IS INSIDE THE LOCK. Outside it, the first run opens the zero gate
+       while the second run is still pushing rows. */
+    const lockAt = ltBody.indexOf('lock (txPushLock)');
+    const open = ltBody.indexOf('{', lockAt);
+    let depth = 0, close = -1;
+    for (let i = open; i < ltBody.length && open >= 0; i++) {
+      if (ltBody[i] === '{') depth++;
+      else if (ltBody[i] === '}') { depth--; if (depth === 0) { close = i; break; } }
+    }
+    const donePush = ltBody.indexOf('sendUiCommand(this, "clearPaymentActivityDone")');
+    ok(lockAt >= 0 && close > 0 && donePush > lockAt && donePush < close,
+      '★★ PIN-F (c) (#46 loop m14): the clearPaymentActivityDone push is INSIDE the lock, not after its closing brace. Outside it the first run announces "end of burst" while the second run is still pushing rows, the zero gate opens on a half-built model, and open() cancels the 400 ms belt that used to hide that window — the empty state then paints over a populated wallet');
+  }
 }
 
 {
   /* —— #506② the long-pressed message is lifted OUT from under the scrim ————— */
-  const mmCss = readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8');
-  const ovCss = readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8');
   const tokZ = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
   const mmJs = readFileSync(join(root, 'src/components/message-menu.js'), 'utf8');
-  const bubCss = readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8');
-  const rule = (css, sel) => {
-    const i = css.indexOf(sel + ' {');
-    return i < 0 ? '' : css.slice(i, css.indexOf('}', i));
-  };
+  /* ★★ #46 loop §0: the four-line `rule()` helper that used to live here is GONE. It read
+     the FIRST rule, in ONE nominated file, with comments intact. That made four pins
+     vacuous and it hid MAJOR-2. Every CSS pin below reads the whole cascade through
+     rulesFor(), which walks every stylesheet under src/styles with comments stripped. */
+  const declaredAs = (rules, prop, value) =>
+    rules.some((r) => cssDecls(r.body).some((d) => d.prop === prop && d.value === value))
+    && rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop || d.value === value));
 
-  const lift = rule(mmCss, '[data-menu-lift]');
-  ok(/z-index:\s*var\(--z-42\)/.test(lift),
+  const lift = rulesFor('[data-menu-lift]');
+  ok(declaredAs(lift, 'z-index', 'var(--z-42)'),
     '★ #506②: the pressed message is PROMOTED above the scrim (z-42 > z-40). Measured on device, the ring reads 2.01:1 UNDER the 60% scrim and 5.98:1 above it — no ring colour could answer the complaint, so #492\'s tint was the wrong LAYER, not the wrong colour');
-  ok(/pointer-events:\s*none/.test(lift),
+  ok(declaredAs(lift, 'pointer-events', 'none'),
     '★ #506②: the lifted message is DEAD to hit-testing. Above the scrim it would otherwise swallow the tap that light-dismisses the menu — on the one element the user is looking at. It is a picture; the sheet is what is interactive');
-  ok(/position:\s*relative/.test(lift),
+  ok(declaredAs(lift, 'position', 'relative'),
     '#506②: position:relative — z-index on a static element does nothing');
 
   const zNum = (name) => { const m = tokZ.match(new RegExp('--' + name + ':\\s*(\\d+)')); return m ? Number(m[1]) : NaN; };
   ok(zNum('z-40') < zNum('z-42') && zNum('z-42') < zNum('z-44') && zNum('z-44') < zNum('z-50'),
     '★ #506②: the band ORDERS — scrim 40 < lifted message 42 < sheet 44 < modal 50. The whole fix is this ordering; a token edit that breaks it puts the message back under the wash or over its own menu');
-  ok(/z-index:\s*var\(--z-44\)/.test(rule(ovCss, '.c-sheet')),
+  ok(declaredAs(rulesFor('.c-sheet'), 'z-index', 'var(--z-44)'),
     '★ #506②: the SHEET moved to an explicit z-44. It used to beat its scrim by SOURCE ORDER alone, which stops being enough the moment anything else in the band is numbered — a message lifted at the bottom of the log would paint over the menu acting on it');
 
   const mmNC = mmJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
@@ -11942,19 +12869,168 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      && !/row\.dataset\.menuTarget/.test(mmNC),
     '★ #506②: TWO different nodes — the lift on the ROW, the ring on the resolved BUBBLE. Reactions overlap the bubble corner by design (#65), so lifting the bubble alone would strand its own reactions behind the scrim: a worse version of the bug being fixed');
 
-  /* ★ THE PRECONDITION, pinned because it is invisible and its failure is silent.
-     The lift reaches the host stacking context only while nothing between the row
-     and the host creates one. overflow does NOT create a stacking context; z-index,
-     transform, filter, isolation, will-change and contain all do. If one appears on
-     the canvas or the scroller, the lift caps there and the ring quietly goes back
-     under the scrim with no error anywhere. */
-  const canvas = rule(bubCss, '.c-chat-canvas');
-  const scroller = rule(bubCss, '.c-chat-canvas > *');
-  const SC = /(^|[^-])(z-index|transform|filter|backdrop-filter|isolation|will-change|contain|perspective|mix-blend-mode)\s*:/;
-  ok(canvas.length > 20 && !SC.test(canvas),
-    '★ #506② PRECONDITION: .c-chat-canvas creates NO stacking context. It is position:relative with z-index auto and overflow:hidden — overflow clips the lifted row to the log (correct) but does not cap its z-index. Add a transform or a z-index here and the lift silently stops working');
-  ok(scroller.length > 5 && !SC.test(scroller),
-    '★ #506② PRECONDITION: the message SCROLLER likewise. `.c-chat-canvas > *` is position:relative only — a scroll container is not a stacking context');
+  /* ★★ PIN-B — #46 loop MAJOR-2. THE CASCADE PIN.
+     The lift reaches the host only while NOTHING between the lifted row and the host
+     creates a stacking context. The failure is SILENT: nothing logs, the ring still
+     paints, and it paints under the scrim at the measured 2.01:1 that #506② removed.
+     ⚠ THE PIN THIS REPLACES READ ONE RULE IN ONE FILE. The defect was
+     `.c-chat-canvas[data-flow] { z-index: 0; }` in chat-flow.css — a second rule, in a
+     different file, on the same subject. The old pin read message-bubble.css, so it could
+     not see it, and the Live-flow long-press regression shipped with the pin green.
+
+     ★★ ROUND 2 CLOSED TWO HOLES A FRESH REVIEWER PROVED WITH MUTATION.
+     ① THE SCROLLER WAS PINNED BY A SELECTOR NOBODY WRITES. Round 1 read only the literal
+       `.c-chat-canvas > *`. The scroller's REAL identity is `class="messages u-scroll"
+       id="messages"` (src/shells/chat.html:481), and `message-bubble.css:37` ALREADY
+       styles it as `.c-chat-canvas .u-scroll:hover` — so that is the selector an author
+       is already editing near. Both of these passed the whole round-1 suite:
+       `.c-chat-canvas .messages { transform: translateZ(0) }` and
+       `.u-scroll { will-change: transform }`. The three production tokens are pinned now.
+       ⚠ THE SUBJECT IS WHAT IS TESTED, NOT THE SELECTOR STRING. `chats-header.css:27` is
+       `.u-scroll > .c-chats-header.is-pinned { position: sticky; z-index: 5 }`. It is
+       KEYED on `.u-scroll` and it is correct: its subject is the header, that header
+       never appears in the message log, and a naive `.u-scroll` pin goes RED on a correct
+       tree. Only the SUBJECT of a rule can put a declaration on the scroller.
+     ② PSEUDO-ELEMENT SUBJECTS ARE EXCLUDED, AND ROUND 1 EXCLUDED THE WRONG THING.
+       `.c-chat-canvas::before` is the pattern tile — a CHILD box, a sibling of the lifted
+       row — so `mask-image` there (chat-pattern.css:56) and `opacity` there
+       (message-bubble.css:29) are correct where they stand. Round 1 filtered the WHOLE
+       selector string, so `.c-x::before + .c-chat-canvas { z-index: 0 }`, whose subject IS
+       the host, slipped straight through. The filter now reads the subject alone. */
+  {
+    const hostRules = rulesFor('.c-chat-canvas').filter((r) => !cssSubjectIsPseudoElement(r.selector));
+    /* the child rule the layer comment names, kept because message-bubble.css really
+       writes it and it is what gives the scroller position: relative */
+    const canvasChildRules = cssRulesWhere((s) => /(^|\s)\.c-chat-canvas\s*>\s*\*$/.test(s));
+    /* THE REAL SCROLLER. Every rule whose SUBJECT carries one of the three tokens the
+       shipped markup puts on the message log. */
+    const SCROLLER_TOKENS = ['.messages', '#messages', '.u-scroll'];
+    const scrollerRules = SCROLLER_TOKENS
+      .reduce((acc, t) => acc.concat(rulesFor(t)), [])
+      .filter((r) => !cssSubjectIsPseudoElement(r.selector));
+    const offenders = hostRules.concat(canvasChildRules).concat(scrollerRules)
+      .map((r) => ({ r, bad: cssStackingContextDecl(r.body) }))
+      .filter((x) => x.bad)
+      .map((x) => x.r.file + ' — `' + x.r.selector + '` declares ' + x.bad);
+    ok(hostRules.length > 0 && canvasChildRules.length > 0 && scrollerRules.length > 0
+       && offenders.length === 0,
+      '★★ PIN-B (#46 loop MAJOR-2, ROUND 2) — CASCADE-WIDE, every stylesheet under src/styles, comments stripped: NO rule makes .c-chat-canvas, its `> *` child, or the REAL message scroller (.messages / #messages / .u-scroll) a stacking context. The long-pressed row lifts to z-42 to clear the z-40 scrim. Twenty properties cap that lift at the ancestor that declares one: z-index, position sticky or fixed, transform, translate, rotate, scale, perspective, filter, -webkit-filter, backdrop-filter, clip-path, mask-image, mask, mix-blend-mode, isolation, contain paint/layout/strict/content, content-visibility, view-transition-name, will-change, and an opacity below 1. The row then drops back under the wash and the ring reads 2.01:1 again. NOTHING LOGS — that is why this is a pin and not a test. ⚠ `rotate`, `scale` and `translate` are the individual transform properties, and `.c-chat-canvas { rotate: 0.5deg }` passed the whole round-1 suite'
+      + (offenders.length ? ' — FOUND: ' + offenders.join(' · ') : ''));
+
+    /* ⚠ THE SCROLLER HALF IS NOT DECORATION. `.c-chat-canvas > *` is the message scroller.
+       overflow alone creates no stacking context, so the rule may keep position:relative. */
+    ok(canvasChildRules.every((r) => /position:\s*relative/.test(r.body)),
+      '★ PIN-B: the scroller keeps position:relative and nothing more. It clips the lifted row to the log, which is correct — the message must stay inside the chat');
+
+    /* ⚠ VACUITY GUARD ON THE SUBJECT FILTER ITSELF. The pin above is a "must not" over a
+       set, so an empty set makes it green. `.c-chat-canvas::before` carries a real
+       stacking declaration today (`-webkit-mask-image`, chat-pattern.css). Assert that
+       the filter drops it BY SUBJECT and keeps the host rule, so a filter that silently
+       widened to drop everything cannot hide behind a green PIN-B. */
+    const pseudoCanvas = rulesFor('.c-chat-canvas').filter((r) => cssSubjectIsPseudoElement(r.selector));
+    ok(pseudoCanvas.length > 0
+       && pseudoCanvas.some((r) => cssStackingContextDecl(r.body))
+       && hostRules.every((r) => !cssSubjectIsPseudoElement(r.selector))
+       && hostRules.some((r) => /position:\s*relative/.test(r.body))
+       /* the round-1 shape, asserted directly on the filter: a pseudo-element ANYWHERE in
+          the selector must not disqualify a rule whose SUBJECT is the host */
+       && cssSubjectIsPseudoElement('.c-chat-canvas::before') === true
+       && cssSubjectIsPseudoElement('.c-chat-canvas:before') === true
+       && cssSubjectIsPseudoElement('.c-x::before + .c-chat-canvas') === false
+       && cssSubjectIsPseudoElement('.c-chat-canvas') === false
+       && cssSubjectIsPseudoElement('.c-chat-canvas:hover') === false,
+      '★★ PIN-B ⓪ (#46 loop ROUND 2) — THE FILTER IS ALIVE AND IT READS THE SUBJECT. .c-chat-canvas::before really does declare a stacking property (the pattern mask), and it is dropped because the SUBJECT is a pseudo-element, not because the string contains "::". Round 1 tested the whole selector, so `.c-x::before + .c-chat-canvas { z-index: 0 }` was dropped too — the host rule that MATTERS, thrown away by the filter meant to protect it. Without this guard a filter that dropped every rule would leave PIN-B green over an empty set');
+
+    /* PIN-B ② — the Live-flow canvas itself. It paints in TREE ORDER as the first child at
+       z-index AUTO. A z-index here is what forced the host to become a context. */
+    const flowRules = cssRulesWhere((s) => /(^|\s)\.c-chat-canvas\s*>\s*\.c-chat-flow$/.test(s));
+    const flowZ = flowRules.filter((r) => cssDecls(r.body).some((d) => d.prop === 'z-index'));
+    ok(flowRules.length > 0
+       && flowRules.some((r) => r.file.endsWith('chat-flow.css')
+            && cssDecls(r.body).some((d) => d.prop === 'position' && d.value === 'absolute'))
+       && flowZ.length === 0,
+      '★★ PIN-B ② (#46 loop MAJOR-2): the flow canvas is position:absolute and declares NO z-index at all, in any stylesheet. The old recipe was z-index:-1 on the canvas plus `[data-flow] { z-index: 0 }` on the host, and the host half is what broke the lift. A negative z on the canvas needs a host context to paint against; z-index auto plus tree order needs none'
+      + (flowZ.length ? ' — z-index FOUND in ' + flowZ.map((r) => r.file).join(', ') : ''));
+  }
+}
+
+{
+  /* ══ ★★ PIN-C — #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ══════════════
+     #506② moved .c-sheet from z-40 to z-44. Every scrim stays at z-40, and both are
+     children of document.body. A positioned element paints by z-index first and by tree
+     order second, so EVERY sheet now paints above EVERY scrim — including a scrim that
+     opens later. dismissOverlay does not remove the sheet at once: it drops data-open,
+     starts the exit transition and removes on transitionend, with a 400 ms fallback.
+     The house pattern is "close the sheet, then open the modal". For up to 400 ms the
+     closing sheet is still in the DOM, still above the new scrim, and still sliding. A
+     second quick tap lands on the sheet at a row the finger did not choose. Tap Delete
+     twice fast and you get Tip: a money sheet on top of an unconfirmed delete dialog.
+
+     ⚠ BEHAVIOURAL, IN JSDOM, NOT A TEXT MATCH. A text pin on the rule stays GREEN under
+     the html:root mutation, and that prefix is load-bearing. Without it the rule is
+     (0,2,0) and TIES with `.c-wallet-receive__reqbox[data-open] { pointer-events: auto }`
+     in wallet-receive.css, which home.html links LATER — so the tie goes to the reqbox
+     and the hole re-opens inside the sheet that is sliding away.
+
+     ★★ ROUND 2 — THE FIXTURE NOW HOLDS THE ELEMENT MAJOR-3 IS ABOUT.
+     MAJOR-3's story is "tap Delete twice fast and you get Tip", and the row under that
+     finger is a `.c-msgmenu__item` inside a `.c-msgmenu` inside the sheet. Round 1's
+     fixture had a bare button and a wallet reqbox and NO message menu, so it tested one
+     descendant and not that one. Three mutations re-opened the hole with round 1's PIN-C
+     green: `.c-msgmenu__item { pointer-events: auto !important }`, a (0,4,0) descendant
+     selector down the real menu chain, and an id rule on the sheet.
+     ⚠ THE ASSERTION WALKS EVERY DESCENDANT, not a named list. The guarantee is "nothing
+     inside a closing sheet takes a tap", and a pin that names three ids tests three ids.
+     A fourth element added to this fixture is covered the day it is added.
+     ⚠ message-menu.css IS LOADED, in the shipped order (home.html: overlay.css, then
+     message-menu.css, then wallet-receive.css). A `pointer-events: auto` added to a menu
+     row in its own component file must turn this red where the author writes it. */
+  const ovPinC = readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8');
+  const mmPinC = readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8');
+  const wrPinC = readFileSync(join(root, 'src/styles/components/wallet-receive.css'), 'utf8');
+  const homePinC = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  ok(homePinC.indexOf('components/overlay.css') > 0
+     && homePinC.indexOf('components/overlay.css') < homePinC.indexOf('components/message-menu.css')
+     && homePinC.indexOf('components/message-menu.css') < homePinC.indexOf('components/wallet-receive.css'),
+    '★ PIN-C (#46 loop MAJOR-3) — THE FIXTURE IS THE SHIPPED LINK ORDER: home.html loads overlay.css, then message-menu.css, then wallet-receive.css. That order is why the rule needs the html:root prefix — a later file wins every specificity tie — and it is why the test below loads the three files in this order and not another');
+  {
+    /* The markup is message-menu.js's own: .c-msgmenu → .c-msgmenu__reacts / __list →
+       .c-msgmenu__item, with the destructive Delete row last (src/components/
+       message-menu.js:57-110). */
+    const domC = new JSDOM('<!doctype html><html><head>'
+      + '<style>' + ovPinC + '</style><style>' + mmPinC + '</style><style>' + wrPinC + '</style></head><body>'
+      + '<div class="c-sheet" id="pinCclosing"><button id="pinCclosingBtn">Tip</button>'
+      +   '<div class="c-msgmenu" id="pinCmenu">'
+      +     '<div class="c-msgmenu__reacts" role="group">'
+      +       '<button class="c-msgmenu__react" id="pinCreact"><span aria-hidden="true">❤️</span></button></div>'
+      +     '<div class="c-msgmenu__list" id="pinCmenuList">'
+      +       '<button class="c-msgmenu__item" id="pinCmenuTip">Tip</button>'
+      +       '<button class="c-msgmenu__item" data-destructive id="pinCmenuDelete">Delete</button>'
+      +     '</div></div>'
+      +   '<div class="c-wallet-receive__reqbox" data-open id="pinCreqbox">'
+      +     '<button id="pinCreqboxBtn">Request</button></div></div>'
+      + '<div class="c-sheet" data-open id="pinCopen"><button id="pinCopenBtn">Delete</button>'
+      +   '<div class="c-msgmenu"><div class="c-msgmenu__list">'
+      +     '<button class="c-msgmenu__item" id="pinCopenMenuDelete">Delete</button>'
+      +   '</div></div></div>'
+      + '</body></html>', { pretendToBeVisual: true });
+    const WC = domC.window;
+    const peC = (id) => WC.getComputedStyle(WC.document.getElementById(id)).pointerEvents;
+    const closingKids = [...WC.document.getElementById('pinCclosing').querySelectorAll('*')];
+    const liveKid = closingKids.find((el) => WC.getComputedStyle(el).pointerEvents !== 'none');
+    ok(peC('pinCclosing') === 'none' && peC('pinCclosingBtn') === 'none',
+      '★★ PIN-C ① (#46 loop MAJOR-3), RESOLVED IN JSDOM: a .c-sheet with no data-open is DEAD to hit-testing, and so is a button inside it. Without this a tap during the 400 ms exit hits a menu row the finger did not choose — Delete twice fast gives Tip, and a money sheet opens over an unconfirmed delete dialog');
+    ok(closingKids.length >= 8 && !liveKid,
+      '★★ PIN-C ①b (#46 loop MAJOR-3, ROUND 2) — EVERY DESCENDANT, WALKED: not one element inside the closing sheet takes a tap, including the .c-msgmenu rows that ARE the MAJOR-3 story. pointer-events inherits, so ONE descendant rule with pointer-events:auto re-opens the whole hole; round 1 tested two named elements and neither was a menu row'
+      + (liveKid ? ' — LIVE: `' + liveKid.className + '` #' + liveKid.id : ''));
+    ok(peC('pinCmenuDelete') === 'none' && peC('pinCmenuTip') === 'none'
+       && peC('pinCmenu') === 'none' && peC('pinCmenuList') === 'none' && peC('pinCreact') === 'none',
+      '★★ PIN-C ①c (#46 loop MAJOR-3, ROUND 2) — THE ROW UNDER THE FINGER: the Delete row, the Tip row beside it, the list, the react strip and the menu box are all dead in a closing sheet. This is the exact element pair MAJOR-3 names. A rule anywhere in message-menu.css that gives a row `pointer-events: auto`, at any specificity, turns this red');
+    ok(peC('pinCreqbox') === 'none' && peC('pinCreqboxBtn') === 'none',
+      '★★ PIN-C ② (#46 loop MAJOR-3): the descendant half BEATS a component file that sets pointer-events:auto on its own open box. The reqbox rule is (0,2,0) and loads later; html:root .c-sheet:not([data-open]) * is (0,3,1) and wins. Drop the html:root prefix and this one element comes back alive inside a closing sheet — which is exactly the tap that opens the wrong money screen');
+    ok(peC('pinCopen') === 'auto' && peC('pinCopenBtn') === 'auto' && peC('pinCopenMenuDelete') === 'auto',
+      '★★ PIN-C ③ (#46 loop MAJOR-3): an OPEN sheet, its buttons AND its menu rows stay live. A rule that killed every sheet would make the whole overlay family untappable, which is a worse defect than the one being fixed — and it would make ① and ①c pass for the wrong reason');
+  }
 }
 
 {

@@ -1,24 +1,41 @@
 /* c-chat-flow — canvas layer for the "Live flow" chat pattern style (W5).
    Paint lives in src/components/chat-flow.js; this file owns ONLY the layer.
 
-   STACKING (corrected after a Windows F5 regression — read before editing):
-   the canvas is the FIRST child of .c-chat-canvas at z-index:-1, and the host
-   forms its own stacking context via [data-flow] { z-index: 0 }. A negative-z
-   child paints ABOVE the host's own gradient background but BELOW every
-   in-flow sibling. The stacking context is scoped to [data-flow] on purpose —
-   .c-chat-canvas must NOT become a stacking context on the tile styles, where
-   nothing needs it.
+   STACKING — read this before you edit (#506② precondition; #46 loop MAJOR-2):
+   chat-flow.js prepends the canvas, so the canvas is the FIRST child of
+   .c-chat-canvas. The canvas is position:absolute with z-index AUTO. It thus
+   paints in TREE ORDER among the positioned z-auto descendants. It paints above
+   the host gradient background. It paints below every later sibling. This gives
+   the correct layer with NO z-index on the canvas and NO stacking context on
+   the host.
 
-   Do NOT "fix" this with a blanket position:relative on the siblings: it pulls
-   the absolutely-positioned jump-to-latest FAB into flow (left-aligned FAB and
-   a blank band above the composer). message-bubble.css's `.c-chat-canvas > *`
-   already sets position:relative on children, which is why the rule below has
-   to out-specify it (0,2,0 vs 0,1,0). */
-.c-chat-canvas[data-flow] { z-index: 0; }
+   ⚠ RULE FOR EVERY STYLESHEET: .c-chat-canvas must NOT become a stacking
+   context. A long-pressed message row lifts to z-42 to clear the z-40 scrim
+   (message-menu.css). A z-index, a transform, a filter or `isolation` on the
+   host caps the lift at the host. The lift then stops, and it stops silently.
+   The FULL list of properties that cost a stacking context lives in ONE place —
+   the precondition block in message-menu.css. Read it there before you add any
+   declaration to this host. Do not copy the list here: two copies drift, and the
+   short list above already misses `translate`, `rotate`, `scale`, `clip-path`,
+   `mask-image`, `content-visibility`, `view-transition-name`, `position: sticky`
+   and `position: fixed`.
+   The old `.c-chat-canvas[data-flow] { z-index: 0; }` did exactly that under
+   Live flow, so this file no longer has it.
+
+   The host ::before tile does not compete with the canvas. chat-pattern.css
+   sets --chat-pattern-tile: none under [data-chat-pattern='flow'], so ::before
+   is display:none while this canvas is mounted. Every other pattern style
+   detaches the canvas first.
+
+   Do NOT "fix" a layer problem with a blanket position:relative on the
+   siblings. That rule pulls the absolutely-positioned jump-to-latest FAB into
+   flow (left-aligned FAB and a blank band above the composer).
+   message-bubble.css sets position:relative on the children with
+   `.c-chat-canvas > *`, so the rule below must out-specify it (0,2,0 against
+   0,1,0). */
 .c-chat-canvas > .c-chat-flow {
   position: absolute;
   inset: 0;
-  z-index: -1;
   pointer-events: none;
   /* the backing store is sized in device pixels by the engine; the element
      itself always fills the canvas box */

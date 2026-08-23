@@ -326,6 +326,47 @@ namespace SPIXI.Meta
             }
         }
 
+        /* ★★ m10 (#46 loop, ROUND 2, 2026-08-22) — THE OFFLINE FETCH LOCK LIVES HERE, BESIDE
+         * THE CALLER THAT MAKES IT NECESSARY.
+         *
+         * Round 1 put a lock inside `SPushService.decidePushUncached` and nowhere else. That
+         * guarded the push lane against itself. It did NOT guard the pair that actually
+         * collides: this loop tick and a push callback. `OfflinePushMessages.fetchPushMessages`
+         * mutates a static `nonce` in Ixian-Core with no lock of its own
+         * (`Ixian-Core/Streaming/OfflinePushMessages.cs:114` and `:181`), and it sets
+         * `lastUpdate = 0` whenever data was available, so the 60 s cooldown does not apply
+         * during a burst. The push lane passes `force: true` and skips the cooldown outright.
+         * The lock therefore had to move to the file that owns BOTH callers, and this is it.
+         *
+         * ⚠ WEIGHED, NOT ASSUMED — the cure is only worth its cost because of the SECOND leg.
+         * The fetch leg IS self-healing: the server answers `ERROR: Nonce too low N` and
+         * `OfflinePushMessages.cs:127` resets the nonce, so a lost race there costs one wasted
+         * round trip and nothing else. The REMOVE leg is not. `remove.php` at
+         * `OfflinePushMessages.cs:186` reads its answer and discards it, so a lost race leaves
+         * the message on the server and it is delivered a second time. A repeated message is a
+         * repeated notification, which is the NOTIF-4 family this batch exists to close. That
+         * one leg is why the lock stays.
+         *
+         * ⚠ THE WAIT IS ZERO, AND THAT IS THE POINT. Take the lock only when it is free. Both
+         * callers must skip rather than queue. A push callback has a 30 s budget inside the
+         * OneSignal SDK, and `fetchPushMessages` blocks on `.Result` over an `HttpClient` with
+         * NO Timeout set — 100 s of default, once per HTTP call, and there is one call per
+         * message on top of the first. Neither this loop nor a push callback may wait behind
+         * that. Any bound short enough to be safe is far too short to outlast an HTTP round
+         * trip, so a bound would only pretend to help. A skipped fetch is cheap: this loop
+         * returns in 2.5 s, `lastUpdate` was never touched, and the holder is fetching the SAME
+         * mailbox for the SAME wallet, so its result lands in this process anyway.
+         *
+         * ⚠ SO A SLOW PUSH-LANE FETCH CANNOT STALL THIS LOOP. It cannot deadlock either: this
+         * is a leaf lock. Nothing is held while it is taken, nothing is taken while it is held,
+         * and `fetchPushMessages` never re-enters itself.
+         *
+         * ⚠ THE ONE THING STILL OPEN IS NOT OURS. `HttpClient.Timeout` is never set, at
+         * `Ixian-Core/Streaming/OfflinePushMessages.cs:118`. Ixian-Core is frozen at 097341a.
+         * That line is the remaining exposure and it belongs to the BE owner. */
+        internal static readonly object pushFetchLock = new object();
+        internal const int PUSH_FETCH_TRY_MS = 0;
+
         // Handle timer routines
         static public async void mainLoop(CancellationToken ct)
         {
@@ -340,8 +381,40 @@ namespace SPIXI.Meta
 
                         if (Config.enablePushNotifications)
                         {
-                            OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
-                            fireLocalNotification = false;
+                            /* ★★ m10 (#46 loop, ROUND 2): the OTHER caller of the fetch, and the
+                             * one that made the round-1 lock a promise the code did not keep.
+                             * See `pushFetchLock` above for the whole reasoning.
+                             *
+                             * ⚠ `fireLocalNotification` is cleared only when the fetch RAN. It
+                             * is true for the first pass alone, and that pass is what fires
+                             * local notifications for messages that arrived while the app was
+                             * closed. Clearing it on a skip would eat that pass.
+                             *
+                             * ⚠ THREE-argument TryEnter. The two-argument form takes the lock
+                             * inside the call and assigns the flag after it returns; an
+                             * asynchronous exception in that window would hold the lock for the
+                             * life of the process. */
+                            bool fetchTaken = false;
+                            try
+                            {
+                                Monitor.TryEnter(pushFetchLock, PUSH_FETCH_TRY_MS, ref fetchTaken);
+                                if (fetchTaken)
+                                {
+                                    OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
+                                    fireLocalNotification = false;
+                                }
+                                else
+                                {
+                                    Logging.warn("[NOTIFDIAG] offline fetch is busy, skipped (node loop)");
+                                }
+                            }
+                            finally
+                            {
+                                if (fetchTaken)
+                                {
+                                    Monitor.Exit(pushFetchLock);
+                                }
+                            }
                         }
 
                         // Update the friendlist

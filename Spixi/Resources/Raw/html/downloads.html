@@ -529,6 +529,41 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+/* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
+   The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
+   opens LATER. dismissOverlay does not remove the sheet at once: it drops
+   data-open, starts the exit transition, and removes on transitionend with a
+   400 ms timeout fallback. For that window the sheet is still in the DOM, still
+   above the new scrim, and still sliding.
+   The house pattern is "close the sheet, then open the modal". A second quick tap
+   in that window lands on the sheet, at a row the finger did not choose, because
+   the sheet has moved down. Tap Delete twice fast and you get Tip. This rule kills
+   that path: no data-open, no hit-testing.
+   ⚠ The descendant selector is part of the fix, not decoration. pointer-events
+   INHERITS, so one descendant with `pointer-events: auto` would re-open the hole.
+   ⚠ The `html:root` prefix is the base.css grammar for a rule that must beat every
+   component file on specificity (0,3,1). Do not lower it.
+   ⚠ The SCRIM keeps its hit-testing on purpose. A tap over the closing sheet now
+   falls to the closing scrim, which swallows it. Make the scrim dead too and the
+   same tap reaches the screen behind the overlay.
+   ⚠ This rule is also live in the OPEN window, between append and the two-rAF
+   data-open. Nothing is lost there, but the REASON differs by surface — do not
+   write "the sheet is off-screen", which is true on one surface only:
+     · mobile: the sheet sits at translateY(100%), below the host.
+     · desktop, centred dialog: `:root[data-desktop] .c-sheet` is
+       transform: translate(-50%, calc(-50% + 16px)) with opacity 0 — CENTRED, and
+       fully inside the host.
+     · desktop, [data-dt-anchor] dropdown: transform: none, opacity 0, sitting at
+       its anchor. It transitions opacity only.
+   The one property all three share is that the user cannot SEE the sheet, so the
+   user cannot aim at it. An opacity-0 element still hit-tests, so on desktop this
+   rule closes a hole rather than leaving one — which is more than the mobile case
+   needed. Focus is not affected: pointer-events does not change focusability, so
+   the open-time focus move and the exit focus restore both still work. */
+html:root .c-sheet:not([data-open]),
+html:root .c-sheet:not([data-open]) * {
+  pointer-events: none;
+}
 
 .c-sheet__handle {
   display: block;
@@ -900,8 +935,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Measured before touching it, because HALF of that white is a standard, not a choice.
    createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
    modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px across a ~45-module grid that is ≈16px per
-   side, and it is untouchable.
+   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
+   per side (the table below), and it is untouchable.
 
    The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
    the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
@@ -909,11 +944,31 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
    ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
    padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner — so: the module is 185/45 ≈ 4.1px, the
-   quiet zone ≈16.4px, and a 16px radius removes at most 16 − 16/√2 ≈ 4.7px of DIAGONAL
-   depth, leaving ≈18.5px on the diagonal and the full 16.4px along every edge, where the
-   standard actually measures. Clears four modules on all four sides.
-   ⚠ Raise this radius and that stops being true. */
+   With none, it eats the quiet zone's own corner.
+
+   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
+   comment carried three wrong ones. The method: run the SHIPPED encoder
+   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
+   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
+   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
+   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
+   is always 8 cells wider than the code:
+     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
+     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
+     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
+   A real Ixian address lands in the middle row.
+
+   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
+   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
+   is a different measurement, and it understates the loss by 41%.
+
+   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
+   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
+   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
+   removes nothing. The curve first touches the code corner when the quiet zone falls
+   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
+   make one.
+   ⚠ Raise this radius above 16px and re-do both comparisons. */
 .c-settings__qr {
   display: flex;
   justify-content: center;

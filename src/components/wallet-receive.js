@@ -2,12 +2,13 @@
  * c-wallet-receive — Receive/Request, slice 3 (spec §4, #133; shape per Damir
  * 2026-07-05: ONE progressive surface, matching the send screen's grammar).
  *
- * Default = RECEIVE: QR of the own address in the legacy `address:ixi` format
- * (wallet_request.html parity) on the --surface-qr card (near-white in BOTH themes —
- * scan contrast), the FULL address in the member-sheet chip pattern (#99) with an
- * HONEST copy morph (✓ only after the clipboard write resolves — audit m1), and
- * Share (shell duty via onShare — NO share bridge command exists in the legacy set,
- * §9 ask; shells can use navigator.share where present).
+ * ★ #527 SUPERSEDES the QR-first default below: the surface is REQUEST-FIRST and
+ * the QR/address/copy/Share moved into `openAddressSheet` (see the block after the
+ * imports). The W9 grammar below is unchanged.
+ * (Historical shape, kept for context:) QR of the own address in the legacy
+ * `address:ixi` format on the --surface-qr card, the FULL address in the
+ * member-sheet chip pattern (#99) with an HONEST copy morph (audit m1), and
+ * Share (shell duty via onShare — NO share bridge command in the legacy set).
  *
  * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
  * input follows wallet-send's sanitize rules (shared export), then a MULTI-SELECT
@@ -60,15 +61,22 @@ import { createButton } from './button.js';
 import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createQrSvg } from './qr.js';                     // #303: setQrValue import dropped — the QR never re-encodes
+import { createSheet, openSheet } from './sheet.js';       // #527: the address moved into a bottom sheet
 import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
+
+/* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
+ * the amount input and the W9 contact multi-select render open by default (no
+ * reveal row, no collapse machinery). The QR + full address + copy + Share moved
+ * into `openAddressSheet` behind a small "Show my address" button — the SAME
+ * sheet surface the Account screen folds into later (one surface, #522 scope).
+ * The old `el._reqOpen` hook is gone with the reveal; `setRequestAmount` now
+ * only seeds the always-visible input. */
 
 /** '0', '0.', '' → not a requestable amount (plain receive stays). */
 function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
 }
-
-let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
 
 export function createWalletReceive({
   address = '', contacts = [], strings = getStrings(), host,
@@ -91,125 +99,29 @@ export function createWalletReceive({
     return el;
   }
 
-  // #303: constant — the QR never carries an amount (see docblock). Kept as functions
-  // so the onShare payload contract ({ value: qrValue() }) is unchanged for callers.
-  const qrLabel = () => (strings.qrReceiveLabel || 'QR code: your Ixian address');
-  const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
+  /* ——— header row (#527): the request heading + the small "Show my address"
+   * button. The QR, the full address, copy, Share and the explainer all live in
+   * the sheet now — one surface, reused by Account later. */
+  const head = document.createElement('div');
+  head.className = 'c-wallet-receive__head';
+  const reqLabel = document.createElement('h2');
+  reqLabel.className = 'c-wallet-receive__asklabel';
+  reqLabel.textContent = strings.requestAmount || 'Request an amount';
+  const addrBtn = createButton({
+    label: strings.showMyAddress || 'Show my address', type: 'outline', size: 32,
+    icon: icon('qrcode', { size: 16 }),
+    onClick: () => openAddressSheet({ address, strings, host, onShare }),
+  });
+  addrBtn.classList.add('c-wallet-receive__addrbtn');
+  head.append(reqLabel, addrBtn);
+  el.append(head);
 
-  /* ——— QR card ———
-   * W6 (Damir 2026-08-12): card + caption live in ONE collapsible section so
-   * "Request an amount" can animate them away upward (max-height/opacity/transform
-   * on the --duration-300 / --easing-standard tokens — the wallet-hero #114
-   * pattern; reduced motion zeroes those tokens globally, so NO media query here
-   * and no JS motion branch). */
-  const qrSection = document.createElement('div');
-  qrSection.className = 'c-wallet-receive__qr';
-  const card = document.createElement('div');
-  card.className = 'c-wallet-receive__qrcard';
-  const qr = createQrSvg(qrValue(), { label: qrLabel() });
-  card.append(qr);
-  qrSection.append(card);
-
-  const caption = document.createElement('p');
-  caption.className = 'c-wallet-receive__caption';         // visible copy — announcements go to the live region
-  qrSection.append(caption);
-  el.append(qrSection);
-
-  /* hidden live region (audit m3/M3): announces MODE TRANSITIONS and the request-sent
-     confirmation — not every keystroke (the caption used to be aria-live and spammed) */
+  /* hidden live region (audit m3/M3): announces the request-sent confirmation —
+     not every keystroke (the caption used to be aria-live and spammed) */
   const live = document.createElement('p');
   live.className = 'c-wallet-receive__live';
   live.setAttribute('aria-live', 'polite');
   el.append(live);
-
-  /* ——— address (member-sheet chip pattern, #99: FULL address, honest copy) ——— */
-  const addrLabel = document.createElement('div');
-  addrLabel.className = 'c-wallet-receive__addrlabel';
-  addrLabel.textContent = strings.yourAddress || 'Your address';
-  const addrRow = document.createElement('div');
-  addrRow.className = 'c-wallet-receive__addr';
-  const addrValue = document.createElement('span');
-  addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
-  addrValue.textContent = address;
-  const copy = document.createElement('button');
-  copy.type = 'button';
-  copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
-  copy.setAttribute('aria-label', copyIdle);
-  copy.append(icon('copy', { size: 16 }));
-  let copyTimer = null;
-  const copyMorph = (glyph, label) => {
-    copy.textContent = '';
-    copy.append(icon(glyph, { size: 16 }));
-    copy.setAttribute('aria-label', label);
-    if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
-    copyTimer = setTimeout(() => {
-      copy.textContent = '';
-      copy.append(icon('copy', { size: 16 }));
-      copy.setAttribute('aria-label', copyIdle);
-      copyTimer = null;
-    }, 1400);
-  };
-  copy.addEventListener('click', () => {
-    // ✓ only when the write actually resolved — this is a payment address, a false
-    // "Copied" is a money-adjacent lie (audit m1)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(address).then(
-        () => copyMorph('check', strings.txCopied || 'Copied'),
-        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-      );
-    } else {
-      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-    }
-  });
-  addrRow.append(addrValue, copy);
-  el.append(addrLabel, addrRow);
-
-  /* ——— share (shell duty — no legacy bridge command; §9) ———
-   * F3 (#301): Share always sends the BARE ADDRESS (an amount request can't be
-   * shared as text yet — Damir), so the button HIDES while an amount is entered
-   * rather than offer a share that wouldn't include the amount on screen (sync()
-   * drives it, same honesty rule as the QR/caption). `amount` is still passed
-   * for API compatibility, but with the hide it is always null in practice. */
-  let shareBtn = null;
-  if (onShare) {
-    shareBtn = createButton({
-      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
-      icon: icon('share-3', { size: 18 }),
-      onClick: () => onShare({
-        address,
-        amount: requestable(state.amount) ? canonicalAmount(state.amount) : null,
-        value: qrValue(),
-      }),
-    });
-    el.append(shareBtn);
-  }
-
-  /* ——— request an amount (progressive reveal, send-screen row grammar) ——— */
-  const boxId = 'c-wallet-receive-reqbox-' + (++walletReceiveSeq);
-  const reqRow = document.createElement('button');
-  reqRow.type = 'button';
-  reqRow.className = 'c-wallet-receive__reqrow';
-  reqRow.setAttribute('aria-expanded', 'false');
-  reqRow.setAttribute('aria-controls', boxId);             // reveal is programmatically linked (audit n2)
-  const reqGlyph = document.createElement('span');
-  reqGlyph.className = 'c-wallet-receive__reqglyph';
-  reqGlyph.append(icon('arrow-down-left', { size: 20 }));
-  const reqLabel = document.createElement('span');
-  reqLabel.className = 'c-wallet-receive__reqlabel';
-  reqLabel.textContent = strings.requestAmount || 'Request an amount';
-  reqRow.append(reqGlyph, reqLabel, icon('chevron-down', { size: 18 }));
-  el.append(reqRow);
-
-  /* W6: `hidden` cannot animate, so the reveal rides the house data-open +
-     aria-hidden pattern (settings-backup precedent). Closed state also carries a
-     negative margin that eats the parent's 16 gap — a collapsed box must leave no
-     hole where `display:none` used to leave none. */
-  const reqBox = document.createElement('div');
-  reqBox.className = 'c-wallet-receive__reqbox';
-  reqBox.id = boxId;
-  reqBox.setAttribute('aria-hidden', 'true');
-  el.append(reqBox);
 
   const amtRow = document.createElement('div');
   amtRow.className = 'c-wallet-receive__amountrow';
@@ -223,7 +135,7 @@ export function createWalletReceive({
   unit.className = 'c-wallet-receive__unit';
   unit.textContent = 'IXI';
   amtRow.append(amtInput, unit);
-  reqBox.append(amtRow);
+  el.append(amtRow);
 
   /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
    * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
@@ -298,7 +210,7 @@ export function createWalletReceive({
     cta.classList.add('c-wallet-receive__cta');
     ctaLabel = cta.querySelector('.c-button__label');
     askBox.append(cta);
-    reqBox.append(askBox);
+    el.append(askBox);                                     // #527: always visible — no reveal box
   }
 
   /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a
@@ -468,14 +380,9 @@ export function createWalletReceive({
   }
 
   function sync() {
-    const active = requestable(state.amount);
-    // #303: no QR re-encode and no mode announcements — the QR's meaning never
-    // changes now (constant address:ixi), so announcing a "request mode" would lie.
-    // The caption stays the plain receive line for the same reason.
-    caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+    // #527: the QR/Share honesty rules moved into the sheet (bare address, always).
     // W6/W9: askBox is NEVER hidden by the amount — the list stays browsable and
-    // tickable; only the CTA reacts. Share still hides while an amount is set.
-    if (shareBtn) shareBtn.hidden = active;                 // F3 (#301): no Share while an amount is set
+    // tickable; only the CTA reacts.
     syncCta();
   }
 
@@ -501,61 +408,112 @@ export function createWalletReceive({
     sync();
   });
 
-  /* W6 open/close — ONE writer for the reveal state, so setRequestAmount can't
-     leave the QR half-collapsed. `data-request-open` on the root drives the QR
-     section's collapse; `data-open` drives the box; aria-hidden keeps both honest
-     for screen readers (the collapsed QR must not read, the collapsed box must not). */
-  function setOpen(open) {
-    if (open) { reqBox.dataset.open = ''; el.dataset.requestOpen = ''; }
-    else { delete reqBox.dataset.open; delete el.dataset.requestOpen; }
-    reqBox.setAttribute('aria-hidden', String(!open));
-    reqRow.setAttribute('aria-expanded', String(open));
-    qrSection.setAttribute('aria-hidden', String(open));   // collapsed QR is decoration at best
-  }
-  el._reqOpen = setOpen;                                   // free-fn hook (#44), same shape as _statusBits
-  setOpen(false);                                          // one writer owns the initial state too (aria-hidden on both halves)
-
-  reqRow.addEventListener('click', () => {
-    const open = reqBox.dataset.open === undefined;
-    setOpen(open);
-    if (open) {
-      void reqBox.offsetHeight;                            // flush style so the box is focusable + the transition starts
-      try { amtInput.focus({ preventScroll: true }); } catch (e) { amtInput.focus(); }
-      reqBox.scrollTop = 0;                                // a focus scroll inside the collapsing box must not stick
-      return;
-    }
-    // collapsing the section clears the request — the visible QR must never encode
-    // an amount the user can no longer see (state honesty). W9: the SELECTION goes
-    // with it; a reopened section that silently still had six people ticked is the
-    // same class of lie on the same money surface.
-    amtInput.value = '';
-    state.amount = '';
-    state.selected.clear();
-    showResult('', 'ok');
-    renderContacts(state.contactQuery);
-    sync();
-  });
-
   sync();
   renderContacts('');
   return el;
 }
 
+/** ★ #527 — the ONE address surface: QR + full address + honest copy + Share +
+ *  the "What is this address?" explainer, in a bottom sheet. The wallet Receive
+ *  screen opens it from "Show my address"; the Account screen folds into it at
+ *  its batch. Share always carries the BARE address (F3, #301) — the sheet knows
+ *  no amount, so the old hide-while-amount rule is structural now. */
+let addrSheetLive = null;                                  // loop fix: a double tap must not stack two sheets
+
+export function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
+  // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
+  if (!String(address).trim()) return null;
+  if (addrSheetLive) return addrSheetLive;
+  const content = document.createElement('div');
+  content.className = 'c-addr-sheet';
+  const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
+
+  const card = document.createElement('div');
+  card.className = 'c-wallet-receive__qrcard';             // N86 sizing rules ride along unchanged
+  card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
+  content.append(card);
+
+  const caption = document.createElement('p');
+  caption.className = 'c-wallet-receive__caption';
+  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+  content.append(caption);
+
+  /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
+  const addrRow = document.createElement('div');
+  addrRow.className = 'c-wallet-receive__addr';
+  const addrValue = document.createElement('span');
+  addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
+  addrValue.textContent = address;
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'c-wallet-receive__copy';
+  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
+  copy.setAttribute('aria-label', copyIdle);
+  copy.append(icon('copy', { size: 16 }));
+  let copyTimer = null;
+  const copyMorph = (glyph, label) => {
+    copy.textContent = '';
+    copy.append(icon(glyph, { size: 16 }));
+    copy.setAttribute('aria-label', label);
+    if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
+    copyTimer = setTimeout(() => {
+      copy.textContent = '';
+      copy.append(icon('copy', { size: 16 }));
+      copy.setAttribute('aria-label', copyIdle);
+      copyTimer = null;
+    }, 1400);
+  };
+  copy.addEventListener('click', () => {
+    // ✓ only when the write actually resolved — this is a payment address, a false
+    // "Copied" is a money-adjacent lie (audit m1)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(address).then(
+        () => copyMorph('check', strings.txCopied || 'Copied'),
+        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
+      );
+    } else {
+      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
+    }
+  });
+  addrRow.append(addrValue, copy);
+  content.append(addrRow);
+
+  if (onShare) {
+    content.append(createButton({
+      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
+      icon: icon('share-3', { size: 18 }),
+      onClick: () => onShare({ address, amount: null, value: qrValue }),
+    }));
+  }
+
+  /* the folded-in explainer (ONE surface — no second address-info sheet).
+     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks. */
+  const info = document.createElement('p');
+  info.className = 'c-addr-sheet__info';
+  info.textContent = strings.addressInfoBody
+    || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
+  content.append(info);
+  const safety = document.createElement('p');
+  safety.className = 'c-addr-sheet__info';
+  safety.textContent = strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.';
+  content.append(safety);
+
+  const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
+    onDismiss: () => { addrSheetLive = null; } });
+  addrSheetLive = sheet;
+  openSheet(sheet);
+  return sheet;
+}
+
 /** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).
  *  Numbers are expanded to plain decimal first — String(1e-7) is '1e-7', which the
- *  shared sanitizer would strip into '17': a silent magnitude change (audit C1). */
+ *  shared sanitizer would strip into '17': a silent magnitude change (audit C1).
+ *  #527: the input is always visible now — no reveal to open first. */
 export function setRequestAmount(el, amount) {
   if (!el) return el;
-  const row = el.querySelector('.c-wallet-receive__reqrow');
-  const box = el.querySelector('.c-wallet-receive__reqbox');
   const input = el.querySelector('.c-wallet-receive__amount');
-  if (!row || !box || !input) return el;
-  // W6: go through the component's own writer — a bare `box.hidden = false` would
-  // now leave the QR section collapsed-but-open (half state).
-  if (box.dataset.open === undefined) {
-    if (typeof el._reqOpen === 'function') el._reqOpen(true);
-    else { box.dataset.open = ''; row.setAttribute('aria-expanded', 'true'); }
-  }
+  if (!input) return el;
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);

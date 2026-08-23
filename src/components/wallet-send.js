@@ -22,6 +22,18 @@
  * createWalletSend({ contacts, balance, fee, strings, host,
  *                    onQuickScan, onSend, onDone }) → view
  * Free fn (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
+ *
+ * ★ W6 (#523): `fee: null` = UNKNOWN. The fee line shows a pending state, Max is
+ * disabled, and Continue stays disabled until a quote lands — no invented fee, ever.
+ * New opt `onQuote(address, amount)` fires (debounced, deduped) when both recipient
+ * and a positive amount exist; the shell answers via the free fn
+ * `setSendQuote(el, { fee, balance })`. The displayed fee stays an ESTIMATE — the
+ * NATIVE confirm shows C#'s own numbers and is the authority (SECURITY.md).
+ * ★ ctrl.fail('') = SILENT re-enable (the user canceled the native confirm — no
+ * error text); any non-empty msg renders as before.
+ * ★ #255: a contact row with `pending: true` renders a "Pending" tag — a request
+ * you sent that the peer has not accepted. Still pickable (money goes to the
+ * address, not the friendship); the tag is the honest signal.
  */
 import { getStrings } from './strings-runtime.js';
 import { createAvatar } from './avatar.js';
@@ -48,17 +60,42 @@ let walletSendSeq = 0;                                     // aria-controls ids 
 export function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
-  onQuickScan, onSend, onDone,
+  onQuickScan, onQuote, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
-  // '923,852.00') are NOT valid inputs here.
+  // '923,852.00') are NOT valid inputs here. fee === null → unknown until a quote (#523).
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
   const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
-  const balU = toUnits(balance);
-  const feeU = toUnits(fee);
+  let balU = toUnits(balance);
+  let feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
   const state = { recipient: null, amount: '', sending: false, attempt: 0 };
+  let quoteTimer = null;
+  let lastQuoteKey = '';
+  let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
+  let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
+  let addrErr = false;                                     // C# rejected the picked address (quote error)
+  const currentKey = () => (state.recipient ? state.recipient.address + ':' + (state.amount || '') : '');
+  function requestQuote() {
+    // W6: ask the shell for a real fee when both halves exist; dedupe on (addr, amount).
+    if (!onQuote || !state.recipient) return;
+    const a = state.amount || '';
+    if (!a || amountU() <= 0n) return;
+    const key = state.recipient.address + ':' + a;
+    if (key === lastQuoteKey) return;
+    if (quoteTimer) clearTimeout(quoteTimer);
+    quoteTimer = setTimeout(() => {
+      quoteTimer = null;
+      // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
+      // an empty-amount query (and latch its key)
+      if (!state.recipient || !state.amount || amountU() <= 0n) return;
+      const k = state.recipient.address + ':' + state.amount;
+      if (k === lastQuoteKey) return;
+      lastQuoteKey = k;
+      onQuote(state.recipient.address, state.amount);
+    }, 350);
+  }
 
   /* ——— recipient section ——— */
   const recSec = document.createElement('section');
@@ -113,13 +150,16 @@ export function createWalletSend({
   addrInput.spellcheck = false;
   addrInput.placeholder = strings.ixianAddress || 'Ixian address';
   addrInput.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
-  const scanBtn = document.createElement('button');
-  scanBtn.type = 'button';
-  scanBtn.className = 'c-wallet-send__scan';
-  scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
-  scanBtn.append(icon('scan', { size: 20 }));
-  if (onQuickScan) scanBtn.addEventListener('click', onQuickScan);   // → ixian:quickscan; result via setSendAddress
-  addrField.append(addrInput, scanBtn);
+  addrField.append(addrInput);
+  if (onQuickScan) {                                     // #264 no-dead-buttons: no handler → no scan button
+    const scanBtn = document.createElement('button');
+    scanBtn.type = 'button';
+    scanBtn.className = 'c-wallet-send__scan';
+    scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
+    scanBtn.append(icon('scan', { size: 20 }));
+    scanBtn.addEventListener('click', onQuickScan);      // → ixian:quickscan; result via setSendAddress
+    addrField.append(scanBtn);
+  }
   const addrUse = createButton({
     label: strings.useAddress || 'Use this address', type: 'outline', size: 44, width: 'full',
     onClick: () => {
@@ -167,6 +207,12 @@ export function createWalletSend({
       t.className = 'c-wallet-send__contactname';
       t.textContent = c.name || c.address;
       b.append(t);
+      if (c.pending) {                                   // #255: honest "request pending" tag
+        const tag = document.createElement('span');
+        tag.className = 'c-wallet-send__pendingtag';
+        tag.textContent = strings.pendingContact || 'Request pending';
+        b.append(tag);
+      }
       b.addEventListener('click', () => pick({ ...c, contact: true }));
       rows.append(b);
     }
@@ -182,10 +228,12 @@ export function createWalletSend({
   function pick(recipient) {
     state.recipient = recipient;
     errLine.hidden = true;
+    addrErr = false;                                       // a new recipient gets a fresh verdict
+    maxSendU = null;
     picked.textContent = '';
     picked.hidden = false;
     picker.hidden = true;
-    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
     else {
       const glyph = document.createElement('span');
       glyph.className = 'c-wallet-send__pickedglyph';
@@ -211,6 +259,12 @@ export function createWalletSend({
       clear.append(icon('x', { size: 18 }));
       clear.addEventListener('click', () => {
         state.recipient = null;
+        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
+        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
+        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
+        maxSendU = null;
+        addrErr = false;
+        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
         picked.hidden = true;
         picker.hidden = false;
         sync();
@@ -220,6 +274,9 @@ export function createWalletSend({
       picked.append(clear);
     }
     sync();
+    // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
+    // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
+    if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
     amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
   }
 
@@ -266,7 +323,12 @@ export function createWalletSend({
     onClick: () => {
       // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
       // safe action autofocused (APG), only then the field fills
-      const maxU = balU - feeU;
+      // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
+      // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
+      // and a mismatch left Max enabled-but-inert for every static-fee integrator.
+      const maxU = maxSendU !== null ? maxSendU
+        : ((feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null);
+      if (maxU === null) return;                         // no honest ceiling yet (W6)
       // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
       // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
       // fill itself is editable, it's the payment that can't be undone
@@ -295,11 +357,15 @@ export function createWalletSend({
 
   const availLine = document.createElement('p');
   availLine.className = 'c-wallet-send__meta u-tabular';
-  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  const renderAvail = () => {
+    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  };
+  renderAvail();
   amtSec.append(availLine);
 
   const feeLine = document.createElement('p');
   feeLine.className = 'c-wallet-send__meta u-tabular';
+  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
   amtSec.append(feeLine);
 
   const insuff = document.createElement('p');
@@ -324,18 +390,44 @@ export function createWalletSend({
   /* exact integer-unit math throughout (audit M1); EXACT strings at the money moments —
      #77 truncation is a feed-display rule, not a confirm-step rule (audit M3) */
   const amountU = () => toUnits(state.amount || '0');
+  // Freshness applies only on the QUOTE flow (onQuote wired). A static numeric fee
+  // (demos, legacy integrations) keeps the pre-#523 semantics — no pair to answer.
+  const quoteFlow = !!onQuote;
   function valid() {
-    if (!state.recipient || !state.amount) return false;
+    if (!state.recipient || !state.amount || addrErr) return false;
+    if (feeU === null) return false;                       // W6: no quote → no review, ever
+    if (quoteFlow && quotedKey !== currentKey()) return false;   // ★ loop MAJOR: the fee must answer THIS pair
     const a = amountU();
     return a > 0n && a + feeU <= balU;
   }
   function sync() {
     const a = amountU();
+    const fresh = feeU !== null && (!quoteFlow || quotedKey === currentKey());
+    maxBtn.disabled = !state.recipient || (maxSendU === null && !fresh);
+    if (addrErr) {
+      // C# rejected the picked address (quote error:'address') — say it, gate it.
+      feeLine.textContent = '';
+      insuff.hidden = false;
+      insuff.textContent = strings.badAddress || 'That doesn\u2019t look like an Ixian address.';
+      cont.disabled = true;
+      return;
+    }
+    if (!fresh) {
+      // W6 pending state: the honest line, no numbers invented and no STALE ones —
+      // a fee quoted for another (recipient, amount) pair never shows (loop MAJOR).
+      feeLine.textContent = (a > 0n && state.recipient)
+        ? (strings.feePending || 'Calculating network fee\u2026')
+        : (strings.feeUnknown || 'The network fee shows when the recipient and amount are set.');
+      insuff.hidden = true;
+      cont.disabled = true;
+      requestQuote();
+      return;
+    }
     const total = a > 0n ? a + feeU : feeU;
     // ★ I-6 r2 (#360, loop r1 MINOR-5): same convention as the available line one
     // row up — a grouped line above an ungrouped '.'-decimal line was the exact
     // mixed convention the money.js header warns against, on one screen.
-    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
+    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI \u00b7 Total {t} IXI')
       .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
     const over = a > 0n && a + feeU > balU;
     insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
@@ -344,17 +436,35 @@ export function createWalletSend({
   }
   sync();
 
+  // W6 free-fn hook: the shell routes the setSendQuote push here. `address`/`amount`
+  // are the ECHO of the asked pair — a fee is applied ONLY when it answers the pair
+  // on screen (loop MAJOR: no stale-recipient fee). Calls without an echo (tests,
+  // legacy) apply to the current pair.
+  el._applySendQuote = ({ fee: qFee, balance: qBal, max: qMax, address: qAddr, amount: qAmt, error: qErr } = {}) => {
+    if (qBal !== null && qBal !== undefined && qBal !== '') { balU = toUnits(qBal); renderAvail(); }
+    const echoed = qAddr !== undefined;
+    const matchesRecipient = !echoed || (state.recipient && state.recipient.address === qAddr);
+    if (qErr === 'address' && matchesRecipient) { addrErr = true; sync(); return; }
+    if (qMax !== null && qMax !== undefined && qMax !== '' && matchesRecipient) maxSendU = toUnits(qMax);
+    if (qFee !== null && qFee !== undefined && qFee !== '') {
+      const key = echoed ? qAddr + ':' + (qAmt == null ? '' : String(qAmt)) : currentKey();
+      if (!echoed || key === currentKey()) { feeU = toUnits(qFee); quotedKey = key; }
+    }
+    sync();
+  };
+
   /* ——— review sheet (#26) ——— */
   function openSendReview() {
     if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
     const r = state.recipient;
     const aU = amountU();
+    const feeAtOpen = feeU;                              // loop fix: the sheet and the payload use ONE fee
     const content = document.createElement('div');
     content.className = 'c-sendreview';
 
     const who = document.createElement('div');
     who.className = 'c-sendreview__who';
-    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, size: 48 }));
+    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, src: r.avatar || null, size: 48 }));
     const wt = document.createElement('div');
     wt.className = 'c-sendreview__whotext';
     const wn = document.createElement('div');
@@ -382,8 +492,8 @@ export function createWalletSend({
     // user's only defence against a mistyped zero at exactly this moment.
     rowsBox.append(
       row(strings.amount || 'Amount', groupAmountDisplay(fromUnits(aU)) + ' IXI'),
-      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeU)) + ' IXI'),
-      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeU)) + ' IXI'),
+      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeAtOpen)) + ' IXI'),
+      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeAtOpen)) + ' IXI'),
     );
     content.append(rowsBox);
 
@@ -410,7 +520,7 @@ export function createWalletSend({
         setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: false });
         sheetErr.hidden = true;
         setLoading(confirm, true);
-        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeU) };
+        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeAtOpen) };
         const done = () => {
           if (attempt !== state.attempt) return;         // stale callback from a superseded attempt
           state.sending = false;
@@ -425,6 +535,11 @@ export function createWalletSend({
           delete confirm.dataset.acted;                  // retry stays possible
           cancel.disabled = false;
           setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: true });
+          if (msg === '') {                              // #523: native-confirm cancel — silent re-enable
+            sheetErr.hidden = true;
+            sheetErr.textContent = '';
+            return;
+          }
           sheetErr.hidden = false;                       // unhide BEFORE text → alert announces
           sheetErr.textContent = msg || strings.sendFailed || 'The payment could not be sent. Please try again.';
         };
@@ -469,6 +584,14 @@ export function setSendAddress(el, scanned) {
     // grouping (1500, a 1000× error). The display form round-trips exactly.
     if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
   }
+  return el;
+}
+
+/** W6 (#523): a fee/balance quote lands here (shell wires the `setSendQuote` push).
+ *  Values are RAW decimal strings from C# (never display-formatted). Missing/empty
+ *  members leave that half unchanged. */
+export function setSendQuote(el, quote) {
+  if (el && typeof el._applySendQuote === 'function') el._applySendQuote(quote || {});
   return el;
 }
 

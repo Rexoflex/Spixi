@@ -9,44 +9,10 @@
   padding: var(--spacing-16);
 }
 
-/* —— QR section (card + caption) ——
-   W6 (Damir 2026-08-12): "Request an amount" collapses this away UPWARD instead of
-   snapping it out. Binary triggered CSS transition — the wallet-hero #114 pattern
-   (max-height + opacity + padding, here plus a small translateY for the upward
-   drift, all on ONE transition list). Reduced motion is handled globally by
-   zeroing the duration tokens (tokens.css) — no media query, no JS branch.
-   The 4px padding/-4px margin pair is shadow clearance: overflow:hidden is what
-   makes the collapse possible and would otherwise clip the card's --elevation-1. */
-.c-wallet-receive__qr {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-8);
-  overflow: hidden;
-  max-height: 520px;                 /* sanctioned: > natural height, enables the collapse */
-  opacity: 1;
-  padding-inline: var(--spacing-4);
-  margin-inline: calc(-1 * var(--spacing-4));
-  padding-block-end: var(--spacing-4);
-  margin-block-end: calc(-1 * var(--spacing-4));
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              transform var(--duration-300) var(--easing-standard),
-              padding-block-end var(--duration-300) var(--easing-standard),
-              margin-block-end var(--duration-300) var(--easing-standard);
-}
-.c-wallet-receive[data-request-open] .c-wallet-receive__qr {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(calc(-1 * var(--spacing-16)));
-  padding-block-end: 0;
-  margin-block-end: calc(-1 * var(--spacing-16));   /* eats the parent's gap — collapsed leaves no hole */
-  pointer-events: none;
-}
-
 /* —— QR card —— */
 .c-wallet-receive__qrcard {
   align-self: center;
-  width: min(325px, 86vw);   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
+  width: min(325px, 86vw, 100%);   /* loop NIT: inside the desktop dialog 86vw can beat the sheet's content box */   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
   padding: var(--spacing-16);
   box-sizing: border-box;
   border-radius: var(--radius-24);
@@ -72,12 +38,6 @@
 }
 
 /* —— address chip (member-sheet pattern, #99 — mirrors c-txsheet__addr) —— */
-.c-wallet-receive__addrlabel {
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  margin-block-end: calc(-1 * var(--spacing-8));   /* hugs its chip (parent gap is 16) */
-}
 .c-wallet-receive__addr {
   display: flex; align-items: center; gap: var(--spacing-8);
   padding-block: var(--spacing-8);
@@ -106,66 +66,6 @@
 .c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
 @media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
-
-/* —— "Request an amount" reveal row (send-screen row grammar) —— */
-.c-wallet-receive__reqrow {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: var(--size-target-min);
-  padding: var(--spacing-8) var(--spacing-12);
-  border: 0; border-radius: var(--radius-12);
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  color: var(--icon-neutral-02);                   /* chevron ink */
-  -webkit-tap-highlight-color: transparent;
-}
-@media (hover: hover) and (pointer: fine) { .c-wallet-receive__reqrow:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-receive__reqrow:active { background: var(--surface-interactive-pressed); }
-.c-wallet-receive__reqrow[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }   /* CHILD combinator — the glyph circle's svg must not flip (audit M4) */
-.c-wallet-receive__reqglyph {
-  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
-  border-radius: var(--radius-full);
-  display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-action-default);
-}
-.c-wallet-receive__reqlabel {
-  flex: 1; min-width: 0;
-  font-size: var(--font-size-body-lg);
-  color: var(--text-neutral-01);
-}
-/* W6: the reveal animates (it used to be a binary [hidden] snap) — house data-open
-   pattern, settings-backup precedent. `visibility` (0s, delayed to the end of the
-   close) keeps the collapsed box out of the TAB ORDER: pointer-events alone would
-   leave the amount field and the contact search keyboard-reachable behind an
-   aria-hidden box. Closed margin eats the parent gap so the collapsed state
-   occupies exactly what `display:none` used to. */
-.c-wallet-receive__reqbox {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  margin-block-start: calc(-1 * var(--spacing-16));
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              margin-block-start var(--duration-300) var(--easing-standard),
-              visibility 0s linear var(--duration-300);
-}
-.c-wallet-receive__reqbox[data-open] {
-  max-height: 680px;                 /* sanctioned: reveal clearance (amount + label + rule line + search + 264 list + result + CTA) */
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  margin-block-start: 0;
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              margin-block-start var(--duration-300) var(--easing-standard),
-              visibility 0s linear 0s;
-}
 
 /* —— amount (mirrors the send entry: money is the hero) —— */
 .c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
@@ -284,6 +184,25 @@
 .c-wallet-receive__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* —— #527: header row (request heading + the small "Show my address" button) —— */
+.c-wallet-receive__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
+.c-wallet-receive__addrbtn { flex: none; }
+
+/* —— #527: the address sheet (QR + address + copy + Share + explainer) —— */
+.c-addr-sheet {
+  display: flex; flex-direction: column; gap: var(--spacing-16);
+}
+.c-addr-sheet__info {
+  margin: 0;
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);

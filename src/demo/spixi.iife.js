@@ -4295,6 +4295,9 @@ function createPaymentBubble({
         ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
         : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
     el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
+    // loop fix (#523): with the in-place Pay, the NATIVE payment view is only
+    // reachable through Details — render it when the host wires one.
+    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));
     if (insufficient) {
       const note = document.createElement('div');
       note.className = 'c-tcard__note';
@@ -4306,6 +4309,7 @@ function createPaymentBubble({
     }
   } else if (role === 'request-out' && status === 'pending') {
     el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
+    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));   // loop fix (#523)
   } else if (role === 'sent' && status === 'failed') {
     el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
   } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {
@@ -10561,6 +10565,18 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = n
  * createWalletSend({ contacts, balance, fee, strings, host,
  *                    onQuickScan, onSend, onDone }) → view
  * Free fn (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
+ *
+ * ★ W6 (#523): `fee: null` = UNKNOWN. The fee line shows a pending state, Max is
+ * disabled, and Continue stays disabled until a quote lands — no invented fee, ever.
+ * New opt `onQuote(address, amount)` fires (debounced, deduped) when both recipient
+ * and a positive amount exist; the shell answers via the free fn
+ * `setSendQuote(el, { fee, balance })`. The displayed fee stays an ESTIMATE — the
+ * NATIVE confirm shows C#'s own numbers and is the authority (SECURITY.md).
+ * ★ ctrl.fail('') = SILENT re-enable (the user canceled the native confirm — no
+ * error text); any non-empty msg renders as before.
+ * ★ #255: a contact row with `pending: true` renders a "Pending" tag — a request
+ * you sent that the peer has not accepted. Still pickable (money goes to the
+ * address, not the friendship); the tag is the honest signal.
  */
 
 
@@ -10587,17 +10603,42 @@ let walletSendSeq = 0;                                     // aria-controls ids 
 function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
-  onQuickScan, onSend, onDone,
+  onQuickScan, onQuote, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
-  // '923,852.00') are NOT valid inputs here.
+  // '923,852.00') are NOT valid inputs here. fee === null → unknown until a quote (#523).
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
   const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
-  const balU = toUnits(balance);
-  const feeU = toUnits(fee);
+  let balU = toUnits(balance);
+  let feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
   const state = { recipient: null, amount: '', sending: false, attempt: 0 };
+  let quoteTimer = null;
+  let lastQuoteKey = '';
+  let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
+  let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
+  let addrErr = false;                                     // C# rejected the picked address (quote error)
+  const currentKey = () => (state.recipient ? state.recipient.address + ':' + (state.amount || '') : '');
+  function requestQuote() {
+    // W6: ask the shell for a real fee when both halves exist; dedupe on (addr, amount).
+    if (!onQuote || !state.recipient) return;
+    const a = state.amount || '';
+    if (!a || amountU() <= 0n) return;
+    const key = state.recipient.address + ':' + a;
+    if (key === lastQuoteKey) return;
+    if (quoteTimer) clearTimeout(quoteTimer);
+    quoteTimer = setTimeout(() => {
+      quoteTimer = null;
+      // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
+      // an empty-amount query (and latch its key)
+      if (!state.recipient || !state.amount || amountU() <= 0n) return;
+      const k = state.recipient.address + ':' + state.amount;
+      if (k === lastQuoteKey) return;
+      lastQuoteKey = k;
+      onQuote(state.recipient.address, state.amount);
+    }, 350);
+  }
 
   /* ——— recipient section ——— */
   const recSec = document.createElement('section');
@@ -10652,13 +10693,16 @@ function createWalletSend({
   addrInput.spellcheck = false;
   addrInput.placeholder = strings.ixianAddress || 'Ixian address';
   addrInput.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
-  const scanBtn = document.createElement('button');
-  scanBtn.type = 'button';
-  scanBtn.className = 'c-wallet-send__scan';
-  scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
-  scanBtn.append(icon('scan', { size: 20 }));
-  if (onQuickScan) scanBtn.addEventListener('click', onQuickScan);   // → ixian:quickscan; result via setSendAddress
-  addrField.append(addrInput, scanBtn);
+  addrField.append(addrInput);
+  if (onQuickScan) {                                     // #264 no-dead-buttons: no handler → no scan button
+    const scanBtn = document.createElement('button');
+    scanBtn.type = 'button';
+    scanBtn.className = 'c-wallet-send__scan';
+    scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
+    scanBtn.append(icon('scan', { size: 20 }));
+    scanBtn.addEventListener('click', onQuickScan);      // → ixian:quickscan; result via setSendAddress
+    addrField.append(scanBtn);
+  }
   const addrUse = createButton({
     label: strings.useAddress || 'Use this address', type: 'outline', size: 44, width: 'full',
     onClick: () => {
@@ -10706,6 +10750,12 @@ function createWalletSend({
       t.className = 'c-wallet-send__contactname';
       t.textContent = c.name || c.address;
       b.append(t);
+      if (c.pending) {                                   // #255: honest "request pending" tag
+        const tag = document.createElement('span');
+        tag.className = 'c-wallet-send__pendingtag';
+        tag.textContent = strings.pendingContact || 'Request pending';
+        b.append(tag);
+      }
       b.addEventListener('click', () => pick({ ...c, contact: true }));
       rows.append(b);
     }
@@ -10721,10 +10771,12 @@ function createWalletSend({
   function pick(recipient) {
     state.recipient = recipient;
     errLine.hidden = true;
+    addrErr = false;                                       // a new recipient gets a fresh verdict
+    maxSendU = null;
     picked.textContent = '';
     picked.hidden = false;
     picker.hidden = true;
-    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, size: 40 }));
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
     else {
       const glyph = document.createElement('span');
       glyph.className = 'c-wallet-send__pickedglyph';
@@ -10750,6 +10802,12 @@ function createWalletSend({
       clear.append(icon('x', { size: 18 }));
       clear.addEventListener('click', () => {
         state.recipient = null;
+        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
+        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
+        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
+        maxSendU = null;
+        addrErr = false;
+        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
         picked.hidden = true;
         picker.hidden = false;
         sync();
@@ -10759,6 +10817,9 @@ function createWalletSend({
       picked.append(clear);
     }
     sync();
+    // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
+    // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
+    if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
     amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
   }
 
@@ -10805,7 +10866,12 @@ function createWalletSend({
     onClick: () => {
       // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
       // safe action autofocused (APG), only then the field fills
-      const maxU = balU - feeU;
+      // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
+      // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
+      // and a mismatch left Max enabled-but-inert for every static-fee integrator.
+      const maxU = maxSendU !== null ? maxSendU
+        : ((feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null);
+      if (maxU === null) return;                         // no honest ceiling yet (W6)
       // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
       // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
       // fill itself is editable, it's the payment that can't be undone
@@ -10834,11 +10900,15 @@ function createWalletSend({
 
   const availLine = document.createElement('p');
   availLine.className = 'c-wallet-send__meta u-tabular';
-  availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  const renderAvail = () => {
+    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  };
+  renderAvail();
   amtSec.append(availLine);
 
   const feeLine = document.createElement('p');
   feeLine.className = 'c-wallet-send__meta u-tabular';
+  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
   amtSec.append(feeLine);
 
   const insuff = document.createElement('p');
@@ -10863,18 +10933,44 @@ function createWalletSend({
   /* exact integer-unit math throughout (audit M1); EXACT strings at the money moments —
      #77 truncation is a feed-display rule, not a confirm-step rule (audit M3) */
   const amountU = () => toUnits(state.amount || '0');
+  // Freshness applies only on the QUOTE flow (onQuote wired). A static numeric fee
+  // (demos, legacy integrations) keeps the pre-#523 semantics — no pair to answer.
+  const quoteFlow = !!onQuote;
   function valid() {
-    if (!state.recipient || !state.amount) return false;
+    if (!state.recipient || !state.amount || addrErr) return false;
+    if (feeU === null) return false;                       // W6: no quote → no review, ever
+    if (quoteFlow && quotedKey !== currentKey()) return false;   // ★ loop MAJOR: the fee must answer THIS pair
     const a = amountU();
     return a > 0n && a + feeU <= balU;
   }
   function sync() {
     const a = amountU();
+    const fresh = feeU !== null && (!quoteFlow || quotedKey === currentKey());
+    maxBtn.disabled = !state.recipient || (maxSendU === null && !fresh);
+    if (addrErr) {
+      // C# rejected the picked address (quote error:'address') — say it, gate it.
+      feeLine.textContent = '';
+      insuff.hidden = false;
+      insuff.textContent = strings.badAddress || 'That doesn\u2019t look like an Ixian address.';
+      cont.disabled = true;
+      return;
+    }
+    if (!fresh) {
+      // W6 pending state: the honest line, no numbers invented and no STALE ones —
+      // a fee quoted for another (recipient, amount) pair never shows (loop MAJOR).
+      feeLine.textContent = (a > 0n && state.recipient)
+        ? (strings.feePending || 'Calculating network fee\u2026')
+        : (strings.feeUnknown || 'The network fee shows when the recipient and amount are set.');
+      insuff.hidden = true;
+      cont.disabled = true;
+      requestQuote();
+      return;
+    }
     const total = a > 0n ? a + feeU : feeU;
     // ★ I-6 r2 (#360, loop r1 MINOR-5): same convention as the available line one
     // row up — a grouped line above an ungrouped '.'-decimal line was the exact
     // mixed convention the money.js header warns against, on one screen.
-    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
+    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI \u00b7 Total {t} IXI')
       .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
     const over = a > 0n && a + feeU > balU;
     insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
@@ -10883,17 +10979,35 @@ function createWalletSend({
   }
   sync();
 
+  // W6 free-fn hook: the shell routes the setSendQuote push here. `address`/`amount`
+  // are the ECHO of the asked pair — a fee is applied ONLY when it answers the pair
+  // on screen (loop MAJOR: no stale-recipient fee). Calls without an echo (tests,
+  // legacy) apply to the current pair.
+  el._applySendQuote = ({ fee: qFee, balance: qBal, max: qMax, address: qAddr, amount: qAmt, error: qErr } = {}) => {
+    if (qBal !== null && qBal !== undefined && qBal !== '') { balU = toUnits(qBal); renderAvail(); }
+    const echoed = qAddr !== undefined;
+    const matchesRecipient = !echoed || (state.recipient && state.recipient.address === qAddr);
+    if (qErr === 'address' && matchesRecipient) { addrErr = true; sync(); return; }
+    if (qMax !== null && qMax !== undefined && qMax !== '' && matchesRecipient) maxSendU = toUnits(qMax);
+    if (qFee !== null && qFee !== undefined && qFee !== '') {
+      const key = echoed ? qAddr + ':' + (qAmt == null ? '' : String(qAmt)) : currentKey();
+      if (!echoed || key === currentKey()) { feeU = toUnits(qFee); quotedKey = key; }
+    }
+    sync();
+  };
+
   /* ——— review sheet (#26) ——— */
   function openSendReview() {
     if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
     const r = state.recipient;
     const aU = amountU();
+    const feeAtOpen = feeU;                              // loop fix: the sheet and the payload use ONE fee
     const content = document.createElement('div');
     content.className = 'c-sendreview';
 
     const who = document.createElement('div');
     who.className = 'c-sendreview__who';
-    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, size: 48 }));
+    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, src: r.avatar || null, size: 48 }));
     const wt = document.createElement('div');
     wt.className = 'c-sendreview__whotext';
     const wn = document.createElement('div');
@@ -10921,8 +11035,8 @@ function createWalletSend({
     // user's only defence against a mistyped zero at exactly this moment.
     rowsBox.append(
       row(strings.amount || 'Amount', groupAmountDisplay(fromUnits(aU)) + ' IXI'),
-      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeU)) + ' IXI'),
-      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeU)) + ' IXI'),
+      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeAtOpen)) + ' IXI'),
+      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeAtOpen)) + ' IXI'),
     );
     content.append(rowsBox);
 
@@ -10949,7 +11063,7 @@ function createWalletSend({
         setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: false });
         sheetErr.hidden = true;
         setLoading(confirm, true);
-        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeU) };
+        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeAtOpen) };
         const done = () => {
           if (attempt !== state.attempt) return;         // stale callback from a superseded attempt
           state.sending = false;
@@ -10964,6 +11078,11 @@ function createWalletSend({
           delete confirm.dataset.acted;                  // retry stays possible
           cancel.disabled = false;
           setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: true });
+          if (msg === '') {                              // #523: native-confirm cancel — silent re-enable
+            sheetErr.hidden = true;
+            sheetErr.textContent = '';
+            return;
+          }
           sheetErr.hidden = false;                       // unhide BEFORE text → alert announces
           sheetErr.textContent = msg || strings.sendFailed || 'The payment could not be sent. Please try again.';
         };
@@ -11008,6 +11127,14 @@ function setSendAddress(el, scanned) {
     // grouping (1500, a 1000× error). The display form round-trips exactly.
     if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
   }
+  return el;
+}
+
+/** W6 (#523): a fee/balance quote lands here (shell wires the `setSendQuote` push).
+ *  Values are RAW decimal strings from C# (never display-formatted). Missing/empty
+ *  members leave that half unchanged. */
+function setSendQuote(el, quote) {
+  if (el && typeof el._applySendQuote === 'function') el._applySendQuote(quote || {});
   return el;
 }
 
@@ -13366,12 +13493,13 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
  * c-wallet-receive — Receive/Request, slice 3 (spec §4, #133; shape per Damir
  * 2026-07-05: ONE progressive surface, matching the send screen's grammar).
  *
- * Default = RECEIVE: QR of the own address in the legacy `address:ixi` format
- * (wallet_request.html parity) on the --surface-qr card (near-white in BOTH themes —
- * scan contrast), the FULL address in the member-sheet chip pattern (#99) with an
- * HONEST copy morph (✓ only after the clipboard write resolves — audit m1), and
- * Share (shell duty via onShare — NO share bridge command exists in the legacy set,
- * §9 ask; shells can use navigator.share where present).
+ * ★ #527 SUPERSEDES the QR-first default below: the surface is REQUEST-FIRST and
+ * the QR/address/copy/Share moved into `openAddressSheet` (see the block after the
+ * imports). The W9 grammar below is unchanged.
+ * (Historical shape, kept for context:) QR of the own address in the legacy
+ * `address:ixi` format on the --surface-qr card, the FULL address in the
+ * member-sheet chip pattern (#99) with an HONEST copy morph (audit m1), and
+ * Share (shell duty via onShare — NO share bridge command in the legacy set).
  *
  * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
  * input follows wallet-send's sanitize rules (shared export), then a MULTI-SELECT
@@ -13427,12 +13555,19 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
 
 
 
+
+/* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
+ * the amount input and the W9 contact multi-select render open by default (no
+ * reveal row, no collapse machinery). The QR + full address + copy + Share moved
+ * into `openAddressSheet` behind a small "Show my address" button — the SAME
+ * sheet surface the Account screen folds into later (one surface, #522 scope).
+ * The old `el._reqOpen` hook is gone with the reveal; `setRequestAmount` now
+ * only seeds the always-visible input. */
+
 /** '0', '0.', '' → not a requestable amount (plain receive stays). */
 function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
 }
-
-let walletReceiveSeq = 0;                                  // aria-controls ids (audit n2)
 
 function createWalletReceive({
   address = '', contacts = [], strings = getStrings(), host,
@@ -13455,125 +13590,29 @@ function createWalletReceive({
     return el;
   }
 
-  // #303: constant — the QR never carries an amount (see docblock). Kept as functions
-  // so the onShare payload contract ({ value: qrValue() }) is unchanged for callers.
-  const qrLabel = () => (strings.qrReceiveLabel || 'QR code: your Ixian address');
-  const qrValue = () => address + ':ixi';                  // legacy receive format (wallet_request parity)
+  /* ——— header row (#527): the request heading + the small "Show my address"
+   * button. The QR, the full address, copy, Share and the explainer all live in
+   * the sheet now — one surface, reused by Account later. */
+  const head = document.createElement('div');
+  head.className = 'c-wallet-receive__head';
+  const reqLabel = document.createElement('h2');
+  reqLabel.className = 'c-wallet-receive__asklabel';
+  reqLabel.textContent = strings.requestAmount || 'Request an amount';
+  const addrBtn = createButton({
+    label: strings.showMyAddress || 'Show my address', type: 'outline', size: 32,
+    icon: icon('qrcode', { size: 16 }),
+    onClick: () => openAddressSheet({ address, strings, host, onShare }),
+  });
+  addrBtn.classList.add('c-wallet-receive__addrbtn');
+  head.append(reqLabel, addrBtn);
+  el.append(head);
 
-  /* ——— QR card ———
-   * W6 (Damir 2026-08-12): card + caption live in ONE collapsible section so
-   * "Request an amount" can animate them away upward (max-height/opacity/transform
-   * on the --duration-300 / --easing-standard tokens — the wallet-hero #114
-   * pattern; reduced motion zeroes those tokens globally, so NO media query here
-   * and no JS motion branch). */
-  const qrSection = document.createElement('div');
-  qrSection.className = 'c-wallet-receive__qr';
-  const card = document.createElement('div');
-  card.className = 'c-wallet-receive__qrcard';
-  const qr = createQrSvg(qrValue(), { label: qrLabel() });
-  card.append(qr);
-  qrSection.append(card);
-
-  const caption = document.createElement('p');
-  caption.className = 'c-wallet-receive__caption';         // visible copy — announcements go to the live region
-  qrSection.append(caption);
-  el.append(qrSection);
-
-  /* hidden live region (audit m3/M3): announces MODE TRANSITIONS and the request-sent
-     confirmation — not every keystroke (the caption used to be aria-live and spammed) */
+  /* hidden live region (audit m3/M3): announces the request-sent confirmation —
+     not every keystroke (the caption used to be aria-live and spammed) */
   const live = document.createElement('p');
   live.className = 'c-wallet-receive__live';
   live.setAttribute('aria-live', 'polite');
   el.append(live);
-
-  /* ——— address (member-sheet chip pattern, #99: FULL address, honest copy) ——— */
-  const addrLabel = document.createElement('div');
-  addrLabel.className = 'c-wallet-receive__addrlabel';
-  addrLabel.textContent = strings.yourAddress || 'Your address';
-  const addrRow = document.createElement('div');
-  addrRow.className = 'c-wallet-receive__addr';
-  const addrValue = document.createElement('span');
-  addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
-  addrValue.textContent = address;
-  const copy = document.createElement('button');
-  copy.type = 'button';
-  copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
-  copy.setAttribute('aria-label', copyIdle);
-  copy.append(icon('copy', { size: 16 }));
-  let copyTimer = null;
-  const copyMorph = (glyph, label) => {
-    copy.textContent = '';
-    copy.append(icon(glyph, { size: 16 }));
-    copy.setAttribute('aria-label', label);
-    if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
-    copyTimer = setTimeout(() => {
-      copy.textContent = '';
-      copy.append(icon('copy', { size: 16 }));
-      copy.setAttribute('aria-label', copyIdle);
-      copyTimer = null;
-    }, 1400);
-  };
-  copy.addEventListener('click', () => {
-    // ✓ only when the write actually resolved — this is a payment address, a false
-    // "Copied" is a money-adjacent lie (audit m1)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(address).then(
-        () => copyMorph('check', strings.txCopied || 'Copied'),
-        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-      );
-    } else {
-      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-    }
-  });
-  addrRow.append(addrValue, copy);
-  el.append(addrLabel, addrRow);
-
-  /* ——— share (shell duty — no legacy bridge command; §9) ———
-   * F3 (#301): Share always sends the BARE ADDRESS (an amount request can't be
-   * shared as text yet — Damir), so the button HIDES while an amount is entered
-   * rather than offer a share that wouldn't include the amount on screen (sync()
-   * drives it, same honesty rule as the QR/caption). `amount` is still passed
-   * for API compatibility, but with the hide it is always null in practice. */
-  let shareBtn = null;
-  if (onShare) {
-    shareBtn = createButton({
-      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
-      icon: icon('share-3', { size: 18 }),
-      onClick: () => onShare({
-        address,
-        amount: requestable(state.amount) ? canonicalAmount(state.amount) : null,
-        value: qrValue(),
-      }),
-    });
-    el.append(shareBtn);
-  }
-
-  /* ——— request an amount (progressive reveal, send-screen row grammar) ——— */
-  const boxId = 'c-wallet-receive-reqbox-' + (++walletReceiveSeq);
-  const reqRow = document.createElement('button');
-  reqRow.type = 'button';
-  reqRow.className = 'c-wallet-receive__reqrow';
-  reqRow.setAttribute('aria-expanded', 'false');
-  reqRow.setAttribute('aria-controls', boxId);             // reveal is programmatically linked (audit n2)
-  const reqGlyph = document.createElement('span');
-  reqGlyph.className = 'c-wallet-receive__reqglyph';
-  reqGlyph.append(icon('arrow-down-left', { size: 20 }));
-  const reqLabel = document.createElement('span');
-  reqLabel.className = 'c-wallet-receive__reqlabel';
-  reqLabel.textContent = strings.requestAmount || 'Request an amount';
-  reqRow.append(reqGlyph, reqLabel, icon('chevron-down', { size: 18 }));
-  el.append(reqRow);
-
-  /* W6: `hidden` cannot animate, so the reveal rides the house data-open +
-     aria-hidden pattern (settings-backup precedent). Closed state also carries a
-     negative margin that eats the parent's 16 gap — a collapsed box must leave no
-     hole where `display:none` used to leave none. */
-  const reqBox = document.createElement('div');
-  reqBox.className = 'c-wallet-receive__reqbox';
-  reqBox.id = boxId;
-  reqBox.setAttribute('aria-hidden', 'true');
-  el.append(reqBox);
 
   const amtRow = document.createElement('div');
   amtRow.className = 'c-wallet-receive__amountrow';
@@ -13587,7 +13626,7 @@ function createWalletReceive({
   unit.className = 'c-wallet-receive__unit';
   unit.textContent = 'IXI';
   amtRow.append(amtInput, unit);
-  reqBox.append(amtRow);
+  el.append(amtRow);
 
   /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
    * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
@@ -13662,7 +13701,7 @@ function createWalletReceive({
     cta.classList.add('c-wallet-receive__cta');
     ctaLabel = cta.querySelector('.c-button__label');
     askBox.append(cta);
-    reqBox.append(askBox);
+    el.append(askBox);                                     // #527: always visible — no reveal box
   }
 
   /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a
@@ -13832,14 +13871,9 @@ function createWalletReceive({
   }
 
   function sync() {
-    const active = requestable(state.amount);
-    // #303: no QR re-encode and no mode announcements — the QR's meaning never
-    // changes now (constant address:ixi), so announcing a "request mode" would lie.
-    // The caption stays the plain receive line for the same reason.
-    caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+    // #527: the QR/Share honesty rules moved into the sheet (bare address, always).
     // W6/W9: askBox is NEVER hidden by the amount — the list stays browsable and
-    // tickable; only the CTA reacts. Share still hides while an amount is set.
-    if (shareBtn) shareBtn.hidden = active;                 // F3 (#301): no Share while an amount is set
+    // tickable; only the CTA reacts.
     syncCta();
   }
 
@@ -13865,61 +13899,112 @@ function createWalletReceive({
     sync();
   });
 
-  /* W6 open/close — ONE writer for the reveal state, so setRequestAmount can't
-     leave the QR half-collapsed. `data-request-open` on the root drives the QR
-     section's collapse; `data-open` drives the box; aria-hidden keeps both honest
-     for screen readers (the collapsed QR must not read, the collapsed box must not). */
-  function setOpen(open) {
-    if (open) { reqBox.dataset.open = ''; el.dataset.requestOpen = ''; }
-    else { delete reqBox.dataset.open; delete el.dataset.requestOpen; }
-    reqBox.setAttribute('aria-hidden', String(!open));
-    reqRow.setAttribute('aria-expanded', String(open));
-    qrSection.setAttribute('aria-hidden', String(open));   // collapsed QR is decoration at best
-  }
-  el._reqOpen = setOpen;                                   // free-fn hook (#44), same shape as _statusBits
-  setOpen(false);                                          // one writer owns the initial state too (aria-hidden on both halves)
-
-  reqRow.addEventListener('click', () => {
-    const open = reqBox.dataset.open === undefined;
-    setOpen(open);
-    if (open) {
-      void reqBox.offsetHeight;                            // flush style so the box is focusable + the transition starts
-      try { amtInput.focus({ preventScroll: true }); } catch (e) { amtInput.focus(); }
-      reqBox.scrollTop = 0;                                // a focus scroll inside the collapsing box must not stick
-      return;
-    }
-    // collapsing the section clears the request — the visible QR must never encode
-    // an amount the user can no longer see (state honesty). W9: the SELECTION goes
-    // with it; a reopened section that silently still had six people ticked is the
-    // same class of lie on the same money surface.
-    amtInput.value = '';
-    state.amount = '';
-    state.selected.clear();
-    showResult('', 'ok');
-    renderContacts(state.contactQuery);
-    sync();
-  });
-
   sync();
   renderContacts('');
   return el;
 }
 
+/** ★ #527 — the ONE address surface: QR + full address + honest copy + Share +
+ *  the "What is this address?" explainer, in a bottom sheet. The wallet Receive
+ *  screen opens it from "Show my address"; the Account screen folds into it at
+ *  its batch. Share always carries the BARE address (F3, #301) — the sheet knows
+ *  no amount, so the old hide-while-amount rule is structural now. */
+let addrSheetLive = null;                                  // loop fix: a double tap must not stack two sheets
+
+function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
+  // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
+  if (!String(address).trim()) return null;
+  if (addrSheetLive) return addrSheetLive;
+  const content = document.createElement('div');
+  content.className = 'c-addr-sheet';
+  const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
+
+  const card = document.createElement('div');
+  card.className = 'c-wallet-receive__qrcard';             // N86 sizing rules ride along unchanged
+  card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
+  content.append(card);
+
+  const caption = document.createElement('p');
+  caption.className = 'c-wallet-receive__caption';
+  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+  content.append(caption);
+
+  /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
+  const addrRow = document.createElement('div');
+  addrRow.className = 'c-wallet-receive__addr';
+  const addrValue = document.createElement('span');
+  addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
+  addrValue.textContent = address;
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'c-wallet-receive__copy';
+  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
+  copy.setAttribute('aria-label', copyIdle);
+  copy.append(icon('copy', { size: 16 }));
+  let copyTimer = null;
+  const copyMorph = (glyph, label) => {
+    copy.textContent = '';
+    copy.append(icon(glyph, { size: 16 }));
+    copy.setAttribute('aria-label', label);
+    if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
+    copyTimer = setTimeout(() => {
+      copy.textContent = '';
+      copy.append(icon('copy', { size: 16 }));
+      copy.setAttribute('aria-label', copyIdle);
+      copyTimer = null;
+    }, 1400);
+  };
+  copy.addEventListener('click', () => {
+    // ✓ only when the write actually resolved — this is a payment address, a false
+    // "Copied" is a money-adjacent lie (audit m1)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(address).then(
+        () => copyMorph('check', strings.txCopied || 'Copied'),
+        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
+      );
+    } else {
+      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
+    }
+  });
+  addrRow.append(addrValue, copy);
+  content.append(addrRow);
+
+  if (onShare) {
+    content.append(createButton({
+      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
+      icon: icon('share-3', { size: 18 }),
+      onClick: () => onShare({ address, amount: null, value: qrValue }),
+    }));
+  }
+
+  /* the folded-in explainer (ONE surface — no second address-info sheet).
+     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks. */
+  const info = document.createElement('p');
+  info.className = 'c-addr-sheet__info';
+  info.textContent = strings.addressInfoBody
+    || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
+  content.append(info);
+  const safety = document.createElement('p');
+  safety.className = 'c-addr-sheet__info';
+  safety.textContent = strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.';
+  content.append(safety);
+
+  const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
+    onDismiss: () => { addrSheetLive = null; } });
+  addrSheetLive = sheet;
+  openSheet(sheet);
+  return sheet;
+}
+
 /** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).
  *  Numbers are expanded to plain decimal first — String(1e-7) is '1e-7', which the
- *  shared sanitizer would strip into '17': a silent magnitude change (audit C1). */
+ *  shared sanitizer would strip into '17': a silent magnitude change (audit C1).
+ *  #527: the input is always visible now — no reveal to open first. */
 function setRequestAmount(el, amount) {
   if (!el) return el;
-  const row = el.querySelector('.c-wallet-receive__reqrow');
-  const box = el.querySelector('.c-wallet-receive__reqbox');
   const input = el.querySelector('.c-wallet-receive__amount');
-  if (!row || !box || !input) return el;
-  // W6: go through the component's own writer — a bare `box.hidden = false` would
-  // now leave the QR section collapsed-but-open (half state).
-  if (box.dataset.open === undefined) {
-    if (typeof el._reqOpen === 'function') el._reqOpen(true);
-    else { box.dataset.open = ''; row.setAttribute('aria-expanded', 'true'); }
-  }
+  if (!input) return el;
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);
@@ -14118,7 +14203,10 @@ function openAmountSheet({
       setOverlayOpts(sheet, { lightDismiss: false, escDismiss: false });
       sendErr.hidden = true;
       setLoading(confirm, true);
-      const payload = { messageId: message.id, amount: canonicalAmount(state.amount) };
+      // #528: the attach-Request path has NO source message (the peer is the
+      // context) — messageId is '' there; the tip path still carries its id.
+      // (message defaults to {}, so the truthy-check alone was dead — loop NIT.)
+      const payload = { messageId: (message && message.id) || '', amount: canonicalAmount(state.amount) };
       const done = () => {
         if (settled || attempt !== state.attempt) return;  // one-shot + stale-attempt guard
         settled = true;
@@ -22550,5 +22638,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

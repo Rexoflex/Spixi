@@ -185,7 +185,10 @@ function openAmountSheet({
       setOverlayOpts(sheet, { lightDismiss: false, escDismiss: false });
       sendErr.hidden = true;
       setLoading(confirm, true);
-      const payload = { messageId: message.id, amount: canonicalAmount(state.amount) };
+      // #528: the attach-Request path has NO source message (the peer is the
+      // context) — messageId is '' there; the tip path still carries its id.
+      // (message defaults to {}, so the truthy-check alone was dead — loop NIT.)
+      const payload = { messageId: (message && message.id) || '', amount: canonicalAmount(state.amount) };
       const done = () => {
         if (settled || attempt !== state.attempt) return;  // one-shot + stale-attempt guard
         settled = true;

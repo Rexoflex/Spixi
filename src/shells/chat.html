@@ -314,6 +314,14 @@
     display: flex; flex-direction: column;
   }
   .chat-info-takeover > .c-chat-info { flex: 1; min-height: 0; }
+  /* W5 (#523): the in-chat send compose — same cover grammar as chat-info; its
+     review sheet (z-40) + Max modal (z-50) render on top. */
+  .chat-send-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .chat-send-takeover__body { flex: 1; min-height: 0; overflow-y: auto; }
   /* Bot channels (Option A — channel-as-title, Damir F5 2026-07-08): the CURRENT
      channel name lives in the topbar title with a chevron-down affordance; tapping
      the title opens the selector as a panel that slides DOWN from under the topbar
@@ -534,6 +542,9 @@
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
+    openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
+    createWalletSend,               // W5 (#523): attach → Pay (lockedRecipient compose)
+    setSendQuote: applySendQuote,   // W6 — aliased: the bridge handler below shares the name
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
@@ -1747,11 +1758,11 @@
   }
 
   /* payment card (chat.js addPaymentRequest / xaml.cs:1310,1361 · updates
-   * 1648,1665). VIEW-ONLY in v1 (Damir 2026-07-07 interview-2 #5): an
-   * informational card — amount + status badge + a Details link that opens the
-   * NATIVE payment view (ixian:viewPayment). No inline Pay/Decline yet — that
-   * needs a signed §8 path (SECURITY.md), deferred to BE cutover C3. Role is
-   * sent|received by localSender, so the card renders NO action buttons; the
+   * 1648,1665). #523 SUPERSEDES the view-only interim: with the payRequest cap,
+   * an incoming pending request's Pay acts IN PLACE through the W5 native-confirm
+   * chain (C# signs; SECURITY.md intact), and an outgoing pending request carries
+   * Cancel (#529 — the existing msgDelete path). Decline stays OUT for v1 (#526).
+   * On an old exe (no caps) the view-only behavior below is unchanged. The
    * C#-localized `title` is passed verbatim because role alone can't tell a
    * REQUEST from a completed PAYMENT (the C1 enum gap — a best-effort interim). */
   /* Q4: signed-amount grammar. The component/demo canon (states matrix): a
@@ -1826,6 +1837,15 @@
       && rec.title === PAY_REQUEST_RECEIVED_TITLE
       && rec.enableView && !rec.txid;
     if (pendingIncomingRequest && view) {
+      /* #526: Pay + Details ONLY — no Decline in v1 (Damir).
+       * payRequest cap (W5): Pay acts IN PLACE — `ixian:payRequest:<msgId>` → C#
+       * locates the request, shows the NATIVE confirm (+ auth), signs, and the
+       * status pushes flip the card. A canceled confirm pushes payRequestResult
+       * ('cancel') → re-render releases the oneShot latch. Old exe: Pay opens
+       * the native review page (viewPayment), unchanged. */
+      const payDirect = bridge.cap('payRequest')
+        ? () => bridge.send('ixian:payRequest:' + rec.id)
+        : view;
       return createPaymentBubble({
         role: 'request-in',
         status: 'actionable',
@@ -1833,7 +1853,28 @@
         amount: displayPaymentAmount(rec),
         timestamp: rec.ts,
         gutter: mode.isMulti,
-        onPay: view,           // → native review page (Pay ≙ "review & confirm")
+        onPay: payDirect,
+        onDetails: bridge.cap('payRequest') ? view : null,   // Details keeps the full native view
+        strings: window.SL || {},
+      });
+    }
+    /* #529: OUTGOING pending request → 'request-out' with Cancel. No protocol
+     * cancel verb exists (SpixiMessageCode read, Ixian-Core) — Cancel = confirm
+     * modal → the EXISTING delete path (msgDelete, both ends). Paid/declined
+     * requests fall through to the plain card below. */
+    const pendingOutgoingRequest = rec.direction === 'sent'
+      && rec.title === PAY_REQUEST_SENT_TITLE
+      && !rec.txid && rec.pstatus === 'pending';
+    if (pendingOutgoingRequest && rec.id) {
+      return createPaymentBubble({
+        role: 'request-out',
+        status: 'pending',
+        title: rec.title || '',
+        amount: displayPaymentAmount(rec),
+        timestamp: rec.ts,
+        gutter: mode.isMulti,
+        onCancel: () => confirmCancelRequest(rec),
+        onDetails: view,
         strings: window.SL || {},
       });
     }
@@ -1847,6 +1888,27 @@
       onDetails: view,
       strings: window.SL || {},
     });
+  }
+
+  /* #529: Cancel request = delete the request message on BOTH ends (the existing
+   * msgDelete path — receiver honors + persists it). The modal states exactly
+   * that; a receiver-side "Canceled" label needs a new protocol verb (BE row). */
+  function confirmCancelRequest(rec) {
+    const s = window.SL || {};
+    openModal(createModal({
+      title: s.cancelRequestTitle || 'Cancel this request?',
+      body: s.cancelRequestBody || 'The request is removed from this chat for both of you.',
+      role: 'alertdialog', host: overlayHost,
+      actions: [
+        { label: s.keepRequest || 'Keep it', type: 'text', autofocus: true },
+        { label: s.cancelRequestConfirm || 'Cancel request', type: 'fill', onClick: () => {
+          sendDeleteMessage(rec.id);                   // latches pendingLocalDeletes + emits the verb
+        } },
+      ],
+    }));
+    // release the card's oneShot latch NOW (the modal scrim blocks re-taps): a
+    // "Keep it"/Esc close must leave a live Cancel button behind it.
+    renderLog();
   }
 
   /* map the legacy FontAwesome status_icon → the redesigned card status enum.
@@ -2550,8 +2612,10 @@
   /* composer ⊕ → attach sheet (tile grid) replacing the legacy native attach bar.
    *   file    → ixian:sendfile            (native picker)
    *   photo/gif → ixian:sendmedia         (gated on the media capability, #81)
-   *   pay     → ixian:send  (onSendIxi)   1:1 only — native compose + sign
-   *   request → ixian:request (onRequestIxi) 1:1 only
+   *   pay     → composeSend cap: the #139 lockedRecipient compose takeover
+   *             (W5 — C# signs after the NATIVE confirm) · old exe: ixian:send
+   *   request → composeRequest cap: the #139 amount sheet → ixian:sendrequest
+   *             (a request is a chat message) · old exe: ixian:request
    * App-invite tile is hidden (no SingleChatPage invite verb); Pay/Request are
    * hidden in groups/bots (C# rejects them there). */
   function openAttach() {
@@ -2564,14 +2628,116 @@
       onAction: (id) => {
         if (id === 'file') bridge.send('ixian:sendfile');
         else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
-        else if (id === 'pay') bridge.send('ixian:send');
-        else if (id === 'request') bridge.send('ixian:request');
+        else if (id === 'pay') { if (bridge.cap('composeSend')) openSendTakeover(); else bridge.send('ixian:send'); }
+        else if (id === 'request') { if (bridge.cap('composeRequest')) openRequestForPeer(); else bridge.send('ixian:request'); }
         else if (id === 'app') openAppPicker();
       },
     });
     // Batch C (M6): desktop presents the share grid as a POPOVER rising from the
     // composer ⊕ (demo 06d ① grammar); no-op on mobile / when the ⊕ isn't found.
     anchorSheetAbove(sheet, composerEl && composerEl.querySelector('.c-composer__attach'), { host: overlayHost });
+  }
+
+  /* ——— W5 (#523): in-chat Pay — the send compose with the peer LOCKED (#139) ———
+   * The compose only PROPOSES: `ixian:signSend` → C# re-parses → NATIVE confirm
+   * (+ payment auth) → sign + broadcast → `signSendResult`. The sent-funds bubble
+   * arrives through the normal message push; the takeover closes on the morph. */
+  let chatSendView = null;
+  let chatSendCtrl = null;
+  let chatSendWait = 0;                                // loop fix: the no-answer backstop (tipWait grammar)
+  let chatSendFocusin = null;                          // loop a11y fix: focus containment for the cover
+  function clearSendWait() { if (chatSendWait) { clearTimeout(chatSendWait); chatSendWait = 0; } }
+  function closeSendTakeover() {
+    const t = document.querySelector('.chat-send-takeover');
+    if (t) t.remove();
+    chatSendView = null;
+    chatSendCtrl = null;
+    clearSendWait();
+    if (chatSendFocusin) { document.removeEventListener('focusin', chatSendFocusin); chatSendFocusin = null; }
+    syncChatOverlay();                                 // loop MAJOR fix (AND-29 class): back must stop eating the chat
+    try { focusComposer(); } catch (e) { /* focus restore is best-effort */ }
+  }
+  function openSendTakeover() {
+    if (mode.type !== 0) return;                       // 1:1 only (C# rejects group sends)
+    if (!identity.address) return;
+    if (document.querySelector('.chat-send-takeover')) return;   // double-open guard
+    const s = window.SL || {};
+    const over = document.createElement('div');
+    over.className = 'chat-send-takeover';
+    over.append(createTopbar({
+      variant: 'view', title: s.send || 'Send',
+      backLabel: s.back || 'Back', onBack: closeSendTakeover,
+    }));
+    const body = document.createElement('div');
+    body.className = 'chat-send-takeover__body u-scroll';
+    chatSendView = createWalletSend({
+      contacts: [],                                    // locked peer — no picker
+      // loop fix (#211): identity.name CAN be the address echo — an address is
+      // never a NAME (the component renders its 'Address' label instead), and
+      // the peer's photo rides along (#342).
+      lockedRecipient: {
+        name: (identity.name && identity.name !== identity.address) ? identity.name : '',
+        address: identity.address,
+        avatar: identity.avatar || null,
+      },
+      balance: 0,                                      // real balance rides the first quote
+      fee: null,                                       // W6: gated until a quote lands
+      strings: s, host: document.body,
+      onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      onSend: (payload, ctrl) => {
+        const r = (payload.recipients && payload.recipients[0]) || {};
+        chatSendCtrl = ctrl;
+        // loop MAJOR fix: a dropped push must not strand a locked sheet forever —
+        // the tipWait grammar. The copy must NOT claim failure: the tx may be out.
+        clearSendWait();
+        chatSendWait = setTimeout(() => {
+          chatSendWait = 0;
+          const c = chatSendCtrl;
+          if (!c) return;
+          chatSendCtrl = null;
+          c.fail((window.SL && window.SL.sendNoAnswer) || 'No response from the app. Check your wallet activity before you try again.');
+        }, 30000);
+        bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
+      },
+      onDone: () => closeSendTakeover(),
+    });
+    body.append(chatSendView);
+    over.append(body);
+    document.body.append(over);
+    syncChatOverlay();                                 // loop MAJOR fix: hardware back closes the COVER, not the chat
+    // loop a11y fix (#205 grammar, light): focus moves INTO the cover and stays
+    // out of the covered conversation; overlays (sheets/modals) stay reachable.
+    const firstFocus = over.querySelector('button, input');
+    if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
+    chatSendFocusin = (e) => {
+      if (over.contains(e.target)) return;
+      if (e.target && e.target.closest && e.target.closest('.c-sheet, .c-modal')) return;
+      const f = over.querySelector('button, input');
+      if (f) { try { f.focus(); } catch (err) {} }
+    };
+    document.addEventListener('focusin', chatSendFocusin);
+    // balance prefetch: amount 0 = "quote the balance + Max ceiling" (fee stays gated)
+    bridge.send('ixian:feeQuery:' + identity.address + ':0');
+  }
+
+  /* #528: in-chat Request — the #139 amount sheet (peer known, no balance guard).
+   * ONE verb per request (`ixian:sendrequest:<addr>:<amount>`, the W8 grammar on
+   * SingleChatPage now); the request-out card arrives via the normal push. */
+  function openRequestForPeer() {
+    if (mode.type !== 0 || !identity.address) return;
+    openRequestSheet({
+      recipient: {
+        name: (identity.name && identity.name !== identity.address) ? identity.name : '',
+        address: identity.address,
+        avatar: identity.avatar || null,               // #342: the confirm moment shows WHO
+      },
+      host: overlayHost,
+      strings: window.SL || {},
+      onRequest: (payload, ctrl) => {
+        bridge.send('ixian:sendrequest:' + identity.address + ':' + payload.amount);
+        ctrl.done();                                   // a request is a message — the card push confirms
+      },
+    });
   }
 
   /* App-invite picker (legacy parity): the attach "App invite" tile opens a
@@ -3578,6 +3744,7 @@
     onChatScreenReady(address) {
       exitChatSelect();                    // per-peer reset: a selection (and its contextual
                                            // topbar) must never survive into another conversation
+      closeSendTakeover();                 // round-2 MINOR: an open money cover must not strand into peer B
       identity.address = address || '';
       identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
       if (!identity.name) renderTopbar();
@@ -3714,12 +3881,52 @@
      * `title` + `status` are C#-LOCALIZED strings; `statusIcon` is the stable
      * signal we map to the status enum. localSender ("True"/"") → direction. */
     addPaymentRequest(id, txid, address, nick, avatar, title, amount, status, statusIcon, time, localSender, confirmed, read, enableView) {
+      /* #529 ghost guard: a CANCELED (msgDelete-blanked) request re-pushes with an
+       * EMPTY amount and no txid on reload — render nothing, not an empty card.
+       * ('?' = live tx-fetch placeholder, NOT empty — untouched.) */
+      if (isRequestTitle(title || '') && !String(amount == null ? '' : amount).trim() && !txid) {
+        dbg('addPaymentRequest: blanked request skipped', id);
+        return;
+      }
       upsertPayment(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
         title: title || '', amount: amount,
         pstatus: paymentStatusFrom(statusIcon),
         txid: txid || '', enableView: asBool(enableView),
         senderNick: resolveNick(address, nick), senderAddress: address || '',
       });
+    },
+
+    /* ——— W5/W6 money-compose plumbing (#523) ——— */
+    // W6 answer to ixian:feeQuery — routed to the OPEN in-chat compose only.
+    setSendQuote(addr, amount, fee, balance, max, error) {
+      if (!chatSendView) { dbg('setSendQuote (no compose)'); return; }
+      // the echo pair rides along — the component drops a stale answer (loop MAJOR)
+      applySendQuote(chatSendView, { fee, balance, max, address: addr, amount, error });
+    },
+    // W5 outcome: 'ok' → success morph · 'cancel' → silent re-enable · else fail(msg).
+    signSendResult(status, message) {
+      clearSendWait();
+      const c = chatSendCtrl;
+      if (!c) { dbg('signSendResult (no pending review)'); return; }
+      chatSendCtrl = null;
+      const st = String(status || '');
+      if (st === 'ok') { c.done(); return; }
+      if (st === 'cancel') { c.fail(''); return; }
+      // loop MAJOR fix: an empty fail is NOT a cancel — null routes to the
+      // component's default error copy instead of the silent branch.
+      const m = String(message || '');
+      c.fail(m === '' ? null : m);
+    },
+    // payRequest outcome (request-in card). 'ok' needs nothing — the status pushes
+    // flip the card. 'cancel'/'fail' re-render to release the Pay oneShot latch.
+    payRequestResult(id, status, message) {
+      const st = String(status || '');
+      if (st === 'ok') return;
+      renderLog();
+      const msg = String(message || '');
+      if (st === 'fail' && msg) {
+        try { showToast({ text: msg, tone: 'error', host: overlayHost, strings: window.SL || {} }); } catch (e) { /* toast optional */ }
+      }
     },
 
     // Request-status update (xaml.cs:1665): (msg_id, txid, status, statusIcon,
@@ -4021,6 +4228,7 @@
       if (channelDropdown) { closeChannelSelector(); return; }
       const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
       if (dismiss && dismiss()) return;
+      if (chatSendView) { closeSendTakeover(); return; }   // loop MAJOR fix: the cover before select mode
       if (chatSelect) {
         // #376 loop A-1 belt: a dead handle must not eat the press with no heal —
         // verify the selection is LIVE on the DOM before exiting through it.
@@ -4050,7 +4258,8 @@
     // lights it up — cover the host now so the hole can't reopen silently.
     return document.body.dataset.overlayOpen !== undefined
       || box.dataset.overlayOpen !== undefined
-      || !!channelDropdown || !!chatSelect;
+      || !!channelDropdown || !!chatSelect
+      || !!chatSendView;                               // loop MAJOR fix: the money cover consumes back too
   }
   function syncChatOverlay() {
     if (chatOverlaySyncT) return;

@@ -160,6 +160,24 @@ namespace SPIXI
             {
                 onSendIxi();
             }
+            // ★ W5/W6 (#523) — money-compose verbs. StartsWith + trailing colon,
+            // placed with the other money verbs; SPayments owns confirm/auth/sign.
+            else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
+            {
+                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length));
+            }
+            else if (current_url.StartsWith("ixian:feeQuery:", StringComparison.Ordinal))
+            {
+                SPayments.handleFeeQuery(this, current_url.Substring("ixian:feeQuery:".Length));
+            }
+            else if (current_url.StartsWith("ixian:payRequest:", StringComparison.Ordinal))
+            {
+                onPayRequest(current_url.Substring("ixian:payRequest:".Length));
+            }
+            else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
+            {
+                onSendRequestFromChat(current_url.Substring("ixian:sendrequest:".Length));
+            }
             else if (current_url.Equals("ixian:accept", StringComparison.Ordinal))
             {
                 onAcceptFriendRequest();
@@ -479,6 +497,93 @@ namespace SPIXI
             hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav
         }
 
+        // ★ W5 (#523): pay an incoming payment request IN PLACE. This page resolves
+        // the message; SPayments owns the guards, the NATIVE confirm (+ auth), the
+        // sign and every result push. 1:1 only — same fence as onSendIxi.
+        private void onPayRequest(string msg_id)
+        {
+            if (friend.bot || friend.type == FriendType.Group)
+            {
+                Utils.sendUiCommand(this, "payRequestResult", msg_id, "cancel", "");
+                return;
+            }
+            FriendMessage? msg = null;
+            try
+            {
+                msg = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(Crypto.stringToHash(msg_id)));
+            }
+            catch (Exception ex)
+            {
+                Logging.error("onPayRequest lookup failed: " + ex.Message);
+            }
+            SPayments.handlePayRequest(this, friend, msg, msg_id);
+        }
+
+        // ★ #528: create a payment request from the chat — the W8 grammar
+        // (`ixian:sendrequest:<addr>:<amount>`), PEER-SCOPED: the address must be
+        // this conversation's peer. A request is a chat message; nothing is signed.
+        // Guards mirror HomePage.onSendRequest (approved + Normal + !bot, fail closed).
+        private void onSendRequestFromChat(string payload)
+        {
+            try
+            {
+                int sep = payload.IndexOf(':');
+                if (sep <= 0)
+                {
+                    return;
+                }
+                string addr = payload.Substring(0, sep);
+                string amountStr = payload.Substring(sep + 1);
+                // ★ Loop fix (#268 FIX-3 rule): every rejection is SURFACED — the sheet
+                // already morphed "Requested", so a silent no-op is the ⑪ delivery lie.
+                if (friend == null || friend.bot || friend.type != FriendType.Normal
+                    || !friend.approved || friend.state != FriendState.Approved)
+                {
+                    Logging.warn("sendrequest rejected: peer not an approved contact");
+                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                if (!friend.walletAddress.ToString().Equals(addr, StringComparison.Ordinal))
+                {
+                    Logging.warn("sendrequest rejected: address is not the open peer");
+                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                // ★ Loop fix: the HomePage.onSendRequest amount normalization, verbatim —
+                // a second dot is REJECTED (IxiNumber silently truncates "1.2.3" to 1.2
+                // while the stored message text would keep the full string).
+                string[] amount_split = amountStr.Split(new string[] { "." }, StringSplitOptions.None);
+                if (amount_split.Length > 2)
+                {
+                    displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amountdecimal-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                if (amount_split.Length == 1)
+                {
+                    amountStr = String.Format("{0}.0", amountStr);
+                }
+                IxiNumber _amount;
+                try { _amount = new IxiNumber(amountStr); } catch (Exception) { _amount = 0; }
+                if (_amount == 0 || _amount < (long)0)
+                {
+                    displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amount-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                // the exact HomePage.onSendRequest send pair (:1193-1195)
+                FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.requestFunds, friend.walletAddress, 0, amountStr, true);
+                if (friend_message == null)
+                {
+                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                StreamProcessor.transactionRequest(friend_message.id, friend, _amount, null, null);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("onSendRequestFromChat failed: " + ex.Message);
+            }
+        }
+
         private void populateChannelSelector()
         {
             var channels = friend.channels.channels;
@@ -715,7 +820,10 @@ namespace SPIXI
             // ★ audit: declare that THIS build answers a tip with setTipResult. A new shell
             // on an old exe would otherwise wait 12 s after a SUCCESSFUL tip and then say it
             // may have failed; without the cap it keeps the old immediate-confirm behaviour.
-            Utils.sendUiCommand(this, "setCaps", "tipResult");
+            // ★ W5 (#523): + the money-compose caps. composeSend = attach-Pay compose ·
+            // composeRequest = attach-Request sheet · payRequest = in-card Pay. An old
+            // exe pushes none of these and the shell keeps the legacy native routes.
+            Utils.sendUiCommand(this, "setCaps", "tipResult,composeSend,composeRequest,payRequest");
             /* ★ M1 REPLY-TO (#441/#448) — THE SHELL IS BUILT, THE CARRIER IS NOT.
              * The whole FE surface (quote bubble, composer strip, menu action, jump,
              * group @-mention prefill) is in place and the `ixian:chatreply:` verb is

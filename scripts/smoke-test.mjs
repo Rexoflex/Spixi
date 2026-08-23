@@ -408,25 +408,40 @@ console.log('wallet.html');
   await sleep(50);
   const rec = d2.querySelector('.c-wallet-receive');
   ok(!!rec, 'Receive quick action opens the receive view');
-  const rqr = rec.querySelector('.c-qr');
-  ok(!!rqr && rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', 'QR encodes the legacy address:ixi receive format');
+  /* ★ #527 INVERSION (Damir 2026-08-23): the surface is REQUEST-FIRST. The QR,
+     the full address, copy and Share live in the ADDRESS SHEET behind the small
+     "Show my address" button; the amount + the W9 multi-select render open by
+     default, with NO reveal machinery. #303 (constant address:ixi) is pinned
+     INSIDE the sheet now. */
+  ok(!rec.querySelector('.c-qr'), '#527: no inline QR — the surface is request-first');
+  ok(!rec.querySelector('.c-wallet-receive__reqrow') && !rec.querySelector('.c-wallet-receive__reqbox'),
+    '#527: the reveal machinery is GONE — amount + contacts render open by default');
+  ok(!!rec.querySelector('.c-wallet-receive__amount') && !!rec.querySelector('.c-wallet-receive__ask'),
+    '#527: the amount input AND the contact multi-select are in the tree at rest');
+  const addrBtn2 = rec.querySelector('.c-wallet-receive__addrbtn');
+  ok(!!addrBtn2 && addrBtn2.textContent.trim() === 'Show my address',
+    '#527: the small "Show my address" button exists');
+  addrBtn2.click();
+  await sleep(30);
+  const addrSheet = d2.querySelector('.c-addr-sheet');
+  ok(!!addrSheet, '#527: Show my address opens the address sheet');
+  const rqr = addrSheet.querySelector('.c-qr');
+  ok(!!rqr && rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
+    'sheet QR encodes the legacy address:ixi receive format (#303: constant, NEVER an amount)');
   ok(rqr.getAttribute('role') === 'img' && !!rqr.getAttribute('aria-label'), 'QR is a labelled image');
   ok((rqr.querySelector('path').getAttribute('fill') || '').includes('--on-qr'), 'QR ink rides the --on-qr token');
-  ok((rec.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen', 'FULL own address in the chip (#99)');
+  ok((addrSheet.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen',
+    'FULL own address in the sheet chip (#99)');
+  ok(addrSheet.querySelectorAll('.c-addr-sheet__info').length === 2,
+    '#527: the "What is this address?" explainer is folded INTO the sheet — ONE surface');
+  const rcopy = addrSheet.querySelector('.c-wallet-receive__copy');
+  rcopy.click();
+  ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'),
+    'no clipboard → honest failure morph, no false Copied (audit m1)');
+  W2.Spixi.dismissTopOverlay();
+  await sleep(450);                                        // overlay exit fallback is 400ms
+  ok(!d2.querySelector('.c-addr-sheet'), '#527: the sheet dismisses cleanly');
 
-  const reqRow = rec.querySelector('.c-wallet-receive__reqrow');
-  ok(reqRow.getAttribute('aria-expanded') === 'false'
-    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open === undefined
-    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'false',
-    'request reveal starts collapsed (W6: data-open, not [hidden] — [hidden] cannot animate)');
-  reqRow.click();
-  ok(reqRow.getAttribute('aria-expanded') === 'true'
-    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open !== undefined
-    && rec.querySelector('.c-wallet-receive__reqbox').getAttribute('aria-hidden') === 'false',
-    'Request an amount expands in place (one progressive surface)');
-  ok(rec.dataset.requestOpen !== undefined
-    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'true',
-    'W6: opening collapses the QR section (root data flag drives the CSS) and takes it out of the SR tree');
   /* ★ W9 (Damir, Windows F5 2026-08-13) — the request flow is a MULTI-SELECT +
      ONE CTA now: "perhaps we can have a multiselect as for group creation and then
      1 SEND REQUEST button that then confirms it was sent, and we return to wallet
@@ -468,10 +483,14 @@ console.log('wallet.html');
   const ramt = rec.querySelector('.c-wallet-receive__amount');
   ramt.value = '12,5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   ok(ramt.value === '12.5', 'request amount follows the send sanitize rules (shared export)');
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
-    '#303: the QR NEVER re-encodes to addr:send:amount — amount-request QRs are not a supported flow (Damir 2026-08-04); the amount drives only the request CTA');
   ramt.value = '12.'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: still constant under amount edits');
+  addrBtn2.click();                                        // reopen WITH an amount in the field
+  await sleep(30);
+  const rqr2 = d2.querySelector('.c-addr-sheet .c-qr');
+  ok(!!rqr2 && rqr2.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
+    '#303: the sheet QR NEVER encodes an amount — reopened mid-edit it is still the constant address:ixi');
+  W2.Spixi.dismissTopOverlay();
+  await sleep(450);
   ramt.value = '12.5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
   const ask = rec.querySelector('.c-wallet-receive__ask');
   ok(rowsOf(ask).every((b) => !b.disabled) && rcta.disabled
@@ -498,28 +517,16 @@ console.log('wallet.html');
   ok(rcta.textContent.trim() === 'Request 9 IXI (3)'
     && rowsOf(ask).filter((b) => b.getAttribute('aria-checked') === 'true').length === 3,
     'W9: editing the amount re-labels the CTA and KEEPS the selection — who you are asking is a different axis from how much (the old latch had to be killed here because a ✓ meant "sent"; a tick means nothing of the sort)');
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi', '#303: QR constant through the amount re-edit too');
-  const rcopy = rec.querySelector('.c-wallet-receive__copy');
-  rcopy.click();
-  ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'), 'no clipboard → honest failure morph, no false Copied (audit m1)');
-
-  reqRow.click();                                          // collapse clears the request
-  ok(rqr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi'
-    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open === undefined
-    && rec.dataset.requestOpen === undefined
-    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'false',
-    'collapsing the reveal clears the request state and brings the QR back (#303 + W6)');
-  ok(rec.querySelector('.c-wallet-receive__amount').value === ''
-    && rowsOf(ask).every((b) => b.getAttribute('aria-checked') === 'false') && rcta.disabled,
-    '★ W9 STATE HONESTY: collapsing clears the SELECTION as well as the amount — a reopened section that silently still had six people ticked is the same class of lie as a QR encoding an amount you can no longer see');
+  /* #527: no collapse exists any more — the reveal and its state-clearing are
+     gone, so the surface is reset EXPLICITLY here for the send flow below. */
+  for (const b of rowsOf(ask)) { if (b.getAttribute('aria-checked') === 'true') b.click(); }
+  ramt.value = ''; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  ok(rowsOf(ask).every((b) => b.getAttribute('aria-checked') === 'false') && rcta.disabled,
+    '#527: untick + clear disarms the CTA (selection and amount stay independent axes)');
   W2.Spixi.setRequestAmount(rec, 0.0000001);
   ok(rec.querySelector('.c-wallet-receive__amount').value === '0.0000001',
-    'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17; asserted on the INPUT since #303 keeps the QR constant)');
-  ok(rec.dataset.requestOpen !== undefined
-    && rec.querySelector('.c-wallet-receive__reqbox').dataset.open !== undefined
-    && rec.querySelector('.c-wallet-receive__qr').getAttribute('aria-hidden') === 'true'
-    && rec.querySelector('.c-wallet-receive__cta').disabled,
-    'W9: setRequestAmount still opens through the component writer (never an open box over a half-collapsed QR) and lands on the amount-only state — it can never pre-select a recipient');
+    'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17)');
+  ramt.value = ''; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));   // clean slate for the send flow
 
   /* ——— W9: the SEND, end to end. Ordered last in this frame because a clean run
      navigates away (the demo shell returns to the wallet screen, exactly what
@@ -560,7 +567,7 @@ console.log('wallet.html');
       onRequestsSent: (p) => { sentText = p.text; },
     });
     d2.body.append(failing);
-    failing.querySelector('.c-wallet-receive__reqrow').click();
+    // #527: no reveal — the request surface is open at mount
     const famt = failing.querySelector('.c-wallet-receive__amount');
     famt.value = '3'; famt.dispatchEvent(new W2.Event('input', { bubbles: true }));
     const frows = rowsOf(failing);
@@ -628,7 +635,7 @@ console.log('wallet.html');
       onSendRequest: () => true,
     });
     d2.body.append(noAv);
-    noAv.querySelector('.c-wallet-receive__reqrow').click();   // the picker lives in the request sub-view
+    // #527: no reveal — the picker renders at mount
     const rows = [...noAv.querySelectorAll('.c-wallet-receive__contact')];
     const rowImg = (n) => rows[n] && rows[n].querySelector('.c-avatar img');
     ok(rows.length === 2 && !!rowImg(0) && rowImg(0).getAttribute('src') === PNG,
@@ -5323,10 +5330,13 @@ console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
   ok(/MinimumZoomScale = 1;/.test(iosHandler) && /MaximumZoomScale = 1;/.test(iosHandler),
     'F2: the iOS ScrollView zoom belt covers the still-legacy pages (wallet_send/apps…) that ship no viewport clamp');
 
-  /* —— F3: Share hides while an amount is set (component half) —— */
-  ok(/shareBtn\.hidden = active/.test(wrJs),
-    'F3: the Share button HIDES while an amount is entered — offering a share that omits the on-screen amount would be dishonest (Damir dial, hide > disable)');
-  ok(/let shareBtn = null/.test(wrJs), 'F3: the share button is state-driven from sync(), not a fire-and-forget append');
+  /* —— F3 → #527: Share lives in the ADDRESS SHEET now. The hide-while-amount rule
+     became STRUCTURE: the sheet knows no amount, so its Share can only ever carry
+     the bare address (amount: null in the payload, literally). —— */
+  ok(/onShare\(\{ address, amount: null, value: qrValue \}\)/.test(wrJs),
+    'F3/#527: the sheet Share carries the BARE address — amount is null structurally');
+  ok(!/shareBtn/.test(wrJs),
+    '#527: no main-surface share button remains (the sheet is the one share site)');
 
   /* —— F1: scan diagnostics + re-kick (iOS-49, zero-C# by design) —— */
   ok(/function probeScanFeed/.test(scanJs) && /function scheduleScanProbe/.test(scanJs),
@@ -5396,8 +5406,8 @@ console.log('r2 (#303) — keyboard native+hardened · amount-QR drop');
     'iOS-29 r2: floating/split iPad keyboards (narrow frame) are NOT pushed — bogus mid-screen overlap would latch the shell off its vv belt (review MINOR-5)');
 
   /* amount-QR drop */
-  ok(!/:send:' \+ canonicalAmount/.test(wrJs) && /const qrValue = \(\) => address \+ ':ixi'/.test(wrJs),
-    "#303 ★: wallet-receive NEVER composes address:send:<amount> — the QR is constant address:ixi (Damir: amount-request QRs are not supported)");
+  ok(!/:send:' \+ canonicalAmount/.test(wrJs) && /const qrValue = address \+ ':ixi'/.test(wrJs),
+    "#303 ★: wallet-receive NEVER composes address:send:<amount> — the QR is the constant address:ixi (now built inside openAddressSheet)");
   ok(!/setQrValue\(/.test(wrJs) && !/import \{ createQrSvg, setQrValue \}/.test(wrJs),
     '#303: no QR re-encode machinery left in wallet-receive (no call sites, import dropped)');
   ok(/requestModeAnnounce/.test(wrJs) === false,
@@ -7167,7 +7177,7 @@ console.log('#348b — F5 follow-up fixes');
      lands, bridge.cap('tipResult') is permanently false, and 100% of tips take the
      ctrl.done() fallback — the exact green-"Tipped"-over-a-failed-payment bug D-10
      exists to remove — with the whole suite green. */
-  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && /setCaps", "tipResult"/.test(scpB)
+  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && /setCaps", "tipResult/.test(scpB)
     && /setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(chB),
     '★ D-10 (#348b, audit): the wait is CAPABILITY-GATED. A new shell on an old exe would otherwise freeze 12 s after a SUCCESSFUL tip and then claim it may have failed; an old shell on a new exe would show no error at all. Both combinations were worse than the bug being fixed');
   ok(/showToast\(\{ text: \(sl\.tipConfirm[\s\S]{0,80}?\.replace\('\{a\}', amt\)/.test(chB)
@@ -9154,7 +9164,7 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     '★ I-6 r2 (#360): all three amount inputs (send, receive, tip) route through amountInputToCanonical WITH the event — typing/deletion edits take the per-edit inverse, paste and synthetic dispatches (the QR seed path fires a plain Event) take the settled heuristic. The field holds the DISPLAY form, state holds the canonical, the #77 wire is untouched');
   ok(/amt\.value = groupAmountDisplay\(parts\[2\]\)/.test(ws360),
     '★ I-6 (#360): the QR-scan amount seeds the field in DISPLAY form — a raw canonical "1.500" (one-and-a-half with typed zeros) dropped into a ","-decimal locale would read as grouping: a 1000× error on a payment path');
-  ok(/groupAmountDisplay\(fromUnits\(aU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(feeU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(aU \+ feeU\)\)/.test(ws360),
+  ok(/groupAmountDisplay\(fromUnits\(aU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(feeAtOpen\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(aU \+ feeAtOpen\)\)/.test(ws360),
     'I-6 (#360): the review sheet groups Amount, Fee AND Total at full precision — separators are the only defence against a mistyped zero at the confirm moment (audit M3 exactness preserved: grouping adds separators, never drops digits)');
   const idx360 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
   ok(idx360.includes("groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance)") && idx360.includes('formatIxiAmount(amount)'),
@@ -9949,18 +9959,18 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     ok(txt.includes("bridge.send('ixian:chatoverlay:' + (chatOverlayLive() ? '1' : '0'))")
       && /new MutationObserver\(syncChatOverlay\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
       && /new MutationObserver\(syncChatOverlay\)\.observe\(box, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
-      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect;/.test(nc(txt)),
+      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView;/.test(nc(txt)),
       'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the two off-stack surfaces');
   }
-  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
+  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
     '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
   ok(/if \(chatSelect && box\.dataset\.selecting === undefined\) chatSelect = null;/.test(chatNc),
     '★ N51 (#376 loop A-1, MAJOR): a constructor-auto-exited selection (initial row not selectable) fires onExit BEFORE the handle lands — the dead-handle guard at startChatSelect drops it, or hardware back is WEDGED for the life of the conversation');
-  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 6
+  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 8   // +2 (#523): the money cover's open + close
     && /channelDropdown = overlay;\s*syncChatOverlay\(\);/.test(chatNc)
     && /channelDropdown = null;\s*channelSheetBody = null;\s*syncChatOverlay\(\);/.test(chatNc)
     && /onExit: \(\) => \{ chatSelect = null; syncChatOverlay\(\); \}/.test(chatNc),
-    'N51: the two off-stack surfaces sync EXPLICITLY at every open/close site (6 call sites incl. the two A-1 heals — the MutationObservers only see data-overlay-open)');
+    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (8 call sites incl. the two A-1 heals + the #523 money cover pair — the MutationObservers only see data-overlay-open)');
 
   /* —— AND-37: settings back over a sheet —— */
   for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
@@ -11240,7 +11250,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const setShell = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   const screens = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
 
-  ok(/setCaps",\s*"settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications"/.test(setPage),
+  ok(/setCaps",\s*"settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications/.test(setPage),   // PA1 (#525) appended ,paymentAuth — prefix pin, guarantee unchanged
     '★ NOTIF-2: SettingsPage pushes the globalNotifications capability. createNotificationsScreen has been BUILT since #147 and gated on it, and the production shell never set it — a screen that shipped dark for months');
   for (const verb of ['ixian:notifEnabled:', 'ixian:notifSenderName:', 'ixian:notifSounds:']) {
     ok(new RegExp('StartsWith\\("' + verb.replace(/:/g, ':') + '"').test(setPage),
@@ -13407,7 +13417,11 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        .c-msgmenu__item, with the destructive Delete row last (src/components/
        message-menu.js:57-110). */
     const domC = new JSDOM('<!doctype html><html><head>'
-      + '<style>' + ovPinC + '</style><style>' + mmPinC + '</style><style>' + wrPinC + '</style></head><body>'
+      + '<style>' + ovPinC + '</style><style>' + mmPinC + '</style><style>' + wrPinC + '</style>'
+      /* #527 deleted the live reqbox rule from wallet-receive.css — the (0,2,0)
+         pointer-events:auto competitor is SYNTHETIC now, same selector, same
+         load position, so PIN-C(2) keeps testing the specificity war for real. */
+      + '<style>.c-wallet-receive__reqbox[data-open] { pointer-events: auto; }</style></head><body>'
       + '<div class="c-sheet" id="pinCclosing"><button id="pinCclosingBtn">Tip</button>'
       +   '<div class="c-msgmenu" id="pinCmenu">'
       +     '<div class="c-msgmenu__reacts" role="group">'
@@ -13535,6 +13549,217 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/chainScanStarting:/.test(enUs) && /chainScanNoteStarting:/.test(enUs)
     && !/chainScanConnecting:/.test(enUs) && !/chainScanNoteUnknown:/.test(enUs),
     '★ COPY: the retired keys are GONE from the dictionary, not left orphaned beside their replacements');
+}
+
+console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fee, native confirm');
+{
+  const homeS = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const chatS = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const settS = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const wsJs2 = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8');
+  const spay = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
+  const hpW5 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const scpW5 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  const spW5 = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+
+  /* ★★ THE WALL (SECURITY.md): confirm BEFORE sign, on both money paths — an
+     ORDER pin by index arithmetic, not a windowed regex (the #517 lesson). */
+  const sign1 = spay.indexOf('public static async void handleSignSend');
+  const sign1end = spay.indexOf('public static async void handlePayRequest');
+  const sBody = spay.slice(sign1, sign1end);
+  ok(sign1 !== -1 && sBody.indexOf('confirmAndAuth(') !== -1 && sBody.indexOf('sendTransactionFrom(') !== -1
+    && sBody.indexOf('confirmAndAuth(') < sBody.indexOf('sendTransactionFrom('),
+    '★★ W5: signSend runs the NATIVE confirm BEFORE Node.sendTransactionFrom — the confirm is the wall');
+  const pBody = spay.slice(sign1end);
+  ok(pBody.indexOf('confirmAndAuth(') !== -1 && pBody.indexOf('sendTransactionFrom(') !== -1
+    && pBody.indexOf('confirmAndAuth(') < pBody.indexOf('sendTransactionFrom('),
+    '★★ W5: payRequest runs the NATIVE confirm BEFORE Node.sendTransactionFrom too');
+  ok(/if \(transaction == null\)/.test(sBody) && /if \(transaction == null\)/.test(pBody),
+    'W5: BOTH send paths null-guard the broadcast (the WalletContactRequestPage:148 NRE class)');
+  ok(/displaySpixiAlert\(title, body,/.test(spay) && !/page\.DisplayAlert\(/.test(spay)
+    && /amountToLocalizedDisplayString\(amount\)/.test(spay),
+    'W5: the confirm is ROOT-ROUTED displaySpixiAlert (overlay pages are not in the nav tree — a bare DisplayAlert is LOST) and its body is C#\'s OWN parse');
+  ok(/if \(!ok\)[\s\S]{0,160}?signSendResult", "cancel"/.test(sBody)
+    && /if \(!ok\)[\s\S]{0,160}?payRequestResult", msgIdHex, "cancel"/.test(pBody),
+    '★★ W5: the confirm RESULT is honoured — !ok answers cancel and never reaches the sign (order alone was gameable)');
+  ok(/private static string estimateFee\(/.test(spay) && /private static string estimateMaxAmount\(/.test(spay),
+    'W6: the fee ladder + the Max solve are DEFINED (the loop caught a call with no definition — cs-syntax cannot)');
+  ok(/setSendQuote", addr, amountStr, "", balance, "", "address"/.test(spay),
+    '★ W6: an INVALID address still ANSWERS the quote (error:address) — a silent drop stranded the compose forever');
+  ok(/AddressPaymentFlag\.OfflineTag, null\);[\s\S]{0,80}friendSend = true;/.test(spay),
+    '★ W5: a bare contact address rides OfflineTag — the flag that produces the sent-funds bubble + the P2P notify');
+  ok(/stealing a stale confirm latch/.test(spay),
+    'W5: the confirm latch SELF-HEALS — a lost alert cannot wedge every later money action');
+  ok(/AuthenticateAsync\(dialogConfig\)/.test(spay) && /return false;   \/\/ the setting is ON and auth errored → fail CLOSED/.test(spay),
+    'PA1 (#525): biometric step present and FAIL-CLOSED on auth errors');
+  ok(/Device\.RuntimePlatform == Device\.WinUI/.test(spay),
+    'PA1: WinUI skips Plugin.Fingerprint — the app-lock rule (LockPage:382)');
+
+  /* verbs: StartsWith + Ordinal + trailing colon (the #393 hijack class) */
+  ok(/StartsWith\("ixian:signSend:", StringComparison\.Ordinal\)/.test(hpW5)
+    && /StartsWith\("ixian:feeQuery:", StringComparison\.Ordinal\)/.test(hpW5),
+    'W5/W6: HomePage dispatches signSend/feeQuery with StartsWith+Ordinal+colon');
+  ok(/StartsWith\("ixian:signSend:", StringComparison\.Ordinal\)/.test(scpW5)
+    && /StartsWith\("ixian:payRequest:", StringComparison\.Ordinal\)/.test(scpW5)
+    && /StartsWith\("ixian:sendrequest:", StringComparison\.Ordinal\)/.test(scpW5),
+    'W5/#528: SingleChatPage dispatches signSend/payRequest/sendrequest the same way');
+  ok(/walletAddress\.ToString\(\)\.Equals\(addr, StringComparison\.Ordinal\)/.test(scpW5),
+    '★ #528: the chat sendrequest is PEER-SCOPED — a mismatched address fails closed');
+  ok(/friend\.type != FriendType\.Normal[\s\S]{0,120}friend\.state != FriendState\.Approved/.test(scpW5),
+    '#528: the approved/Normal/!bot guard mirrors HomePage.onSendRequest');
+
+  /* caps: pushed by C#, HANDLED by the shells (the D-10 r2-M3 lesson — pin the handler) */
+  ok(/setCaps", "composeSend/.test(hpW5),
+    'W5: HomePage declares composeSend (prefix pin — appending a cap must not redden this)');
+  {
+    const capLine = (scpW5.match(/setCaps", "([^"]*)"/) || [])[1] || '';
+    ok(capLine.indexOf('tipResult') !== -1 && capLine.indexOf('composeSend') !== -1
+      && capLine.indexOf('composeRequest') !== -1 && capLine.indexOf('payRequest') !== -1,
+      'W5: SingleChatPage declares tipResult + the three chat money caps (membership, not order)');
+  }
+  ok(/setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(homeS),
+    '★ W5: home.html HAS a setCaps handler — without it composeSend can never arrive (the #258 bare-global class)');
+
+  /* home compose: fallback kept, fee quote-gated, resolve ONLY on the push */
+  ok(/if \(!bridge\.cap\('composeSend'\)\) \{ bridge\.send\('ixian:sendixi'\); return; \}/.test(homeS),
+    'W5: an old exe (no caps push) keeps the LIVE native send flow');
+  ok(/fee: null,/.test(homeS) && !/const WALLET_FEE_ESTIMATE/.test(homeS),
+    'W6: the home compose mounts with fee:null — the placeholder-0 fee const is GONE');
+  const onSendIdx = homeS.indexOf("walletSendCtrl = ctrl;");
+  ok(onSendIdx !== -1 && homeS.slice(onSendIdx, onSendIdx + 200).indexOf('ctrl.done()') === -1,
+    '★ W5: home onSend NEVER resolves optimistically — signSendResult is the only resolver');
+  ok(/signSendResult\(status, message\)/.test(homeS) && /if \(s === 'cancel'\) \{ ctrl\.fail\(''\); return; \}/.test(homeS),
+    'W5: the ack push resolves ok/cancel/fail (cancel = silent re-enable)');
+  ok(/quickScanResult\(data\)/.test(homeS) && /ixian:sendScan/.test(homeS),
+    'W5: compose-scoped scan (sendScan) + the quickScanResult route exist');
+  ok(/address: addr, amount, error/.test(homeS) && /address: addr, amount, error/.test(chatS),
+    '★ W6 (loop MAJOR): both shells thread the quote ECHO — the component drops a stale answer');
+  ok(/walletSendWait = setTimeout\(/.test(homeS) && /chatSendWait = setTimeout\(/.test(chatS)
+    && /sendNoAnswer/.test(homeS) && /sendNoAnswer/.test(chatS),
+    '★ W5 (loop MAJOR): the no-answer backstop exists on BOTH shells — a dropped push cannot strand a locked review sheet');
+  ok(/clearWalletSendWait\(\);/.test(homeS) && /clearSendWait\(\);/.test(chatS),
+    'W5: the backstop clears on every resolution path');
+  ok(/c\.fail\(m === '' \? null : m\);/.test(chatS) && /ctrl\.fail\(m === '' \? null : m\);/.test(homeS),
+    "★ W5 (loop MAJOR): an EMPTY fail routes to the default error copy — only 'cancel' is silent");
+  ok(/quickScanForSend/.test(hpW5) && /sendUiCommand\(this, "quickScanResult", result\)/.test(hpW5),
+    'W5: C# routes a :send QR to the shell compose, not to the retired WalletSendPage');
+
+  /* component: the fee gate is REAL (mutating valid() must fail this) */
+  ok(/if \(feeU === null\) return false;/.test(wsJs2),
+    '★ W6: valid() hard-gates on a missing quote — no invented fee reaches the review');
+  ok(/if \(quoteFlow && quotedKey !== currentKey\(\)\) return false;/.test(wsJs2),
+    '★★ W6 (loop MAJOR): valid() ALSO gates on freshness — a fee quoted for another (recipient, amount) pair never arms Review');
+  ok(/const feeAtOpen = feeU;/.test(wsJs2) && /fromUnits\(feeAtOpen\)/.test(wsJs2),
+    'W6 (loop): the review sheet and its payload freeze ONE fee at open — display == commitment');
+  ok(/_applySendQuote/.test(wsJs2) && /export function setSendQuote/.test(wsJs2),
+    'W6: the quote free-fn + element hook exist');
+  ok(/if \(msg === ''\) \{/.test(wsJs2),
+    'W5: ctrl.fail(\'\') is the SILENT native-confirm-cancel path');
+
+  /* chat: gates + request-out Cancel (#529) + the ghost guard */
+  ok(/if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); else bridge\.send\('ixian:send'\);/.test(chatS)
+    && /if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); else bridge\.send\('ixian:request'\);/.test(chatS),
+    'W5/#528: attach Pay/Request are cap-gated with the legacy verbs as the old-exe fallback');
+  ok(/lockedRecipient: \{/.test(chatS) && /avatar: identity\.avatar \|\| null/.test(chatS)
+    && /identity\.name !== identity\.address\) \? identity\.name : ''/.test(chatS),
+    '#139/#211/#342: the in-chat compose locks the peer — never an address as a NAME, photo threaded');
+  ok(/\|\| !!chatSendView;/.test(chatS) && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}/.test(chatS),
+    '★ W5 (loop MAJOR, the AND-29 class): hardware back closes the money COVER, never the conversation under it');
+  const chatSendIdx = chatS.indexOf('chatSendCtrl = ctrl;');
+  ok(chatSendIdx !== -1 && chatS.slice(chatSendIdx, chatSendIdx + 200).indexOf('ctrl.done()') === -1,
+    '★ W5: the chat onSend never resolves optimistically either');
+  ok(/role: 'request-out',/.test(chatS) && /onCancel: \(\) => confirmCancelRequest\(rec\),/.test(chatS),
+    '#529: the outgoing pending request renders request-out with Cancel');
+  ok(/sendDeleteMessage\(rec\.id\);[\s\S]{0,80}latches pendingLocalDeletes/.test(chatS),
+    '#529: Cancel rides the EXISTING delete path (msgDelete both ends) — no invented verb');
+  ok(/isRequestTitle\(title \|\| ''\) && !String\(amount == null \? '' : amount\)\.trim\(\) && !txid/.test(chatS),
+    '#529: a blanked (canceled) request re-push renders NOTHING (the ghost guard)');
+  ok(/bridge\.cap\('payRequest'\)[\s\S]{0,80}ixian:payRequest:/.test(chatS),
+    'W5: in-card Pay is cap-gated; old exe keeps the native review page');
+  ok(!/onDecline:/.test(chatS.slice(chatS.indexOf('function buildPaymentRow'), chatS.indexOf('function paymentStatusFrom'))),
+    '#526: NO Decline on the request-in card (Damir, v1)');
+
+  /* settings: PA1 wiring */
+  ok(/StartsWith\("ixian:paymentAuth:", StringComparison\.Ordinal\)/.test(spW5)
+    && /Preferences\.Default\.Set\(SPayments\.PAYMENT_AUTH_PREF, true\)/.test(spW5)
+    && /Preferences\.Default\.Set\(SPayments\.PAYMENT_AUTH_PREF, false\)/.test(spW5),
+    'PA1: the verb persists IMMEDIATELY on ON, and OFF persists only inside the post-auth handler (never the dirty/save path — the #288 clobber class)');
+  ok(/globalNotifications,paymentAuth"/.test(spW5) && /setPaymentAuth", SPayments\.paymentAuthEnabled\(\)\.ToString\(\)/.test(spW5),
+    'PA1: the cap + the seed push ship together');
+  ok(/paymentAuth: bridge\.cap\('paymentAuth'\)/.test(settS) && /setPaymentAuth\(s\)/.test(settS),
+    'PA1: the shell gates the row on the cap and takes the echo push');
+  ok(/HandlePaymentAuthOffAuth/.test(spW5) && /authPage\.authSucceeded \+= HandlePaymentAuthOffAuth;/.test(spW5),
+    '★ PA1 (loop MAJOR): turning "Confirm payments" OFF costs a LockPage auth — weakening a security setting is never free');
+  ok(/setPaymentAuth", SPayments\.paymentAuthEnabled\(\)\.ToString\(\)/.test(spW5),
+    'PA1 (loop): the echo RE-READS the stored value — a failed write cannot lie');
+  /* the #529 carrier: Cancel + the ghost guard both key on this span; without it every
+     non-English locale silently loses Cancel AND regrows ghost cards (loop B-16) */
+  ok(/<span id="sl-payment-request-sent">\*SL\{chat-payment-request-sent\}<\/span>/.test(chatS),
+    '★ #529: the request-sent carrier span exists in the chat shell source');
+  {
+    const builtChat = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+    ok(/<span id="sl-payment-request-sent">\*SL\{chat-payment-request-sent\}<\/span>/.test(builtChat),
+      '★ #529: …and survives into the BUILT shell (C# substitutes it at load)');
+  }
+
+  /* —— behavioural (loop B-13): the fee gate on a LIVE component — a regex cannot
+     see an executed bypass. —— */
+  {
+    const domW = await load('wallet.html');
+    const dW = domW.window.document, WW = domW.window;
+    const gate = WW.Spixi.createWalletSend({
+      contacts: [{ name: 'Gate Test', address: 'GATEADDR1234567890' }],
+      balance: '100', fee: null, strings: {}, host: dW.body,
+      onQuote: () => {},
+    });
+    dW.body.append(gate);
+    gate.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
+    const gAmt = gate.querySelector('.c-wallet-send__amount');
+    gAmt.value = '5'; gAmt.dispatchEvent(new domW.window.Event('input', { bubbles: true }));
+    const gCta = gate.querySelector('.c-wallet-send__actions .c-button');
+    const gMax = [...gate.querySelectorAll('.c-wallet-send__amountrow .c-button')].pop();
+    ok(gCta.disabled && gMax.disabled,
+      '★★ W6 BEHAVIOURAL: fee:null + recipient + amount → Review AND Max stay disabled (executed, not grepped)');
+    WW.Spixi.setSendQuote(gate, { fee: '', balance: '100' });
+    ok(gCta.disabled, '★ W6 BEHAVIOURAL: an empty-fee quote (balance-only) does NOT unlock the review');
+    WW.Spixi.setSendQuote(gate, { fee: '0.005', balance: '100', address: 'SOMEONEELSE', amount: '5' });
+    ok(gCta.disabled, '★★ W6 BEHAVIOURAL (loop MAJOR): a quote echoed for ANOTHER recipient is dropped — Review stays gated');
+    WW.Spixi.setSendQuote(gate, { fee: '0.005', balance: '100', address: 'GATEADDR1234567890', amount: '5' });
+    ok(!gCta.disabled, 'W6 BEHAVIOURAL: the matching quote arms Review');
+    gAmt.value = '7'; gAmt.dispatchEvent(new domW.window.Event('input', { bubbles: true }));
+    ok(gCta.disabled, '★ W6 BEHAVIOURAL: editing the amount RE-GATES until a fresh quote answers the new pair');
+    WW.Spixi.setSendQuote(gate, { error: 'address', address: 'GATEADDR1234567890' });
+    const gErrVisible = [...gate.querySelectorAll('.c-wallet-send__error')].some((e) => !e.hidden && e.textContent.trim());
+    ok(gCta.disabled && gErrVisible,
+      '★ W6 BEHAVIOURAL: a C# address rejection surfaces inline and gates — never a forever-pending fee line');
+    gate.remove();
+  }
+
+  /* round-2 MAJOR: static-fee mode (no onQuote) — Max must be enabled AND actually
+     fill. The freshness fix once left Max enabled-but-inert here (the disabled and
+     onClick predicates disagreed), and no gate saw it because the demos use a
+     static fee while the other behavioural pins wire onQuote. */
+  {
+    const domS = await load('wallet.html');
+    const dS = domS.window.document, WS = domS.window;
+    const stat = WS.Spixi.createWalletSend({
+      contacts: [{ name: 'Static Fee', address: 'STATICADDR12345' }],
+      balance: '100', fee: '0.001', strings: {}, host: dS.body,   // static fee, NO onQuote
+    });
+    dS.body.append(stat);
+    stat.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
+    const sAmt = stat.querySelector('.c-wallet-send__amount');
+    sAmt.value = '5'; sAmt.dispatchEvent(new domS.window.Event('input', { bubbles: true }));
+    const sMax = [...stat.querySelectorAll('.c-wallet-send__amountrow .c-button')].pop();
+    ok(!sMax.disabled, '★ round-2: static-fee Max is enabled');
+    sMax.click();
+    await sleep(20);
+    const yes = [...dS.querySelectorAll('.c-modal .c-button')].find((b) => /understand/i.test(b.textContent));
+    if (yes) yes.click();
+    ok(sAmt.value && sAmt.value !== '5',
+      '★★ round-2 MAJOR: static-fee Max actually FILLS (99.999) — enabled-but-inert regression pinned');
+    stat.remove();
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

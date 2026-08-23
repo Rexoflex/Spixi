@@ -162,9 +162,10 @@ lying, not the button.** If you still want it gone, say so — it is one line.
 ## 5. ★ SOUNDS — audible for the first time (#497)
 
 Four real sounds at the time of writing — ⚠ **since 2026-08-23 (#518) only the TWO message
-sounds remain; the transaction pair is removed by design.** UI SFX `zen`, CC0, picked by
-measurement across twelve packs and re-gained to −12 dBFS. Judge the two — too loud, too
-long, wrong character are all fair, and replacing them is a drop-in with the same names.
+sounds remain; the transaction pair is removed by design, and the #521 interview replaced
+the pair with Damir's own picks: `minimal/queued` + `minimal/warning` at −16 dBFS.** UI
+SFX, CC0. Judge the two — too loud, too long, wrong character are all fair, and replacing
+them is a drop-in with the same names.
 
 | # | Do this | Expect |
 |---|---|---|

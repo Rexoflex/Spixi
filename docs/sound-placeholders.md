@@ -1,5 +1,10 @@
 # The in-app effect sounds (four at the #497 drop → TWO since the 2026-08-23 SND-2 reversal, #518)
 
+★ **2026-08-23, the sound-picks INTERVIEW (#521): Damir named exact cues — the shipped
+pair is now `minimal/queued` (sent) + `minimal/warning` (received), at a QUIETER −16 dBFS
+peak (his call: −12 read too loud on device).** The history below records the earlier
+`mechanical` picks; the mechanism and licence are unchanged.
+
 ★ **Chosen 2026-08-25 from [UI SFX](https://uisfx.com/) — the `mechanical` pack.** These REPLACED
 the synthesized PLACEHOLDER tones generated earlier the same day; the placeholders are kept
 only as `docs/sound-placeholders-gen.py`, which regenerates them if a comparison is ever
@@ -25,8 +30,8 @@ answer. Not added unilaterally.
 
 | File | Cue taken | The library's own definition | Length |
 |---|---|---|---|
-| `message_sent.mp3` | `mechanical/send` | *"A message or object leaves the user"* | 0.37 s |
-| `message_received.mp3` | `mechanical/receive` | *"A response or object arrives"* | 0.39 s |
+| `message_sent.mp3` | `minimal/queued` (#521; was `mechanical/send`) | *"An item enters a queue"* — a dry, tiny tick | 0.34 s |
+| `message_received.mp3` | `minimal/warning` (#521; was `mechanical/receive`) | *"Something needs the user's attention"* — one soft low knock | 0.57 s |
 | ~~`tx_sent.mp3`~~ | `mechanical/purchase` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.50 s |
 | ~~`tx_received.mp3`~~ | `mechanical/reward` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.47 s |
 
@@ -66,7 +71,8 @@ Rejected on register: `arcade`, `sci-fi`, `cinematic`. Rejected on LENGTH: `drea
 
 ## What was done to the files
 
-Gain-adjusted to a **−12.0 dBFS** peak, two passes so the MP3 re-encode does not overshoot,
+Gain-adjusted to a **−16.0 dBFS** peak since #521 (Damir: quieter; the #497 drop used
+−12.0), verified on the encoded output (both files measure −16.0 exactly),
 then re-encoded mono / 44.1 kHz / 96 kbps. Nothing else — no trimming, no EQ.
 
 ★ Why −12: the four CALL sounds beside them (`default_ringtone`, `dialing_tone`, `busy_tone`,
@@ -83,7 +89,7 @@ Drop new files over these, **keeping the same two names** (`message_sent.mp3`,
 `SSounds` addresses them by path (`Spixi/Meta/SSounds.cs`), the csproj glob
 (`MauiAsset Include="Resources\Raw\**"`) picks them up by folder, and no code moves.
 
-Two things worth matching so the set still behaves as one: keep the peak near **−12 dBFS**,
+Two things worth matching so the set still behaves as one: keep the peak near **−16 dBFS** (#521; the #497 drop said −12),
 and keep them **under ~0.6 s** — these fire on every message and must be over before the next
 one starts.
 

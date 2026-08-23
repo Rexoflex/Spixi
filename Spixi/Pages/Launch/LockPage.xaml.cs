@@ -103,6 +103,219 @@ namespace SPIXI
          * worse than none — this is an EXPLICIT latch that App sets and clears itself. */
         private bool authDeferred = false;
 
+        /* ★★★ #46 loop, W-4.6 ON #507 — A LOCK THAT PRESENTS WITH NO UI.
+         *
+         * THE EVIDENCE. Damir's failing Windows session, 2026-08-22. Three idle locks
+         * fired. Two logged `lock/webview-onload` at 129 ms and 169 ms. The third logged
+         * `lock/surface-applied`, then `lock/onPresentedInPlace` at +1347 ms, and then
+         * NOTHING for two hours. `uiReady` stayed false, so every `maybeAuthenticate` said
+         * "SKIP: gate not ready". The dark surface #13171B painted. The HTML never
+         * arrived. That is the black window the user could not unlock.
+         *
+         * WHY NOBODY SAW IT. The evidence was the ABSENCE of a line. #503 taught the same
+         * lesson twice: a state that logs nothing cannot be diagnosed. So a lock that
+         * presents blank now SAYS SO, at the moment it happens.
+         *
+         * WHY IT MUST REPAIR ITSELF. `presentPreload(op, "timeout")` presents the lock
+         * whatever the WebView did, and there was no retry. ⚠ REFUSING TO PRESENT IS NOT
+         * THE ANSWER — that fails OPEN and leaves the app unlocked, which is worse than a
+         * blank lock. The lock stays up; the UI is repaired underneath it.
+         *
+         * THE BOUNDS, and why each number is that number:
+         *   · BLANK_LOCK_REPAIR_DELAY_MS = 2500. The healthy locks signalled in 129 ms and
+         *     169 ms; the slowest COLD start in the restart log took 1036 ms. 2500 ms is
+         *     more than twice the worst load ever measured, so a slow load is never
+         *     mistaken for a dead one, and it is above pushModalLoaded's own 1200 ms
+         *     timeout, so the timeout present cannot race the first check.
+         *   · BLANK_LOCK_MAX_REPAIRS = 3. Three reloads and the watchdog stops, so the
+         *     automatic recovery lives inside about 10 s and cannot loop for the session.
+         *     A WebView that ignores three fresh sources in ten seconds is not going to
+         *     answer a fourth ten seconds later.
+         *   · BLANK_LOCK_MAX_SWEEP_REPAIRS = 3, AND IT IS A SEPARATE BUDGET. This is the
+         *     one bound that took a second pass to get right. The escape hatch runs on a
+         *     window activation, which in Damir's log came HOURS after the present — and
+         *     with one shared budget the watchdog had already spent every attempt, so the
+         *     eight clicks he made would each have logged "budget spent" and reloaded
+         *     nothing. Three automatic retries against one bad second are not the same
+         *     sample as one retry an hour later after the user acted. Total over the page's
+         *     whole life: at most six reloads.
+         *   · BLANK_LOCK_MIN_AGE_SECONDS = 3. What the ESCAPE HATCH uses before it calls a
+         *     lock blank. It has to be longer than one watchdog wait, so a window
+         *     activation during a normal load can never report a healthy lock as broken.
+         *   · The SWEEP arms no timer. The next window activation is the next check, and the
+         *     user clicking a black window is what produces it. That keeps the whole (c) leg
+         *     free of anything that could outlive the page.
+         *
+         * ⚠ NOT WINDOWS-ONLY, DELIBERATELY. Damir hit this on Windows, but nothing in the
+         * mechanism is WinUI's: the `ixian:onload` handshake, the load-then-present staging
+         * and the timeout present are the same code on Android and iOS. A WebView that does
+         * not load is not a Windows defect. The repair is inert when `uiReady` is true, so
+         * the platforms that never hit it pay nothing.
+         *
+         * ⚠ FAIL CLOSED, EVERY PATH. Nothing here pops a page, clears a latch or calls
+         * authSucceeded. The worst outcome is the outcome we already have — a lock with no
+         * UI — and now the log names it. */
+        private DateTime presentedAt = DateTime.MinValue;   // the present, then each reload
+        private int blankRepairs = 0;        // the watchdog's budget (b)
+        private int sweepRepairs = 0;        // the escape hatch's own budget (c)
+        private int repairGeneration = 0;
+        private bool lockClosing = false;
+        private const int BLANK_LOCK_REPAIR_DELAY_MS = 2500;
+        private const int BLANK_LOCK_MAX_REPAIRS = 3;
+        private const int BLANK_LOCK_MAX_SWEEP_REPAIRS = 3;
+        private const double BLANK_LOCK_MIN_AGE_SECONDS = 3;
+
+        /** ★★ (a) — the question `App` could not ask. TRUE once lock.html has signalled
+         *  `ixian:onload`. FALSE means the page on screen is a coloured rectangle. */
+        public bool hasWebUi()
+        {
+            return uiReady;
+        }
+
+        /** ★★ (c) — "a USABLE lock is on screen", the test `sweepStrandedCover.lockReachable`
+         *  did not make. TRUE only when this lock has been PRESENTED, has had at least
+         *  BLANK_LOCK_MIN_AGE_SECONDS since its last load attempt, and still has no UI. A
+         *  negative age (the clock moved backwards) reads as "not yet", the same guard
+         *  `ownIntentFresh()` carries. */
+        public bool isBlankLock()
+        {
+            if (uiReady || lockClosing || presentedAt == DateTime.MinValue)
+            {
+                return false;
+            }
+            double age = (DateTime.Now - presentedAt).TotalSeconds;
+            return age >= BLANK_LOCK_MIN_AGE_SECONDS;
+        }
+
+        /** ★★ (c) — THE ESCAPE HATCH'S REPAIR. Re-generate lock.html into the same
+         *  WebView. `reload()` is used rather than `loadPage()` on purpose: `loadPage`
+         *  re-subscribes `Navigating`/`Navigated`, so a second call would deliver every
+         *  `ixian:` verb twice, including `ixian:unlock`. `reload()` re-generates the source
+         *  only, and it is a no-op once `Dispose` has nulled the WebView — which is what
+         *  keeps a late watchdog from touching a dead page.
+         *
+         *  ⚠ A RELOAD OF A LIVE LOCK IS AN ALREADY-HANDLED CASE, not a new one: `onLoad`
+         *  calls `revealPasswordForm()` when `authAttempted` is set, exactly so a re-armed
+         *  boot hold is released at once (#457 audit MINOR-7).
+         *
+         *  Returns TRUE when a reload was issued, FALSE when the budget is spent. FALSE
+         *  never means "the lock came down" — the lock stays up either way. */
+        public bool repairBlankUi(string why)
+        {
+            if (lockClosing || uiReady)
+            {
+                return false;
+            }
+            if (sweepRepairs >= BLANK_LOCK_MAX_SWEEP_REPAIRS)
+            {
+                SPIXI.Meta.SLockDiag.mark("lock/blank-repair-spent",
+                    "sweep reloads=" + sweepRepairs + " reason=" + why + " — the lock STAYS UP with no UI");
+                Logging.error("LockPage: lock.html never loaded after " + sweepRepairs
+                    + " sweep reloads. The lock stays up; the app is not unlocked.");
+                return false;
+            }
+            sweepRepairs++;
+            issueReload("sweep " + sweepRepairs + "/" + BLANK_LOCK_MAX_SWEEP_REPAIRS + " reason=" + why);
+            /* ⚠ NO TIMER IS ARMED HERE, deliberately. The next window activation is the next
+             * check, and a user staring at a black window supplies those — Damir made eight
+             * in three minutes. It also keeps the (c) leg free of anything that can outlive
+             * the page. */
+            return true;
+        }
+
+        /** ★★ (b) — the watchdog's own reload, on its own budget. See the field block for
+         *  why the two budgets are separate. Returns TRUE when a reload was issued. */
+        private bool watchdogRepair(string why)
+        {
+            if (lockClosing || uiReady)
+            {
+                return false;
+            }
+            if (blankRepairs >= BLANK_LOCK_MAX_REPAIRS)
+            {
+                SPIXI.Meta.SLockDiag.mark("lock/blank-repair-spent",
+                    "watchdog reloads=" + blankRepairs + " reason=" + why
+                    + " — the lock STAYS UP with no UI, waiting for a window activation");
+                Logging.error("LockPage: lock.html never loaded after " + blankRepairs
+                    + " watchdog reloads. The lock stays up; the app is not unlocked.");
+                return false;
+            }
+            blankRepairs++;
+            issueReload("watchdog " + blankRepairs + "/" + BLANK_LOCK_MAX_REPAIRS + " reason=" + why);
+            armBlankUiWatchdog(why);
+            return true;
+        }
+
+        /** The reload itself. It says what it is doing BEFORE it does it, so a reload that
+         *  kills the process still leaves the reason in the log.
+         *
+         *  ⚠ IT RESTARTS THE BLANK CLOCK. `isBlankLock()` measures from `presentedAt`, and
+         *  a reload is a new attempt that deserves the same window a present gets. Without
+         *  this line a user clicking a black window fast — Damir made eight activations in
+         *  three minutes — would spend all three sweep reloads in a few seconds, each one
+         *  cancelling the load the one before it started. */
+        private void issueReload(string detail)
+        {
+            presentedAt = DateTime.Now;
+            SPIXI.Meta.SLockDiag.mark("lock/blank-repair", detail + " — reloading lock.html");
+            try
+            {
+                reload();
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage: the blank-lock reload threw: " + e);
+            }
+        }
+
+        /** ★★ (b) — one bounded wait, then one check. Re-armed only by `watchdogRepair`, so
+         *  the chain is at most BLANK_LOCK_MAX_REPAIRS + 1 waits long. The generation guard
+         *  makes a superseded timer inert, and `lockClosing` plus `reload()`'s own null
+         *  check make a timer that outlives the page harmless. */
+        private void armBlankUiWatchdog(string why)
+        {
+            if (lockClosing)
+            {
+                return;
+            }
+            int gen = ++repairGeneration;
+            Task.Delay(BLANK_LOCK_REPAIR_DELAY_MS).ContinueWith(_ =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try
+                    {
+                        if (gen != repairGeneration || lockClosing || uiReady)
+                        {
+                            return;
+                        }
+                        watchdogRepair(why);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.error("LockPage: the blank-lock watchdog threw: " + e);
+                    }
+                });
+            });
+        }
+
+        /** ★★ (a) — the lock is REALLY on screen now. Called from both present paths:
+         *  OnAppearing (the modal push) and onPresentedInPlace (#230, the in-place stage).
+         *  Damir's failing lock took the in-place path. */
+        private void notePresented(string where)
+        {
+            presentedAt = DateTime.Now;
+            if (uiReady)
+            {
+                return;
+            }
+            /* ★ THE LINE THE FAILING LOG DID NOT HAVE. Absence of `lock/webview-onload` is
+             * not a diagnostic — #503 taught that twice. This states the fault. */
+            SPIXI.Meta.SLockDiag.mark("lock/presented-blank",
+                where + " — presented with NO UI (ixian:onload has not arrived) · appLockMode=" + appLockMode);
+            armBlankUiWatchdog(where);
+        }
+
         private void onLoad()
         {
             if(justConfirmAction)
@@ -120,6 +333,14 @@ namespace SPIXI
                 revealPasswordForm();
 
             uiReady = true;
+            /* ★★ #46 loop W-4.6 on #507: the UI arrived. Bump the generation so any armed
+             * watchdog is inert — the guard also re-checks `uiReady`, so this is a belt. */
+            repairGeneration++;
+            if (blankRepairs > 0 || sweepRepairs > 0)
+            {
+                SPIXI.Meta.SLockDiag.mark("lock/blank-repaired",
+                    "the UI arrived after " + blankRepairs + " watchdog and " + sweepRepairs + " sweep reload(s)");
+            }
             // ★ F1 INSTRUMENTATION (log only): the WebView has parsed and signalled. The
             // gap between the push and THIS line is the window showing through — the
             // leading candidate for the white flash.
@@ -132,6 +353,7 @@ namespace SPIXI
             base.OnAppearing();
             pageVisible = true;
             SPIXI.Meta.SLockDiag.mark("lock/OnAppearing");
+            notePresented("OnAppearing");   // ★★ #46 loop W-4.6 on #507
             maybeAuthenticate();
         }
 
@@ -140,6 +362,7 @@ namespace SPIXI
         {
             pageVisible = true;
             SPIXI.Meta.SLockDiag.mark("lock/onPresentedInPlace");
+            notePresented("onPresentedInPlace");   // ★★ #46 loop W-4.6 on #507
             maybeAuthenticate();
         }
 
@@ -222,6 +445,10 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:change", StringComparison.Ordinal))
             {
+                /* ★★ #46 loop W-4.6 on #507: both legs below end this page. Stop the
+                 * blank-UI watchdog first. */
+                lockClosing = true;
+                repairGeneration++;
                 if (justConfirmAction)
                 {
                     if (authSucceeded != null)
@@ -229,15 +456,9 @@ namespace SPIXI
                         authSucceeded(this, new SPIXI.EventArgs<bool>(false));
                     }
                     // #230: shown-in-place lock closes via the overlay path.
-                    if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
+                    if (!closeModalOverlay(this))
                     {
-                        Navigation.PopModalAsync();
-                        // ★ F-4 (#399, audit): the MODAL-FALLBACK leg needs the repaint too.
-                        // It is taken whenever the lock could not be shown in place — which
-                        // is ALWAYS for the SettingsPage delete flows, because the lock is
-                        // staged on SettingsPage while the overlay host is HomePage. Popping
-                        // a modal is not a navigation, so nothing else gives the strip back.
-                        MainThread.BeginInvokeOnMainThread(() => repaintSystemBarsFor(null));
+                        popOwnModal("cancel");
                     }
                 }
                 else
@@ -277,6 +498,10 @@ namespace SPIXI
 
         private async void performUnlock()
         {
+            /* ★★ #46 loop W-4.6 on #507: this lock is finished. Stop the blank-UI watchdog
+             * so no armed timer can reload a page that is on its way out. */
+            lockClosing = true;
+            repairGeneration++;
             if (authSucceeded != null)
             {
                 authSucceeded(this, new SPIXI.EventArgs<bool>(true));
@@ -286,10 +511,9 @@ namespace SPIXI
             {
                 // #230: shown-in-place lock closes via the overlay path; else pop the
                 // modal — but never pop a stack this page is not on (#229 guard).
-                if (!closeModalOverlay(this) && Navigation.ModalStack.Contains(this))
+                if (!closeModalOverlay(this))
                 {
-                    Navigation.PopModalAsync();
-                    MainThread.BeginInvokeOnMainThread(() => repaintSystemBarsFor(null));   // ★ F-4, same leg
+                    popOwnModal("unlock");
                 }
                 return;
             }
@@ -309,6 +533,53 @@ namespace SPIXI
             {
                 repaintSystemBarsFor(home);
             });
+        }
+
+        /** ★★ #46 loop MAJOR on #507 — POP THIS PAGE, NEVER "THE TOP ONE".
+         *
+         *  THE DEFECT. Both legs used to read
+         *  `Navigation.ModalStack.Contains(this)` and then call `Navigation.PopModalAsync()`.
+         *  `Contains` proves only that this page is SOMEWHERE on the stack. `PopModalAsync`
+         *  pops the TOP. Round 1's MAJOR-1 fix is what first puts two LockPages on the stack
+         *  at once: the idle app lock now presents ABOVE a settings authorise lock. If that
+         *  covered authorise lock can still take input, its Cancel pops the APP LOCK —
+         *  dismissed with no password, and `isLockScreenActive` stays latched true, so
+         *  SDesktopIdle never locks again for the rest of the session.
+         *
+         *  ★ THIS GUARD IS CallPage.hideSurface's, copied verbatim in intent. That method
+         *  carries the same hazard and its comment explains it: "never pop a modal we don't
+         *  own". Copying it makes the open platform question — whether a WebView2 under a
+         *  WinUI modal can take input — IRRELEVANT. The guard is correct whatever the
+         *  answer, which is why it ships without waiting for one.
+         *
+         *  ⚠ FAIL CLOSED. When this page is covered we pop NOTHING and log. The result is a
+         *  spent authorise lock left under the app lock, which is reachable only after the
+         *  app password is entered. That is strictly better than dismissing the app lock. */
+        private void popOwnModal(string leg)
+        {
+            try
+            {
+                if (Navigation.ModalStack.LastOrDefault() == this)
+                {
+                    Navigation.PopModalAsync();
+                    // ★ F-4 (#399, audit): the MODAL-FALLBACK leg needs the repaint too.
+                    // It is taken whenever the lock could not be shown in place — which
+                    // is ALWAYS for the SettingsPage delete flows, because the lock is
+                    // staged on SettingsPage while the overlay host is HomePage. Popping
+                    // a modal is not a navigation, so nothing else gives the strip back.
+                    MainThread.BeginInvokeOnMainThread(() => repaintSystemBarsFor(null));
+                    return;
+                }
+                if (Navigation.ModalStack.Contains(this))
+                {
+                    Logging.error("LockPage (" + leg + "): another modal is on top — refusing to pop it. "
+                        + "This lock stays on the stack under the one above it.");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage (" + leg + "): the modal pop failed: " + e);
+            }
         }
 
         /* #460: App creates this lock while the activity is PAUSING. Hold the biometric

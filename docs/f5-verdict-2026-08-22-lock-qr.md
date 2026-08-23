@@ -6,6 +6,16 @@
 
 ---
 
+> ## ⬆ UPDATED 2026-08-22, LATER THE SAME DAY — the notiflog arrived and **#503 IS CLOSED**.
+> **A1.5 PASSES.** `[NOTIFDIAG] raw push suppressed by mute/global master **(service-extension)**`
+> appears **three times**, and `where` is a parameter whose only producer of that string is
+> `SNotificationServiceExtension.cs:89`. The background lane ran. Full reading, including what the
+> log does **not** prove and one large unrequested finding:
+> **`docs/f5-verdict-2026-08-22-notiflog-503.md`**. DECISIONS **#514**.
+> ⚠ Still owed after the close: **A2.2** (no `(foreground)` line in the capture) and **A1.1's
+> row-count note**, which is carried to **#495**, not to #503. §0 below is left as written at the
+> time so the two states can be compared.
+
 ## 0. ★★ THE HEADLINE: the desktop lock model is verified, and the notification lane is NOT yet proven
 
 **#505 is confirmed on hardware.** 1.1, 1.2, 1.3 and 1.4 all pass — including 1.3, the
@@ -85,7 +95,7 @@ in one place.
 
 | | |
 |---|---|
-| **The notiflog** | A1.5 + A2.2. The `(service-extension)` line closes #503; `already decided` (if present) answers whether both lanes fire for one notification — which the bytecode could not settle |
+| ~~**The notiflog**~~ | ✅ **ARRIVED AND READ** — `docs/f5-verdict-2026-08-22-notiflog-503.md`, DECISIONS #514. **A1.5 PASS → #503 CLOSED.** ⚠ **A2.2 stays open**: the capture has no `(foreground)` line, so it does not cover A2.1. `already decided` is absent, but for only three ids on a process 1.6 s old — recorded, not concluded |
 | **`ixian.0.log`** | The FAILING W-4.6 session, if it survived the restart |
 | **Privacy shield** | Windows deactivate: drop it (recommended) or keep it. Still unanswered |
 | **W-3.1** | No mechanism found in the pane chain. A before/after screenshot and WHICH pane moves |

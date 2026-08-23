@@ -601,11 +601,15 @@ export function createSettingsHub({
      *
      * ★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE, which is what I proposed
      * first: Damir objected that people may not realise a small code is tappable AND
-     * may simply try to scan it. The second objection decides it. At 185px a
-     * ~41-module code runs ≈3.8px per module and a phone camera reading another
-     * phone's screen needs roughly 2px per module, so a "compact" QR lands near
-     * 100px — right at the edge. A QR that is visible but too small to scan is worse
-     * than no QR: it looks functional and is not. So the code opens at FULL size.
+     * may simply try to scan it. The second objection decides it. ★ #46 loop: the
+     * numbers here are MEASURED with the shipped encoder over the real payload
+     * (`address + ':ixi'`), not estimated. At 185px the box is 41 cells for a real
+     * address (33 code modules + the 4-module quiet zone on each side), which is
+     * 4.51px per cell; the worst case in range is a 45-cell box at 4.11px. A phone
+     * camera that reads another phone's screen needs roughly 2px per module, so a
+     * "compact" QR lands at 82px to 90px — right at the edge. A QR that is visible
+     * but too small to scan is worse than no QR: it looks functional and is not. So
+     * the code opens at FULL size.
      *
      * ⚠ The affordance keeps the weight and the position the code had — directly
      * under the address, and the address chip with copy and share stay visible

@@ -640,6 +640,23 @@ namespace SPIXI
         private static PreloadOp? activePreload = null;
         private static bool preloadPending = false;   // reserved between the tap and staging
 
+        /* ★★ #46 loop MAJOR-3 on #507 — THE LOCK STAGING WINDOW OPENS BEFORE `activePreload`.
+         * `pushModalLoaded` sets `preloadPending` and THEN marshals the staging block. That
+         * block runs on the NEXT dispatcher turn. For that whole turn `isLockStaging()` read
+         * `activePreload` only and answered FALSE, `modalOverlayOp` was null, and
+         * `ModalStack.Count` was 0. So `App.lockOnIdle` and `CallPage.lockUp()` both saw "no
+         * lock anywhere" and were free to present OVER a lock that was already on its way up.
+         * On the idle path that put a settings authorise lock — Cancel and all — above the
+         * app lock. This stamp closes the turn.
+         * ⚠ THE STAMP IS BOUNDED BY TIME AS WELL AS BY THE CLEARS. `preloadPending` is a
+         * field the ordinary page preload shares, and a marshalled block that never ran
+         * would otherwise latch `isLockStaging()` TRUE for the rest of the session — which
+         * kills the idle lock and the call surface together. Every exit from
+         * `pushModalLoaded` clears the flag; the age check is the belt behind that. */
+        private static bool lockPreloadPending = false;
+        private static DateTime lockPreloadPendingAt = DateTime.MinValue;
+        private const double LOCK_PRELOAD_PENDING_MAX_SECONDS = 5;
+
         /* ————— Overlay navigation (round 3, DECISIONS #225) ——————————————————
          * WinUI repaints a WebView2's composition surface whenever the view is
          * (re)attached to the tree — a pushed page presenting, a pop re-attaching
@@ -713,11 +730,19 @@ namespace SPIXI
         // present); false for the OnSleep cover, which is meant to sit for the whole
         // background and whose safety release is not a diagnosis.
         private static bool privacyShieldForeground = false;
+        /* ★ #46 loop MINOR m5 on #507: how many times the drop below has PUT AN ENTRY BACK
+         * and armed a fresh belt for it. A cover that refuses to leave the tree must be
+         * retried, but the retry must not run for the life of the process — a Remove that
+         * throws every time would log and re-arm every 8 s for ever. Reset when a new cover
+         * is raised, so the budget is per cover cycle, not per process. */
+        private static int privacyShieldPutBacks = 0;
+        private const int PRIVACY_SHIELD_MAX_PUT_BACKS = 3;
 
         /** Cover every visible surface, synchronously. ADDITIVE — safe to call again. */
         public static void showPrivacyShield(bool expectingLock = false)
         {
             if (expectingLock) privacyShieldForeground = true;
+            privacyShieldPutBacks = 0;   // ★ #46 loop MINOR m5 on #507: a new cover cycle
             try
             {
                 /* ★ Audit MAJOR-3: this used to EARLY-RETURN once anything was shielded,
@@ -819,10 +844,48 @@ namespace SPIXI
         /** ★ #505: is anything covered right now? Read by App.sweepStrandedCover, the
          *  escape hatch for W-4.6 — an opaque, input-swallowing cover left over an
          *  UNLOCKED app is a black window with no way in, and it is exactly what this
-         *  object looks like from the outside. */
+         *  object looks like from the outside.
+         *
+         *  ★ #46 loop MINOR m2 on #507, CORRECTED IN ROUND 2. This walks the VIEW TREE for
+         *  every entry the bookkeeping list holds. It used to return `privacyShields.Count
+         *  > 0`.
+         *
+         *  ⚠ READ THE LIMIT, BECAUSE ROUND 1'S DOCBLOCK OVERCLAIMED. The walk can only see
+         *  covers the LIST still knows about. `hidePrivacyShield` clears the list BEFORE the
+         *  removal runs, so a cover that survives that removal is invisible here unless the
+         *  drop puts its entry back. The drop does exactly that, and it now checks the TREE
+         *  rather than trusting a thrown exception — see `hidePrivacyShield`. The two halves
+         *  together are what make this method true; this half alone is not enough.
+         *
+         *  ⚠ The Clear() was deliberately NOT moved into the drop. `showPrivacyShield` skips
+         *  any grid the list already reports as covered, so an entry that is still listed
+         *  while the drop is queued to remove it would make a re-cover a no-op — the app
+         *  would end up UNCOVERED at the moment it asked to be covered. Trading a diagnostic
+         *  gap for a real exposure is the wrong direction.
+         *
+         *  ★ The reverse error is a defect too: a list entry whose view has already left the
+         *  tree is not a cover, and reporting one made the hatch log a stranded-cover
+         *  diagnosis that was false. The walk fixes that half outright. */
         public static bool hasPrivacyShield()
         {
-            return privacyShields.Count > 0;
+            try
+            {
+                foreach ((Grid grid, ContentView view) in privacyShields)
+                {
+                    if (grid.Children.Contains(view))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                /* A read must never throw into the escape hatch. Fall back to the old
+                 * bookkeeping answer, which is the best information left. */
+                Logging.warn("hasPrivacyShield: " + ex);
+                return privacyShields.Count > 0;
+            }
         }
 
         /** Uncover. Safe to call when nothing is covered. */
@@ -845,9 +908,55 @@ namespace SPIXI
              * the main thread, which could reorder a hide/show pair. */
             Action drop = () =>
             {
+                bool putBack = false;
                 foreach ((Grid grid, ContentView view) in shields)
                 {
-                    try { grid.Children.Remove(view); } catch { }
+                    try { grid.Children.Remove(view); }
+                    catch (Exception ex)
+                    {
+                        Logging.error("hidePrivacyShield: the cover removal threw: " + ex);
+                    }
+                    /* ★ #46 loop MINOR m2 on #507, ROUND 2: ASK THE TREE, DO NOT TRUST THE
+                     * THROW. Round 1 put the entry back only when Remove threw. Remove can
+                     * also return quietly and leave the child in place, and that case left
+                     * the app covered while the escape hatch was told nothing covers it —
+                     * the one state the hatch exists to repair, made invisible to it. */
+                    bool stillThere;
+                    try { stillThere = grid.Children.Contains(view); }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("hidePrivacyShield: the tree check threw: " + ex);
+                        stillThere = true;   // fail toward "still covered": that is the reportable state
+                    }
+                    if (!stillThere)
+                    {
+                        continue;
+                    }
+                    if (!privacyShields.Exists(sh => sh.view == view))
+                    {
+                        privacyShields.Add((grid, view));
+                    }
+                    putBack = true;
+                }
+                /* ★ #46 loop MINOR m5 on #507: ARM A BELT FOR THE PUT-BACK. hidePrivacyShield
+                 * bumped privacyShieldGeneration on entry, which killed the 8 s release that
+                 * was watching this cover. Without a fresh arm the re-added entry sits in the
+                 * list with nothing scheduled to try again. The budget bounds the retry: a
+                 * Remove that fails for ever must not log and re-arm for ever. */
+                if (!putBack)
+                {
+                    return;
+                }
+                if (privacyShieldPutBacks < PRIVACY_SHIELD_MAX_PUT_BACKS)
+                {
+                    privacyShieldPutBacks++;
+                    Logging.error("hidePrivacyShield: the cover did not leave the tree. Retry "
+                        + privacyShieldPutBacks + " of " + PRIVACY_SHIELD_MAX_PUT_BACKS + " armed.");
+                    armPrivacyShieldSafety();
+                }
+                else
+                {
+                    Logging.error("hidePrivacyShield: the cover will not leave the tree and the retry budget is spent.");
                 }
             };
             if (MainThread.IsMainThread) drop();
@@ -998,8 +1107,17 @@ namespace SPIXI
          *  whenever it is up, and it is fixed dark in both themes — so anything that
          *  paints from "the current surface" (the system bars) has to find it. The
          *  in-place case is the one that needs the modalOverlayOp lookup: such a lock is
-         *  in no navigation collection at all. Read-only, never constructs. */
-        private static SpixiContentPage? liveLockPage()
+         *  in no navigation collection at all. Read-only, never constructs.
+         *
+         *  ★★ #46 loop W-4.6 on #507: PUBLIC now, because `App.sweepStrandedCover` has to
+         *  ask the lock a question — "did your WebView load?" — that no navigation
+         *  collection can answer. The IN-PLACE case is the one the hatch needs most:
+         *  Damir's failing session presented the app lock in place and it never loaded.
+         *  ⚠ The lookup order puts the in-place op FIRST, which is right for a system-bar
+         *  repaint and WRONG for "which lock is the user looking at" once two locks can
+         *  stack. The hatch therefore checks the top of the ModalStack itself and falls
+         *  back to this. */
+        public static SpixiContentPage? liveLockPage()
         {
             try
             {
@@ -1060,7 +1178,20 @@ namespace SPIXI
             lock (preloadLock)
             {
                 PreloadOp? op = activePreload;
-                return op != null && op.modalMode && op.target is LockPage;
+                if (op != null && op.modalMode && op.target is LockPage)
+                {
+                    return true;
+                }
+                /* ★★ #46 loop MAJOR-3 on #507 — the RESERVED turn, before the stage exists.
+                 * See the lockPreloadPending field for the defect this closes. A negative age
+                 * (the clock moved backwards) must not read as "just now" — the same guard
+                 * ownIntentFresh() carries. */
+                if (lockPreloadPending)
+                {
+                    double age = (DateTime.Now - lockPreloadPendingAt).TotalSeconds;
+                    return age >= 0 && age <= LOCK_PRELOAD_PENDING_MAX_SECONDS;
+                }
+                return false;
             }
         }
 
@@ -1900,6 +2031,10 @@ namespace SPIXI
                     return;
                 }
                 preloadPending = true;
+                /* ★★ #46 loop MAJOR-3 on #507: the lock is RESERVED from here, one whole
+                 * dispatcher turn before `activePreload` exists. Every exit below clears it. */
+                lockPreloadPending = target is LockPage;
+                lockPreloadPendingAt = DateTime.Now;
             }
 
             MainThread.BeginInvokeOnMainThread(() =>
@@ -1923,7 +2058,7 @@ namespace SPIXI
 
                 if (hostGrid == null || targetContent == null)
                 {
-                    lock (preloadLock) { preloadPending = false; }
+                    lock (preloadLock) { preloadPending = false; lockPreloadPending = false; }
                     presentPlainModal(target);
                     return;
                 }
@@ -1958,6 +2093,7 @@ namespace SPIXI
                     {
                         activePreload = op;
                         preloadPending = false;
+                        lockPreloadPending = false;   // ★ MAJOR-3: activePreload answers from here
                     }
                     hostGrid.Children.Add(stage);   // WebView gets a handler → starts loading
 
@@ -1977,6 +2113,7 @@ namespace SPIXI
                     {
                         activePreload = null;
                         preloadPending = false;
+                        lockPreloadPending = false;   // ★ MAJOR-3
                     }
                     try
                     {

@@ -122,13 +122,40 @@
    bubble alone would leave its own reactions stranded behind the scrim, which is a
    worse version of the bug being fixed.
 
-   ⚠ THE LIFT WORKS ONLY BECAUSE NOTHING BETWEEN THE ROW AND THE HOST CREATES A
-   STACKING CONTEXT. Verified: .c-chat-canvas is position:relative with z-index
-   auto, and `.c-chat-canvas > *` (the scroller) likewise — overflow alone does not
-   create one. Both still CLIP the lifted row to their own box, which is correct:
-   the message stays inside the log. If either ever gains a z-index, a transform, a
-   filter or `isolation`, the lift silently caps at that ancestor and the ring goes
-   back under the scrim — the symptom to recognise.
+   ⚠ PRECONDITION — A RULE FOR EVERY STYLESHEET, NOT AN OBSERVATION ABOUT THIS ONE.
+   No ancestor between the lifted row and the host may create a stacking context.
+   The row lifts to z-42 to clear the z-40 scrim. A stacking context on an ancestor
+   caps the lift inside that ancestor, and the row drops back under the scrim.
+   The failure is SILENT: nothing logs, and the ring still paints.
+   The ancestors today are `.c-chat-canvas` (position:relative, z-index auto,
+   overflow:hidden) and the scroller from `.c-chat-canvas > *` (position:relative
+   only). Overflow alone creates no stacking context. Both still CLIP the lifted row
+   to their own box, which is correct: the message stays inside the log.
+   ⚠ Do NOT add any of these to `.c-chat-canvas`, to the scroller (`.messages`,
+   `.u-scroll`), or to any ancestor of them. Each one creates a stacking context on
+   its own: `z-index` other than auto, `transform`, `translate`, `rotate`, `scale`,
+   `perspective`, `filter`, `-webkit-filter`, `backdrop-filter`, `clip-path`,
+   `mask-image` (or the `mask` shorthand), `opacity` below 1, `mix-blend-mode`,
+   `isolation: isolate`, `contain: paint|layout|strict|content`,
+   `content-visibility: auto|hidden`, `view-transition-name`, `position: sticky` and
+   `position: fixed`.
+   `translate`, `rotate` and `scale` are the easy ones to miss. They are the
+   individual transform properties. They read like plain geometry, and they cost the
+   same stacking context a `transform` shorthand does.
+   ⚠ This rule has been broken once. `chat-flow.css` had
+   `.c-chat-canvas[data-flow] { z-index: 0; }` for the Live flow canvas, which
+   killed the lift for that one pattern style (#46 loop MAJOR-2). The flow canvas
+   now paints by TREE ORDER at z-index auto and needs no context. Add a new one and
+   you repeat the defect.
+   ⚠ THE ONE THAT LOOKS SAFE AND IS NOT. `message-bubble.css:29` puts
+   `opacity: var(--chat-pattern-opacity)` on `.c-chat-canvas::before`, and
+   `chat-pattern.css:56` puts `mask-image` on the same pseudo-element. A pseudo-
+   element carries its own box, so both of those are correct where they stand: the
+   HOST keeps z-index auto and the lift still clears the scrim.
+   Move either declaration up onto `.c-chat-canvas` — an editor "tidying the layer",
+   or making the whole canvas dim — and the host becomes a stacking context. The
+   long-press lift then dies silently on EVERY pattern style, not one. If the tile
+   needs to fade, fade the pseudo-element, never the host.
 
    ⚠ pointer-events: none is NOT decoration. With the row above the scrim, a tap on
    the highlighted message would hit the MESSAGE instead of the scrim, and light

@@ -132,8 +132,8 @@
    Measured before touching it, because HALF of that white is a standard, not a choice.
    createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
    modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px across a ~45-module grid that is ≈16px per
-   side, and it is untouchable.
+   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
+   per side (the table below), and it is untouchable.
 
    The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
    the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
@@ -141,11 +141,31 @@
 
    ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
    padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner — so: the module is 185/45 ≈ 4.1px, the
-   quiet zone ≈16.4px, and a 16px radius removes at most 16 − 16/√2 ≈ 4.7px of DIAGONAL
-   depth, leaving ≈18.5px on the diagonal and the full 16.4px along every edge, where the
-   standard actually measures. Clears four modules on all four sides.
-   ⚠ Raise this radius and that stops being true. */
+   With none, it eats the quiet zone's own corner.
+
+   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
+   comment carried three wrong ones. The method: run the SHIPPED encoder
+   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
+   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
+   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
+   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
+   is always 8 cells wider than the code:
+     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
+     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
+     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
+   A real Ixian address lands in the middle row.
+
+   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
+   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
+   is a different measurement, and it understates the loss by 41%.
+
+   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
+   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
+   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
+   removes nothing. The curve first touches the code corner when the quiet zone falls
+   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
+   make one.
+   ⚠ Raise this radius above 16px and re-do both comparisons. */
 .c-settings__qr {
   display: flex;
   justify-content: center;

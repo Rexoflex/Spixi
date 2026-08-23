@@ -1360,6 +1360,41 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+/* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
+   The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
+   opens LATER. dismissOverlay does not remove the sheet at once: it drops
+   data-open, starts the exit transition, and removes on transitionend with a
+   400 ms timeout fallback. For that window the sheet is still in the DOM, still
+   above the new scrim, and still sliding.
+   The house pattern is "close the sheet, then open the modal". A second quick tap
+   in that window lands on the sheet, at a row the finger did not choose, because
+   the sheet has moved down. Tap Delete twice fast and you get Tip. This rule kills
+   that path: no data-open, no hit-testing.
+   ⚠ The descendant selector is part of the fix, not decoration. pointer-events
+   INHERITS, so one descendant with `pointer-events: auto` would re-open the hole.
+   ⚠ The `html:root` prefix is the base.css grammar for a rule that must beat every
+   component file on specificity (0,3,1). Do not lower it.
+   ⚠ The SCRIM keeps its hit-testing on purpose. A tap over the closing sheet now
+   falls to the closing scrim, which swallows it. Make the scrim dead too and the
+   same tap reaches the screen behind the overlay.
+   ⚠ This rule is also live in the OPEN window, between append and the two-rAF
+   data-open. Nothing is lost there, but the REASON differs by surface — do not
+   write "the sheet is off-screen", which is true on one surface only:
+     · mobile: the sheet sits at translateY(100%), below the host.
+     · desktop, centred dialog: `:root[data-desktop] .c-sheet` is
+       transform: translate(-50%, calc(-50% + 16px)) with opacity 0 — CENTRED, and
+       fully inside the host.
+     · desktop, [data-dt-anchor] dropdown: transform: none, opacity 0, sitting at
+       its anchor. It transitions opacity only.
+   The one property all three share is that the user cannot SEE the sheet, so the
+   user cannot aim at it. An opacity-0 element still hit-tests, so on desktop this
+   rule closes a hole rather than leaving one — which is more than the mobile case
+   needed. Focus is not affected: pointer-events does not change focusability, so
+   the open-time focus move and the exit focus restore both still work. */
+html:root .c-sheet:not([data-open]),
+html:root .c-sheet:not([data-open]) * {
+  pointer-events: none;
+}
 
 .c-sheet__handle {
   display: block;
@@ -1694,13 +1729,40 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    bubble alone would leave its own reactions stranded behind the scrim, which is a
    worse version of the bug being fixed.
 
-   ⚠ THE LIFT WORKS ONLY BECAUSE NOTHING BETWEEN THE ROW AND THE HOST CREATES A
-   STACKING CONTEXT. Verified: .c-chat-canvas is position:relative with z-index
-   auto, and `.c-chat-canvas > *` (the scroller) likewise — overflow alone does not
-   create one. Both still CLIP the lifted row to their own box, which is correct:
-   the message stays inside the log. If either ever gains a z-index, a transform, a
-   filter or `isolation`, the lift silently caps at that ancestor and the ring goes
-   back under the scrim — the symptom to recognise.
+   ⚠ PRECONDITION — A RULE FOR EVERY STYLESHEET, NOT AN OBSERVATION ABOUT THIS ONE.
+   No ancestor between the lifted row and the host may create a stacking context.
+   The row lifts to z-42 to clear the z-40 scrim. A stacking context on an ancestor
+   caps the lift inside that ancestor, and the row drops back under the scrim.
+   The failure is SILENT: nothing logs, and the ring still paints.
+   The ancestors today are `.c-chat-canvas` (position:relative, z-index auto,
+   overflow:hidden) and the scroller from `.c-chat-canvas > *` (position:relative
+   only). Overflow alone creates no stacking context. Both still CLIP the lifted row
+   to their own box, which is correct: the message stays inside the log.
+   ⚠ Do NOT add any of these to `.c-chat-canvas`, to the scroller (`.messages`,
+   `.u-scroll`), or to any ancestor of them. Each one creates a stacking context on
+   its own: `z-index` other than auto, `transform`, `translate`, `rotate`, `scale`,
+   `perspective`, `filter`, `-webkit-filter`, `backdrop-filter`, `clip-path`,
+   `mask-image` (or the `mask` shorthand), `opacity` below 1, `mix-blend-mode`,
+   `isolation: isolate`, `contain: paint|layout|strict|content`,
+   `content-visibility: auto|hidden`, `view-transition-name`, `position: sticky` and
+   `position: fixed`.
+   `translate`, `rotate` and `scale` are the easy ones to miss. They are the
+   individual transform properties. They read like plain geometry, and they cost the
+   same stacking context a `transform` shorthand does.
+   ⚠ This rule has been broken once. `chat-flow.css` had
+   `.c-chat-canvas[data-flow] { z-index: 0; }` for the Live flow canvas, which
+   killed the lift for that one pattern style (#46 loop MAJOR-2). The flow canvas
+   now paints by TREE ORDER at z-index auto and needs no context. Add a new one and
+   you repeat the defect.
+   ⚠ THE ONE THAT LOOKS SAFE AND IS NOT. `message-bubble.css:29` puts
+   `opacity: var(--chat-pattern-opacity)` on `.c-chat-canvas::before`, and
+   `chat-pattern.css:56` puts `mask-image` on the same pseudo-element. A pseudo-
+   element carries its own box, so both of those are correct where they stand: the
+   HOST keeps z-index auto and the lift still clears the scrim.
+   Move either declaration up onto `.c-chat-canvas` — an editor "tidying the layer",
+   or making the whole canvas dim — and the host becomes a stacking context. The
+   long-press lift then dies silently on EVERY pattern style, not one. If the tile
+   needs to fade, fade the pseudo-element, never the host.
 
    ⚠ pointer-events: none is NOT decoration. With the row above the scrim, a tap on
    the highlighted message would hit the MESSAGE instead of the scrim, and light

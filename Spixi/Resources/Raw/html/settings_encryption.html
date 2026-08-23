@@ -809,6 +809,41 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+/* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
+   The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
+   opens LATER. dismissOverlay does not remove the sheet at once: it drops
+   data-open, starts the exit transition, and removes on transitionend with a
+   400 ms timeout fallback. For that window the sheet is still in the DOM, still
+   above the new scrim, and still sliding.
+   The house pattern is "close the sheet, then open the modal". A second quick tap
+   in that window lands on the sheet, at a row the finger did not choose, because
+   the sheet has moved down. Tap Delete twice fast and you get Tip. This rule kills
+   that path: no data-open, no hit-testing.
+   ⚠ The descendant selector is part of the fix, not decoration. pointer-events
+   INHERITS, so one descendant with `pointer-events: auto` would re-open the hole.
+   ⚠ The `html:root` prefix is the base.css grammar for a rule that must beat every
+   component file on specificity (0,3,1). Do not lower it.
+   ⚠ The SCRIM keeps its hit-testing on purpose. A tap over the closing sheet now
+   falls to the closing scrim, which swallows it. Make the scrim dead too and the
+   same tap reaches the screen behind the overlay.
+   ⚠ This rule is also live in the OPEN window, between append and the two-rAF
+   data-open. Nothing is lost there, but the REASON differs by surface — do not
+   write "the sheet is off-screen", which is true on one surface only:
+     · mobile: the sheet sits at translateY(100%), below the host.
+     · desktop, centred dialog: `:root[data-desktop] .c-sheet` is
+       transform: translate(-50%, calc(-50% + 16px)) with opacity 0 — CENTRED, and
+       fully inside the host.
+     · desktop, [data-dt-anchor] dropdown: transform: none, opacity 0, sitting at
+       its anchor. It transitions opacity only.
+   The one property all three share is that the user cannot SEE the sheet, so the
+   user cannot aim at it. An opacity-0 element still hit-tests, so on desktop this
+   rule closes a hole rather than leaving one — which is more than the mobile case
+   needed. Focus is not affected: pointer-events does not change focusability, so
+   the open-time focus move and the exit focus restore both still work. */
+html:root .c-sheet:not([data-open]),
+html:root .c-sheet:not([data-open]) * {
+  pointer-events: none;
+}
 
 .c-sheet__handle {
   display: block;

@@ -4887,14 +4887,21 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
  * ONE static frame with no loop at all (the reduced-motion contract is honored
  * in JS here because the token trick in tokens.css can only reach CSS motion).
  *
- * STACKING (corrected after a Windows F5 regression — do not "simplify"):
- * the canvas is the FIRST child of .c-chat-canvas at z-index:-1, and the host
- * gets its own stacking context via [data-flow] { z-index: 0 } in
- * chat-flow.css. A negative-z child then paints ABOVE the host's gradient
- * background but BELOW all in-flow content. Do NOT reach for a blanket
- * position:relative on the siblings instead: that pulls the absolutely
- * positioned jump-to-latest FAB into flow (left-aligned FAB + a blank band
- * above the composer).
+ * STACKING (#46 loop MAJOR-2 — read this before you "simplify"):
+ * the canvas is the FIRST child of .c-chat-canvas, and it has z-index AUTO.
+ * A positioned z-auto child paints in TREE ORDER: above the host gradient
+ * background, and below every later sibling. That is the layer this module
+ * needs, and it needs nothing else.
+ * ⚠ The host must NOT become a stacking context. A long-pressed message row
+ * lifts to z-42 to clear the z-40 scrim (message-menu.css). A z-index, a
+ * transform, a filter or `isolation` on .c-chat-canvas caps that lift at the
+ * host, and the lift then fails silently. An earlier version of this module
+ * used z-index:-1 here plus `[data-flow] { z-index: 0 }` on the host. That
+ * pair broke the lift under Live flow, so both are gone.
+ * Do NOT reach for a blanket position:relative on the siblings instead: that
+ * pulls the absolutely positioned jump-to-latest FAB into flow (left-aligned
+ * FAB + a blank band above the composer). message-bubble.css already sets
+ * position:relative on the children.
  */
 
 const CHAT_FLOW = {   // Damir F5 2026-08-13 (supersedes the 2026-08-12 dial)
@@ -4945,7 +4952,8 @@ function attachChatFlow(host, opts = {}) {
   try { ctx = canvas.getContext && canvas.getContext('2d'); } catch (e) { ctx = null; }
   if (!ctx) return null;                       // no 2d context → tile fallback below
 
-  // FIRST child (see STACKING above) + the host's own stacking context
+  // FIRST child: the paint order above depends on it (see STACKING above).
+  // data-flow is a state MARKER only. No style may hang a stacking context on it.
   host.prepend(canvas);
   host.dataset.flow = '';
 
@@ -17738,11 +17746,15 @@ function createSettingsHub({
      *
      * ★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE, which is what I proposed
      * first: Damir objected that people may not realise a small code is tappable AND
-     * may simply try to scan it. The second objection decides it. At 185px a
-     * ~41-module code runs ≈3.8px per module and a phone camera reading another
-     * phone's screen needs roughly 2px per module, so a "compact" QR lands near
-     * 100px — right at the edge. A QR that is visible but too small to scan is worse
-     * than no QR: it looks functional and is not. So the code opens at FULL size.
+     * may simply try to scan it. The second objection decides it. ★ #46 loop: the
+     * numbers here are MEASURED with the shipped encoder over the real payload
+     * (`address + ':ixi'`), not estimated. At 185px the box is 41 cells for a real
+     * address (33 code modules + the 4-module quiet zone on each side), which is
+     * 4.51px per cell; the worst case in range is a 45-cell box at 4.11px. A phone
+     * camera that reads another phone's screen needs roughly 2px per module, so a
+     * "compact" QR lands at 82px to 90px — right at the edge. A QR that is visible
+     * but too small to scan is worse than no QR: it looks functional and is not. So
+     * the code opens at FULL size.
      *
      * ⚠ The affordance keeps the weight and the position the code had — directly
      * under the address, and the address chip with copy and share stay visible

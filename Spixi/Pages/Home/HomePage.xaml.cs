@@ -102,6 +102,34 @@ namespace SPIXI
         // already delivered, and the latch then made that short list stick.
         private volatile bool appsPushedToShell = false;
         private readonly object appsPushLock = new object();
+        // ★ #46 loop m14: the wallet flush needs the SAME serialization loadApps got after
+        // #340, for the same reason. loadTransactions runs on the UI thread (a filter tap,
+        // tab entry) AND on Node.updateUILoop's thread-pool tick, with no marshalling. Two
+        // interleaved runs let one run's clearPaymentActivity drop rows the other had
+        // already delivered, and — new since #506③ — let the FIRST run's
+        // clearPaymentActivityDone open the zero gate in the middle of the second run's
+        // burst. open() also cancels the shell's 400 ms quiet-window belt, which used to
+        // cover exactly this case, so the empty state paints over a populated wallet.
+        // Dedicated lock, like appsPushLock, to stay out of the chats/contacts lock order.
+        //
+        // ★ ROUND 2 — THE LOCK ALONE TRADED A RACE FOR A FREEZE, AND THE FREEZE IS WORSE.
+        // loadApps holds this lock over a BOUNDED body: the installed-app count.
+        // loadTransactions holds it over an UNBOUNDED one: getActivitiesBySeedHashAndType
+        // with count 0 reads the whole activity history, and each row then costs one
+        // getActivityById under Ixian-Core's storage lock. The tick runs that scan on
+        // Node.updateUILoop's pool thread every 2 s. A user who taps the Wallet tab or a
+        // filter chip used to run the same scan ON THE UI THREAD, and with the lock added
+        // they also waited for the tick's scan first. That is a visible freeze on the tap.
+        // The fix is not a smaller lock. loadTransactions must simply never run on the UI
+        // thread — see the dispatch at the top of the method. The lock then costs the UI
+        // thread nothing, because the UI thread no longer takes it.
+        // ⚠ NOTE FOR WHOEVER REVIVES SPLIT VIEW: detailContent.updateScreen() is called
+        // inside BOTH appsPushLock and txPushLock. detailContent is dead today — it is
+        // only ever assigned null (:37, :3543) — so the call is unreachable and the two
+        // locks cannot interact. The instant a split view assigns it, one detail page that
+        // calls back into loadApps and loadTransactions inverts the two lock orders and
+        // deadlocks the tick against a tap. Do not build for it now. Do read this first.
+        private readonly object txPushLock = new object();
         private bool hideBalance = false;
 
         private bool running = false;
@@ -2354,121 +2382,162 @@ namespace SPIXI
 
         public void loadTransactions(bool forceRefresh)
         {
-            if (!forceRefresh && !UIHelpers.shouldRefreshTransactions)
+            /* ★★ ROUND 2 — THIS FLUSH MUST NEVER RUN ON THE UI THREAD.
+             * The body below reads the WHOLE activity history: count 0 means unlimited,
+             * and every surviving row costs one getActivityById under Ixian-Core's storage
+             * lock. Two callers reach it from the UI thread — the tab2 branch of the shell
+             * URL handler (:847) and filterTransactions (:2367) — and a third runs it on
+             * Node.updateUILoop's pool thread every 2 s (:2763).
+             * Before txPushLock a tap paid for its own scan. With txPushLock a tap ALSO
+             * waited for the tick's scan. Either way the Wallet tab freezes under the
+             * finger, and the second one is a freeze this batch would have added.
+             * One guard removes both, and it removes the older half as well: hand the work
+             * to the pool and return at once. Nothing is lost — every row leaves through
+             * Utils.sendUiCommand, which marshals to the main thread itself
+             * (SpixiContentPage.evaluateJavascript), so this method never needed the UI
+             * thread. Neither UI caller reads state after the call.
+             * ⚠ The recursion terminates. Task.Run always runs on a thread-pool thread,
+             * where MainThread.IsMainThread is false, so the second entry falls through to
+             * the lock.
+             * ⚠ The catch is not decoration. On the UI thread a throw used to reach the
+             * caller's handler. On the pool it would be an unobserved task exception.
+             * ⚠ WHAT THIS TRADES. Two queued flushes may run in either order. That is
+             * harmless here and only here: addPaymentActivity reads transactionFilter LIVE,
+             * per row, so both runs paint the same list from the same field. Capture that
+             * field into a local and the order stops being harmless. */
+            if (MainThread.IsMainThread)
             {
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        loadTransactions(forceRefresh);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.error("Exception occurred in loadTransactions: " + e);
+                    }
+                });
                 return;
             }
-            if (detailContent != null)
+            lock (txPushLock)
             {
-                detailContent.updateScreen();
-            }
-            UIHelpers.shouldRefreshTransactions = false;
-            Utils.sendUiCommand(this, "clearPaymentActivity", filterToString(transactionFilter));
-
-            void addPaymentActivity(ActivityObject activity)
-            {
-                Transaction tx = activity.transaction;
-                string received = "1";
-                string tx_text = tx.pubKey.ToString();
-                IxiNumber amount = tx.amount;
-                if (IxianHandler.getWalletStorage().isMyAddress(tx.pubKey))
+                if (!forceRefresh && !UIHelpers.shouldRefreshTransactions)
                 {
-                    tx_text = tx.toList.First().Key.ToString();
-                    Friend? friend = FriendList.getFriend(tx.toList.First().Key);
-                    if (friend != null)
+                    return;
+                }
+                if (detailContent != null)
+                {
+                    detailContent.updateScreen();
+                }
+                UIHelpers.shouldRefreshTransactions = false;
+                Utils.sendUiCommand(this, "clearPaymentActivity", filterToString(transactionFilter));
+
+                void addPaymentActivity(ActivityObject activity)
+                {
+                    Transaction tx = activity.transaction;
+                    string received = "1";
+                    string tx_text = tx.pubKey.ToString();
+                    IxiNumber amount = tx.amount;
+                    if (IxianHandler.getWalletStorage().isMyAddress(tx.pubKey))
                     {
-                        tx_text = friend.nickname;
+                        tx_text = tx.toList.First().Key.ToString();
+                        Friend? friend = FriendList.getFriend(tx.toList.First().Key);
+                        if (friend != null)
+                        {
+                            tx_text = friend.nickname;
+                        }
+
+                        received = "0";
+                        if (transactionFilter == 2)
+                            return;
+                    }
+                    else
+                    {
+                        Friend? friend = FriendList.getFriend(tx.pubKey);
+                        if (friend != null)
+                        {
+                            tx_text = friend.nickname;
+                        }
+                        amount = calculateReceivedAmount(tx);
+                        if (transactionFilter == 1)
+                            return;
+                    }
+                    string amount_string = Utils.amountToHumanFormatString(amount);
+                    string fiat_amount_string = Utils.amountToHumanFormatString(amount * Node.fiatPrice);
+
+                    string confirmed = "error";
+                    if (activity.status == IXICore.Activity.ActivityStatus.Final)
+                    {
+                        confirmed = "true";
+                    }
+                    else if (activity.status == IXICore.Activity.ActivityStatus.Pending)
+                    {
+                        confirmed = "false";
+                    }
+                    else if (activity.status == IXICore.Activity.ActivityStatus.Unknown)
+                    {
+                        confirmed = "unknown";
+                    }
+                    else
+                    {
+                        confirmed = "error";
                     }
 
-                    received = "0";
-                    if (transactionFilter == 2)
-                        return;
+                    // iOS-55 (#325, W1 LANDED): push the RAW EPOCH (seconds) — the shell
+                    // formats it via formatTxTimestamp/docLocale, the same translation
+                    // machinery as chat rows. The old pre-formatted string came out of
+                    // DateTime.ToString under the .NET culture, which never follows the
+                    // APP language (wallet rows stayed English under sl-si). The shell
+                    // numeric-detects, so an OLD shell build shows raw digits only in a
+                    // mismatched-build scenario (bundle always ships both together).
+                    string time = activity.timestamp.ToString();
+                    Utils.sendUiCommand(this, "addPaymentActivity", tx.getTxIdString(), received, tx_text, time, amount_string, fiat_amount_string, confirmed);
                 }
-                else
+
+                foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Rejected, true))
                 {
-                    Friend? friend = FriendList.getFriend(tx.pubKey);
-                    if (friend != null)
+                    addPaymentActivity(activity);
+                }
+
+                foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Reverted, true))
+                {
+                    addPaymentActivity(activity);
+                }
+
+                foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Pending, true))
+                {
+                    addPaymentActivity(activity);
+                }
+
+                foreach (var activity in Node.activityStorage.getActivitiesBySeedHashAndType(IxianHandler.getWalletStorage().getSeedHash(), null, null, 0, true))
+                {
+                    if (activity.status == IXICore.Activity.ActivityStatus.Rejected
+                        || activity.status == IXICore.Activity.ActivityStatus.Reverted
+                        || activity.status == IXICore.Activity.ActivityStatus.Pending)
                     {
-                        tx_text = friend.nickname;
+                        continue;
                     }
-                    amount = calculateReceivedAmount(tx);
-                    if (transactionFilter == 1)
-                        return;
-                }
-                string amount_string = Utils.amountToHumanFormatString(amount);
-                string fiat_amount_string = Utils.amountToHumanFormatString(amount * Node.fiatPrice);
-
-                string confirmed = "error";
-                if (activity.status == IXICore.Activity.ActivityStatus.Final)
-                {
-                    confirmed = "true";
-                }
-                else if (activity.status == IXICore.Activity.ActivityStatus.Pending)
-                {
-                    confirmed = "false";
-                }
-                else if (activity.status == IXICore.Activity.ActivityStatus.Unknown)
-                {
-                    confirmed = "unknown";
-                }
-                else
-                {
-                    confirmed = "error";
+                    var activityWithTx = Node.activityStorage.getActivityById(activity.id, null, true);
+                    addPaymentActivity(activityWithTx);
                 }
 
-                // iOS-55 (#325, W1 LANDED): push the RAW EPOCH (seconds) — the shell
-                // formats it via formatTxTimestamp/docLocale, the same translation
-                // machinery as chat rows. The old pre-formatted string came out of
-                // DateTime.ToString under the .NET culture, which never follows the
-                // APP language (wallet rows stayed English under sl-si). The shell
-                // numeric-detects, so an OLD shell build shows raw digits only in a
-                // mismatched-build scenario (bundle always ships both together).
-                string time = activity.timestamp.ToString();
-                Utils.sendUiCommand(this, "addPaymentActivity", tx.getTxIdString(), received, tx_text, time, amount_string, fiat_amount_string, confirmed);
+                /* ★ #506③ — the END of the burst, which this flush never announced.
+                 *
+                 * Damir on device: the empty state arrives about a second late on wallet and
+                 * mini-apps but not on chats. The row read that as "the other two lack the
+                 * zeroReady gate chats has"; they do NOT — all three are gated. The gate IS
+                 * the delay: chats opens it on the real clearChatsDone verb, while wallet and
+                 * apps had none and could only guess with a 400 ms quiet window after the last
+                 * push.
+                 *
+                 * This method is synchronous and every push is already out, so the end of the
+                 * burst is exactly here — no guessing left. Mirrors clearChatsDone (:2299),
+                 * which has carried the same job for the chats flush since #189.
+                 * ⚠ The shell keeps its quiet-window timer as a BELT, so an older exe that
+                 * never sends this still opens the gate on the old schedule. */
+                Utils.sendUiCommand(this, "clearPaymentActivityDone");
             }
-
-            foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Rejected, true))
-            {
-                addPaymentActivity(activity);
-            }
-
-            foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Reverted, true))
-            {
-                addPaymentActivity(activity);
-            }
-
-            foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Pending, true))
-            {
-                addPaymentActivity(activity);
-            }
-
-            foreach (var activity in Node.activityStorage.getActivitiesBySeedHashAndType(IxianHandler.getWalletStorage().getSeedHash(), null, null, 0, true))
-            {
-                if (activity.status == IXICore.Activity.ActivityStatus.Rejected
-                    || activity.status == IXICore.Activity.ActivityStatus.Reverted
-                    || activity.status == IXICore.Activity.ActivityStatus.Pending)
-                {
-                    continue;
-                }
-                var activityWithTx = Node.activityStorage.getActivityById(activity.id, null, true);
-                addPaymentActivity(activityWithTx);
-            }
-
-            /* ★ #506③ — the END of the burst, which this flush never announced.
-             *
-             * Damir on device: the empty state arrives about a second late on wallet and
-             * mini-apps but not on chats. The row read that as "the other two lack the
-             * zeroReady gate chats has"; they do NOT — all three are gated. The gate IS
-             * the delay: chats opens it on the real clearChatsDone verb, while wallet and
-             * apps had none and could only guess with a 400 ms quiet window after the last
-             * push.
-             *
-             * This method is synchronous and every push is already out, so the end of the
-             * burst is exactly here — no guessing left. Mirrors clearChatsDone (:2299),
-             * which has carried the same job for the chats flush since #189.
-             * ⚠ The shell keeps its quiet-window timer as a BELT, so an older exe that
-             * never sends this still opens the gate on the old schedule. */
-            Utils.sendUiCommand(this, "clearPaymentActivityDone");
         }
 
         /* ★ N76 (#391, Damir's dial): does this account hold anything worth losing yet?

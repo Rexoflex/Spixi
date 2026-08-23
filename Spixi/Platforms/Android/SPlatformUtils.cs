@@ -233,6 +233,27 @@ namespace Spixi
             // #506①: true once Completion owns the descriptor, so the finally stops
             // closing it on the SUCCESS path while keeping the throw-path close intact.
             bool fdHandedOff = false;
+            /* ★★ #46 loop m13 — THE GUARANTEE, IN STRUCTURAL FORM.
+             * Once Start() returns, the sound is playing. From that instant nothing may
+             * cut it, leak the descriptor, or mark the asset missing.
+             * Round 1 held that with a second try block inside this one. A shape is not a
+             * guarantee. A reviewer rethrew from the inner catch, and moved the damage
+             * into the inner catch, and the outer catch ran on a playing player both
+             * times. The guarantee now rests on SCOPE, not on arrangement:
+             *   · The belt is scheduled by scheduleEffectBelt, called BELOW the outer
+             *     try/catch/finally. The outer catch is lexically above that call, so no
+             *     exception from the belt can reach it. A rethrow there leaves playEffect
+             *     without touching the player, the descriptor or missingEffects.
+             *   · scheduleEffectBelt cannot name filePath, fd, player or captured. So
+             *     markMissing(filePath), captured.Release() and liveEffects.Remove(captured)
+             *     do not COMPILE inside it. The damage is out of scope, not merely absent.
+             *   · Everything the belt needs is allocated BEFORE Start(). The region after
+             *     Start() is two assignments of values that already exist. An assignment
+             *     allocates nothing and calls nothing, so it cannot throw.
+             * beltHandoff stays null until Start() returns. Null means the sound never
+             * started, and only then may the catch and the finally clean up. */
+            int beltMs = 15000;
+            Action? beltHandoff = null;
             try
             {
                 // Probe before building anything: absent asset = silent no-op.
@@ -273,18 +294,45 @@ namespace Spixi
                     try { captured.Release(); } catch (Exception) { }
                     closeFd();
                 };
-                // ★ #506①: root it BEFORE Start, so there is no window in which a
-                // collection can reach a player that is already producing sound.
-                lock (liveEffects) { liveEffects.Add(captured); }
-                captured.Start();
-                fdHandedOff = true;
-                /* Belt. Completion does not fire if the player errors mid-playback, and an
-                 * fd leak on a path that runs once per received message is how a process
-                 * runs out of descriptors — which takes down sockets and file opens, not
-                 * just audio (the same reasoning that put the original finally here). Every
-                 * effect is under 0.6 s, so 15 s can never cut one short, and both calls
-                 * are single-shot. */
-                Task.Delay(15000).ContinueWith(_ =>
+                /* ★ #46 loop Q5 and item 2 — THE BELT HAS A FLOOR AND A CEILING.
+                 * The belt used to rest on prose: "every effect is under 0.6 s". Nothing
+                 * enforced that, and Damir is about to pick new SFX. Duration is valid
+                 * after Prepare, so the belt is the clip's own length plus a 5 s margin.
+                 * ⚠ FLOOR 15 s. Duration is negative when the container reports no length.
+                 * ⚠ CEILING 60 s. A container that mis-reports Duration as 2,000,000,000 ms
+                 *   gives a belt of about 23 days. That belt never fires. The belt is the
+                 *   ONLY owner of the player and the descriptor when Completion does not
+                 *   run, which is the exact case it exists to cover, so a belt that never
+                 *   fires is the leak this code exists to stop. 60 s is 100 times the
+                 *   longest effect that ships today. No sound a chat app calls an "effect"
+                 *   runs a minute. A clip that claims more than 55 s mis-reports.
+                 * ⚠ The clamp is applied BEFORE the addition. An int overflow makes the sum
+                 *   negative, and a negative Task.Delay throws. Clamp first, then add. Do
+                 *   not lean on the sign flip.
+                 * ⚠ This read sits before Start() on purpose. A throw here is a pre-Start
+                 *   throw, so the outer catch is its correct owner. The inner catch keeps a
+                 *   container that cannot answer from costing a good asset. */
+                try
+                {
+                    int durationMs = captured.Duration;
+                    if (durationMs > 55000)
+                    {
+                        durationMs = 55000;
+                    }
+                    if (durationMs > 0 && durationMs + 5000 > beltMs)
+                    {
+                        beltMs = durationMs + 5000;
+                    }
+                }
+                catch (Exception) { }
+                /* The belt's work, allocated BEFORE Start(). Completion does not fire if
+                 * the player errors mid-playback, and an fd leak on a path that runs once
+                 * per received message is how a process runs out of descriptors — that
+                 * takes down sockets and file opens, not just audio. Both calls are
+                 * single-shot. Every allocation on this path happens while the player is
+                 * still silent, so an out-of-memory here is a pre-Start failure and the
+                 * outer catch may handle it. */
+                Action expireBelt = () =>
                 {
                     bool wasLive;
                     lock (liveEffects) { wasLive = liveEffects.Remove(captured); }
@@ -294,7 +342,19 @@ namespace Spixi
                         try { captured.Release(); } catch (Exception) { }
                     }
                     closeFd();
-                });
+                };
+                // ★ #506①: root it BEFORE Start, so there is no window in which a
+                // collection can reach a player that is already producing sound.
+                lock (liveEffects) { liveEffects.Add(captured); }
+                captured.Start();
+                /* ★★ THE SOUND IS PLAYING FROM HERE. Two assignments follow, then the try
+                 * ends. Neither assignment allocates and neither calls, so neither can
+                 * throw, so the outer catch is unreachable from this point.
+                 * ⚠ Put ANY statement between Start() and the closing brace below and you
+                 * re-open m13: a throw there cuts the sound, leaks the descriptor and
+                 * marks the asset missing for the whole process. */
+                fdHandedOff = true;
+                beltHandoff = expireBelt;
             }
             catch (Exception e)
             {
@@ -330,6 +390,34 @@ namespace Spixi
                 {
                     try { fd?.Close(); } catch (Exception) { }
                 }
+            }
+            /* ★★ OUTSIDE EVERY try IN THIS METHOD. That placement is the guarantee.
+             * A non-null beltHandoff means Start() returned, so the sound is playing.
+             * Nothing below can reach the catch above it. */
+            if (beltHandoff != null)
+            {
+                scheduleEffectBelt(beltMs, beltHandoff);
+            }
+        }
+
+        /* ★★ #46 loop m13 — THE BELT SCHEDULER, DELIBERATELY BLIND.
+         * This method sees a delay and one delegate. It cannot see filePath, fd, player
+         * or captured, so the three damaging statements — markMissing(filePath),
+         * captured.Release() and liveEffects.Remove(captured) — do not compile here.
+         * That is the point of the signature. Widen it and you hand the damage back.
+         * The catch exists so a scheduling failure cannot escape into the caller. It
+         * logs and nothing else. It must never call expire(): expire() releases a
+         * player that is still producing sound, which is the m13 damage under a new
+         * name. The log call carries no file path, so it cannot forge a log line. */
+        private static void scheduleEffectBelt(int delayMs, Action expire)
+        {
+            try
+            {
+                Task.Delay(delayMs).ContinueWith(_ => expire());
+            }
+            catch (Exception beltEx)
+            {
+                try { Logging.warn("playEffect belt not scheduled: " + beltEx.Message); } catch (Exception) { }
             }
         }
 

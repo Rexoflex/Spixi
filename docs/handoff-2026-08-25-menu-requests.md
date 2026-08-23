@@ -1,5 +1,9 @@
 # Handoff — READ FIRST. State after the #517–#520 batch (scroll · sounds · press).
 
+> ⚠ **PRIORITY CHANGED 2026-08-23 (Damir): the next session is the WALLET SEND pass —
+> read `docs/handoff-2026-08-26-wallet-send.md` FIRST.** The menu batch and the other
+> items below stay valid and QUEUED behind it.
+
 **LANGUAGE RULE: ASD-STE100 Simplified Technical English.** Damir re-confirmed 2026-08-22.
 ★ Entry prompt: `docs/next-session-prompt-2026-08-25.md`.
 ★ Previous handoff: `docs/handoff-2026-08-24-scroll-sounds-menu.md` (items 1–4 are DONE).
@@ -14,7 +18,8 @@ Items 1–4 of the 2026-08-24 handoff are BUILT, loop-CLEAN after three rounds, 
 delivered UNCOMMITTED to Damir's disk with a full green pipeline: bundle **275** ·
 shells **18** · smoke **BASELINE OK 2766 / the 3 KNOWN (#136 · M5 · B3)** · cs-syntax
 **142 + 1** · locales **ALL CLEAN**. ⚠ The smoke number is **2766**, not 2691 — this
-batch added ~75 asserts. ★ **Damir's F5 PASSED 2026-08-23 — 29/29, 0 fail** (`docs/f5-verdict-2026-08-24-scroll-sounds-press.md`); no dials called. The #514–#516 batch WAS
+batch added ~75 asserts. ★ **Damir's F5 PASSED 2026-08-23 — 29/29, 0 fail**
+(`docs/f5-verdict-2026-08-24-scroll-sounds-press.md`); no dials called. The #514–#516 batch WAS
 committed and pushed before this batch started (`e1237928` + `8f2773ed` + `f29b344e`,
 tarball untracking included) — verify the new batch sits on top of `f29b344e`
 uncommitted before you add anything.
@@ -22,7 +27,8 @@ uncommitted before you add anything.
 ## 1. ★ FIRST: has Damir committed #517–#520?
 
 Same rule as last time. The batch passed the loop AND the device walk (29/29). Order:
-HE commits → only then new work on these files. His commit should include the whole delivery (source + generated).
+HE commits → only then new work on these files. (#517–#520 are committed; #521 rides
+the follow-up commit.)
 
 ## 2. THE WORK, in priority order
 
@@ -58,7 +64,9 @@ from Contacts (entered from Settings) land in Chats? Do not build past it.
 * **The press-feedback dials** are now Damir's F5 calls: the 70 ms paint delay, the
   5% alpha wash (dark visibility on the Galaxy), the fade-phase re-press trade
   (#519/#520 accepted residuals).
-* **The sound-picks interview** — Damir said "later" when offered 2026-08-23.
+* **The sound-picks interview RAN (#521)** — his picks shipped (`minimal/queued` +
+  `minimal/warning`, −16 dBFS); 🟡 his more-sounds question is open on the recorded
+  recommendation (no chrome sounds).
 * **A-6** (the corrected repro: foreground + airplane-mode window) · the **Android
   decrypt loop** (observation only) · **BE-owned** `OfflinePushMessages.cs:118`
   HttpClient no Timeout · **iOS #503** (`docs/ios-nse-spec.md` §2 is Damir's

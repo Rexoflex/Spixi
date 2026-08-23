@@ -1,8 +1,10 @@
 # NEXT SESSION — entry prompt. Paste this.
 
-**READ `docs/handoff-2026-08-25-menu-requests.md` FIRST. It is the whole brief.**
-Then `DECISIONS.md` rows **#517–#520** and `docs/opus-review-verdict-517-519.md` for
-the loop that closed the last batch.
+**READ `docs/handoff-2026-08-26-wallet-send.md` FIRST. It is the whole brief.**
+The session's job, set by Damir on 2026-08-23: **finalize the WALLET SEND flow** —
+and it STARTS WITH AN INTERVIEW (*"we need to talk about that"*), not with code.
+Then `docs/wallet-parity-analysis.md`, DECISIONS **#232 · #255 · #517–#521**, and
+`docs/opus-review-verdict-517-519.md` for the last loop.
 **LANGUAGE RULE: ASD-STE100 Simplified Technical English** — chat replies and code
 comments. Damir re-confirmed it on 2026-08-22.
 
@@ -16,9 +18,9 @@ git clone https://github.com/ixian-platform/Ixian-Core.git   # SIBLING, REQUIRED
 npm install --no-save jsdom tree-sitter tree-sitter-c-sharp  # ONE call
 ```
 
-⚠ **If Damir has NOT yet committed #517–#520, the clone does NOT carry the batch** —
-it lives uncommitted on his disk. Ask first; if uncommitted, stage the changed files
-from his disk instead of relying on the clone, or wait for his commit.
+⚠ #517–#520 are committed; **#521 (sound picks) + the wallet-send handoff docs ride
+a follow-up commit** — confirm with Damir that it is pushed before trusting the
+clone; if not, stage the 7 changed files from his disk.
 
 **Verify before you touch anything. If any number differs, say so and STOP.**
 
@@ -32,72 +34,56 @@ from his disk instead of relying on the clone, or wait for his commit.
 | `node scripts/cs-syntax-check.mjs` | **142** clean + **1** known gap |
 | `node scripts/verify-locales.mjs` | ALL LOCALES CLEAN |
 
-⚠ **2766, not 2691.** The #517–#520 batch added ~75 asserts.
+## ★★ THE INTERVIEW FIRST — handoff §1, the six calls only Damir can make
 
-## ★★ ASK DAMIR FIRST
+Finalize-scope · the W5 verb + native confirm (+PA1?) · the W6 fee push · the
+recipient picker (retire `WalletRecipientPage`? unlocks create-group #256) · who
+writes the money C# (#232's human-BE gate stands) · scan-to-send dials.
+**Every answer = a DECISIONS row (#522+), written at decision time.**
 
-1. **Has the #517–#520 batch been committed?** It was delivered UNCOMMITTED with a
-   green pipeline; his F5
-   (`docs/f5-checklist-2026-08-24-scroll-sounds-press.md`) gates the commit.
-2. **Did the F5 pass?** The wallet-scroll rows (1.1–1.8) and the dark press
-   visibility (3.4) carry dials that are his to call. A fail is a finding AND a pin
-   gap — bring the log, not a guess.
+## THE BUILD, after the interview (handoff §2)
 
-## THE WORK, in priority order
-
-0. **The #46 loop is run by OPUS models.** Builder never reviews its own work.
-   #520 is the latest receipt: 7 MAJOR-class across 3 rounds, none reachable by
-   self-review, two of them fixes eating their own tails.
-1. **THE MENU BATCH** — handoff §2.1. Four calls, all Damir's. Anchored dropdown
-   (mobile message menu + chats row menu) · deeper mobile scrim · desktop
-   `[data-dt-ctx-source]` retune with **NO wash (#268)** · QR full bottom sheet
-   folded with the existing explainer. Rider: dev HUD 72 px rail offset.
-   ⚠ Press rows now carry `isolation: isolate` (#519) — re-verify any NEW lift
-   against it.
-2. **REQUESTS — the BE verb question FIRST** — handoff §2.2. Read `SpixiMessageCode`
-   in Ixian-Core; do not touch it. One row, not three. No copy before the answer.
-3. **CONTACTS BACK-STACK** — mechanism first (#294). The IA move stays parked.
+1. **#255 roster filter FIRST** — groups must never appear as money recipients.
+2. **W6 fee push** (small C#). 3. **W5 signed hand-off** (C# signs + NATIVE confirm
++ ack push; the WebView composes only — SECURITY.md is the wall). 4. Flip
+`composeSend`, F5. 5. **The #46 loop, OPUS-run** — money surface, not optional; the
+security-handover-gate row is written WHILE building; the BE engineer sees the
+money-path delta before it ships.
 
 ## DO-NOTs
 
-1. Do not touch Ixian-Core. 2. No desktop menu wash (#268). 3. No second
-address-explainer surface. 4. No request-cancel copy before the BE answer.
-5. Do not build the Contacts IA move. 6. Builder never reviews its own work.
-7. Do not re-litigate the #519 dials without Galaxy numbers.
+1. WebView never signs, never sees keys, no confirm past the native step.
+2. No Ixian-Core changes (`097341a` frozen); core needs = BE row.
+3. No `composeSend` flip before the #255 filter is F5'd. 4. No invented fee.
+5. No new NuGet. 6. Builder never reviews its own work.
+7. The menu batch, the request-verb question and the contacts back-stack stay
+   QUEUED behind this pass (`docs/handoff-2026-08-25-menu-requests.md`).
 
 ## STANDING RULES THAT EARNED THEIR PLACE
 
-* ★★ A CSS pin that reads one rule in one file cannot pin a cascade — and the
-  corpus now includes SHELL `<style>` blocks; keep it that way.
-* ★★ PIN THE GUARANTEE, NOT THE SHAPE — and a REBASED pin is a NEW pin: mutate it
-  again (#520: a widened regex window went vacuous and hid a defect class).
-* ★★ A FIX CAN EAT ITS OWN TAIL — twice in one batch this round. Fresh reviewers
-  exist for exactly this.
-* ★ MUTATE BEFORE BELIEVING — 32 mutations this round; every pin earned its place.
-* ★ A PASS IS NOT A PROOF. Read the screenshot or the log, not the tick.
-* ★ A DEFECTIVE BRIEF IS THE NORMAL CASE — the handoff's own reserve prescription
-  ("pad by exactly what the hero gives up") was wrong in a way only the loop found.
-* ★ RESOLVE COLOUR DIALS AGAINST EVERY GROUND (#520: 1.000:1 on cards).
-* ★ jsdom has NO ResizeObserver — stub it or RO code is unexecuted, unpinned code.
-* ★ AN ACCEPTANCE TEST CAN BE THE LAST DEFECT — verify the arithmetic of your own
-  probe claims (`range == max(top, maxPre − delta)`, invariant `range ≥ top`).
-* ★ THE RUNNING APP IS NOT THE BUILD OUTPUT — `strings -el` (UTF-16), wipe
-  `obj`/`bin` on any C# change (#387), process launched after the build.
-* ⚠ VERIFY THE EXTRACT LANDED. ⚠ Never republish a live artifact from a stale copy.
-* Bundle BEFORE shells. DECISIONS rows at decision time. Smoke as bookends.
-  `git --no-optional-locks` always. Verdicts to disk WITH THE BATCH IN THE FILENAME.
+★★ A CSS pin cannot pin a cascade from one rule in one file (corpus includes shell
+`<style>` blocks — keep it). ★★ Pin the guarantee, not the shape; a REBASED pin is a
+NEW pin — mutate it again. ★★ A fix can eat its own tail — twice in one batch last
+round; fresh reviewers exist for this. ★ Mutate before believing; invent mutations
+the work order does not list. ★ A pass is not a proof — read the log, not the tick.
+★ A defective brief is the normal case — verify premises at source
+(`raw.githubusercontent.com` answers when nuget.org 403s). ★ Resolve colour dials
+against every ground. ★ jsdom has no ResizeObserver — stub it or RO code is
+unpinned. ★ An acceptance test can be the last defect — check your own arithmetic.
+★ THE RUNNING APP IS NOT THE BUILD OUTPUT — wipe `obj`/`bin` on C# change (#387),
+relaunch, probe the assembly byte-level (a naive UTF-16 decode misses odd-offset
+strings — the corrected probe scans both alignments). ⚠ Verify the extract landed.
+⚠ Never republish a live artifact from a stale copy. Bundle BEFORE shells. DECISIONS
+rows at decision time. Verdicts to disk WITH THE BATCH IN THE FILENAME.
 
 ## DELIVERY
 
-Windows + PowerShell, Android on adb
+Windows + PowerShell, Galaxy on adb
 (`C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe` — not on PATH),
-a Mac in the office for iOS. Land everything on his disk **UNCOMMITTED** with a full
-green pipeline. **ONE step at a time and WAIT.** Expectations in a table **OUTSIDE**
-the pasted block, with the NUMBER to expect. Check the device is attached BEFORE the
-run step (#450). Android: `dotnet build Spixi\Spixi.csproj -f net10.0-android -c
-Release`, then `-t:Run` as a SEPARATE command (#320). Windows:
-`-f net10.0-windows10.0.19041.0 -c Debug`, then the exe separately. Tarballs into
-**`_deliveries/`**, NEVER the repo root; `tar` needs `--overwrite`. `device_bash` is
-capped at 45 s — stage git adds in chunks of ~20. `mv` stranded `*.lock` files to
-`_to_delete/`. `git push` does NOT work from the bridge. **Never `git add -A`** —
-the tree carries CRLF-only churn on ~116 files.
+Mac in the office for iOS. Land on his disk **UNCOMMITTED**, full green pipeline.
+**ONE step at a time and WAIT.** Expectations OUTSIDE the pasted block, with the
+NUMBER to expect. Device attached BEFORE the run step (#450). Android: build, then
+`-t:Run` as a SEPARATE command (#320). Windows: `-f net10.0-windows10.0.19041.0 -c
+Debug`, exe separately. Tarballs into **`_deliveries/`** only; `tar --overwrite`.
+`device_bash` 45 s cap — git adds in chunks of ~20. `mv` stranded `*.lock` to
+`_to_delete/`. `git push` does NOT work from the bridge. **Never `git add -A`.**

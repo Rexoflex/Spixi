@@ -643,6 +643,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transition: opacity var(--duration-200) var(--easing-standard);
 }
 .c-scrim[data-open] { opacity: 1; }
+/* ★ Batch E (b) (#557, Damir 2026-08-22): the MOBILE scrim is one level deeper
+   (0.6 → 0.7) — the lifted message (#506②) reads better against the darker
+   ground. Desktop keeps 0.6 for its centred dialogs; anchored desktop menus
+   stay wash-free (#268, [data-dt-clear] below). */
+:root:not([data-desktop]) .c-scrim { background: var(--surface-scrim-deep); }
 
 /* —— bottom sheet (z-44) ————————————————————————————————————————————————
    ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
@@ -819,7 +824,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
 :root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
-:root[data-desktop] [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+/* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
+   highlight is RETUNED — the SELECTED tint read as a selection state on the
+   right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
+   the alpha recipe that lands one perceptual level on EVERY ground — the plain
+   press step is invisible on a card, the 5c-iii lesson), so the row reads as
+   "held", not "chosen".
+   ⚠ loop E-4 (r2): :not([aria-current]) is LOAD-BEARING — this (0,3,0) shorthand
+   would otherwise REPLACE the OPEN conversation's tonal selected paint (0,2,0)
+   in the desktop split view, visually deselecting the row under its own menu.
+   The selected row keeps its tonal; the wash marks only unselected sources. */
+:root[data-desktop] [data-dt-ctx-source]:not([aria-current]) { background: var(--surface-press-row-hover); border-radius: var(--radius-12); }
 /* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
 :root[data-desktop] .c-sheet[data-dt-anchor="up"] {
   right: auto; top: auto; margin: 0;
@@ -834,6 +849,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
 :root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+
+/* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
+   The message menu + the chats-row menu present as a DROPDOWN anchored to the
+   pressed row (desktop-anchors.js anchorSheetToRow sets the tag + inline
+   left/top/width). Placement prefers ABOVE the row, so the menu can never cover
+   the message it acts on — the 4.1 fix, structural. Everything else about the
+   overlay is UNCHANGED: same z-44 (above the z-42 lifted row, #506②), same scrim
+   (one level deeper here, (b) above), same focus/Esc/stack grammar, and the
+   `:not([data-open])` pointer-events rule still covers the fade windows.
+   Enter/exit = FADE IN PLACE (the desktop [data-dt-anchor] rule): a panel that
+   slid from the bottom edge to mid-screen would point at the wrong origin. */
+:root:not([data-desktop]) .c-sheet[data-m-anchor] {
+  left: auto; right: auto; bottom: auto;
+  margin: 0;
+  max-width: none;
+  border-radius: var(--radius-16);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-12);
+  /* ★ loop E-1 (r2): the dropdown must never leave the SAFE region or outgrow the
+     host — a menu taller than the screen with the body scroll locked is
+     unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
+     Island (the #288 inset class). The height cap makes the menu its own
+     scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
+  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  overflow-y: auto;
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
 </style><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <style data-src="../styles/components/settings-shell.css">
@@ -962,61 +1007,26 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   text-align: center;
 }
 
-/* QR — behind a "Show QR" reveal since N86 ②; the receive-card pair (never
-   theme-flips, #137). align-self:center so the white card HUGS the code instead of
-   spanning the hero — chat-info parity, which is the disagreement #149③ recorded. */
-/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
-   this way on dark mode it's quite overpowering."
-
-   Measured before touching it, because HALF of that white is a standard, not a choice.
-   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
-   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
-   per side (the table below), and it is untouchable.
-
-   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
-   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
-   on scanning at all.
-
-   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
-   padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner.
-
-   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
-   comment carried three wrong ones. The method: run the SHIPPED encoder
-   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
-   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
-   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
-   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
-   is always 8 cells wider than the code:
-     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
-     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
-     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
-   A real Ixian address lands in the middle row.
-
-   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
-   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
-   is a different measurement, and it understates the loss by 41%.
-
-   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
-   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
-   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
-   removes nothing. The curve first touches the code corner when the quiet zone falls
-   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
-   make one.
-   ⚠ Raise this radius above 16px and re-do both comparisons. */
-.c-settings__qr {
-  display: flex;
-  justify-content: center;
-  align-self: center;
-  margin-top: var(--spacing-4);
-  border-radius: var(--radius-16);
-  background: var(--surface-qr);
-  box-shadow: var(--elevation-1);
-}
-
-/* N86 ②: the reveal row. Deliberately the SAME construction as
-   .c-chat-info__qr-toggle — the two surfaces disagreeing is what #149③ was. */
+/* QR — history of this block, kept visible (never deleted):
+   · #147 put the code on the hub; N86 ② (Damir) moved it behind a "Show QR" reveal
+     ("quite overpowering" in dark mode) and N86 ① dropped the 12px card padding
+     with the full measured-geometry argument (encoder-verified cell/quiet-zone
+     table, the radius-vs-quiet-zone corner arithmetic).
+   · ★ Batch E (d) (#557, Damir 2026-08-22 / #551) then removed the hub's OWN card
+     entirely: the row opens `openAddressSheet` — ONE address surface (#443/#453),
+     no second QR construction to drift (#149③'s defect class, retired here).
+   The N86 ① measured-geometry docblock + card now live in chat-info.css ONLY
+   (that surface keeps its inline reveal); the sheet's card geometry lives in
+   wallet-receive.css (.c-addr-sheet__qrcard — padding 0 per F5-5 ①, width by
+   min(), the same `quiet = 4` encoder floor pinned in qr.js). Re-measure THERE
+   if the payload or the encoder changes. */
+/* ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the hub renders NO QR card of its
+   own any more — the `.c-settings__qr` box is GONE. The "Show QR" row opens
+   `openAddressSheet` (wallet-receive.css owns that surface: .c-addr-sheet__qrcard,
+   padding 0 per F5-5 ①, the same measured-geometry rules the docblock above pins).
+   The row keeps N86's affordance position (under the address, action-tinted) and
+   the chevron is a STATIC chevron-right — it opens a dialog, it discloses nothing
+   in place, so the aria-expanded rotation went with the box. */
 .c-settings__qr-toggle {
   display: flex;
   align-items: center;
@@ -1033,12 +1043,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__qr-chevron {
   margin-inline-start: auto;
-  transition: transform var(--duration-200) var(--easing-standard);
 }
-.c-settings__qr-toggle[aria-expanded='true'] > .c-settings__qr-chevron {
-  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
-}
-.c-settings__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (receive-card family) — +25% with chat-info (Damir F5 2026-07-29) */
 
 .c-settings__address-row {
   display: flex;
@@ -1470,16 +1475,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-settings__switch, .c-settings__switch-knob { transition: none; }
 }
 
-/* #443: the "what is this address" explainer body — two short paragraphs, the second
-   quieter than the first (the promise, not the pitch). */
-.c-settings__addrinfo-body { display: flex; flex-direction: column; gap: var(--spacing-8); }
-.c-settings__addrinfo-body p {
-  margin: 0;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-}
-.c-settings__addrinfo-body p + p { color: var(--text-neutral-02); }
+/* #443's hand-built explainer body RETIRED by ★ Batch E (d) (#557, loop C-7): the
+   "What is this address?" action opens openAddressSheet now — the sheet carries
+   the explainer (.c-addr-sheet__info, wallet-receive.css). Dead rules removed;
+   they shipped inlined into every shell. */
 
 /* #453: the address explainer is a text action UNDER the address chip, not a third icon
    inside it. Centred with the QR and the chip above it. */
@@ -3959,6 +3958,279 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 }
 
 </style><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
+<style data-src="../styles/components/wallet-receive.css">
+/* c-wallet-receive — Receive/Request progressive surface (spec §4, slice 3).
+   QR card paints --surface-qr (near-white in BOTH themes — scan contrast);
+   modules ink = --on-qr. Everything else follows the send-screen grammar. */
+
+.c-wallet-receive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16);
+}
+
+/* —— QR card —— */
+.c-wallet-receive__qrcard {
+  align-self: center;
+  width: min(325px, 86vw, 100%);   /* loop NIT: inside the desktop dialog 86vw can beat the sheet's content box */   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
+  padding: var(--spacing-16);
+  box-sizing: border-box;
+  border-radius: var(--radius-24);
+  background: var(--surface-qr);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-receive__qrcard .c-qr { display: block; width: 100%; height: auto; }   /* scoped — qr.js owns no stylesheet (audit n1) */
+.c-wallet-receive__caption {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* hidden live region (audit m3/M3): transitions + request-sent announcements */
+.c-wallet-receive__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* —— address chip (member-sheet pattern, #99 — mirrors c-txsheet__addr) —— */
+.c-wallet-receive__addr {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-wallet-receive__addrvalue {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;                         /* the FULL address is the verification truth (#99) */
+}
+.c-wallet-receive__copy {
+  flex: none;
+  width: 32px; height: 32px;                       /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount (mirrors the send entry: money is the hero) —— */
+.c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-receive__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-receive__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-receive__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+
+/* —— send-request-to-contact strip —— */
+.c-wallet-receive__ask { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-receive__asklabel {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+/* Damir F5 2026-07-29 (round 2): the strip stopped at 5 contacts, so reaching anyone
+   further down MEANT typing — fixed by making it SCROLL (cap raised in
+   wallet-receive.js). The card treatment tried in round 1 is REVERTED: this strip
+   already sits inside the request box, so a second surface stacked its padding on top
+   of that one and read cramped. ★ #560 (Damir, screenshots 2026-08-25) REVERSES
+   both halves of that ruling: the capped 5-row INNER scroller was the "weird" he
+   flagged (scroll-inside-scroll on touch, the CTA detached from the pick), and
+   the list now wears the DIRECTORY CARD — byte-parity with .c-contacts__list
+   (#149③ anti-drift). Full-length list, the PAGE scrolls, the CTA below goes
+   STICKY so it stays reachable. The keyboard case is served by order (amount is
+   on top and W-k drops the keyboard on Enter), not by a cap. */
+.c-wallet-receive__contacts {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row now (directory grammar: avatar-48 + name + truncated
+   address + online dot + the W9 select circle). `.c-wallet-receive__contact` stays
+   on the element as an ALIAS for base.css (press sweep) / pressable.js / the pins;
+   it carries no layout of its own any more. */
+/* (disabled rows: contact-row.css dims the avatar + name at --opacity-disabled — one grammar) */
+.c-wallet-receive__hint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* (the W9 select circle lives in contact-row.css now — .c-contact-row__check) */
+/* W9 result line — the visible half of the send outcome (the live region does the
+   announcing). Tone-switched: an all-clear run reads success, a partial failure
+   reads error and the failed rows are still ticked above it. */
+.c-wallet-receive__result {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-success);
+}
+.c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
+/* W9 CTA — the one thing on this surface that can send. Full width, primary.
+   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
+   action pins itself to the bottom of the scroller, rows sliding beneath it,
+   reachable at any scroll depth and clear of the home indicator. elevation-2
+   separates it from the rows passing under. */
+.c-wallet-receive__cta {
+  margin-block-start: var(--spacing-4);
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
+  z-index: 1;
+  box-shadow: var(--elevation-2);
+}
+.c-wallet-receive__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* —— #527: header row (request heading + the small "Show my address" button) —— */
+.c-wallet-receive__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
+.c-wallet-receive__addrbtn { flex: none; }
+
+/* —— #527 / ★ W-c: the address sheet (QR + address + copy + Share + explainer) ——
+   Damir F5 2026-08-23: the desktop dialog OVERFLOWED (visible scrollbar, the chip
+   and the explainer cut) and a short phone viewport had no scroll at all. The
+   sheet content is now its OWN scroll region with a viewport cap; the QR card
+   scales with min(); the desktop dialog is capped at 440px. Then the PREMIUM
+   pass — this is the one address surface (Account reuses it), polished once. */
+.c-addr-sheet {
+  display: flex; flex-direction: column; gap: var(--spacing-16);
+  max-height: min(72dvh, 640px);            /* the sheet title + handle sit above; the rest scrolls */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
+  margin-inline: calc(-1 * var(--spacing-2));
+}
+@supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
+:root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
+/* loop r1 m8: the desktop dialog is `max-height: 76%` with 24px padding + the title —
+   the INNER cap must bind first or the outer dialog scrolls with its own bar (the
+   exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
+:root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+/* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
+   overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
+   could scroll instead of this element, and the u-scroll thumb is hover-only.
+   The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
+   thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
+:root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-addr-sheet.u-scroll {
+    scrollbar-color: var(--outline-neutral-02) transparent;
+  }
+  :root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+    background: var(--outline-neutral-02);
+  }
+}
+.c-addr-sheet__qrwrap { display: flex; justify-content: center; }
+.c-addr-sheet__qrcard {
+  /* scale with the viewport on BOTH axes: a short window shrinks the code before
+     it pushes the chip below the fold. --surface-qr stays near-white in both themes.
+     ★ F5-5 ① (#556, Damir F5 2026-08-24): card padding DROPPED to the Account
+     proportions (.c-settings__qr has none — N86). The SVG's own ISO quiet zone is
+     the white margin; the extra 20px ring doubled it. Radius joins the Account
+     family (radius-16); the hairline outline goes with the padding. */
+  width: min(280px, 52dvh, 86vw, 100%);
+  padding: 0;
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
+}
+@supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(280px, 52vh, 86vw, 100%); } }
+.c-addr-sheet__caption {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+/* the address chip: the #99 member-sheet pattern, one step more deliberate —
+   a hairline, a larger radius and letter-spacing so the base58 reads as a token */
+.c-addr-sheet__addr {
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-16) var(--spacing-8);
+  border-radius: var(--radius-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-addr-sheet__addr .c-wallet-receive__addrvalue {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: 0.01em;
+}
+.c-addr-sheet__addr .c-wallet-receive__copy { width: 40px; height: 40px; }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
+.c-addr-sheet__share { margin-block-start: calc(-1 * var(--spacing-4)); }
+/* the explainer block — ★ F5-5 ③ (#556): ONE glyph level. The filled disc read as
+   an icon inside an icon (Damir screenshot); a bare tinted info-circle leads the
+   two quiet lines. The safety line keeps its inline shield glyph. */
+.c-addr-sheet__explain {
+  display: flex; align-items: flex-start; gap: var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-addr-sheet__explainicon { flex: none; margin-top: 1px; color: var(--icon-info); display: inline-flex; }
+.c-addr-sheet__explaintext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-addr-sheet__info {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-addr-sheet__info--safe {
+  display: flex; align-items: flex-start; gap: var(--spacing-8);
+  color: var(--text-neutral-01);
+}
+.c-addr-sheet__info--safe svg { flex: none; margin-top: 1px; color: var(--icon-success); }
+
+/* ★ W-b (2026-08-24): desktop content column cap — see wallet-send.css */
+:root[data-desktop] .c-wallet-receive { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+</style><!-- ★ Batch E (d) (#557): openAddressSheet (.c-addr-sheet / __qrcard) — unstyled here without it (the toast.css lesson) -->
 <style>
   /* Production shell: fill the WebView. Internal views (hub = root · danger /
      about / how-to = takeovers) swap client-side inside #settings-root.
@@ -4087,7 +4359,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
-    createSheet, openSheet,          // #443: the "what is this address" explainer
+    openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
     applyPushedTheme,
@@ -4422,6 +4694,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // survive in a live DOM until the next visit. Reached by a rail tab switch
     // (onExitRequest), the peer nav and hardware back.
     releaseEncpass();
+    // ★ Batch E (d) r2 (loop C-8): the address sheet must not outlive its screen
+    // (the wallet-receive rule) — and THIS document parks, so a stranded sheet
+    // would still be there on the next visit. Safe when nothing is open.
+    try { closeAddressSheet(); } catch (e) {}
     const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
   }
@@ -4735,27 +5011,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         exitSettings();
       },
 
-      /* ★ #443 (Damir V1): what IS this address. One sheet — the desktop overlay
-         grammar (#261 M6) renders every c-sheet as a centred dialog, so this is one
-         component, not a mobile/desktop fork.
-         ⚠ COPY IS A DRAFT — flagged for Damir's sign-off. It deliberately does NOT
-         claim the address hides anything: an Ixian address is public and its balance
-         is visible in any explorer, so the honest promise is about WALLET ACCESS. */
+      /* ★ #443, refolded by ★ Batch E (d) (#557): "What is this address?" opens the
+         SAME address sheet the Show-QR row opens — openAddressSheet already carries
+         the explainer copy (addressInfoBody + addressInfoSafety, EXACT keys), the
+         code, the full address and Share. ONE surface, two doors; the hand-built
+         second sheet this handler used to assemble is gone (#443/#453's point). */
       onAddressInfo: () => {
-        const body = document.createElement('div');
-        body.className = 'c-settings__addrinfo-body';
-        const p1 = document.createElement('p');
-        p1.textContent = strings.addressInfoBody
-          || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-        const p2 = document.createElement('p');
-        p2.textContent = strings.addressInfoSafety
-          || 'Sharing it is safe: it never gives anyone access to your wallet.';
-        body.append(p1, p2);
-        const sheet = createSheet({
-          content: body, host: document.body, strings,
-          title: strings.addressInfoTitle || 'Your Ixian address',
+        openAddressSheet({
+          address: state.address, strings, host: document.body,
+          onShare: isDesktop ? undefined : shareAddress,   // W9: desktop has no distinct share
         });
-        openSheet(sheet);
       },
 
       // About / How to use / Contributors — STATIC in-hub views, zero-C# (no bridge verb).

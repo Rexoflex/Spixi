@@ -2,6 +2,7 @@
 using IXICore.Meta;
 using IXICore.SpixiBot;
 using IXICore.Streaming;
+using Microsoft.Maui.ApplicationModel;   // F5-2 r2 (loop A-4): the posted drained-marker breadcrumb
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using SPIXI.Lang;
@@ -320,24 +321,41 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:leave"))
             {
                 // #248 group surface: leave — mirrors SingleChatPage's ixian:leave
-                // (group → sendLeave + removeFriend · bot → pendingDeletion + sendLeave).
+                // (group AND bot: sendLeave + immediate removeFriend, #567).
                 if (friend.bot || friend.type == FriendType.Group)
                 {
-                    if (!friend.bot)
-                    {
-                        CoreStreamProcessor.sendLeave(friend, null);
-                        FriendList.removeFriend(friend);
-                    }
-                    else
-                    {
-                        friend.pendingDeletion = true;
-                        friend.save();
-                        CoreStreamProcessor.sendLeave(friend, null);
-                    }
+                    /* ★ F5-2 (#555, r2 per loop A-4/A-5) — BREADCRUMBS. The bot-group
+                     * removal crash reached no log. Each step logs BEFORE it runs, so
+                     * the last line in ixian.log brackets the crash site on the next
+                     * repro. No address in any line (the handover-gate log rule).
+                     * ⚠ ONE flush before the navigation work + one in the posted
+                     * drained-marker (A-5: Logging.flush is an unbounded spin on the
+                     * UI thread — the writer thread drains continuously anyway, the
+                     * flush is the belt, and four of them was ANR-shaped).
+                     * ⚠ "dispatched", not "done": popToRootAsync and the alert are
+                     * fire-and-forget — the async teardown runs on LATER main-thread
+                     * turns (A-4). The posted marker below is queued AFTER the nav
+                     * lambda, so it brackets that first async turn too; a crash after
+                     * it is in still-later navigation work. */
+                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: start (bot=" + friend.bot + ")");
+                    // ★ #567: ONE grammar for group AND bot — sendLeave + immediate
+                    // removeFriend (the pendingDeletion wait fed the BE §1e-6 core
+                    // crash; see SContacts.leaveGroup for the whole mechanism).
+                    CoreStreamProcessor.sendLeave(friend, null);
+                    FriendList.removeFriend(friend);
                     UIHelpers.shouldRefreshContacts = true;
+                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
                     displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
+                    IXICore.Meta.Logging.flush();
                     popToRootAsync();
                     HomePage.Instance()?.removeDetailContent();
+                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: teardown dispatched");
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: first async nav turn drained");
+                        IXICore.Meta.Logging.flush();
+                    });
                 }
             }
             else if (current_url.StartsWith("ixian:enableNotifications"))
@@ -453,10 +471,11 @@ namespace SPIXI
         {
             if (friend.bot && friend.metaData.botInfo != null)
             {
-                friend.pendingDeletion = true;
-                friend.save();
-                UIHelpers.shouldRefreshContacts = true;
+                // ★ #567: immediate removal (the group grammar) — the pendingDeletion
+                // wait fed the BE §1e-6 core crash. See SContacts.leaveGroup.
                 CoreStreamProcessor.sendLeave(friend, null);
+                FriendList.removeFriend(friend);
+                UIHelpers.shouldRefreshContacts = true;
                 displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
                 return true;
             }

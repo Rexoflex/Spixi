@@ -127,7 +127,14 @@ namespace SPIXI
                         var files = Directory.EnumerateFiles(dir);
                         foreach (var file in files)
                         {
-                            archive.CreateEntryFromFile(file, Path.Combine("Acc", file.Substring(file.IndexOf(root_path) + root_path.Length + 1)));
+                            /* ★ #565 (Damir, A2 walk 2026-08-25): FORWARD slashes in zip entry names.
+                               Path.Combine used the PLATFORM separator, so a backup made on Windows
+                               carried entries named "Acc\\xxx\\file" — and extracting that on
+                               Android/iOS creates FILES with backslashes in their names instead of
+                               the Acc directory tree. The restore then found no Acc folder and
+                               silently degraded to a wallet-only restore (no contacts). The zip
+                               spec (APPNOTE 4.4.17) mandates "/" — write it explicitly. */
+                            archive.CreateEntryFromFile(file, "Acc/" + file.Substring(file.IndexOf(root_path) + root_path.Length + 1).Replace('\\', '/'));
                         }
                     }
                     if (File.Exists(Path.Combine(Config.spixiUserFolder, "account.ixi")))

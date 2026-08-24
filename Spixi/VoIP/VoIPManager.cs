@@ -31,6 +31,7 @@ namespace SPIXI.VoIP
         private static readonly object lastPacketReceivedLock = new object();
 
         static bool currentCallInitiator = false;
+        static bool currentCallDeclinedLocally = false;   // F5-1 r3 (R-2): THIS device rejected the call (user decline, or the codec auto-reject where no row/message ever existed) — cancel the row, never "Missed call"
         public static long currentCallInitiated { get; private set; } = 0;
 
         public static bool isInitiated()
@@ -209,7 +210,20 @@ namespace SPIXI.VoIP
                 if (endedWith != null && endedWith.walletAddress != null)
                 {
                     int callNotifId = SPIXI.Meta.SNotificationPrefs.notificationIdFor(endedWith.walletAddress, true);
-                    if (currentCallAccepted || currentCallCalleeAccepted || currentCallInitiator)
+                    /* ★★ F5-1 r2 (#554, loop A-1) — THE REAL EATER, one predicate. The old
+                     * test was `currentCallAccepted || currentCallCalleeAccepted ||
+                     * currentCallInitiator` — but onReceivedCall sets
+                     * currentCallCalleeAccepted = true AT RING TIME for EVERY incoming
+                     * call (:92), so the OR was always true, the cancel branch always ran
+                     * (and cancelNotification takes the TAGGED row too), and the
+                     * "Missed call" re-post below was UNREACHABLE code. That is the row
+                     * Damir watched vanish. ANSWERED means BOTH ends accepted — the same
+                     * `callAccepted` this file already computes for the chat card (:266).
+                     * A call we PLACED still cancels (nothing was missed). */
+                    bool answeredCall = currentCallAccepted && currentCallCalleeAccepted;
+                    /* r3 (verdict R-2): + declined-locally — the user SAW the call and
+                     * dismissed it; posting "Missed call" at the decline would be a lie. */
+                    if (answeredCall || currentCallInitiator || currentCallDeclinedLocally)
                     {
                         // Answered, or we placed it — nothing was missed, so take the row down.
                         SPushService.cancelNotification(callNotifId);
@@ -295,6 +309,8 @@ namespace SPIXI.VoIP
             currentCallContact = null;
             currentCallCalleeAccepted = false;
             currentCallAccepted = false;
+            currentCallInitiator = false;   // F5-1 r2 (loop A-8): every other call field resets here — a latched initiator would poison the A-1 predicate on the NEXT call
+            currentCallDeclinedLocally = false;   // r3 (R-2): same rule — a latched decline would eat the NEXT call's missed row
             currentCallCodec = null;
             currentCallStartedTime = 0;
             currentCallInitiated = 0;
@@ -427,6 +443,11 @@ namespace SPIXI.VoIP
                 Logging.warn("rejectCall ignored: the call is already accepted (stale UI).");
                 return;
             }
+            /* ★ F5-1 r3 (#554, verdict R-2): a call the USER declined is not a missed
+             * call — they saw it and answered it with a decline. Without this flag the
+             * corrected A-1 predicate (answered || initiator) would fall to the re-post
+             * branch and put a "Missed call" row up AT the decline. */
+            currentCallDeclinedLocally = true;
             StreamProcessor.sendAppRequestReject(currentCallContact, session_id);
             endVoIPSession();
         }

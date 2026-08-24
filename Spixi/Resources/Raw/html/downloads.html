@@ -597,6 +597,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transition: opacity var(--duration-200) var(--easing-standard);
 }
 .c-scrim[data-open] { opacity: 1; }
+/* ★ Batch E (b) (#557, Damir 2026-08-22): the MOBILE scrim is one level deeper
+   (0.6 → 0.7) — the lifted message (#506②) reads better against the darker
+   ground. Desktop keeps 0.6 for its centred dialogs; anchored desktop menus
+   stay wash-free (#268, [data-dt-clear] below). */
+:root:not([data-desktop]) .c-scrim { background: var(--surface-scrim-deep); }
 
 /* —— bottom sheet (z-44) ————————————————————————————————————————————————
    ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
@@ -773,7 +778,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
 :root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
-:root[data-desktop] [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+/* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
+   highlight is RETUNED — the SELECTED tint read as a selection state on the
+   right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
+   the alpha recipe that lands one perceptual level on EVERY ground — the plain
+   press step is invisible on a card, the 5c-iii lesson), so the row reads as
+   "held", not "chosen".
+   ⚠ loop E-4 (r2): :not([aria-current]) is LOAD-BEARING — this (0,3,0) shorthand
+   would otherwise REPLACE the OPEN conversation's tonal selected paint (0,2,0)
+   in the desktop split view, visually deselecting the row under its own menu.
+   The selected row keeps its tonal; the wash marks only unselected sources. */
+:root[data-desktop] [data-dt-ctx-source]:not([aria-current]) { background: var(--surface-press-row-hover); border-radius: var(--radius-12); }
 /* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
 :root[data-desktop] .c-sheet[data-dt-anchor="up"] {
   right: auto; top: auto; margin: 0;
@@ -788,6 +803,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
 :root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+
+/* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
+   The message menu + the chats-row menu present as a DROPDOWN anchored to the
+   pressed row (desktop-anchors.js anchorSheetToRow sets the tag + inline
+   left/top/width). Placement prefers ABOVE the row, so the menu can never cover
+   the message it acts on — the 4.1 fix, structural. Everything else about the
+   overlay is UNCHANGED: same z-44 (above the z-42 lifted row, #506②), same scrim
+   (one level deeper here, (b) above), same focus/Esc/stack grammar, and the
+   `:not([data-open])` pointer-events rule still covers the fade windows.
+   Enter/exit = FADE IN PLACE (the desktop [data-dt-anchor] rule): a panel that
+   slid from the bottom edge to mid-screen would point at the wrong origin. */
+:root:not([data-desktop]) .c-sheet[data-m-anchor] {
+  left: auto; right: auto; bottom: auto;
+  margin: 0;
+  max-width: none;
+  border-radius: var(--radius-16);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-12);
+  /* ★ loop E-1 (r2): the dropdown must never leave the SAFE region or outgrow the
+     host — a menu taller than the screen with the body scroll locked is
+     unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
+     Island (the #288 inset class). The height cap makes the menu its own
+     scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
+  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  overflow-y: auto;
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
 </style><!-- c-modal (delete / clear-all confirm) -->
 <style data-src="../styles/components/search-field.css">
@@ -1028,61 +1073,26 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   text-align: center;
 }
 
-/* QR — behind a "Show QR" reveal since N86 ②; the receive-card pair (never
-   theme-flips, #137). align-self:center so the white card HUGS the code instead of
-   spanning the hero — chat-info parity, which is the disagreement #149③ recorded. */
-/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
-   this way on dark mode it's quite overpowering."
-
-   Measured before touching it, because HALF of that white is a standard, not a choice.
-   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
-   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
-   per side (the table below), and it is untouchable.
-
-   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
-   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
-   on scanning at all.
-
-   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
-   padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner.
-
-   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
-   comment carried three wrong ones. The method: run the SHIPPED encoder
-   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
-   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
-   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
-   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
-   is always 8 cells wider than the code:
-     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
-     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
-     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
-   A real Ixian address lands in the middle row.
-
-   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
-   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
-   is a different measurement, and it understates the loss by 41%.
-
-   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
-   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
-   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
-   removes nothing. The curve first touches the code corner when the quiet zone falls
-   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
-   make one.
-   ⚠ Raise this radius above 16px and re-do both comparisons. */
-.c-settings__qr {
-  display: flex;
-  justify-content: center;
-  align-self: center;
-  margin-top: var(--spacing-4);
-  border-radius: var(--radius-16);
-  background: var(--surface-qr);
-  box-shadow: var(--elevation-1);
-}
-
-/* N86 ②: the reveal row. Deliberately the SAME construction as
-   .c-chat-info__qr-toggle — the two surfaces disagreeing is what #149③ was. */
+/* QR — history of this block, kept visible (never deleted):
+   · #147 put the code on the hub; N86 ② (Damir) moved it behind a "Show QR" reveal
+     ("quite overpowering" in dark mode) and N86 ① dropped the 12px card padding
+     with the full measured-geometry argument (encoder-verified cell/quiet-zone
+     table, the radius-vs-quiet-zone corner arithmetic).
+   · ★ Batch E (d) (#557, Damir 2026-08-22 / #551) then removed the hub's OWN card
+     entirely: the row opens `openAddressSheet` — ONE address surface (#443/#453),
+     no second QR construction to drift (#149③'s defect class, retired here).
+   The N86 ① measured-geometry docblock + card now live in chat-info.css ONLY
+   (that surface keeps its inline reveal); the sheet's card geometry lives in
+   wallet-receive.css (.c-addr-sheet__qrcard — padding 0 per F5-5 ①, width by
+   min(), the same `quiet = 4` encoder floor pinned in qr.js). Re-measure THERE
+   if the payload or the encoder changes. */
+/* ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the hub renders NO QR card of its
+   own any more — the `.c-settings__qr` box is GONE. The "Show QR" row opens
+   `openAddressSheet` (wallet-receive.css owns that surface: .c-addr-sheet__qrcard,
+   padding 0 per F5-5 ①, the same measured-geometry rules the docblock above pins).
+   The row keeps N86's affordance position (under the address, action-tinted) and
+   the chevron is a STATIC chevron-right — it opens a dialog, it discloses nothing
+   in place, so the aria-expanded rotation went with the box. */
 .c-settings__qr-toggle {
   display: flex;
   align-items: center;
@@ -1099,12 +1109,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__qr-chevron {
   margin-inline-start: auto;
-  transition: transform var(--duration-200) var(--easing-standard);
 }
-.c-settings__qr-toggle[aria-expanded='true'] > .c-settings__qr-chevron {
-  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
-}
-.c-settings__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (receive-card family) — +25% with chat-info (Damir F5 2026-07-29) */
 
 .c-settings__address-row {
   display: flex;
@@ -1536,16 +1541,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-settings__switch, .c-settings__switch-knob { transition: none; }
 }
 
-/* #443: the "what is this address" explainer body — two short paragraphs, the second
-   quieter than the first (the promise, not the pitch). */
-.c-settings__addrinfo-body { display: flex; flex-direction: column; gap: var(--spacing-8); }
-.c-settings__addrinfo-body p {
-  margin: 0;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-}
-.c-settings__addrinfo-body p + p { color: var(--text-neutral-02); }
+/* #443's hand-built explainer body RETIRED by ★ Batch E (d) (#557, loop C-7): the
+   "What is this address?" action opens openAddressSheet now — the sheet carries
+   the explainer (.c-addr-sheet__info, wallet-receive.css). Dead rules removed;
+   they shipped inlined into every shell. */
 
 /* #453: the address explainer is a text action UNDER the address chip, not a third icon
    inside it. Centred with the QR and the chip above it. */

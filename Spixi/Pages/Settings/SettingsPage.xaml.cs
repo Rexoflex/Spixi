@@ -1124,6 +1124,12 @@ namespace SPIXI
             catch (Exception ex) { Logging.error("wipe: deleteWallet threw: " + ex); }
             try { IxianHandler.wallets.Clear(); } catch (Exception ex) { Logging.error("wipe: wallet list threw: " + ex); }
             try { IxianHandler.balances.Clear(); } catch (Exception ex) { Logging.error("wipe: balances threw: " + ex); }
+            /* ★ F5-3 r3 (#553, verdict R-3): the wipe hands the node BACK to the launch
+             * flow — reset the started-once marker so App.EnsureNodeRunning stays out
+             * of the post-wipe restore exactly as it stays out of a first boot. Without
+             * this the counter (process-lifetime) left the A-3 window open on the ONE
+             * path SettingsPage already names as the F-3 suspect. */
+            Node.startCounter = 0;
 
             // 5. every native preference — a fresh-install state
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }

@@ -13,7 +13,9 @@
  * gets a single "Cancel handshake" action instead — the row's only recovery path
  * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
  *
- * openChatRowMenu({ chat, host, onAction, strings, capabilities, handshaking }) → sheet
+ * openChatRowMenu({ chat, row, host, onAction, strings, capabilities, handshaking }) → sheet
+ *   row (★ Batch E (a), #557): the pressed row element — on mobile the menu
+ *   anchors to it (dropdown above the row); absent → bottom sheet, unchanged.
  *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
@@ -25,11 +27,12 @@ import { createModal, openModal } from './modal.js';
 import { createButton } from './button.js';
 import { closeChatRowSwipe } from './chats-swipe.js';
 import { isOverlayOpen } from './overlay.js';
+import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-export function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
+export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
@@ -65,6 +68,7 @@ export function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strin
     content.append(list);
     const sheet = createSheet({ content, host, strings });
     openSheet(sheet);
+    anchorSheetToRow(sheet, row, { host });   // ★ Batch E (a) (#557): mobile dropdown, above the row
     return sheet;
   }
 
@@ -95,10 +99,13 @@ export function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strin
      "TODO: notify the other party" — the peer is NOT told and their copy of the request
      stays until they act on it; the copy says exactly that. */
   if (capabilities.delete && chat.request) {
-    item('circle-x', strings.revokeRequest || 'Revoke request', () => {
+    /* ★ #562 (Damir 2026-08-25): HIDE, not revoke — non-destructive, plain ink.
+       The Friend record stays so a later accept completes; the flow's words say
+       exactly what happens. */
+    item('eye-off', strings.hideRequest || 'Hide request', () => {
       closeSheet(sheet);
       openRevokeRequestFlow({ chat, host, onAction, strings });
-    }, true);
+    });
   } else if (capabilities.delete) {
     item('trash', strings.deleteChat || 'Delete chat', () => {
       closeSheet(sheet);
@@ -109,6 +116,10 @@ export function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strin
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
+  /* ★ Batch E (a) (#557, Damir 2026-08-22): the chats-row menu anchors to the
+   * long-pressed row on mobile — same grammar as the message menu, one helper.
+   * A caller with no row element keeps the bottom sheet (fail-soft). */
+  anchorSheetToRow(sheet, row, { host });
   return sheet;
 }
 
@@ -390,25 +401,30 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
   }));
 }
 
-/** ★ B1: the revoke prompt for an outgoing pending contact request. Honest copy —
- *  the withdrawal is LOCAL (removeFriend); the peer keeps their copy of the request
- *  (no protocol withdraw verb — RC1, BE). onAction('revokeRequest') fires ONCE. */
+/** ★ B1's revoke prompt, REWRITTEN by ★ #562 (Damir 2026-08-25): HIDE, explained
+ *  with words. The removeFriend revoke destroyed the record a future accept needs
+ *  — Damir's repro: the peer accepted a revoked request and got a chat that could
+ *  never deliver (RC1's cost, now with evidence). Hiding keeps the Friend record
+ *  alive: the peer's accept completes and the chat resurrects (the #193 tombstone
+ *  evidence rule — the accept IS a newer message). Nothing here is destructive,
+ *  so nothing here is red. onAction('revokeRequest') keeps its id (plumbing);
+ *  BOTH surfaces (chats-list row + the chat waiting strip) open THIS flow. */
 export function openRevokeRequestFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-delete-chat';
   content.append(deletePeerHeader(chat, strings));
   const body = document.createElement('p');
   body.className = 'c-delete-chat__body';
-  body.textContent = strings.revokeRequestBody
-    || 'The request is withdrawn on this device and the chat is removed. They are not told: their copy of the request stays until they act on it.';
+  body.textContent = strings.hideRequestBody
+    || 'The chat is hidden from your list. They still see the request; if they accept it, the chat comes back.';
   content.append(body);
   let fired = false;
   openModal(createModal({
-    title: strings.revokeRequestTitle || 'Revoke the contact request?',
+    title: strings.hideRequestTitle || 'Hide this request?',
     content, role: 'alertdialog', host,
     actions: [
       { label: strings.keepContactRequest || 'Keep request', type: 'text', autofocus: true },
-      { label: strings.revokeRequestConfirm || 'Revoke', type: 'fill', intent: 'destructive',
+      { label: strings.hideRequestConfirm || 'Hide', type: 'fill',
         onClick: () => { if (fired) return; fired = true; if (onAction) onAction('revokeRequest'); } },
     ],
   }));
@@ -434,7 +450,7 @@ export function attachChatRowMenu(row, opts = {}) {
     timer = setTimeout(() => {
       timer = null;
       fired = true;
-      openChatRowMenu({ ...opts });
+      openChatRowMenu({ row, ...opts });
     }, CHATMENU_LONG_PRESS_MS);
   });
   row.addEventListener('pointermove', (e) => {
@@ -453,7 +469,7 @@ export function attachChatRowMenu(row, opts = {}) {
     if (fired) return;                          // Android fires contextmenu ≈ long-press (audit r3)
     cancel();
     fired = true;
-    openChatRowMenu({ ...opts });
+    openChatRowMenu({ row, ...opts });
   });
 
   // keyboard path to the context menu (a11y): the swipe accelerator is pointer-only,
@@ -464,7 +480,7 @@ export function attachChatRowMenu(row, opts = {}) {
       e.preventDefault();
       cancel();
       fired = false;                            // keyboard open ≠ a click to suppress
-      openChatRowMenu({ ...opts });
+      openChatRowMenu({ row, ...opts });
     }
   });
 }

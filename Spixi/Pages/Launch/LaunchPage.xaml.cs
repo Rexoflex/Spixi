@@ -537,14 +537,14 @@ namespace SPIXI
             {
                 Logging.error("Exception choosing file: " + ex.ToString());
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title"), SpixiLocalization._SL("intro-restore-file-selecterror-text"), SpixiLocalization._SL("global-dialog-ok"));
+                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file", SpixiLocalization._SL("intro-restore-file-selecterror-text") ?? "The file could not be selected. Try again, or copy the backup file to this device first.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                 return;
             }
 
             if (_data == null)
             {
-                await displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title"), SpixiLocalization._SL("intro-restore-file-readerror-text"), SpixiLocalization._SL("global-dialog-ok"));
+                await displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file", SpixiLocalization._SL("intro-restore-file-readerror-text") ?? "The file could not be read. Check that the backup file is complete, then try again.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
                 return;
             }
 
@@ -558,7 +558,7 @@ namespace SPIXI
             {
                 Logging.error("Exception caught in process: {0}", ex);
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title"), SpixiLocalization._SL("intro-restore-file-writeerror-text"), SpixiLocalization._SL("global-dialog-ok"));
+                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file", SpixiLocalization._SL("intro-restore-file-writeerror-text") ?? "The file could not be prepared. Check the free space on this device, then try again.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                 return;
             }
@@ -596,7 +596,7 @@ namespace SPIXI
             if(!File.Exists(source_path))
             {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title"), SpixiLocalization._SL("intro-restore-file-selecterror-text"), SpixiLocalization._SL("global-dialog-ok"));
+                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file", SpixiLocalization._SL("intro-restore-file-selecterror-text") ?? "The file could not be selected. Try again, or copy the backup file to this device first.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                 return false;
             }
@@ -637,6 +637,22 @@ namespace SPIXI
                 byte[] zipFileBytes = decrypted.Skip(header.Length).ToArray();
                 File.WriteAllBytes(source_path, zipFileBytes);
                 ZipFile.ExtractToDirectory(source_path, tmpDirectory);
+                /* ★ #565 (Damir, A2 walk): heal WINDOWS-MADE backups on Unix platforms.
+                 * BackupPage used to write zip entries with the PLATFORM separator, so a
+                 * backup made on the PC carries names like "Acc\xxx\file" — and
+                 * extraction on Android/iOS creates FILES with backslashes in the name
+                 * instead of the Acc tree. Rehome them so old backups restore fully. */
+                foreach (var strayFile in Directory.EnumerateFiles(tmpDirectory))
+                {
+                    string strayName = Path.GetFileName(strayFile);
+                    if (strayName.IndexOf('\\') <= 0)
+                    {
+                        continue;
+                    }
+                    string rehomed = Path.Combine(tmpDirectory, strayName.Replace('\\', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(rehomed));
+                    File.Move(strayFile, rehomed);
+                }
                 string tmpWalletFile = Path.Combine(tmpDirectory, Config.walletFile);
                 WalletStorage ws = new WalletStorage(tmpWalletFile);
                 if (!ws.verifyWallet(tmpWalletFile, pass))
@@ -647,8 +663,25 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "removeLoadingOverlay");
                     return false;
                 }
-                Directory.Delete(Path.Combine(Config.spixiUserFolder, "Acc"), true);
-                Directory.Move(Path.Combine(tmpDirectory, "Acc"), Path.Combine(Config.spixiUserFolder, "Acc"));
+                /* ★ #565: exists-guards. Directory.Delete THROWS on a missing folder, and
+                 * the delete-account wipe (or a fresh install) can leave no Acc — the throw
+                 * fell into the catch below and silently degraded the restore to
+                 * wallet-only (no contacts). Same guard on the zip side: a backup with no
+                 * Acc tree must not throw here (the header already proved the format). */
+                string accDest = Path.Combine(Config.spixiUserFolder, "Acc");
+                string accSrc = Path.Combine(tmpDirectory, "Acc");
+                if (Directory.Exists(accSrc))
+                {
+                    if (Directory.Exists(accDest))
+                    {
+                        Directory.Delete(accDest, true);
+                    }
+                    Directory.Move(accSrc, accDest);
+                }
+                else
+                {
+                    Logging.warn("restoreAccountFile: the backup carries NO Acc tree - contacts cannot restore from it");
+                }
 //                Directory.Delete(Path.Combine(Config.spixiUserFolder, "Chats"), true);
 //                Directory.Move(Path.Combine(tmpDirectory, "Chats"), Path.Combine(Config.spixiUserFolder, "Chats"));
                 if (File.Exists(Path.Combine(tmpDirectory, "account.ixi")))

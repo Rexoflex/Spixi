@@ -37,6 +37,32 @@ public class MainApplication : MauiApplication
 	 * Fenced: a throw here would take the whole app down before it started. */
 	public override void OnCreate()
 	{
+		/* ★ F5-2 (#555) — CRASH DIAGNOSTIC. Removing a bot group killed the app on
+		 * Android and ixian.log holds NOTHING (aftercrash.txt starts after the
+		 * restart). The AppDomain hook in App.xaml.cs sees only .NET exceptions.
+		 * This hook fires for exceptions unhandled on a thread WITH managed
+		 * frames, about to cross back to Java — a wider net than the AppDomain
+		 * hook — and it FLUSHES before the process dies, so the next log names
+		 * the stack. Honest limits (loop A-7): a pure Java-side throw with no
+		 * managed frame goes to Java's DefaultUncaughtExceptionHandler, not
+		 * here; a pure native crash (SIGSEGV) reaches no managed hook at all.
+		 * Both cases still need `adb logcat -d` (the handoff says so).
+		 * Registered first, before base.OnCreate, so it is alive for the whole
+		 * process life. Fenced: the diagnostic must not stop the boot. */
+		try
+		{
+			AndroidEnvironment.UnhandledExceptionRaiser += (sender, args) =>
+			{
+				try
+				{
+					IXICore.Meta.Logging.error("[CRASHDIAG] Android unhandled exception: " + args.Exception);
+					IXICore.Meta.Logging.flush();
+				}
+				catch (Exception) { }
+			};
+		}
+		catch (Exception) { }
+
 		try
 		{
 			int id = Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;

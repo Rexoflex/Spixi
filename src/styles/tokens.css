@@ -878,6 +878,11 @@
   /* scrim (keys have no alpha colors — value = grey-1000 #111213 @ 60%;
      plain rgba for conservative WebView baseline) */
   --surface-scrim: rgba(17, 18, 19, 0.6);
+  /* ★ Batch E (b) (#557, Damir 2026-08-22): ONE LEVEL DEEPER for the MOBILE overlay
+     scrim — the lift (#506②) stays, and the ground behind a long-press menu dims
+     70% instead of 60%. Consumed by overlay.css's .c-scrim on non-desktop only;
+     media tiles / the call stage keep --surface-scrim. Same grey-1000 base. */
+  --surface-scrim-deep: rgba(17, 18, 19, 0.7);
 
   /* hero gradient overlay (code-only: Figma variables can't hold gradients —
      lives as a fill on the hero components there). Usage:

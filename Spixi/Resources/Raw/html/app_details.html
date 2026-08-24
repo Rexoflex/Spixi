@@ -764,6 +764,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transition: opacity var(--duration-200) var(--easing-standard);
 }
 .c-scrim[data-open] { opacity: 1; }
+/* ★ Batch E (b) (#557, Damir 2026-08-22): the MOBILE scrim is one level deeper
+   (0.6 → 0.7) — the lifted message (#506②) reads better against the darker
+   ground. Desktop keeps 0.6 for its centred dialogs; anchored desktop menus
+   stay wash-free (#268, [data-dt-clear] below). */
+:root:not([data-desktop]) .c-scrim { background: var(--surface-scrim-deep); }
 
 /* —— bottom sheet (z-44) ————————————————————————————————————————————————
    ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
@@ -940,7 +945,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
 :root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
-:root[data-desktop] [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+/* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
+   highlight is RETUNED — the SELECTED tint read as a selection state on the
+   right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
+   the alpha recipe that lands one perceptual level on EVERY ground — the plain
+   press step is invisible on a card, the 5c-iii lesson), so the row reads as
+   "held", not "chosen".
+   ⚠ loop E-4 (r2): :not([aria-current]) is LOAD-BEARING — this (0,3,0) shorthand
+   would otherwise REPLACE the OPEN conversation's tonal selected paint (0,2,0)
+   in the desktop split view, visually deselecting the row under its own menu.
+   The selected row keeps its tonal; the wash marks only unselected sources. */
+:root[data-desktop] [data-dt-ctx-source]:not([aria-current]) { background: var(--surface-press-row-hover); border-radius: var(--radius-12); }
 /* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
 :root[data-desktop] .c-sheet[data-dt-anchor="up"] {
   right: auto; top: auto; margin: 0;
@@ -955,6 +970,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
 :root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+
+/* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
+   The message menu + the chats-row menu present as a DROPDOWN anchored to the
+   pressed row (desktop-anchors.js anchorSheetToRow sets the tag + inline
+   left/top/width). Placement prefers ABOVE the row, so the menu can never cover
+   the message it acts on — the 4.1 fix, structural. Everything else about the
+   overlay is UNCHANGED: same z-44 (above the z-42 lifted row, #506②), same scrim
+   (one level deeper here, (b) above), same focus/Esc/stack grammar, and the
+   `:not([data-open])` pointer-events rule still covers the fade windows.
+   Enter/exit = FADE IN PLACE (the desktop [data-dt-anchor] rule): a panel that
+   slid from the bottom edge to mid-screen would point at the wrong origin. */
+:root:not([data-desktop]) .c-sheet[data-m-anchor] {
+  left: auto; right: auto; bottom: auto;
+  margin: 0;
+  max-width: none;
+  border-radius: var(--radius-16);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-12);
+  /* ★ loop E-1 (r2): the dropdown must never leave the SAFE region or outgrow the
+     host — a menu taller than the screen with the body scroll locked is
+     unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
+     Island (the #288 inset class). The height cap makes the menu its own
+     scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
+  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  overflow-y: auto;
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
 </style><!-- c-modal (install confirm / uninstall / removed) -->
 <style data-src="../styles/components/toast.css">

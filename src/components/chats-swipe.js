@@ -40,6 +40,11 @@ export function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings 
   const leftEnabled = enabled(leftAction);
   const rightEnabled = enabled(rightAction);
   if (!leftEnabled && !rightEnabled) return rowEl;   // fully parked → no swipe wrapper
+  /* ★ #561 (Damir, screenshots 2026-08-25): NO swipe on DESKTOP — a mouse drag is
+   * not a swipe, the drawers misfired and stuck open there (his screenshot shows
+   * two rows stranded mid-reveal). Desktop keeps its own grammar: right-click
+   * menu (#268) + the long-press sheet path. Mobile is untouched. */
+  if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop')) return rowEl;
 
   const wrap = document.createElement('div');
   wrap.className = 'c-swipe';
@@ -85,7 +90,31 @@ export function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings 
   };
   const close = () => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; };
   const openTo = (x) => { closeCurrent(); setX(x, true); wrap.dataset.open = ''; currentClose = close; };
-  const fire = (action) => { setX(0, true); delete wrap.dataset.open; if (currentClose === close) currentClose = null; if (onAction) onAction(action); };
+  /* ★ #561 (Damir): SETTLE FIRST, then fire. onAction re-renders the list, and a
+   * re-render mid-spring tore the animation down — a hard-dragged row "just
+   * appears at its own position instantly". The spring runs to rest, THEN the
+   * action fires; transitionend is the signal, a timeout is the belt (reduced
+   * motion / a hidden row never fires transitionend). */
+  const fire = (action) => {
+    delete wrap.dataset.open;
+    if (currentClose === close) currentClose = null;
+    let done = false;
+    const go = (e) => {
+      /* r3 MINOR-1: transitionend BUBBLES — the row's own background/press fades
+       * (chatlist-item.css, base.css ::before) end mid-spring and would fire the
+       * action early, silently reproducing the abrupt snap. Only the CONTENT's
+       * transform ends the settle; the timeout belt passes no event. */
+      if (e && (e.target !== content || e.propertyName !== 'transform')) return;
+      if (done) return;
+      done = true;
+      content.removeEventListener('transitionend', go);
+      if (onAction) onAction(action);
+    };
+    if (!offset) { go(); return; }                 // already at rest — fire now
+    content.addEventListener('transitionend', go);
+    setTimeout(go, 280);                           // duration-200 + headroom
+    setX(0, true);
+  };
 
   content.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;

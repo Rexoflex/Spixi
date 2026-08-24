@@ -62,8 +62,8 @@ namespace SPIXI
         }
 
         /// <summary>
-        /// Leave ONE group (the #248 body: sendLeave + removeFriend) or a bot
-        /// (pendingDeletion + sendLeave). Returns false when the friend is not a group/bot.
+        /// Leave ONE group or bot — one grammar since #567: sendLeave, then
+        /// immediate removeFriend. Returns false when the friend is not a group/bot.
         /// </summary>
         public static bool leaveGroup(Friend group)
         {
@@ -71,17 +71,16 @@ namespace SPIXI
             {
                 return false;
             }
-            if (!group.bot)
-            {
-                CoreStreamProcessor.sendLeave(group, null);
-                FriendList.removeFriend(group);
-            }
-            else
-            {
-                group.pendingDeletion = true;
-                group.save();
-                CoreStreamProcessor.sendLeave(group, null);
-            }
+            /* ★ #567 (Damir: "mitigate"): bots take the GROUP grammar — sendLeave,
+             * then IMMEDIATE removeFriend. The old pendingDeletion-until-confirmed
+             * wait fed the server's `leaveConfirmed` into the frozen core's
+             * self-recursive `StreamClientManager.getClient` (BE §1e-6) = a
+             * deterministic StackOverflow crash. With the friend gone, core drops
+             * the confirm on its unknown-sender path — no crash, and the row
+             * disappears at once (the perception Damir wants). The core one-line
+             * fix may restore the acknowledged grammar later (BE row). */
+            CoreStreamProcessor.sendLeave(group, null);
+            FriendList.removeFriend(group);
             UIHelpers.shouldRefreshContacts = true;
             return true;
         }

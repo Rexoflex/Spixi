@@ -65,7 +65,7 @@ import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDis
 import { icon } from './icons.js';
 import { createContactRow, setContactRowChecked } from './contact-row.js';   // ★ W-j: the shared directory row
 import { attachAmountKeyboardDismiss } from './wallet-send.js';             // ★ W-k: Enter/Next/Go drops the keyboard
-import { discGrad } from './disc.js';
+// F5-5 ③ (#556): the discGrad import is gone with the explainer disc — one glyph level now
 
 /* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
  * the amount input and the W9 contact multi-select render open by default (no
@@ -497,15 +497,14 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
 
   /* the folded-in explainer (ONE surface — no second address-info sheet).
      EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
-     W-c: an info disc leads the block; the safety line carries the shield glyph. */
+     ★ F5-5 ③ (#556, Damir screenshot): the filled disc is GONE — "icon within
+     icon looks weird". ONE glyph level: a bare tinted info-circle leads the block. */
   const explain = document.createElement('div');
   explain.className = 'c-addr-sheet__explain';
   const disc = document.createElement('span');
-  disc.className = 'c-disc';
-  disc.dataset.hue = 'info';
-  disc.dataset.grad = String(discGrad('info-circle'));
+  disc.className = 'c-addr-sheet__explainicon';
   disc.setAttribute('aria-hidden', 'true');
-  disc.append(icon('info-circle', { size: 18 }));
+  disc.append(icon('info-circle', { size: 20 }));
   const explainText = document.createElement('div');
   explainText.className = 'c-addr-sheet__explaintext';
   const info = document.createElement('p');

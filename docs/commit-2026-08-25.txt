@@ -1,0 +1,19 @@
+# Run from the repo root (PowerShell). Never `git add -A`.
+# _deliveries/ is gitignored; _scratch/ is NOT - do not add it.
+
+git --no-optional-locks status
+
+# 1. the new/untracked files (docs only this batch - no new source files):
+git add docs/f5-checklist-2026-08-25-f5-batch-e.md docs/handoff-2026-08-26-morning.md
+git add docs/commit-2026-08-25.txt docs/commit-message-2026-08-25.txt
+git add docs/opus-review-brief-f5-batch-e.md docs/opus-review-verdict-f5-batch-e.md
+git add docs/opus-review-f5e-r1-cs.md docs/opus-review-f5e-r1-components.md docs/opus-review-f5e-r1-shells-pins.md
+
+# 2. the modified files (tracked - `-u` stages modifications only, nothing untracked):
+git add -u
+
+# 3. verify _scratch/ and _deliveries/ are NOT staged, then commit:
+git --no-optional-locks status
+git commit -F docs/commit-message-2026-08-25.txt
+
+# git push does NOT work from the bridge - push from your own shell.

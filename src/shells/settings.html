@@ -61,6 +61,7 @@
 <link rel="stylesheet" href="../styles/components/chat-flow.css"><!-- W5: Live flow canvas layer (preview + style swatch) -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
+<link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ Batch E (d) (#557): openAddressSheet (.c-addr-sheet / __qrcard) — unstyled here without it (the toast.css lesson) -->
 <style>
   /* Production shell: fill the WebView. Internal views (hub = root · danger /
      about / how-to = takeovers) swap client-side inside #settings-root.
@@ -188,7 +189,7 @@
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
-    createSheet, openSheet,          // #443: the "what is this address" explainer
+    openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
     applyPushedTheme,
@@ -523,6 +524,10 @@
     // survive in a live DOM until the next visit. Reached by a rail tab switch
     // (onExitRequest), the peer nav and hardware back.
     releaseEncpass();
+    // ★ Batch E (d) r2 (loop C-8): the address sheet must not outlive its screen
+    // (the wallet-receive rule) — and THIS document parks, so a stranded sheet
+    // would still be there on the next visit. Safe when nothing is open.
+    try { closeAddressSheet(); } catch (e) {}
     const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
     bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
   }
@@ -836,27 +841,16 @@
         exitSettings();
       },
 
-      /* ★ #443 (Damir V1): what IS this address. One sheet — the desktop overlay
-         grammar (#261 M6) renders every c-sheet as a centred dialog, so this is one
-         component, not a mobile/desktop fork.
-         ⚠ COPY IS A DRAFT — flagged for Damir's sign-off. It deliberately does NOT
-         claim the address hides anything: an Ixian address is public and its balance
-         is visible in any explorer, so the honest promise is about WALLET ACCESS. */
+      /* ★ #443, refolded by ★ Batch E (d) (#557): "What is this address?" opens the
+         SAME address sheet the Show-QR row opens — openAddressSheet already carries
+         the explainer copy (addressInfoBody + addressInfoSafety, EXACT keys), the
+         code, the full address and Share. ONE surface, two doors; the hand-built
+         second sheet this handler used to assemble is gone (#443/#453's point). */
       onAddressInfo: () => {
-        const body = document.createElement('div');
-        body.className = 'c-settings__addrinfo-body';
-        const p1 = document.createElement('p');
-        p1.textContent = strings.addressInfoBody
-          || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-        const p2 = document.createElement('p');
-        p2.textContent = strings.addressInfoSafety
-          || 'Sharing it is safe: it never gives anyone access to your wallet.';
-        body.append(p1, p2);
-        const sheet = createSheet({
-          content: body, host: document.body, strings,
-          title: strings.addressInfoTitle || 'Your Ixian address',
+        openAddressSheet({
+          address: state.address, strings, host: document.body,
+          onShare: isDesktop ? undefined : shareAddress,   // W9: desktop has no distinct share
         });
-        openSheet(sheet);
       },
 
       // About / How to use / Contributors — STATIC in-hub views, zero-C# (no bridge verb).

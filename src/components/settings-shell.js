@@ -31,9 +31,11 @@ import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
-import { createQrSvg } from './qr.js';
+// ★ Batch E (d) (#557): createQrSvg + overlayId left with the inline QR reveal —
+// the hub renders no code of its own now; openAddressSheet owns the surface
 import { createModal, openModal } from './modal.js';
-import { overlayId, setOverlayOpts, dismissOverlay } from './overlay.js';
+import { setOverlayOpts, dismissOverlay } from './overlay.js';
+import { openAddressSheet } from './wallet-receive.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 export const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
@@ -591,56 +593,34 @@ export function createSettingsHub({
       hero.append(info);
     }
 
-    /* ★ N86 ② — the QR is REVEALED, not resting on screen. It used to paint above
-     * the address on every visit to Account, and Damir's report was that it is
-     * "quite overpowering" in dark mode. The hub is not a surface people open to be
-     * scanned; they open it for a dozen unrelated reasons and paid the glare each
-     * time. #147 ruled "no reveal; scanning IS the add-me action" — that ruling
-     * holds where it was made (the wallet receive card, which exists to be held up),
-     * and this is a different surface.
-     *
-     * ★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE, which is what I proposed
-     * first: Damir objected that people may not realise a small code is tappable AND
-     * may simply try to scan it. The second objection decides it. ★ #46 loop: the
-     * numbers here are MEASURED with the shipped encoder over the real payload
-     * (`address + ':ixi'`), not estimated. At 185px the box is 41 cells for a real
-     * address (33 code modules + the 4-module quiet zone on each side), which is
-     * 4.51px per cell; the worst case in range is a 45-cell box at 4.11px. A phone
-     * camera that reads another phone's screen needs roughly 2px per module, so a
-     * "compact" QR lands at 82px to 90px — right at the edge. A QR that is visible
-     * but too small to scan is worse than no QR: it looks functional and is not. So
-     * the code opens at FULL size.
-     *
-     * ⚠ The affordance keeps the weight and the position the code had — directly
-     * under the address, and the address chip with copy and share stay visible
-     * always. A reveal that buries the action would re-break #147.
-     * ⚠ Placed LAST in the hero so opening it pushes nothing else around.
-     * ⚠ Same construction as chat-info's toggle, deliberately: the two surfaces
-     * disagreeing about the same code is exactly what #149③ recorded. */
+    /* ★ N86 ② superseded by ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the row
+     * no longer reveals an INLINE code — it opens `openAddressSheet`, the ONE
+     * address surface (wallet-receive.js, #527): full-size QR + full address +
+     * copy + Share + the "What is this address?" explainer, folded (#443/#453).
+     * N86's rulings carry over INTO that surface: the code stays behind an
+     * explicit affordance (never resting glare on the hub), it opens at full scan
+     * size (the sheet card is min(280px…) ≥ the measured 185px floor), and the
+     * address chip with copy/share stays visible always. The hub keeps NO second
+     * QR construction to drift against the sheet — #149③'s defect class, retired
+     * structurally. Same reuse the wallet Receive screen ships (#527); the
+     * Account screen was named there as the fold-in and this is that fold.
+     * ⚠ Placed LAST in the hero, directly under the address — #147's affordance
+     * position kept. Lazy by construction: the sheet builds on open. */
     const qrRow = document.createElement('button');
     qrRow.type = 'button';
     qrRow.className = 'c-settings__qr-toggle';
-    qrRow.setAttribute('aria-expanded', 'false');
+    qrRow.setAttribute('aria-haspopup', 'dialog');
     qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
-    const qrChev = icon('chevron-down', { size: 18 });
+    const qrChev = icon('chevron-right', { size: 18 });
     qrChev.classList.add('c-settings__qr-chevron');
     qrRow.append(qrChev);
-    const qrBox = document.createElement('div');
-    qrBox.className = 'c-settings__qr';
-    qrBox.hidden = true;
-    qrBox.id = overlayId('c-settings-qr');    // house id mint
-    qrRow.setAttribute('aria-controls', qrBox.id);
-    let qrBuilt = false;
     qrRow.addEventListener('click', () => {
-      const open = qrBox.hidden;
-      if (open && !qrBuilt) {                 // lazy: most visits never open it
-        qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
-        qrBuilt = true;
-      }
-      qrBox.hidden = !open;
-      qrRow.setAttribute('aria-expanded', String(open));
+      openAddressSheet({
+        address, strings, host,
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      });
     });
-    hero.append(qrRow, qrBox);
+    hero.append(qrRow);
   }
   body.append(hero);
 
